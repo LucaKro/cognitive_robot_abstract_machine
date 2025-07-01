@@ -71,7 +71,7 @@ class QPController:
     """
     Wraps around QP Solver. Builds the required matrices from constraints.
     """
-    qp_adapters: List[GiskardToQPAdapter]
+    qp_adapter: GiskardToQPAdapter
 
     @profile
     def __init__(self,
@@ -166,8 +166,7 @@ class QPController:
         self.free_variables = free_variables
         self.certain_free_variables = [x for x in free_variables if not x.is_base]
         self.uncertain_free_variables = [x for x in free_variables if x.is_base]
-        self.qp_adapters = []
-        self.qp_adapters.append(self.qp_solver.required_adapter_type(
+        self.qp_adapter = self.qp_solver.required_adapter_type(
             world_state_symbols=god_map.world.get_state_symbols(),
             task_life_cycle_symbols=god_map.motion_statechart_manager.task_state.get_life_cycle_state_symbols(),
             goal_life_cycle_symbols=god_map.motion_statechart_manager.goal_state.get_life_cycle_state_symbols(),
@@ -182,24 +181,7 @@ class QPController:
             prediction_horizon=self.prediction_horizon,
             max_derivative=self.max_derivative,
             horizon_weight_gain_scalar=self.horizon_weight_gain_scalar,
-            qp_formulation=self.qp_formulation))
-        if self.qp_formulation.double_qp:
-            self.qp_adapters.append(self.qp_solver.required_adapter_type(
-                world_state_symbols=god_map.world.get_state_symbols(),
-                task_life_cycle_symbols=god_map.motion_statechart_manager.task_state.get_life_cycle_state_symbols(),
-                goal_life_cycle_symbols=god_map.motion_statechart_manager.goal_state.get_life_cycle_state_symbols(),
-                external_collision_symbols=god_map.collision_scene.get_external_collision_symbol(),
-                self_collision_symbols=god_map.collision_scene.get_self_collision_symbol(),
-                free_variables=self.certain_free_variables,
-                equality_constraints=equality_constraints,
-                inequality_constraints=inequality_constraints,
-                derivative_constraints=derivative_constraints,
-                eq_derivative_constraints=eq_derivative_constraints,
-                mpc_dt=self.mpc_dt,
-                prediction_horizon=self.prediction_horizon,
-                max_derivative=self.max_derivative,
-                horizon_weight_gain_scalar=self.horizon_weight_gain_scalar,
-                qp_formulation=self.qp_formulation))
+            qp_formulation=self.qp_formulation)
 
         get_middleware().loginfo('Done compiling controller:')
         # get_middleware().loginfo(f'  #free variables: {self.num_free_variables}')
@@ -230,84 +212,38 @@ class QPController:
         Uses substitutions for each symbol to compute the next commands for each joint.
         """
         try:
-            qp_datas = [self.qp_adapters[0].evaluate(god_map.world.state.data,
-                                                     god_map.motion_statechart_manager.task_state.life_cycle_state,
-                                                     god_map.motion_statechart_manager.goal_state.life_cycle_state,
-                                                     god_map.collision_scene.get_external_collision_data(),
-                                                     god_map.collision_scene.get_self_collision_data(),
-                                                     symbol_manager)]
-            if not self.qp_formulation.double_qp:
-                self.xdot_full = self.qp_solver.solver_call(qp_datas[0])
-                if self.qp_formulation.is_implicit:
-                    return NextCommands.from_xdot_implicit(self.free_variables,
-                                                           self.xdot_full,
-                                                           self.max_derivative,
-                                                           self.prediction_horizon,
-                                                           god_map.world,
-                                                           self.mpc_dt)
-                elif self.qp_formulation.is_explicit or not self.qp_formulation.is_mpc:
-                    return NextCommands.from_xdot(self.free_variables,
-                                                  self.xdot_full,
-                                                  self.max_derivative,
-                                                  self.prediction_horizon)
-                else:
-                    return NextCommands.from_xdot_explicit_no_acc(self.free_variables,
-                                                                  self.xdot_full,
-                                                                  self.max_derivative,
-                                                                  self.prediction_horizon,
-                                                                  god_map.world,
-                                                                  self.mpc_dt)
-            qp_datas.append(self.qp_adapters[1].evaluate(god_map.world.state.data,
-                                                         god_map.motion_statechart_manager.task_state.life_cycle_state,
-                                                         god_map.motion_statechart_manager.goal_state.life_cycle_state,
-                                                         god_map.collision_scene.get_external_collision_data(),
-                                                         god_map.collision_scene.get_self_collision_data(),
-                                                         symbol_manager))
-            xdots = self.qp_solver.solver_call_batch(qp_datas)
-
-            # self._create_debug_pandas(self.qp_solver)
-            next_commands = []
-            for i in range(len(self.qp_adapters)):
-                if isinstance(xdots[i], Exception):
-                    if i == 0:
-                        raise xdots[i]
-                    continue
-                if self.qp_formulation.is_implicit:
-                    next_commands.append(NextCommands.from_xdot_implicit(self.free_variables if i==0 else self.certain_free_variables,
-                                                                         xdots[i],
-                                                                         self.max_derivative,
-                                                                         self.prediction_horizon,
-                                                                         god_map.world,
-                                                                         self.mpc_dt))
-                elif self.qp_formulation.is_explicit or not self.qp_formulation.is_mpc:
-                    next_commands.append(NextCommands.from_xdot(self.free_variables if i==0 else self.certain_free_variables,
-                                                                xdots[i],
-                                                                self.max_derivative,
-                                                                self.prediction_horizon))
-                else:
-                    next_commands.append(NextCommands.from_xdot_explicit_no_acc(self.free_variables if i==0 else self.certain_free_variables,
-                                                                                xdots[i],
-                                                                                self.max_derivative,
-                                                                                self.prediction_horizon,
-                                                                                god_map.world,
-                                                                                self.mpc_dt))
-
-            if next_commands[0].are_uncertain_variables_needed(self.free_variables):
-                # print('on')
-                return next_commands[0]
-            for v in self.uncertain_free_variables:
-                last_state = god_map.world.state[v.name]
-                next_commands[1].free_variable_data[v.name] = [0.0,
-                                                               0.0,
-                                                               -last_state[1]/self.mpc_dt**2-last_state[2]/self.mpc_dt]
-            # print('off')
-            return next_commands[1]
+            qp_data = self.qp_adapter.evaluate(god_map.world.state.data,
+                                               god_map.motion_statechart_manager.task_state.life_cycle_state,
+                                               god_map.motion_statechart_manager.goal_state.life_cycle_state,
+                                               god_map.collision_scene.get_external_collision_data(),
+                                               god_map.collision_scene.get_self_collision_data(),
+                                               symbol_manager)
+            self.xdot_full = self.qp_solver.solver_call(qp_data)
+            if self.qp_formulation.is_implicit:
+                return NextCommands.from_xdot_implicit(self.free_variables,
+                                                       self.xdot_full,
+                                                       self.max_derivative,
+                                                       self.prediction_horizon,
+                                                       god_map.world,
+                                                       self.mpc_dt)
+            elif self.qp_formulation.is_explicit or not self.qp_formulation.is_mpc:
+                return NextCommands.from_xdot(self.free_variables,
+                                              self.xdot_full,
+                                              self.max_derivative,
+                                              self.prediction_horizon)
+            else:
+                return NextCommands.from_xdot_explicit_no_acc(self.free_variables,
+                                                              self.xdot_full,
+                                                              self.max_derivative,
+                                                              self.prediction_horizon,
+                                                              god_map.world,
+                                                              self.mpc_dt)
 
         except InfeasibleException as e_original:
             self.xdot_full = None
             self._create_debug_pandas()
             self._has_nan()
-            self._print_iis()
+            # self._print_iis()
             if isinstance(e_original, HardConstraintsViolatedException):
                 raise
             self.xdot_full = None
@@ -315,12 +251,12 @@ class QPController:
             raise
 
     def _has_nan(self):
-        nan_entries = self.p_A.isnull().stack()
+        nan_entries = self.p_A[0].isnull().stack()
         row_col_names = nan_entries[nan_entries].index.tolist()
         pass
 
     def _are_hard_limits_violated(self, error_message):
-        self._create_debug_pandas(self.qp_solver)
+        self._create_debug_pandas()
         try:
             lower_violations = self.p_lb[self.qp_solver.lb_filter]
             upper_violations = self.p_ub[self.qp_solver.ub_filter]
@@ -406,106 +342,86 @@ class QPController:
         plt.savefig(file_name)
 
     @profile
-    def _create_debug_pandas(self, xdots: List[np.ndarray]) -> None:
+    def _create_debug_pandas(self) -> None:
         import pandas as pd
 
-        # Initialize pandas DataFrames as empty lists before the loop
-        self.p_debug = {}
-        self.p_weights = {}
-        self.p_g = {}
-        self.p_lb = {}
-        self.p_ub = {}
-        self.p_b = {}
-        self.p_bE_raw = {}
-        self.p_bE = {}
-        self.p_lbA_raw = {}
-        self.p_lbA = {}
-        self.p_ubA_raw = {}
-        self.p_ubA = {}
-        self.p_bA_raw = {}
-        self.p_bA = {}
-        self.p_E = {}
-        self.p_A = {}
-        self.p_xdot = {}
-        self.p_pure_xdot = {}
-        self.p_Ax = {}
-        self.p_Ex = {}
+        qp_data: QPData = self.qp_adapter.qp_data_raw
+        free_variable_names = self.qp_adapter.free_variable_bounds.names
+        equality_constr_names = self.qp_adapter.equality_bounds.names
+        inequality_constr_names = self.qp_adapter.inequality_bounds.names
+        num_vel_constr = len(self.qp_adapter.derivative_constraints) * (self.qp_adapter.prediction_horizon - 2)
+        num_eq_vel_constr = len(self.qp_adapter.eq_derivative_constraints) * (self.qp_adapter.prediction_horizon - 2)
+        num_neq_constr = len(self.qp_adapter.inequality_constraints)
+        num_eq_constr = len(self.qp_adapter.equality_constraints)
+        num_constr = num_vel_constr + num_neq_constr + num_eq_constr + num_eq_vel_constr
 
-        for idx, xdot in enumerate(self.qp_adapters):
-            adapter = self.qp_adapters[idx]
-            qp_data: QPData = adapter.qp_data_raw
-            free_variable_names = adapter.free_variable_bounds.names
-            equality_constr_names = adapter.equality_bounds.names
-            inequality_constr_names = adapter.inequality_bounds.names
-            num_vel_constr = len(adapter.derivative_constraints) * (adapter.prediction_horizon - 2)
-            num_eq_vel_constr = len(adapter.eq_derivative_constraints) * (adapter.prediction_horizon - 2)
-            num_neq_constr = len(adapter.inequality_constraints)
-            num_eq_constr = len(adapter.equality_constraints)
-            num_constr = num_vel_constr + num_neq_constr + num_eq_constr + num_eq_vel_constr
+        self.p_weights = pd.DataFrame(qp_data.quadratic_weights, free_variable_names, ['data'], dtype=float)
+        self.p_g = pd.DataFrame(qp_data.linear_weights, free_variable_names, ['data'], dtype=float)
+        self.p_lb = pd.DataFrame(qp_data.box_lower_constraints, free_variable_names, ['data'], dtype=float)
+        self.p_ub = pd.DataFrame(qp_data.box_upper_constraints, free_variable_names, ['data'], dtype=float)
+        self.p_b = pd.DataFrame({'lb': qp_data.box_lower_constraints, 'ub': qp_data.box_upper_constraints},
+                                free_variable_names, dtype=float)
+        if len(qp_data.eq_bounds) > 0:
+            self.p_bE_raw = pd.DataFrame(qp_data.eq_bounds, equality_constr_names, ['data'], dtype=float)
+            self.p_bE = deepcopy(self.p_bE_raw)
+            self.p_bE[len(self.qp_adapter.equality_bounds.names_derivative_links):] /= self.mpc_dt
+        else:
+            self.p_bE = pd.DataFrame()
+        if len(qp_data.neq_lower_bounds) > 0:
+            self.p_lbA_raw = pd.DataFrame(qp_data.neq_lower_bounds, inequality_constr_names, ['data'],
+                                          dtype=float)
+            self.p_lbA = deepcopy(self.p_lbA_raw)
+            self.p_lbA /= self.qp_adapter.mpc_dt
 
-            self.p_weights[idx] = pd.DataFrame(qp_data.quadratic_weights, free_variable_names, ['data'], dtype=float)
-            self.p_g[idx] = pd.DataFrame(qp_data.linear_weights, free_variable_names, ['data'], dtype=float)
-            self.p_lb[idx] = pd.DataFrame(qp_data.box_lower_constraints, free_variable_names, ['data'], dtype=float)
-            self.p_ub[idx] = pd.DataFrame(qp_data.box_upper_constraints, free_variable_names, ['data'], dtype=float)
-            self.p_b[idx] = pd.DataFrame({'lb': qp_data.box_lower_constraints, 'ub': qp_data.box_upper_constraints},
-                                    free_variable_names, dtype=float)
-            if len(qp_data.eq_bounds) > 0:
-                self.p_bE_raw[idx] = pd.DataFrame(qp_data.eq_bounds, equality_constr_names, ['data'], dtype=float)
-                self.p_bE[idx] = deepcopy(self.p_bE_raw[idx])
-                self.p_bE[idx][len(adapter.equality_bounds.names_derivative_links):] /= self.mpc_dt
-            else:
-                self.p_bE[idx] = pd.DataFrame()
-            if len(qp_data.neq_lower_bounds) > 0:
-                self.p_lbA_raw[idx] = pd.DataFrame(qp_data.neq_lower_bounds, inequality_constr_names, ['data'], dtype=float)
-                self.p_lbA[idx] = deepcopy(self.p_lbA_raw[idx])
-                self.p_lbA[idx] /= adapter.mpc_dt
+            self.p_ubA_raw = pd.DataFrame(qp_data.neq_upper_bounds, inequality_constr_names, ['data'],
+                                          dtype=float)
+            self.p_ubA = deepcopy(self.p_ubA_raw)
+            self.p_ubA /= self.qp_adapter.mpc_dt
 
-                self.p_ubA_raw[idx] = pd.DataFrame(qp_data.neq_upper_bounds, inequality_constr_names, ['data'], dtype=float)
-                self.p_ubA[idx] = deepcopy(self.p_ubA_raw[idx])
-                self.p_ubA[idx] /= adapter.mpc_dt
+            self.p_bA_raw = pd.DataFrame({'lbA': qp_data.neq_lower_bounds, 'ubA': qp_data.neq_upper_bounds},
+                                         inequality_constr_names, dtype=float)
+            self.p_bA = deepcopy(self.p_bA_raw)
+            self.p_bA /= self.qp_adapter.mpc_dt
+        else:
+            self.p_lbA = pd.DataFrame()
+            self.p_ubA = pd.DataFrame()
+        # remove sample period factor
+        if len(qp_data.dense_eq_matrix) > 0:
+            self.p_E = pd.DataFrame(qp_data.dense_eq_matrix, equality_constr_names, free_variable_names,
+                                    dtype=float)
+        else:
+            self.p_E = pd.DataFrame()
+        if len(qp_data.dense_neq_matrix) > 0:
+            self.p_A = pd.DataFrame(qp_data.dense_neq_matrix, inequality_constr_names, free_variable_names,
+                                    dtype=float)
+        else:
+            self.p_A = pd.DataFrame()
+        self.p_xdot = None
+        if self.xdot_full is not None:
+            xdot_full = np.ones(qp_data.zero_quadratic_weight_filter.shape) * np.nan
+            xdot_full[qp_data.zero_quadratic_weight_filter] = self.xdot_full
+            self.p_xdot = pd.DataFrame(xdot_full, free_variable_names, ['data'], dtype=float)
+            self.p_b['xdot'] = self.p_xdot
+            self.p_b = self.p_b[['lb', 'xdot', 'ub']]
+            self.p_pure_xdot = deepcopy(self.p_xdot)
+            self.p_pure_xdot[-num_constr:] = 0
+            # self.p_Ax = pd.DataFrame(self.p_A.dot(self.p_xdot), self.inequality_constr_names, ['data'], dtype=float)
+            if len(self.p_A) > 0:
+                self.p_Ax = pd.DataFrame(self.p_A.dot(self.p_pure_xdot), inequality_constr_names,
+                                         ['data'], dtype=float)
+            else:
+                self.p_Ax = pd.DataFrame()
+            # self.p_Ax_without_slack = deepcopy(self.p_Ax_without_slack_raw)
+            # self.p_Ax_without_slack[-num_constr:] /= self.sample_period
+            if len(self.p_E) > 0:
+                self.p_Ex = pd.DataFrame(self.p_E.dot(self.p_pure_xdot), equality_constr_names,
+                                         ['data'], dtype=float)
+            else:
+                self.p_Ex = pd.DataFrame()
 
-                self.p_bA_raw[idx] = pd.DataFrame({'lbA': qp_data.neq_lower_bounds, 'ubA': qp_data.neq_upper_bounds},
-                                             inequality_constr_names, dtype=float)
-                self.p_bA[idx] = deepcopy(self.p_bA_raw[idx])
-                self.p_bA[idx] /= adapter.mpc_dt
-            else:
-                self.p_lbA[idx] = pd.DataFrame()
-                self.p_ubA[idx] = pd.DataFrame()
-            # remove sample period factor
-            if len(qp_data.dense_eq_matrix) > 0:
-                self.p_E[idx] = pd.DataFrame(qp_data.dense_eq_matrix, equality_constr_names, free_variable_names,
-                                        dtype=float)
-            else:
-                self.p_E[idx] = pd.DataFrame()
-            if len(qp_data.dense_neq_matrix) > 0:
-                self.p_A[idx] = pd.DataFrame(qp_data.dense_neq_matrix, inequality_constr_names, free_variable_names,
-                                        dtype=float)
-            else:
-                self.p_A[idx] = pd.DataFrame()
-            self.p_xdot[idx] = None
-            if xdots[idx] is not None:
-                self.p_xdot[idx] = pd.DataFrame(xdots[idx], free_variable_names, ['data'], dtype=float)
-                self.p_b[idx]['xdot'] = self.p_xdot[idx]
-                self.p_b[idx] = self.p_b[idx][['lb', 'xdot', 'ub']]
-                self.p_pure_xdot[idx] = deepcopy(self.p_xdot[idx])
-                self.p_pure_xdot[idx][-num_constr:] = 0
-                # self.p_Ax[idx] = pd.DataFrame(self.p_A[idx].dot(self.p_xdot[idx]), self.inequality_constr_names, ['data'], dtype=float)
-                if len(self.p_A[idx]) > 0:
-                    self.p_Ax[idx] = pd.DataFrame(self.p_A[idx].dot(self.p_pure_xdot[idx]), inequality_constr_names,
-                                             ['data'], dtype=float)
-                else:
-                    self.p_Ax[idx] = pd.DataFrame()
-                # self.p_Ax_without_slack[idx] = deepcopy(self.p_Ax_without_slack_raw[idx])
-                # self.p_Ax_without_slack[idx][-num_constr:] /= self.sample_period
-                if len(self.p_E[idx]) > 0:
-                    self.p_Ex[idx] = pd.DataFrame(self.p_E[idx].dot(self.p_pure_xdot[idx]), equality_constr_names,
-                                             ['data'], dtype=float)
-                else:
-                    self.p_Ex[idx] = pd.DataFrame()
-    
-            else:
-                self.p_xdot[idx] = None
-            self.p_debug[idx] = god_map.debug_expression_manager.to_pandas()
+        else:
+            self.p_xdot = None
+        self.p_debug = god_map.debug_expression_manager.to_pandas()
 
     def _print_iis(self):
         import pandas as pd

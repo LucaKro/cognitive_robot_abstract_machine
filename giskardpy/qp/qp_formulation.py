@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 
 @dataclass
 class QPFormulation:
-    double_qp: bool = field(default=False)
     is_mpc: bool = field(default=True)
     has_explicit_pos_limits: bool = field(default=False)
     has_explicit_acc_variables: bool = field(default=False)
