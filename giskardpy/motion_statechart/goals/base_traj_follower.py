@@ -1,6 +1,6 @@
 from __future__ import division
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import Derivatives, PrefixName
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.god_map import god_map
@@ -59,7 +59,7 @@ class BaseTrajFollower(Goal):
         else:
             y = 0
         rot = self.current_traj_point(self.joint.yaw.name, t_in_s, derivative)
-        odom_T_base_footprint_goal = cas.TransMatrix.from_xyz_rpy(x=x, y=y, yaw=rot)
+        odom_T_base_footprint_goal = cas.TransformationMatrix.from_xyz_rpy(x=x, y=y, yaw=rot)
         return odom_T_base_footprint_goal
 
     @profile

@@ -3,7 +3,7 @@ from typing import Optional, Dict, Tuple
 import numpy as np
 from line_profiler import profile
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import ObservationState
 from giskardpy.god_map import god_map
 from giskardpy.middleware import get_middleware

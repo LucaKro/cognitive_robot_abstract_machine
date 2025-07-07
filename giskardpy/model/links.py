@@ -10,16 +10,16 @@ from giskardpy.middleware import get_middleware
 from giskardpy.model.utils import cube_volume, cube_surface, sphere_volume, cylinder_volume, cylinder_surface
 from giskardpy.data_types.data_types import PrefixName, ColorRGBA
 from giskardpy.utils.utils import get_file_hash
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 class LinkGeometry:
-    link_T_geometry: cas.TransMatrix
+    link_T_geometry: cas.TransformationMatrix
     color: ColorRGBA
 
-    def __init__(self, link_T_geometry: Optional[cas.TransMatrix] = None, color: Optional[ColorRGBA] = None):
+    def __init__(self, link_T_geometry: Optional[cas.TransformationMatrix] = None, color: Optional[ColorRGBA] = None):
         self.color = color or ColorRGBA(20 / 255, 27.1 / 255, 80 / 255, 0.2)
-        self.link_T_geometry = link_T_geometry or cas.TransMatrix()
+        self.link_T_geometry = link_T_geometry or cas.TransformationMatrix()
 
     def to_hash(self) -> str:
         return ''
@@ -31,9 +31,9 @@ class LinkGeometry:
     def from_urdf(cls, urdf_thing: up.Collision, color: ColorRGBA) -> LinkGeometry:
         urdf_geometry = urdf_thing.geometry
         if urdf_thing.origin is None:
-            link_T_geometry = cas.TransMatrix()
+            link_T_geometry = cas.TransformationMatrix()
         else:
-            link_T_geometry = cas.TransMatrix.from_xyz_rpy(0, 0, 0, *urdf_thing.origin.rpy)
+            link_T_geometry = cas.TransformationMatrix.from_xyz_rpy(0, 0, 0, *urdf_thing.origin.rpy)
             link_T_geometry[0, 3] = urdf_thing.origin.xyz[0]
             link_T_geometry[1, 3] = urdf_thing.origin.xyz[1]
             link_T_geometry[2, 3] = urdf_thing.origin.xyz[2]
@@ -68,7 +68,7 @@ class LinkGeometry:
 class MeshGeometry(LinkGeometry):
     def __init__(self,
                  file_name: str,
-                 link_T_geometry: Optional[cas.TransMatrix] = None,
+                 link_T_geometry: Optional[cas.TransformationMatrix] = None,
                  color: Optional[ColorRGBA] = None,
                  scale: Optional[Tuple[float, float, float]] = None):
         super().__init__(link_T_geometry, color)
@@ -109,7 +109,7 @@ class BoxGeometry(LinkGeometry):
                  depth: float,
                  width: float,
                  height: float,
-                 link_T_geometry: Optional[cas.TransMatrix] = None,
+                 link_T_geometry: Optional[cas.TransformationMatrix] = None,
                  color: Optional[ColorRGBA] = None):
         super().__init__(link_T_geometry, color)
         self.depth = depth
@@ -131,7 +131,7 @@ class CylinderGeometry(LinkGeometry):
     def __init__(self,
                  height: float,
                  radius: float,
-                 link_T_geometry: Optional[cas.TransMatrix] = None,
+                 link_T_geometry: Optional[cas.TransformationMatrix] = None,
                  color: Optional[ColorRGBA] = None):
         super().__init__(link_T_geometry, color)
         self.height = height
@@ -151,7 +151,7 @@ class CylinderGeometry(LinkGeometry):
 class SphereGeometry(LinkGeometry):
     def __init__(self,
                  radius: float,
-                 link_T_geometry: Optional[cas.TransMatrix] = None,
+                 link_T_geometry: Optional[cas.TransformationMatrix] = None,
                  color: Optional[ColorRGBA] = None):
         super().__init__(link_T_geometry, color)
         self.radius = radius

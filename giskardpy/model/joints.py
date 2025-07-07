@@ -8,7 +8,7 @@ from typing import Tuple, Optional, List, Union, Type
 import numpy as np
 import urdf_parser_py.urdf as up
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import derivative_map, PrefixName, Derivatives
 from giskardpy.god_map import god_map
 from giskardpy.qp.free_variable import FreeVariable
@@ -86,7 +86,7 @@ def urdf_to_joint(urdf_joint: up.Joint, prefix: str) \
         translation_offset = [0, 0, 0]
     if rotation_offset is None:
         rotation_offset = [0, 0, 0]
-    parent_T_child = cas.TransMatrix.from_xyz_rpy(x=translation_offset[0],
+    parent_T_child = cas.TransformationMatrix.from_xyz_rpy(x=translation_offset[0],
                                                   y=translation_offset[1],
                                                   z=translation_offset[2],
                                                   roll=rotation_offset[0],
@@ -135,7 +135,7 @@ class Joint(ABC):
     name: PrefixName
     parent_link_name: PrefixName
     child_link_name: PrefixName
-    parent_T_child: cas.TransMatrix
+    parent_T_child: cas.TransformationMatrix
 
     def __str__(self) -> str:
         return f'{self.name}: {self.parent_link_name}<-{self.child_link_name}'
@@ -173,11 +173,11 @@ class FixedJoint(Joint):
                  name: PrefixName,
                  parent_link_name: PrefixName,
                  child_link_name: PrefixName,
-                 parent_T_child: Optional[cas.TransMatrix] = None):
+                 parent_T_child: Optional[cas.TransformationMatrix] = None):
         self.name = name
         self.parent_link_name = parent_link_name
         self.child_link_name = child_link_name
-        self.parent_T_child = parent_T_child or cas.TransMatrix()
+        self.parent_T_child = parent_T_child or cas.TransformationMatrix()
 
 
 class Joint6DOF(Joint, VirtualFreeVariables):
@@ -203,13 +203,13 @@ class Joint6DOF(Joint, VirtualFreeVariables):
                                          self.qy.get_symbol(Derivatives.position),
                                          self.qz.get_symbol(Derivatives.position),
                                          self.qw.get_symbol(Derivatives.position))).to_rotation_matrix()
-        self.parent_T_child = cas.TransMatrix.from_point_rotation_matrix(parent_P_child, parent_R_child)
+        self.parent_T_child = cas.TransformationMatrix.from_point_rotation_matrix(parent_P_child, parent_R_child)
         self.virtual_free_variables = [self.x, self.y, self.z, self.qx, self.qy, self.qz, self.qw]
 
     def update_state(self, dt: float) -> None:
         pass
 
-    def update_transform(self, parent_T_child: cas.TransMatrix) -> None:
+    def update_transform(self, parent_T_child: cas.TransformationMatrix) -> None:
         position = parent_T_child.to_position().to_np()
         orientation = parent_T_child.to_rotation().to_quaternion().to_np()
         god_map.world.state[self.x.name].position = position[0]
@@ -235,14 +235,14 @@ class OneDofJoint(MovableJoint):
                  axis: Tuple[float, float, float],
                  lower_limits: derivative_map,
                  upper_limits: derivative_map,
-                 parent_T_child: Optional[cas.TransMatrix] = None,
+                 parent_T_child: Optional[cas.TransformationMatrix] = None,
                  multiplier: Optional[float] = None,
                  offset: Optional[float] = None):
         self.name = name
         self.parent_link_name = parent_link_name
         self.child_link_name = child_link_name
-        self.parent_T_child = parent_T_child or cas.TransMatrix()
-        self.original_parent_T_child = cas.TransMatrix(self.parent_T_child)
+        self.parent_T_child = parent_T_child or cas.TransformationMatrix()
+        self.original_parent_T_child = cas.TransformationMatrix(self.parent_T_child)
         if multiplier is None:
             self.multiplier = 1
         else:
@@ -280,7 +280,7 @@ class RevoluteJoint(OneDofJoint):
                  axis: Tuple[float, float, float],
                  lower_limits: derivative_map,
                  upper_limits: derivative_map,
-                 parent_T_child: Optional[cas.TransMatrix] = None,
+                 parent_T_child: Optional[cas.TransformationMatrix] = None,
                  multiplier: float = 1,
                  offset: float = 0):
         super().__init__(name=name,
@@ -296,7 +296,7 @@ class RevoluteJoint(OneDofJoint):
         motor_expression = self.free_variable.get_symbol(Derivatives.position) * self.multiplier + self.offset
         rotation_axis = cas.Vector3(self.axis)
         parent_R_child = cas.RotationMatrix.from_axis_angle(rotation_axis, motor_expression)
-        self.parent_T_child = self.parent_T_child.dot(cas.TransMatrix(parent_R_child))
+        self.parent_T_child = self.parent_T_child.dot(cas.TransformationMatrix(parent_R_child))
 
 
 class PrismaticJoint(OneDofJoint):
@@ -309,7 +309,7 @@ class PrismaticJoint(OneDofJoint):
                  axis: Tuple[float, float, float],
                  lower_limits: derivative_map,
                  upper_limits: derivative_map,
-                 parent_T_child: Optional[cas.TransMatrix] = None,
+                 parent_T_child: Optional[cas.TransformationMatrix] = None,
                  multiplier: float = 1,
                  offset: float = 0):
         super().__init__(name=name,
@@ -324,7 +324,7 @@ class PrismaticJoint(OneDofJoint):
                          offset=offset)
         motor_expression = self.free_variable.get_symbol(Derivatives.position) * self.multiplier + self.offset
         translation_axis = cas.Vector3(self.axis) * motor_expression
-        parent_T_child = cas.TransMatrix.from_xyz_rpy(x=translation_axis[0],
+        parent_T_child = cas.TransformationMatrix.from_xyz_rpy(x=translation_axis[0],
                                                       y=translation_axis[1],
                                                       z=translation_axis[2])
         self.parent_T_child = self.parent_T_child.dot(parent_T_child)
@@ -386,12 +386,12 @@ class OmniDrive(MovableJoint, VirtualFreeVariables):
         self.create_parent_T_child()
 
     def create_parent_T_child(self) -> None:
-        odom_T_bf = cas.TransMatrix.from_xyz_rpy(x=self.x.get_symbol(Derivatives.position),
+        odom_T_bf = cas.TransformationMatrix.from_xyz_rpy(x=self.x.get_symbol(Derivatives.position),
                                                  y=self.y.get_symbol(Derivatives.position),
                                                  yaw=self.yaw.get_symbol(Derivatives.position))
-        bf_T_bf_vel = cas.TransMatrix.from_xyz_rpy(x=self.x_vel.get_symbol(Derivatives.position),
+        bf_T_bf_vel = cas.TransformationMatrix.from_xyz_rpy(x=self.x_vel.get_symbol(Derivatives.position),
                                                    y=self.y_vel.get_symbol(Derivatives.position))
-        bf_vel_T_bf = cas.TransMatrix.from_xyz_rpy(x=0,
+        bf_vel_T_bf = cas.TransformationMatrix.from_xyz_rpy(x=0,
                                                    y=0,
                                                    z=self.z.get_symbol(Derivatives.position),
                                                    roll=self.roll.get_symbol(Derivatives.position),
@@ -425,7 +425,7 @@ class OmniDrive(MovableJoint, VirtualFreeVariables):
         self.free_variables = [self.x_vel, self.y_vel, self.yaw]
         self.virtual_free_variables = [self.x, self.y, self.z, self.roll, self.pitch]
 
-    def update_transform(self, new_parent_T_child: cas.TransMatrix) -> None:
+    def update_transform(self, new_parent_T_child: cas.TransformationMatrix) -> None:
         position = new_parent_T_child.to_position()
         roll, pitch, yaw = new_parent_T_child.to_rotation().to_rpy()
         god_map.world.state[self.x.name].position = position.x.to_np()
@@ -492,10 +492,10 @@ class DiffDrive(MovableJoint, VirtualFreeVariables):
         self.create_parent_T_child()
 
     def create_parent_T_child(self) -> None:
-        odom_T_bf = cas.TransMatrix.from_xyz_rpy(x=self.x.get_symbol(Derivatives.position),
+        odom_T_bf = cas.TransformationMatrix.from_xyz_rpy(x=self.x.get_symbol(Derivatives.position),
                                                  y=self.y.get_symbol(Derivatives.position),
                                                  yaw=self.yaw.get_symbol(Derivatives.position))
-        bf_T_bf_vel = cas.TransMatrix.from_xyz_rpy(x=self.x_vel.get_symbol(Derivatives.position))
+        bf_T_bf_vel = cas.TransformationMatrix.from_xyz_rpy(x=self.x_vel.get_symbol(Derivatives.position))
         self.parent_T_child = cas.dot(odom_T_bf, bf_T_bf_vel)
 
     def create_free_variables(self) -> None:
@@ -518,7 +518,7 @@ class DiffDrive(MovableJoint, VirtualFreeVariables):
         self.free_variables = [self.x_vel, self.yaw]
         self.virtual_free_variables = [self.x, self.y, self.z, self.roll, self.pitch]
 
-    def update_transform(self, new_parent_T_child: cas.TransMatrix) -> None:
+    def update_transform(self, new_parent_T_child: cas.TransformationMatrix) -> None:
         position = new_parent_T_child.to_position()
         roll, pitch, yaw = new_parent_T_child.to_rotation().to_rpy()
         god_map.world.state[self.x.name].position = position.x
@@ -631,17 +631,17 @@ class OmniDrivePR22(MovableJoint, VirtualFreeVariables):
     @profile
     def create_parent_T_child(self) -> None:
         hack = symbol_manager.hack
-        odom_T_bf = cas.TransMatrix.from_xyz_rpy(x=self.x.get_symbol(Derivatives.position),
+        odom_T_bf = cas.TransformationMatrix.from_xyz_rpy(x=self.x.get_symbol(Derivatives.position),
                                                  y=self.y.get_symbol(Derivatives.position),
                                                  )
         yaw1 = self.yaw1_vel.get_symbol(Derivatives.position)
         forward = self.forward_vel.get_symbol(Derivatives.position)
         yaw2 = self.yaw.get_symbol(Derivatives.position)
-        a = cas.TransMatrix.from_xyz_rpy(yaw=yaw1)
-        b = cas.TransMatrix.from_xyz_rpy(x=forward * hack)
-        # c = cas.TransMatrix.from_xyz_rpy(x=-forward)
-        d = cas.TransMatrix.from_xyz_rpy(yaw=-yaw1)
-        z = cas.TransMatrix.from_xyz_rpy(x=0,
+        a = cas.TransformationMatrix.from_xyz_rpy(yaw=yaw1)
+        b = cas.TransformationMatrix.from_xyz_rpy(x=forward * hack)
+        # c = cas.TransformationMatrix.from_xyz_rpy(x=-forward)
+        d = cas.TransformationMatrix.from_xyz_rpy(yaw=-yaw1)
+        z = cas.TransformationMatrix.from_xyz_rpy(x=0,
                                          y=0,
                                          z=self.z.get_symbol(Derivatives.position),
                                          roll=self.roll.get_symbol(Derivatives.position),
@@ -672,7 +672,7 @@ class OmniDrivePR22(MovableJoint, VirtualFreeVariables):
         # state[self.yaw_name].velocity = total_yaw_velocity
         # state[self.yaw_name].position += total_yaw_velocity * dt
 
-    def update_transform(self, new_parent_T_child: cas.TransMatrix) -> None:
+    def update_transform(self, new_parent_T_child: cas.TransformationMatrix) -> None:
         position = new_parent_T_child.to_position()
         roll, pitch, yaw = new_parent_T_child.to_rotation().to_rpy()
         god_map.world.state[self.x.name].position = position.x
@@ -690,7 +690,7 @@ class PR2CasterJoint(MovableJoint):
                  parent_link_name: PrefixName,
                  child_link_name: PrefixName,
                  axis: Tuple[float, float, float],
-                 parent_T_child: cas.TransMatrix,
+                 parent_T_child: cas.TransformationMatrix,
                  lower_limits: derivative_map,
                  upper_limits: derivative_map,
                  multiplier: Optional[float] = None,
@@ -730,7 +730,7 @@ class PR2CasterJoint(MovableJoint):
 
         rotation_axis = cas.Vector3(self.axis)
         parent_R_child = cas.RotationMatrix.from_axis_angle(rotation_axis, steer_angle_desired)
-        parent_T_child = cas.TransMatrix(parent_R_child)
+        parent_T_child = cas.TransformationMatrix(parent_R_child)
         self.parent_T_child = self.parent_T_child.dot(parent_T_child)
 
     @staticmethod
@@ -753,7 +753,7 @@ class JustinTorso(Joint):
                  parent_link_name: PrefixName,
                  child_link_name: PrefixName,
                  axis: Tuple[float, float, float],
-                 parent_T_child: cas.TransMatrix,
+                 parent_T_child: cas.TransformationMatrix,
                  q1: FreeVariable,
                  q2: FreeVariable):
         self.parent_T_child = parent_T_child
@@ -768,4 +768,4 @@ class JustinTorso(Joint):
 
         rotation_axis = cas.Vector3(self.axis)
         parent_R_child = cas.RotationMatrix.from_axis_angle(rotation_axis, self.q3)
-        self.parent_T_child = self.parent_T_child.dot(cas.TransMatrix(parent_R_child))
+        self.parent_T_child = self.parent_T_child.dot(cas.TransformationMatrix(parent_R_child))

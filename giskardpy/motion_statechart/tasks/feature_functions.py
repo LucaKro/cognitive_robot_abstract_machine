@@ -2,7 +2,7 @@ from __future__ import division
 
 from typing import Optional, Union
 
-from giskardpy import casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import PrefixName, ColorRGBA
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA, Task

@@ -4,7 +4,7 @@ from typing import Optional, List
 
 import numpy as np
 
-from giskardpy import casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import Derivatives, ColorRGBA, PrefixName
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.god_map import god_map
@@ -45,7 +45,7 @@ class DiffDriveBaseGoal(Goal):
     def __init__(self,
                  root_link: PrefixName,
                  tip_link: PrefixName,
-                 goal_pose: cas.TransMatrix,
+                 goal_pose: cas.TransformationMatrix,
                  max_linear_velocity: float = 0.1,
                  max_angular_velocity: float = 0.5,
                  weight: float = WEIGHT_ABOVE_CA,
@@ -180,7 +180,7 @@ class CartesianPoseStraight(Goal):
     def __init__(self,
                  root_link: PrefixName,
                  tip_link: PrefixName,
-                 goal_pose: cas.TransMatrix,
+                 goal_pose: cas.TransformationMatrix,
                  reference_linear_velocity: Optional[float] = None,
                  reference_angular_velocity: Optional[float] = None,
                  weight: float = WEIGHT_ABOVE_CA,
@@ -215,8 +215,8 @@ class CartesianPoseStraight(Goal):
 
 class RelativePositionSequence(Goal):
     def __init__(self,
-                 goal1: cas.TransMatrix,
-                 goal2: cas.TransMatrix,
+                 goal1: cas.TransformationMatrix,
+                 goal2: cas.TransformationMatrix,
                  root_link: PrefixName,
                  tip_link: PrefixName,
                  name: Optional[str] = None):

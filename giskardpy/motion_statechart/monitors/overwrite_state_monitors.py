@@ -2,7 +2,7 @@ from __future__ import division
 
 from typing import Dict, Optional
 
-from giskardpy import casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.monitors.monitors import PayloadMonitor
 from giskardpy.god_map import god_map
 from giskardpy.data_types.exceptions import GoalInitalizationException
@@ -45,7 +45,7 @@ class SetOdometry(PayloadMonitor):
     odom_joints = (OmniDrive, DiffDrive, OmniDrivePR22)
 
     def __init__(self,
-                 base_pose: cas.TransMatrix,
+                 base_pose: cas.TransformationMatrix,
                  group_name: Optional[str] = None,
                  name: Optional[str] = None):
         self.group_name = group_name

@@ -9,7 +9,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.motion_statechart.tasks.task import WEIGHT_ABOVE_CA
 from giskardpy.god_map import god_map
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 class GraspSequence(Goal):
@@ -17,7 +17,7 @@ class GraspSequence(Goal):
                  tip_link: PrefixName,
                  root_link: PrefixName,
                  gripper_joint: str,
-                 goal_pose: cas.TransMatrix,
+                 goal_pose: cas.TransformationMatrix,
                  max_velocity: float = 100,
                  weight: float = WEIGHT_ABOVE_CA,
                  name: Optional[str] = None):

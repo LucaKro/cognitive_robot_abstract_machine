@@ -1,6 +1,6 @@
 from typing import Optional
 
-from giskardpy import casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA, Task
@@ -60,7 +60,7 @@ class PrePushDoor(Goal):
                                                            door_V_v2,
                                                            door_V_v1)
 
-        root_P_nearest_in_rotated_door = cas.dot(cas.TransMatrix(root_T_door), cas.Point3(door_P_nearest))
+        root_P_nearest_in_rotated_door = cas.dot(cas.TransformationMatrix(root_T_door), cas.Point3(door_P_nearest))
 
         god_map.debug_expression_manager.add_debug_expression('goal_point_on_plane',
                                                               cas.Point3(root_P_nearest_in_rotated_door))

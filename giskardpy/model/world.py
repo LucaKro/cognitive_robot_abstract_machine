@@ -12,8 +12,7 @@ from typing import Dict, Union, Tuple, Set, Optional, List, Callable, Sequence, 
 import giskardpy.utils.math as mymath
 import numpy as np
 import urdf_parser_py.urdf as up
-from giskardpy import casadi_wrapper as cas
-from giskardpy.casadi_wrapper import CompiledFunction
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import JointStates, ColorRGBA
 from giskardpy.data_types.data_types import PrefixName, Derivatives, derivative_map
 from giskardpy.data_types.exceptions import DuplicateNameException, UnknownGroupException, UnknownLinkException, \
@@ -613,7 +612,7 @@ class WorldTree(WorldTreeInterface):
                  urdf: str,
                  group_name: Optional[str] = None,
                  parent_link_name: Optional[PrefixName] = None,
-                 pose: Optional[cas.TransMatrix] = None,
+                 pose: Optional[cas.TransformationMatrix] = None,
                  actuated: bool = False):
         """
         Add a urdf to the world at parent_link_name and create a SubWorldTree named group_name for it.
@@ -687,7 +686,7 @@ class WorldTree(WorldTreeInterface):
 
     @modifies_world
     def add_fixed_joint(self, parent_link: Link, child_link: Link, joint_name: Optional[PrefixName] = None,
-                        transform: Optional[cas.TransMatrix] = None) -> None:
+                        transform: Optional[cas.TransformationMatrix] = None) -> None:
         self._raise_if_link_does_not_exist(parent_link.name)
         self._raise_if_link_does_not_exist(child_link.name)
         if joint_name is None:
@@ -917,7 +916,7 @@ class WorldTree(WorldTreeInterface):
         new_parent_link = self.links[new_parent_link_name]
 
         if isinstance(joint, FixedJoint):
-            fk = cas.TransMatrix(self.compute_fk_np(new_parent_link_name, joint.child_link_name))
+            fk = cas.TransformationMatrix(self.compute_fk_np(new_parent_link_name, joint.child_link_name))
             joint.parent_link_name = new_parent_link_name
             joint.parent_T_child = fk
         elif isinstance(joint, Joint6DOF):
@@ -1156,14 +1155,14 @@ class WorldTree(WorldTreeInterface):
 
     @copy_memoize
     @profile
-    def compose_fk_expression(self, root_link: PrefixName, tip_link: PrefixName) -> cas.TransMatrix:
+    def compose_fk_expression(self, root_link: PrefixName, tip_link: PrefixName) -> cas.TransformationMatrix:
         """
         Multiplies all transformation matrices in the chain between root_link and tip_link
         :param root_link:
         :param tip_link:
         :return: 4x4 homogenous transformation matrix
         """
-        fk = cas.TransMatrix()
+        fk = cas.TransformationMatrix()
         root_chain, _, tip_chain = self.compute_split_chain(root_link, tip_link, add_joints=True, add_links=False,
                                                             add_fixed_joints=True, add_non_controlled_joints=True)
         for joint_name in root_chain:
@@ -1195,8 +1194,8 @@ class WorldTree(WorldTreeInterface):
                                     self.joint_velocity_symbols)
 
     @copy_memoize
-    def compute_fk(self, root_link: PrefixName, tip_link: PrefixName) -> cas.TransMatrix:
-        result = cas.TransMatrix(self.compute_fk_np(root_link, tip_link))
+    def compute_fk(self, root_link: PrefixName, tip_link: PrefixName) -> cas.TransformationMatrix:
+        result = cas.TransformationMatrix(self.compute_fk_np(root_link, tip_link))
         result.reference_frame = root_link
         result.child_frame = tip_link
         return result
@@ -1220,14 +1219,14 @@ class WorldTree(WorldTreeInterface):
     def init_all_fks(self):
         class ExpressionCompanion(TravelCompanion):
             idx_start: Dict[PrefixName, int]
-            compiled_collision_fks: CompiledFunction
-            compiled_all_fks: CompiledFunction
+            compiled_collision_fks: cas.CompiledFunction
+            compiled_all_fks: cas.CompiledFunction
             fks: np.ndarray
-            fks_exprs: Dict[PrefixName, cas.TransMatrix]
+            fks_exprs: Dict[PrefixName, cas.TransformationMatrix]
 
             def __init__(self, world: WorldTree):
                 self.world = world
-                self.fks_exprs = {self.world.root_link_name: cas.TransMatrix()}
+                self.fks_exprs = {self.world.root_link_name: cas.TransformationMatrix()}
                 self.tf = OrderedDict()
 
             @profile
@@ -1300,7 +1299,7 @@ class WorldTree(WorldTreeInterface):
         return self._fk_computer.compute_fk_np(root, tip)
 
     @profile
-    def compose_fk_evaluated_expression(self, root: PrefixName, tip: PrefixName) -> cas.TransMatrix:
+    def compose_fk_evaluated_expression(self, root: PrefixName, tip: PrefixName) -> cas.TransformationMatrix:
         result = symbol_manager.register_transformation_matrix(f'fk_{root}-{tip}',
                                                                provider=lambda r=root, t=tip: self.compute_fk_np(root, tip))
         result.reference_frame = root
@@ -1342,7 +1341,7 @@ class WorldTree(WorldTreeInterface):
         ...
 
     @overload
-    def transform(self, target_frame: PrefixName, geometric_cas_object: cas.TransMatrix) -> cas.TransMatrix:
+    def transform(self, target_frame: PrefixName, geometric_cas_object: cas.TransformationMatrix) -> cas.TransformationMatrix:
         ...
 
     @overload
@@ -1582,7 +1581,7 @@ class WorldBranch(WorldTreeInterface):
         return unmovable_links
 
     @property
-    def base_pose(self) -> cas.TransMatrix:
+    def base_pose(self) -> cas.TransformationMatrix:
         return self.world.compute_fk(self.world.root_link_name, self.root_link_name)
 
     def reset_cache(self):
@@ -1647,11 +1646,11 @@ class WorldBranch(WorldTreeInterface):
 
         return helper(self.root_link)
 
-    def compute_fk_pose(self, root: PrefixName, tip: PrefixName) -> cas.TransMatrix:
+    def compute_fk_pose(self, root: PrefixName, tip: PrefixName) -> cas.TransformationMatrix:
         return self.world.compute_fk(root, tip)
 
     def compute_fk_pose_with_collision_offset(self, root: PrefixName, tip: PrefixName, collision_id: int) \
-            -> cas.TransMatrix:
+            -> cas.TransformationMatrix:
         return self.world.compute_fk_with_collision_offset_np(root, tip, collision_id)
 
     def is_link_controlled(self, link_name: PrefixName) -> bool:

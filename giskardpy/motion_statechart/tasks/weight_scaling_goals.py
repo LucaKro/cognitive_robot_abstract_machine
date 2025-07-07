@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict
 
-from giskardpy import casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.god_map import god_map
 from giskardpy.data_types.data_types import Derivatives
 from collections import defaultdict

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import List, Union, Optional, Callable, Dict, DefaultDict
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.god_map import god_map
 from giskardpy.data_types.data_types import Derivatives, PrefixName
 from giskardpy.qp.free_variable import FreeVariable

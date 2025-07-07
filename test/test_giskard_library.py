@@ -1,6 +1,6 @@
 from itertools import combinations
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 import numpy as np
 import pytest
 import urdf_parser_py.urdf as up
@@ -561,13 +561,13 @@ class TestController:
         init = 'init'
         g1 = 'g1'
         g2 = 'g2'
-        init_goal1 = cas.TransMatrix(reference_frame=PrefixName('map'))
+        init_goal1 = cas.TransformationMatrix(reference_frame=PrefixName('map'))
         init_goal1.x = -0.5
 
-        base_goal1 = cas.TransMatrix(reference_frame=PrefixName('map'))
+        base_goal1 = cas.TransformationMatrix(reference_frame=PrefixName('map'))
         base_goal1.x = 1.0
 
-        base_goal2 = cas.TransMatrix(reference_frame=PrefixName('map'))
+        base_goal2 = cas.TransformationMatrix(reference_frame=PrefixName('map'))
         base_goal2.x = -1.0
 
         giskard_pr2.monitors.add_set_seed_odometry(base_pose=init_goal1, name=init)

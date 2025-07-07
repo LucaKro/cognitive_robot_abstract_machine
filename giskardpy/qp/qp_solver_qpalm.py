@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import qpalm
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import QPSolverException, InfeasibleException, HardConstraintsViolatedException
 from giskardpy.qp.qp_adapter import QPData, GiskardToExplicitQPAdapter, GiskardToTwoSidedNeqQPAdapter
 from giskardpy.qp.qp_solver import QPSolver

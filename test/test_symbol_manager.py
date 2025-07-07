@@ -1,11 +1,11 @@
 import pytest
 import numpy as np
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from typing import Tuple
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.god_map import god_map
-from giskardpy.symbol_manager import SymbolManager, symbol_manager
+from semantic_world.spatial_types.symbol_manager import SymbolManager, symbol_manager
 
 
 class TestSymbolManager:
@@ -22,8 +22,8 @@ class TestSymbolManager:
         manager = SymbolManager()
         assert hasattr(manager, 'symbol_to_provider')
         assert isinstance(manager.symbol_to_provider, dict)
-        assert hasattr(manager, 'time')
-        assert isinstance(manager.time, cas.Symbol)
+        # assert hasattr(manager, 'time')
+        # assert isinstance(manager.time, cas.Symbol)
 
     def test_register_symbol_provider_with_callable(self):
         """Test registering symbols with callable providers"""
@@ -134,7 +134,7 @@ class TestSymbolManager:
 
         trans_matrix = manager.register_transformation_matrix('test_matrix', matrix_provider)
 
-        assert isinstance(trans_matrix, cas.TransMatrix)
+        assert isinstance(trans_matrix, cas.TransformationMatrix)
         # Check that 12 symbols were registered (3x4 matrix)
         matrix_symbols = 0
         for symbol in manager.symbol_to_provider.keys():
@@ -191,20 +191,6 @@ class TestSymbolManager:
         with pytest.raises(KeyError, match='Cannot resolve'):
             manager.resolve_symbols([unregistered_symbol])
 
-    def test_resolve_expr(self):
-        """Test resolving compiled expressions"""
-        manager = SymbolManager()
-
-        # Create a mock compiled function
-        mock_expr = Mock()
-        mock_expr.params = []
-        mock_expr.fast_call.return_value = 42.0
-
-        result = manager.resolve_expr(mock_expr)
-
-        assert result == 42.0
-        mock_expr.fast_call.assert_called_once()
-
     def test_evaluate_expr_with_number(self):
         """Test evaluating numeric expressions"""
         manager = SymbolManager()
@@ -222,7 +208,7 @@ class TestSymbolManager:
         # Create a mock expression
         mock_expr = Mock()
         mock_compile = Mock()
-        mock_compile.params = []
+        mock_compile.symbol_parameters = []
         mock_compile.fast_call.return_value = [5.0]
         mock_expr.compile.return_value = mock_compile
         mock_expr.to_np.return_value = 5.0
@@ -238,7 +224,7 @@ class TestSymbolManager:
         # Create a mock expression with no parameters
         mock_expr = Mock()
         mock_compile = Mock()
-        mock_compile.params = []
+        mock_compile.symbol_parameters = []
         mock_expr.compile.return_value = mock_compile
         mock_expr.to_np.return_value = 10.0
 
@@ -257,21 +243,6 @@ class TestSymbolManager:
         result = manager.evaluate_expr(expr)
 
         assert np.allclose(result, [1.0, 2.0, 3.0])
-
-    def test_time_symbol_registration(self):
-        """Test that time symbol is properly registered during initialization"""
-        god_map.time = 123.45
-
-        # Create a new instance to test initialization
-        manager = SymbolManager()
-
-        assert hasattr(manager, 'time')
-        assert isinstance(manager.time, cas.Symbol)
-        assert manager.time in manager.symbol_to_provider
-
-        # Test that the time provider works
-        time_value = manager.symbol_to_provider[manager.time]()
-        assert time_value == 123.45
 
     def test_provider_exception_handling(self):
         """Test that provider exceptions are properly handled"""

@@ -12,7 +12,7 @@ from giskardpy.model.links import Link
 from giskardpy.model.utils import robot_name_from_urdf_string
 from giskardpy.model.world import WorldTree
 from giskardpy.data_types.data_types import my_string, PrefixName, Derivatives, derivative_map, ColorRGBA
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 class WorldConfig(ABC):
@@ -117,7 +117,7 @@ class WorldConfig(ABC):
         """
         if homogenous_transform is None:
             homogenous_transform = np.eye(4)
-        homogenous_transform = cas.TransMatrix(homogenous_transform)
+        homogenous_transform = cas.TransformationMatrix(homogenous_transform)
         parent_link = self.world.search_for_link_name(parent_link)
 
         child_link = PrefixName.from_string(child_link, set_none_if_no_slash=True)

@@ -3,7 +3,7 @@ from typing import Dict, Callable, Type, Optional, overload, Union, Iterable, Tu
 import numpy as np
 from line_profiler.explicit_profiler import profile
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GiskardException
 from giskardpy.god_map import god_map
 from giskardpy.utils.singleton import SingletonMeta
@@ -68,7 +68,7 @@ class SymbolManager(metaclass=SingletonMeta):
                                        provider: Callable[[], Tuple[Tuple[float, float, float, float],
                                                                     Tuple[float, float, float, float],
                                                                     Tuple[float, float, float, float]]]) \
-            -> cas.TransMatrix:
+            -> cas.TransformationMatrix:
         symbols = []
         for row in range(3):
             symbols.append([])
@@ -76,7 +76,7 @@ class SymbolManager(metaclass=SingletonMeta):
                 symbols[row].append(self.register_symbol_provider(f'{name}[{row},{col}]',
                                                                   lambda r=row, c=col: provider()[r][c]))
         symbols.append([0,0,0,1])
-        root_T_tip = cas.TransMatrix(symbols)
+        root_T_tip = cas.TransformationMatrix(symbols)
         return root_T_tip
 
     @profile

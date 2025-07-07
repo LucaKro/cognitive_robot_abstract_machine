@@ -3,7 +3,7 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import Derivatives, PrefixName
 from giskardpy.god_map import god_map
 from giskardpy.symbol_manager import symbol_manager

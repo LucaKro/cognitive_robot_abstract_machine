@@ -7,7 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Tuple, List, Union, Dict, TYPE_CHECKING, DefaultDict, Optional
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 import giskardpy.utils.math as giskard_math
 import numpy as np
 from giskardpy.data_types.data_types import Derivatives

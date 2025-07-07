@@ -4,20 +4,20 @@ from giskardpy.model.trajectory import Trajectory
 from giskardpy.model.world_config import WorldWithOmniDriveRobot
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.user_interface import GiskardWrapper
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 def execute_cart_goal(giskard: GiskardWrapper) -> Trajectory:
     init = 'init'
     g1 = 'g1'
     g2 = 'g2'
-    init_goal1 = cas.TransMatrix(reference_frame=PrefixName('map'))
+    init_goal1 = cas.TransformationMatrix(reference_frame=PrefixName('map'))
     init_goal1.x = -0.5
 
-    base_goal1 = cas.TransMatrix(reference_frame=PrefixName('map'))
+    base_goal1 = cas.TransformationMatrix(reference_frame=PrefixName('map'))
     base_goal1.x = 1.0
 
-    base_goal2 = cas.TransMatrix(reference_frame=PrefixName('map'))
+    base_goal2 = cas.TransformationMatrix(reference_frame=PrefixName('map'))
     base_goal2.x = -1.0
 
     giskard.monitors.add_set_seed_odometry(base_pose=init_goal1, name=init)

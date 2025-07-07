@@ -1,6 +1,6 @@
 from typing import Union, Optional
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import MonitorInitalizationException
 from giskardpy.god_map import god_map
 from giskardpy.middleware import get_middleware

@@ -8,7 +8,7 @@ import numpy as np
 from hypothesis import given, assume, settings
 
 import giskardpy.utils.math as giskard_math
-from giskardpy import casadi_wrapper as cas
+from semantic_world.spatial_types import spatial_types as cas
 from giskardpy.qp import pos_in_vel_limits as cas2
 from giskardpy.utils.utils_for_tests import float_no_nan_no_inf, unit_vector, quaternion, vector, \
     lists_of_same_length, random_angle, compare_axis_angle, angle_positive, sq_matrix, \
@@ -328,7 +328,7 @@ class TestRotationMatrix(unittest.TestCase):
         r = cas.RotationMatrix.from_rpy(1, 2, s)
         r = cas.RotationMatrix.from_rpy(1, 2, 3)
         assert isinstance(r, cas.RotationMatrix)
-        t = cas.TransMatrix.from_xyz_rpy(1, 2, 3)
+        t = cas.TransformationMatrix.from_xyz_rpy(1, 2, 3)
         r = cas.RotationMatrix(t)
         assert t[0, 3].to_np() == 1
 
@@ -505,7 +505,7 @@ class TestTransformationMatrix(unittest.TestCase):
            float_no_nan_no_inf(),
            float_no_nan_no_inf())
     def test_translation3(self, x, y, z):
-        r1 = cas.compile_and_execute(cas.TransMatrix.from_xyz_rpy, [x, y, z])
+        r1 = cas.compile_and_execute(cas.TransformationMatrix.from_xyz_rpy, [x, y, z])
         r2 = np.identity(4)
         r2[0, 3] = x
         r2[1, 3] = y
@@ -514,19 +514,19 @@ class TestTransformationMatrix(unittest.TestCase):
 
     def test_dot(self):
         s = cas.Symbol('x')
-        m1 = cas.TransMatrix()
-        m2 = cas.TransMatrix.from_xyz_rpy(x=s)
+        m1 = cas.TransformationMatrix()
+        m2 = cas.TransformationMatrix.from_xyz_rpy(x=s)
         m1.dot(m2)
 
     def test_TransformationMatrix(self):
-        f = cas.TransMatrix.from_xyz_rpy(1, 2, 3)
-        assert isinstance(f, cas.TransMatrix)
+        f = cas.TransformationMatrix.from_xyz_rpy(1, 2, 3)
+        assert isinstance(f, cas.TransformationMatrix)
 
     @given(st.integers(min_value=1, max_value=10))
     def test_matrix(self, x_dim):
         data = list(range(x_dim))
         with self.assertRaises(ValueError):
-            cas.TransMatrix(data)
+            cas.TransformationMatrix(data)
 
     @given(st.integers(min_value=1, max_value=10),
            st.integers(min_value=1, max_value=10))
@@ -534,9 +534,9 @@ class TestTransformationMatrix(unittest.TestCase):
         data = [[i + (j * x_dim) for j in range(y_dim)] for i in range(x_dim)]
         if x_dim != 4 or y_dim != 4:
             with self.assertRaises(ValueError):
-                m = cas.TransMatrix(data).to_np()
+                m = cas.TransformationMatrix(data).to_np()
         else:
-            m = cas.TransMatrix(data).to_np()
+            m = cas.TransformationMatrix(data).to_np()
             self.assertEqual(float(m[3, 0]), 0)
             self.assertEqual(float(m[3, 1]), 0)
             self.assertEqual(float(m[3, 2]), 0)
@@ -552,7 +552,7 @@ class TestTransformationMatrix(unittest.TestCase):
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        r = cas.compile_and_execute(lambda x, y, z, axis, angle: cas.TransMatrix.from_point_rotation_matrix(
+        r = cas.compile_and_execute(lambda x, y, z, axis, angle: cas.TransformationMatrix.from_point_rotation_matrix(
             cas.Point3((x, y, z)),
             cas.RotationMatrix.from_axis_angle(axis, angle)),
                                     [x, y, z, axis, angle])
@@ -569,7 +569,7 @@ class TestTransformationMatrix(unittest.TestCase):
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        np.testing.assert_array_almost_equal(cas.compile_and_execute(cas.TransMatrix.from_xyz_rpy,
+        np.testing.assert_array_almost_equal(cas.compile_and_execute(cas.TransformationMatrix.from_xyz_rpy,
                                                                      [x, y, z, roll, pitch, yaw]),
                                              r2)
 
@@ -582,7 +582,7 @@ class TestTransformationMatrix(unittest.TestCase):
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        r = cas.TransMatrix.from_point_rotation_matrix(point=cas.Point3((x, y, z)),
+        r = cas.TransformationMatrix.from_point_rotation_matrix(point=cas.Point3((x, y, z)),
                                                        rotation_matrix=cas.RotationMatrix.from_quaternion(
                                                            cas.Quaternion(q))).to_np()
         np.testing.assert_array_almost_equal(r, r2)
@@ -596,7 +596,7 @@ class TestTransformationMatrix(unittest.TestCase):
         f[0, 3] = x
         f[1, 3] = y
         f[2, 3] = z
-        r = cas.compile_and_execute(lambda x: cas.TransMatrix(x).inverse(), [f])
+        r = cas.compile_and_execute(lambda x: cas.TransformationMatrix(x).inverse(), [f])
 
         r2 = np.linalg.inv(f)
         self.assertTrue(np.isclose(r, r2, atol=1.e-4, rtol=1.e-4).all())
@@ -606,7 +606,7 @@ class TestTransformationMatrix(unittest.TestCase):
            float_no_nan_no_inf(),
            unit_vector(4))
     def test_pos_of(self, x, y, z, q):
-        r1 = cas.TransMatrix.from_point_rotation_matrix(cas.Point3((x, y, z)),
+        r1 = cas.TransformationMatrix.from_point_rotation_matrix(cas.Point3((x, y, z)),
                                                         cas.RotationMatrix.from_quaternion(
                                                             cas.Quaternion(q))).to_position()
         r2 = [x, y, z, 1]
@@ -618,7 +618,7 @@ class TestTransformationMatrix(unittest.TestCase):
            float_no_nan_no_inf(),
            unit_vector(4))
     def test_trans_of(self, x, y, z, q):
-        r1 = cas.TransMatrix.from_point_rotation_matrix(point=cas.Point3((x, y, z)),
+        r1 = cas.TransformationMatrix.from_point_rotation_matrix(point=cas.Point3((x, y, z)),
                                                         rotation_matrix=cas.RotationMatrix.from_quaternion(
                                                             cas.Quaternion(q))).to_translation().to_np()
         r2 = np.identity(4)
@@ -634,7 +634,7 @@ class TestTransformationMatrix(unittest.TestCase):
            float_no_nan_no_inf(),
            unit_vector(4))
     def test_rot_of(self, x, y, z, q):
-        r1 = cas.TransMatrix.from_point_rotation_matrix(point=cas.Point3((x, y, z)),
+        r1 = cas.TransformationMatrix.from_point_rotation_matrix(point=cas.Point3((x, y, z)),
                                                         rotation_matrix=cas.RotationMatrix.from_quaternion(
                                                             cas.Quaternion(q))).to_rotation().to_np()
         r2 = giskard_math.rotation_matrix_from_quaternion(*q)
@@ -644,7 +644,7 @@ class TestTransformationMatrix(unittest.TestCase):
         """
         Test to make sure the function doesn't alter the original
         """
-        f = cas.TransMatrix.from_xyz_rpy(1, 2, 3)
+        f = cas.TransformationMatrix.from_xyz_rpy(1, 2, 3)
         r = f.to_rotation()
         self.assertTrue(f[0, 3], 1)
         self.assertTrue(f[0, 3], 2)
@@ -776,7 +776,7 @@ class TestCASWrapper(unittest.TestCase):
         e = cas.Expression(1)
         v = cas.Vector3((1, 1, 1))
         p = cas.Point3((1, 1, 1))
-        t = cas.TransMatrix()
+        t = cas.TransformationMatrix()
         r = cas.RotationMatrix()
         q = cas.Quaternion()
         # float
@@ -909,7 +909,7 @@ class TestCASWrapper(unittest.TestCase):
         e = cas.Expression(1)
         v = cas.Vector3((1, 1, 1))
         p = cas.Point3((1, 1, 1))
-        t = cas.TransMatrix()
+        t = cas.TransformationMatrix()
         r = cas.RotationMatrix()
         q = cas.Quaternion()
         # float
@@ -1036,7 +1036,7 @@ class TestCASWrapper(unittest.TestCase):
                   cas.Expression(1),
                   cas.Vector3((1, 1, 1)),
                   cas.Point3((1, 1, 1)),
-                  cas.TransMatrix(),
+                  cas.TransformationMatrix(),
                   cas.RotationMatrix(),
                   cas.Quaternion()]
         functions = ['__add__', '__radd_', '__sub__', '__rsub__', '__mul__', '__rmul', '__truediv__', '__rtruediv__',
@@ -1060,7 +1060,7 @@ class TestCASWrapper(unittest.TestCase):
         e = cas.Expression(1)
         v = cas.Vector3((1, 1, 1))
         p = cas.Point3((1, 1, 1))
-        t = cas.TransMatrix()
+        t = cas.TransformationMatrix()
         r = cas.RotationMatrix()
         q = cas.Quaternion()
         functions = [lambda a, b: a * b, lambda a, b: a / b, lambda a, b: a ** b]
@@ -1188,7 +1188,7 @@ class TestCASWrapper(unittest.TestCase):
         e = cas.Expression(1)
         v = cas.Vector3((1, 1, 1))
         p = cas.Point3((1, 1, 1))
-        t = cas.TransMatrix()
+        t = cas.TransformationMatrix()
         r = cas.RotationMatrix()
         q = cas.Quaternion()
         # Symbol
@@ -1250,12 +1250,12 @@ class TestCASWrapper(unittest.TestCase):
         with self.assertRaises(TypeError):
             cas.dot(q, p)
         # TransMatrix
-        assert isinstance(t.dot(t), cas.TransMatrix)
-        assert isinstance(cas.dot(t, t), cas.TransMatrix)
+        assert isinstance(t.dot(t), cas.TransformationMatrix)
+        assert isinstance(cas.dot(t, t), cas.TransformationMatrix)
         assert isinstance(t.dot(r), cas.RotationMatrix)
         assert isinstance(cas.dot(t, r), cas.RotationMatrix)
-        assert isinstance(r.dot(t), cas.TransMatrix)
-        assert isinstance(cas.dot(r, t), cas.TransMatrix)
+        assert isinstance(r.dot(t), cas.TransformationMatrix)
+        assert isinstance(cas.dot(r, t), cas.TransformationMatrix)
         with self.assertRaises(TypeError):
             t.dot(q)
         with self.assertRaises(TypeError):
@@ -1540,7 +1540,7 @@ class TestCASWrapper(unittest.TestCase):
                                float(if_result if condition > 0 else else_result), places=7)
 
     def test_if_one_arg(self):
-        types = [cas.Point3, cas.Vector3, cas.Quaternion, cas.Expression, cas.TransMatrix, cas.RotationMatrix]
+        types = [cas.Point3, cas.Vector3, cas.Quaternion, cas.Expression, cas.TransformationMatrix, cas.RotationMatrix]
         if_functions = [cas.if_else, cas.if_eq_zero, cas.if_greater_eq_zero, cas.if_greater_zero]
         c = cas.Symbol('c')
         for type_ in types:
@@ -1551,7 +1551,7 @@ class TestCASWrapper(unittest.TestCase):
                 assert isinstance(result, type_), f'{type(result)} != {type_} for {if_function}'
 
     def test_if_two_arg(self):
-        types = [cas.Point3, cas.Vector3, cas.Quaternion, cas.Expression, cas.TransMatrix, cas.RotationMatrix]
+        types = [cas.Point3, cas.Vector3, cas.Quaternion, cas.Expression, cas.TransformationMatrix, cas.RotationMatrix]
         if_functions = [cas.if_eq, cas.if_greater, cas.if_greater_eq, cas.if_less, cas.if_less_eq]
         a = cas.Symbol('a')
         b = cas.Symbol('b')

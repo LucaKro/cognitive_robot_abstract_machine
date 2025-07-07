@@ -16,7 +16,7 @@ from giskardpy.qp.qp_adapter import GiskardToQPAdapter, GiskardToExplicitQPAdapt
 from giskardpy.qp.qp_solver_qpSWIFT import QPSolverQPSwift
 from giskardpy.qp.qp_solver_qpalm import QPSolverQPalm
 from giskardpy.symbol_manager import symbol_manager
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 @dataclass

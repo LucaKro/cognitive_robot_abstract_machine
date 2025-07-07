@@ -2,7 +2,7 @@ from typing import Optional, List, Union, Dict, Callable, Iterable, overload, De
 
 import numpy as np
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GoalInitalizationException, DuplicateNameException
 from giskardpy.god_map import god_map
 from giskardpy.data_types.data_types import Derivatives, LifeCycleState

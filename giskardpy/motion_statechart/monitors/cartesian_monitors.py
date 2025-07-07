@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import PrefixName
 from giskardpy.god_map import god_map
 from giskardpy.model.joints import OmniDrive
@@ -34,7 +34,7 @@ class PoseReached(Monitor):
     def __init__(self,
                  root_link: PrefixName,
                  tip_link: PrefixName,
-                 goal_pose: cas.TransMatrix,
+                 goal_pose: cas.TransformationMatrix,
                  position_threshold: float = 0.01,
                  orientation_threshold: float = 0.01,
                  absolute: bool = False,

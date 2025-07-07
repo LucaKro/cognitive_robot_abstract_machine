@@ -2,7 +2,7 @@ from copy import copy
 from typing import List
 
 import numpy as np
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 import giskardpy.utils.math as gm
 from giskardpy.utils.decorators import memoize
 from giskardpy.god_map import god_map

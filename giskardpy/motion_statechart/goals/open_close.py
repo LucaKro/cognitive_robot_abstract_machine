@@ -8,7 +8,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.motion_statechart.tasks.task import WEIGHT_ABOVE_CA
 from giskardpy.god_map import god_map
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 class Open(Goal):
@@ -49,7 +49,7 @@ class Open(Goal):
                                        weight=self.weight)
         self.add_task(hinge_goal)
 
-        handle_pose = cas.TransMatrix(reference_frame=self.tip_link, child_frame=self.tip_link)
+        handle_pose = cas.TransformationMatrix(reference_frame=self.tip_link, child_frame=self.tip_link)
 
         hold_handle = CartesianPose(root_link=self.handle_link,
                                     tip_link=self.tip_link,

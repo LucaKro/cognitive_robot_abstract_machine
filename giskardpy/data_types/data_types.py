@@ -6,7 +6,7 @@ from enum import IntEnum, Enum
 from typing import Optional, Generic, TypeVar, Dict, Union, List
 
 import numpy as np
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from collections.abc import MutableMapping
 
 

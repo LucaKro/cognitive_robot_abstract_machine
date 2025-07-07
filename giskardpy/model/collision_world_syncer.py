@@ -16,7 +16,7 @@ from giskardpy.middleware import get_middleware
 from giskardpy.model.world import WorldBranch
 from giskardpy.qp.free_variable import FreeVariable
 from line_profiler import profile
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 np.random.seed(1337)
 

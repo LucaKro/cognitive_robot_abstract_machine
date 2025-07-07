@@ -3,7 +3,7 @@ import traceback
 from collections import defaultdict
 from itertools import chain
 from typing import Optional, List, Dict, Tuple, Union, Type
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import PrefixName
 from giskardpy.data_types.exceptions import EmptyProblemException
 from giskardpy.data_types.exceptions import SetupException
@@ -101,7 +101,7 @@ class MonitorWrapper:
                                 reset_condition=reset_condition)
 
     def add_set_seed_odometry(self,
-                              base_pose: cas.TransMatrix,
+                              base_pose: cas.TransformationMatrix,
                               name: Optional[str] = None,
                               group_name: Optional[str] = None,
                               start_condition: str = '',
@@ -217,7 +217,7 @@ class MotionGoalWrapper:
                                     reset_condition=reset_condition)
 
     def add_cartesian_pose(self,
-                           goal_pose: cas.TransMatrix,
+                           goal_pose: cas.TransformationMatrix,
                            tip_link: Union[str, PrefixName],
                            root_link: Union[str, PrefixName],
                            name: Optional[str] = None,

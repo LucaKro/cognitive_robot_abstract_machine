@@ -1,7 +1,7 @@
 from typing import Optional
 
 import numpy as np
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import Derivatives
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.tasks.task import Task
@@ -20,7 +20,7 @@ class DebugGoal(Task):
         p = cas.Point3((1, 0, 0), reference_frame=god_map.world.root_link_name)
         god_map.debug_expression_manager.add_debug_expression('p', p)
 
-        pose = cas.TransMatrix.from_xyz_rpy(y=1, reference_frame=god_map.world.root_link_name)
+        pose = cas.TransformationMatrix.from_xyz_rpy(y=1, reference_frame=god_map.world.root_link_name)
         god_map.debug_expression_manager.add_debug_expression('pose', pose)
 
         v = cas.Vector3((1, 0, 0), reference_frame=god_map.world.root_link_name)

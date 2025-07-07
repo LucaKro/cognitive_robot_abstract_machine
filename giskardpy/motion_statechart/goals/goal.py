@@ -13,7 +13,7 @@ from giskardpy.utils.utils import string_shortener
 from giskardpy.data_types.exceptions import GoalInitalizationException
 from giskardpy.model.joints import OneDofJoint
 from giskardpy.data_types.data_types import PrefixName, Derivatives
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 
 
 class Goal(MotionStatechartNode):

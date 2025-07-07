@@ -1,7 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
 from typing import Dict, Optional, List
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.model.collision_world_syncer import CollisionEntry, Collision
 from giskardpy.motion_statechart.monitors.monitors import Monitor
@@ -214,9 +214,9 @@ class SelfCA(Goal):
     def get_position_on_a_in_a(self):
         return god_map.collision_scene.self_new_a_P_pa_symbol(self.link_a, self.link_b, self.idx)
 
-    def get_b_T_pb(self) -> cas.TransMatrix:
+    def get_b_T_pb(self) -> cas.TransformationMatrix:
         p = god_map.collision_scene.self_new_b_P_pb_symbol(self.link_a, self.link_b, self.idx)
-        return cas.TransMatrix.from_xyz_rpy(x=p.x, y=p.y, z=p.z)
+        return cas.TransformationMatrix.from_xyz_rpy(x=p.x, y=p.y, z=p.z)
 
     def get_actual_distance(self):
         return god_map.collision_scene.self_contact_distance_symbol(self.link_a, self.link_b, self.idx)

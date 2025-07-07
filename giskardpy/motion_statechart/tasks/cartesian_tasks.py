@@ -1,7 +1,7 @@
 from typing import Optional
 
 from giskardpy.data_types.data_types import Derivatives
-from giskardpy import casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.data_types.data_types import PrefixName, ColorRGBA
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.monitors.cartesian_monitors import PositionReached, OrientationReached
@@ -192,9 +192,9 @@ class CartesianOrientation(Task):
                 root_T_x = god_map.world.compose_fk_expression(self.root_link, point_of_debug_matrix.reference_frame)
                 point = root_T_x.dot(point_of_debug_matrix)
                 point = self.update_expression_on_starting(point)
-        debug_trans_matrix = cas.TransMatrix.from_point_rotation_matrix(point=point,
+        debug_trans_matrix = cas.TransformationMatrix.from_point_rotation_matrix(point=point,
                                                                         rotation_matrix=root_R_goal)
-        debug_current_trans_matrix = cas.TransMatrix.from_point_rotation_matrix(point=r_T_c.to_position(),
+        debug_current_trans_matrix = cas.TransformationMatrix.from_point_rotation_matrix(point=r_T_c.to_position(),
                                                                                 rotation_matrix=r_R_c)
         # god_map.debug_expression_manager.add_debug_expression(f'{self.name}/goal_orientation', debug_trans_matrix)
         # god_map.debug_expression_manager.add_debug_expression(f'{self.name}/current_orientation',
@@ -208,7 +208,7 @@ class CartesianPose(Task):
     def __init__(self,
                  root_link: PrefixName,
                  tip_link: PrefixName,
-                 goal_pose: cas.TransMatrix,
+                 goal_pose: cas.TransformationMatrix,
                  reference_linear_velocity: Optional[float] = None,
                  reference_angular_velocity: Optional[float] = None,
                  threshold: float = 0.01,
@@ -278,9 +278,9 @@ class CartesianPose(Task):
                                            frame_R_goal=root_R_goal,
                                            reference_velocity=self.reference_angular_velocity,
                                            weight=self.weight)
-        debug_trans_matrix = cas.TransMatrix.from_point_rotation_matrix(point=goal_point,
+        debug_trans_matrix = cas.TransformationMatrix.from_point_rotation_matrix(point=goal_point,
                                                                         rotation_matrix=root_R_goal)
-        debug_current_trans_matrix = cas.TransMatrix.from_point_rotation_matrix(point=r_T_c.to_position(),
+        debug_current_trans_matrix = cas.TransformationMatrix.from_point_rotation_matrix(point=r_T_c.to_position(),
                                                                                 rotation_matrix=r_R_c)
         # god_map.debug_expression_manager.add_debug_expression(f'{self.name}/goal_orientation', debug_trans_matrix)
         # god_map.debug_expression_manager.add_debug_expression(f'{self.name}/current_orientation',

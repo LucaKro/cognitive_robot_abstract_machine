@@ -4,7 +4,7 @@ from giskardpy.data_types.data_types import PrefixName
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition, CartesianOrientation
 from giskardpy.motion_statechart.tasks.task import Task, WEIGHT_BELOW_CA
-import giskardpy.casadi_wrapper as cas
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.symbol_manager import symbol_manager
 
 
@@ -30,7 +30,7 @@ class SpiralMixing(Task):
         a = angle_increment * t
         h = upward_increment * t
 
-        object_T_goal = cas.TransMatrix()
+        object_T_goal = cas.TransformationMatrix()
         x = r * cas.cos(a)
         y = r * cas.sin(a)
         z = h
