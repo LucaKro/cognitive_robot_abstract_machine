@@ -1,9 +1,9 @@
 from itertools import combinations
 
-import semantic_world.spatial_types.spatial_types as cas
-import numpy as np
 import pytest
 import urdf_parser_py.urdf as up
+
+import semantic_world.spatial_types.spatial_types as cas
 from giskardpy.god_map import god_map
 from giskardpy.middleware import set_middleware
 from giskardpy.model.collision_avoidance_config import CollisionAvoidanceConfig
@@ -14,10 +14,11 @@ from giskardpy.model.world_config import EmptyWorld, WorldWithOmniDriveRobot
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.user_interface import GiskardWrapper
 from giskardpy.utils.utils import suppress_stderr
-from semantic_world.connections import FixedConnection, PrismaticConnection, UnitVector, OmniDrive
+from semantic_world.connections import FixedConnection, PrismaticConnection, UnitVector, OmniDrive, ActiveConnection
 from semantic_world.geometry import Box, Scale, Color
 from semantic_world.prefixed_name import PrefixedName
 from semantic_world.spatial_types.derivatives import Derivatives
+from semantic_world.views import ControlledConnections
 from semantic_world.world import World
 from semantic_world.world_entity import Body
 
@@ -132,8 +133,8 @@ def box_world_prismatic() -> World:
                 box_geometry = Box(scale=Scale(1, 1, 1), color=Color(1, 0, 0, 1))
                 box.collision.append(box_geometry)
                 box.visual.append(box_geometry)
-                self.world.add_body(box)
-                joint = PrismaticConnection(parent=self.world.root, child=box, axis=UnitVector(1, 0, 0))
+                joint = PrismaticConnection(parent=self.world.root, child=box, axis=UnitVector(1, 0, 0),
+                                            _world=self.world)
                 joint.dof.set_lower_limit(Derivatives.position, -1)
                 joint.dof.set_lower_limit(Derivatives.velocity, -1)
                 joint.dof.set_upper_limit(Derivatives.position, 1)
@@ -141,10 +142,9 @@ def box_world_prismatic() -> World:
                 self.world.add_connection(joint)
 
     config = WorldWithPrismaticBox()
-    collision_avoidance = DefaultCollisionAvoidanceConfig()
+    # collision_avoidance = DefaultCollisionAvoidanceConfig()
     config.setup()
-    collision_avoidance.setup()
-    assert config.box_name in config.world.bodies
+    # collision_avoidance.setup()
     return config.world
 
 
@@ -181,9 +181,12 @@ def simple_two_arm_world() -> World:
     config = WorldWithOmniDriveRobot(urdf)
     with config.world.modify_world():
         config.setup()
-    config.world.register_controlled_joints(config.world.movable_joint_names)
-    collision_avoidance = DefaultCollisionAvoidanceConfig()
-    collision_avoidance.setup()
+    # todo move to controller
+    controlled_joints = ControlledConnections(config.world.search_for_connections_of_type(ActiveConnection))
+    config.world.add_view(controlled_joints)
+    # config.world.register_controlled_joints(config.world.movable_joint_names)
+    # collision_avoidance = DefaultCollisionAvoidanceConfig()
+    # collision_avoidance.setup()
     return config.world
 
 
@@ -193,24 +196,24 @@ def pr2_world() -> World:
     config = WorldWithOmniDriveRobot(urdf=urdf)
     with config.world.modify_world():
         config.setup()
-    config.world.register_controlled_joints([PrefixedName('torso_lift_joint', 'pr2'),
-                                             PrefixedName('head_pan_joint', 'pr2'),
-                                             PrefixedName('head_tilt_joint', 'pr2'),
-                                             PrefixedName('r_shoulder_pan_joint', 'pr2'),
-                                             PrefixedName('r_shoulder_lift_joint', 'pr2'),
-                                             PrefixedName('r_upper_arm_roll_joint', 'pr2'),
-                                             PrefixedName('r_forearm_roll_joint', 'pr2'),
-                                             PrefixedName('r_elbow_flex_joint', 'pr2'),
-                                             PrefixedName('r_wrist_flex_joint', 'pr2'),
-                                             PrefixedName('r_wrist_roll_joint', 'pr2'),
-                                             PrefixedName('l_shoulder_pan_joint', 'pr2'),
-                                             PrefixedName('l_shoulder_lift_joint', 'pr2'),
-                                             PrefixedName('l_upper_arm_roll_joint', 'pr2'),
-                                             PrefixedName('l_forearm_roll_joint', 'pr2'),
-                                             PrefixedName('l_elbow_flex_joint', 'pr2'),
-                                             PrefixedName('l_wrist_flex_joint', 'pr2'),
-                                             PrefixedName('l_wrist_roll_joint', 'pr2'),
-                                             PrefixedName('brumbrum', 'pr2')])
+    # config.world.register_controlled_joints([PrefixedName('torso_lift_joint', 'pr2'),
+    #                                          PrefixedName('head_pan_joint', 'pr2'),
+    #                                          PrefixedName('head_tilt_joint', 'pr2'),
+    #                                          PrefixedName('r_shoulder_pan_joint', 'pr2'),
+    #                                          PrefixedName('r_shoulder_lift_joint', 'pr2'),
+    #                                          PrefixedName('r_upper_arm_roll_joint', 'pr2'),
+    #                                          PrefixedName('r_forearm_roll_joint', 'pr2'),
+    #                                          PrefixedName('r_elbow_flex_joint', 'pr2'),
+    #                                          PrefixedName('r_wrist_flex_joint', 'pr2'),
+    #                                          PrefixedName('r_wrist_roll_joint', 'pr2'),
+    #                                          PrefixedName('l_shoulder_pan_joint', 'pr2'),
+    #                                          PrefixedName('l_shoulder_lift_joint', 'pr2'),
+    #                                          PrefixedName('l_upper_arm_roll_joint', 'pr2'),
+    #                                          PrefixedName('l_forearm_roll_joint', 'pr2'),
+    #                                          PrefixedName('l_elbow_flex_joint', 'pr2'),
+    #                                          PrefixedName('l_wrist_flex_joint', 'pr2'),
+    #                                          PrefixedName('l_wrist_roll_joint', 'pr2'),
+    #                                          PrefixedName('brumbrum', 'pr2')])
     return config.world
 
 
@@ -243,15 +246,14 @@ class TestWorld:
         # visualize()
 
     def test_compute_fk(self, box_world_prismatic: World):
-        joint_name = box_world_prismatic.joint_names[0]
-        box_name = box_world_prismatic.link_names[-1]
+        connection = box_world_prismatic.connections[0]
+        box = box_world_prismatic.bodies[-1]
 
-        box_world_prismatic.state[joint_name].position = 1
+        box_world_prismatic.state[connection.dof.name].position = 1
         box_world_prismatic.notify_state_change()
-        fk = box_world_prismatic.compute_fk_point(root_link=box_world_prismatic.root_link_name,
-                                                  tip_link=box_name).to_np()
-        assert fk[0] == 1
-        visualize()
+        fk = box_world_prismatic.compute_forward_kinematics_np(root=box_world_prismatic.root, tip=box)
+        assert fk[0, 3] == 1
+        # visualize()
 
     # def test_compute_self_collision_matrix(self, pr2_world: World):
     #     disabled_links = {pr2_world.search_for_link_name('br_caster_l_wheel_link'),
@@ -268,54 +270,45 @@ class TestWorld:
     #     assert reference_disabled_links == disabled_links
 
     def test_compute_chain_reduced_to_controlled_joints(self, simple_two_arm_world: World):
-        r_gripper_tool_frame = simple_two_arm_world.search_for_link_name('r_eef')
-        l_gripper_tool_frame = simple_two_arm_world.search_for_link_name('l_eef')
-        link_a, link_b = simple_two_arm_world.compute_chain_reduced_to_controlled_joints(r_gripper_tool_frame,
-                                                                                         l_gripper_tool_frame)
-        assert link_a == simple_two_arm_world.search_for_link_name('r_eef')
-        assert link_b == simple_two_arm_world.search_for_link_name('l_link_3')
+        root = simple_two_arm_world.get_body_by_name('r_eef')
+        tip = simple_two_arm_world.get_body_by_name('l_eef')
+        controlled_joints: ControlledConnections = simple_two_arm_world.views[0]
+        link_a, link_b = controlled_joints.compute_chain_reduced_to_controlled_joints(root, tip)
+        assert link_a == simple_two_arm_world.get_body_by_name('r_eef')
+        assert link_b == simple_two_arm_world.get_body_by_name('l_link_3')
+
+        tip = simple_two_arm_world.get_body_by_name('r_link_1')
+        link_a, link_b = controlled_joints.compute_chain_reduced_to_controlled_joints(root, tip)
+        assert link_a == simple_two_arm_world.get_body_by_name('r_eef')
+        assert link_b == simple_two_arm_world.get_body_by_name('r_link_1')
 
     def test_group_pr2_hand(self, pr2_world: World):
         pr2_world.register_group('r_hand', pr2_world.search_for_link_name('r_wrist_roll_link'))
         assert set(pr2_world.groups['r_hand'].joint_names) == {
             pr2_world.search_for_joint_name('r_gripper_palm_joint'),
             pr2_world.search_for_joint_name('r_gripper_led_joint'),
-            pr2_world.search_for_joint_name(
-                'r_gripper_motor_accelerometer_joint'),
+            pr2_world.search_for_joint_name('r_gripper_motor_accelerometer_joint'),
             pr2_world.search_for_joint_name('r_gripper_tool_joint'),
-            pr2_world.search_for_joint_name(
-                'r_gripper_motor_slider_joint'),
+            pr2_world.search_for_joint_name('r_gripper_motor_slider_joint'),
             pr2_world.search_for_joint_name('r_gripper_l_finger_joint'),
             pr2_world.search_for_joint_name('r_gripper_r_finger_joint'),
-            pr2_world.search_for_joint_name(
-                'r_gripper_motor_screw_joint'),
-            pr2_world.search_for_joint_name(
-                'r_gripper_l_finger_tip_joint'),
-            pr2_world.search_for_joint_name(
-                'r_gripper_r_finger_tip_joint'),
+            pr2_world.search_for_joint_name('r_gripper_motor_screw_joint'),
+            pr2_world.search_for_joint_name('r_gripper_l_finger_tip_joint'),
+            pr2_world.search_for_joint_name('r_gripper_r_finger_tip_joint'),
             pr2_world.search_for_joint_name('r_gripper_joint')}
         assert set(pr2_world.groups['r_hand'].link_names_as_set) == {
             pr2_world.search_for_link_name('r_wrist_roll_link'),
             pr2_world.search_for_link_name('r_gripper_palm_link'),
             pr2_world.search_for_link_name('r_gripper_led_frame'),
-            pr2_world.search_for_link_name(
-                'r_gripper_motor_accelerometer_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_tool_frame'),
-            pr2_world.search_for_link_name(
-                'r_gripper_motor_slider_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_motor_screw_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_l_finger_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_l_finger_tip_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_r_finger_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_r_finger_tip_link'),
-            pr2_world.search_for_link_name(
-                'r_gripper_l_finger_tip_frame')}
+            pr2_world.search_for_link_name('r_gripper_motor_accelerometer_link'),
+            pr2_world.search_for_link_name('r_gripper_tool_frame'),
+            pr2_world.search_for_link_name('r_gripper_motor_slider_link'),
+            pr2_world.search_for_link_name('r_gripper_motor_screw_link'),
+            pr2_world.search_for_link_name('r_gripper_l_finger_link'),
+            pr2_world.search_for_link_name('r_gripper_l_finger_tip_link'),
+            pr2_world.search_for_link_name('r_gripper_r_finger_link'),
+            pr2_world.search_for_link_name('r_gripper_r_finger_tip_link'),
+            pr2_world.search_for_link_name('r_gripper_l_finger_tip_frame')}
 
     def test_get_chain(self, pr2_world: World):
         with suppress_stderr():
@@ -440,9 +433,9 @@ class TestWorld:
                                   'pr2/l_gripper_palm_joint',
                                   'pr2/l_gripper_tool_joint'}
         links, joints = pr2_world._search_branch(pr2_world.search_for_link_name('r_wrist_roll_link'),
-                                                   stop_at_joint_when=pr2_world.is_joint_controlled,
-                                                   collect_link_when=pr2_world.has_link_collisions,
-                                                   collect_joint_when=lambda _: True)
+                                                 stop_at_joint_when=pr2_world.is_joint_controlled,
+                                                 collect_link_when=pr2_world.has_link_collisions,
+                                                 collect_joint_when=lambda _: True)
         assert set(links) == {'pr2/r_gripper_l_finger_tip_link',
                               'pr2/r_gripper_l_finger_link',
                               'pr2/r_gripper_r_finger_tip_link',
@@ -461,8 +454,8 @@ class TestWorld:
                                'pr2/r_gripper_r_finger_tip_joint',
                                'pr2/r_gripper_joint'}
         links, joints = pr2_world._search_branch(pr2_world.search_for_link_name('br_caster_l_wheel_link'),
-                                                   collect_link_when=lambda _: True,
-                                                   collect_joint_when=lambda _: True)
+                                                 collect_link_when=lambda _: True,
+                                                 collect_joint_when=lambda _: True)
         assert links == ['pr2/br_caster_l_wheel_link']
         assert joints == []
 
