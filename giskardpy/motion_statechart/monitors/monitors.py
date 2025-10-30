@@ -9,36 +9,12 @@ import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GiskardException
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.data_types import ObservationState
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.utils.decorators import validated_dataclass
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode, Monitor
+from giskardpy.utils.decorators import dataclass
 from semantic_digital_twin.spatial_types.symbol_manager import symbol_manager
 
 
-@validated_dataclass
-class Monitor(MotionStatechartNode):
-
-    @cached_property
-    def observation_state_symbol(self) -> cas.Symbol:
-        symbol_name = f"{self.name}.observation_state"
-        return symbol_manager.register_symbol_provider(
-            symbol_name,
-            lambda name=self.name: god_map.motion_statechart_manager.monitor_state.get_observation_state(
-                name
-            ),
-        )
-
-    @cached_property
-    def life_cycle_state_symbol(self) -> cas.Symbol:
-        symbol_name = f"{self.name}.life_cycle_state"
-        return symbol_manager.register_symbol_provider(
-            symbol_name,
-            lambda name=self.name: god_map.motion_statechart_manager.monitor_state.get_life_cycle_state(
-                name
-            ),
-        )
-
-
-@validated_dataclass
+@dataclass
 class PayloadMonitor(Monitor, ABC):
     """
     A monitor which executes its __call__ function when start_condition becomes True.
@@ -53,7 +29,7 @@ class PayloadMonitor(Monitor, ABC):
         pass
 
 
-@validated_dataclass
+@dataclass
 class ThreadedPayloadMonitor(Monitor, ABC):
     """
     A monitor which executes its __call__ function when start_condition becomes True.
@@ -69,14 +45,14 @@ class ThreadedPayloadMonitor(Monitor, ABC):
         pass
 
 
-@validated_dataclass
+@dataclass
 class EndMotion(PayloadMonitor):
 
     def __call__(self):
         self.state = ObservationState.true
 
 
-@validated_dataclass
+@dataclass
 class CancelMotion(PayloadMonitor):
     exception: Exception = field(default_factory=GiskardException)
 
@@ -85,7 +61,7 @@ class CancelMotion(PayloadMonitor):
         raise self.exception
 
 
-@validated_dataclass
+@dataclass
 class LocalMinimumReached(Monitor):
     min_cut_off: float = 0.01
     max_cut_off: float = 0.06
@@ -112,7 +88,7 @@ class LocalMinimumReached(Monitor):
         )
 
 
-@validated_dataclass
+@dataclass
 class TimeAbove(Monitor):
     threshold: float = field(kw_only=True)
 
@@ -122,7 +98,7 @@ class TimeAbove(Monitor):
         self.observation_expression = condition
 
 
-@validated_dataclass
+@dataclass
 class Alternator(Monitor):
     mod: int = 2
 
@@ -132,13 +108,13 @@ class Alternator(Monitor):
         self.observation_expression = expr
 
 
-@validated_dataclass
+@dataclass
 class TrueMonitor(Monitor):
-    def __post_init__(self):
-        self.observation_expression = cas.BinaryTrue
+    observation_expression: cas.Expression = field(
+        default_factory=lambda: cas.TrinaryTrue, init=False
+    )
 
 
-@validated_dataclass
-class FalseMonitor(Monitor):
-    def __post_init__(self):
-        self.observation_expression = cas.BinaryFalse
+observation_expression: cas.Expression = field(
+    default_factory=lambda: cas.TrinaryFalse, init=False
+)

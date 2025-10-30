@@ -4,12 +4,15 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import rustworkx as rx
-from typing_extensions import List, MutableMapping, ClassVar, Self
+from typing_extensions import List, MutableMapping, ClassVar, Self, Type
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     StateTransitionCondition,
+    EndMotion,
+    CancelMotion,
+    GenericMotionStatechartNode,
 )
 
 
@@ -148,7 +151,11 @@ class LifeCycleState(State):
 
 
 @dataclass
-class ObservableState(State):
+class ObservationState(State):
+    TrinaryFalse: ClassVar[float] = float(cas.TrinaryFalse.to_np())
+    TrinaryUnknown: ClassVar[float] = float(cas.TrinaryUnknown.to_np())
+    TrinaryTrue: ClassVar[float] = float(cas.TrinaryTrue.to_np())
+
     default_value: float = float(cas.TrinaryUnknown.to_np())
 
     _compiled_updater: cas.CompiledFunction = field(init=False)
@@ -182,7 +189,7 @@ class MotionStatechartGraph:
     rx_graph: rx.PyDiGraph[MotionStatechartNode] = field(
         default_factory=lambda: rx.PyDAG(multigraph=True), init=False, repr=False
     )
-    observation_state: ObservableState = field(init=False)
+    observation_state: ObservationState = field(init=False)
     life_cycle_state: LifeCycleState = field(init=False)
     """
     1. evaluate observation state
@@ -195,7 +202,7 @@ class MotionStatechartGraph:
 
     def __post_init__(self):
         self.life_cycle_state = LifeCycleState(self)
-        self.observation_state = ObservableState(self)
+        self.observation_state = ObservationState(self)
 
     @property
     def nodes(self) -> List[MotionStatechartNode]:
@@ -241,3 +248,20 @@ class MotionStatechartGraph:
     def tick(self):
         self.update_observation_state()
         self.update_life_cycle_state()
+        self.raise_if_cancel_motion()
+
+    def get_nodes_by_type(
+        self, node_type: Type[GenericMotionStatechartNode]
+    ) -> List[GenericMotionStatechartNode]:
+        return [node for node in self.nodes if isinstance(node, node_type)]
+
+    def is_end_motion(self) -> bool:
+        return any(
+            self.observation_state[node] == ObservationState.TrinaryTrue
+            for node in self.get_nodes_by_type(EndMotion)
+        )
+
+    def raise_if_cancel_motion(self):
+        for node in self.get_nodes_by_type(CancelMotion):
+            if self.observation_state[node] == ObservationState.TrinaryTrue:
+                raise node.exception

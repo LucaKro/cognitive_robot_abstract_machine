@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import field, dataclass
 
 from random_events.utils import SubclassJSONSerializer
-from typing_extensions import Dict, Any, Self, Optional, TYPE_CHECKING, List
+from typing_extensions import (
+    Dict,
+    Any,
+    Self,
+    Optional,
+    TYPE_CHECKING,
+    List,
+    TypeVar,
+    Union,
+)
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.god_map import god_map
@@ -13,6 +23,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.motion_statechart_graph import (
         MotionStatechartGraph,
+        ObservationState,
     )
 
 
@@ -70,9 +81,6 @@ class MotionStatechartNode(cas.Symbol, SubclassJSONSerializer):
     )
 
     _plot: bool = field(default=True, kw_only=True)
-    _observation_expression: cas.Expression = field(
-        default_factory=lambda: cas.TrinaryUnknown, init=False
-    )
 
     _start_condition: StateTransitionCondition = field(init=False)
     _pause_condition: StateTransitionCondition = field(init=False)
@@ -168,10 +176,43 @@ class MotionStatechartNode(cas.Symbol, SubclassJSONSerializer):
         )
 
 
-@dataclass
-class EndMotion(MotionStatechartNode): ...
+GenericMotionStatechartNode = TypeVar(
+    "GenericMotionStatechartNode", bound=MotionStatechartNode
+)
 
 
-@dataclass
+@dataclass(eq=False)
+class Monitor(MotionStatechartNode): ...
+
+
+@dataclass(eq=False)
+class PayloadMonitor(Monitor, ABC):
+    observation_expression: cas.Expression = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observation_expression = cas.Expression(self)
+
+    @abstractmethod
+    def compute_observation(
+        self,
+    ) -> Union[
+        ObservationState.TrinaryFalse,
+        ObservationState.TrinaryTrue,
+        ObservationState.TrinaryUnknown,
+    ]: ...
+
+
+@dataclass(eq=False)
+class EndMotion(MotionStatechartNode):
+    observation_expression: cas.Expression = field(
+        default_factory=lambda: cas.TrinaryTrue, init=False
+    )
+
+
+@dataclass(eq=False)
 class CancelMotion(MotionStatechartNode):
     exception: Exception = field(kw_only=True)
+    observation_expression: cas.Expression = field(
+        default_factory=lambda: cas.TrinaryTrue, init=False
+    )
