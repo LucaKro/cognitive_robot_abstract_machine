@@ -7,6 +7,7 @@ import rustworkx as rx
 from typing_extensions import List, MutableMapping, ClassVar, Self, Type
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
+from giskardpy.motion_statechart.goals.goal import Goal
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     StateTransitionCondition,
@@ -249,6 +250,8 @@ class MotionStatechart:
             self.rx_graph.remove_edge_from_index(e)
 
     def compile(self):
+        for goal in self.get_nodes_by_type(Goal):
+            goal.apply_goal_conditions_to_children()
         self.observation_state.compile()
         self.life_cycle_state.compile()
 
