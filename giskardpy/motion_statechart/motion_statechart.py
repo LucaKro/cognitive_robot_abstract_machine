@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import IntEnum
 
 import numpy as np
 import rustworkx as rx
@@ -17,9 +16,10 @@ from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     GenericMotionStatechartNode,
     PayloadMonitor,
+    ObservationSymbol,
+    LifeCycleSymbol,
 )
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
-from giskardpy.utils.utils import create_path
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World
 
@@ -33,11 +33,11 @@ class State(MutableMapping[MotionStatechartNode, float]):
     def grow(self) -> None:
         self.data = np.append(self.data, self.default_value)
 
-    def life_cycle_symbols(self) -> List[cas.Symbol]:
+    def life_cycle_symbols(self) -> List[LifeCycleSymbol]:
         return [node.life_cycle_symbol for node in self.motion_statechart.nodes]
 
-    def observation_symbols(self) -> List[MotionStatechartNode]:
-        return self.motion_statechart.nodes
+    def observation_symbols(self) -> List[ObservationSymbol]:
+        return [node.observation_symbol for node in self.motion_statechart.nodes]
 
     def __getitem__(self, node: MotionStatechartNode) -> float:
         return float(self.data[node.index])
@@ -190,7 +190,7 @@ class ObservationState(State):
                         cas.TrinaryUnknown,
                     ),
                 ],
-                else_result=cas.Expression(node),
+                else_result=cas.Expression(node.observation_symbol),
             )
             observation_state_updater.append(state_f)
         self._compiled_updater = cas.Expression(observation_state_updater).compile(

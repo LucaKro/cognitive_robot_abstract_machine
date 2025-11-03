@@ -34,10 +34,13 @@ def test_condition_to_str():
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
 
     end.start_condition = cas.trinary_logic_and(
-        node1, cas.trinary_logic_or(node2, cas.trinary_logic_not(node3))
+        node1.observation_symbol,
+        cas.trinary_logic_or(
+            node2.observation_symbol, cas.trinary_logic_not(node3.observation_symbol)
+        ),
     )
     a = str(end._start_condition)
-    assert a == '("muh" and ("muh2" or not "muh3"))'
+    assert a == '("muh/observation" and ("muh2/observation" or not "muh3/observation"))'
 
 
 def test_motion_statechart_to_dot():
@@ -45,8 +48,10 @@ def test_motion_statechart_to_dot():
     node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
     node2 = TrueMonitor(name=PrefixedName("muh2"), motion_statechart=msg)
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
-    node1.end_condition = node2
-    end.start_condition = cas.trinary_logic_and(node1, node2)
+    node1.end_condition = node2.observation_symbol
+    end.start_condition = cas.trinary_logic_and(
+        node1.observation_symbol, node2.observation_symbol
+    )
     msg.draw()
 
 
@@ -63,9 +68,10 @@ def test_motion_statechart():
     node3 = TrueMonitor(name=PrefixedName("muh3"), motion_statechart=msg)
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
 
-    node1.start_condition = cas.trinary_logic_or(node3, node2)
-    a = str(node1._start_condition)
-    end.start_condition = node1
+    node1.start_condition = cas.trinary_logic_or(
+        node3.observation_symbol, node2.observation_symbol
+    )
+    end.start_condition = node1.observation_symbol
     assert len(msg.nodes) == 4
     assert len(msg.edges) == 3
 
@@ -136,10 +142,10 @@ def test_print():
     print_node2 = Print(name=PrefixedName("cow2"), message="muh", motion_statechart=msg)
 
     node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-    node1.start_condition = print_node1
-    print_node2.start_condition = node1
+    node1.start_condition = print_node1.observation_symbol
+    print_node2.start_condition = node1.observation_symbol
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
-    end.start_condition = print_node2
+    end.start_condition = print_node2.observation_symbol
     assert len(msg.nodes) == 4
     assert len(msg.edges) == 3
 
@@ -222,7 +228,7 @@ def test_cancel_motion():
     cancel = CancelMotion(
         name=PrefixedName("done"), motion_statechart=msg, exception=Exception("test")
     )
-    cancel.start_condition = node1
+    cancel.start_condition = node1.observation_symbol
 
     msg.compile()
     msg.tick()  # first tick, cancel motion node1 turns true
@@ -255,7 +261,7 @@ def test_joint_goal():
         name=PrefixedName("task1"), goal_state={root_C_tip: 1}, motion_statechart=msg
     )
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
-    end.start_condition = task1
+    end.start_condition = task1.observation_symbol
 
     msg.compile()
     msg.tick()
@@ -284,11 +290,13 @@ def test_reset():
     node2 = TrueMonitor(name=PrefixedName("muh2"), motion_statechart=msg)
     node3 = TrueMonitor(name=PrefixedName("muh3"), motion_statechart=msg)
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
-    node1.reset_condition = node2
-    node2.start_condition = node1
-    node3.start_condition = node2
-    node2.end_condition = node2
-    end.start_condition = cas.trinary_logic_and(node1, node2, node3)
+    node1.reset_condition = node2.observation_symbol
+    node2.start_condition = node1.observation_symbol
+    node3.start_condition = node2.observation_symbol
+    node2.end_condition = node2.observation_symbol
+    end.start_condition = cas.trinary_logic_and(
+        node1.observation_symbol, node2.observation_symbol, node3.observation_symbol
+    )
 
     msg.compile()
 
@@ -365,18 +373,18 @@ def test_nested_goals():
     sub_node2 = TrueMonitor(name=PrefixedName("inner sub 2"), motion_statechart=msg)
     inner.add_node(sub_node1)
     inner.add_node(sub_node2)
-    sub_node1.end_condition = sub_node1
-    sub_node2.start_condition = sub_node1
-    inner.observation_expression = sub_node2
+    sub_node1.end_condition = sub_node1.observation_symbol
+    sub_node2.start_condition = sub_node1.observation_symbol
+    inner.observation_expression = sub_node2.observation_symbol
 
     # outer goal that contains the inner goal as a node
     outer = Goal(name=PrefixedName("outer"), motion_statechart=msg)
     outer.add_node(inner)
-    outer.observation_expression = inner
-    outer.start_condition = node1
+    outer.observation_expression = inner.observation_symbol
+    outer.start_condition = node1.observation_symbol
 
     end = EndMotion(name=PrefixedName("done nested"), motion_statechart=msg)
-    end.start_condition = outer
+    end.start_condition = outer.observation_symbol
 
     # compile and check initial states
     msg.compile()
@@ -550,7 +558,7 @@ def test_thread_payload_monitor_integration():
         return_value=ObservationState.TrinaryTrue,
     )
     end = EndMotion(name=PrefixedName("done thread"), motion_statechart=msg)
-    end.start_condition = mon
+    end.start_condition = mon.observation_symbol
 
     msg.compile()
 
@@ -587,13 +595,13 @@ def test_goal():
     sub_node2 = TrueMonitor(name=PrefixedName("sub muh2"), motion_statechart=msg)
     goal.add_node(sub_node1)
     goal.add_node(sub_node2)
-    sub_node1.end_condition = sub_node1
-    sub_node2.start_condition = sub_node1
-    goal.observation_expression = sub_node2
-    goal.start_condition = node1
+    sub_node1.end_condition = sub_node1.observation_symbol
+    sub_node2.start_condition = sub_node1.observation_symbol
+    goal.observation_expression = sub_node2.observation_symbol
+    goal.start_condition = node1.observation_symbol
 
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
-    end.start_condition = goal
+    end.start_condition = goal.observation_symbol
 
     msg.compile()
     assert node1.observation_state == msg.observation_state.TrinaryUnknown

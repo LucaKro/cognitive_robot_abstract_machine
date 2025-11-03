@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import field, dataclass
-import threading
 from enum import Enum
 
 from random_events.utils import SubclassJSONSerializer
@@ -79,9 +79,9 @@ class StateTransitionCondition:
     ) -> None:
         self.expression = new_expression
         self._parents = [
-            x
+            x.motion_statechart_node
             for x in new_expression.free_symbols()
-            if isinstance(x, MotionStatechartNode)
+            if isinstance(x, ObservationSymbol)
         ]
         self._child = child
         self.apply_to_motion_state_chart()
@@ -103,7 +103,25 @@ class StateTransitionCondition:
 
 
 @dataclass(repr=False, eq=False)
-class MotionStatechartNode(cas.Symbol, SubclassJSONSerializer):
+class ObservationSymbol(cas.Symbol):
+    name: PrefixedName = field(kw_only=True)
+    motion_statechart_node: MotionStatechartNode
+
+    def resolve(self) -> float:
+        return self.motion_statechart_node.observation_state
+
+
+@dataclass(repr=False, eq=False)
+class LifeCycleSymbol(cas.Symbol):
+    name: PrefixedName = field(kw_only=True)
+    motion_statechart_node: MotionStatechartNode
+
+    def resolve(self) -> LifeCycleValues:
+        return self.motion_statechart_node.life_cycle_state
+
+
+@dataclass(repr=False, eq=False)
+class MotionStatechartNode(SubclassJSONSerializer):
     name: PrefixedName = field(kw_only=True)
 
     motion_statechart: MotionStatechart = field(kw_only=True)
@@ -117,7 +135,8 @@ class MotionStatechartNode(cas.Symbol, SubclassJSONSerializer):
 
     parent_node: MotionStatechartNode = field(default=None, init=False)
 
-    life_cycle_symbol: cas.Symbol = field(init=False)
+    life_cycle_symbol: LifeCycleSymbol = field(init=False)
+    observation_symbol: ObservationSymbol = field(init=False)
     observation_expression: cas.Expression = field(
         default_factory=lambda: cas.TrinaryUnknown, init=False
     )
@@ -133,8 +152,13 @@ class MotionStatechartNode(cas.Symbol, SubclassJSONSerializer):
     _reset_condition: StateTransitionCondition = field(init=False)
 
     def __post_init__(self):
-        self.life_cycle_symbol = cas.Symbol(
-            name=PrefixedName("life_cycle", str(self.name))
+        self.observation_symbol = ObservationSymbol(
+            motion_statechart_node=self,
+            name=PrefixedName("observation", str(self.name)),
+        )
+        self.life_cycle_symbol = LifeCycleSymbol(
+            motion_statechart_node=self,
+            name=PrefixedName("life_cycle", str(self.name)),
         )
         self._start_condition = StateTransitionCondition.create_true(
             motion_statechart=self.motion_statechart, kind=TransitionKind.START
@@ -149,9 +173,6 @@ class MotionStatechartNode(cas.Symbol, SubclassJSONSerializer):
             motion_statechart=self.motion_statechart, kind=TransitionKind.RESET
         )
         self.motion_statechart.add_node(self)
-
-    def resolve(self) -> float:
-        return self.motion_statechart.observation_state[self]
 
     @property
     def world(self) -> World:
@@ -317,7 +338,7 @@ class PayloadMonitor(Monitor, ABC):
 
     def __post_init__(self):
         super().__post_init__()
-        self.observation_expression = cas.Expression(self)
+        self.observation_expression = cas.Expression(self.observation_symbol)
 
     def compute_observation(
         self,
