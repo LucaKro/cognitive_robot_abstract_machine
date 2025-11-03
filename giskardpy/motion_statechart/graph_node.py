@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import field, dataclass
 from enum import Enum
 
@@ -14,12 +14,11 @@ from typing_extensions import (
     TYPE_CHECKING,
     List,
     TypeVar,
-    Union,
 )
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
-from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.data_types import LifeCycleValues
+from giskardpy.qp.constraint import Constraint
 from giskardpy.utils.utils import string_shortener
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World
@@ -27,7 +26,6 @@ from semantic_digital_twin.world import World
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.motion_statechart import (
         MotionStatechart,
-        ObservationState,
     )
 
 
@@ -104,7 +102,7 @@ class StateTransitionCondition:
 
 @dataclass(repr=False, eq=False)
 class ObservationSymbol(cas.Symbol):
-    name: PrefixedName = field(kw_only=True)
+    name: str = field(kw_only=True)
     motion_statechart_node: MotionStatechartNode
 
     def resolve(self) -> float:
@@ -113,7 +111,7 @@ class ObservationSymbol(cas.Symbol):
 
 @dataclass(repr=False, eq=False)
 class LifeCycleSymbol(cas.Symbol):
-    name: PrefixedName = field(kw_only=True)
+    name: str = field(kw_only=True)
     motion_statechart_node: MotionStatechartNode
 
     def resolve(self) -> LifeCycleValues:
@@ -137,13 +135,10 @@ class MotionStatechartNode(SubclassJSONSerializer):
 
     life_cycle_symbol: LifeCycleSymbol = field(init=False)
     observation_symbol: ObservationSymbol = field(init=False)
-    observation_expression: cas.Expression = field(
-        default_factory=lambda: cas.TrinaryUnknown, init=False
-    )
 
     _plot: bool = field(default=True, kw_only=True)
-    _plot_style: str = field(kw_only=True)
-    _plot_shape: str = field(kw_only=True)
+    _plot_style: str = field(default="filled, rounded", kw_only=True)
+    _plot_shape: str = field(default="rectangle", kw_only=True)
     _plot_extra_boarder_styles: List[str] = field(default_factory=list, kw_only=True)
 
     _start_condition: StateTransitionCondition = field(init=False)
@@ -153,12 +148,12 @@ class MotionStatechartNode(SubclassJSONSerializer):
 
     def __post_init__(self):
         self.observation_symbol = ObservationSymbol(
+            name=str(PrefixedName("observation", str(self.name))),
             motion_statechart_node=self,
-            name=PrefixedName("observation", str(self.name)),
         )
         self.life_cycle_symbol = LifeCycleSymbol(
+            name=str(PrefixedName("life_cycle", str(self.name))),
             motion_statechart_node=self,
-            name=PrefixedName("life_cycle", str(self.name)),
         )
         self._start_condition = StateTransitionCondition.create_true(
             motion_statechart=self.motion_statechart, kind=TransitionKind.START
@@ -173,6 +168,66 @@ class MotionStatechartNode(SubclassJSONSerializer):
             motion_statechart=self.motion_statechart, kind=TransitionKind.RESET
         )
         self.motion_statechart.add_node(self)
+
+    def build_common(self):
+        """
+        Triggered before `create_constraints` and `create_observation_expression` are called during the compilation
+        of the Motion Statechart.
+        Use this to create attributes that are used in both methods.
+        """
+
+    def create_constraints(self) -> List[Constraint]:
+        """
+        Create and return a list of motion constraints that will be active, while this node is active.
+        """
+        return []
+
+    def create_observation_expression(self) -> cas.Expression:
+        """
+        Create and return a symbolic expression that will be evaluated to compute the observation state, while this node is active.
+        It serves a similar purpose as `on_running`, but you can reuse the same expressions you used on `create_constraints`.
+        Furthermore, this expression is compiled, so evaluation will be faster.
+
+        The default implementation returns the observation symbol, which copies the last state.
+        :return: The expression that computes the observation state.
+        """
+        return cas.Expression(self.observation_symbol)
+
+    def on_start(self) -> Optional[float]:
+        """
+        Triggered when the node transitions from NOT_STARTED to RUNNING.
+        :return: An optional observation state overwrite
+        """
+
+    def on_running(self) -> Optional[float]:
+        """
+        Triggered when the node is ticked while in state RUNNING.
+        :return: An optional observation state overwrite
+        """
+
+    def on_pause(self) -> Optional[float]:
+        """
+        Triggered when the node transitions from RUNNING to PAUSED.
+        :return: An optional observation state overwrite
+        """
+
+    def on_unpause(self) -> Optional[float]:
+        """
+        Triggered when the node transitions from PAUSED to RUNNING.
+        :return: An optional observation state overwrite
+        """
+
+    def on_end(self) -> Optional[float]:
+        """
+        Triggered when the node transitions from RUNNING to DONE.
+        :return: An optional observation state overwrite
+        """
+
+    def on_reset(self) -> Optional[float]:
+        """
+        Triggered when the node transitions from any state to NOT_STARTED.
+        :return: An optional observation state overwrite
+        """
 
     @property
     def world(self) -> World:
@@ -247,15 +302,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
             return '"' + result + '"'
         return result
 
-    def update_expression_on_starting(
-        self, expression: cas.GenericSymbolicType
-    ) -> cas.GenericSymbolicType:
-        if len(expression.free_symbols()) == 0:
-            return expression
-        return god_map.motion_statechart_manager.register_expression_updater(
-            expression, self
-        )
-
 
 GenericMotionStatechartNode = TypeVar(
     "GenericMotionStatechartNode", bound=MotionStatechartNode
@@ -263,9 +309,7 @@ GenericMotionStatechartNode = TypeVar(
 
 
 @dataclass(eq=False, repr=False)
-class Monitor(MotionStatechartNode):
-    _plot_style: str = field(default="filled, rounded", kw_only=True)
-    _plot_shape: str = field(default="rectangle", kw_only=True)
+class Monitor(MotionStatechartNode): ...
 
 
 @dataclass(eq=False, repr=False)
@@ -325,55 +369,7 @@ class Goal(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class PayloadMonitor(Monitor, ABC):
-    """
-    A monitor which uses regular python code to compute an observation state.
-
-    Inherit from this class to implement a monitor that cannot be computed with a casadi expression.
-    Implement the _compute_observation method to compute and return the observation state.
-    .. warning:: Don't touch anything else in this class.
-    """
-
-    observation_expression: cas.Expression = field(init=False)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.observation_expression = cas.Expression(self.observation_symbol)
-
-    def compute_observation(
-        self,
-    ) -> Union[
-        ObservationState.TrinaryFalse,
-        ObservationState.TrinaryTrue,
-        ObservationState.TrinaryUnknown,
-    ]:
-        """
-        Computes and returns the current observation state by calling _compute_observation.
-        Don't override this function.
-
-        :return: The computed observation state from the ObservationState enumeration.
-        :rtype: Union[ObservationState.TrinaryFalse, ObservationState.TrinaryTrue,
-                ObservationState.TrinaryUnknown]
-        """
-        return self._compute_observation()
-
-    @abstractmethod
-    def _compute_observation(
-        self,
-    ) -> Union[
-        ObservationState.TrinaryFalse,
-        ObservationState.TrinaryTrue,
-        ObservationState.TrinaryUnknown,
-    ]:
-        """
-        Override this function to compute the observation state, if it can't be done with a casadi expression.
-        .. warning:: This method must return essentially instantly and not block the main thread.
-        :return:
-        """
-
-
-@dataclass(eq=False, repr=False)
-class ThreadPayloadMonitor(PayloadMonitor, ABC):
+class ThreadPayloadMonitor(MotionStatechartNode, ABC):
     """
     Payload monitor that evaluates _compute_observation in a background thread.
 
@@ -435,14 +431,14 @@ class ThreadPayloadMonitor(PayloadMonitor, ABC):
 
 @dataclass(eq=False, repr=False)
 class EndMotion(MotionStatechartNode):
-    observation_expression: cas.Expression = field(
-        default_factory=lambda: cas.TrinaryTrue, init=False
-    )
+    _plot_style: str = field(default="filled, rounded", kw_only=True)
+    _plot_shape: str = field(default="rectangle", kw_only=True)
     _plot_boarder_styles: List[str] = field(
         default_factory=lambda: ["rounded"], kw_only=True
     )
-    _plot_style: str = field(default="filled, rounded", kw_only=True)
-    _plot_shape: str = field(default="rectangle", kw_only=True)
+
+    def create_observation_expression(self) -> cas.Expression:
+        return cas.TrinaryTrue
 
 
 @dataclass(eq=False, repr=False)
@@ -456,3 +452,9 @@ class CancelMotion(MotionStatechartNode):
     )
     _plot_style: str = field(default="filled, rounded", kw_only=True)
     _plot_shape: str = field(default="rectangle", kw_only=True)
+
+    def _create_observation_expression(self) -> cas.Expression:
+        return cas.TrinaryTrue
+
+    def on_running(self) -> Optional[float]:
+        raise self.exception

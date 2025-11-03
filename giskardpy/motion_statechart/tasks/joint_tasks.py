@@ -6,6 +6,7 @@ from giskardpy.data_types.exceptions import GoalInitalizationException
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.monitors.joint_monitors import JointGoalReached
 from giskardpy.motion_statechart.tasks.task import Task, WEIGHT_BELOW_CA
+from giskardpy.qp.constraint import Constraint
 from giskardpy.utils.decorators import validated_dataclass
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
@@ -24,8 +25,7 @@ class JointPositionList(Task):
     weight: float = field(default=WEIGHT_BELOW_CA, kw_only=True)
     max_velocity: float = field(default=1.0, kw_only=True)
 
-    def __post_init__(self):
-        super().__post_init__()
+    def build_common(self):
         self.current_positions = []
         self.goal_positions = []
         self.velocity_limits = []
@@ -33,7 +33,7 @@ class JointPositionList(Task):
         if len(self.goal_state) == 0:
             raise GoalInitalizationException(f"Can't initialize {self} with no joints.")
 
-        errors = []
+        self.errors = []
 
         for connection, target in self.goal_state.items():
             current = connection.dof.symbols.position
@@ -54,8 +54,13 @@ class JointPositionList(Task):
                 weight=self.weight,
                 task_expression=current,
             )
-            errors.append(cas.abs(error) < self.threshold)
-        self.observation_expression = cas.logic_all(cas.Expression(errors))
+            self.errors.append(cas.abs(error) < self.threshold)
+
+    def create_constraints(self) -> List[Constraint]:
+        return []
+
+    def create_observation_expression(self) -> cas.Expression:
+        return cas.logic_all(cas.Expression(self.errors))
 
     def apply_limits_to_target(
         self, target: float, connection: ActiveConnection1DOF

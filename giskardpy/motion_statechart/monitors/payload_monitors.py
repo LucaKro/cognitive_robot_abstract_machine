@@ -1,11 +1,11 @@
 from dataclasses import field, dataclass
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Optional
 
 import numpy as np
 from line_profiler import profile
 
 from giskardpy.god_map import god_map
-from giskardpy.motion_statechart.graph_node import PayloadMonitor, Monitor
+from giskardpy.motion_statechart.graph_node import Monitor, MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import ObservationState
 from giskardpy.utils.decorators import validated_dataclass
 
@@ -19,10 +19,10 @@ class CheckMaxTrajectoryLength(Monitor):
 
 
 @dataclass(eq=False, repr=False)
-class Print(PayloadMonitor):
+class Print(MotionStatechartNode):
     message: str = ""
 
-    def _compute_observation(self) -> Union[
+    def on_running(self) -> Union[
         ObservationState.TrinaryFalse,
         ObservationState.TrinaryTrue,
         ObservationState.TrinaryUnknown,
@@ -32,21 +32,21 @@ class Print(PayloadMonitor):
 
 
 @validated_dataclass
-class Sleep(PayloadMonitor):
+class Sleep(MotionStatechartNode):
     seconds: float
-    start_time: float = field(default=None, init=False)
+    start_time: Optional[float] = field(default=None, init=False)
 
-    def __post_init__(self):
+    def on_start(self) -> Optional[float]:
         self.start_time = None
 
-    def __call__(self):
+    def on_running(self) -> Optional[float]:
         if self.start_time is None:
             self.start_time = god_map.time
-        self.state = god_map.time - self.start_time >= self.seconds
+        return god_map.time - self.start_time >= self.seconds
 
 
 @validated_dataclass
-class CollisionMatrixUpdater(PayloadMonitor):
+class CollisionMatrixUpdater(MotionStatechartNode):
     new_collision_matrix: Dict[Tuple[str, str], float]
 
     @profile
@@ -57,7 +57,7 @@ class CollisionMatrixUpdater(PayloadMonitor):
 
 
 @validated_dataclass
-class PayloadAlternator(PayloadMonitor):
+class PayloadAlternator(MotionStatechartNode):
     mod: int = 2
 
     def __call__(self):
@@ -65,7 +65,7 @@ class PayloadAlternator(PayloadMonitor):
 
 
 @validated_dataclass
-class Counter(PayloadMonitor):
+class Counter(MotionStatechartNode):
     number: int
     counter: int = field(default=0, init=False)
 
@@ -80,7 +80,7 @@ class Counter(PayloadMonitor):
 
 
 @validated_dataclass
-class Pulse(PayloadMonitor):
+class Pulse(MotionStatechartNode):
     after_ticks: int
     true_for_ticks: int = 1
     ticks: int = field(default=0, init=False)

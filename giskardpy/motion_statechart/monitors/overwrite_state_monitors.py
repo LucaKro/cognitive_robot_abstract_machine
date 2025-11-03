@@ -6,7 +6,7 @@ from typing import Dict, Optional, Union, Type, Tuple
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GoalInitalizationException
 from giskardpy.god_map import god_map
-from giskardpy.motion_statechart.graph_node import PayloadMonitor
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import ObservationState
 from giskardpy.utils.decorators import validated_dataclass
 from giskardpy.utils.math import axis_angle_from_quaternion
@@ -18,7 +18,7 @@ from semantic_digital_twin.world_description.world_entity import Connection
 
 
 @validated_dataclass
-class SetSeedConfiguration(PayloadMonitor):
+class SetSeedConfiguration(MotionStatechartNode):
     """
     Overwrite the configuration of the world to allow starting the planning from a different state.
     CAUTION! don't use this to overwrite the robot's state outside standalone mode!
@@ -47,7 +47,7 @@ class SetSeedConfiguration(PayloadMonitor):
 
 
 @validated_dataclass
-class SetOdometry(PayloadMonitor):
+class SetOdometry(MotionStatechartNode):
     base_pose: cas.TransformationMatrix = field(kw_only=True)
     _odom_joints: Tuple[Type[Connection], ...] = field(default=(OmniDrive,), init=False)
     odom_connection: Optional[OmniDrive] = None

@@ -375,12 +375,12 @@ def test_nested_goals():
     inner.add_node(sub_node2)
     sub_node1.end_condition = sub_node1.observation_symbol
     sub_node2.start_condition = sub_node1.observation_symbol
-    inner.observation_expression = sub_node2.observation_symbol
+    inner.create_observation_expression = lambda: sub_node2.observation_symbol
 
     # outer goal that contains the inner goal as a node
     outer = Goal(name=PrefixedName("outer"), motion_statechart=msg)
     outer.add_node(inner)
-    outer.observation_expression = inner.observation_symbol
+    outer.create_observation_expression = lambda: inner.observation_symbol
     outer.start_condition = node1.observation_symbol
 
     end = EndMotion(name=PrefixedName("done nested"), motion_statechart=msg)
@@ -597,7 +597,7 @@ def test_goal():
     goal.add_node(sub_node2)
     sub_node1.end_condition = sub_node1.observation_symbol
     sub_node2.start_condition = sub_node1.observation_symbol
-    goal.observation_expression = sub_node2.observation_symbol
+    goal.create_observation_expression = lambda: sub_node2.observation_symbol
     goal.start_condition = node1.observation_symbol
 
     end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)

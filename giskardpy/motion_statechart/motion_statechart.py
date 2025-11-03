@@ -15,7 +15,6 @@ from giskardpy.motion_statechart.graph_node import (
     EndMotion,
     CancelMotion,
     GenericMotionStatechartNode,
-    PayloadMonitor,
     ObservationSymbol,
     LifeCycleSymbol,
 )
@@ -184,7 +183,10 @@ class ObservationState(State):
             state_f = cas.if_eq_cases(
                 a=node.life_cycle_symbol,
                 b_result_cases=[
-                    (int(LifeCycleValues.RUNNING), node.observation_expression),
+                    (
+                        int(LifeCycleValues.RUNNING),
+                        node.create_observation_expression(),
+                    ),
                     (
                         int(LifeCycleValues.NOT_STARTED),
                         cas.TrinaryUnknown,
@@ -300,6 +302,8 @@ class MotionStatechart:
     def compile(self):
         for goal in self.get_nodes_by_type(Goal):
             goal.apply_goal_conditions_to_children()
+        for node in self.nodes:
+            node.build_common()
         self.observation_state.compile()
         self.life_cycle_state.compile()
 
@@ -307,11 +311,11 @@ class MotionStatechart:
         self.observation_state.update_state(
             self.life_cycle_state.data, self.world.state.data
         )
-        for payload_monitor in self.get_nodes_by_type(PayloadMonitor):
-            if self.life_cycle_state[payload_monitor] == LifeCycleValues.RUNNING:
-                self.observation_state[payload_monitor] = (
-                    payload_monitor.compute_observation()
-                )
+        for node in self.nodes:
+            if self.life_cycle_state[node] == LifeCycleValues.RUNNING:
+                observation_overwrite = node.on_running()
+                if observation_overwrite is not None:
+                    self.observation_state[node] = observation_overwrite
 
     def _update_life_cycle_state(self):
         self.life_cycle_state.update_state(self.observation_state.data)

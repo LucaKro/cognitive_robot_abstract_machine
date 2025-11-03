@@ -78,13 +78,11 @@ class Alternator(Monitor):
 
 @dataclass(eq=False, repr=False)
 class TrueMonitor(Monitor):
-    observation_expression: cas.Expression = field(
-        default_factory=lambda: cas.TrinaryTrue, init=False
-    )
+    def create_observation_expression(self) -> cas.Expression:
+        return cas.TrinaryTrue
 
 
 @dataclass(eq=False, repr=False)
 class FalseMonitor(Monitor):
-    observation_expression: cas.Expression = field(
-        default_factory=lambda: cas.TrinaryFalse, init=False
-    )
+    def create_observation_expression(self) -> cas.Expression:
+        return cas.TrinaryFalse
