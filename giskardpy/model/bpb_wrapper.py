@@ -61,7 +61,7 @@ def create_cylinder_shape(diameter: float, height: float) -> pb.CylinderShape:
     # out = pb.CylinderShapeZ(pb.Vector3(0.5 * diameter, 0.5 * diameter, height * 0.5))
     # out.margin = 0.001
     # Weird thing: The default URDF loader in bullet instantiates convex meshes. Idk why.
-    file_name = resource_filename("giskardpy", "../test/urdfs/meshes/cylinder.obj")
+    file_name = resource_filename("giskardpy", "../resources/urdf/meshes/cylinder.obj")
     return load_convex_mesh_shape(
         file_name, single_shape=True, scale=Scale(diameter, diameter, height)
     )

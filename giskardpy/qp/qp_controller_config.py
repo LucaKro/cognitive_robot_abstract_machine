@@ -85,9 +85,6 @@ class QPControllerConfig:
             prediction_horizon=7,
         )
 
-    def setup(self):
-        self.init_qp_controller()
-
     def set_qp_solver(self) -> None:
         if self.qp_solver_id is not None:
             self.qp_solver_class = available_solvers[self.qp_solver_id]
@@ -116,6 +113,3 @@ class QPControllerConfig:
     def get_dof_weight(self, dof_name: PrefixedName, derivative: Derivatives) -> float:
         """Get weight for a specific DOF derivative."""
         return self.dof_weights[dof_name].data[derivative]
-
-    def init_qp_controller(self):
-        god_map.qp_controller = QPController(config=self)
