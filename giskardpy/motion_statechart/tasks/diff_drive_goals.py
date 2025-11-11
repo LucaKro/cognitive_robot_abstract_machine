@@ -37,7 +37,7 @@ class DiffDriveTangentialToPoint(Task):
             self.tip_V_pointing_axis.reference_frame = self.tip
 
         map_P_center = self.goal_point
-        map_T_base = god_map.world.compose_forward_kinematics_expression(
+        map_T_base = god_map.world._forward_kinematic_manager.compose_expression(
             self.root, self.tip
         )
         map_P_base = map_T_base.to_position()
@@ -104,11 +104,11 @@ class KeepHandInWorkspace(Task):
 
         weight = WEIGHT_ABOVE_CA
         base_footprint_V_pointing_axis = cas.Vector3(self.map_V_pointing_axis)
-        map_T_base_footprint = god_map.world.compose_forward_kinematics_expression(
+        map_T_base_footprint = god_map.world._forward_kinematic_manager.compose_expression(
             self.map_frame, self.base_footprint
         )
         map_V_pointing_axis = map_T_base_footprint @ base_footprint_V_pointing_axis
-        map_T_tip = god_map.world.compose_forward_kinematics_expression(
+        map_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.map_frame, self.tip_link
         )
         map_V_tip = cas.Vector3(map_T_tip.to_position())

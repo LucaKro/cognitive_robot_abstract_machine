@@ -31,7 +31,7 @@ class FeatureFunctionGoal(Task):
             target_frame=self.tip_link, spatial_object=self.controlled_feature
         )
 
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         if isinstance(self.controlled_feature, cas.Point3):

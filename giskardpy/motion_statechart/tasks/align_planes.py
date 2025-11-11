@@ -36,7 +36,7 @@ class AlignPlanes(Task):
         )
         self.root_V_root_normal.scale(1)
 
-        root_R_tip = god_map.world.compose_forward_kinematics_expression(
+        root_R_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_rotation_matrix()
         root_V_tip_normal = root_R_tip @ self.tip_V_tip_normal

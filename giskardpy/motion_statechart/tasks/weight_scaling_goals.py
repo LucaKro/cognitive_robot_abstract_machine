@@ -26,7 +26,7 @@ class BaseArmWeightScaling(Task):
     gain: float = 100000
 
     def __post_init__(self):
-        root_P_tip = god_map.world.compose_forward_kinematics_expression(
+        root_P_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         root_P_goal = god_map.world.transform(
@@ -95,7 +95,7 @@ class MaxManipulability(Task):
     m_threshold: float = 0.15
 
     def __post_init__(self):
-        root_P_tip = god_map.world.compose_forward_kinematics_expression(
+        root_P_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()[:3]
 

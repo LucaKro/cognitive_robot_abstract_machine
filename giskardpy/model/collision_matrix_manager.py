@@ -164,7 +164,7 @@ class CollisionMatrixManager:
                 view2_bodies = self.world.bodies_with_enabled_collision
             else:
                 view2_bodies = collision_request.view2.bodies_with_enabled_collision
-            disabled_pairs = self.world.disabled_collision_pairs
+            disabled_pairs = self.world._collision_pair_manager.disabled_collision_pairs
             for body1 in view_1_bodies:
                 for body2 in view2_bodies:
                     collision_check = CollisionCheck(

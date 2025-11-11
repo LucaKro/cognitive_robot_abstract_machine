@@ -57,7 +57,7 @@ class GraspBar(Task):
         tip_V_tip_grasp_axis = self.tip_grasp_axis
         root_P_bar_center = self.bar_center
 
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         root_V_tip_normal = root_T_tip @ tip_V_tip_grasp_axis
@@ -69,7 +69,7 @@ class GraspBar(Task):
             weight=self.weight,
         )
 
-        root_P_tip = god_map.world.compose_forward_kinematics_expression(
+        root_P_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
 

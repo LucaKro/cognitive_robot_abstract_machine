@@ -43,7 +43,7 @@ class InsertCylinder(Goal):
 
         root_P_hole = self.root_P_hole
         root_V_up = self.root_V_up
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root, self.tip
         )
         root_P_tip = root_T_tip.to_position()

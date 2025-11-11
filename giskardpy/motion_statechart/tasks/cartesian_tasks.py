@@ -34,13 +34,13 @@ class CartesianPosition(Task):
                 target_frame=self.root_link, spatial_object=self.goal_point
             )
         else:
-            root_T_x = god_map.world.compose_forward_kinematics_expression(
+            root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_point.reference_frame
             )
             root_P_goal = root_T_x.dot(self.goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         self.add_point_goal_constraints(
@@ -109,16 +109,16 @@ class CartesianPositionStraight(Task):
                 target_frame=self.root_link, spatial_object=self.goal_point
             )
         else:
-            root_T_x = god_map.world.compose_forward_kinematics_expression(
+            root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_point.reference_frame
             )
             root_P_goal = root_T_x.dot(self.goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
-        root_P_tip = god_map.world.compose_forward_kinematics_expression(
+        root_P_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
-        t_T_r = god_map.world.compose_forward_kinematics_expression(
+        t_T_r = god_map.world._forward_kinematic_manager.compose_expression(
             self.tip_link, self.root_link
         )
         tip_P_goal = t_T_r.dot(root_P_goal)
@@ -142,7 +142,7 @@ class CartesianPositionStraight(Task):
         tip_T_root = god_map.world.compute_forward_kinematics(
             self.tip_link, self.root_link
         )
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         a_T_t = t_R_a.inverse() @ tip_T_root @ root_T_tip
@@ -190,13 +190,13 @@ class CartesianOrientation(Task):
                 target_frame=self.root_link, spatial_object=self.goal_orientation
             )
         else:
-            root_T_x = god_map.world.compose_forward_kinematics_expression(
+            root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_orientation.reference_frame
             )
             root_R_goal = root_T_x.dot(self.goal_orientation)
             root_R_goal = self.update_expression_on_starting(root_R_goal)
 
-        r_T_c = god_map.world.compose_forward_kinematics_expression(
+        r_T_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         r_R_c = r_T_c.to_rotation_matrix()
@@ -213,7 +213,7 @@ class CartesianOrientation(Task):
             if self.absolute:
                 point = self.point_of_debug_matrix
             else:
-                root_T_x = god_map.world.compose_forward_kinematics_expression(
+                root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                     self.root_link, self.point_of_debug_matrix.reference_frame
                 )
                 point = root_T_x.dot(self.point_of_debug_matrix)
@@ -275,7 +275,7 @@ class CartesianPose(Task):
             root_P_goal = root_T_goal_ref @ goal_point
             root_R_goal = root_T_goal_ref @ goal_orientation
         else:
-            root_T_x = god_map.world.compose_forward_kinematics_expression(
+            root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_ref
             )
             root_P_goal = root_T_x @ goal_point
@@ -283,7 +283,7 @@ class CartesianPose(Task):
             root_R_goal = root_T_x @ goal_orientation
             root_R_goal = self.update_expression_on_starting(root_R_goal)
 
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         self.add_point_goal_constraints(
@@ -295,7 +295,7 @@ class CartesianPose(Task):
 
         distance_to_goal = root_P_goal.euclidean_distance(r_P_c)
 
-        r_T_c = god_map.world.compose_forward_kinematics_expression(
+        r_T_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         r_R_c = r_T_c.to_rotation_matrix()
@@ -339,7 +339,7 @@ class CartesianPositionVelocityLimit(Task):
         :param weight: default WEIGHT_ABOVE_CA
         :param hard: Turn this into a hard constraint. This make create unsolvable optimization problems
         """
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         self.add_translational_velocity_limit(
@@ -360,11 +360,11 @@ class CartesianRotationVelocityLimit(Task):
         """
         See CartesianVelocityLimit
         """
-        r_R_c = god_map.world.compose_forward_kinematics_expression(
+        r_R_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_rotation()
 
-        r_R_c = god_map.world.compose_forward_kinematics_expression(
+        r_R_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_rotation_matrix()
 
@@ -391,7 +391,7 @@ class CartesianVelocityLimit(Task):
         :param max_angular_velocity: rad/s
         :param weight: default WEIGHT_ABOVE_CA
         """
-        r_T_c = god_map.world.compose_forward_kinematics_expression(
+        r_T_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         r_P_c = r_T_c.to_position()
@@ -430,7 +430,7 @@ class CartesianPositionVelocityTarget(Task):
         :param weight: default WEIGHT_ABOVE_CA
         :param hard: Turn this into a hard constraint. This make create unsolvable optimization problems
         """
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         god_map.debug_expression_manager.add_debug_expression(
@@ -476,7 +476,7 @@ class JustinTorsoLimitCart(Task):
     weight: float = WEIGHT_ABOVE_CA
 
     def __post_init__(self):
-        torso_root_T_torso_tip = god_map.world.compose_forward_kinematics_expression(
+        torso_root_T_torso_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         torso_root_V_up = cas.Vector3(0, 0, 1)

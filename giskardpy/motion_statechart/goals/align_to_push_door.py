@@ -41,10 +41,10 @@ class AlignToPushDoor(Goal):
         )
         joint_limit = god_map.world.compute_joint_limits(object_joint_name, 0)
 
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root, self.tip
         )
-        root_T_door_expr = god_map.world.compose_forward_kinematics_expression(
+        root_T_door_expr = god_map.world._forward_kinematic_manager.compose_expression(
             self.root, self.door_object
         )
         tip_V_tip_grasp_axis = cas.Vector3.from_iterable(self.tip_gripper_axis)

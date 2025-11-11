@@ -30,10 +30,10 @@ class PrePushDoor(Goal):
             god_map.world.get_joint(object_joint_name).axis
         )
 
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
-        root_T_door = god_map.world.compose_forward_kinematics_expression(
+        root_T_door = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.door_object
         )
         door_P_handle = god_map.world.compute_forward_kinematics(
@@ -50,7 +50,7 @@ class PrePushDoor(Goal):
         door_V_v2 = object_V_object_rotation_axis  # B
         door_V_v1 = cas.Vector3(door_V_v1)  # A
 
-        door_Pose_tip = god_map.world.compose_forward_kinematics_expression(
+        door_Pose_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.door_object, self.tip_link
         )
         door_P_tip = door_Pose_tip.to_position()

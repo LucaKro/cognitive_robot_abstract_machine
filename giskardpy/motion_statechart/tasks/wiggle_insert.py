@@ -81,7 +81,7 @@ class WiggleInsert(Task):
         self.v1 = cas.Vector3(*v1, reference_frame=self.hole_normal.reference_frame)
         self.v2 = cas.Vector3(*v2, reference_frame=self.hole_normal.reference_frame)
 
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         r_P_g = god_map.world.transform(
@@ -120,7 +120,7 @@ class WiggleInsert(Task):
             self.root_link, self.tip_link
         ).dot(tip_R_hole_normal)
 
-        r_T_c = god_map.world.compose_forward_kinematics_expression(
+        r_T_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         r_R_c = r_T_c.to_rotation_matrix()

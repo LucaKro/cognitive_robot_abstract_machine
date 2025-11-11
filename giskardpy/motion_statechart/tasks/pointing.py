@@ -38,7 +38,7 @@ class Pointing(Task):
         )
         self.tip_V_pointing_axis.scale(1)
 
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         root_P_goal_point = symbol_manager.register_point3(
@@ -103,7 +103,7 @@ class PointingCone(Task):
         )
         self.tip_V_pointing_axis.scale(1)
 
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         root_P_goal_point = symbol_manager.register_point3(

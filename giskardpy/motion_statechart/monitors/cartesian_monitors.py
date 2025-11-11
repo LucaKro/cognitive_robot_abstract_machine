@@ -19,10 +19,10 @@ class InWorldSpace(Monitor):
         self.tip_link = self.tip_link
         self.map = self.joint.parent
 
-        map_T_tip = god_map.world.compose_forward_kinematics_expression(
+        map_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.map, self.tip_link
         )
-        map_T_drive = god_map.world.compose_forward_kinematics_expression(
+        map_T_drive = god_map.world._forward_kinematic_manager.compose_expression(
             self.map, self.drive_link
         )
 
@@ -55,7 +55,7 @@ class PoseReached(Monitor):
                 target_frame=self.root_link, spatial_object=self.goal_pose
             )
         else:
-            root_T_x = god_map.world.compose_forward_kinematics_expression(
+            root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_pose.reference_frame
             )
             root_T_goal = root_T_x @ self.goal_pose
@@ -63,7 +63,7 @@ class PoseReached(Monitor):
 
         # %% position error
         r_P_g = root_T_goal.to_position()
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         distance_to_goal = r_P_g.euclidean_distance(r_P_c)
@@ -71,7 +71,7 @@ class PoseReached(Monitor):
 
         # %% orientation error
         r_R_g = root_T_goal.to_rotation_matrix()
-        r_R_c = god_map.world.compose_forward_kinematics_expression(
+        r_R_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_rotation_matrix()
         rotation_error = r_R_c.rotational_error(r_R_g)
@@ -96,13 +96,13 @@ class PositionReached(Monitor):
                 target_frame=self.root_link, spatial_object=self.goal_point
             )
         else:
-            root_P_x = god_map.world.compose_forward_kinematics_expression(
+            root_P_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_point.reference_frame
             )
             root_P_goal = root_P_x.dot(self.goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
-        r_P_c = god_map.world.compose_forward_kinematics_expression(
+        r_P_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         distance_to_goal = root_P_goal.euclidean_distance(r_P_c)
@@ -123,13 +123,13 @@ class OrientationReached(Monitor):
                 target_frame=self.root_link, spatial_object=self.goal_orientation
             )
         else:
-            root_T_x = god_map.world.compose_forward_kinematics_expression(
+            root_T_x = god_map.world._forward_kinematic_manager.compose_expression(
                 self.root_link, self.goal_orientation.reference_frame
             )
             root_R_goal = root_T_x @ self.goal_orientation
             r_R_g = self.update_expression_on_starting(root_R_goal)
 
-        r_R_c = god_map.world.compose_forward_kinematics_expression(
+        r_R_c = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_rotation_matrix()
         rotation_error = r_R_c.rotational_error(r_R_g)
@@ -153,7 +153,7 @@ class PointingAt(Monitor):
             target_frame=self.tip_link, spatial_object=self.pointing_axis
         )
         tip_V_pointing_axis.scale(1)
-        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+        root_T_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         )
         root_P_tip = root_T_tip.to_position()
@@ -187,7 +187,7 @@ class VectorsAligned(Monitor):
         )
         self.root_V_root_normal.scale(1)
 
-        root_R_tip = god_map.world.compose_forward_kinematics_expression(
+        root_R_tip = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_rotation_matrix()
         root_V_tip_normal = root_R_tip.dot(self.tip_V_tip_normal)
@@ -206,7 +206,7 @@ class DistanceToLine(Monitor):
     threshold: float = 0.01
 
     def __post_init__(self):
-        root_P_current = god_map.world.compose_forward_kinematics_expression(
+        root_P_current = god_map.world._forward_kinematic_manager.compose_expression(
             self.root_link, self.tip_link
         ).to_position()
         root_V_line_axis = god_map.world.transform(

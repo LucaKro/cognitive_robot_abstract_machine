@@ -91,7 +91,7 @@ class BaseTrajFollower(Goal):
         odom_T_base_footprint_goal = self.make_odom_T_base_footprint_goal(
             t_in_s, derivative
         )
-        map_T_odom = god_map.world.compose_forward_kinematics_expression(
+        map_T_odom = god_map.world._forward_kinematic_manager.compose_expression(
             god_map.world.root_link_name, self.odom_link
         )
         return map_T_odom @ odom_T_base_footprint_goal
@@ -104,7 +104,7 @@ class BaseTrajFollower(Goal):
         )
         map_T_base_footprint_goal = map_T_odom @ odom_T_base_footprint_goal
         map_T_base_footprint_current = (
-            god_map.world.compose_forward_kinematics_expression(
+            god_map.world._forward_kinematic_manager.compose_expression(
                 god_map.world.root_link_name, self.base_footprint_link
             )
         )
@@ -118,7 +118,7 @@ class BaseTrajFollower(Goal):
     def add_trans_constraints(self):
         errors_x = []
         errors_y = []
-        map_T_base_footprint = god_map.world.compose_forward_kinematics_expression(
+        map_T_base_footprint = god_map.world._forward_kinematic_manager.compose_expression(
             god_map.world.root_link_name, self.base_footprint_link
         )
         for t in range(god_map.qp_controller.prediction_horizon):
