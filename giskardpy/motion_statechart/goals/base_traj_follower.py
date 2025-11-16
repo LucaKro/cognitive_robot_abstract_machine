@@ -54,7 +54,7 @@ class BaseTrajFollower(Goal):
         time = god_map.time_symbol
         b_result_cases = []
         for t in range(self.trajectory_length):
-            b = t * god_map.qp_controller.mpc_dt
+            b = t * context.qp_controller.mpc_dt
             eq_result = self.x_symbol(t, free_variable_name, derivative)
             b_result_cases.append((b, eq_result))
             # FIXME if less eq cases behavior changed
@@ -108,7 +108,7 @@ class BaseTrajFollower(Goal):
 
         frame_P_goal = map_T_base_footprint_goal.to_position()
         frame_P_current = map_T_base_footprint_current.to_position()
-        error = (frame_P_goal - frame_P_current) / god_map.qp_controller.mpc_dt
+        error = (frame_P_goal - frame_P_current) / context.qp_controller.mpc_dt
         return error[0], error[1]
 
     @profile
@@ -120,16 +120,16 @@ class BaseTrajFollower(Goal):
                 god_map.world.root_link_name, self.base_footprint_link
             )
         )
-        for t in range(god_map.qp_controller.prediction_horizon):
+        for t in range(context.qp_controller.prediction_horizon):
             x = self.current_traj_point(
                 self.joint.x_velocity.name,
-                t * god_map.qp_controller.mpc_dt,
+                t * context.qp_controller.mpc_dt,
                 Derivatives.velocity,
             )
             if isinstance(self.joint, OmniDrive):
                 y = self.current_traj_point(
                     self.joint.y_velocity.name,
-                    t * god_map.qp_controller.mpc_dt,
+                    t * context.qp_controller.mpc_dt,
                     Derivatives.velocity,
                 )
             else:
@@ -173,18 +173,18 @@ class BaseTrajFollower(Goal):
         rotation_current = self.joint.yaw.variables.position
         error = (
             cas.shortest_angular_distance(rotation_current, rotation_goal)
-            / god_map.qp_controller.mpc_dt
+            / context.qp_controller.mpc_dt
         )
         return error
 
     @profile
     def add_rot_constraints(self):
         errors = []
-        for t in range(god_map.qp_controller.prediction_horizon):
+        for t in range(context.qp_controller.prediction_horizon):
             errors.append(
                 self.current_traj_point(
                     self.joint.yaw.name,
-                    t * god_map.qp_controller.mpc_dt,
+                    t * context.qp_controller.mpc_dt,
                     Derivatives.velocity,
                 )
             )

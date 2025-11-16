@@ -9,6 +9,7 @@ from threading import Lock
 from typing import Dict, Tuple, Optional, List
 
 import numpy as np
+from giskardpy_ros.tree.blackboard_utils import GiskardBlackboard
 from line_profiler import profile
 from sortedcontainers import SortedDict
 
@@ -120,7 +121,9 @@ class Trajectory:
         cm_per_second = cm_to_inch(cm_per_second)
         height_per_derivative = cm_to_inch(height_per_derivative)
         hspace = cm_to_inch(hspace)
-        max_derivative = god_map.qp_controller.config.max_derivative
+        max_derivative = (
+            GiskardBlackboard().executor.qp_controller.config.max_derivative
+        )
         with plot_lock:
 
             def ceil(val, base=0.0, stride=1.0):

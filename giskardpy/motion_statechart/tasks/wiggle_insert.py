@@ -53,9 +53,9 @@ class WiggleInsert(Task):
 
         # Random-Sample works better with control_dt and Random-Walk with throttling using self.dt in my testing
         if self.random_walk:
-            self.dt = god_map.qp_controller.control_dt
+            self.dt = context.qp_controller.control_dt
         else:
-            self.dt = god_map.qp_controller.control_dt
+            self.dt = context.qp_controller.control_dt
         self.hz = 1 / self.dt
 
         if self.random_walk:
