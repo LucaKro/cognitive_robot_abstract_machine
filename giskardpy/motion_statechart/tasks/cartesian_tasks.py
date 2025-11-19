@@ -195,7 +195,7 @@ class CartesianPose(Task):
     This goal will use the kinematic chain between root and tip link to move tip_link into the 6D goal_pose.
     """
 
-    root_link: KinematicStructureEntity = field(kw_only=True)
+    root_link: Optional[KinematicStructureEntity] = field(kw_only=True, default=None)
     """Name of the root link of the kin chain"""
 
     tip_link: KinematicStructureEntity = field(kw_only=True)
@@ -237,6 +237,9 @@ class CartesianPose(Task):
 
     def build(self, context: BuildContext) -> NodeArtifacts:
         artifacts = NodeArtifacts()
+
+        if self.root_link is None:
+            self.root_link = context.world.root
 
         self._fk_binding = ForwardKinematicsBinding(
             name=PrefixedName("root_T_ref", str(self.name)),
