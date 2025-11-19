@@ -67,7 +67,6 @@ class CollisionWorldSynchronizer:
     def sync(self):
         if self.has_world_model_changed():
             self.collision_detector.sync_world_model()
-            self.matrix_manager.apply_world_model_updates()
         self.collision_detector.sync_world_state()
 
     def has_world_model_changed(self) -> bool:
