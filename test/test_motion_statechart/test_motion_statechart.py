@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from math import radians
 
 import numpy as np
 import pytest
@@ -49,7 +50,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianOrientation,
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
-from giskardpy.motion_statechart.tasks.pointing import Pointing
+from giskardpy.motion_statechart.tasks.pointing import Pointing, PointingCone
 from giskardpy.motion_statechart.test_nodes.test_nodes import (
     ChangeStateOnEvents,
     ConstTrueNode,
@@ -1195,6 +1196,57 @@ def test_pointing(pr2_world: World):
     kin_sim.compile(motion_statechart=msc)
     kin_sim.tick_until_end()
 
+
+def test_pointing_cone(pr2_world: World):
+    tip = pr2_world.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
+    root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
+
+    msc = MotionStatechart()
+
+    goal_point = cas.Point3(-1, 0, 5, reference_frame=root)
+    pointing_axis = cas.Vector3.X(tip)
+    cone_theta = radians(20)
+    pointing_cone = PointingCone(
+        root_link=root,
+        tip_link=tip,
+        goal_point=goal_point,
+        pointing_axis=pointing_axis,
+        cone_theta=cone_theta,
+    )
+    msc.add_node(pointing_cone)
+    end = EndMotion()
+    msc.add_node(end)
+    end.start_condition = pointing_cone.observation_variable
+
+    kin_sim = Executor(
+        world=pr2_world,
+        controller_config=QPControllerConfig.create_default_with_50hz(),
+    )
+    kin_sim.compile(motion_statechart=msc)
+    kin_sim.tick_until_end()
+
+    # Check if angle between pointing axis and tip->goal vector is within the cone
+    root_V_pointing_axis = pr2_world.transform(target_frame=root, spatial_object=pointing_axis)
+    root_V_pointing_axis.scale(1)
+    v_pointing = root_V_pointing_axis.to_np()[:3]
+
+    root_P_goal = pr2_world.transform(target_frame=root, spatial_object=goal_point)
+    tip_origin_in_root = pr2_world.transform(
+        target_frame=root, spatial_object=cas.Point3(0, 0, 0, reference_frame=tip)
+    )
+    root_V_goal_axis = root_P_goal - tip_origin_in_root
+    root_V_goal_axis.scale(1)
+    v_goal = root_V_goal_axis.to_np()[:3]
+
+    eps = 1e-9
+    assert np.linalg.norm(v_pointing) > eps, "pointing axis became zero-length"
+    assert np.linalg.norm(v_goal) > eps, "tip->goal vector became zero-length"
+
+    angle = angle_between_vector(v_pointing, v_goal)
+
+    assert angle <= cone_theta + pointing_cone.threshold, (
+        f"PointingCone failed: final angle {angle:.6f} rad > cone_theta {cone_theta:.6f} rad"
+    )
 
 def test_align_planes(pr2_world: World):
     tip = pr2_world.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
