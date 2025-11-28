@@ -54,7 +54,7 @@ def serialize_exception(obj: Exception) -> Dict[str, Any]:
     }
 
 
-def deserialize_exception(data: Dict[str, Any]) -> Exception:
+def deserialize_exception(data: Dict[str, Any], **kwargs) -> Exception:
 
     return Exception(data["value"])
 
