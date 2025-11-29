@@ -1,10 +1,10 @@
 import json
+import time
 from dataclasses import dataclass
 from math import radians
 
 import numpy as np
 import pytest
-import time
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.executor import Executor
@@ -61,7 +61,6 @@ from giskardpy.motion_statechart.test_nodes.test_nodes import (
 from giskardpy.qp.exceptions import HardConstraintsViolatedException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.utils.math import angle_between_vector
-from semantic_digital_twin.adapters.ros.world_synchronizer import StateSynchronizer
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     KinematicStructureEntityKwargsTracker,
 )
@@ -1049,8 +1048,7 @@ def test_cart_goal_1eef(pr2_world: World):
     kin_sim.tick_until_end()
 
 
-def test_long_goal(pr2_world: World, rclpy_node):
-    state_sync = StateSynchronizer(world=pr2_world, node=rclpy_node)
+def test_long_goal(pr2_world: World):
     msc = MotionStatechart()
     msc.add_nodes(
         [
