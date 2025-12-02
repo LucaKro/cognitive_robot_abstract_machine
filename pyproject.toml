@@ -17,6 +17,9 @@ authors = [{ name = "AICOR Institute", email = "you@example.com" }]
 #  "semantic_digital_twin @ file:///home/jonas/workspace/cognitive_robot_abstract_machine/semantic_digital_twin",
 #]
 
+[tool.poetry]
+package-mode = false
+
 [tool.poetry.dependencies]
 pycram-robotics = { path = "pycram", develop = true }
 giskardpy = { path = "giskardpy", develop = true }
