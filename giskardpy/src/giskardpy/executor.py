@@ -133,6 +133,7 @@ class Executor:
             robots=self.world.get_semantic_annotations_by_type(AbstractRobot),
             collision_detector=collision_detector,
         )
+        self.pacer.control_dt = self.controller_config.control_dt
 
     def _create_control_cycles_variable(self):
         self._control_cycles_variable = (
@@ -147,7 +148,6 @@ class Executor:
         self._create_control_cycles_variable()
         self.motion_statechart.compile(self.build_context)
         self._compile_qp_controller(self.controller_config)
-        self.pacer.control_dt = self.controller_config.control_dt
 
     @property
     def build_context(self) -> BuildContext:
