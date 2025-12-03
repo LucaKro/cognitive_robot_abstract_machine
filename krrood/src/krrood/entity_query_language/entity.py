@@ -298,8 +298,7 @@ def max_(variable: Selectable[T], key: Optional[Callable] = None, default: Optio
 
 def min_(variable: Selectable[T], key: Optional[Callable] = None, default: Optional[T] = None) -> Union[T, Min[T]]:
     """
-    Add a result mapping that maps the results to the result that has the minimum
-    value for the given variable.
+    Maps the variable values to their minimum value.
 
     :param variable: The variable for which the minimum value is to be found.
     :param key: A function that extracts a comparison key from each variable value.
