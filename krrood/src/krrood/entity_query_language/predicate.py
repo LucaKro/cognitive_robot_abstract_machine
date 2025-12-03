@@ -25,16 +25,8 @@ from .symbolic import (
     T,
     SymbolicExpression,
     Variable,
-    From,
     _any_of_the_kwargs_is_a_variable,
 )
-from .utils import is_iterable
-from ..utils import recursive_subclasses
-
-cls_args = {}
-"""
-Cache of class arguments.
-"""
 
 
 def symbolic_function(

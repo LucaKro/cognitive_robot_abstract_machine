@@ -703,6 +703,9 @@ class ResultQuantifier(ResultProcessor[T], ABC):
     A child of a result quantifier. It must be a QueryObjectDescriptor.
     """
     _quantification_constraint_: Optional[ResultQuantificationConstraint] = None
+    """
+    The quantification constraint that must be satisfied by the result quantifier if present.
+    """
 
     def __post_init__(self):
         if not isinstance(self._child_, QueryObjectDescriptor):
@@ -2107,7 +2110,7 @@ def optimize_or(left: SymbolicExpression, right: SymbolicExpression) -> OR:
         return Union(left, right)
 
 
-def _any_of_the_kwargs_is_a_variable(bindings: Dict[str, Any]) -> bool:
+def _any_of_the_kwargs_is_a_variable(bindings: Dict[str, HashedValue]) -> bool:
     """
     :param bindings: A kwarg like dict mapping strings to objects
     :return: Rather any of the objects is a variable or not.
