@@ -147,9 +147,9 @@ class QPControllerConfig:
         self.set_qp_solver()
 
     @classmethod
-    def create_default_with_50hz(cls):
+    def create_default_with_20hz(cls):
         return cls(
-            control_dt=0.02,
+            control_dt=0.05,
             prediction_horizon=7,
         )
 
