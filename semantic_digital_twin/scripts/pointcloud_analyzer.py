@@ -217,6 +217,47 @@ class PointCloudLoader:
                 f"Failed reading point cloud file: {file_path}"
             ) from exc
 
+    def load_nth_from_directory(
+        self,
+        directory: Path,
+        n: int,
+        pattern: str = "*.pts",
+        sort_by_name: bool = True,
+        reverse: bool = False,
+    ) -> o3d.geometry.PointCloud:
+        """Load the n-th ``.pts`` file from a directory.
+
+        This helper lists files matching ``pattern`` in ``directory``, sorts them
+        deterministically, picks the n-th item (1-based), and loads it using
+        :py:meth:`load`.
+
+        Raises
+        ------
+        PointCloudLoadError
+            If the directory is invalid, no files match, or ``n`` is out of range.
+        """
+        if not directory.exists() or not directory.is_dir():
+            raise PointCloudLoadError(f"Directory not found or not a directory: {directory}")
+
+        files = list(directory.glob(pattern))
+        if not files:
+            raise PointCloudLoadError(
+                f"No files matching pattern '{pattern}' found in: {directory}"
+            )
+
+        if sort_by_name:
+            files.sort(key=lambda p: p.name.lower(), reverse=reverse)
+        else:
+            files.sort(key=lambda p: p.stat().st_mtime, reverse=reverse)
+
+        if n < 1 or n > len(files):
+            raise PointCloudLoadError(
+                f"Requested index {n} is out of range for {len(files)} file(s) in {directory}"
+            )
+
+        target = files[n - 1]
+        return self.load(target)
+
 
 class MeshReconstructor:
     """Interface for mesh reconstruction algorithms."""
@@ -527,7 +568,11 @@ def analyze(config: AnalyzerConfig) -> None:
     This function loads the point cloud, reconstructs requested meshes, and displays them.
     """
     loader = PointCloudLoader(config.pointcloud)
-    pcd = loader.load(config.file)
+    # Allow passing a directory: load the first matching .pts using the helper
+    if isinstance(config.file, Path) and config.file.is_dir():
+        pcd = loader.load_nth_from_directory(config.file, n=1)
+    else:
+        pcd = loader.load(config.file)
 
     # Always register the point cloud in the visualizer so it can be toggled on/off
     # in the UI, regardless of the initial visibility preference. Initial visibility
@@ -562,8 +607,17 @@ def _build_arg_parser():
             "Example path: /home/pmania/Downloads/archive/PartAnnotation/03001627-chair/points/1a6f615e8b1b5ae4dbbc9440457e303e.pts"
         )
     )
-    default_path = "/home/pmania/Downloads/archive/PartAnnotation/03001627-chair/points/1a6f615e8b1b5ae4dbbc9440457e303e.pts"
-    parser.add_argument("--file", type=Path, default=default_path, help="Path to .pts file")
+
+    # You can pass either a .pts file or a directory. If a directory is provided,
+    # the first .pts file (sorted by name) will be loaded.
+    default_path = "/home/pmania/Downloads/archive/PartAnnotation/03001627-chair/points/"
+
+    parser.add_argument(
+        "--file",
+        type=Path,
+        default=default_path,
+        help="Path to a .pts file or a directory containing .pts files (first will be loaded)",
+    )
 
     # Point cloud options
     parser.add_argument("--voxel-size", type=float, default=0.0, help="Voxel downsampling size (0 to disable)")
