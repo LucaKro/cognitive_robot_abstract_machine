@@ -333,9 +333,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
     A variable referring to the observation state of this node.
     """
 
-    _constraint_collection: ConstraintCollection = field(init=False, default=None)
+    _constraint_collection: ConstraintCollection = field(init=False)
     """The parameter is set after build() using its NodeArtifacts."""
-    _observation_expression: cas.Expression = field(init=False, default=None)
+    _observation_expression: cas.Expression = field(init=False)
     """The parameter is set after build() using its NodeArtifacts."""
     _debug_expressions: List[DebugExpression] = field(default_factory=list, init=False)
     """The parameter is set after build() using its NodeArtifacts."""

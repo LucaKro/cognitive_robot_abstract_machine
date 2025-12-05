@@ -722,9 +722,6 @@ class World:
         kinematic_structure_entity.index = self.kinematic_structure.add_node(
             kinematic_structure_entity
         )
-        self._world_entity_hash_table[hash(kinematic_structure_entity)] = (
-            kinematic_structure_entity
-        )
 
     def add_degree_of_freedom(self, dof: DegreeOfFreedom) -> None:
         """
@@ -753,7 +750,6 @@ class World:
         dof.add_to_world(self)
         self.state.add_degree_of_freedom(dof)
         self.degrees_of_freedom.append(dof)
-        self._world_entity_hash_table[hash(dof)] = dof
 
     def add_semantic_annotation(self, semantic_annotation: SemanticAnnotation) -> None:
         """
@@ -791,9 +787,6 @@ class World:
         semantic_annotation.add_to_world(self)
         self.semantic_annotations.append(semantic_annotation)
         self._world_entity_hash_table[hash(semantic_annotation)] = semantic_annotation
-        self._world_entity_hash_table[hash(semantic_annotation.name)] = (
-            semantic_annotation
-        )
 
     def add_actuator(self, actuator: Actuator) -> None:
         """
@@ -822,9 +815,8 @@ class World:
         :param actuator: The actuator to be added to the system.
         :return: None
         """
-        actuator._world = self
+        actuator.add_to_world(self)
         self.actuators.append(actuator)
-        self._world_entity_hash_table[hash(actuator)] = actuator
 
     def _raise_error_if_belongs_to_other_world(self, world_entity: WorldEntity):
         """
@@ -865,7 +857,6 @@ class World:
             except NoEdgeBetweenNodes:
                 pass
         connection.remove_from_world()
-        self._world_entity_hash_table.pop(hash(connection), None)
 
     def remove_kinematic_structure_entity(
         self, kinematic_structure_entity: KinematicStructureEntity
@@ -891,7 +882,6 @@ class World:
         """
         self.kinematic_structure.remove_node(kinematic_structure_entity.index)
         kinematic_structure_entity.remove_from_world()
-        self._world_entity_hash_table.pop(hash(kinematic_structure_entity), None)
 
     def remove_degree_of_freedom(self, dof: DegreeOfFreedom) -> None:
         if self.is_degree_of_freedom_in_world(dof):
@@ -903,7 +893,6 @@ class World:
         dof.remove_from_world()
         self.degrees_of_freedom.remove(dof)
         del self.state[dof.id]
-        self._world_entity_hash_table.pop(hash(dof), None)
 
     def remove_semantic_annotation(
         self, semantic_annotation: SemanticAnnotation
@@ -923,7 +912,6 @@ class World:
         """
         semantic_annotation.remove_from_world()
         self.semantic_annotations.remove(semantic_annotation)
-        self._world_entity_hash_table.pop(hash(semantic_annotation), None)
 
     def remove_actuator(self, actuator: Actuator) -> None:
         """
@@ -1161,28 +1149,23 @@ class World:
                 ]
 
     def get_degree_of_freedom_by_id(self, id: UUID) -> DegreeOfFreedom:
-        return self._get_world_entity_by_hash_from_iterable(
-            hash(id), self.degrees_of_freedom
-        )
+        return self._get_world_entity_by_hash_from_iterable(hash(id))
 
     def get_kinematic_structure_entity_by_id(
         self, id: UUID
     ) -> KinematicStructureEntity:
-        return self._get_world_entity_by_hash_from_iterable(
-            hash(id), self.kinematic_structure_entities
-        )
+        return self._get_world_entity_by_hash_from_iterable(hash(id))
 
     def get_actuator_by_id(self, id: UUID) -> Actuator:
-        return self._get_world_entity_by_hash_from_iterable(hash(id), self.actuators)
+        return self._get_world_entity_by_hash_from_iterable(hash(id))
 
     def _get_world_entity_by_hash_from_iterable(
-        self, entity_hash: int, world_entity_iterable: Iterable[GenericWorldEntity]
+        self, entity_hash: int
     ) -> GenericWorldEntity:
         """
         Retrieve a WorldEntity by its hash.
 
         :param entity_hash: The hash of the entity to retrieve.
-        :param world_entity_iterable: The iterable of world entities to search for the entity.
         :return:
         """
         entity = self._world_entity_hash_table.get(entity_hash, None)
@@ -1195,51 +1178,39 @@ class World:
         self, semantic_annotation: SemanticAnnotation
     ) -> bool:
         return self._is_world_entity_with_hash_in_world_from_iterable(
-            hash(semantic_annotation), self.semantic_annotations
+            hash(semantic_annotation)
         )
 
     def is_body_in_world(self, body: Body) -> bool:
-        return self._is_world_entity_with_hash_in_world_from_iterable(
-            hash(body), self.bodies
-        )
+        return self._is_world_entity_with_hash_in_world_from_iterable(hash(body))
 
     def is_kinematic_structure_entity_in_world(
         self, kinematic_structure_entity: KinematicStructureEntity
     ) -> bool:
         return self._is_world_entity_with_hash_in_world_from_iterable(
-            hash(kinematic_structure_entity), self.kinematic_structure_entities
+            hash(kinematic_structure_entity)
         )
 
     def is_connection_in_world(self, connection: Connection) -> bool:
-        return self._is_world_entity_with_hash_in_world_from_iterable(
-            hash(connection), self.connections
-        )
+        return self._is_world_entity_with_hash_in_world_from_iterable(hash(connection))
 
     def is_degree_of_freedom_in_world(self, degree_of_freedom: DegreeOfFreedom) -> bool:
         return self._is_world_entity_with_hash_in_world_from_iterable(
-            hash(degree_of_freedom), self.degrees_of_freedom
+            hash(degree_of_freedom)
         )
 
     def is_actuator_in_world(self, actuator: Actuator) -> bool:
-        return self._is_world_entity_with_hash_in_world_from_iterable(
-            hash(actuator), self.actuators
-        )
+        return self._is_world_entity_with_hash_in_world_from_iterable(hash(actuator))
 
-    @staticmethod
     def _is_world_entity_with_hash_in_world_from_iterable(
-        entity_hash: int, world_entity_iterable: Iterable[WorldEntity]
+        self, entity_hash: int
     ) -> bool:
         """
         Check if a world entity with a given hash exists in the world based on a given iterable.
         :param entity_hash: The hash of the entity to retrieve.
-        :param world_entity_iterable: The iterable of world entities to search for the entity.
         :return: True if the entity exists, False otherwise.
         """
-        return any(
-            world_entity
-            for world_entity in world_entity_iterable
-            if hash(world_entity) == entity_hash
-        )
+        return entity_hash in self._world_entity_hash_table
 
     # %% World Merging
     def merge_world_at_pose(self, other: World, pose: cas.TransformationMatrix) -> None:
