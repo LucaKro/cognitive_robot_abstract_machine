@@ -1,15 +1,22 @@
 import os.path
+from pathlib import Path
 
 from semantic_digital_twin.adapters.pointclouds.normals_based_reconstruction import (
     PoissonReconstructionProcessor,
     BallPivotingProcessor,
+    PyVistaProcessor,
+)
+from semantic_digital_twin.adapters.pointclouds.visualizer import (
+    PointCloudReconstructionVisualizer,
 )
 from semantic_digital_twin.adapters.pointclouds.voxel_reconstruction import (
     MorphologicalClosing,
     VoxelProcessor,
 )
 
-file_path = "/home/itsme/Downloads/archive/PartAnnotation/03001627/points/1a6f615e8b1b5ae4dbbc9440457e303e.pts"
+file_path = Path(
+    "/home/itsme/Downloads/archive/PartAnnotation/03001627/points/1a6f615e8b1b5ae4dbbc9440457e303e.pts"
+)
 
 
 output_directory = "/home/itsme/Downloads/reconstructed_meshes"
@@ -40,3 +47,10 @@ ball_pivoting_mesh = ball_pivoting_processor.construct_mesh()
 ball_pivoting_processor.export_as_obj_file(
     os.path.join(output_directory, "ball_pivoting_mesh.obj")
 )
+
+pyvista_processor = PyVistaProcessor.from_pts_file(file_path)
+pyvista_mesh = pyvista_processor.construct_mesh()
+pyvista_processor.export_as_obj_file(os.path.join(output_directory, "pyvista_mesh.obj"))
+
+
+PointCloudReconstructionVisualizer
