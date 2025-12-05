@@ -10,11 +10,7 @@ from semantic_digital_twin.adapters.pointclouds.voxel_reconstruction import (
 )
 
 file_path = "/home/itsme/Downloads/archive/PartAnnotation/03001627/points/1a6f615e8b1b5ae4dbbc9440457e303e.pts"
-voxel_processor = VoxelProcessor.from_pts_file(
-    file_path,
-    closing_algorithm=MorphologicalClosing(),
-)
-mesh = voxel_processor.construct_mesh()
+
 
 output_directory = "/home/itsme/Downloads/reconstructed_meshes"
 
@@ -28,6 +24,11 @@ if not os.path.isdir(parent):
 if not os.path.exists(output_directory):
     os.makedirs(output_directory)
 
+voxel_processor = VoxelProcessor.from_pts_file(
+    file_path,
+    closing_algorithm=MorphologicalClosing(),
+)
+mesh = voxel_processor.construct_mesh()
 voxel_processor.export_as_obj_file(os.path.join(output_directory, "voxelized_mesh.obj"))
 
 poisson_processor = PoissonReconstructionProcessor.from_pts_file(file_path)
