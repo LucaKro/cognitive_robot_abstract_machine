@@ -1007,8 +1007,9 @@ def _build_arg_parser():
     parser.add_argument(
         "--title", type=str, default="Point Cloud Analyzer", help="Window title"
     )
-    parser.add_argument("--width", type=int, default=1280, help="Window width")
-    parser.add_argument("--height", type=int, default=800, help="Window height")
+    # Set actual default windows size parameters (priority higher than VisualizationConfig)
+    parser.add_argument("--width", type=int, default=1650, help="Window width")
+    parser.add_argument("--height", type=int, default=1200, help="Window height")
     parser.add_argument(
         "--show-pcd",
         action="store_true",
