@@ -842,7 +842,8 @@ class Visualizer:
                     mr.point_size = float(self.config.point_size)
                     window.add_geometry(name, geom, mr)
                 else:
-                    window.add_geometry(name, geom)
+                    # Load everything which is not a point cloud with disabled visibility
+                    window.add_geometry(name, geom, is_visible=False)
             except Exception:
                 # Fallback to default add if material path is not supported
                 window.add_geometry(name, geom)
@@ -884,7 +885,7 @@ def analyze(config: AnalyzerConfig) -> None:
     loader = PointCloudLoader(config.pointcloud)
     # Allow passing a directory: load the first matching .pts using the helper
     if isinstance(config.file, Path) and config.file.is_dir():
-        pcd = loader.load_nth_from_directory(config.file, n=1)
+        pcd = loader.load_nth_from_directory(config.file, n=2)
     else:
         pcd = loader.load(config.file)
 
