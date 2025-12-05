@@ -100,19 +100,6 @@ class PyVistaConfig:
 
 
 @dataclass
-class CuboidDecompositionConfig:
-    """Configuration for cuboid decomposition based reconstruction.
-
-    The reconstruction relies on the external library ``mmt-dipole-cuboid-inversion``
-    to decompose a voxelized point cloud into a set of cuboids.
-    """
-
-    enabled: bool = False
-    voxel_size: float = 0.02
-    simplify_target_triangles: Optional[int] = None
-
-
-@dataclass
 class VisualizationConfig:
     """Configuration for visualization preferences."""
 
@@ -134,7 +121,6 @@ class AnalyzerConfig:
     poisson: PoissonConfig = field(default_factory=PoissonConfig)
     ball_pivot: BallPivotConfig = field(default_factory=BallPivotConfig)
     pyvista: PyVistaConfig = field(default_factory=PyVistaConfig)
-    cuboid: CuboidDecompositionConfig = field(default_factory=CuboidDecompositionConfig)
     visualize: VisualizationConfig = field(default_factory=VisualizationConfig)
 
 
@@ -412,118 +398,6 @@ class PyVistaReconstructor(MeshReconstructor):
         return mesh
 
 
-class MMTCuboidReconstructor(MeshReconstructor):
-    """Cuboid decomposition based reconstruction using MMT library.
-
-    This reconstructor expects the external package ``mmt-dipole-cuboid-inversion``
-    to be installed. It voxelizes the point cloud and calls the library's cuboid
-    decomposition to obtain axis-aligned cuboids, which are then converted into
-    an Open3D triangle mesh.
-    """
-
-    def __init__(self, config: CuboidDecompositionConfig) -> None:
-        self.config = config
-
-    def name(self) -> str:
-        return "MMT Cuboid"
-
-    def reconstruct(self, pcd: o3d.geometry.PointCloud) -> o3d.geometry.TriangleMesh:
-        if not self.config.enabled:
-            raise ReconstructionError("MMT Cuboid reconstruction is disabled in config.")
-
-        # Import the external dependency lazily and provide a helpful error message if missing.
-        mmt_api = self._import_mmt_api()
-
-        # Prepare voxel grid from point cloud
-        voxel_size = self.config.voxel_size if self.config.voxel_size > 0 else 0.02
-        points_np = self._to_numpy(pcd)
-        min_corner = points_np.min(axis=0)
-        voxel_indices = ((points_np - min_corner) / voxel_size).astype(int)
-
-        # Build a set of occupied voxels
-        occupied = set((int(i), int(j), int(k)) for i, j, k in voxel_indices)
-
-        # Call MMT cuboid decomposition
-        try:
-            # Expectation: the API provides a function that accepts occupied voxel indices
-            # and returns a list of cuboids in voxel coordinates as (xmin, ymin, zmin, xmax, ymax, zmax), inclusive.
-            # We try common entry points to remain compatible without internet access.
-            if hasattr(mmt_api, "cuboid_decomposition"):
-                cuboids_vox = mmt_api.cuboid_decomposition(occupied)
-            elif hasattr(mmt_api, "decompose_to_cuboids"):
-                cuboids_vox = mmt_api.decompose_to_cuboids(occupied)
-            else:
-                raise ReconstructionError(
-                    "The MMT cuboid API was imported but no known decomposition function was found."
-                )
-        except Exception as exc:
-            raise ReconstructionError(f"Cuboid decomposition failed: {exc}") from exc
-
-        # Convert cuboids from voxel coordinates to world coordinates and build a mesh
-        mesh = o3d.geometry.TriangleMesh()
-        # Local import to avoid mandatory global dependency
-        import numpy as _np  # type: ignore
-        for cub in cuboids_vox:
-            # Expected tuple length 6
-            if len(cub) != 6:
-                continue
-            vx0, vy0, vz0, vx1, vy1, vz1 = cub
-            # Convert to metric coordinates (axis-aligned boxes)
-            p0 = min_corner + voxel_size * _np.array([vx0, vy0, vz0], dtype=float)
-            p1 = min_corner + voxel_size * _np.array([vx1 + 1, vy1 + 1, vz1 + 1], dtype=float)
-            x0, y0, z0 = float(p0[0]), float(p0[1]), float(p0[2])
-            x1, y1, z1 = float(p1[0]), float(p1[1]), float(p1[2])
-
-            # Create a box mesh (Open3D box is size along axes from origin)
-            size = (x1 - x0, y1 - y0, z1 - z0)
-            # Guard against numerical issues
-            if size[0] <= 0 or size[1] <= 0 or size[2] <= 0:
-                continue
-            box = o3d.geometry.TriangleMesh.create_box(width=size[0], height=size[1], depth=size[2])
-            box.translate((x0, y0, z0))
-            mesh += box
-
-        if len(mesh.triangles) == 0:
-            raise ReconstructionError("MMT cuboid decomposition produced an empty mesh.")
-
-        mesh = self._postprocess(mesh)
-
-        if self.config.simplify_target_triangles and self.config.simplify_target_triangles > 0:
-            target = int(self.config.simplify_target_triangles)
-            mesh = mesh.simplify_quadric_decimation(target)
-            mesh.compute_vertex_normals()
-
-        return mesh
-
-    @staticmethod
-    def _import_mmt_api():
-        """Import the MMT cuboid decomposition API.
-
-        Tries several common module paths to accommodate packaging variants.
-        """
-        try:
-            import mmt_dipole_cuboid_inversion as mmt  # type: ignore
-            return mmt
-        except Exception:
-            pass
-        try:
-            from mmt import dipole_cuboid_inversion as mmt  # type: ignore
-            return mmt
-        except Exception:
-            pass
-        raise ReconstructionError(
-            "Package 'mmt-dipole-cuboid-inversion' is required. Install it with: pip install mmt-dipole-cuboid-inversion"
-        )
-
-    @staticmethod
-    def _to_numpy(pcd: o3d.geometry.PointCloud):
-        try:
-            import numpy as np
-        except Exception as exc:
-            raise ReconstructionError("NumPy is required for MMT cuboid reconstruction.") from exc
-        return np.asarray(pcd.points)
-
-
 def _estimate_mean_nearest_neighbor_distance(
     pcd: o3d.geometry.PointCloud, sample_size: int = 2000
 ) -> float:
@@ -667,8 +541,6 @@ def analyze(config: AnalyzerConfig) -> None:
         reconstructors.append(BallPivotReconstructor(config.ball_pivot))
     if config.pyvista.enabled:
         reconstructors.append(PyVistaReconstructor(config.pyvista))
-    if config.cuboid.enabled:
-        reconstructors.append(MMTCuboidReconstructor(config.cuboid))
 
     for reconstructor in reconstructors:
         try:
@@ -686,7 +558,7 @@ def _build_arg_parser():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Analyze a .pts point cloud, reconstruct meshes (Poisson, Ball Pivot, PyVista, MMT Cuboid), and visualize with toggles.\n"
+            "Analyze a .pts point cloud, reconstruct meshes (Poisson, Ball Pivot, PyVista), and visualize with toggles.\n"
             "Example path: /home/pmania/Downloads/archive/PartAnnotation/03001627-chair/points/1a6f615e8b1b5ae4dbbc9440457e303e.pts"
         )
     )
@@ -761,21 +633,6 @@ def _build_arg_parser():
         help="Target triangle count for quadric decimation (optional)",
     )
 
-    # MMT Cuboid
-    parser.add_argument("--mmt-cuboid", action="store_true", help="Enable MMT cuboid decomposition reconstruction")
-    parser.add_argument(
-        "--mmt-voxel-size",
-        type=float,
-        default=0.02,
-        help="Voxel size used to bin points before cuboid decomposition",
-    )
-    parser.add_argument(
-        "--mmt-simplify",
-        type=int,
-        default=None,
-        help="Target triangle count for quadric decimation of the cuboid mesh (optional)",
-    )
-
     return parser
 
 
@@ -817,19 +674,12 @@ def _args_to_config(args) -> AnalyzerConfig:
         simplify_target_triangles=args.pv_simplify,
     )
 
-    mmt_cfg = CuboidDecompositionConfig(
-        enabled=args.mmt_cuboid,
-        voxel_size=args.mmt_voxel_size,
-        simplify_target_triangles=args.mmt_simplify,
-    )
-
     cfg = AnalyzerConfig(
         file=args.file,
         pointcloud=pc_cfg,
         poisson=poi_cfg,
         ball_pivot=bp_cfg,
         pyvista=pv_cfg,
-        cuboid=mmt_cfg,
         visualize=vis_cfg,
     )
     return cfg
