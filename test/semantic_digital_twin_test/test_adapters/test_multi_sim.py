@@ -6,7 +6,6 @@ import unittest
 import mujoco
 import numpy
 
-from semantic_digital_twin import logger
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
@@ -48,9 +47,13 @@ mjcf_dir = os.path.join(
     "resources",
     "mjcf",
 )
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
-headless = os.environ.get("CI", "false").lower() == "true"
-# headless = True
+# headless = os.environ.get("CI", "false").lower() == "true"
+headless = True
 
 
 @unittest.skipIf(not multi_sim_found, "multisim could not be imported.")
