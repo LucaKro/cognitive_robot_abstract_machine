@@ -22,7 +22,7 @@ from krrood.entity_query_language.failures import (
     MultipleSolutionFound,
     UnsupportedNegation,
     GreaterThanExpectedNumberOfSolutions,
-    LessThanExpectedNumberOfSolutions, NonPositiveLimitValue,
+    LessThanExpectedNumberOfSolutions, NonPositiveLimitValue, LiteralConditionError,
 )
 from krrood.entity_query_language.predicate import (
     HasType,
@@ -657,6 +657,22 @@ def test_select_predicate(handles_and_containers_world):
     handle1 = query.evaluate()
     assert isinstance(handle1, HasName), "Should generate a handle."
     assert handle1.body.name == "Handle1", "The generated handle should have the expected name."
+
+
+def test_literal_predicate(handles_and_containers_world):
+    world = handles_and_containers_world
+
+    @dataclass
+    class HasName(Predicate):
+        body: Body
+        name: str
+
+        def __call__(self):
+            return self.body.name == self.name
+
+    has_name = HasName(world.bodies[0], world.bodies[0].name)
+    with pytest.raises(LiteralConditionError):
+        query = the(entity(let(Body, world.bodies), has_name))
 
 
 
