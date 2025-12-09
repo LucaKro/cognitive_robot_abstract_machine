@@ -50,7 +50,7 @@ class Container(HasBody): ...
 @dataclass(eq=False)
 class Fridge(SemanticAnnotation):
     """
-    A semantic annotation representing a fridge that has a door and a body.
+    A fridge that has a door and a body.
     """
 
     container: Container
@@ -60,7 +60,7 @@ class Fridge(SemanticAnnotation):
 @dataclass(eq=False)
 class Table(Furniture, HasBody):
     """
-    A semantic annotation that represents a table.
+    A table.
     """
 
     def points_on_table(self, amount: int = 100) -> List[Point3]:
@@ -85,7 +85,7 @@ class Table(Furniture, HasBody):
 @dataclass(eq=False)
 class Aperture(HasRegion):
     """
-    A semantic annotation that represents an opening in a physical entity.
+    An opening in a physical entity.
     An example is like a hole in a wall that can be used to enter a room.
     """
 
@@ -141,7 +141,7 @@ class Floor(HasSupportingSurface): ...
 @dataclass(eq=False)
 class Room(SemanticAnnotation):
     """
-    A semantic annotation that represents a closed area with a specific purpose
+    A closed area with a specific purpose
     """
 
     floor: Floor
