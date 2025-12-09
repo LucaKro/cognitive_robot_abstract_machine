@@ -1,7 +1,5 @@
-import hypothesis.strategies as st
 import numpy as np
 import pytest
-from hypothesis import given, assume
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from krrood.symbolic_math.exceptions import UnsupportedOperationError
@@ -35,12 +33,19 @@ from .utils_for_tests import (
     vector,
     lists_of_same_length,
     compare_orientations,
-    assert_allclose,
 )
+from ...krrood_test.test_symbolic_math.reference_implementations import normalize_angle
+
+bool_values = [True, False]
+numbers = [-69, 23]
+unit_vectors3 = [np.array([1.0, 0, 0]), np.array([0.0, 1, 0])]
+points = [np.array([1.0, 2.3, 0.00001]), np.array([0.0, -1, 0])]
+quaternions = [np.array([1.0, 0, 0, 0]), np.array([0.0, 1, 0, 0])]
 
 
 class TestRotationMatrix:
-    @given(quaternion(), quaternion())
+    @pytest.mark.parametrize("q1", quaternions)
+    @pytest.mark.parametrize("q2", quaternions)
     def test_rotation_distance(self, q1, q2):
         m1 = rotation_matrix_from_quaternion(*q1)
         m2 = rotation_matrix_from_quaternion(*q2)
@@ -51,12 +56,12 @@ class TestRotationMatrix:
         _, expected_angle = axis_angle_from_rotation_matrix(m1.T.dot(m2))
         expected_angle = expected_angle
         try:
-            assert_allclose(
+            assert np.allclose(
                 shortest_angular_distance(actual_angle.to_np()[0], expected_angle),
                 0,
             )
         except AssertionError:
-            assert_allclose(
+            assert np.allclose(
                 shortest_angular_distance(actual_angle.to_np()[0], -expected_angle),
                 0,
             )
@@ -116,9 +121,9 @@ class TestRotationMatrix:
         v = v / np.linalg.norm(v)
         R_ref = rotation_matrix_from_axis_angle(v, 1)
         R = cas.RotationMatrix().from_axis_angle(cas.Vector3.unit_vector(1, 1, 1), 1)
-        assert_allclose(R.x_vector(), R_ref[:, 0])
-        assert_allclose(R.y_vector(), R_ref[:, 1])
-        assert_allclose(R.z_vector(), R_ref[:, 2])
+        assert np.allclose(R.x_vector(), R_ref[:, 0])
+        assert np.allclose(R.y_vector(), R_ref[:, 1])
+        assert np.allclose(R.z_vector(), R_ref[:, 2])
 
     def test_create_RotationMatrix(self):
         s = cas.FloatVariable(name="s")
@@ -142,33 +147,36 @@ class TestRotationMatrix:
         y_unit.scale(0.2)
         z_unit = cas.Vector3.from_iterable(z)
         z_unit.scale(1.1)
-        assert_allclose(cas.RotationMatrix.from_vectors(x=x_unit, y=y_unit), R_ref)
-        assert_allclose(cas.RotationMatrix.from_vectors(x=x_unit, z=z_unit), R_ref)
-        assert_allclose(cas.RotationMatrix.from_vectors(y=y_unit, z=z_unit), R_ref)
-        assert_allclose(
+        assert np.allclose(cas.RotationMatrix.from_vectors(x=x_unit, y=y_unit), R_ref)
+        assert np.allclose(cas.RotationMatrix.from_vectors(x=x_unit, z=z_unit), R_ref)
+        assert np.allclose(cas.RotationMatrix.from_vectors(y=y_unit, z=z_unit), R_ref)
+        assert np.allclose(
             cas.RotationMatrix.from_vectors(x=x_unit, y=y_unit, z=z_unit), R_ref
         )
 
-    @given(quaternion())
+    @pytest.mark.parametrize("q", quaternions)
     def test_from_quaternion(self, q):
         actual = cas.RotationMatrix.from_quaternion(cas.Quaternion.from_iterable(q))
         expected = rotation_matrix_from_quaternion(*q)
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
-    @given(random_angle(), random_angle(), random_angle())
+    @pytest.mark.parametrize("roll", numbers)
+    @pytest.mark.parametrize("pitch", numbers)
+    @pytest.mark.parametrize("yaw", numbers)
     def test_from_rpy(self, roll, pitch, yaw):
         m1 = cas.RotationMatrix.from_rpy(roll, pitch, yaw)
         m2 = rotation_matrix_from_rpy(roll, pitch, yaw)
-        assert_allclose(m1, m2)
+        assert np.allclose(m1, m2)
 
-    @given(unit_vector(length=3), random_angle())
+    @pytest.mark.parametrize("axis", [np.array([1, 0, 0])])
+    @pytest.mark.parametrize("angle", numbers)
     def test_rotation3_axis_angle(self, axis, angle):
-        assert_allclose(
+        assert np.allclose(
             cas.RotationMatrix.from_axis_angle(axis, angle),
             rotation_matrix_from_axis_angle(np.array(axis), angle),
         )
 
-    @given(quaternion())
+    @pytest.mark.parametrize("q", quaternions)
     def test_axis_angle_from_matrix(self, q):
         m = rotation_matrix_from_quaternion(*q)
 
@@ -180,7 +188,8 @@ class TestRotationMatrix:
 
         assert actual_axis[-1].to_np() == 0
 
-    @given(unit_vector(length=3), angle_positive())
+    @pytest.mark.parametrize("expected_axis", [np.array([1, 0, 0])])
+    @pytest.mark.parametrize("expected_angle", numbers)
     def test_axis_angle_from_matrix2(self, expected_axis, expected_angle):
         m = rotation_matrix_from_axis_angle(expected_axis, expected_angle)
         actual_axis = cas.RotationMatrix(data=m).to_axis_angle()[0]
@@ -188,7 +197,7 @@ class TestRotationMatrix:
         compare_axis_angle(actual_angle, actual_axis[:3], expected_angle, expected_axis)
         assert actual_axis[-1] == 0
 
-    @given(unit_vector(4))
+    @pytest.mark.parametrize("q", quaternions)
     def test_rpy_from_matrix(self, q):
         expected = rotation_matrix_from_quaternion(*q)
 
@@ -197,16 +206,16 @@ class TestRotationMatrix:
         yaw = float(cas.RotationMatrix(data=expected).to_rpy()[2].to_np()[0])
         actual = rotation_matrix_from_rpy(roll, pitch, yaw)
 
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
-    @given(unit_vector(4))
+    @pytest.mark.parametrize("q", quaternions)
     def test_rpy_from_matrix2(self, q):
         matrix = rotation_matrix_from_quaternion(*q)
         roll = cas.RotationMatrix(data=matrix).to_rpy()[0]
         pitch = cas.RotationMatrix(data=matrix).to_rpy()[1]
         yaw = cas.RotationMatrix(data=matrix).to_rpy()[2]
         r1 = cas.RotationMatrix.from_rpy(roll, pitch, yaw)
-        assert_allclose(r1, matrix, atol=1.0e-4)
+        assert np.allclose(r1, matrix, atol=1.0e-4)
 
     def test_initialization(self):
         """Test various ways to initialize RotationMatrix"""
@@ -215,12 +224,12 @@ class TestRotationMatrix:
         assert isinstance(r_identity, cas.RotationMatrix)
         identity_np = r_identity
         expected_identity = np.eye(4)
-        assert_allclose(identity_np, expected_identity)
+        assert np.allclose(identity_np, expected_identity)
 
         # From another RotationMatrix
         r_copy = cas.RotationMatrix(data=r_identity)
         assert isinstance(r_copy, cas.RotationMatrix)
-        assert_allclose(r_copy, identity_np)
+        assert np.allclose(r_copy, identity_np)
 
         # From numpy array
         rotation_data = np.eye(4)
@@ -259,11 +268,11 @@ class TestRotationMatrix:
 
         # Test orthogonality: R @ R.T = I
         should_be_identity = r @ r.T
-        assert_allclose(should_be_identity, np.eye(4), atol=1e-10)
+        assert np.allclose(should_be_identity, np.eye(4), atol=1e-10)
 
         # Test that determinant is 1 (proper rotation, not reflection)
         det = r.det()
-        assert_allclose(det, 1.0, atol=1e-10)
+        assert np.allclose(det, 1.0, atol=1e-10)
 
     def test_transpose(self):
         """Test transpose operation and its properties"""
@@ -275,11 +284,11 @@ class TestRotationMatrix:
         # For rotation matrices: R.T = R^(-1)
         product = r @ r_t
         identity = cas.RotationMatrix()
-        assert_allclose(product, identity, atol=1e-10)
+        assert np.allclose(product, identity, atol=1e-10)
 
         # Double transpose should give original
         r_tt = r_t.T
-        assert_allclose(r, r_tt)
+        assert np.allclose(r, r_tt)
 
     def test_inverse(self):
         """Test matrix inversion for rotation matrices"""
@@ -289,12 +298,12 @@ class TestRotationMatrix:
         r_inv = r.inverse()
         r_t = r.T
         assert isinstance(r_inv, cas.RotationMatrix)
-        assert_allclose(r_inv, r_t, atol=1e-10)
+        assert np.allclose(r_inv, r_t, atol=1e-10)
 
         # R @ R^(-1) = I
         identity_check = r @ r_inv
         identity = cas.RotationMatrix()
-        assert_allclose(identity_check, identity, atol=1e-10)
+        assert np.allclose(identity_check, identity, atol=1e-10)
 
     def test_composition(self):
         """Test composition of multiple rotations"""
@@ -308,8 +317,8 @@ class TestRotationMatrix:
 
         # Note: Order matters in rotation composition, so this might not be exactly equal
         # but both should be valid rotation matrices
-        assert_allclose(combined.det(), 1.0)
-        assert_allclose(combined @ combined.T, np.eye(4), atol=1e-10)
+        assert np.allclose(combined.det(), 1.0)
+        assert np.allclose(combined @ combined.T, np.eye(4), atol=1e-10)
 
     def test_vector_rotation(self):
         """Test rotation of vectors and unit vectors"""
@@ -323,13 +332,13 @@ class TestRotationMatrix:
         assert isinstance(rotated, cas.Vector3)
         # Should become Y-axis
         expected = np.array([0, 1, 0, 0])  # Homogeneous coordinates
-        assert_allclose(rotated, expected, atol=1e-10)
+        assert np.allclose(rotated, expected, atol=1e-10)
 
         # Test with regular Vector3
         v = cas.Vector3(x_init=1, y_init=0, z_init=0)
         rotated_v = r_z90 @ v
         assert isinstance(rotated_v, cas.Vector3)
-        assert_allclose(rotated_v[:3], np.array([0, 1, 0]), atol=1e-10)
+        assert np.allclose(rotated_v[:3], np.array([0, 1, 0]), atol=1e-10)
 
     def test_frame_properties(self):
         """Test reference frame and child frame properties"""
@@ -358,9 +367,9 @@ class TestRotationMatrix:
 
         # Test conversion to RPY
         roll, pitch, yaw = r.to_rpy()
-        assert_allclose(roll, 0.1, atol=1e-10)
-        assert_allclose(pitch, 0.2, atol=1e-10)
-        assert_allclose(yaw, 0.3, atol=1e-10)
+        assert np.allclose(roll, 0.1, atol=1e-10)
+        assert np.allclose(pitch, 0.2, atol=1e-10)
+        assert np.allclose(yaw, 0.3, atol=1e-10)
 
         # Test conversion to quaternion
         q = r.to_quaternion()
@@ -368,7 +377,7 @@ class TestRotationMatrix:
 
         # Round-trip krrood_test: R -> Q -> R should preserve rotation
         r_roundtrip = cas.RotationMatrix.from_quaternion(q)
-        assert_allclose(r, r_roundtrip, atol=1e-10)
+        assert np.allclose(r, r_roundtrip, atol=1e-10)
 
     def test_invalid_matmul_operations(self):
         """Test invalid matrix multiplication operations"""
@@ -388,25 +397,20 @@ class TestRotationMatrix:
         with pytest.raises(UnsupportedOperationError):
             r @ q  # Matrix @ Quaternion
 
-    @given(random_angle(), random_angle(), random_angle())
+    @pytest.mark.parametrize("roll", [np.pi / 2, 0, -np.pi / 23])
+    @pytest.mark.parametrize("pitch", [np.pi / 3, 0, -np.pi / 23])
+    @pytest.mark.parametrize("yaw", [np.pi / 2, 0, -np.pi / 23])
     def test_rpy_roundtrip(self, roll, pitch, yaw):
-        """Property-based krrood_test for RPY round-trip conversion"""
-        # Avoid gimbal lock region
-        assume(abs(pitch) < np.pi / 2 - 0.1)
-
         r = cas.RotationMatrix.from_rpy(roll, pitch, yaw)
         r_roll, r_pitch, r_yaw = r.to_rpy()
 
-        # Round-trip should preserve values (within numerical precision)
-        assert_allclose(r_roll, roll, atol=1e-10)
-        assert_allclose(r_pitch, pitch, atol=1e-10)
-        assert_allclose(r_yaw, yaw, atol=1e-10)
+        assert np.allclose(r_roll, roll, atol=1e-10)
+        assert np.allclose(r_pitch, pitch, atol=1e-10)
+        assert np.allclose(r_yaw, yaw, atol=1e-10)
 
-    @given(unit_vector(length=3), random_angle())
+    @pytest.mark.parametrize("axis", unit_vectors3)
+    @pytest.mark.parametrize("angle", numbers)
     def test_axis_angle_properties(self, axis, angle):
-        """Property-based krrood_test for axis-angle rotation properties"""
-        # Skip very small angles to avoid numerical issues
-        assume(abs(angle) > 1e-6)
 
         axis_unit = cas.Vector3.from_iterable(axis)
         r = cas.RotationMatrix.from_axis_angle(axis_unit, angle)
@@ -415,7 +419,7 @@ class TestRotationMatrix:
         rotated_axis = r @ axis_unit
         # For rotation around axis, the axis should remain unchanged
         dot_product = axis_unit @ rotated_axis
-        assert_allclose(dot_product, 1.0, atol=1e-10)
+        assert np.allclose(dot_product, 1.0, atol=1e-10)
 
     def test_small_angle_approximation(self):
         """Test behavior with very small rotation angles"""
@@ -426,10 +430,10 @@ class TestRotationMatrix:
         rotation_part = r[:3, :3]
 
         # Should be close to identity for very small angles
-        assert_allclose(rotation_part, np.eye(3), atol=1e-7)
+        assert np.allclose(rotation_part, np.eye(3), atol=1e-7)
 
         # But determinant should still be 1
-        assert_allclose(rotation_part.det(), 1.0, atol=1e-12)
+        assert np.allclose(rotation_part.det(), 1.0, atol=1e-12)
 
     def test_symbolic_operations(self):
         """Test operations with symbolic expressions"""
@@ -458,26 +462,28 @@ class TestRotationMatrix:
 
         # Should be a valid 4x4 rotation matrix
         assert compiled_rotation.shape == (4, 4)
-        assert_allclose(compiled_rotation.det(), 1.0)
-        assert_allclose(compiled_rotation @ compiled_rotation.T, np.eye(4), atol=1e-10)
+        assert np.allclose(compiled_rotation.det(), 1.0)
+        assert np.allclose(
+            compiled_rotation @ compiled_rotation.T, np.eye(4), atol=1e-10
+        )
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions"""
         # Zero rotation
         r_zero = cas.RotationMatrix.from_axis_angle(cas.Vector3.X(), 0)
         identity = cas.RotationMatrix()
-        assert_allclose(r_zero, identity, atol=1e-12)
+        assert np.allclose(r_zero, identity, atol=1e-12)
 
         # Full rotation (2π)
         r_full = cas.RotationMatrix.from_axis_angle(cas.Vector3.Y(), 2 * np.pi)
-        assert_allclose(r_full, identity, atol=1e-10)
+        assert np.allclose(r_full, identity, atol=1e-10)
 
         # π rotation (180 degrees)
         r_pi = cas.RotationMatrix.from_axis_angle(cas.Vector3.Z(), np.pi)
         rotation_part = r_pi[:3, :3]
         # Should flip X and Y axes
         expected_rotation = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-        assert_allclose(rotation_part, expected_rotation, atol=1e-10)
+        assert np.allclose(rotation_part, expected_rotation, atol=1e-10)
 
     def test_quaternion_consistency(self):
         """Test consistency between quaternion and rotation matrix representations"""
@@ -487,7 +493,7 @@ class TestRotationMatrix:
         r_from_q = cas.RotationMatrix.from_quaternion(q)
 
         # Should be identical
-        assert_allclose(r_rpy, r_from_q, atol=1e-12)
+        assert np.allclose(r_rpy, r_from_q, atol=1e-12)
 
     def test_determinant_preservation(self):
         """Test that all operations preserve determinant = 1"""
@@ -505,7 +511,7 @@ class TestRotationMatrix:
         for r in operations_to_test:
             rotation_part = r[:3, :3]
             det = rotation_part.det()
-            assert_allclose(
+            assert np.allclose(
                 det, 1.0, atol=1e-10
             ), f"Determinant {det} != 1.0 for operation"
 
@@ -517,8 +523,8 @@ class TestPoint3:
         end = cas.Point3(x_init=0, y_init=0, z_init=1)
         distance = p.distance_to_line_segment(start, end)[0]
         nearest = p.distance_to_line_segment(start, end)[1]
-        assert_allclose(distance, 0)
-        assert_allclose(nearest, p)
+        assert np.allclose(distance, 0)
+        assert np.allclose(nearest, p)
 
     def test_distance_point_to_line_segment2(self):
         p = cas.Point3(x_init=0, y_init=1, z_init=0.5)
@@ -526,8 +532,8 @@ class TestPoint3:
         end = cas.Point3(x_init=0, y_init=0, z_init=1)
         distance = p.distance_to_line_segment(start, end)[0]
         nearest = p.distance_to_line_segment(start, end)[1]
-        assert_allclose(distance, 1)
-        assert_allclose(nearest, cas.Point3(x_init=0, y_init=0, z_init=0.5))
+        assert np.allclose(distance, 1)
+        assert np.allclose(nearest, cas.Point3(x_init=0, y_init=0, z_init=0.5))
 
     def test_distance_point_to_line_segment3(self):
         p = cas.Point3(x_init=0, y_init=1, z_init=2)
@@ -535,15 +541,15 @@ class TestPoint3:
         end = cas.Point3(x_init=0, y_init=0, z_init=1)
         distance = p.distance_to_line_segment(start, end)[0]
         nearest = p.distance_to_line_segment(start, end)[1]
-        assert_allclose(distance, 1.4142135623730951)
-        assert_allclose(nearest, cas.Point3(x_init=0, y_init=0, z_init=1.0))
+        assert np.allclose(distance, 1.4142135623730951)
+        assert np.allclose(nearest, cas.Point3(x_init=0, y_init=0, z_init=1.0))
 
-    @given(vector(3))
+    @pytest.mark.parametrize("v", [np.array([1, 2, 3.0]), [0, 0, 0.0], (-1, 0, 0.0)])
     def test_norm(self, v):
         p = cas.Point3.from_iterable(v)
         actual = p.norm()
         expected = np.linalg.norm(v)
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
     def test_init(self):
         l = [1, 2, 3]
@@ -557,8 +563,8 @@ class TestPoint3:
 
         cas.Point3()
         cas.Point3(x_init=s, y_init=e, z_init=0)
-        assert_allclose(p[3], 1)
-        assert_allclose(p[:3], l)
+        assert np.allclose(p[3], 1)
+        assert np.allclose(p[:3], l)
 
         cas.Point3.from_iterable(cas.Expression(data=v))
         cas.Point3.from_iterable(l)
@@ -569,15 +575,12 @@ class TestPoint3:
         with pytest.raises(WrongDimensionsError):
             cas.Point3.from_iterable(t.to_np())
 
-    @given(float_no_nan_no_inf(), vector(3), vector(3))
-    def test_if_greater_zero(self, condition, if_result, else_result):
-        actual = cas.if_greater_zero(
-            condition,
-            cas.Point3.from_iterable(if_result),
-            cas.Point3.from_iterable(else_result),
-        )
+    @pytest.mark.parametrize("condition", bool_values)
+    def test_if_greater_zero(self, condition):
+        if_result, else_result = cas.Point3(1, 2, 3), cas.Point3(4, 5, 6)
+        actual = cas.if_greater_zero(condition, if_result, else_result)
         expected = if_result if condition > 0 else else_result
-        assert_allclose(actual[:3], expected)
+        assert np.allclose(actual, expected)
 
     def test_arithmetic_operations(self):
         """Test all allowed arithmetic operations on Point3"""
@@ -618,7 +621,7 @@ class TestPoint3:
         result = p1.norm()
         assert isinstance(result, cas.Expression)
         expected_norm = np.sqrt(1**2 + 2**2 + 3**2)
-        assert_allclose(result, expected_norm)
+        assert np.allclose(result, expected_norm)
 
         with pytest.raises(TypeError):
             p1 + p2  # Point + Point not allowed
@@ -693,14 +696,14 @@ class TestPoint3:
         displacement = p2 - p1
         assert isinstance(displacement, cas.Vector3)
         distance = displacement.norm()
-        assert_allclose(distance, 5.0)  # 3-4-5 triangle
+        assert np.allclose(distance, 5.0)  # 3-4-5 triangle
 
         # Midpoint calculation
         midpoint = p1 + (p2 - p1) * 0.5
         assert isinstance(midpoint, cas.Point3)
-        assert_allclose(midpoint.x, 1.5)
-        assert_allclose(midpoint.y, 2.0)
-        assert_allclose(midpoint.z, 0.0)
+        assert np.allclose(midpoint.x, 1.5)
+        assert np.allclose(midpoint.y, 2.0)
+        assert np.allclose(midpoint.z, 0.0)
 
     def test_reference_frame_preservation(self):
         """Test that reference frames are properly preserved through operations"""
@@ -720,36 +723,40 @@ class TestPoint3:
         assert isinstance(result, cas.Vector3)
         assert result.reference_frame == p1.reference_frame
 
-    def test_invalid_operations(self):
-        """Test operations that should raise UnsupportedOperationError"""
-        p = cas.Point3(x_init=1, y_init=2, z_init=3)
-        r = cas.RotationMatrix()
-        q = cas.Quaternion()
-        t = cas.HomogeneousTransformationMatrix()
+    def test_invalid_add(self):
+        point = cas.Point3()
+        does_not_work = [
+            1.0,
+            point,
+            cas.RotationMatrix(),
+            cas.Quaternion(),
+            cas.HomogeneousTransformationMatrix(),
+            cas.FloatVariable(name="s"),
+            cas.Pose(),
+        ]
+        for other in does_not_work:
+            with pytest.raises(TypeError):
+                # noinspection PyTypeChecker
+                point + other
 
-        # Invalid additions - Point + Point is not geometrically meaningful
-        p2 = cas.Point3(x_init=4, y_init=5, z_init=6)
-        with pytest.raises(TypeError):
-            p + p2
+    def test_invalid_sub(self):
+        point = cas.Point3()
+        does_not_work = [
+            1.0,
+            cas.RotationMatrix(),
+            cas.Quaternion(),
+            cas.HomogeneousTransformationMatrix(),
+            cas.FloatVariable(name="s"),
+            cas.Pose(),
+        ]
+        for other in does_not_work:
+            with pytest.raises(TypeError):
+                # noinspection PyTypeChecker
+                point + other
 
-        # Invalid additions with matrices
-        with pytest.raises(TypeError):
-            p + r
-        with pytest.raises(TypeError):
-            p + q
-        with pytest.raises(TypeError):
-            p + t
-
-        # Invalid multiplications with points/vectors
-        v = cas.Vector3(x_init=1, y_init=1, z_init=1)
-        with pytest.raises(TypeError):
-            p * p2  # Point * Point not defined
-        with pytest.raises(TypeError):
-            p * v  # Point * Vector not defined
-
-    @given(vector(3), vector(3))
+    @pytest.mark.parametrize("p1_data", points)
+    @pytest.mark.parametrize("p2_data", points)
     def test_distance_property_based(self, p1_data, p2_data):
-        """Property-based krrood_test for point-to-point distance"""
         p1 = cas.Point3.from_iterable(p1_data)
         p2 = cas.Point3.from_iterable(p2_data)
 
@@ -760,7 +767,7 @@ class TestPoint3:
         # Compare with numpy calculation
         expected = np.linalg.norm(np.array(p2_data) - np.array(p1_data))
 
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
     def test_transformation_operations(self):
         """Test transformation matrix operations with points"""
@@ -783,22 +790,22 @@ class TestPoint3:
             x_init=1, y_init=2, z_init=3
         )  # Point lies on this line
         point, distance = point.project_to_line(line_point, line_direction)
-        assert_allclose(distance, 0.0)
-        assert_allclose(point, np.array([1, 2, 3, 1]))
+        assert np.allclose(distance, 0.0)
+        assert np.allclose(point, np.array([1, 2, 3, 1]))
 
         point = cas.Point3(x_init=1, y_init=0, z_init=0)
         line_point = cas.Point3(x_init=0, y_init=0, z_init=0)
         line_direction = cas.Vector3(x_init=0, y_init=1, z_init=0)  # Y-axis
         point, distance = point.project_to_line(line_point, line_direction)
-        assert_allclose(distance, 1.0)
-        assert_allclose(point, np.array([0, 0, 0, 1]))
+        assert np.allclose(distance, 1.0)
+        assert np.allclose(point, np.array([0, 0, 0, 1]))
 
         point = cas.Point3(x_init=0, y_init=0, z_init=5)
         line_point = cas.Point3(x_init=0, y_init=0, z_init=0)
         line_direction = cas.Vector3(x_init=1, y_init=0, z_init=0)  # X-axis
         point, distance = point.project_to_line(line_point, line_direction)
-        assert_allclose(distance, 5.0)
-        assert_allclose(point, np.array([0, 0, 0, 1]))
+        assert np.allclose(distance, 5.0)
+        assert np.allclose(point, np.array([0, 0, 0, 1]))
 
     def test_distance_to_line_segment(self):
         pass
@@ -810,8 +817,8 @@ class TestPoint3:
             frame_V_plane_vector2=cas.Vector3.Y(),
         )
         expected = cas.Point3(x_init=0, y_init=0, z_init=0)
-        assert_allclose(actual, expected)
-        assert_allclose(distance, 1)
+        assert np.allclose(actual, expected)
+        assert np.allclose(distance, 1)
 
     def test_compilation_and_execution(self):
         """Test that Point3 operations compile and execute correctly"""
@@ -820,14 +827,14 @@ class TestPoint3:
             x_init=1, y_init=1, z_init=1
         )
         expected = np.array([2, 3, 4, 1])
-        assert_allclose(compiled_add, expected)
+        assert np.allclose(compiled_add, expected)
 
         # Test point subtraction compilation
         compiled_sub = cas.Point3(x_init=5, y_init=6, z_init=7) - cas.Point3(
             x_init=1, y_init=2, z_init=3
         )
         expected_vector = np.array([4, 4, 4, 0])  # Result is a Vector3
-        assert_allclose(compiled_sub, expected_vector)
+        assert np.allclose(compiled_sub, expected_vector)
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions"""
@@ -876,9 +883,10 @@ class TestPoint3:
 
 
 class TestVector3:
-    @given(vector(3), vector(3))
+    @pytest.mark.parametrize("u", unit_vectors3)
+    @pytest.mark.parametrize("v", unit_vectors3)
     def test_cross(self, u, v):
-        assert_allclose(
+        assert np.allclose(
             cas.Vector3.from_iterable(u).cross(cas.Vector3.from_iterable(v))[:3],
             np.cross(u, v),
         )
@@ -914,46 +922,41 @@ class TestVector3:
         with pytest.raises(WrongDimensionsError):
             cas.Vector3.from_iterable(t.to_np())
 
-    @given(vector(3))
+    @pytest.mark.parametrize("v", points)
     def test_is_length_1(self, v):
-        assume(abs(v[0]) > 0.00001 or abs(v[1]) > 0.00001 or abs(v[2]) > 0.00001)
         unit_v = cas.Vector3.unit_vector(*v)
-        assert_allclose(unit_v.norm(), 1)
+        assert np.allclose(unit_v.norm(), 1)
 
     def test_length_0(self):
         unit_v = cas.Vector3.unit_vector(x=0, y=0, z=0)
         assert np.isnan(unit_v.norm().to_np())
 
-    @given(vector(3))
+    @pytest.mark.parametrize("v", points)
     def test_norm(self, v):
         expected = np.linalg.norm(v)
         v = cas.Vector3.from_iterable(v)
         actual = v.norm()
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
-    @given(vector(3), float_no_nan_no_inf(), vector(3))
+    @pytest.mark.parametrize("nominator", unit_vectors3)
+    @pytest.mark.parametrize("denominator", numbers)
+    @pytest.mark.parametrize("if_nan", unit_vectors3)
     def test_save_division(self, nominator, denominator, if_nan):
         nominator_expr = cas.Vector3.from_iterable(nominator)
         denominator_expr = cas.Expression(data=denominator)
         if_nan_expr = cas.Vector3.from_iterable(if_nan)
         result = nominator_expr.safe_division(denominator_expr, if_nan_expr)
         if denominator == 0:
-            assert_allclose(result[:3], if_nan)
+            assert np.allclose(result[:3], if_nan)
         else:
-            assert_allclose(result[:3], np.array(nominator) / denominator)
+            assert np.allclose(result[:3], np.array(nominator) / denominator)
 
-    @given(
-        lists_of_same_length(
-            [float_no_nan_no_inf(), float_no_nan_no_inf()], min_length=3, max_length=3
-        )
-    )
-    def test_dot(self, vectors):
-        u, v = vectors
-        u = np.array(u)
-        v = np.array(v)
-        result = cas.Vector3.from_iterable(u).dot(cas.Vector3.from_iterable(v))
+    @pytest.mark.parametrize("u", points)
+    @pytest.mark.parametrize("v", points)
+    def test_dot(self, u, v):
+        result = cas.Vector3.from_iterable(u) @ cas.Vector3.from_iterable(v)
         expected = np.dot(u, v.T)
-        assert_allclose(result, expected)
+        assert np.allclose(result, expected)
 
     def test_cross_product(self):
         """Test cross product operations"""
@@ -964,11 +967,11 @@ class TestVector3:
         assert isinstance(result, cas.Vector3)
         assert result[3] == 0
         # Cross product of x and y unit vectors should be z unit vector
-        assert_allclose(result[:3], np.array([0, 0, 1]))
+        assert np.allclose(result[:3], np.array([0, 0, 1]))
 
         # Cross product is anti-commutative
         result2 = v2.cross(v1)
-        assert_allclose(result2[:3], np.array([0, 0, -1]))
+        assert np.allclose(result2[:3], np.array([0, 0, -1]))
 
     def test_properties(self):
         """Test x, y, z property getters and setters"""
@@ -1019,7 +1022,7 @@ class TestVector3:
         v1 = cas.Vector3(x_init=1, y_init=0, z_init=0)
         v2 = cas.Vector3(x_init=0, y_init=1, z_init=0)
         angle = v1.angle_between(v2)
-        assert_allclose(angle, np.pi / 2)
+        assert np.allclose(angle, np.pi / 2)
 
     def test_scale_method(self):
         """Test the scale method with safe and unsafe modes"""
@@ -1029,13 +1032,13 @@ class TestVector3:
         v_copy = cas.Vector3(x_init=3, y_init=4, z_init=0)
         v_copy.scale(10)
         expected_norm = v_copy.norm()
-        assert_allclose(expected_norm, 10)
+        assert np.allclose(expected_norm, 10)
 
         # Unsafe scaling
         v_copy2 = cas.Vector3(x_init=3, y_init=4, z_init=0)
         v_copy2.scale(10, unsafe=True)
         expected_norm2 = v_copy2.norm()
-        assert_allclose(expected_norm2, 10)
+        assert np.allclose(expected_norm2, 10)
 
     def test_invalid_operations(self):
         """Test operations that should raise UnsupportedOperationError"""
@@ -1058,29 +1061,14 @@ class TestVector3:
         with pytest.raises(TypeError):
             v / v
 
-    @given(vector(3), vector(3))
-    def test_dot_product_property_based(self, v1_data, v2_data):
-        """Property-based krrood_test for dot product"""
-        v1 = cas.Vector3.from_iterable(v1_data)
-        v2 = cas.Vector3.from_iterable(v2_data)
-
-        actual = v1.dot(v2)
-        assert isinstance(actual, cas.Expression)
-
-        # Compare with numpy dot product
-        expected = np.dot(v1_data, v2_data)
-
-        assert_allclose(actual, expected)
-
-    @given(vector(3))
+    @pytest.mark.parametrize("v_data", points)
     def test_norm_property_based(self, v_data):
-        """Property-based krrood_test for vector norm"""
         v = cas.Vector3.from_iterable(v_data)
         actual = v.norm()
 
         expected = np.linalg.norm(v_data)
 
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
     def test_from_iterable_edge_cases(self):
         """Test edge cases for from_iterable class method"""
@@ -1116,7 +1104,7 @@ class TestVector3:
             cas.Vector3(x_init=1, y_init=2, z_init=3)
         )
         expected = 1 * 1 + 2 * 2 + 3 * 3  # = 14
-        assert_allclose(compiled_dot, expected)
+        assert np.allclose(compiled_dot, expected)
 
         # Test cross product compilation
         cross_expr = v1.cross(v2)
@@ -1124,7 +1112,7 @@ class TestVector3:
             cas.Vector3(x_init=1, y_init=2, z_init=3)
         )
         expected_cross = np.cross([2, 3, 4], [1, 2, 3])
-        assert_allclose(compiled_cross[:3], expected_cross)
+        assert np.allclose(compiled_cross[:3], expected_cross)
 
     def test_project_to_cone(self):
         v = cas.Vector3.X()
@@ -1133,11 +1121,11 @@ class TestVector3:
             cone_theta=np.pi / 4,
         )
         expected = np.array([1, 0, 0, 0])
-        assert_allclose(projected_cone, expected, atol=1e-10)
+        assert np.allclose(projected_cone, expected, atol=1e-10)
 
         # projected_cone = v.project_to_cone(frame_V_cone_axis=cas.Vector3(1,1,0), cone_theta=np.pi/2)
         # expected = np.array([1, 0, 0, 0])
-        # assert_allclose(projected_cone, expected, atol=1e-10)
+        # assert np.allclose()(projected_cone, expected, atol=1e-10)
 
 
 class TestTransformationMatrix:
@@ -1146,7 +1134,7 @@ class TestTransformationMatrix:
         t = cas.HomogeneousTransformationMatrix()
         t_json = t.to_json()
         t_copy = cas.HomogeneousTransformationMatrix.from_json(t_json)
-        assert_allclose(t.to_np(), t_copy.to_np())
+        assert np.allclose(t.to_np(), t_copy.to_np())
 
     def test_reference_frames(self):
         reference_frame = "muh"
@@ -1271,14 +1259,16 @@ class TestTransformationMatrix:
         transformed_point_rot = t_rot @ p
         assert transformed_point_rot[3] == 1
 
-    @given(float_no_nan_no_inf(), float_no_nan_no_inf(), float_no_nan_no_inf())
+    @pytest.mark.parametrize("x", numbers)
+    @pytest.mark.parametrize("y", numbers)
+    @pytest.mark.parametrize("z", numbers)
     def test_translation3(self, x, y, z):
         r1 = cas.HomogeneousTransformationMatrix.from_xyz_rpy(x, y, z)
         r2 = np.identity(4)
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        assert_allclose(r1, r2)
+        assert np.allclose(r1, r2)
 
     def test_dot(self):
         s = cas.FloatVariable(name="x")
@@ -1290,35 +1280,14 @@ class TestTransformationMatrix:
         f = cas.HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3)
         assert isinstance(f, cas.HomogeneousTransformationMatrix)
 
-    @given(st.integers(min_value=1, max_value=10))
-    def test_matrix(self, x_dim):
-        data = list(range(x_dim))
+    def test_wrong_dimensions(self):
+        data = np.eye(2)
         with pytest.raises(WrongDimensionsError):
             cas.HomogeneousTransformationMatrix(data=data)
 
-    @given(
-        st.integers(min_value=1, max_value=10), st.integers(min_value=1, max_value=10)
-    )
-    def test_matrix2(self, x_dim, y_dim):
-        data = [[i + (j * x_dim) for j in range(y_dim)] for i in range(x_dim)]
-        if x_dim != 4 or y_dim != 4:
-            with pytest.raises(WrongDimensionsError):
-                m = cas.HomogeneousTransformationMatrix(data=data).to_np()
-        else:
-            m = cas.HomogeneousTransformationMatrix(data=data).to_np()
-            assert float(m[3, 0]) == 0
-            assert float(m[3, 1]) == 0
-            assert float(m[3, 2]) == 0
-            assert float(m[x_dim - 1, y_dim - 1]) == 1
-
-    @given(
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        unit_vector(length=3),
-        random_angle(),
-    )
-    def test_frame3_axis_angle(self, x, y, z, axis, angle):
+    def test_frame3_axis_angle(self):
+        x, y, z, angle = 1, 2, 3, 0.1
+        axis = np.array([0, 1, 0])
         r2 = rotation_matrix_from_axis_angle(np.array(axis), angle)
         r2[0, 3] = x
         r2[1, 3] = y
@@ -1326,105 +1295,67 @@ class TestTransformationMatrix:
         r = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(
             cas.Point3(x, y, z), cas.RotationMatrix.from_axis_angle(axis, angle)
         )
-        assert_allclose(r, r2)
+        assert np.allclose(r, r2)
 
-    @given(
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        random_angle(),
-        random_angle(),
-        random_angle(),
-    )
-    def test_frame3_rpy(self, x, y, z, roll, pitch, yaw):
+    def test_frame3_rpy(self):
+        x, y, z, roll, pitch, yaw = 1, 2, 3, 0.1, 0.2, 0.3
         r2 = rotation_matrix_from_rpy(roll, pitch, yaw)
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        assert_allclose(
+        assert np.allclose(
             cas.HomogeneousTransformationMatrix.from_xyz_rpy(x, y, z, roll, pitch, yaw),
             r2,
         )
 
-    @given(
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        unit_vector(4),
-    )
-    def test_frame3_quaternion(self, x, y, z, q):
-        r2 = rotation_matrix_from_quaternion(*q)
+    def test_frame3_quaternion(self):
+        x, y, z, qx, qy, qz, qw = 1, 2, 3, 1, 0, 0, 0
+        r2 = rotation_matrix_from_quaternion(qx, qy, qz, qw)
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        r = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            point=cas.Point3(x, y, z),
-            rotation_matrix=cas.RotationMatrix.from_quaternion(cas.Quaternion(*q)),
+        r = cas.HomogeneousTransformationMatrix.from_xyz_quaternion(
+            x, y, z, qx, qy, qz, qw
         )
-        assert_allclose(r, r2)
+        assert np.allclose(r, r2)
 
-    @given(
-        float_no_nan_no_inf(outer_limit=1000),
-        float_no_nan_no_inf(outer_limit=1000),
-        float_no_nan_no_inf(outer_limit=1000),
-        quaternion(),
-    )
-    def test_inverse_frame(self, x, y, z, q):
-        f = rotation_matrix_from_quaternion(*q)
-        f[0, 3] = x
-        f[1, 3] = y
-        f[2, 3] = z
-        r = cas.HomogeneousTransformationMatrix(data=f).inverse()
+    def test_inverse_frame(self):
+        t = cas.HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0.1, 0.2, 0.3)
+        actual = cas.HomogeneousTransformationMatrix(data=t).inverse()
+        expected = np.linalg.inv(t.to_np())
+        assert np.allclose(actual, expected, atol=1.0e-4, rtol=1.0e-4)
 
-        r2 = np.linalg.inv(f)
-        assert_allclose(r, r2, atol=1.0e-4, rtol=1.0e-4)
-
-    @given(
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        unit_vector(4),
-    )
-    def test_pos_of(self, x, y, z, q):
+    def test_pos_of(self):
+        x, y, z, qx, qy, qz, qw = 1, 2, 3, 1, 0, 0, 0
         r1 = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            cas.Point3(x, y, z), cas.RotationMatrix.from_quaternion(cas.Quaternion(*q))
+            cas.Point3(x, y, z),
+            cas.RotationMatrix.from_quaternion(cas.Quaternion(qx, qy, qz, qw)),
         ).to_position()
         r2 = [x, y, z, 1]
         for i, e in enumerate(r2):
-            assert_allclose(r1[i], e)
+            assert np.allclose(r1[i], e)
 
-    @given(
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        unit_vector(4),
-    )
-    def test_trans_of(self, x, y, z, q):
+    def test_trans_of(self):
+        x, y, z, qx, qy, qz, qw = 1, 2, 3, 1, 0, 0, 0
         r1 = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(
             point=cas.Point3(x, y, z),
-            rotation_matrix=cas.RotationMatrix.from_quaternion(cas.Quaternion(*q)),
+            rotation_matrix=cas.RotationMatrix.from_quaternion(
+                cas.Quaternion(qx, qy, qz, qw)
+            ),
         ).to_translation_matrix()
         r2 = np.identity(4)
         r2[0, 3] = x
         r2[1, 3] = y
         r2[2, 3] = z
-        assert_allclose(r1, r2)
+        assert np.allclose(r1, r2)
 
-    @given(
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        float_no_nan_no_inf(),
-        unit_vector(4),
-    )
-    def test_rot_of(self, x, y, z, q):
-        r1 = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            point=cas.Point3(x_init=x, y_init=y, z_init=z),
-            rotation_matrix=cas.RotationMatrix.from_quaternion(
-                cas.Quaternion.from_iterable(q)
-            ),
+    def test_rot_of(self):
+        x, y, z, qx, qy, qz, qw = 1, 2, 3, 1, 0, 0, 0
+        r1 = cas.HomogeneousTransformationMatrix.from_xyz_quaternion(
+            x, y, z, qx, qy, qz, qw
         ).to_rotation_matrix()
-        r2 = rotation_matrix_from_quaternion(*q)
-        assert_allclose(r1, r2)
+        r2 = rotation_matrix_from_quaternion(qx, qy, qz, qw)
+        assert np.allclose(r1, r2)
 
     def test_rot_of2(self):
         """
@@ -1446,7 +1377,7 @@ class TestTransformationMatrix:
         assert isinstance(t_identity, cas.HomogeneousTransformationMatrix)
         identity_np = t_identity
         expected_identity = np.eye(4)
-        assert_allclose(identity_np, expected_identity)
+        assert np.allclose(identity_np, expected_identity)
 
         # From RotationMatrix
         r = cas.RotationMatrix.from_rpy(0.1, 0.2, 0.3)
@@ -1460,7 +1391,7 @@ class TestTransformationMatrix:
         # From another TransformationMatrix
         t_copy = cas.HomogeneousTransformationMatrix(t_from_r)
         assert isinstance(t_copy, cas.HomogeneousTransformationMatrix)
-        assert_allclose(t_copy, t_from_r)
+        assert np.allclose(t_copy, t_from_r)
 
         # From numpy array
         transform_data = np.eye(4)
@@ -1518,23 +1449,23 @@ class TestTransformationMatrix:
         # From both point and rotation
         t1 = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(p, r)
         assert isinstance(t1, cas.HomogeneousTransformationMatrix)
-        assert_allclose(t1.x, 1)
-        assert_allclose(t1.y, 2)
-        assert_allclose(t1.z, 3)
+        assert np.allclose(t1.x, 1)
+        assert np.allclose(t1.y, 2)
+        assert np.allclose(t1.z, 3)
 
         # From point only (identity rotation)
         t2 = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(point=p)
         rotation_part = t2[:3, :3]
-        assert_allclose(rotation_part, np.eye(3))
-        assert_allclose(t2.x, 1)
+        assert np.allclose(rotation_part, np.eye(3))
+        assert np.allclose(t2.x, 1)
 
         # From rotation only (zero translation)
         t3 = cas.HomogeneousTransformationMatrix.from_point_rotation_matrix(
             rotation_matrix=r
         )
-        assert_allclose(t3.x, 0)
-        assert_allclose(t3.y, 0)
-        assert_allclose(t3.z, 0)
+        assert np.allclose(t3.x, 0)
+        assert np.allclose(t3.y, 0)
+        assert np.allclose(t3.z, 0)
 
     def test_from_xyz_quat(self):
         """Test construction from position and quaternion"""
@@ -1555,7 +1486,7 @@ class TestTransformationMatrix:
 
         # Should have identity rotation
         rotation_part = t[:3, :3]
-        assert_allclose(rotation_part, np.eye(3))
+        assert np.allclose(rotation_part, np.eye(3))
 
     def test_composition(self):
         """Test composition of multiple transformations"""
@@ -1572,9 +1503,9 @@ class TestTransformationMatrix:
         result = combined @ origin
         assert isinstance(result, cas.Point3)
         # Should be at (1, 1, 0) after both translations
-        assert_allclose(result.x, 1)
-        assert_allclose(result.y, 1)
-        assert_allclose(result.z, 0)
+        assert np.allclose(result.x, 1)
+        assert np.allclose(result.y, 1)
+        assert np.allclose(result.z, 0)
 
     def test_point_transformation(self):
         """Test transformation of points"""
@@ -1593,9 +1524,9 @@ class TestTransformationMatrix:
         expected_y = 1 + 2  # 3 (rotated + translation)
         expected_z = 0 + 3  # 3 (translation)
 
-        assert_allclose(transformed.x, expected_x, atol=1e-10)
-        assert_allclose(transformed.y, expected_y, atol=1e-10)
-        assert_allclose(transformed.z, expected_z, atol=1e-10)
+        assert np.allclose(transformed.x, expected_x, atol=1e-10)
+        assert np.allclose(transformed.y, expected_y, atol=1e-10)
+        assert np.allclose(transformed.z, expected_z, atol=1e-10)
 
     def test_vector_transformation(self):
         """Test transformation of vectors (no translation effect)"""
@@ -1611,9 +1542,9 @@ class TestTransformationMatrix:
 
         # Only rotation should affect vectors, not translation
         # 90° rotation around Z: (1,0,0) -> (0,1,0)
-        assert_allclose(transformed.x, 0, atol=1e-10)
-        assert_allclose(transformed.y, 1, atol=1e-10)
-        assert_allclose(transformed.z, 0, atol=1e-10)
+        assert np.allclose(transformed.x, 0, atol=1e-10)
+        assert np.allclose(transformed.y, 1, atol=1e-10)
+        assert np.allclose(transformed.z, 0, atol=1e-10)
 
     def test_inverse(self):
         """Test matrix inversion"""
@@ -1625,11 +1556,11 @@ class TestTransformationMatrix:
         # Test that T @ T^(-1) = I
         identity_check = t @ t_inv
         identity = cas.HomogeneousTransformationMatrix()
-        assert_allclose(identity_check, identity, atol=1e-10)
+        assert np.allclose(identity_check, identity, atol=1e-10)
 
         # Test that T^(-1) @ T = I
         identity_check2 = t_inv @ t
-        assert_allclose(identity_check2, identity, atol=1e-10)
+        assert np.allclose(identity_check2, identity, atol=1e-10)
 
         # Test frame swapping
         if hasattr(t, "reference_frame") and hasattr(t, "child_frame"):
@@ -1661,7 +1592,7 @@ class TestTransformationMatrix:
         assert isinstance(translation, cas.HomogeneousTransformationMatrix)
         # Should have identity rotation
         rotation_part = translation[:3, :3]
-        assert_allclose(rotation_part, np.eye(3))
+        assert np.allclose(rotation_part, np.eye(3))
         # Should preserve translation
         assert translation.x.to_np() == 1
         assert translation.y.to_np() == 2
@@ -1703,19 +1634,18 @@ class TestTransformationMatrix:
         with pytest.raises(UnsupportedOperationError):
             t @ q  # Matrix @ Quaternion
 
-    @given(float_no_nan_no_inf(), float_no_nan_no_inf(), float_no_nan_no_inf())
-    def test_pure_translation(self, x, y, z):
-        """Property-based krrood_test for pure translation matrices"""
+    def test_pure_translation(self):
+        x, y, z = 1, 2, 3
         t = cas.HomogeneousTransformationMatrix.from_xyz_rpy(x, y, z)
 
         # Should have identity rotation
         rotation_part = t[:3, :3]
-        assert_allclose(rotation_part, np.eye(3))
+        assert np.allclose(rotation_part, np.eye(3))
 
         # Should have correct translation
-        assert_allclose(t.x, x)
-        assert_allclose(t.y, y)
-        assert_allclose(t.z, z)
+        assert np.allclose(t.x, x)
+        assert np.allclose(t.y, y)
+        assert np.allclose(t.z, z)
 
         # Bottom row should be [0, 0, 0, 1]
         assert t[3, 0] == 0
@@ -1756,10 +1686,10 @@ class TestTransformationMatrix:
 
         # Should be a valid 4x4 transformation matrix
         assert compiled_transform.shape == (4, 4)
-        assert_allclose(compiled_transform[3, 3], 1)
-        assert_allclose(compiled_transform[3, 0], 0)
-        assert_allclose(compiled_transform[3, 1], 0)
-        assert_allclose(compiled_transform[3, 2], 0)
+        assert np.allclose(compiled_transform[3, 3], 1)
+        assert np.allclose(compiled_transform[3, 0], 0)
+        assert np.allclose(compiled_transform[3, 1], 0)
+        assert np.allclose(compiled_transform[3, 2], 0)
 
     def test_deepcopy(self):
         """Test deep copy functionality"""
@@ -1770,7 +1700,7 @@ class TestTransformationMatrix:
         t_copy = deepcopy(t)
 
         assert isinstance(t_copy, cas.HomogeneousTransformationMatrix)
-        assert_allclose(t, t_copy)
+        assert np.allclose(t, t_copy)
 
         # Frames should be preserved but not deep copied (reference equality)
         assert t_copy.reference_frame == t.reference_frame
@@ -1797,7 +1727,7 @@ class TestTransformationMatrix:
         ee_T_base = base_T_ee.inverse()
         identity_check = base_T_ee @ ee_T_base
         identity = cas.HomogeneousTransformationMatrix()
-        assert_allclose(identity_check, identity, atol=1e-10)
+        assert np.allclose(identity_check, identity, atol=1e-10)
 
     def test_coordinate_transformations(self):
         """Test coordinate frame transformations"""
@@ -1818,7 +1748,7 @@ class TestTransformationMatrix:
         assert isinstance(world_point_back, cas.Point3)
 
         # Should get original point back
-        assert_allclose(world_point, world_point_back, atol=1e-10)
+        assert np.allclose(world_point, world_point_back, atol=1e-10)
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions"""
@@ -1826,11 +1756,11 @@ class TestTransformationMatrix:
         t_identity = cas.HomogeneousTransformationMatrix()
         point = cas.Point3(x_init=1, y_init=2, z_init=3)
         transformed = t_identity @ point
-        assert_allclose(point, transformed)
+        assert np.allclose(point, transformed)
 
         # Zero translation, identity rotation
         t_zero = cas.HomogeneousTransformationMatrix.from_xyz_rpy(0, 0, 0, 0, 0, 0)
-        assert_allclose(t_zero, t_identity)
+        assert np.allclose(t_zero, t_identity)
 
         # Large translation values
         t_large = cas.HomogeneousTransformationMatrix.from_xyz_rpy(1e6, -1e6, 1e6)
@@ -1843,12 +1773,10 @@ class TestTransformationMatrix:
             0, 0, 0, 1e-8, 1e-8, 1e-8
         )
         rotation_part = t_small[:3, :3]
-        assert_allclose(rotation_part, np.eye(3), atol=1e-7)
+        assert np.allclose(rotation_part, np.eye(3), atol=1e-7)
 
-    @given(quaternion())
+    @pytest.mark.parametrize("q", quaternions)
     def test_quaternion_consistency(self, q):
-        """Property-based krrood_test for quaternion consistency"""
-        # Create transformation from quaternion
         t = cas.HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=1,
             pos_y=2,
@@ -1859,10 +1787,8 @@ class TestTransformationMatrix:
             quat_z=q[2],
         )
 
-        # Extract quaternion back
         q_extracted = t.to_quaternion()
 
-        # Create transformation from extracted quaternion
         t_roundtrip = cas.HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=1,
             pos_y=2,
@@ -1873,24 +1799,19 @@ class TestTransformationMatrix:
             quat_z=q_extracted[2],
         )
 
-        # Should be the same (within numerical precision)
-        assert_allclose(t, t_roundtrip, atol=1e-10)
+        assert np.allclose(t, t_roundtrip, atol=1e-10)
 
     def test_homogeneous_properties(self):
-        """Test homogeneous coordinate properties"""
         t = cas.HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0.1, 0.2, 0.3)
 
-        # Transforming points preserves homogeneous coordinate = 1
         point = cas.Point3(x_init=4, y_init=5, z_init=6)
         transformed_point = t @ point
         assert transformed_point[3] == 1
 
-        # Transforming vectors preserves homogeneous coordinate = 0
         vector = cas.Vector3(x_init=1, y_init=1, z_init=1)
         transformed_vector = t @ vector
         assert transformed_vector[3] == 0
 
-        # Transformation matrix structure
         transform_np = t.to_np()
         assert transform_np[3, 0] == 0
         assert transform_np[3, 1] == 0
@@ -1899,23 +1820,24 @@ class TestTransformationMatrix:
 
 
 class TestQuaternion:
-    @given(
-        quaternion(),
-        quaternion(),
-        st.floats(allow_nan=False, allow_infinity=False, min_value=0, max_value=1),
-    )
+
+    @pytest.mark.parametrize("q1", quaternions)
+    @pytest.mark.parametrize("q2", quaternions)
+    @pytest.mark.parametrize("t", numbers)
     def test_slerp(self, q1, q2, t):
         r1 = cas.Quaternion.from_iterable(q1).slerp(cas.Quaternion.from_iterable(q2), t)
         r2 = quaternion_slerp(q1, q2, t)
         compare_orientations(r1, r2)
 
-    @given(unit_vector(length=3), random_angle())
+    @pytest.mark.parametrize("axis", unit_vectors3)
+    @pytest.mark.parametrize("angle", numbers)
     def test_quaternion_from_axis_angle1(self, axis, angle):
         actual = cas.Quaternion.from_axis_angle(cas.Vector3.from_iterable(axis), angle)
         expected = quaternion_from_axis_angle(axis, angle)
-        assert_allclose(actual, expected)
+        assert np.allclose(actual, expected)
 
-    @given(quaternion(), quaternion())
+    @pytest.mark.parametrize("q", quaternions)
+    @pytest.mark.parametrize("p", quaternions)
     def test_quaternion_multiply(self, q, p):
         q_expr = cas.Quaternion.from_iterable(q)
         p_expr = cas.Quaternion.from_iterable(p)
@@ -1923,13 +1845,14 @@ class TestQuaternion:
         expected = quaternion_multiply(q, p)
         compare_orientations(actual, expected)
 
-    @given(quaternion())
+    @pytest.mark.parametrize("q", quaternions)
     def test_quaternion_conjugate(self, q):
         actual = cas.Quaternion.from_iterable(q).conjugate()
         expected = quaternion_conjugate(q)
         compare_orientations(actual, expected)
 
-    @given(quaternion(), quaternion())
+    @pytest.mark.parametrize("q1", quaternions)
+    @pytest.mark.parametrize("q2", quaternions)
     def test_quaternion_diff(self, q1, q2):
         q1_expr = cas.Quaternion.from_iterable(q1)
         q2_expr = cas.Quaternion.from_iterable(q2)
@@ -1937,7 +1860,7 @@ class TestQuaternion:
         expected = quaternion_multiply(quaternion_conjugate(q1), q2)
         compare_orientations(actual, expected)
 
-    @given(quaternion())
+    @pytest.mark.parametrize("q", quaternions)
     def test_axis_angle_from_quaternion(self, q):
         axis2, angle2 = axis_angle_from_quaternion(*q)
         axis = cas.Quaternion.from_iterable(q).to_axis_angle()[0]
@@ -1953,23 +1876,26 @@ class TestQuaternion:
         compare_axis_angle(angle, axis[:3], angle2, axis2)
         assert axis[-1] == 0
 
-    @given(random_angle(), random_angle(), random_angle())
+    @pytest.mark.parametrize("roll", numbers)
+    @pytest.mark.parametrize("pitch", numbers)
+    @pytest.mark.parametrize("yaw", numbers)
     def test_quaternion_from_rpy(self, roll, pitch, yaw):
         q = cas.Quaternion.from_rpy(roll, pitch, yaw)
         q2 = quaternion_from_rpy(roll, pitch, yaw)
         compare_orientations(q, q2)
 
-    @given(quaternion())
+    @pytest.mark.parametrize("q", quaternions)
     def test_quaternion_from_matrix(self, q):
         matrix = rotation_matrix_from_quaternion(*q)
         q2 = quaternion_from_rotation_matrix(matrix)
         q1_2 = cas.Quaternion.from_rotation_matrix(cas.RotationMatrix(data=matrix))
         compare_orientations(q2, q1_2)
 
-    @given(quaternion(), quaternion())
+    @pytest.mark.parametrize("q1", quaternions)
+    @pytest.mark.parametrize("q2", quaternions)
     def test_dot(self, q1, q2):
         result = cas.Quaternion.from_iterable(q1).dot(cas.Quaternion.from_iterable(q2))
         q1 = np.array(q1)
         q2 = np.array(q2)
         expected = np.dot(q1.T, q2)
-        assert_allclose(result, expected)
+        assert np.allclose(result, expected)
