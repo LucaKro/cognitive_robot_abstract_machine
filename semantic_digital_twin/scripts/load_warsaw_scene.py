@@ -1,9 +1,8 @@
 import os
-from pathlib import Path
 
-import cv2
 import numpy as np
 import trimesh
+from trimesh.collision import CollisionManager
 
 from semantic_digital_twin.adapters.mesh import OBJParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -14,16 +13,18 @@ from semantic_digital_twin.pipeline.pipeline import (
 )
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.spatial_types import TransformationMatrix
-from semantic_digital_twin.utils import InheritanceStructureExporter
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color
-from semantic_digital_twin.world_description.world_entity import (
-    Body,
-    SemanticAnnotation,
-)
+from semantic_digital_twin.world_description.world_entity import Body
 
-dir_path = "/home/itsme/work/cram_ws/src/cognitive_robot_abstract_machine/semantic_digital_twin/resources/warsaw_data/objects/"
+dir_path = "/home/ben/devel/iai/src/cognitive_robot_abstract_machine/Objects"
 files = [f for f in os.listdir(dir_path) if f.endswith(".obj")]
+
+colors = [
+    {"R": 1, "G": 0, "B": 0},
+    {"R": 0, "G": 1, "B": 0},
+    {"R": 0, "G": 0, "B": 1},
+]
 
 world = World()
 root = Body(name=PrefixedName("root_body"))
@@ -32,7 +33,11 @@ with world.modify_world():
 for i, file in enumerate(files):
     obj_world = OBJParser(os.path.join(dir_path, file)).parse()
     with world.modify_world():
-        # obj_world.bodies[0].collision[0].override_mesh_with_color(color)
+        # color = index_to_color[i % 4]
+        if i < 3:
+            obj_world.bodies[0].collision[0].override_mesh_with_color(
+                Color(**colors[i])
+            )
         world.merge_world(obj_world)
 
 pipeline = Pipeline(
@@ -44,78 +49,47 @@ pipeline = Pipeline(
     ]
 )
 world = pipeline.apply(world)
-output_path = Path("../resources/warsaw_data/json_exports/")
-if not output_path.exists():
-    output_path.mkdir(parents=True)
-world.export_kinematic_structure_tree_to_json(
-    Path(os.path.join(output_path, "kinematic_structure.json")),
-    include_connections=False,
-)
-
-InheritanceStructureExporter(
-    SemanticAnnotation, Path(os.path.join(output_path, "semantic_annotations.json"))
-).export()
-
 rt = RayTracer(world=world)
 scene = rt.scene
 
-import numpy as np
+world_meshes = []  # list of (id, mesh_in_world)
 
-number_of_bodies = 4  # <-- group size you want
+for body in world.bodies_with_enabled_collision:
+    transform = body.global_pose.to_np()
+    body_id = body.id
+    geom_hash = body.collision[0].mesh.identifier_hash
+    geom_name = scene.geometry_identifiers[geom_hash]
 
+    mesh = scene.geometry[geom_name].copy()
+    mesh.apply_transform(transform)
+    world_meshes.append((body_id, mesh))
 
-def make_opencv_palette(n: int):
-    """
-    Generate n distinct-ish colors using an OpenCV colormap.
-    Returns a list of Color(r, g, b) with r,g,b in [0,1].
-    """
-    if n <= 0:
-        return []
-
-    # values in [0, 255]
-    values = np.linspace(0, 255, n, dtype=np.uint8)
-    # shape (n,1) so applyColorMap gives (n,1,3)
-    gray = values.reshape(-1, 1)
-
-    # pick any nice colormap you like:
-    #   COLORMAP_TURBO (if available), COLORMAP_VIRIDIS, COLORMAP_JET, etc.
-    cmap = cv2.applyColorMap(gray, cv2.COLORMAP_VIRIDIS)
-
-    palette = []
-    for i in range(n):
-        b, g, r = cmap[i, 0]  # OpenCV is BGR, uint8
-        palette.append(Color(r / 255.0, g / 255.0, b / 255.0))
-    return palette
+ids = [id_ for id_, _ in world_meshes]
+bounds = {id_: mesh.bounds for id_, mesh in world_meshes}
 
 
-# --- collect bodies once ---
-bodies = list(world.bodies_with_enabled_collision)
-
-# Optional: store original state so we can reset between groups.
-# You’ll need to adapt this to your actual API.
-original_state = {}
-for body in bodies:
-    visuals = body.collision[0].mesh.visual.copy()
-    # Replace 'current_color' with whatever your API uses.
-    # If you don't have a color property, you might skip this
-    # and just "overwrite" each iteration instead.
-    original_state[body.id] = {
-        "mesh_visuals": visuals,
-        # "color": getattr(coll, "color", None),   # example, if it exists
-        # store anything else you need to restore
-    }
+def boxes_touch(b1, b2, tol=0.0):
+    (min1, max1), (min2, max2) = b1, b2
+    return np.all(max1 + tol >= min2) and np.all(max2 + tol >= min1)
 
 
-def reset_scene_visuals():
-    """
-    Reset bodies to their original look.
-    You must fill in the restore logic for your engine.
-    """
-    for body in bodies:
-        visuals = original_state[body.id]["mesh_visuals"]
-        body.collision[0].mesh.visual = visuals
+adj = {id_: set() for id_ in ids}
+
+for i in range(len(ids)):
+    for j in range(i + 1, len(ids)):
+        n1, n2 = ids[i], ids[j]
+        if boxes_touch(bounds[n1], bounds[n2], tol=1e-6):
+            adj[n1].add(n2)
+            adj[n2].add(n1)
+
+scene.show()
+exit()
 
 
+camera_pose = TransformationMatrix.from_xyz_rpy(
+    x=-3, y=0, z=3, roll=-np.pi / 2, pitch=np.pi / 4, yaw=0
+).to_np()
+# By default, the camera is looking along the -z axis, so we need to rotate it to look along the x-axis.
 rotate = trimesh.transformations.rotation_matrix(
     angle=np.radians(-90.0), direction=[0, 1, 0]
 )
@@ -123,73 +97,15 @@ rotate_x = trimesh.transformations.rotation_matrix(
     angle=np.radians(180.0), direction=[1, 0, 0]
 )
 
-camera_poses = []
+scene.graph[scene.camera.name] = camera_pose @ rotate_x @ rotate
 
-camera_pose1 = TransformationMatrix.from_xyz_rpy(
-    x=-3, y=0, z=2.5, roll=-np.pi / 2, pitch=np.pi / 4, yaw=0
-).to_np()
-
-camera_poses.append(camera_pose1 @ rotate_x @ rotate)
-
-camera_pose2 = TransformationMatrix.from_xyz_rpy(
-    x=3, y=0, z=2.5, roll=-np.pi / 2, pitch=np.pi / 4, yaw=np.pi
-).to_np()
-
-camera_poses.append(camera_pose2 @ rotate_x @ rotate)
-
-camera_pose3 = TransformationMatrix.from_xyz_rpy(
-    x=0, y=-3.5, z=3, roll=-np.pi / 2, pitch=np.pi / 4, yaw=np.pi / 2
-).to_np()
-
-camera_poses.append(camera_pose3 @ rotate_x @ rotate)
-
-camera_pose4 = TransformationMatrix.from_xyz_rpy(
-    x=0, y=3.5, z=3, roll=-np.pi / 2, pitch=np.pi / 4, yaw=-np.pi / 2
-).to_np()
-
-camera_poses.append(camera_pose4 @ rotate_x @ rotate)
-
-output_path = Path("../resources/warsaw_data/scene_images/")
-
-if not output_path.exists():
-    output_path.mkdir(parents=True)
-
+# Adjust field of view (FX/FY)
 scene.camera.fov = [60, 45]  # horizontal, vertical degrees
 
-for j, pose in enumerate(camera_poses):
+scene.show()
 
-    scene.graph[scene.camera.name] = pose
-
-    png = scene.save_image(resolution=(1024, 768), visible=True)
-
-    with open(os.path.join(output_path, f"original_render_{j}.png"), "wb") as f:
-        f.write(png)
-
-# --- iterate over groups of bodies ---
-for i, start in enumerate(range(0, len(bodies), number_of_bodies)):
-    group = bodies[start : start + number_of_bodies]
-
-    # reset everything to default look
-    reset_scene_visuals()
-
-    # create palette for this group
-    palette = make_opencv_palette(len(group))
-
-    # apply colors only to the current group; others keep texture
-    for body, color in zip(group, palette):
-        body.collision[0].override_mesh_with_color(color)
-
-    # (Re)build ray tracer / scene if needed
-    rt = RayTracer(world=world)
-    scene = rt.scene
-
-    scene.camera.fov = [60, 45]  # horizontal, vertical degrees
-
-    for j, pose in enumerate(camera_poses):
-
-        scene.graph[scene.camera.name] = pose
-
-        png = scene.save_image(resolution=(1024, 768), visible=True)
-
-        with open(os.path.join(output_path, f"group_{i}_render_{j}.png"), "wb") as f:
-            f.write(png)
+# # Render to PNG bytes
+# png = scene.save_image(resolution=(1024, 768), visible=True)
+#
+# with open("render.png", "wb") as f:
+#     f.write(png)
