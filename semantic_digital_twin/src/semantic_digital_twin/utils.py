@@ -9,7 +9,16 @@ import json
 from abc import ABC
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing_extensions import Type, Dict, List, Any, Tuple
+from typing_extensions import (
+    Type,
+    Dict,
+    List,
+    Any,
+    Tuple,
+    get_origin,
+    get_args,
+    get_type_hints,
+)
 
 try:
     from ament_index_python import PackageNotFoundError
@@ -253,6 +262,76 @@ class InheritanceStructureExporter:
             ],
         }
 
+    def _collect_fields(self, clazz: type) -> List[Dict[str, Any]]:
+        import inspect
+
+        # Get the __init__ (for dataclasses/attrs/etc. this is the generated one)
+        init = clazz.__init__
+        sig = inspect.signature(init)
+
+        # Annotations: first from __init__, then fallback to class-level annotations
+        init_ann = getattr(init, "__annotations__", {}) or {}
+        class_ann = getattr(clazz, "__annotations__", {}) or {}
+
+        fields: List[Dict[str, Any]] = []
+
+        for name, param in sig.parameters.items():
+            # Skip 'self'
+            if name == "self":
+                continue
+
+            # Skip private / "hidden" params
+            if name.startswith("_"):
+                continue
+
+            # Only normal args / keyword-only; no *args, **kwargs
+            if param.kind not in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            ):
+                continue
+
+            # Only required parameters: nothing with a default (even default=None)
+            if param.default is not inspect._empty:
+                continue
+
+            # Resolve an annotation if we have one
+            ann = init_ann.get(name, class_ann.get(name, None))
+            type_str = self._type_to_string(ann)
+
+            fields.append(
+                {
+                    "name": name,
+                    "type": type_str,
+                }
+            )
+
+        return fields
+
+    def _type_to_string(self, tp: Any) -> str:
+        # Missing annotation
+        if tp is None:
+            return "Any"
+
+        # Forward refs like "World"
+        if isinstance(tp, str):
+            return tp
+
+        origin = get_origin(tp)
+        args = get_args(tp)
+
+        if origin is not None:
+            origin_name = getattr(origin, "__name__", str(origin))
+            if args:
+                arg_str = ", ".join(self._type_to_string(a) for a in args)
+                return f"{origin_name}[{arg_str}]"
+            return origin_name
+
+        if hasattr(tp, "__name__"):
+            return tp.__name__
+
+        return str(tp)
+
     def _build_node(self, clazz: Type, *, include_subclasses: bool) -> Dict[str, Any]:
         """
         Recursively build a node representing `clazz` and its related classes.
@@ -266,6 +345,7 @@ class InheritanceStructureExporter:
                 self._build_node(base, include_subclasses=False)
                 for base in self._walk_related_classes(clazz, relation="bases")
             ],
+            "fields": self._collect_fields(clazz),
         }
 
         if include_subclasses:

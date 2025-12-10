@@ -56,6 +56,7 @@ InheritanceStructureExporter(
     SemanticAnnotation, Path(os.path.join(output_path, "semantic_annotations.json"))
 ).export()
 
+exit()
 rt = RayTracer(world=world)
 scene = rt.scene
 
