@@ -222,12 +222,12 @@ class InheritanceStructureExporter:
     Superclasses are represented using the same node structure as regular classes
     but omit the `subclasses` field, preventing upward recursion.
 
+    For each class, the exporter collects all public fields from the class's __init__ method.
+
     This exporter only includes:
       - direct and indirect subclasses of `root_class`
       - superclasses that are not `object`, not `ABC`, and not part of the root hierarchy
 
-    The resulting JSON provides a clean, minimal, readable representation of the
-    inheritance landscape, suitable for documentation, visualization, or tooling.
     """
 
     root_class: Type
@@ -288,6 +288,11 @@ class InheritanceStructureExporter:
         return node
 
     def _collect_required_public_fields(self, clazz: type) -> List[Dict[str, Any]]:
+        """
+        Collects all required public fields from the class's __init__ method.
+        :param clazz: The class to inspect.
+        :return: A list of dictionaries, each containing 'name' and 'type' of a required public field.
+        """
         import inspect
 
         # Get the __init__ (for dataclasses/attrs/etc. this is the generated one)
@@ -317,6 +322,17 @@ class InheritanceStructureExporter:
         init_ann: Dict[str, Any],
         class_ann: Dict[str, Any],
     ) -> Dict[str, Any]:
+        """
+        Returns a dictionary with field info if the parameter is a required public field,
+        otherwise returns an empty dictionary.
+
+        :param name: The name of the parameter.
+        :param param: The inspect.Parameter object.
+        :param init_ann: Annotations from the __init__ method.
+        :param class_ann: Annotations from the class.
+
+        :return: A dictionary with field info or an empty dictionary.
+        """
         if name == "self":
             return {}
 
@@ -345,6 +361,9 @@ class InheritanceStructureExporter:
         }
 
     def _type_to_string(self, tp: Any) -> str:
+        """
+        Convert a type annotation to a string representation.
+        """
         # Missing annotation
         if tp is None:
             return Any
@@ -377,7 +396,7 @@ class InheritanceStructureExporter:
 
     def _walk_related_classes(self, clazz: Type, relation: str):
         """
-        Yield related classes based on the specified relation.
+        Yields related classes based on the specified relation.
         """
         match relation:
             case "subclasses":
