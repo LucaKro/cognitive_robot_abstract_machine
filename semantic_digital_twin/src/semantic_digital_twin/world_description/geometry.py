@@ -288,7 +288,7 @@ class FileMesh(Mesh):
         """
         if self._mesh is not None:
             return self._mesh
-        self._mesh = trimesh.load_mesh(self.filename, process=False)
+        self._mesh = trimesh.load_mesh(self.filename, process=True)
         self._mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(
             self.color.to_rgba()
         )

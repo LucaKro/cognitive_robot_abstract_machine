@@ -135,7 +135,7 @@ class Wardrobe(Furniture, HasDrawers, HasDoors):
     container: Container = field(kw_only=True)
 
 
-class Floor(HasSupportingSurface): ...
+class Floor(SemanticAnnotation, HasSupportingSurface): ...
 
 
 @dataclass(eq=False)
