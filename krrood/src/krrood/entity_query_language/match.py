@@ -66,7 +66,7 @@ class SelectableMatchExpression(CanBehaveLikeAVariable[T]):
     """
     The match expression that this class wraps and makes selectable.
     """
-    _attribute_match_expressions_: Dict[str, SelectableMatchExpression] = field(init=False, default_factory=dict)
+    _selectable_attribute_matches_: Dict[str, SelectableMatchExpression] = field(init=False, default_factory=dict)
     """
     A dictionary mapping attribute names to their corresponding selectable match expressions.
     """
@@ -91,11 +91,11 @@ class SelectableMatchExpression(CanBehaveLikeAVariable[T]):
             attr = Attribute(_child_=self._var_, _attr_name_=item, _owner_class_=self._match_expression_.type)
             attribute_expression = AttributeMatch(parent=self._match_expression_, attr_name=item, variable=attr)
             self._match_expression_.attribute_matches[item] = attribute_expression
-        if item not in self._attribute_match_expressions_:
+        if item not in self._selectable_attribute_matches_:
             attribute_expression = self._match_expression_.attribute_matches[item]
             selectable_attribute_expression = SelectableMatchExpression(_match_expression_=attribute_expression)
-            self._attribute_match_expressions_[item] = selectable_attribute_expression
-        return self._attribute_match_expressions_[item]
+            self._selectable_attribute_matches_[item] = selectable_attribute_expression
+        return self._selectable_attribute_matches_[item]
 
     def _evaluate__(self, sources: Optional[Dict[int, Any]] = None, parent: Optional[SymbolicExpression] = None) -> \
             Iterable[OperationResult]:
