@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import os
 import weakref
 from copy import deepcopy
@@ -241,13 +242,13 @@ class InheritanceStructureExporter:
 
     def export(self) -> None:
         """
-        Build the hierarchy and write it to `self.out_path` as JSON.
+        Build the hierarchy and write it to `self.output_path` as JSON.
         """
-        data = self._build_structure()
+        data = self._build_inheritance_structure()
         with open(self.output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-    def _build_structure(self) -> Dict[str, Any]:
+    def _build_inheritance_structure(self) -> Dict[str, Any]:
         """
         Build the full hierarchy as a Python dict.
         Root is represented by its name + its immediate subclasses.
@@ -262,7 +263,31 @@ class InheritanceStructureExporter:
             ],
         }
 
-    def _collect_fields(self, clazz: type) -> List[Dict[str, Any]]:
+    def _build_node(self, clazz: Type, *, include_subclasses: bool) -> Dict[str, Any]:
+        """
+        Recursively build a node representing `clazz` and its related classes.
+
+        If `include_subclasses` is True, also include subclasses in the node.
+        """
+        node: Dict[str, Any] = {
+            "name": clazz.__name__,
+            "is_abstract": self._is_inheriting_from_abc(clazz),
+            "other_superclasses": [
+                self._build_node(base, include_subclasses=False)
+                for base in self._walk_related_classes(clazz, relation="bases")
+            ],
+            "fields": self._collect_required_public_fields(clazz),
+        }
+
+        if include_subclasses:
+            node["subclasses"] = [
+                self._build_node(sub, include_subclasses=True)
+                for sub in self._walk_related_classes(clazz, relation="subclasses")
+            ]
+
+        return node
+
+    def _collect_required_public_fields(self, clazz: type) -> List[Dict[str, Any]]:
         import inspect
 
         # Get the __init__ (for dataclasses/attrs/etc. this is the generated one)
@@ -273,45 +298,56 @@ class InheritanceStructureExporter:
         init_ann = getattr(init, "__annotations__", {}) or {}
         class_ann = getattr(clazz, "__annotations__", {}) or {}
 
-        fields: List[Dict[str, Any]] = []
-
-        for name, param in sig.parameters.items():
-            # Skip 'self'
-            if name == "self":
-                continue
-
-            # Skip private / "hidden" params
-            if name.startswith("_"):
-                continue
-
-            # Only normal args / keyword-only; no *args, **kwargs
-            if param.kind not in (
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                inspect.Parameter.KEYWORD_ONLY,
-            ):
-                continue
-
-            # Only required parameters: nothing with a default (even default=None)
-            if param.default is not inspect._empty:
-                continue
-
-            # Resolve an annotation if we have one
-            ann = init_ann.get(name, class_ann.get(name, None))
-            type_str = self._type_to_string(ann)
-
-            fields.append(
-                {
-                    "name": name,
-                    "type": type_str,
-                }
+        required_public_fields = [
+            required_public_field
+            for name, param in sig.parameters.items()
+            if (
+                required_public_field := self._get_only_required_public_fields(
+                    name, param, init_ann, class_ann
+                )
             )
+        ]
 
-        return fields
+        return required_public_fields
+
+    def _get_only_required_public_fields(
+        self,
+        name: str,
+        param: inspect.Parameter,
+        init_ann: Dict[str, Any],
+        class_ann: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if name == "self":
+            return {}
+
+        # Skip private / "hidden" params
+        if name.startswith("_"):
+            return {}
+
+        # Only normal args / keyword-only; no *args, **kwargs
+        if param.kind not in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
+            return {}
+
+        # Only required parameters: nothing with a default (even default=None)
+        if param.default is not inspect._empty:
+            return {}
+
+        # Resolve an annotation if we have one
+        ann = init_ann.get(name, class_ann.get(name, None))
+        type_str = self._type_to_string(ann)
+
+        return {
+            "name": name,
+            "type": type_str,
+        }
 
     def _type_to_string(self, tp: Any) -> str:
         # Missing annotation
         if tp is None:
-            return "Any"
+            return Any
 
         # Forward refs like "World"
         if isinstance(tp, str):
@@ -331,30 +367,6 @@ class InheritanceStructureExporter:
             return tp.__name__
 
         return str(tp)
-
-    def _build_node(self, clazz: Type, *, include_subclasses: bool) -> Dict[str, Any]:
-        """
-        Recursively build a node representing `clazz` and its related classes.
-
-        If `include_subclasses` is True, also include subclasses in the node.
-        """
-        node: Dict[str, Any] = {
-            "name": clazz.__name__,
-            "is_abstract": self._is_inheriting_from_abc(clazz),
-            "other_superclasses": [
-                self._build_node(base, include_subclasses=False)
-                for base in self._walk_related_classes(clazz, relation="bases")
-            ],
-            "fields": self._collect_fields(clazz),
-        }
-
-        if include_subclasses:
-            node["subclasses"] = [
-                self._build_node(sub, include_subclasses=True)
-                for sub in self._walk_related_classes(clazz, relation="subclasses")
-            ]
-
-        return node
 
     @staticmethod
     def _is_inheriting_from_abc(clazz: Type) -> bool:
