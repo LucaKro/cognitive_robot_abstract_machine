@@ -8,6 +8,7 @@ import operator as _operator
 import sys as _sys
 from collections import Counter as _Counter
 import dataclasses as _dataclasses
+from dataclasses import field
 from enum import IntEnum as _IntEnum
 
 import casadi as _ca
@@ -299,7 +300,7 @@ class CompiledFunctionWithViews:
     The input parameters for the compiled symbolic expression.
     """
 
-    additional_views: _te.Optional[_te.List[slice]] = None
+    additional_views: _te.Optional[_te.List[slice]] = field(default_factory=list)
     """
     If additional views are required that don't correspond to the expressions directly.
     """
@@ -326,11 +327,8 @@ class CompiledFunctionWithViews:
             slices.append(end)
             start = end
         self.split_out_view = _np.split(self.compiled_function._out, slices)
-        if self.additional_views is not None:
-            for expression_slice in self.additional_views:
-                self.split_out_view.append(
-                    self.compiled_function._out[expression_slice]
-                )
+        for expression_slice in self.additional_views:
+            self.split_out_view.append(self.compiled_function._out[expression_slice])
 
     def __call__(self, *args: _np.ndarray) -> _te.List[_np.ndarray]:
         """
@@ -384,6 +382,15 @@ class SymbolicType(Symbol):
         return self.shape == (1, 1)
 
     def __bool__(self) -> bool:
+        """
+        Evaluates the object as a boolean value, implementing the `__bool__` special method.
+        If the expression is scalar and constant, it is evaluated as a python bool.
+            This allows comparisons to work as expected, e.g. `if x > 0:`
+        If the expression is scaler, non-constant and an ==, we use casadi's equivalent.
+            This allows `2*FloatVariable("a") == FloatVariable("a")*2` to work as expected.
+        In any other case, we return True, because the expression is not None.
+            This is the default behavior for non bool python objects.
+        """
         if self.is_scalar():
             if self.is_constant():
                 return bool(self.to_np())
