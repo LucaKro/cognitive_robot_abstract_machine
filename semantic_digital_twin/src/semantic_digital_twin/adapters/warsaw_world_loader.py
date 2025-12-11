@@ -144,9 +144,13 @@ class WarsawWorldLoader:
         :param filename_prefix: Prefix for image filenames.
         """
         for index, pose in enumerate(self._predefined_camera_transforms):
-            self.render_scene_from_camera_pose(pose, os.path.join(output_path, f"{filename_prefix}_{index}.png"))
+            self.render_scene_from_camera_pose(
+                pose, os.path.join(output_path, f"{filename_prefix}_{index}.png")
+            )
 
-    def render_scene_from_camera_pose(self, camera_transform: TransformationMatrix, output_filepath=None) -> bytes:
+    def render_scene_from_camera_pose(
+        self, camera_transform: TransformationMatrix, output_filepath=None
+    ) -> bytes:
         """Render world from a single camera pose, return PNG bytes."""
         rt = RayTracer(world=self.world)
         scene = rt.scene
