@@ -3,6 +3,7 @@ import json
 import logging
 from pathlib import Path
 
+from semantic_digital_twin.adapters.warsaw_world_loader import WarsawWorldLoader
 from semantic_digital_twin.semantic_annotations import semantic_annotations as sa_module
 
 import sys
@@ -19,8 +20,6 @@ sys.path.insert(
     0, str(Path(__file__).parent.parent / "semantic_digital_twin" / "scripts")
 )
 
-from load_warsaw_scene import load_world
-
 
 def build_class_lookup():
     """Build a name -> class lookup from the semantic_annotations module."""
@@ -36,7 +35,7 @@ def main(args):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     logging.info(f"Loading world from {args.world_dir}...")
-    world: World = load_world(args.world_dir)
+    world: World = WarsawWorldLoader(args.world_dir).world
 
     with open(args.model_output_json, "r") as f:
         all_data = json.load(f)

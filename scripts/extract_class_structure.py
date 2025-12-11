@@ -9,15 +9,10 @@ import base64
 # Import shared functions from load_warsaw_scene
 import sys
 
+from semantic_digital_twin.adapters.warsaw_world_loader import WarsawWorldLoader
+
 sys.path.insert(
     0, str(Path(__file__).parent.parent / "semantic_digital_twin" / "scripts")
-)
-from load_warsaw_scene import (
-    load_world,
-    export_world_metadata,
-    get_camera_poses,
-    render_scene,
-    SceneVisualState,
 )
 
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
@@ -190,10 +185,13 @@ def main(args):
 
     # Load world
     print(f"Loading world from {obj_dir}...")
-    world = load_world(obj_dir)
+
+    world_loader = WarsawWorldLoader(obj_dir)
+    world = world_loader.world
+    bodies = world.bodies_with_enabled_collision
 
     # Export semantic annotations JSON for VLM context
-    export_world_metadata(world, export_path)
+    world_loader.export_semantic_annotation_inheritance_structure(export_path)
 
     # Read taxonomy and spatial relations
     object_taxonomy = (export_path / "semantic_annotations.json").read_text()
@@ -205,33 +203,34 @@ def main(args):
 
     if not args.skip_vlm:
         # Set up visual state management
-        visual_state = SceneVisualState(world)
-        camera_pose = get_camera_poses()[1]  # Use first camera pose for VLM queries
+        camera_pose = world_loader._predefined_camera_transforms()[
+            1
+        ]  # Use first camera pose for VLM queries
 
         # Render original scene once
         print("Rendering original scene...")
-        original_image = render_scene(
-            world, camera_pose, export_path / "scene_orig.png"
+        original_image = world_loader.render_scene_from_camera_pose(
+            camera_pose, export_path / "scene_orig.png"
         )
 
         # Process groups
         all_responses = []
-        num_groups = (len(visual_state.bodies) + group_size - 1) // group_size
+        num_groups = (len(bodies) + group_size - 1) // group_size
 
-        for i, start in enumerate(range(0, len(visual_state.bodies), group_size)):
-            group = visual_state.bodies[start : start + group_size]
+        for i, start in enumerate(range(0, len(bodies), group_size)):
+            group = bodies[start : start + group_size]
             print(f"Processing group {i + 1}/{num_groups} ({len(group)} objects)...")
 
             # Reset visuals and apply highlight colors
-            visual_state.reset()
-            bodies_colors = visual_state.apply_highlight_to_group(group)
+            world_loader._reset_body_colors()
+            bodies_colors = world_loader._apply_highlight_to_group(group)
             color_names = list(
                 map(lambda c: c.closest_css3_color_name(), bodies_colors.values())
             )
 
             # Render highlighted scene
-            highlighted_image = render_scene(
-                world, camera_pose, export_path / f"scene_{i}.png"
+            highlighted_image = world_loader.render_scene_from_camera_pose(
+                camera_pose, export_path / f"scene_{i}.png"
             )
 
             semantic_labels_dict = {
@@ -240,7 +239,7 @@ def main(args):
             }
             semantic_labels = ""
             for body_uuid, color_name in semantic_labels_dict.items():
-                body = next(filter(lambda b: b.id == body_uuid, world.bodies))
+                body = next(filter(lambda b: b.id == body_uuid, bodies))
                 semantic_labels += f"{color_name}: {body.name}\n"
 
             # Query VLM
@@ -265,7 +264,7 @@ def main(args):
             )
 
             # Reset for next iteration
-            visual_state.reset()
+            world_loader._reset_body_colors()
 
         # Save raw responses
         with open(output_file, "w") as f:
