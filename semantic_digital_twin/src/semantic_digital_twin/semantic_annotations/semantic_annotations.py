@@ -6,6 +6,8 @@ from typing import Iterable, Optional, Self
 
 import numpy as np
 from probabilistic_model.probabilistic_circuit.rx.helper import uniform_measure_of_event
+from random_events.interval import closed
+from random_events.product_algebra import Event, SimpleEvent
 from typing_extensions import List
 
 from krrood.entity_query_language.entity import entity, let
@@ -17,12 +19,14 @@ from .mixins import (
     HasDrawers,
     HasDoors,
     HasHandle,
-    Direction,
     HasCorpus,
 )
+from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.variables import SpatialVariables
 from ..reasoning.predicates import InsideOf
 from ..spatial_types import Point3
+from ..utils import Direction
+from ..world_description.geometry import Scale
 from ..world_description.shape_collection import BoundingBoxCollection
 from ..world_description.world_entity import (
     SemanticAnnotation,
@@ -43,7 +47,51 @@ class IsPerceivable:
 
 
 @dataclass(eq=False)
-class Handle(HasBody): ...
+class Handle(HasBody):
+
+    @classmethod
+    def create_with_new_body(
+        cls, name: PrefixedName, scale: Scale, thickness: float
+    ) -> Self:
+        handle_event = cls._create_handle_geometry(scale=scale).as_composite_set()
+
+        inner_box = cls._create_handle_geometry(
+            scale=scale, thickness=thickness
+        ).as_composite_set()
+
+        handle_event -= inner_box
+
+        handle = Body(name=name)
+        collision = BoundingBoxCollection.from_event(handle, handle_event).as_shapes()
+        handle.collision = collision
+        handle.visual = collision
+
+    @classmethod
+    def _create_handle_geometry(
+        cls, scale: Scale, thickness: float = 0.0
+    ) -> SimpleEvent:
+        """
+        Create a box event representing the handle.
+
+        :param scale: The scale of the handle.
+        :param thickness: The thickness of the handle walls.
+        """
+
+        x_interval = closed(0, scale.x - thickness)
+        y_interval = closed(
+            -scale.y / 2 + thickness,
+            scale.y / 2 - thickness,
+        )
+
+        z_interval = closed(-scale.z / 2, scale.z / 2)
+
+        return SimpleEvent(
+            {
+                SpatialVariables.x.value: x_interval,
+                SpatialVariables.y.value: y_interval,
+                SpatialVariables.z.value: z_interval,
+            }
+        )
 
 
 @dataclass(eq=False)
@@ -75,8 +123,19 @@ class Door(HasBody, HasHandle):
     """
 
     @classmethod
-    def create_with_geometry(cls, *args, **kwargs) -> Self:
-        pass
+    def create_with_new_body(
+        cls,
+        name: PrefixedName,
+        scale: Scale,
+    ) -> Self:
+        door_event = scale.to_simple_event().as_composite_set()
+        body = Body(name=name)
+        bounding_box_collection = BoundingBoxCollection.from_event(body, door_event)
+        collision = bounding_box_collection.as_shapes()
+        body.collision = collision
+        body.visual = collision
+
+        return cls(body=body)
 
 
 @dataclass(eq=False)
@@ -153,7 +212,34 @@ class Wardrobe(HasCorpus, Furniture, HasDrawers, HasDoors):
         return Direction.NEGATIVE_X
 
 
-class Floor(HasSupportingSurface): ...
+@dataclass(eq=False)
+class Floor(HasSupportingSurface):
+
+    @classmethod
+    def create_with_new_body(cls, name: PrefixedName, scale: Scale) -> Self:
+        """
+        Create a Floor semantic annotation with a new body defined by the given scale.
+
+        :param name: The name of the floor body.
+        :param scale: The scale defining the floor polytope.
+        """
+        polytope = scale.to_bounding_box().get_points()
+        return cls.create_with_new_body_fron_polytope(
+            name=name, floor_polytope=polytope
+        )
+
+    @classmethod
+    def create_with_new_body_fron_polytope(
+        cls, name: PrefixedName, floor_polytope: List[Point3]
+    ) -> Self:
+        """
+        Create a Floor semantic annotation with a new body defined by the given list of Point3.
+
+        :param name: The name of the floor body.
+        :param floor_polytope: A list of 3D points defining the floor poly
+        """
+        room_body = Body.from_3d_points(name=name, points_3d=floor_polytope)
+        return cls(body=room_body)
 
 
 @dataclass(eq=False)
@@ -169,11 +255,43 @@ class Room(SemanticAnnotation):
 
 
 @dataclass(eq=False)
-class Wall(SemanticAnnotation):
-    body: Body
+class Wall(HasBody):
+
+    @classmethod
+    def create_with_new_body(
+        cls, name: PrefixedName, scale: Scale, *args, **kwargs
+    ) -> Self:
+        wall_body = Body(name=name)
+        wall_event = cls._create_wall_event(scale)
+        wall_collision = BoundingBoxCollection.from_event(
+            wall_body, wall_event
+        ).as_shapes()
+
+        wall_body.collision = wall_collision
+        wall_body.visual = wall_collision
+
+        return cls(body=wall_body, *args, **kwargs)
 
     @property
     def doors(self) -> Iterable[Door]:
         door = let(Door, self._world.semantic_annotations)
         query = an(entity(door), InsideOf(self.body, door.entry_way.region)() > 0.1)
         return query.evaluate()
+
+    @classmethod
+    def _create_wall_event(cls, scale: Scale) -> Event:
+        """
+        Return a wall event created from its scale. The height origin is on the ground, not in the center of the wall.
+        """
+        x_interval = closed(-scale.x / 2, scale.x / 2)
+        y_interval = closed(-scale.y / 2, scale.y / 2)
+        z_interval = closed(0, scale.z)
+
+        wall_event = SimpleEvent(
+            {
+                SpatialVariables.x.value: x_interval,
+                SpatialVariables.y.value: y_interval,
+                SpatialVariables.z.value: z_interval,
+            }
+        )
+        return wall_event.as_composite_set()

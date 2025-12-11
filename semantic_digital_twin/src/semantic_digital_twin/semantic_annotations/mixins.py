@@ -30,6 +30,7 @@ from ..datastructures.variables import SpatialVariables
 from ..exceptions import InvalidAxisError
 from ..spatial_types import Point3, TransformationMatrix, Vector3
 from ..spatial_types.derivatives import DerivativeMap
+from ..utils import Direction
 from ..world import World
 from ..world_description.connections import (
     RevoluteConnection,
@@ -43,7 +44,6 @@ from ..world_description.world_entity import (
     SemanticAnnotation,
     Body,
     Region,
-    KinematicStructureEntity,
 )
 
 if TYPE_CHECKING:
@@ -204,7 +204,7 @@ class HasBody(SemanticAnnotation, ABC):
 
     @classmethod
     @abstractmethod
-    def create_with_geometry(cls, *args, **kwargs) -> Self: ...
+    def create_with_new_body(cls, *args, **kwargs) -> Self: ...
 
 
 @dataclass(eq=False)
@@ -218,9 +218,16 @@ class HasRegion(SemanticAnnotation, ABC):
 
     region: Region = field(kw_only=True)
 
+    @classmethod
+    @abstractmethod
+    def create_with_new_region(cls, *args, **kwargs) -> Self: ...
+
 
 @dataclass
 class _HasActiveConnection(ABC):
+
+    connection_T_child: TransformationMatrix
+
     def _create_door_upper_lower_limits(
         self, parent_T_hinge: TransformationMatrix, opening_axis: Vector3
     ) -> Tuple[DerivativeMap[float], DerivativeMap[float]]:
@@ -252,6 +259,22 @@ class _HasActiveConnection(ABC):
         upper_limits = DerivativeMap[float]()
         lower_limits.position = lower_limit_position
         upper_limits.position = upper_limit_position
+
+        return upper_limits, lower_limits
+
+    @staticmethod
+    def _create_drawer_upper_lower_limits(
+        drawer_factory: DrawerFactory,
+    ) -> Tuple[DerivativeMap[float], DerivativeMap[float]]:
+        """
+        Return the upper and lower limits for the drawer's degree of freedom.
+        """
+        lower_limits = DerivativeMap[float]()
+        upper_limits = DerivativeMap[float]()
+        lower_limits.position = 0.0
+        upper_limits.position = (
+            drawer_factory.container_factory_config.factory_instance.scale.x * 0.75
+        )
 
         return upper_limits, lower_limits
 
@@ -441,7 +464,7 @@ HandlePosition = Union[SemanticPositionDescription, TransformationMatrix]
 @dataclass(eq=False)
 class HasHandle(ABC):
 
-    handle: Handle
+    handle: Optional[Handle] = None
     """
     The handle of the semantic annotation.
     """
@@ -497,34 +520,31 @@ class HasHandle(ABC):
 
 
 @dataclass(eq=False)
-class HasSupportingSurface(ABC):
+class HasSupportingSurface(HasBody, ABC):
     """
     A semantic annotation that represents a supporting surface.
     """
 
-    supporting_surface: Optional[Region] = None
-    """
-    The area that represents the supporting surface.
-    """
+    supporting_surface: Region = field(init=False)
 
-    @classmethod
-    def create_from_entity(
-        cls,
-        entity: KinematicStructureEntity,
+    def __post_init__(self):
+        self.recalculate_supporting_surface()
+
+    def recalculate_supporting_surface(
+        self,
         upward_threshold: float = 0.95,
         clearance_threshold: float = 0.5,
         min_surface_area: float = 0.0225,  # 15cm x 15cm
-    ) -> Self:
-
-        mesh = entity.combined_mesh
+    ):
+        mesh = self.body.combined_mesh
         if mesh is None:
-            return cls()
+            return
         # --- Find upward-facing faces ---
         normals = mesh.face_normals
         upward_mask = normals[:, 2] > upward_threshold
 
         if not upward_mask.any():
-            return cls()
+            return
 
         # --- Find connected upward-facing regions ---
         upward_face_indices = np.nonzero(upward_mask)[0]
@@ -535,7 +555,7 @@ class HasSupportingSurface(ABC):
         large_groups = [g for g in face_groups if g.area >= min_surface_area]
 
         if not large_groups:
-            return cls()
+            return
 
         # --- Merge qualifying upward-facing submeshes ---
         candidates = trimesh.util.concatenate(large_groups)
@@ -571,38 +591,29 @@ class HasSupportingSurface(ABC):
                 x,
                 y,
                 z,
-                reference_frame=entity,
+                reference_frame=self.body,
             )
             for x, y, z in candidates_filtered.vertices
         ]
 
-        surface_region = Region.from_3d_points(
-            name=PrefixedName(f"{entity.name.name}_surface_region"),
+        self.supporting_surface = Region.from_3d_points(
+            name=PrefixedName(
+                f"{self.body.name.name}_supporting_surface_region",
+                self.body.name.prefix,
+            ),
             points_3d=points_3d,
-            reference_frame=entity,
         )
-
-        return cls(supporting_surface=surface_region)
-
-
-class Direction(IntEnum):
-    X = 0
-    Y = 1
-    Z = 2
-    NEGATIVE_X = 3
-    NEGATIVE_Y = 4
-    NEGATIVE_Z = 5
 
 
 @dataclass(eq=False)
-class HasCorpus(HasBody, ABC):
+class HasCorpus(HasSupportingSurface, ABC):
 
     @property
     @abstractmethod
     def opening_direction(self) -> Direction: ...
 
     @classmethod
-    def create_with_geometry(
+    def create_with_new_body(
         cls, name: PrefixedName, scale: Scale, wall_thickness: float = 0.01
     ) -> Self:
         container_event = cls._create_container_event(scale, wall_thickness)
@@ -623,12 +634,12 @@ class HasCorpus(HasBody, ABC):
         """
         Return an event representing a container with walls of a specified thickness.
         """
-        outer_box = scale.simple_event
+        outer_box = scale.to_simple_event()
         inner_scale = Scale(
             scale.x - wall_thickness,
             scale.y - wall_thickness,
             scale.z - wall_thickness,
-        )
+        ).to_simple_event(self.opening_direction, wall_thickness)
 
         inner_box = cls._extend_inner_event_in_direction(
             outer_scale=scale, inner_scale=inner_scale
@@ -637,44 +648,3 @@ class HasCorpus(HasBody, ABC):
         container_event = outer_box.as_composite_set() - inner_box.as_composite_set()
 
         return container_event
-
-    @classmethod
-    def _extend_inner_event_in_direction(
-        cls, outer_scale: Scale, inner_scale: Scale
-    ) -> SimpleEvent:
-        """
-        Extend the inner event in the specified direction to create the container opening in that direction.
-
-        :param inner_event: The inner event representing the inner box.
-        :param inner_scale: The scale of the inner box used how far to extend the inner event.
-
-        :return: The modified inner event with the specified direction extended.
-        """
-        inner_event = inner_scale.simple_event
-        match cls.opening_direction:
-            case Direction.X:
-                inner_event[SpatialVariables.x.value] = closed(
-                    -inner_scale.x / 2, outer_scale.x / 2
-                )
-            case Direction.Y:
-                inner_event[SpatialVariables.y.value] = closed(
-                    -inner_scale.y / 2, outer_scale.y / 2
-                )
-            case Direction.Z:
-                inner_event[SpatialVariables.z.value] = closed(
-                    -inner_scale.z / 2, outer_scale.z / 2
-                )
-            case Direction.NEGATIVE_X:
-                inner_event[SpatialVariables.x.value] = closed(
-                    -outer_scale.x / 2, inner_scale.x / 2
-                )
-            case Direction.NEGATIVE_Y:
-                inner_event[SpatialVariables.y.value] = closed(
-                    -outer_scale.y / 2, inner_scale.y / 2
-                )
-            case Direction.NEGATIVE_Z:
-                inner_event[SpatialVariables.z.value] = closed(
-                    -outer_scale.z / 2, inner_scale.z / 2
-                )
-
-        return inner_event
