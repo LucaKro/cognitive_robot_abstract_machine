@@ -60,6 +60,9 @@ class EnumListType(TypeDecorator):
         if value is None:
             return None
 
+        if isinstance(value, list):
+            return value
+
         enum_class_name = value[JSON_TYPE_NAME]
         module_name, class_name = enum_class_name.rsplit(".", 1)
         module = importlib.import_module(module_name)

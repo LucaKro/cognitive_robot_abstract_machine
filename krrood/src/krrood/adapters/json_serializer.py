@@ -221,7 +221,7 @@ class SubclassJSONSerializer:
             raise ClassNotFoundError(class_name, module_name) from exc
 
         if issubclass(target_cls, enum.Enum):
-            return target_cls._from_json(data, **kwargs)
+            return deserialize_enum(data, target_cls)
 
         if issubclass(target_cls, SubclassJSONSerializer):
             return target_cls._from_json(data, **kwargs)
@@ -262,6 +262,9 @@ def to_json(obj: Union[SubclassJSONSerializer, Any]) -> JSON_RETURN_TYPE:
     if isinstance(obj, dict):
         return {to_json(key): to_json(value) for key, value in obj.items()}
 
+    if isinstance(obj, enum.Enum):
+        return serialize_enum(obj)
+
     if isinstance(obj, SubclassJSONSerializer):
         return obj.to_json()
 
@@ -300,3 +303,54 @@ def deserialize_uuid(data: Dict[str, Any]) -> uuid.UUID:
 
 # Register UUID with the type registry
 JSONSerializableTypeRegistry().register(uuid.UUID, serialize_uuid, deserialize_uuid)
+
+
+def serialize_enum(obj: enum.Enum) -> Dict[str, Any]:
+    """
+    Serialize an enum to a JSON-compatible dictionary.
+    """
+
+    return {JSON_TYPE_NAME: get_full_class_name(type(obj)), "value": obj.value}
+
+
+def deserialize_enum(
+    data: Dict[str, Any], target_cls: Type[enum.Enum] | None = None
+) -> enum.Enum:
+    """
+    Deserialize an enum from a JSON dictionary.
+    """
+
+    enum_class = target_cls
+    if enum_class is None:
+        fully_qualified_class_name = data.get(JSON_TYPE_NAME)
+        if not fully_qualified_class_name:
+            raise MissingTypeError()
+
+        try:
+            module_name, class_name = fully_qualified_class_name.rsplit(".", 1)
+        except ValueError as exc:
+            raise InvalidTypeFormatError(fully_qualified_class_name) from exc
+
+        try:
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            raise UnknownModuleError(module_name) from exc
+
+        try:
+            enum_class = getattr(module, class_name)
+        except AttributeError as exc:
+            raise ClassNotFoundError(class_name, module_name) from exc
+
+    if "value" in data:
+        try:
+            return enum_class(data["value"])
+        except ValueError as exc:
+            raise ClassNotDeserializableError(enum_class) from exc
+
+    if "values" in data:
+        try:
+            return [enum_class(item) for item in data["values"]]
+        except ValueError as exc:
+            raise ClassNotDeserializableError(enum_class) from exc
+
+    raise ClassNotDeserializableError(enum_class)
