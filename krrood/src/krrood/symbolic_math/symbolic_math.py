@@ -1137,9 +1137,7 @@ class Matrix(Expression):
         result = _ca.if_else(zero_den, _ca.SX.zeros(*self.shape), mod_val)
         return Matrix.from_casadi_sx(result)
 
-    def dot(
-        self, other: GenericSymbolicType
-    ) -> GenericSymbolicType:
+    def dot(self, other: GenericSymbolicType) -> GenericSymbolicType:
         return _create_return_type(other)(_ca.mtimes(to_sx(self), to_sx(other)))
 
     def __matmul__(self, other: GenericSymbolicType) -> GenericSymbolicType:
