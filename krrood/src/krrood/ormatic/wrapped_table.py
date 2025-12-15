@@ -632,19 +632,36 @@ class WrappedTable:
             ColumnConstructor(rel_name, rel_type, rel_constructor)
         )
 
+    def _create_json_container_column(
+        self, wrapped_field: WrappedField, inner_type_name: str, constructor: str
+    ):
+        """
+        Build a JSON-based container column declaration.
+
+        :param wrapped_field: Field that defines the container metadata.
+        :param inner_type_name: Fully qualified type name of the contained elements.
+        :param constructor: SQLAlchemy mapped_column constructor string.
+        """
+
+        self.ormatic.imported_modules.add("typing_extensions")
+        column_name = wrapped_field.field.name
+        container = Set if issubclass(wrapped_field.container_type, set) else List
+        column_type = f"Mapped[{module_and_class_name(container)}[{inner_type_name}]]"
+
+        self.custom_columns.append(
+            ColumnConstructor(column_name, column_type, constructor)
+        )
+
     def create_json_column(self, wrapped_field: WrappedField):
         """
         Create a column for a list-like of built-in values.
 
         :param wrapped_field: The field to extract the information from.
         """
-        self.ormatic.imported_modules.add("typing_extensions")
-        column_name = wrapped_field.field.name
-        container = Set if issubclass(wrapped_field.container_type, set) else List
-        column_type = f"Mapped[{module_and_class_name(container)}[{module_and_class_name(wrapped_field.type_endpoint)}]]"
+        inner_type_name = module_and_class_name(wrapped_field.type_endpoint)
         column_constructor = f"mapped_column(JSON, nullable={wrapped_field.is_optional}, use_existing_column=True)"
-        self.custom_columns.append(
-            ColumnConstructor(column_name, column_type, column_constructor)
+        self._create_json_container_column(
+            wrapped_field, inner_type_name, column_constructor
         )
 
     def create_enum_list_column(self, wrapped_field: WrappedField):
@@ -653,18 +670,13 @@ class WrappedTable:
 
         :param wrapped_field: The field to extract the information from.
         """
-        self.ormatic.imported_modules.add("typing_extensions")
         self.ormatic.imported_modules.add(wrapped_field.type_endpoint.__module__)
         self.ormatic.imported_modules.add("krrood.ormatic.custom_types")
 
-        column_name = wrapped_field.field.name
-        container = Set if issubclass(wrapped_field.container_type, set) else List
         enum_type_name = module_and_class_name(wrapped_field.type_endpoint)
-        column_type = f"Mapped[{module_and_class_name(container)}[{enum_type_name}]]"
         column_constructor = f"mapped_column(krrood.ormatic.custom_types.EnumListType({enum_type_name}), nullable={wrapped_field.is_optional}, use_existing_column=True)"
-
-        self.custom_columns.append(
-            ColumnConstructor(column_name, column_type, column_constructor)
+        self._create_json_container_column(
+            wrapped_field, enum_type_name, column_constructor
         )
 
     def create_custom_type(self, wrapped_field: WrappedField):
