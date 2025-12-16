@@ -1062,6 +1062,9 @@ class Vector(Expression):
         return fmod(self, other)
 
     def dot(self, other: GenericSymbolicType) -> Scalar | Vector:
+        """
+        Same as numpy dot.
+        """
         if isinstance(other, Matrix):  # copy numpy logic, where vectors only have 1 dim
             return Vector.from_casadi_sx(ca.mtimes(to_sx(self).T, to_sx(other)))
         if isinstance(other, Vector):
@@ -1184,6 +1187,9 @@ class Matrix(Expression):
         return Matrix.from_casadi_sx(result)
 
     def dot(self, other: GenericSymbolicType) -> GenericSymbolicType:
+        """
+        Same as numpy dot.
+        """
         return _create_return_type(other).from_casadi_sx(
             ca.mtimes(to_sx(self), to_sx(other))
         )
