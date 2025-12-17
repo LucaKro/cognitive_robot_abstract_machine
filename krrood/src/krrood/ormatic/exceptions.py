@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Type, Any
+from typing_extensions import Type, Any
 
 from sqlalchemy.orm import RelationshipProperty
 
-from krrood.utils import DataclassException
+from ..utils import DataclassException
 
 
 @dataclass
