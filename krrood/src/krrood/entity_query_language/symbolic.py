@@ -953,7 +953,11 @@ class QueryObjectDescriptor(SymbolicExpression[T], ABC):
         :param on: The variables to be used for distinctness.
         :return: This query object descriptor.
         """
-        on_ids = tuple([v._var_._id_ for v in on]) if on else tuple([v._var_._id_ for v in self._selected_variables])
+        on_ids = (
+            tuple([v._var_._id_ for v in on])
+            if on
+            else tuple([v._var_._id_ for v in self._selected_variables])
+        )
         seen_results = SeenSet(keys=on_ids)
 
         def get_distinct_results(
@@ -1380,10 +1384,14 @@ class Literal(Variable[T]):
     """
 
     def __init__(
-        self, data: Any, name: Optional[str] = None, type_: Optional[Type] = None
+        self,
+        data: Any,
+        name: Optional[str] = None,
+        type_: Optional[Type] = None,
+        wrap_in_iterator: bool = True,
     ):
         original_data = data
-        if not isinstance(data, CanBehaveLikeAVariable):
+        if wrap_in_iterator:
             data = [data]
         if not type_:
             original_data_lst = make_list(original_data)
