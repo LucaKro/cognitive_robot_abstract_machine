@@ -57,7 +57,7 @@ class CartesianPosition(Task):
         default_factory=lambda: CartesianPosition.default_reference_velocity,
         kw_only=True,
     )
-    """Maximum velocity for movement in m/s."""
+    """Reference velocity for normalization in m/s."""
 
     weight: float = field(default=DefaultWeights.WEIGHT_ABOVE_CA, kw_only=True)
     """Task priority relative to other tasks."""
@@ -138,7 +138,7 @@ class CartesianPositionStraight(Task):
     reference_velocity: float = field(
         default=CartesianPosition.default_reference_velocity, kw_only=True
     )
-    """Maximum velocity for movement in m/s. This is used for normalization, for real limits use CartesianVelocityLimit."""
+    """Reference velocity for movement in m/s."""
 
     threshold: float = field(default=0.01, kw_only=True)
     """Distance threshold for goal achievement in meters."""
@@ -275,7 +275,7 @@ class CartesianOrientation(Task):
         default_factory=lambda: CartesianOrientation.default_reference_velocity,
         kw_only=True,
     )
-    """Maximum angular velocity in rad/s."""
+    """Reference angular velocity for normalization in rad/s."""
 
     weight: float = field(default=DefaultWeights.WEIGHT_ABOVE_CA, kw_only=True)
     """Task priority relative to other tasks."""
