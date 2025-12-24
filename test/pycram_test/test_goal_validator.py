@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from jaxlib.weakref_lru_cache import weakref_lru_cache
 
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
@@ -35,8 +34,8 @@ from pycram.validation.goal_validator import (
 @pytest.fixture
 def goal_validator_world(immutable_model_world):
     world, robot_view, context = immutable_model_world
-    robot_view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
-        0, 0, 0
+    robot_view.root.parent_connection.origin = (
+        HomogeneousTransformationMatrix.from_xyz_quaternion(0, 0, 0)
     )
     world.get_body_by_name("milk.stl").parent_connection.origin = (
         HomogeneousTransformationMatrix.from_xyz_quaternion(2.2, 2, 1)
@@ -77,7 +76,9 @@ def validate_pose_goal(goal_validator, world):
     assert goal_validator.current_error.tolist()[0] == pytest.approx(0.5, abs=0.001)
     assert goal_validator.current_error.tolist()[1] == pytest.approx(0, abs=0.001)
     world.get_body_by_name("milk.stl").parent_connection.origin = (
-        HomogeneousTransformationMatrix.from_xyz_rpy(2.5, 2.4, 1, reference_frame=world.root)
+        HomogeneousTransformationMatrix.from_xyz_rpy(
+            2.5, 2.4, 1, reference_frame=world.root
+        )
     )
     assert (
         PoseStamped.from_spatial_type(world.get_body_by_name("milk.stl").global_pose)
@@ -117,7 +118,9 @@ def validate_position_goal(goal_validator, world):
     assert goal_validator.actual_percentage_of_goal_achieved == 0
     assert float(goal_validator.current_error[0]) == pytest.approx(0.8)
     world.get_body_by_name("breakfast_cereal.stl").parent_connection.origin = (
-        HomogeneousTransformationMatrix.from_xyz_rpy(3, 1.8, 1, reference_frame=world.root)
+        HomogeneousTransformationMatrix.from_xyz_rpy(
+            3, 1.8, 1, reference_frame=world.root
+        )
     )
     assert (
         PoseStamped.from_spatial_type(
