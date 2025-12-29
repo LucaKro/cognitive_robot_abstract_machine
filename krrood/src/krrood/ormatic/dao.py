@@ -320,34 +320,6 @@ class DataAccessObject(HasGeneric[T]):
                 args, kwargs = (), positional_kwargs
         super().__init__(*args, **kwargs)
 
-    __init__._positional_friendly = True
-
-    def __init_subclass__(cls, **kwargs):
-        """
-        Configure the subclass, ensuring the constructor is positional-friendly.
-
-        :param kwargs: Additional arguments for subclass configuration.
-        """
-        super().__init_subclass__(**kwargs)
-        original_init = getattr(cls, "__init__", None)
-
-        # If the constructor is already positional-friendly, no need to wrap it again.
-        if getattr(original_init, "_positional_friendly", False):
-            return
-
-        def init_with_positional(self, *args, **kw):
-            if args and not kw:
-                positional_kwargs = self._map_positional_arguments_to_data_columns(args)
-                if positional_kwargs:
-                    args, kw = (), positional_kwargs
-
-            if original_init:
-                return original_init(self, *args, **kw)
-            return super(cls, self).__init__(*args, **kw)
-
-        init_with_positional._positional_friendly = True
-        cls.__init__ = init_with_positional
-
     def _map_positional_arguments_to_data_columns(
         self, arguments: Tuple[Any, ...]
     ) -> Optional[Dict[str, Any]]:
