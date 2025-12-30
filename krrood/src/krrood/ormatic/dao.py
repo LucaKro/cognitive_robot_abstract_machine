@@ -1322,7 +1322,8 @@ class DataAccessObject(HasGeneric[T]):
 
             for relationship in mapper.relationships:
                 value = getattr(self, relationship.key)
-                representations.append(f"{relationship.key}={repr(value)}")
+                if value is not None:
+                    representations.append(f"{relationship.key}={repr(value)}")
 
             return f"{self.__class__.__name__}({', '.join(representations)})"
         finally:
