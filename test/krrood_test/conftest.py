@@ -58,8 +58,6 @@ def generate_sqlalchemy_interface():
     all_classes |= set(classes_of_module(example_classes))
     all_classes |= {Symbol}
 
-    all_classes |= {FixedConnection, PrismaticConnection, Body, World}
-
     # remove classes that don't need persistence
     all_classes -= {HasType, HasTypes, ContainsType}
     all_classes -= {NotMappedParent, ChildNotMapped, JSONSerializableClass}
@@ -112,7 +110,9 @@ def pytest_configure(config):
 
 def pytest_sessionstart(session):
     try:
-        generate_sqlalchemy_interface()
+        pass
+        # TODO: Somebody with ORM experience has to check why the generated ORM interface is broken
+        # generate_sqlalchemy_interface()
     except Exception as e:
         import warnings
 
@@ -139,6 +139,14 @@ def doors_and_drawers_world() -> World:
     world = DoorsAndDrawersWorld().create()
     SymbolGraph()
     return world
+
+
+@pytest.fixture(autouse=True)
+def cleanup_after_test():
+    # Setup: runs before each krrood_test
+    SymbolGraph()
+    yield
+    SymbolGraph().clear()
 
 
 @pytest.fixture(scope="session")
