@@ -761,43 +761,76 @@ class DataAccessObject(HasGeneric[T]):
         if state.has(self) and state.is_initialized(self):
             return state.get(self)
 
-        is_entry_call = not state.is_processing
+        if not state.is_processing:
+            return self._perform_from_dao_conversion(state)
 
-        if is_entry_call:
-            state.is_processing = True
-            discovery_order = []
-            if not state.has(self):
-                self._allocate_uninitialized_and_memoize(state)
-            state.push_work_item(self, state.get(self))
+        return self._register_for_conversion(state)
 
-            # Phase 1: Discovery (DFS)
-            state.discovery_mode = True
-            try:
-                while state.work_items:
-                    # Use pop() to treat the deque as a stack (LIFO) for DFS
-                    work_item = state.work_items.pop()
-                    discovery_order.append(work_item)
-                    work_item.dao_instance._fill_from_dao(
-                        work_item.domain_object, state
-                    )
-            finally:
-                state.discovery_mode = False
+    def _perform_from_dao_conversion(self, state: FromDataAccessObjectState) -> T:
+        """
+        Perform the two-pass conversion process.
 
-            # Phase 2: Filling (Bottom-Up)
-            try:
-                for work_item in reversed(discovery_order):
-                    if not state.is_initialized(work_item.dao_instance):
-                        work_item.dao_instance._fill_from_dao(
-                            work_item.domain_object, state
-                        )
-                        state.mark_initialized(work_item.dao_instance)
-            finally:
-                state.is_processing = False
-                state.in_progress.clear()
+        :param state: The conversion state.
+        :return: The converted domain object.
+        """
+        state.is_processing = True
+        discovery_order = []
+        if not state.has(self):
+            self._allocate_uninitialized_and_memoize(state)
+        state.push_work_item(self, state.get(self))
 
-            return state.get(self)
+        self._discover_dependencies(state, discovery_order)
+        self._fill_domain_objects(state, discovery_order)
 
-        # Not the entry call (called during discovery or filling)
+        state.is_processing = False
+        state.in_progress.clear()
+
+        return state.get(self)
+
+    def _discover_dependencies(
+        self,
+        state: FromDataAccessObjectState,
+        discovery_order: List[FromDataAccessObjectWorkItem],
+    ) -> None:
+        """
+        Phase 1: Discovery (DFS) to identify all reachable DAOs.
+
+        :param state: The conversion state.
+        :param discovery_order: List to record the discovery order.
+        """
+        state.discovery_mode = True
+
+        while state.work_items:
+            # Use pop() to treat the deque as a stack (LIFO) for DFS
+            work_item = state.work_items.pop()
+            discovery_order.append(work_item)
+            work_item.dao_instance._fill_from_dao(work_item.domain_object, state)
+
+        state.discovery_mode = False
+
+    def _fill_domain_objects(
+        self,
+        state: FromDataAccessObjectState,
+        discovery_order: List[FromDataAccessObjectWorkItem],
+    ) -> None:
+        """
+        Phase 2: Filling (Bottom-Up) to initialize domain objects.
+
+        :param state: The conversion state.
+        :param discovery_order: The order in which DAOs were discovered.
+        """
+        for work_item in reversed(discovery_order):
+            if not state.is_initialized(work_item.dao_instance):
+                work_item.dao_instance._fill_from_dao(work_item.domain_object, state)
+                state.mark_initialized(work_item.dao_instance)
+
+    def _register_for_conversion(self, state: FromDataAccessObjectState) -> T:
+        """
+        Register this DAO for conversion if not already present.
+
+        :param state: The conversion state.
+        :return: The uninitialized domain object.
+        """
         if not state.has(self):
             domain_object = self._allocate_uninitialized_and_memoize(state)
             state.push_work_item(self, domain_object)
@@ -815,32 +848,52 @@ class DataAccessObject(HasGeneric[T]):
         argument_names = self._argument_names()
 
         if state.discovery_mode:
-            # Only trigger discovery of dependencies
-            self._collect_relationship_keyword_arguments(mapper, argument_names, state)
-            self._build_base_keyword_arguments_for_alternative_parent(
-                argument_names, state
-            )
-            return domain_object
+            return self._trigger_discovery(domain_object, mapper, argument_names, state)
 
-        scalar_keyword_arguments = self._collect_scalar_keyword_arguments(
-            mapper, argument_names
+        return self._populate_domain_object(
+            domain_object, mapper, argument_names, state
         )
 
-        relationship_keyword_arguments, circular_references = (
-            self._collect_relationship_keyword_arguments(mapper, argument_names, state)
-        )
-        keyword_arguments = {
-            **scalar_keyword_arguments,
-            **relationship_keyword_arguments,
-        }
+    def _trigger_discovery(
+        self,
+        domain_object: T,
+        mapper: sqlalchemy.orm.Mapper,
+        argument_names: List[str],
+        state: FromDataAccessObjectState,
+    ) -> T:
+        """
+        Trigger discovery of dependencies without fully populating the object.
 
-        base_keyword_arguments = (
-            self._build_base_keyword_arguments_for_alternative_parent(
-                argument_names, state
-            )
+        :param domain_object: The domain object.
+        :param mapper: The SQLAlchemy mapper.
+        :param argument_names: Constructor argument names.
+        :param state: The conversion state.
+        :return: The domain object.
+        """
+        self._collect_relationship_keyword_arguments(mapper, argument_names, state)
+        self._build_base_keyword_arguments_for_alternative_parent(argument_names, state)
+        return domain_object
+
+    def _populate_domain_object(
+        self,
+        domain_object: T,
+        mapper: sqlalchemy.orm.Mapper,
+        argument_names: List[str],
+        state: FromDataAccessObjectState,
+    ) -> T:
+        """
+        Fully populate the domain object.
+
+        :param domain_object: The domain object to populate.
+        :param mapper: The SQLAlchemy mapper.
+        :param argument_names: Constructor argument names.
+        :param state: The conversion state.
+        :return: The populated domain object.
+        """
+        init_arguments, circular_references = self._collect_initialization_arguments(
+            mapper, argument_names, state
         )
 
-        init_arguments = {**base_keyword_arguments, **keyword_arguments}
         self._call_initializer_or_assign(domain_object, init_arguments)
 
         # After __init__, populate remaining relationships that were not in argument_names
@@ -851,12 +904,53 @@ class DataAccessObject(HasGeneric[T]):
         state.apply_circular_fixes(domain_object, circular_references)
 
         if isinstance(domain_object, AlternativeMapping):
-            final_result = domain_object.create_from_dao()
-            # Update memo if AlternativeMapping changed the instance
-            state.register(self, final_result)
-            return final_result
+            return self._handle_alternative_mapping_result(domain_object, state)
 
         return domain_object
+
+    def _collect_initialization_arguments(
+        self,
+        mapper: sqlalchemy.orm.Mapper,
+        argument_names: List[str],
+        state: FromDataAccessObjectState,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
+        Collect all arguments required for domain object initialization.
+
+        :param mapper: The SQLAlchemy mapper.
+        :param argument_names: Constructor argument names.
+        :param state: The conversion state.
+        :return: Tuple of initialization arguments and circular references.
+        """
+        scalar_arguments = self._collect_scalar_keyword_arguments(
+            mapper, argument_names
+        )
+        relationship_arguments, circular_references = (
+            self._collect_relationship_keyword_arguments(mapper, argument_names, state)
+        )
+        base_arguments = self._build_base_keyword_arguments_for_alternative_parent(
+            argument_names, state
+        )
+
+        return (
+            {**base_arguments, **scalar_arguments, **relationship_arguments},
+            circular_references,
+        )
+
+    def _handle_alternative_mapping_result(
+        self, domain_object: AlternativeMapping, state: FromDataAccessObjectState
+    ) -> Any:
+        """
+        Handle the result of an AlternativeMapping.
+
+        :param domain_object: The alternative mapping instance.
+        :param state: The conversion state.
+        :return: The final domain object.
+        """
+        final_result = domain_object.create_from_dao()
+        # Update memo if AlternativeMapping changed the instance
+        state.register(self, final_result)
+        return final_result
 
     def _populate_remaining_relationships(
         self,
