@@ -349,8 +349,9 @@ class DataAccessObject(HasGeneric[T]):
 
     1. **Domain to DAO (to_dao)**:
        Converts a domain object into its DAO representation. It uses an iterative
-       BFS approach with a queue of work items to traverse the object graph, allocating DAOs and
-       populating their columns and relationships.
+       BFS approach with a queue of work items to traverse the object graph. New work items
+       for nested relationships are added to the queue during processing, ensuring all
+       reachable objects are converted while maintaining the BFS order.
 
     2. **DAO to Domain (from_dao)**:
        Converts a DAO back into a domain object. To handle the strict initialization
@@ -479,7 +480,8 @@ class DataAccessObject(HasGeneric[T]):
         Process the work items for converting objects to DAOs.
 
         This uses a Breadth-First Search (BFS) approach by processing the deque
-        as a FIFO queue (popleft).
+        as a FIFO queue (popleft). New work items for nested relationships are
+        added to the queue during processing.
 
         :param state: The conversion state containing the work_items.
         """
