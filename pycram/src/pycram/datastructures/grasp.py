@@ -51,7 +51,7 @@ class GraspDescription(HasParameters):
         """
         return [self.approach_direction, self.vertical_alignment, self.rotate_gripper]
 
-    def get_grasp_pose(
+    def get_grasp_pose_for_body(
         self, end_effector: Manipulator, body: Body, translate_rim_offset: bool = False
     ) -> PoseStamped:
         """
@@ -88,6 +88,30 @@ class GraspDescription(HasParameters):
             )
 
         return grasp_pose
+
+    def get_grasp_pose_for_pose(
+        self, end_effector: Manipulator, target_pose: PoseStamped
+    ) -> PoseStamped:
+        """
+        Translates the grasp pose of a target pose using the desired grasp description.
+        Leaves the orientation untouched.
+        Returns the translated grasp pose.
+
+        :param end_effector: The end effector that will be used to grasp the object.
+        :param target_pose: The target pose to be grasped.
+
+        :return: The grasp pose for the pose.
+        """
+        grasp_pose = PoseStamped.from_spatial_type(target_pose.to_spatial_type())
+
+        grasp_pose.rotate_by_quaternion(
+            self.calculate_grasp_orientation(
+                end_effector.front_facing_orientation.to_np()
+            )
+        )
+
+        return grasp_pose
+
 
     def calculate_grasp_orientation(self, front_orientation: np.ndarray) -> List[float]:
         """

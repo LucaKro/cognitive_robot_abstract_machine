@@ -23,7 +23,10 @@ from ....datastructures.enums import Arms, Grasp, VerticalAlignment
 from ....datastructures.grasp import GraspDescription
 from ....datastructures.partial_designator import PartialDesignator
 from ....datastructures.pose import PoseStamped
-from ....designators.location_designator import ProbabilisticCostmapLocation
+from ....designators.location_designator import (
+    ProbabilisticCostmapLocation,
+    AccessingLocation,
+)
 from ....designators.object_designator import BelieveObject
 from ....failures import ObjectUnfetchable, ConfigurationNotReached
 from ....has_parameters import has_parameters
@@ -78,9 +81,16 @@ class TransportAction(ActionDescription):
             for container in containers:
                 sem_anno = container.get_semantic_annotations_by_type(Drawer)
                 if sem_anno:
+                    drawer = sem_anno[0]
+                    location_desig = AccessingLocation(
+                        drawer.handle.body,
+                        robot_desig=self.robot_view,
+                        arm=Arms.LEFT,
+                    )
                     SequentialPlan(
                         self.context,
-                        OpenActionDescription(sem_anno[0].handle.body, self.arm),
+                        NavigateActionDescription(location_desig),
+                        OpenActionDescription(drawer.handle.body, self.arm),
                     ).perform()
         SequentialPlan(self.context, ParkArmsActionDescription(Arms.BOTH)).perform()
         pickup_loc = ProbabilisticCostmapLocation(

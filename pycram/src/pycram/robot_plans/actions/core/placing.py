@@ -56,6 +56,7 @@ class PlaceAction(ActionDescription):
         super().__post_init__()
 
     def execute(self) -> None:
+
         SequentialPlan(
             self.context,
             ReachActionDescription(
@@ -70,9 +71,7 @@ class PlaceAction(ActionDescription):
 
         # Detaches the object from the robot
         world_root = self.world.root
-        obj_transform = self.world.compute_forward_kinematics(
-            world_root, self.object_designator
-        )
+        obj_transform = self.object_designator.global_pose
         with self.world.modify_world():
             self.world.remove_connection(self.object_designator.parent_connection)
             connection = Connection6DoF.create_with_dofs(
@@ -84,7 +83,7 @@ class PlaceAction(ActionDescription):
         ee_view = ViewManager().get_end_effector_view(self.arm, self.robot_view)
 
         retract_pose = translate_pose_along_local_axis(
-            PoseStamped.from_spatial_type(self.object_designator.global_pose),
+            PoseStamped.from_spatial_type(ee_view.tool_frame.global_pose),
             ee_view.front_facing_axis.to_np()[:3],
             -ActionConfig.pick_up_prepose_distance,
         )

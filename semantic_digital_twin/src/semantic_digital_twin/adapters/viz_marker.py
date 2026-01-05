@@ -1,7 +1,7 @@
 import atexit
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import rclpy.node
@@ -53,9 +53,14 @@ class VizMarkerPublisher(StateChangeCallback):
     The reference frame of the visualization marker.
     """
 
-    throttle_state_updates: int = 1
+    throttle_state_updates: int = 20
     """
     Only published every n-th state update.
+    """
+
+    use_visuals_if_available: bool = field(default=False)
+    """
+    If true, use visual geometry for the markers if available, otherwise use collision geometry.
     """
 
     def __post_init__(self):
@@ -86,7 +91,11 @@ class VizMarkerPublisher(StateChangeCallback):
         """
         marker_array = MarkerArray()
         for body in self.world.bodies:
-            for i, collision in enumerate(body.collision):
+            if self.use_visuals_if_available:
+                shapes = body.visual if body.visual else body.collision
+            else:
+                shapes = body.collision
+            for i, collision in enumerate(shapes):
                 msg = Marker()
                 msg.header.frame_id = self.reference_frame
                 msg.ns = body.name.name

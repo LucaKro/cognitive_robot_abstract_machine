@@ -199,7 +199,7 @@ class Mesh(Shape, ABC):
         Returns the local bounding box of the mesh.
         The bounding box is axis-aligned and centered at the origin.
         """
-        return BoundingBox.from_mesh(self.mesh, self.origin)
+        return BoundingBox.from_mesh(self.mesh, self.origin, self.scale)
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -710,7 +710,10 @@ class BoundingBox:
 
     @classmethod
     def from_mesh(
-        cls, mesh: trimesh.Trimesh, origin: HomogeneousTransformationMatrix
+        cls,
+        mesh: trimesh.Trimesh,
+        origin: HomogeneousTransformationMatrix,
+        scale: Scale,
     ) -> Self:
         """
         Create a bounding box from a trimesh object.
@@ -719,13 +722,16 @@ class BoundingBox:
         :return: The bounding box.
         """
         bounds = mesh.bounds
+        scaled_bounds = bounds * np.array(
+            [[scale.x, scale.y, scale.z], [scale.x, scale.y, scale.z]]
+        )
         return cls(
-            bounds[0][0],
-            bounds[0][1],
-            bounds[0][2],
-            bounds[1][0],
-            bounds[1][1],
-            bounds[1][2],
+            scaled_bounds[0][0],
+            scaled_bounds[0][1],
+            scaled_bounds[0][2],
+            scaled_bounds[1][0],
+            scaled_bounds[1][1],
+            scaled_bounds[1][2],
             origin=origin,
         )
 

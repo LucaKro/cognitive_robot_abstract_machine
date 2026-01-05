@@ -7,9 +7,10 @@ from pycram.language import SequentialPlan
 from pycram.process_module import simulated_robot
 from pycram.robot_plans import MoveTorsoActionDescription, TransportActionDescription
 from pycram.robot_plans import ParkArmsActionDescription
-from pycram.testing import setup_world
+from pycram.testing import setup_world, setup_world_mmp
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
+from semantic_digital_twin.robots.mmp_dresden import MMPDresden
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl, Spoon
 from semantic_digital_twin.spatial_types import (
@@ -17,7 +18,7 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.world_description.connections import FixedConnection
 
-world = setup_world()
+world = setup_world_mmp()  # setup_world()
 
 spoon = STLParser(
     os.path.join(
@@ -52,7 +53,7 @@ try:
 except ImportError:
     pass
 
-pr2 = PR2.from_world(world)
+pr2 = MMPDresden.from_world(world)
 context = Context.from_world(world)
 
 with world.modify_world():
@@ -68,7 +69,7 @@ with world.modify_world():
 plan = SequentialPlan(
     context,
     ParkArmsActionDescription(Arms.BOTH),
-    MoveTorsoActionDescription(TorsoState.HIGH),
+    # MoveTorsoActionDescription(TorsoState.HIGH),
     TransportActionDescription(
         world.get_body_by_name("milk.stl"),
         PoseStamped.from_list([4.9, 3.3, 0.8], frame=world.root),

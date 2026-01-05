@@ -7,9 +7,10 @@ from typing_extensions import Optional, Tuple, Union, List, Dict
 from urdf_parser_py import urdf as urdfpy
 
 from ..datastructures.prefixed_name import PrefixedName
-from ..exceptions import ParsingError
+from ..exceptions import ParsingError, WorldEntityNotFoundError
+from ..spatial_types import spatial_types as cas
 from ..spatial_types.derivatives import Derivatives, DerivativeMap
-from ..spatial_types.spatial_types import HomogeneousTransformationMatrix, Vector3
+from ..spatial_types.spatial_types import Vector3, HomogeneousTransformationMatrix
 from ..utils import (
     suppress_stdout_stderr,
     hacky_urdf_parser_fix,
@@ -83,24 +84,6 @@ def urdf_joint_to_limits(
     lower_limits.velocity = -velocity if velocity is not None else None
     upper_limits.velocity = velocity if velocity is not None else None
 
-    if urdf_joint.mimic is not None:
-        multiplier = (
-            urdf_joint.mimic.multiplier
-            if urdf_joint.mimic.multiplier is not None
-            else 1
-        )
-        offset = urdf_joint.mimic.offset if urdf_joint.mimic.offset is not None else 0
-
-        for d2 in Derivatives.range(Derivatives.position, Derivatives.velocity):
-            lower_limits.data[d2] -= offset
-            upper_limits.data[d2] -= offset
-            if multiplier < 0:
-                upper_limits.data[d2], lower_limits.data[d2] = (
-                    lower_limits.data[d2],
-                    upper_limits.data[d2],
-                )
-            upper_limits.data[d2] /= multiplier
-            lower_limits.data[d2] /= multiplier
     return lower_limits, upper_limits
 
 
@@ -162,14 +145,24 @@ class URDFParser:
         world.name = self.prefix
         with world.modify_world():
             world.add_kinematic_structure_entity(root)
-            joints = []
+
+            main_joints = []
+            mimic_joints = []
+
             for joint in self.parsed.joints:
+                if joint.mimic is not None:
+                    mimic_joints.append(joint)
+                else:
+                    main_joints.append(joint)
+
+            parsed_joints = []
+            for joint in main_joints + mimic_joints:
                 parent = [link for link in links if link.name.name == joint.parent][0]
                 child = [link for link in links if link.name.name == joint.child][0]
                 parsed_joint = self.parse_joint(joint, parent, child, world, prefix)
-                joints.append(parsed_joint)
+                parsed_joints.append(parsed_joint)
 
-            [world.add_connection(joint) for joint in joints]
+            [world.add_connection(joint) for joint in parsed_joints]
 
         return world
 
@@ -362,12 +355,12 @@ class URDFParser:
                         package_path = self.package_resolver[package_name]
                     else:
                         raise ParsingError(
-                            message=f"Package '{package_name}' not found in package resolver and "
+                            msg=f"Package '{package_name}' not found in package resolver and "
                             f"ROS is not installed."
                         )
                 else:
                     raise ParsingError(
-                        message="No ROS install found while the URDF file contains references to "
+                        msg="No ROS install found while the URDF file contains references to "
                         "ROS packages."
                     )
             file_path = file_path.replace("package://" + package_name, package_path)

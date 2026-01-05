@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
-from semantic_digital_twin.world_description.world_entity import Body, Connection
 from typing_extensions import Union, Optional, Type, Any, Iterable
 
+from pycram.datastructures.enums import ApproachDirection
+from pycram.datastructures.grasp import GraspDescription
+from semantic_digital_twin.world_description.world_entity import Body, Connection
 from .pick_up import GraspingActionDescription
 from ...motions.container import OpeningMotion, ClosingMotion
 from ...motions.gripper import MoveGripperMotion
@@ -42,7 +44,10 @@ class OpenAction(ActionDescription):
         SequentialPlan(
             self.context,
             GraspingActionDescription(
-                self.object_designator, self.arm, self.grasping_prepose_distance
+                self.object_designator,
+                self.arm,
+                GraspDescription(ApproachDirection.FRONT, rotate_gripper=True),
+                self.grasping_prepose_distance,
             ),
             OpeningMotion(self.object_designator, self.arm),
             MoveGripperMotion(

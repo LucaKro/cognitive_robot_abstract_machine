@@ -68,3 +68,5 @@ poetry.lock
 
 # Created during tests
 file::memory:
+
+/pycram/resources/proprietary/*

@@ -49,7 +49,7 @@ class ReachMotion(BaseMotion):
     def _calculate_pose_sequence(self) -> List[PoseStamped]:
         end_effector = ViewManager.get_end_effector_view(self.arm, self.robot_view)
 
-        target_pose = GraspDescription.get_grasp_pose(
+        target_pose = GraspDescription.get_grasp_pose_for_body(
             self.grasp_description, end_effector, self.object_designator
         )
         target_pose.rotate_by_quaternion(

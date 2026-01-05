@@ -130,7 +130,7 @@ def _create_target_sequence(
     target_pose = (
         deepcopy(target)
         if isinstance(target, PoseStamped)
-        else grasp_description.get_grasp_pose(end_effector, target)
+        else grasp_description.get_grasp_pose_for_body(end_effector, target)
     )
     # target.get_grasp_pose(end_effector, grasp_description)
 
