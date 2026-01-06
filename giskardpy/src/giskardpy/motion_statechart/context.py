@@ -38,3 +38,4 @@ class ExecutionContext:
     self_collision_data_data: np.ndarray
     auxiliar_variables_data: np.ndarray
     control_cycle_counter: int
+    dt: float

@@ -182,6 +182,7 @@ class Executor:
             self_collision_data_data=self.collision_scene.get_self_collision_data(),
             auxiliar_variables_data=self.auxiliary_variable_manager.resolve_auxiliary_variables(),
             control_cycle_counter=self.control_cycles,
+            dt=self.controller_config.control_dt,
         )
 
     def tick(self):

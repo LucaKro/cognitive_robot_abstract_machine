@@ -1158,7 +1158,7 @@ class TestCartesianTasks:
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
         tip_goal1 = HomogeneousTransformationMatrix.from_xyz_quaternion(
-            pos_x=-0.2, reference_frame=tip
+            pos_x=-2, reference_frame=tip
         )
         tip_goal2 = HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=0.2, reference_frame=tip
@@ -1195,6 +1195,7 @@ class TestCartesianTasks:
 
         fk = pr2_world.compute_forward_kinematics_np(root, tip)
         assert np.allclose(fk, tip_goal2.to_np(), atol=cart_goal2.threshold)
+        msc.plot_gantt_chart(context=kin_sim.execution_context)
 
     def test_cart_goal_sequence_on_start(self, pr2_world: World):
         """Test CartesianPose with Bind_on_start policy (default)."""
@@ -2175,6 +2176,7 @@ class TestOpenClose:
 
         assert opened.observation_state == ObservationStateValues.TRUE
         assert closed.observation_state == ObservationStateValues.TRUE
+        msc.plot_gantt_chart(kin_sim.execution_context)
 
 
 class TestCollisionAvoidance:

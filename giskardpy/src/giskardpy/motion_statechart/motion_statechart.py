@@ -592,8 +592,8 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         MotionStatechartGraphviz(self).to_dot_graph_pdf(file_name=file_name)
 
-    def plot_gantt_chart(self):
-        HistoryGanttChartPlotter(self).plot_gantt_chart("./ganttchart.pdf")
+    def plot_gantt_chart(self, context=None, second_length_in_cm: float = 2.0):
+        HistoryGanttChartPlotter(self, second_length_in_cm=second_length_in_cm).plot_gantt_chart("./ganttchart.pdf", context=context)
 
     def to_json(self) -> Dict[str, Any]:
         self._add_transitions()
