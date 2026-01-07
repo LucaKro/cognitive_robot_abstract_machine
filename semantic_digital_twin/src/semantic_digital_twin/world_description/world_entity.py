@@ -870,9 +870,23 @@ class SemanticEnvironmentAnnotation(RootedSemanticAnnotation):
         """
         Returns a set of all KinematicStructureEntity in the environment semantic annotation.
         """
-        return set(
+        from semantic_digital_twin.robots.abstract_robot import AbstractRobot
+
+        robots = self._world.get_semantic_annotations_by_type(AbstractRobot)
+        robot_kinematic_structure_entities = set()
+        for robot in robots:
+            robot_kinematic_structure_entities |= set(
+                robot.kinematic_structure_entities
+            )
+
+        world_branch_kinematic_structure_entities = set(
             self._world.get_kinematic_structure_entities_of_branch(self.root)
         ) | {self.root}
+
+        return (
+            world_branch_kinematic_structure_entities
+            - robot_kinematic_structure_entities
+        )
 
 
 @dataclass(eq=False)

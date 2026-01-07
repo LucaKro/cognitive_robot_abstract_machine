@@ -70,9 +70,16 @@ class ReachAction(ActionDescription):
 
         end_effector = ViewManager.get_end_effector_view(self.arm, self.robot_view)
 
+        offset_grasp = False
+        if (
+            self.object_designator
+            and self.object_designator.name.name == "breakfast_cereal.stl"
+        ):
+            offset_grasp = True
+
         target_pose = (
             self.grasp_description.get_grasp_pose_for_body(
-                end_effector, self.object_designator
+                end_effector, self.object_designator, translate_rim_offset=offset_grasp
             )
             if self.object_designator
             else self.grasp_description.get_grasp_pose_for_pose(
@@ -82,7 +89,7 @@ class ReachAction(ActionDescription):
         target_pre_pose = translate_pose_along_local_axis(
             target_pose,
             end_effector.front_facing_axis.to_np()[:3],
-            ActionConfig.pick_up_prepose_distance,
+            -ActionConfig.pick_up_prepose_distance,
         )
 
         SequentialPlan(
@@ -200,7 +207,7 @@ class PickUpAction(ActionDescription):
         lift_to_pose = PoseStamped().from_spatial_type(
             end_effector.tool_frame.global_pose
         )
-        lift_to_pose.pose.position.z += 0.1
+        lift_to_pose.pose.position.z += 0.05
         SequentialPlan(
             self.context,
             MoveTCPMotion(lift_to_pose, self.arm, allow_gripper_collision=True),

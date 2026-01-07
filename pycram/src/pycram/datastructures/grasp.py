@@ -84,7 +84,7 @@ class GraspDescription(HasParameters):
         )
         if translate_rim_offset:
             grasp_pose = translate_pose_along_local_axis(
-                grasp_pose, self.approach_direction.axis.value, -rim_offset
+                grasp_pose, end_effector.front_facing_axis.to_np()[:3], -rim_offset
             )
 
         return grasp_pose

@@ -5,6 +5,7 @@ import time
 import unittest
 from copy import deepcopy
 
+import numpy as np
 import pytest
 
 from semantic_digital_twin.adapters.mesh import STLParser
@@ -205,17 +206,19 @@ def setup_world_mmp() -> World:
             parent=apartment_root, child=pr2_root, world=apartment_world
         )
         apartment_world.merge_world(pr2_sem_world, c_root_bf)
-        c_root_bf.origin = HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2.5, 0)
+        c_root_bf.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+            3.7, 2.5, 0, 0, 0, np.pi
+        )
 
     apartment_world.get_body_by_name("milk.stl").parent_connection.origin = (
         HomogeneousTransformationMatrix.from_xyz_rpy(
-            2.37, 2, 1.05, reference_frame=apartment_world.root
+            3, 2, 1.05, 0, 0, np.pi, reference_frame=apartment_world.root
         )
     )
     apartment_world.get_body_by_name(
         "breakfast_cereal.stl"
     ).parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-        2.37, 1.8, 1.05, reference_frame=apartment_world.root
+        3.0, 1.8, 1.05, 0, 0, np.pi, reference_frame=apartment_world.root
     )
     milk_view = Milk(body=apartment_world.get_body_by_name("milk.stl"))
     with apartment_world.modify_world():
