@@ -90,6 +90,8 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     KinematicStructureEntityKwargsTracker,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.abstract_robot import Manipulator
+from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.semantic_annotations.factories import (
     DoorFactory,
     SemanticPositionDescription,
@@ -105,6 +107,7 @@ from semantic_digital_twin.spatial_types import (
     RotationMatrix,
 )
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
+from semantic_digital_twin.testing import hsrb_world
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
@@ -112,7 +115,7 @@ from semantic_digital_twin.world_description.connections import (
     FixedConnection,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
-from semantic_digital_twin.world_description.geometry import Cylinder
+from semantic_digital_twin.world_description.geometry import Cylinder, Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -1115,7 +1118,47 @@ def test_long_goal(pr2_world: World):
 class TestCartesianTasks:
     """Test suite for all Cartesian motion tasks."""
 
-    # ===== EXISTING TESTS (moved from standalone functions into this class) =====
+    def test_front_facing_orientation(self, hsrb_world: World):
+        with hsrb_world.modify_world():
+            box = Body(
+                name=PrefixedName("muh"),
+                collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
+            )
+            connection = FixedConnection(
+                parent=hsrb_world.root,
+                child=box,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=2, z=0.5
+                ),
+            )
+            hsrb_world.add_connection(connection)
+
+        hsr = hsrb_world.get_semantic_annotations_by_type(HSRB)[0]
+        hand = hsrb_world.get_semantic_annotations_by_type(Manipulator)[0]
+        msc = MotionStatechart()
+        orientation_goal = hand.front_facing_orientation.to_rotation_matrix()
+        orientation_goal.reference_frame = hsrb_world.get_body_by_name("base_footprint")
+        msc.add_node(
+            goal := Parallel(
+                [
+                    CartesianOrientation(
+                        root_link=hsrb_world.root,
+                        tip_link=hand.tool_frame,
+                        goal_orientation=orientation_goal,
+                    ),
+                    CartesianPosition(
+                        root_link=hsrb_world.root,
+                        tip_link=hand.tool_frame,
+                        goal_point=hsrb_world.bodies[-1].global_pose.to_position(),
+                    ),
+                ]
+            )
+        )
+        msc.add_node(EndMotion.when_true(goal))
+
+        kin_sim = Executor(world=hsrb_world)
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
 
     def test_cart_goal_1eef(self, pr2_world: World):
         """Single CartesianPose goal test."""

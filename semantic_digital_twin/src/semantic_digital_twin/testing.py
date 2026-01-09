@@ -8,6 +8,7 @@ from typing_extensions import Tuple
 
 from .adapters.urdf import URDFParser
 from .datastructures.prefixed_name import PrefixedName
+from .robots.hsrb import HSRB
 from .spatial_types import HomogeneousTransformationMatrix
 from .spatial_types.derivatives import DerivativeMap
 from .spatial_types.spatial_types import Vector3
@@ -215,20 +216,18 @@ def hsrb_world():
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "resources", "urdf"
     )
     hsrb = os.path.join(urdf_dir, "hsrb.urdf")
-    world = World()
-    with world.modify_world():
-        localization_body = Body(name=PrefixedName("odom_combined"))
-        world.add_kinematic_structure_entity(localization_body)
-
-        hsrb_parser = URDFParser.from_file(file_path=hsrb)
-        world_with_hsrb = hsrb_parser.parse()
+    hsrb_parser = URDFParser.from_file(file_path=hsrb)
+    world_with_hsrb = hsrb_parser.parse()
+    HSRB.from_world(world_with_hsrb)
+    with world_with_hsrb.modify_world():
         hsrb_root = world_with_hsrb.root
-        c_root_bf = Connection6DoF.create_with_dofs(
-            parent=localization_body, child=hsrb_root, world=world
+        localization_body = Body(name=PrefixedName("odom_combined"))
+        world_with_hsrb.add_kinematic_structure_entity(localization_body)
+        c_root_bf = OmniDrive.create_with_dofs(
+            parent=localization_body, child=hsrb_root, world=world_with_hsrb
         )
-        world.merge_world(world_with_hsrb, c_root_bf)
-
-    return world
+        world_with_hsrb.add_connection(c_root_bf)
+    return world_with_hsrb
 
 
 @pytest.fixture

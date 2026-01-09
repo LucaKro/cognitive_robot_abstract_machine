@@ -373,8 +373,7 @@ def test_tracy_semantic_annotation(tracy_world):
 
 
 def test_hsrb_semantic_annotation(hsrb_world):
-    hsrb = HSRB.from_world(hsrb_world)
-
+    hsrb = hsrb_world.get_semantic_annotations_by_type(HSRB)[0]
     hsrb_world._notify_model_change()
 
     assert len(hsrb.manipulators) == 1
