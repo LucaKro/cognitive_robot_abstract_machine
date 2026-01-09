@@ -1,14 +1,20 @@
 import json
 
+import pytest
 from geometry_msgs.msg import WrenchStamped
 
+from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.monitors.payload_monitors import CountTicks
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.ros2_nodes.force_torque_monitor import (
     ForceImpactMonitor,
 )
-from giskardpy.motion_statechart.ros2_nodes.topic_monitor import PublishOnStart
+from giskardpy.motion_statechart.ros2_nodes.topic_monitor import (
+    PublishOnStart,
+    WaitForMessage,
+)
 from giskardpy.motion_statechart.test_nodes.test_nodes import ConstTrueNode
 from giskardpy.ros_executor import Ros2Executor
 from semantic_digital_twin.world import World
@@ -16,7 +22,6 @@ from semantic_digital_twin.world import World
 
 def test_force_impact_node(rclpy_node):
     topic_name = "force_torque_topic"
-    publisher = rclpy_node.create_publisher(WrenchStamped, topic_name, 10)
 
     msg_below = WrenchStamped()
 
@@ -30,8 +35,8 @@ def test_force_impact_node(rclpy_node):
                 ForceImpactMonitor(topic_name=topic_name, threshold=10),
                 Sequence(
                     nodes=[
-                        ConstTrueNode(),
                         PublishOnStart(topic_name=topic_name, msg=msg_below),
+                        WaitForMessage(topic_name=topic_name, msg_type=WrenchStamped),
                         PublishOnStart(topic_name=topic_name, msg=msg_above),
                     ]
                 ),
@@ -48,9 +53,19 @@ def test_force_impact_node(rclpy_node):
     kin_sim = Ros2Executor(world=World(), ros_node=rclpy_node)
     kin_sim.compile(motion_statechart=msc_copy)
 
-    publisher.publish(msg_above)
+    ft_node = msc_copy.nodes[0].nodes[0]
 
-    # this should now finish
     kin_sim.tick_until_end()
-
     msc_copy.draw("muh.pdf")
+    assert (
+        msc_copy.history.get_observation_history_of_node(ft_node)[0]
+        == ObservationStateValues.UNKNOWN
+    )
+    assert (
+        ObservationStateValues.FALSE
+        in msc_copy.history.get_observation_history_of_node(ft_node)
+    )
+    assert (
+        msc_copy.history.get_observation_history_of_node(ft_node)[-1]
+        == ObservationStateValues.TRUE
+    )

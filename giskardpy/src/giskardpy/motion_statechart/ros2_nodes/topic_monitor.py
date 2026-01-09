@@ -66,6 +66,15 @@ class TopicPublisherNode(MotionStatechartNode, Generic[MsgType]):
 
 
 @dataclass(eq=False, repr=False)
+class WaitForMessage(TopicSubscriberNode[MsgType]):
+    def on_tick(self, context: ExecutionContext) -> Optional[ObservationStateValues]:
+        super().on_tick(context)
+        if self.has_msg():
+            return ObservationStateValues.TRUE
+        return ObservationStateValues.FALSE
+
+
+@dataclass(eq=False, repr=False)
 class PublishOnStart(TopicPublisherNode[MsgType]):
     msg: MsgType = field(kw_only=True)
     msg_type: Type[MsgType] = field(init=False)

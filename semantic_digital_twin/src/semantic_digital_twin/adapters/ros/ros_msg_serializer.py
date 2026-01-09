@@ -22,14 +22,20 @@ class Ros2MessageJSONSerializer(ExternalClassJSONSerializer[None]):
 
     @classmethod
     def to_json(cls, obj: Any) -> Dict[str, Any]:
+        if cls.is_ros_message(type(obj)):
+            return {
+                JSON_TYPE_NAME: get_full_class_name(obj.__class__),
+                "data": convert_ros_message_to_dictionary(obj),
+            }
         return {
-            JSON_TYPE_NAME: get_full_class_name(obj.__class__),
-            "data": convert_ros_message_to_dictionary(obj),
+            JSON_TYPE_NAME: get_full_class_name(obj),
         }
 
     @classmethod
     def from_json(cls, data: Dict[str, Any], clazz: Type, **kwargs) -> Any:
-        return convert_dictionary_to_ros_message(clazz, data["data"], **kwargs)
+        if "data" in data:
+            return convert_dictionary_to_ros_message(clazz, data["data"], **kwargs)
+        return clazz
 
     @staticmethod
     def is_ros_message(clazz: Type) -> bool:
@@ -45,6 +51,19 @@ class Ros2MessageJSONSerializer(ExternalClassJSONSerializer[None]):
             and hasattr(clazz, "SLOT_TYPES")  # present on generated message classes
         )
 
+    @staticmethod
+    def is_ros_message_class(clazz: Type) -> bool:
+        """
+        Checks if a class is a ROS2 message based on its slots and field types and hope nothing else has the same.
+        :param clazz: class to check
+        :return: is its a ros2 message
+        """
+        return (
+            inspect.isclass(clazz)
+            and hasattr(clazz, "_CREATE_ROS_MESSAGE")
+            and hasattr(clazz, "_DESTROY_ROS_MESSAGE")
+        )
+
     @classmethod
     def matches_generic_type(cls, clazz: Type):
-        return cls.is_ros_message(clazz)
+        return cls.is_ros_message(clazz) or cls.is_ros_message_class(clazz)
