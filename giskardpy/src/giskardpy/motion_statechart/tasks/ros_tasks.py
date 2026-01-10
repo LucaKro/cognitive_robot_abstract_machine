@@ -18,7 +18,7 @@ from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     NodeArtifacts,
 )
-from semantic_digital_twin.spatial_types import TransformationMatrix
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.world_entity import Body
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class NavigateActionServerTask(ActionServerTask):
     Node for calling a Navigation2 ROS2 action server to navigate to a given pose.1
     """
 
-    target_pose: TransformationMatrix
+    target_pose: HomogeneousTransformationMatrix
     """
     Target pose to which the robot should navigate.
     """
