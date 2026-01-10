@@ -5,7 +5,6 @@ import time
 import numpy as np
 import pytest
 
-# Import the classes under test
 from giskardpy.ros2_tools.force_torque_filter_node import (
     OffsetEstimator,
     LowPassButter,
@@ -14,14 +13,6 @@ from giskardpy.ros2_tools.force_torque_filter_node import (
     WrenchProcessor,
     ForceTorqueFilterNode,
 )
-
-# Reuse the existing rclpy_node fixture provided by semantic_digital_twin.testing
-from semantic_digital_twin.testing import rclpy_node  # noqa: F401
-
-
-# --------------------
-# Unit tests (no ROS)
-# --------------------
 
 
 def test_offset_estimator_tracks_constant_offset():
@@ -114,11 +105,6 @@ def test_wrench_processor_filters_and_derives():
     # Derivative amplitude envelope roughly matches expected amplitude of derivative
     expected_amp = amp * 2 * np.pi * freq
     assert 0.3 * expected_amp < np.max(np.abs(diff_vals)) < 1.5 * expected_amp
-
-
-# -------------------------
-# Integration test (with ROS)
-# -------------------------
 
 
 @pytest.mark.timeout(30)

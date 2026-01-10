@@ -1,12 +1,10 @@
 import json
 
-import pytest
 from geometry_msgs.msg import WrenchStamped
 
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import CountTicks
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.ros2_nodes.force_torque_monitor import (
     ForceImpactMonitor,
@@ -15,7 +13,6 @@ from giskardpy.motion_statechart.ros2_nodes.topic_monitor import (
     PublishOnStart,
     WaitForMessage,
 )
-from giskardpy.motion_statechart.test_nodes.test_nodes import ConstTrueNode
 from giskardpy.ros_executor import Ros2Executor
 from semantic_digital_twin.world import World
 
