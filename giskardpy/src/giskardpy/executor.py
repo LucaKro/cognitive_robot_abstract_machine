@@ -1,27 +1,9 @@
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, InitVar
 
-import time
-from typing_extensions import Optional, Protocol, Self
+from typing_extensions import Optional
 
-from giskardpy.data_types.exceptions import (
-    NoQPControllerConfigException,
-)
-from giskardpy.model.better_pybullet_syncer import BulletCollisionDetector
-from giskardpy.model.collision_world_syncer import (
-    CollisionWorldSynchronizer,
-    CollisionCheckerLib,
-)
-from giskardpy.model.collisions import NullCollisionDetector
-from giskardpy.motion_statechart.auxilary_variable_manager import (
-    AuxiliaryVariableManager,
-    AuxiliaryVariable,
-)
-from giskardpy.motion_statechart.context import BuildContext, ExecutionContext
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from giskardpy.qp.exceptions import EmptyProblemException
-from giskardpy.qp.qp_controller import QPController
-from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.abstract_robot import (
     AbstractRobot,
@@ -31,6 +13,22 @@ from semantic_digital_twin.world_description.world_state import WorldStateTrajec
 from semantic_digital_twin.world_description.world_state_trajectory_plotter import (
     WorldStateTrajectoryPlotter,
 )
+from .data_types.exceptions import NoQPControllerConfigException
+from .model.better_pybullet_syncer import BulletCollisionDetector
+from .model.collision_world_syncer import (
+    CollisionWorldSynchronizer,
+    CollisionCheckerLib,
+)
+from .model.collisions import NullCollisionDetector
+from .motion_statechart.auxilary_variable_manager import (
+    AuxiliaryVariableManager,
+    AuxiliaryVariable,
+)
+from .motion_statechart.context import BuildContext, ExecutionContext
+from .motion_statechart.motion_statechart import MotionStatechart
+from .qp.exceptions import EmptyProblemException
+from .qp.qp_controller import QPController
+from .qp.qp_controller_config import QPControllerConfig
 
 
 @dataclass
