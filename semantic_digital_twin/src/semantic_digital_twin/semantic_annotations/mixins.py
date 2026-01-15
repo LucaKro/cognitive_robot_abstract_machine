@@ -429,7 +429,7 @@ class HasHinge(HasRootBody, ABC):
     A mixin class for semantic annotations that have hinge joints.
     """
 
-    hinge: Optional[Hinge] = field(init=False, default=None)
+    hinge: Optional[Hinge] = field(default=None)
     """
     The hinge of the semantic annotation.
     """
@@ -455,7 +455,7 @@ class HasSlider(HasRootKinematicStructureEntity, ABC):
     A mixin class for semantic annotations that have slider joints.
     """
 
-    slider: Optional[Slider] = field(init=False, default=None)
+    slider: Optional[Slider] = field(default=None)
     """
     The slider of the semantic annotation.
     """
@@ -597,7 +597,7 @@ class HasSupportingSurface(HasRootBody, ABC):
     A semantic annotation that represents a supporting surface.
     """
 
-    supporting_surface: Region = field(init=False, default=None)
+    supporting_surface: Region = field(default=None)
     """
     The supporting surface region of the semantic annotation.
     """

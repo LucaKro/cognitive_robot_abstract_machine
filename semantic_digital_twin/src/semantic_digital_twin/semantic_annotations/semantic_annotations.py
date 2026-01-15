@@ -204,7 +204,7 @@ class Door(HasHandle, HasHinge):
     A door is a physical entity that has covers an opening, has a movable body and a handle.
     """
 
-    entry_way: Optional[EntryWay] = field(init=False, default=None)
+    entry_way: Optional[EntryWay] = field(default=None)
     """
     The entry way of the door.
     """
@@ -296,8 +296,8 @@ class DoubleDoor(SemanticAnnotation):
     A semantic annotation that represents a double door with left and right doors.
     """
 
-    left_door: Door
-    right_door: Door
+    left_door: Door = field(kw_only=True)
+    right_door: Door = field(kw_only=True)
 
 
 @dataclass(eq=False)
@@ -399,7 +399,7 @@ class Room(SemanticAnnotation):
     A closed area with a specific purpose
     """
 
-    floor: Floor
+    floor: Floor = field(kw_only=True)
     """
     The room's floor.
     """

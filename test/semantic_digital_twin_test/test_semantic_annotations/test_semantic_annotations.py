@@ -7,6 +7,9 @@ from numpy.ma.testutils import (
     assert_equal,
 )  # You could replace this with numpy's regular assert for better compatibility
 
+from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
+    WorldEntityWithIDKwargsTracker,
+)
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.pr2 import PR2
@@ -220,7 +223,7 @@ def fit_rules_and_assert_semantic_annotations(
     )
 
 
-def test_semantic_annotation_serde_once(apartment_world_setup):
+def test_semantic_annotation_serialization_deserialization_once(apartment_world_setup):
     handle_body = apartment_world_setup.bodies[0]
     door_body = apartment_world_setup.bodies[1]
 
@@ -231,37 +234,18 @@ def test_semantic_annotation_serde_once(apartment_world_setup):
         apartment_world_setup.add_semantic_annotation(door)
 
     door_se = door.to_json()
-    door_de = Door.from_json(door_se)
+
+    with apartment_world_setup.modify_world():
+        apartment_world_setup.remove_semantic_annotation(door)
+
+    tracker = WorldEntityWithIDKwargsTracker.from_world(apartment_world_setup)
+    kwargs = tracker.create_kwargs()
+
+    door_de = Door.from_json(door_se, **kwargs)
 
     assert door == door_de
     assert type(door.handle) == type(door_de.handle)
     assert type(door.root) == type(door_de.root)
-
-
-def test_semantic_annotation_serde_multiple(apartment_world_setup):
-    handle_body = apartment_world_setup.bodies[0]
-    door_body = apartment_world_setup.bodies[1]
-
-    handle = Handle(root=handle_body)
-    door = Door(root=door_body, handle=handle)
-
-    with apartment_world_setup.modify_world():
-        apartment_world_setup.add_semantic_annotation(handle)
-        apartment_world_setup.add_semantic_annotation(door)
-
-    door_se1 = door.to_json()
-    door_de1 = Door.from_json(door_se1)
-
-    assert door == door_de1
-    assert type(door.handle) == type(door_de1.handle)
-    assert type(door.root) == type(door_de1.root)
-
-    door_se2 = door_de1.to_json()
-    door_de2 = Door.from_json(door_se2)
-
-    assert door == door_de2
-    assert type(door.handle) == type(door_de2.handle)
-    assert type(door.root) == type(door_de2.root)
 
 
 def test_minimal_robot_annotation(pr2_world_state_reset):

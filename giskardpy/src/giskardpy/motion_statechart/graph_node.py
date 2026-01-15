@@ -83,7 +83,7 @@ class TrinaryCondition(SubclassJSONSerializer):
     """
 
     def __hash__(self) -> int:
-        return hash((str(self), self.kind))
+        return hash((str(self), self.kind, self.owner.index))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
