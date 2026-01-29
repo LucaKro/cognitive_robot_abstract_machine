@@ -143,6 +143,11 @@ class TFPublisher(StateChangeCallback):
         super().__post_init__()
         self.tf_pub = self.node.create_publisher(TFMessage, self.tf_topic, 10)
         sleep(0.2)
+        logger.warning(
+            f":\n======================================================\n"
+            f"TFPublisher setup. Fixed frame: {self.world.root.name}\n"
+            f"======================================================"
+        )
         self.tf_model_cb = TfPublisherModelCallback(
             node=self.node,
             world=self.world,

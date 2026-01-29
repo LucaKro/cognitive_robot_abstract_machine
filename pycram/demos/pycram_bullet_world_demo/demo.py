@@ -9,6 +9,8 @@ from pycram.robot_plans import MoveTorsoActionDescription, TransportActionDescri
 from pycram.robot_plans import ParkArmsActionDescription
 from pycram.testing import setup_world
 from semantic_digital_twin.adapters.mesh import STLParser
+from semantic_digital_twin.adapters.ros.tf_publisher import TFPublisher
+from semantic_digital_twin.adapters.ros.tfwrapper import TFWrapper
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl, Spoon
@@ -40,18 +42,6 @@ with world.modify_world():
     connection = FixedConnection(
         parent=world.get_body_by_name("cabinet10_drawer_top"), child=spoon.root
     )
-try:
-    import rclpy
-
-    rclpy.init()
-    from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-        VizMarkerPublisher,
-    )
-
-    v = VizMarkerPublisher(world, rclpy.create_node("viz_marker"))
-except ImportError:
-    pass
-
     world.merge_world(spoon, connection)
 
 try:
@@ -62,7 +52,15 @@ try:
         VizMarkerPublisher,
     )
 
-    v = VizMarkerPublisher(world, rclpy.create_node("viz_marker"))
+    rclpy_node = rclpy.create_node("viz_marker")
+
+    tf_wrapper = TFWrapper(node=rclpy_node)
+    tf_publisher = TFPublisher(
+        node=rclpy_node,
+        world=world,
+    )
+
+    v = VizMarkerPublisher(world, rclpy_node)
 except ImportError:
     pass
 
@@ -74,8 +72,8 @@ with world.modify_world():
     world_reasoner.reason()
     world.add_semantic_annotations(
         [
-            Bowl(body=world.get_body_by_name("bowl.stl")),
-            Spoon(body=world.get_body_by_name("spoon.stl")),
+            Bowl(root=world.get_body_by_name("bowl.stl")),
+            Spoon(root=world.get_body_by_name("spoon.stl")),
         ]
     )
 

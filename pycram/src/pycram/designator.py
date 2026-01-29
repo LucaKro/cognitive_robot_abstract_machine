@@ -23,8 +23,10 @@ from typing_extensions import (
 )
 
 from .datastructures.dataclasses import Context
+from .datastructures.enums import Arms
+from .datastructures.grasp import GraspDescription
 from .datastructures.partial_designator import PartialDesignator
-from .datastructures.pose import PoseStamped
+from .datastructures.pose import PoseStamped, GraspPose
 from .plan import Plan, PlanNode
 from .utils import bcolors
 
@@ -175,8 +177,22 @@ class LocationDesignatorDescription(DesignatorDescription, PartialDesignator):
         self._last_result = None
 
     @property
-    def last_result(self) -> Iterator[PoseStamped]:
+    def last_result(self) -> Iterator[Union[PoseStamped, GraspPose]]:
         yield self._last_result
+
+    @property
+    def last_arm(self) -> Iterator[Optional[Arms]]:
+        if isinstance(self._last_result, GraspPose):
+            yield self._last_result.arm
+        else:
+            yield None
+
+    @property
+    def last_grasp_description(self) -> Iterator[Optional[GraspDescription]]:
+        if isinstance(self._last_result, GraspPose):
+            yield self._last_result.grasp_description
+        else:
+            yield None
 
     def ground(self) -> PoseStamped:
         """
