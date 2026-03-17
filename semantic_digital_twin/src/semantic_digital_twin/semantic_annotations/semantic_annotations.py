@@ -32,16 +32,25 @@ from semantic_digital_twin.exceptions import (
     MissingSemanticAnnotationError,
 )
 from semantic_digital_twin.reasoning.predicates import InsideOf
-from semantic_digital_twin.spatial_types import Point3, HomogeneousTransformationMatrix, Vector3
+from semantic_digital_twin.spatial_types import (
+    Point3,
+    HomogeneousTransformationMatrix,
+    Vector3,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
     PrismaticConnection,
     FixedConnection,
 )
-from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedomLimits
+from semantic_digital_twin.world_description.degree_of_freedom import (
+    DegreeOfFreedomLimits,
+)
 from semantic_digital_twin.world_description.geometry import Scale, TriangleMesh
-from semantic_digital_twin.world_description.shape_collection import BoundingBoxCollection, ShapeCollection
+from semantic_digital_twin.world_description.shape_collection import (
+    BoundingBoxCollection,
+    ShapeCollection,
+)
 from semantic_digital_twin.world_description.world_entity import (
     SemanticAnnotation,
     Body,
@@ -401,7 +410,7 @@ class Floor(HasSupportingSurface):
         :param name: The name of the floor body.
         :param scale: The scale defining the floor polytope.
         """
-        polytope = scale.to_bounding_box().get_points()
+        polytope = scale.to_bounding_box().get_corners()
         return cls.create_with_new_body_from_polytope_in_world(
             name=name,
             floor_polytope=polytope,

@@ -13,7 +13,9 @@ from krrood.entity_query_language.predicate import (
 from random_events.interval import Interval
 from typing_extensions import List, TYPE_CHECKING, Iterable, Type
 
-from semantic_digital_twin.collision_checking.trimesh_collision_detector import FCLCollisionDetector
+from semantic_digital_twin.collision_checking.trimesh_collision_detector import (
+    FCLCollisionDetector,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.spatial_computations.ik_solver import (
@@ -22,11 +24,17 @@ from semantic_digital_twin.spatial_computations.ik_solver import (
 )
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.spatial_types import Vector3, Point3
-from semantic_digital_twin.spatial_types.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types.spatial_types import (
+    HomogeneousTransformationMatrix,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import TriangleMesh
-from semantic_digital_twin.world_description.world_entity import Body, Region, KinematicStructureEntity
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    Region,
+    KinematicStructureEntity,
+)
 
 if TYPE_CHECKING:
     from semantic_digital_twin.robots.abstract_robot import (
@@ -212,12 +220,12 @@ def is_supported_by(
     )():
         return False
     bounding_box_supported_body = (
-        supported_body.collision.as_bounding_box_collection_at_origin(
+        supported_body.collision.as_bounding_box_collection_in_frame(
             HomogeneousTransformationMatrix(reference_frame=supported_body)
         ).event
     )
     bounding_box_supporting_body = (
-        supporting_body.collision.as_bounding_box_collection_at_origin(
+        supporting_body.collision.as_bounding_box_collection_in_frame(
             HomogeneousTransformationMatrix(reference_frame=supported_body)
         ).event
     )

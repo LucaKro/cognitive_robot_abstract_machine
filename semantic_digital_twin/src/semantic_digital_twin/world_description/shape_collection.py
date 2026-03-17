@@ -123,38 +123,26 @@ class ShapeCollection(SubclassJSONSerializer):
             transformed_meshes.append(mesh)
         return concatenate(transformed_meshes)
 
-    def as_bounding_box_collection_at_origin(
-        self, origin: HomogeneousTransformationMatrix
-    ) -> BoundingBoxCollection:
-        """
-        Provides the bounding box collection for this entity given a transformation matrix as origin.
-        :param origin: The origin to express the bounding boxes from.
-        :returns: A collection of bounding boxes in world-space coordinates.
-        """
-        world_bboxes = []
-
-        for shape in self.shapes:
-            if shape.origin.reference_frame is None:
-                continue
-            local_bb: BoundingBox = shape.local_frame_bounding_box
-            world_bb = local_bb.transform_to_origin(origin)
-            world_bboxes.append(world_bb)
-
-        return BoundingBoxCollection(
-            world_bboxes,
-            origin.reference_frame,
-        )
-
     def as_bounding_box_collection_in_frame(
         self, reference_frame: KinematicStructureEntity
     ) -> BoundingBoxCollection:
         """
         Provides the bounding box collection for this entity in the given reference frame.
         :param reference_frame: The reference frame to express the bounding boxes in.
-        :returns: A collection of bounding boxes in world-space coordinates.
+        :returns: A collection of bounding boxes in reference_frame coordinates.
         """
-        return self.as_bounding_box_collection_at_origin(
-            HomogeneousTransformationMatrix(reference_frame=reference_frame)
+        transformed_bounding_boxes = []
+
+        for shape in self.shapes:
+            if shape.origin.reference_frame is None:
+                continue
+            local_bounding_box: BoundingBox = shape.local_frame_bounding_box
+            transformed_bounding_box = local_bounding_box.transform(reference_frame)
+            transformed_bounding_boxes.append(transformed_bounding_box)
+
+        return BoundingBoxCollection(
+            transformed_bounding_boxes,
+            reference_frame,
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -194,9 +182,7 @@ class ShapeCollection(SubclassJSONSerializer):
     @property
     def scale(self):
         return (
-            self.as_bounding_box_collection_at_origin(
-                HomogeneousTransformationMatrix(reference_frame=self.reference_frame)
-            )
+            self.as_bounding_box_collection_in_frame(self.reference_frame)
             .bounding_box()
             .scale
         )
@@ -287,33 +273,10 @@ class BoundingBoxCollection(ShapeCollection):
         :param keep_surface: Whether to keep events that are infinitely thin
         :return: The list of bounding boxes.
         """
-        result = []
-        for x, y, z in itertools.product(
-            simple_event[SpatialVariables.x.value].simple_sets,
-            simple_event[SpatialVariables.y.value].simple_sets,
-            simple_event[SpatialVariables.z.value].simple_sets,
-        ):
-
-            bb = BoundingBox(
-                x.lower,
-                y.lower,
-                z.lower,
-                x.upper,
-                y.upper,
-                z.upper,
-                HomogeneousTransformationMatrix.from_point_rotation_matrix(
-                    point=Point3(
-                        x.upper - (x.upper - x.lower) / 2,
-                        y.upper - (y.upper - y.lower) / 2,
-                        z.upper - (z.upper - z.lower) / 2,
-                    ),
-                    reference_frame=reference_frame,
-                ),
-            )
-            if not keep_surface and (bb.depth == 0 or bb.height == 0 or bb.width == 0):
-                continue
-            result.append(bb)
-        return BoundingBoxCollection(result, reference_frame)
+        bounding_boxes = BoundingBox.from_simple_event(
+            simple_event, reference_frame, keep_surface
+        )
+        return BoundingBoxCollection(bounding_boxes, reference_frame)
 
     @classmethod
     def from_event(
@@ -347,18 +310,18 @@ class BoundingBoxCollection(ShapeCollection):
             return cls(shapes=[])
         for shape in shapes:
             assert (
-                shape.origin.reference_frame == shapes[0].origin.reference_frame
+                shape.origin.reference_frame == shapes.reference_frame
             ), "All shapes must have the same reference frame."
 
         local_bbs = [shape.local_frame_bounding_box for shape in shapes]
         return cls(
-            [bb.transform_to_origin(bb.origin) for bb in local_bbs],
+            [bb.transform(shapes.reference_frame) for bb in local_bbs],
             shapes.reference_frame,
         )
 
     def as_shapes(self) -> ShapeCollection:
         return ShapeCollection(
-            [box.as_shape() for box in self.bounding_boxes],
+            self.bounding_boxes,
             self.reference_frame,
         )
 

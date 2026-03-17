@@ -660,7 +660,7 @@ class SemanticCostmapLocation(LocationDesignatorDescription):
                         params_box.for_object
                     )
                     .bounding_box()
-                    .get_points()
+                    .get_corners()
                 )
                 np_points = [point.to_np()[:3] for point in bb_points]
                 min_z = min(np_points, key=lambda p: p[2])[2]

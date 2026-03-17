@@ -12,13 +12,13 @@ import numpy as np
 import trimesh
 import trimesh.exchange.stl
 from PIL import Image
-from random_events.interval import SimpleInterval, Bound, closed
-from random_events.product_algebra import SimpleEvent
 from trimesh.visual.texture import TextureVisuals, SimpleMaterial
 from typing_extensions import Optional, List, Dict, Any, Self, Tuple, TYPE_CHECKING
 
 from krrood.adapters.exceptions import JSON_TYPE_NAME
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
+from random_events.interval import closed, SimpleInterval, Bound
+from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.mixin import HasSimulatorProperties
 from semantic_digital_twin.spatial_types import (
@@ -80,7 +80,7 @@ class Color:
         return (self.R, self.G, self.B, self.A)
 
 
-@dataclass
+@dataclass(eq=False)
 class Scale:
     """
     Dataclass for storing the scale of geometric objects.
@@ -177,6 +177,9 @@ class Scale:
     def to_np(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
 
+    def __eq__(self, other: Scale) -> bool:
+        return np.allclose(self.to_np(), other.to_np())
+
 
 @dataclass
 class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
@@ -192,10 +195,21 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
 
     @property
     @abstractmethod
+    def dimensions(self) -> Scale:
+        """
+        The dimensions of the shape as a Scale object.
+        """
+
+    @property
     def local_frame_bounding_box(self) -> BoundingBox:
         """
-        Returns the bounding box of the shape
+        Returns the local bounding box of the box.
+        The bounding box is axis-aligned and centered at the origin.
         """
+        return BoundingBox(
+            scale=self.dimensions,
+            origin=self.origin,
+        )
 
     @property
     @abstractmethod
@@ -272,12 +286,13 @@ class Mesh(Shape, ABC):
         raise NotImplementedError
 
     @property
-    def local_frame_bounding_box(self) -> BoundingBox:
-        """
-        Returns the local bounding box of the mesh.
-        The bounding box is axis-aligned and centered at the origin.
-        """
-        return BoundingBox.from_mesh(self.mesh, self.origin)
+    def dimensions(self) -> Scale:
+        bounds = self.mesh.bounds
+        return Scale(
+            x=bounds[1][0] - bounds[0][0],
+            y=bounds[1][1] - bounds[0][1],
+            z=bounds[1][2] - bounds[0][2],
+        )
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -567,19 +582,8 @@ class Sphere(Shape):
         return mesh
 
     @property
-    def local_frame_bounding_box(self) -> BoundingBox:
-        """
-        Returns the bounding box of the sphere.
-        """
-        return BoundingBox(
-            -self.radius,
-            -self.radius,
-            -self.radius,
-            self.radius,
-            self.radius,
-            self.radius,
-            self.origin,
-        )
+    def dimensions(self) -> Scale:
+        return Scale(self.radius * 2, self.radius * 2, self.radius * 2)
 
     def to_json(self) -> Dict[str, Any]:
         return {**super().to_json(), "radius": self.radius}
@@ -614,22 +618,8 @@ class Cylinder(Shape):
         return mesh
 
     @property
-    def local_frame_bounding_box(self) -> BoundingBox:
-        """
-        Returns the bounding box of the cylinder.
-        The bounding box is axis-aligned and centered at the origin.
-        """
-        half_width = self.width / 2
-        half_height = self.height / 2
-        return BoundingBox(
-            -half_width,
-            -half_width,
-            -half_height,
-            half_width,
-            half_width,
-            half_height,
-            self.origin,
-        )
+    def scale(self) -> Scale:
+        return Scale(self.width, self.width, self.height)
 
     def to_json(self) -> Dict[str, Any]:
         return {**super().to_json(), "width": self.width, "height": self.height}
@@ -662,24 +652,8 @@ class Box(Shape):
         mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
         return mesh
 
-    @property
-    def local_frame_bounding_box(self) -> BoundingBox:
-        """
-        Returns the local bounding box of the box.
-        The bounding box is axis-aligned and centered at the origin.
-        """
-        half_x = self.scale.x / 2
-        half_y = self.scale.y / 2
-        half_z = self.scale.z / 2
-        return BoundingBox(
-            -half_x,
-            -half_y,
-            -half_z,
-            half_x,
-            half_y,
-            half_z,
-            self.origin,
-        )
+    def dimensions(self) -> Scale:
+        return self.scale
 
     def to_json(self) -> Dict[str, Any]:
         return {**super().to_json(), "scale": to_json(self.scale)}
@@ -694,107 +668,116 @@ class Box(Shape):
 
 
 @dataclass(eq=False)
-class BoundingBox:
-    min_x: float
+class BoundingBox(Box):
     """
-    The minimum x-coordinate of the bounding box.
-    """
-
-    min_y: float
-    """
-    The minimum y-coordinate of the bounding box.
+    An axis-aligned bounding box defined by its minimum and maximum coordinates in the x, y, and z directions via a Scale
     """
 
-    min_z: float
-    """
-    The minimum z-coordinate of the bounding box.
-    """
+    @cached_property
+    def min_point(self):
+        half_x = self.scale.x / 2
+        half_y = self.scale.y / 2
+        half_z = self.scale.z / 2
+        half_vector = Vector3(
+            half_x, half_y, half_z, reference_frame=self.origin.reference_frame
+        )
+        return self.origin.to_position() - half_vector
 
-    max_x: float
-    """
-    The maximum x-coordinate of the bounding box.
-    """
-
-    max_y: float
-    """
-    The maximum y-coordinate of the bounding box.
-    """
-
-    max_z: float
-    """
-    The maximum z-coordinate of the bounding box.
-    """
-
-    origin: HomogeneousTransformationMatrix
-    """
-    The origin of the bounding box.
-    """
+    @cached_property
+    def max_point(self):
+        half_x = self.scale.x / 2
+        half_y = self.scale.y / 2
+        half_z = self.scale.z / 2
+        half_vector = Vector3(
+            half_x, half_y, half_z, reference_frame=self.origin.reference_frame
+        )
+        return self.origin.to_position() + half_vector
 
     def __hash__(self):
         # The hash should be this since comparing those via hash is checking if those are the same and not just equal
-        return hash(
-            (self.min_x, self.min_y, self.min_z, self.max_x, self.max_y, self.max_z)
-        )
-
-    @property
-    def x_interval(self) -> SimpleInterval:
-        """
-        :return: The x interval of the bounding box.
-        """
-        return SimpleInterval(self.min_x, self.max_x, Bound.CLOSED, Bound.CLOSED)
-
-    @property
-    def y_interval(self) -> SimpleInterval:
-        """
-        :return: The y interval of the bounding box.
-        """
-        return SimpleInterval(self.min_y, self.max_y, Bound.CLOSED, Bound.CLOSED)
-
-    @property
-    def z_interval(self) -> SimpleInterval:
-        """
-        :return: The z interval of the bounding box.
-        """
-        return SimpleInterval(self.min_z, self.max_z, Bound.CLOSED, Bound.CLOSED)
-
-    @property
-    def scale(self) -> Scale:
-        """
-        :return: The scale of the bounding box.
-        """
-        return Scale(self.depth, self.width, self.height)
+        return hash((self.scale, self.origin.reference_frame))
 
     @property
     def depth(self) -> float:
-        return self.max_x - self.min_x
-
-    @property
-    def height(self) -> float:
-        return self.max_z - self.min_z
+        return self.scale.x
 
     @property
     def width(self) -> float:
-        return self.max_y - self.min_y
+        return self.scale.y
+
+    @property
+    def height(self) -> float:
+        return self.scale.z
 
     @property
     def simple_event(self) -> SimpleEvent:
         """
         :return: The bounding box as a random event.
         """
+        x_interval = SimpleInterval(
+            lower=float(self.min_point.x),
+            upper=float(self.max_point.x),
+            left=Bound.CLOSED,
+            right=Bound.CLOSED,
+        )
+        y_interval = SimpleInterval(
+            lower=float(self.min_point.y),
+            upper=float(self.max_point.y),
+            left=Bound.CLOSED,
+            right=Bound.CLOSED,
+        )
+        z_interval = SimpleInterval(
+            lower=float(self.min_point.z),
+            upper=float(self.max_point.z),
+            left=Bound.CLOSED,
+            right=Bound.CLOSED,
+        )
         return SimpleEvent(
             {
-                SpatialVariables.x.value: self.x_interval,
-                SpatialVariables.y.value: self.y_interval,
-                SpatialVariables.z.value: self.z_interval,
+                SpatialVariables.x.value: x_interval,
+                SpatialVariables.y.value: y_interval,
+                SpatialVariables.z.value: z_interval,
             }
         )
 
-    @property
-    def dimensions(self) -> List[float]:
+    @classmethod
+    def from_simple_event(
+        cls,
+        simple_event: SimpleEvent,
+        reference_frame: KinematicStructureEntity,
+        keep_surface: bool = False,
+    ) -> List[Self]:
         """
-        :return: The dimensions of the bounding box as a list [width, depth, height].
+        Create a list of bounding boxes from a simple random event.
+
+        :param simple_event: The random event.
+        :param reference_frame: The reference frame used for the origin of the bounding box.
+        :param keep_surface: Whether to keep events that are infinitely thin
+
+        :return: The list of bounding boxes.
         """
-        return [self.depth, self.width, self.height]
+        result = []
+        for x, y, z in itertools.product(
+            simple_event[SpatialVariables.x.value].simple_sets,
+            simple_event[SpatialVariables.y.value].simple_sets,
+            simple_event[SpatialVariables.z.value].simple_sets,
+        ):
+            x_scale = x.upper - x.lower
+            y_scale = y.upper - y.lower
+            z_scale = z.upper - z.lower
+
+            if not keep_surface and not all((x_scale, y_scale, z_scale)):
+                continue
+
+            result.append(
+                cls(
+                    scale=Scale(x=x_scale, y=y_scale, z=z_scale),
+                    origin=HomogeneousTransformationMatrix(
+                        reference_frame=reference_frame
+                    ),
+                )
+            )
+        return result
 
     def bloat(
         self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
@@ -807,15 +790,12 @@ class BoundingBox:
         :param z_amount: The amount to adjust minimum and maximum z-coordinates
         :return: New enlarged bounding box
         """
-        return self.__class__(
-            self.min_x - x_amount,
-            self.min_y - y_amount,
-            self.min_z - z_amount,
-            self.max_x + x_amount,
-            self.max_y + y_amount,
-            self.max_z + z_amount,
-            self.origin,
+        new_scale = Scale(
+            x=self.scale.x + x_amount,
+            y=self.scale.y + y_amount,
+            z=self.scale.z + z_amount,
         )
+        return BoundingBox(scale=new_scale, origin=self.origin)
 
     def contains(self, point: Point3) -> bool:
         """
@@ -827,23 +807,6 @@ class BoundingBox:
         x, y, z = (float(point_in_bb.x), float(point_in_bb.y), float(point_in_bb.z))
         return self.simple_event.contains((x, y, z))
 
-    @classmethod
-    def from_simple_event(cls, simple_event: SimpleEvent):
-        """
-        Create a list of bounding boxes from a simple random event.
-
-        :param simple_event: The random event.
-        :return: The list of bounding boxes.
-        """
-        result = []
-        for x, y, z in itertools.product(
-            simple_event[SpatialVariables.x.value].simple_sets,
-            simple_event[SpatialVariables.y.value].simple_sets,
-            simple_event[SpatialVariables.z.value].simple_sets,
-        ):
-            result.append(cls(x.lower, y.lower, z.lower, x.upper, y.upper, z.upper))
-        return result
-
     def intersection_with(self, other: BoundingBox) -> Optional[BoundingBox]:
         """
         Compute the intersection of two bounding boxes.
@@ -851,79 +814,34 @@ class BoundingBox:
         :param other: The other bounding box.
         :return: The intersection of the two bounding boxes or None if they do not intersect.
         """
-        result = self.simple_event.intersection_with(other.simple_event)
+        other_in_same_frame = other.transform(self.origin.reference_frame)
+        result = self.simple_event.intersection_with(other_in_same_frame.simple_event)
         if result.is_empty():
             return None
-        return self.__class__.from_simple_event(result)[0]
+        return self.__class__.from_simple_event(result, self.origin.reference_frame)
 
-    def enlarge(
-        self,
-        min_x: float = 0.0,
-        min_y: float = 0,
-        min_z: float = 0,
-        max_x: float = 0.0,
-        max_y: float = 0.0,
-        max_z: float = 0.0,
-    ):
+    def bloat_all(self, amount: float) -> BoundingBox:
         """
-        Enlarge the axis-aligned bounding box by a given amount in-place.
-        :param min_x: The amount to enlarge the minimum x-coordinate
-        :param min_y: The amount to enlarge the minimum y-coordinate
-        :param min_z: The amount to enlarge the minimum z-coordinate
-        :param max_x: The amount to enlarge the maximum x-coordinate
-        :param max_y: The amount to enlarge the maximum y-coordinate
-        :param max_z: The amount to enlarge the maximum z-coordinate
-        """
-        self.min_x -= min_x
-        self.min_y -= min_y
-        self.min_z -= min_z
-        self.max_x += max_x
-        self.max_y += max_y
-        self.max_z += max_z
-
-    def enlarge_all(self, amount: float):
-        """
-        Enlarge the axis-aligned bounding box in all dimensions by a given amount in-place.
+        Enlarge the axis-aligned bounding box in all dimensions by a given amount.
 
         :param amount: The amount to enlarge the bounding box
         """
-        self.enlarge(amount, amount, amount, amount, amount, amount)
+        return self.bloat(amount, amount, amount)
 
-    @classmethod
-    def from_mesh(
-        cls,
-        mesh: trimesh.Trimesh,
-        origin: HomogeneousTransformationMatrix,
-    ) -> Self:
-        """
-        Create a bounding box from a trimesh object.
-        :param mesh: The trimesh object.
-        :param origin: The origin of the bounding box.
-        :return: The bounding box.
-        """
-
-        bounds = mesh.bounds
-        return cls(
-            bounds[0][0],
-            bounds[0][1],
-            bounds[0][2],
-            bounds[1][0],
-            bounds[1][1],
-            bounds[1][2],
-            origin=origin,
-        )
-
-    def get_points(self) -> List[Point3]:
+    def get_corners(self) -> List[Point3]:
         """
         Get the 8 corners of the bounding box as Point3 objects.
 
         :return: A list of Point3 objects representing the corners of the bounding box.
         """
+        min_point = self.min_point
+        max_point = self.max_point
+        reference_frame = self.origin.reference_frame
         return [
-            Point3(x, y, z)
-            for x in (self.min_x, self.max_x)
-            for y in (self.min_y, self.max_y)
-            for z in (self.min_z, self.max_z)
+            Point3(x=x, y=y, z=z, reference_frame=reference_frame)
+            for x in (min_point.x, max_point.x)
+            for y in (min_point.y, max_point.y)
+            for z in (min_point.z, max_point.z)
         ]
 
     @classmethod
@@ -937,82 +855,33 @@ class BoundingBox:
         assert (
             min_point.reference_frame == max_point.reference_frame
         ), "The reference frames of the minimum and maximum points must be the same."
+
         return cls(
-            *min_point.to_np()[:3],
-            *max_point.to_np()[:3],
+            scale=Scale(
+                x=float(max_point.x - min_point.x),
+                y=float(max_point.y - min_point.y),
+                z=float(max_point.z - min_point.z),
+            ),
             origin=HomogeneousTransformationMatrix(
                 reference_frame=min_point.reference_frame
             ),
         )
 
-    def as_shape(self) -> Box:
-        scale = Scale(
-            x=self.max_x - self.min_x,
-            y=self.max_y - self.min_y,
-            z=self.max_z - self.min_z,
-        )
-        x = (self.max_x + self.min_x) / 2
-        y = (self.max_y + self.min_y) / 2
-        z = (self.max_z + self.min_z) / 2
-        origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x, y, z, 0, 0, 0, self.origin.reference_frame
-        )
-        return Box(origin=origin, scale=scale)
-
-    def transform_to_origin(
-        self, reference_T_new_origin: HomogeneousTransformationMatrix
-    ) -> Self:
+    def transform(self, new_reference: KinematicStructureEntity) -> Self:
         """
         Transform the bounding box to a different reference frame.
         """
-        origin_T_self_np = self.origin.to_np()
-        origin_frame = self.origin.reference_frame
-        world = origin_frame._world
-
-        reference_T_origin_np = world.compute_forward_kinematics_np(
-            reference_T_new_origin.reference_frame, origin_frame
+        world_T_old_reference = self.origin.reference_frame.global_pose
+        world_T_new_reference = new_reference.global_pose
+        new_reference_T_old_reference = (
+            world_T_new_reference.inverse() @ world_T_old_reference
         )
 
-        reference_T_self_np: np.ndarray = reference_T_origin_np @ origin_T_self_np
+        new_reference_T_origin = new_reference_T_old_reference @ self.origin
 
-        # Get all 8 corners of the BB in link-local space
-        list_self_T_corner = [
-            HomogeneousTransformationMatrix.from_point_rotation_matrix(
-                self_T_corner
-            ).to_np()
-            for self_T_corner in self.get_points()
-        ]  # shape (8, 3)
-
-        list_reference_T_corner = [
-            reference_T_self_np @ self_T_corner for self_T_corner in list_self_T_corner
-        ]
-
-        list_reference_P_corner = [
-            reference_T_corner[:3, 3:] for reference_T_corner in list_reference_T_corner
-        ]
-
-        # Compute world-space bounding box from transformed corners
-        min_corner = np.min(list_reference_P_corner, axis=0)
-        max_corner = np.max(list_reference_P_corner, axis=0)
-
-        world_bb = BoundingBox.from_min_max(
-            Point3.from_iterable(
-                min_corner, reference_frame=reference_T_new_origin.reference_frame
-            ),
-            Point3.from_iterable(
-                max_corner, reference_frame=reference_T_new_origin.reference_frame
-            ),
-        )
-
-        return world_bb
+        return self.__class__(scale=self.scale, origin=new_reference_T_origin)
 
     def __eq__(self, other: BoundingBox) -> bool:
-        return (
-            np.isclose(self.min_x, other.min_x)
-            and np.isclose(self.min_y, other.min_y)
-            and np.isclose(self.min_z, other.min_z)
-            and np.isclose(self.max_x, other.max_x)
-            and np.isclose(self.max_y, other.max_y)
-            and np.isclose(self.max_z, other.max_z)
-            and np.allclose(self.origin.to_np(), other.origin.to_np())
+        return self.scale == other.scale and np.allclose(
+            self.origin.to_np(), other.origin.to_np()
         )

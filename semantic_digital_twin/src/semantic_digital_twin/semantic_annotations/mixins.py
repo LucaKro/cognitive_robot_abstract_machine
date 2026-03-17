@@ -840,8 +840,8 @@ class HasSupportingSurface(HasStorageSpace, ABC):
             bounding_box = obj.root.collision.as_bounding_box_collection_in_frame(
                 self.supporting_surface
             ).bounding_box()
-            bounding_box.enlarge_all(object_bloat)
-            object_event = bounding_box.simple_event.as_composite_set()
+            bloated_bounding_box = bounding_box.bloat_all(object_bloat)
+            object_event = bloated_bounding_box.simple_event.as_composite_set()
             object_event_2d = object_event.marginal(SpatialVariables.xy)
             event_2d = event_2d - object_event_2d
         return event_2d
