@@ -66,6 +66,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianVelocityLimit,
     CartesianPositionVelocityLimit,
     CartesianRotationVelocityLimit,
+    CartesianPositionTrajectory,
 )
 from giskardpy.motion_statechart.tasks.feature_functions import (
     AngleGoal,
@@ -89,7 +90,6 @@ from giskardpy.motion_statechart.test_nodes.test_nodes import (
 from giskardpy.qp.constraint import EqualityConstraint
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from giskardpy.qp.solvers.qp_solver_piqp import QPSolverPIQP
 from giskardpy.utils.math import angle_between_vector
 from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
@@ -141,7 +141,39 @@ from semantic_digital_twin.world_description.geometry import (
     Color,
 )
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    KinematicStructureEntity,
+)
+from semantic_digital_twin.world_description.world_state import WorldStateTrajectory
+from semantic_digital_twin.world_description.world_state_trajectory_plotter import (
+    WorldStateTrajectoryPlotter,
+)
+
+
+@pytest.fixture()
+def better_pr2_pose():
+    return {
+        "r_shoulder_pan_joint": -1.7125,
+        "r_shoulder_lift_joint": -0.25672,
+        "r_upper_arm_roll_joint": -1.46335,
+        "r_elbow_flex_joint": -2.12,
+        "r_forearm_roll_joint": 1.76632,
+        "r_wrist_flex_joint": -0.10001,
+        "r_wrist_roll_joint": 0.05106,
+        "l_shoulder_pan_joint": 1.9652,
+        "l_shoulder_lift_joint": -0.26499,
+        "l_upper_arm_roll_joint": 1.3837,
+        "l_elbow_flex_joint": -2.12,
+        "l_forearm_roll_joint": 16.99,
+        "l_wrist_flex_joint": -0.10001,
+        "l_wrist_roll_joint": 0,
+        "torso_lift_joint": 0.2,
+        "l_gripper_l_finger_joint": 0.55,
+        "r_gripper_l_finger_joint": 0.55,
+        "head_pan_joint": 0,
+        "head_tilt_joint": 0,
+    }
 
 
 @pytest.fixture(scope="function")
@@ -1189,11 +1221,6 @@ class TestJointTasks:
         kin_sim = Executor(
             MotionStatechartContext(
                 world=pr2_world_state_reset,
-                qp_controller_config=QPControllerConfig(
-                    target_frequency=20,
-                    prediction_horizon=7,
-                    qp_solver_class=QPSolverPIQP,
-                ),
             )
         )
         kin_sim.compile(motion_statechart=msc)
@@ -1254,6 +1281,217 @@ def test_long_goal(pr2_world_state_reset: World):
     print(diff / kin_sim.control_cycles)
 
 
+class TestCartesianPositionTrajectory:
+
+    def _points_to_np(self, positions: list[Point3] | np.ndarray) -> np.ndarray:
+        """
+        Convert a sequence of `Point3` or an `ndarray` of shape (N, 3) into an `ndarray` of shape (N, 3).
+        """
+        if isinstance(positions, np.ndarray):
+            if positions.ndim != 2 or positions.shape[1] != 3:
+                raise ValueError("positions ndarray must have shape (N, 3)")
+            return positions.astype(float)
+        pts = [
+            p.to_np()[:-1] if isinstance(p, Point3) else np.asarray(p, dtype=float)
+            for p in positions
+        ]
+        arr = np.vstack(pts).astype(float)
+        if arr.ndim != 2 or arr.shape[1] != 3:
+            raise ValueError("positions must convert to shape (N, 3)")
+        return arr
+
+    def compare_trajectories(
+        self,
+        positions: list[Point3] | np.ndarray,
+        world_state_trajectory: WorldStateTrajectory,
+        root_link: KinematicStructureEntity,
+        tip_link: KinematicStructureEntity,
+        tolerance: float = 0.01,
+    ):
+        """
+        Compare an executed Cartesian path against a reference list of positions.
+
+        The executed path is reconstructed from the `world_state_trajectory` by computing
+        forward kinematics for `tip_link` in the `root_link` frame at each recorded state.
+        For each executed point, the minimum Euclidean distance to the reference path is
+        computed. Aggregate statistics and pass/fail against `tolerance` are returned.
+
+        :param positions: Reference path as `Point3` iterable or an array of shape (N, 3). All points are with respect to root_link
+        :param world_state_trajectory: Recorded joint-space trajectory with access to the world.
+        :param root_link: Root kinematic frame for forward kinematics.
+        :param tip_link: Tip kinematic frame for forward kinematics.
+        :param tolerance: Maximum allowed distance to the reference path for all samples.
+        :return: Dictionary containing distances per sample and summary metrics.
+        """
+        ref_np = self._points_to_np(positions)
+
+        world = world_state_trajectory.world
+        executed_points = []
+
+        # Reconstruct executed Cartesian path by FK at each recorded state
+        for state_view in world_state_trajectory.values():
+            # Temporarily set the world's state to the recorded one
+            world.state.data[:] = state_view.data
+            world.notify_state_change()
+            p = (
+                world.compute_forward_kinematics(root_link, tip_link)
+                .to_position()
+                .evaluate()[:-1]
+                .astype(float)
+            )
+            executed_points.append(p.copy())
+
+        executed_np = np.vstack(executed_points)
+
+        # Distance of each executed point to the nearest reference point
+        def _min_dist_to_ref(p: np.ndarray) -> float:
+            return float(np.min(np.linalg.norm(executed_np - p, axis=1)))
+
+        distances = np.apply_along_axis(_min_dist_to_ref, 1, ref_np)
+
+        assert np.max(distances) <= tolerance
+
+    def test_cartesian_position_trajectory_spiral(self, cylinder_bot_world: World):
+        points = []
+        a = 0.05  # spiral growth factor (tunes how fast radius grows)
+
+        for i in range(10000):
+            t = (
+                i * np.pi / 5000.0
+            )  # angle parameter; adjust divisor for tighter/looser turns
+            r = a * t  # radius grows linearly with t
+            points.append(
+                Point3(
+                    r * np.cos(t),
+                    r * np.sin(t),
+                    0,
+                    reference_frame=cylinder_bot_world.root,
+                )
+            )
+        msc = MotionStatechart()
+        cart_traj = CartesianPositionTrajectory(
+            root_link=cylinder_bot_world.root,
+            tip_link=cylinder_bot_world.get_kinematic_structure_entity_by_name("bot"),
+            goal_points=points,
+        )
+        msc.add_node(cart_traj)
+        msc.add_node(EndMotion.when_true(cart_traj))
+
+        kin_sim = Executor(
+            context=MotionStatechartContext(
+                world=cylinder_bot_world,
+            ),
+            trajectory_plotter=WorldStateTrajectoryPlotter(),
+        )
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
+        self.compare_trajectories(
+            points,
+            kin_sim.trajectory_plotter.world_state_trajectory,
+            cart_traj.root_link,
+            cart_traj.tip_link,
+        )
+
+    def test_cartesian_position_trajectory_circle(self, cylinder_bot_world: World):
+        points = []
+        a = 0.1
+
+        for i in range(5000):
+            t = (
+                i * np.pi / 500.0
+            )  # angle parameter; adjust divisor for tighter/looser turns
+            points.append(
+                Point3(
+                    a * np.cos(t),
+                    a * np.sin(t),
+                    0,
+                    reference_frame=cylinder_bot_world.root,
+                )
+            )
+        msc = MotionStatechart()
+        cart_traj = CartesianPositionTrajectory(
+            root_link=cylinder_bot_world.root,
+            tip_link=cylinder_bot_world.get_kinematic_structure_entity_by_name("bot"),
+            goal_points=points,
+            maximum_skip_ahead=20,
+        )
+        msc.add_node(cart_traj)
+        msc.add_node(EndMotion.when_true(cart_traj))
+
+        kin_sim = Executor(
+            context=MotionStatechartContext(
+                world=cylinder_bot_world,
+            ),
+            trajectory_plotter=WorldStateTrajectoryPlotter(),
+        )
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
+        self.compare_trajectories(
+            points,
+            kin_sim.trajectory_plotter.world_state_trajectory,
+            cart_traj.root_link,
+            cart_traj.tip_link,
+        )
+
+    def test_cartesian_position_trajectory_spiral_pr2(
+        self, pr2_world_state_reset: World, better_pr2_pose
+    ):
+        root = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
+            "base_footprint"
+        )
+        tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
+            "r_gripper_tool_frame"
+        )
+
+        SetSeedConfiguration(
+            seed_configuration=JointState.from_str_dict(
+                better_pr2_pose, world=pr2_world_state_reset
+            )
+        ).on_start(MotionStatechartContext(world=pr2_world_state_reset))
+
+        points = []
+        root_points = []
+        a = 0.05  # spiral growth factor (tunes how fast radius grows)
+        for i in range(10000):
+            t = (
+                i * np.pi / 5000.0
+            )  # angle parameter; adjust divisor for tighter/looser turns
+            r = a * t  # radius grows linearly with t
+            point = Point3(
+                r * np.cos(t),
+                r * np.sin(t),
+                0,
+                reference_frame=tip,
+            )
+            points.append(point)
+            root_points.append(pr2_world_state_reset.transform(point, root))
+        msc = MotionStatechart()
+
+        msc.add_node(
+            cart_traj := CartesianPositionTrajectory(
+                root_link=root,
+                tip_link=tip,
+                goal_points=points,
+            )
+        )
+        msc.add_node(EndMotion.when_true(cart_traj))
+
+        kin_sim = Executor(
+            context=MotionStatechartContext(
+                world=pr2_world_state_reset,
+            ),
+            trajectory_plotter=WorldStateTrajectoryPlotter(),
+        )
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
+        self.compare_trajectories(
+            root_points,
+            kin_sim.trajectory_plotter.world_state_trajectory,
+            cart_traj.root_link,
+            cart_traj.tip_link,
+        )
+
+
 class TestCartesianTasks:
     """Test suite for all Cartesian motion tasks."""
 
@@ -1277,6 +1515,43 @@ class TestCartesianTasks:
         kin_sim = Executor(MotionStatechartContext(world=cylinder_bot_world))
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
+
+    def test_cart_goal_1eef(self, pr2_world_state_reset: World):
+        tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
+            "r_gripper_tool_frame"
+        )
+        root = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
+            "base_footprint"
+        )
+        tip_goal = HomogeneousTransformationMatrix.from_xyz_quaternion(
+            pos_x=-0.2, reference_frame=tip
+        )
+        expected = pr2_world_state_reset.transform(tip_goal, root)
+
+        msc = MotionStatechart()
+        cart_goal = CartesianPose(
+            root_link=root,
+            tip_link=tip,
+            goal_pose=tip_goal,
+        )
+        msc.add_node(cart_goal)
+        end = EndMotion()
+        msc.add_node(end)
+        end.start_condition = cart_goal.observation_variable
+
+        kin_sim = Executor(
+            MotionStatechartContext(
+                world=pr2_world_state_reset,
+            )
+        )
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
+
+        assert np.allclose(
+            kin_sim.context.world.compute_forward_kinematics(root, tip),
+            expected,
+            atol=cart_goal.threshold,
+        )
 
     def test_front_facing_orientation(self, hsr_world_setup: World):
         """Test combined position and orientation control in parallel."""
@@ -1320,33 +1595,6 @@ class TestCartesianTasks:
         msc.add_node(EndMotion.when_true(goal))
 
         kin_sim = Executor(MotionStatechartContext(world=hsr_world_setup))
-        kin_sim.compile(motion_statechart=msc)
-        kin_sim.tick_until_end()
-
-    def test_cart_goal_1eef(self, pr2_world_state_reset: World):
-        """Single CartesianPose goal test."""
-        tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
-            "r_gripper_tool_frame"
-        )
-        root = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
-            "base_footprint"
-        )
-        tip_goal = HomogeneousTransformationMatrix.from_xyz_quaternion(
-            pos_x=-0.2, reference_frame=tip
-        )
-
-        msc = MotionStatechart()
-        cart_goal = CartesianPose(
-            root_link=root,
-            tip_link=tip,
-            goal_pose=tip_goal,
-        )
-        msc.add_node(cart_goal)
-        end = EndMotion()
-        msc.add_node(end)
-        end.start_condition = cart_goal.observation_variable
-
-        kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
 
@@ -2601,6 +2849,7 @@ class TestVelocityTasks:
                 root_link=root,
                 tip_link=tip,
                 goal_point=Point3(1, 0, 0, reference_frame=tip),
+                weight=DefaultWeights.WEIGHT_ABOVE_CA,
             )
         else:
             goal = CartesianOrientation(
@@ -2609,6 +2858,7 @@ class TestVelocityTasks:
                 goal_orientation=RotationMatrix.from_rpy(
                     yaw=np.pi / 2, reference_frame=tip
                 ),
+                weight=DefaultWeights.WEIGHT_ABOVE_CA,
             )
 
         low_weight_limit = limit_cls(
@@ -3431,7 +3681,6 @@ class TestCollisionAvoidance:
 
         kin_sim = Executor(
             MotionStatechartContext(world=cylinder_bot_world),
-            pacer=SimulationPacer(real_time_factor=0.25),
         )
         kin_sim.compile(motion_statechart=msc)
 
