@@ -218,7 +218,9 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
             reference_frame=self.origin.reference_frame,
         )
 
-    def to_axis_aligned_bounding_box_collection_in_frame(self, new_reference_frame: KinematicStructureEntity):
+    def to_axis_aligned_bounding_box_collection_in_frame(
+        self, new_reference_frame: KinematicStructureEntity
+    ):
         box = self.axis_aligned_bounding_box.to_box()
         transformed_box = box.transform(new_reference_frame)
 
@@ -894,4 +896,3 @@ class AxisAlignedBoundingBox:
 
     def to_box(self) -> Box:
         return Box.from_min_max(self.min_point, self.max_point)
-
