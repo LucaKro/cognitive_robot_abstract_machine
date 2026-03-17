@@ -214,13 +214,22 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
         x_half_length = self.dimensions.x / 2
         y_half_length = self.dimensions.y / 2
         z_half_length = self.dimensions.z / 2
-        min_point = Point3(-x_half_length, -y_half_length, -z_half_length)
-        max_point = Point3(x_half_length, y_half_length, z_half_length)
+        min_point = Point3(
+            -x_half_length,
+            -y_half_length,
+            -z_half_length,
+            reference_frame=self.origin.reference_frame,
+        )
+        max_point = Point3(
+            x_half_length,
+            y_half_length,
+            z_half_length,
+            reference_frame=self.origin.reference_frame,
+        )
 
-        return AxisAlignedBoundingBox(
+        return AxisAlignedBoundingBox.from_min_max(
             min_point=min_point,
             max_point=max_point,
-            reference_frame=self.origin.reference_frame,
         )
 
     def to_axis_aligned_bounding_box_collection_in_frame(

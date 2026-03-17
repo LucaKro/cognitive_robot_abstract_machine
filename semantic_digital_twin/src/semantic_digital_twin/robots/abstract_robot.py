@@ -442,7 +442,7 @@ class Base(KinematicChain):
     @property
     def bounding_box(self) -> BoundingBox:
         bounding_boxes = [
-            kse.collision.as_bounding_box_collection_in_frame(
+            kse.collision.as_axis_aligned_bounding_box_collection_in_frame(
                 self._world.root
             ).bounding_box()
             for kse in self._world.compute_chain_of_kinematic_structure_entities(

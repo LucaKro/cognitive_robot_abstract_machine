@@ -651,7 +651,7 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
         """
 
         collections = iter(
-            entity.collision.as_bounding_box_collection_in_frame(origin)
+            entity.collision.as_axis_aligned_bounding_box_collection_in_frame(origin)
             for entity in self.kinematic_structure_entities
             if isinstance(entity, Body) and entity.has_collision()
         )

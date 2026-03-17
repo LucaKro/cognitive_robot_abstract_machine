@@ -127,7 +127,7 @@ class ShapeCollection(SubclassJSONSerializer):
             transformed_meshes.append(mesh)
         return concatenate(transformed_meshes)
 
-    def as_bounding_box_collection_in_frame(
+    def as_axis_aligned_bounding_box_collection_in_frame(
         self, reference_frame: KinematicStructureEntity
     ) -> AxisAlignedBoundingBoxCollection:
         """
@@ -187,7 +187,7 @@ class ShapeCollection(SubclassJSONSerializer):
     @property
     def scale(self):
         return (
-            self.as_bounding_box_collection_in_frame(self.reference_frame)
+            self.as_axis_aligned_bounding_box_collection_in_frame(self.reference_frame)
             .bounding_box()
             .scale
         )
@@ -319,26 +319,17 @@ class AxisAlignedBoundingBoxCollection(ShapeCollection):
         :param shapes: The list of shapes.
         :return: The bounding box collection.
         """
-        if len(shapes) == 0:
-            return cls(shapes=[])
-        for shape in shapes:
-            assert (
-                shape.origin.reference_frame == shapes.reference_frame
-            ), "All shapes must have the same reference frame."
-
-        local_bbs = [shape.axis_aligned_bounding_box for shape in shapes]
-        return cls(
-            [bb.transform(shapes.reference_frame) for bb in local_bbs],
-            shapes.reference_frame,
+        return shapes.as_axis_aligned_bounding_box_collection_in_frame(
+            reference_frame=shapes.reference_frame
         )
 
     def as_shapes(self) -> ShapeCollection:
         return ShapeCollection(
-            self.bounding_boxes,
+            [bb.to_box() for bb in self.bounding_boxes],
             self.reference_frame,
         )
 
-    def bounding_box(self) -> BoundingBox:
+    def bounding_box(self) -> AxisAlignedBoundingBox:
         """
         Get the 8 corners of a bounding box that contains all bounding boxes in the collection.
 
@@ -353,12 +344,12 @@ class AxisAlignedBoundingBoxCollection(ShapeCollection):
         all_z = [bb.min_z for bb in self.bounding_boxes] + [
             bb.max_z for bb in self.bounding_boxes
         ]
-        return BoundingBox(
+        return AxisAlignedBoundingBox(
             min(all_x),
             min(all_y),
             min(all_z),
             max(all_x),
             max(all_y),
             max(all_z),
-            HomogeneousTransformationMatrix(reference_frame=self.reference_frame),
+            reference_frame=self.reference_frame,
         )

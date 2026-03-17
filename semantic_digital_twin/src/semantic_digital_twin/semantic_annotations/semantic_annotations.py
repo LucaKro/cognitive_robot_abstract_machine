@@ -177,7 +177,7 @@ class Aperture(HasRootRegion):
     ) -> Self:
         world.update_forward_kinematics()
         body_scale = (
-            body.collision.as_bounding_box_collection_in_frame(body)
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(body)
             .bounding_box()
             .scale
         )

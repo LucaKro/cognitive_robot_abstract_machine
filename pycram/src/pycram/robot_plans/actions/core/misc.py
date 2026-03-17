@@ -52,7 +52,7 @@ class DetectAction(ActionDescription):
                 "Either a Semantic Annotation or a Region must be provided."
             )
         region_bb = (
-            self.region.area.as_bounding_box_collection_in_frame(
+            self.region.area.as_axis_aligned_bounding_box_collection_in_frame(
                 self.robot_view.root
             ).bounding_box
             if self.region

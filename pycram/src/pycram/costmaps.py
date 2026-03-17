@@ -960,8 +960,10 @@ class SemanticCostmap(Costmap):
         Generates the semantic costmap according to the provided parameters. To do this the axis aligned bounding box (AABB)
         for the link name will be used. Height and width of the final Costmap will be the x and y sizes of the AABB.
         """
-        bb_collection = self.body.collision.as_bounding_box_collection_in_frame(
-            self.body
+        bb_collection = (
+            self.body.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                self.body
+            )
         )
         max_x = (
             max([bb.max_x for bb in bb_collection.bounding_boxes]) // self.resolution

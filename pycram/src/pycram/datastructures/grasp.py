@@ -71,7 +71,7 @@ class GraspDescription:
         grasp_orientation = self.grasp_orientation()
 
         if body:
-            bb_in_frame = body.collision.as_bounding_box_collection_in_frame(
+            bb_in_frame = body.collision.as_axis_aligned_bounding_box_collection_in_frame(
                 body
             ).bounding_box()
 
@@ -213,7 +213,7 @@ class GraspDescription:
         rim_direction_index = self.approach_direction.value[0].value.index(1)
 
         rim_offset = (
-            body.collision.as_bounding_box_collection_in_frame(body)
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(body)
             .bounding_box()
             .dimensions[rim_direction_index]
             / 2

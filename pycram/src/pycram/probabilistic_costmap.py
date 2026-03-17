@@ -101,7 +101,7 @@ class ProbabilisticCostmap:
         if costmap_type == OccupancyCostmap:
             robot_bounding_box = AxisAlignedBoundingBoxCollection(
                 [
-                    body.collision.as_bounding_box_collection_in_frame(
+                    body.collision.as_axis_aligned_bounding_box_collection_in_frame(
                         self.world.root
                     ).bounding_box()
                     for body in robot.bodies

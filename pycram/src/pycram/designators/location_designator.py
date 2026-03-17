@@ -656,7 +656,7 @@ class SemanticCostmapLocation(LocationDesignatorDescription):
             height_offset = params_box.height_offset
             if params_box.for_object:
                 bb_points = (
-                    params_box.for_object.collision.as_bounding_box_collection_in_frame(
+                    params_box.for_object.collision.as_axis_aligned_bounding_box_collection_in_frame(
                         params_box.for_object
                     )
                     .bounding_box()
@@ -799,7 +799,7 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
         # We cut out the walls and doors from the surface event, to ensure the target poses are not too close
         # to walls or doors, since they are harder to reach.
         global_root = body._world.root
-        surface_event = body.collision.as_bounding_box_collection_in_frame(
+        surface_event = body.collision.as_axis_aligned_bounding_box_collection_in_frame(
             global_root
         ).event
         obstacle_boxes = list(
@@ -807,7 +807,7 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
                 None,
                 [
                     (
-                        b.collision.as_bounding_box_collection_in_frame(
+                        b.collision.as_axis_aligned_bounding_box_collection_in_frame(
                             global_root
                         ).bounding_box()
                         if any(
@@ -868,7 +868,9 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
         # cutting through the search space)
         z_offset = (
             (
-                body.collision.as_bounding_box_collection_in_frame(body._world.root)
+                body.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                    body._world.root
+                )
                 .bounding_box()
                 .height
                 / 2
@@ -923,20 +925,26 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
         # Create a search space around the link, which is the axis aligned bounding box of the link, bloated by
         # 1 meter in all directions
         # link_searchspace = link.get_axis_aligned_bounding_box().bloat(1, 1, 1).as_collection()
-        link_searchspace = body.collision.as_bounding_box_collection_in_frame(
-            body._world.root
-        ).bloat(1.5, 1.5, 1.5)
+        link_searchspace = (
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                body._world.root
+            ).bloat(1.5, 1.5, 1.5)
+        )
 
         # Calculate the minimal maximum bloat we can apply to the walls of the link
         # since our target node is above the link, bloating the walls too much causes the target node to be
         # unreachable
         link_width = (
-            body.collision.as_bounding_box_collection_in_frame(body._world.root)
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                body._world.root
+            )
             .bounding_box()
             .width
         )
         link_depth = (
-            body.collision.as_bounding_box_collection_in_frame(body._world.root)
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                body._world.root
+            )
             .bounding_box()
             .depth
         )
@@ -1111,7 +1119,7 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
                 # Adjust the target pose if an object is given, so that the bottom of the object is on the link
                 if params_box.for_object:
                     bounding_box: BoundingBox = (
-                        params_box.for_object.collision.as_bounding_box_collection_in_frame(
+                        params_box.for_object.collision.as_axis_aligned_bounding_box_collection_in_frame(
                             self.world.root
                         ).bounding_box()
                     )

@@ -445,12 +445,16 @@ class HasApertures(HasRootBody, ABC):
         """
         world = self._world
         world.update_forward_kinematics()
-        hole_event = aperture.root.area.as_bounding_box_collection_in_frame(
-            self.root
-        ).event
-        wall_event = self.root.collision.as_bounding_box_collection_in_frame(
-            self.root
-        ).event
+        hole_event = (
+            aperture.root.area.as_axis_aligned_bounding_box_collection_in_frame(
+                self.root
+            ).event
+        )
+        wall_event = (
+            self.root.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                self.root
+            ).event
+        )
         new_wall_event = wall_event - hole_event
         new_bounding_box_collection = AxisAlignedBoundingBoxCollection.from_event(
             self.root, new_wall_event
@@ -839,9 +843,11 @@ class HasSupportingSurface(HasStorageSpace, ABC):
 
         event_2d = event.marginal(SpatialVariables.xy)
         for obj in self.objects:
-            bounding_box = obj.root.collision.as_bounding_box_collection_in_frame(
-                self.supporting_surface
-            ).bounding_box()
+            bounding_box = (
+                obj.root.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                    self.supporting_surface
+                ).bounding_box()
+            )
             bloated_bounding_box = bounding_box.bloat_all(object_bloat)
             object_event = bloated_bounding_box.simple_event.as_composite_set()
             object_event_2d = object_event.marginal(SpatialVariables.xy)

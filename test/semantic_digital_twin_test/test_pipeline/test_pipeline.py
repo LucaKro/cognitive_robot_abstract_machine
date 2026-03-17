@@ -86,7 +86,7 @@ class PipelineTestCase(unittest.TestCase):
         world = FBXParser(self.fbx_path).parse()
 
         original_bounding_boxes = [
-            body.collision.as_bounding_box_collection_in_frame(
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(
                 HomogeneousTransformationMatrix(reference_frame=world.root)
             ).bounding_boxes[0]
             for body in world.bodies_with_collision
@@ -109,7 +109,7 @@ class PipelineTestCase(unittest.TestCase):
             assert not np.allclose(original, centered)
 
         new_bounding_boxes = [
-            body.collision.as_bounding_box_collection_in_frame(
+            body.collision.as_axis_aligned_bounding_box_collection_in_frame(
                 HomogeneousTransformationMatrix(reference_frame=centered_world.root)
             ).bounding_boxes[0]
             for body in centered_world.bodies_with_collision
