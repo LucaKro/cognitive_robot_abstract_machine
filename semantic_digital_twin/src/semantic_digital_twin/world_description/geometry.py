@@ -662,6 +662,7 @@ class Cylinder(Shape):
             color=from_json(data["color"], **kwargs),
         )
 
+
 @dataclass
 class AbstractBox(ABC):
 
@@ -724,6 +725,7 @@ class AbstractBox(ABC):
             for y in (min_point.y, max_point.y)
             for z in (min_point.z, max_point.z)
         ]
+
 
 @dataclass(eq=False)
 class Box(Shape, AbstractBox):
