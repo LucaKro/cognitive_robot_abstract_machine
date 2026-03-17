@@ -8,7 +8,7 @@ from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.world_description.geometry import BoundingBox
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
     ShapeCollection,
 )
 from semantic_digital_twin.world_description.graph_of_convex_sets import (
@@ -50,7 +50,7 @@ class GCSTestCase(unittest.TestCase):
                 SpatialVariables.z.value: z_lim,
             }
         )
-        obstacles = BoundingBoxCollection.from_event(
+        obstacles = AxisAlignedBoundingBoxCollection.from_event(
             cls.world.root,
             ~obstacle.simple_event.as_composite_set()
             & limiting_event.as_composite_set(),
@@ -96,7 +96,7 @@ class GCSFromWorldTestCase(unittest.TestCase):
         cls.world = apartment_parser.parse()
 
     def test_from_world(self):
-        search_space = BoundingBoxCollection(
+        search_space = AxisAlignedBoundingBoxCollection(
             [
                 BoundingBox(
                     min_x=-5,
@@ -133,7 +133,7 @@ class GCSFromWorldTestCase(unittest.TestCase):
             gcs.path_from_to(start, target)
 
     def test_navigation_map_from_world(self):
-        search_space = BoundingBoxCollection(
+        search_space = AxisAlignedBoundingBoxCollection(
             [
                 BoundingBox(
                     min_x=-5,

@@ -4,7 +4,7 @@ import logging
 
 import matplotlib.pyplot as plt
 from semantic_digital_twin.world_description.geometry import BoundingBox
-from semantic_digital_twin.world_description.shape_collection import BoundingBoxCollection
+from semantic_digital_twin.world_description.shape_collection import AxisAlignedBoundingBoxCollection
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation, SemanticEnvironmentAnnotation
@@ -52,7 +52,7 @@ class GraphOfConvexSets:
     Every edge in the graph represents the connectivity between two convex sets.
     """
 
-    search_space: BoundingBoxCollection
+    search_space: AxisAlignedBoundingBoxCollection
     """
     The bounding box of the search space. Defaults to the entire three dimensional space.
     """
@@ -73,7 +73,7 @@ class GraphOfConvexSets:
     """
 
     def __init__(
-        self, world: World, search_space: Optional[BoundingBoxCollection] = None
+        self, world: World, search_space: Optional[AxisAlignedBoundingBoxCollection] = None
     ):
         self.search_space = self._make_search_space(world, search_space)
         self.graph = rx.PyGraph(multigraph=False)
@@ -249,13 +249,13 @@ class GraphOfConvexSets:
 
     @classmethod
     def _make_search_space(
-        cls, world: World, search_space: Optional[BoundingBoxCollection] = None
+        cls, world: World, search_space: Optional[AxisAlignedBoundingBoxCollection] = None
     ):
         """
         Create the default search space if it is not given.
         """
         if search_space is None:
-            search_space = BoundingBoxCollection(
+            search_space = AxisAlignedBoundingBoxCollection(
                 shapes=[
                     BoundingBox(
                         min_x=-np.inf,
@@ -276,7 +276,7 @@ class GraphOfConvexSets:
     @classmethod
     def obstacles_from_semantic_annotations(
         cls,
-        search_space: BoundingBoxCollection,
+        search_space: AxisAlignedBoundingBoxCollection,
         semantic_obstacle_annotation: SemanticAnnotation,
         semantic_wall_annotation: Optional[SemanticAnnotation] = None,
         bloat_obstacles: float = 0.0,
@@ -307,7 +307,7 @@ class GraphOfConvexSets:
 
         world_root = search_space.reference_frame
 
-        bloated_obstacles: BoundingBoxCollection = BoundingBoxCollection(
+        bloated_obstacles: AxisAlignedBoundingBoxCollection = AxisAlignedBoundingBoxCollection(
             [
                 bloat_obstacle(bb)
                 for bb in semantic_obstacle_annotation.as_bounding_box_collection_at_origin(
@@ -318,7 +318,7 @@ class GraphOfConvexSets:
         )
 
         if semantic_wall_annotation is not None:
-            bloated_walls: BoundingBoxCollection = BoundingBoxCollection(
+            bloated_walls: AxisAlignedBoundingBoxCollection = AxisAlignedBoundingBoxCollection(
                 [
                     bloat_wall(bb)
                     for bb in semantic_wall_annotation.as_bounding_box_collection_at_origin(
@@ -336,7 +336,7 @@ class GraphOfConvexSets:
     @classmethod
     def obstacles_from_bounding_boxes(
         cls,
-        bounding_boxes: BoundingBoxCollection,
+        bounding_boxes: AxisAlignedBoundingBoxCollection,
         search_space_event: Event,
         keep_z: bool = True,
     ) -> Optional[Event]:
@@ -375,7 +375,7 @@ class GraphOfConvexSets:
     @classmethod
     def free_space_from_semantic_annotation(
         cls,
-        search_space: BoundingBoxCollection,
+        search_space: AxisAlignedBoundingBoxCollection,
         semantic_obstacle_annotation: SemanticAnnotation,
         semantic_wall_annotation: Optional[SemanticAnnotation] = None,
         tolerance=0.001,
@@ -425,7 +425,7 @@ class GraphOfConvexSets:
         )
         [
             result.add_node(bb)
-            for bb in BoundingBoxCollection.from_event(
+            for bb in AxisAlignedBoundingBoxCollection.from_event(
                 reference_frame=search_space.reference_frame,
                 event=free_space,
             )
@@ -443,7 +443,7 @@ class GraphOfConvexSets:
     def free_space_from_world(
         cls,
         world: World,
-        search_space: BoundingBoxCollection,
+        search_space: AxisAlignedBoundingBoxCollection,
         tolerance=0.001,
         bloat_obstacles: float = 0.0,
     ) -> Self:
@@ -473,7 +473,7 @@ class GraphOfConvexSets:
     def obstacles_from_world(
         cls,
         world: World,
-        search_space: BoundingBoxCollection,
+        search_space: AxisAlignedBoundingBoxCollection,
         bloat_obstacles: float = 0.0,
     ) -> Optional[Event]:
         """
@@ -497,7 +497,7 @@ class GraphOfConvexSets:
     @classmethod
     def navigation_map_from_semantic_annotation(
         cls,
-        search_space: BoundingBoxCollection,
+        search_space: AxisAlignedBoundingBoxCollection,
         semantic_obstacle_annotation: SemanticAnnotation,
         semantic_wall_annotation: Optional[SemanticAnnotation] = None,
         tolerance=0.001,
@@ -555,7 +555,7 @@ class GraphOfConvexSets:
             world=search_space.reference_frame._world,
             search_space=search_space,
         )
-        free_space_boxes = BoundingBoxCollection.from_event(
+        free_space_boxes = AxisAlignedBoundingBoxCollection.from_event(
             search_space.reference_frame, free_space
         )
         [result.add_node(bb) for bb in free_space_boxes]
@@ -568,7 +568,7 @@ class GraphOfConvexSets:
         cls,
         world: World,
         tolerance=0.001,
-        search_space: Optional[BoundingBoxCollection] = None,
+        search_space: Optional[AxisAlignedBoundingBoxCollection] = None,
         bloat_obstacles: float = 0.0,
     ) -> Self:
         """

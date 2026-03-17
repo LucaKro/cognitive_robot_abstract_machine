@@ -30,7 +30,7 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.utils import IDGenerator
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 
 if TYPE_CHECKING:
@@ -225,7 +225,7 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
 
     def to_axis_aligned_bounding_box_collection_in_frame(
         self, new_reference_frame: KinematicStructureEntity
-    ) -> BoundingBoxCollection:
+    ) -> AxisAlignedBoundingBoxCollection:
         box = self.axis_aligned_bounding_box.to_box()
         transformed_box = box.transform(new_reference_frame)
         corners = [corner.to_list()[:3] for corner in transformed_box.get_corners()]
@@ -236,7 +236,7 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
 
         poly = Polytope(A, b)
         room_event = poly.inner_box_approximation(minimum_volume=0.025)
-        return BoundingBoxCollection.from_event(
+        return AxisAlignedBoundingBoxCollection.from_event(
             reference_frame=new_reference_frame, event=room_event
         )
 
@@ -726,6 +726,47 @@ class AbstractBox(ABC):
             for z in (min_point.z, max_point.z)
         ]
 
+    @abstractmethod
+    def bloat(
+        self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
+    ) -> Self:
+        """
+        Enlarges the bounding box by a given amount in all dimensions.
+        """
+
+    def bloat_all(self, amount: float) -> Self:
+        """
+        Enlarge the axis-aligned bounding box in all dimensions by a given amount.
+
+        :param amount: The amount to enlarge the bounding box
+        """
+        return self.bloat(amount, amount, amount)
+
+    @classmethod
+    @abstractmethod
+    def from_min_max(cls, min_point: Point3, max_point: Point3) -> Self:
+        """
+        Create the box from a minimum and maximum point.
+        """
+
+    @classmethod
+    @abstractmethod
+    def from_simple_event(
+        cls,
+        simple_event: SimpleEvent,
+        reference_frame: KinematicStructureEntity,
+        keep_surface: bool = False,
+    ) -> List[Self]:
+        """
+        Create a list of boxes from a simple random event.
+
+        :param simple_event: The random event.
+        :param reference_frame: The reference frame used for the origin of the box.
+        :param keep_surface: Whether to keep events that are infinitely thin
+
+        :return: The list of boxes.
+        """
+
 
 @dataclass(eq=False)
 class Box(Shape, AbstractBox):
@@ -798,15 +839,6 @@ class Box(Shape, AbstractBox):
         reference_frame: KinematicStructureEntity,
         keep_surface: bool = False,
     ) -> List[Self]:
-        """
-        Create a list of bounding boxes from a simple random event.
-
-        :param simple_event: The random event.
-        :param reference_frame: The reference frame used for the origin of the bounding box.
-        :param keep_surface: Whether to keep events that are infinitely thin
-
-        :return: The list of bounding boxes.
-        """
         result = []
         for x, y, z in itertools.product(
             simple_event[SpatialVariables.x.value].simple_sets,
@@ -833,14 +865,6 @@ class Box(Shape, AbstractBox):
     def bloat(
         self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
     ) -> Self:
-        """
-        Enlarges the bounding box by a given amount in all dimensions.
-
-        :param x_amount: The amount to adjust minimum and maximum x-coordinates
-        :param y_amount: The amount to adjust minimum and maximum y-coordinates
-        :param z_amount: The amount to adjust minimum and maximum z-coordinates
-        :return: New enlarged bounding box
-        """
         new_scale = Scale(
             x=self.scale.x + x_amount,
             y=self.scale.y + y_amount,
@@ -871,22 +895,8 @@ class Box(Shape, AbstractBox):
             return None
         return self.__class__.from_simple_event(result, self.origin.reference_frame)
 
-    def bloat_all(self, amount: float) -> Self:
-        """
-        Enlarge the axis-aligned bounding box in all dimensions by a given amount.
-
-        :param amount: The amount to enlarge the bounding box
-        """
-        return self.bloat(amount, amount, amount)
-
     @classmethod
     def from_min_max(cls, min_point: Point3, max_point: Point3) -> Self:
-        """
-        Set the axis-aligned bounding box from a minimum and maximum point.
-
-        :param min_point: The minimum point
-        :param max_point: The maximum point
-        """
         assert (
             min_point.reference_frame == max_point.reference_frame
         ), "The reference frames of the minimum and maximum points must be the same."
@@ -975,3 +985,73 @@ class AxisAlignedBoundingBox(AbstractBox):
             z=self.max_z,
             reference_frame=self.reference_frame,
         )
+
+    def bloat(
+        self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
+    ) -> Self:
+        """
+        Enlarges the bounding box by a given amount in all dimensions.
+        """
+        return self.__class__(
+            min_x=self.min_x - x_amount,
+            min_y=self.min_y - y_amount,
+            min_z=self.min_z - z_amount,
+            max_x=self.max_x + x_amount,
+            max_y=self.max_y + y_amount,
+            max_z=self.max_z + z_amount,
+            reference_frame=self.reference_frame,
+        )
+
+    @classmethod
+    def from_min_max(cls, min_point: Point3, max_point: Point3) -> Self:
+        """
+        Set the axis-aligned bounding box from a minimum and maximum point.
+
+        :param min_point: The minimum point
+        :param max_point: The maximum point
+        """
+        assert (
+            min_point.reference_frame == max_point.reference_frame
+        ), "The reference frames of the minimum and maximum points must be the same."
+
+        return cls(
+            min_x=float(min_point.x),
+            min_y=float(min_point.y),
+            min_z=float(min_point.z),
+            max_x=float(max_point.x),
+            max_y=float(max_point.y),
+            max_z=float(max_point.z),
+            reference_frame=min_point.reference_frame,
+        )
+
+    @classmethod
+    def from_simple_event(
+        cls,
+        simple_event: SimpleEvent,
+        reference_frame: KinematicStructureEntity,
+        keep_surface: bool = False,
+    ) -> List[Self]:
+        result = []
+        for x, y, z in itertools.product(
+            simple_event[SpatialVariables.x.value].simple_sets,
+            simple_event[SpatialVariables.y.value].simple_sets,
+            simple_event[SpatialVariables.z.value].simple_sets,
+        ):
+
+            if not keep_surface and not all(
+                ((x.upper - x.lower), (y.upper - y.lower), (z.upper - z.lower))
+            ):
+                continue
+
+            result.append(
+                cls(
+                    min_x=x.lower,
+                    min_y=y.lower,
+                    min_z=z.lower,
+                    max_x=x.upper,
+                    max_y=y.upper,
+                    max_z=z.upper,
+                    reference_frame=reference_frame,
+                )
+            )
+        return result

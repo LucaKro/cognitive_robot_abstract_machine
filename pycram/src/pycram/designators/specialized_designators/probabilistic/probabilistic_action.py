@@ -26,7 +26,7 @@ from semantic_digital_twin.world_description.graph_of_convex_sets import (
     GraphOfConvexSets,
 )
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 from semantic_digital_twin.world_description.world_entity import Body
 from sqlalchemy import select
@@ -117,14 +117,14 @@ class MoveAndPickUpParameterizer(ProbabilisticAction):
             max_z=obj_pose.pose.position.z + search_space_size,
             origin=HomogeneousTransformationMatrix(reference_frame=self.world.root),
         )
-        bb_collection = BoundingBoxCollection(
+        bb_collection = AxisAlignedBoundingBoxCollection(
             [search_space], reference_frame=self.world.root
         )
         navigate_conditions = self.collision_free_event(obj._world, bb_collection)
         return navigate_conditions
 
     def collision_free_event(
-        world: World, search_space: Optional[BoundingBoxCollection] = None
+        world: World, search_space: Optional[AxisAlignedBoundingBoxCollection] = None
     ) -> Event:
         """
         Create an event that describes the free space of the world.
@@ -137,7 +137,7 @@ class MoveAndPickUpParameterizer(ProbabilisticAction):
 
         # create search space for calculations
         if search_space is None:
-            search_space = BoundingBoxCollection(
+            search_space = AxisAlignedBoundingBoxCollection(
                 [
                     BoundingBox(
                         -np.inf,

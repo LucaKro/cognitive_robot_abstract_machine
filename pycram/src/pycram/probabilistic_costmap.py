@@ -7,7 +7,7 @@ import logging
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 
 from pycram.tf_transformations import quaternion_from_euler
@@ -99,7 +99,7 @@ class ProbabilisticCostmap:
         resolution = self.size.to(meter) / number_of_cells
 
         if costmap_type == OccupancyCostmap:
-            robot_bounding_box = BoundingBoxCollection(
+            robot_bounding_box = AxisAlignedBoundingBoxCollection(
                 [
                     body.collision.as_bounding_box_collection_in_frame(
                         self.world.root

@@ -41,7 +41,7 @@ from semantic_digital_twin.world_description.geometry import TriangleMesh
 from semantic_digital_twin.world_description.inertial_properties import Inertial
 from semantic_digital_twin.world_description.shape_collection import (
     ShapeCollection,
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 from semantic_digital_twin.mixin import HasSimulatorProperties
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
@@ -643,7 +643,7 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
 
     def as_bounding_box_collection_at_origin(
         self, origin: HomogeneousTransformationMatrix
-    ) -> BoundingBoxCollection:
+    ) -> AxisAlignedBoundingBoxCollection:
         """
         Returns a bounding box collection that contains the bounding boxes of all bodies in this semantic annotation.
         :param reference_frame: The reference frame to express the bounding boxes in.
@@ -655,7 +655,7 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
             for entity in self.kinematic_structure_entities
             if isinstance(entity, Body) and entity.has_collision()
         )
-        bbs = BoundingBoxCollection([], origin.reference_frame)
+        bbs = AxisAlignedBoundingBoxCollection([], origin.reference_frame)
 
         for bb_collection in collections:
             bbs = bbs.merge(bb_collection)
@@ -664,7 +664,7 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
 
     def as_bounding_box_collection_in_frame(
         self, reference_frame: KinematicStructureEntity
-    ) -> BoundingBoxCollection:
+    ) -> AxisAlignedBoundingBoxCollection:
         """
         Provides the bounding box collection for this entity in the given reference frame.
         :param reference_frame: The reference frame to express the bounding boxes in.

@@ -129,7 +129,7 @@ class ShapeCollection(SubclassJSONSerializer):
 
     def as_bounding_box_collection_in_frame(
         self, reference_frame: KinematicStructureEntity
-    ) -> BoundingBoxCollection:
+    ) -> AxisAlignedBoundingBoxCollection:
         """
         Provides the bounding box collection for this entity in the given reference frame.
         :param reference_frame: The reference frame to express the bounding boxes in.
@@ -145,7 +145,7 @@ class ShapeCollection(SubclassJSONSerializer):
                 shape.to_axis_aligned_bounding_box_collection_in_frame(reference_frame)
             )
 
-        return BoundingBoxCollection(
+        return AxisAlignedBoundingBoxCollection(
             transformed_bounding_boxes,
             reference_frame,
         )
@@ -202,7 +202,7 @@ class ShapeCollection(SubclassJSONSerializer):
 
 
 @dataclass
-class BoundingBoxCollection(ShapeCollection):
+class AxisAlignedBoundingBoxCollection(ShapeCollection):
     """
     Dataclass for storing a collection of bounding boxes.
     """
@@ -231,7 +231,7 @@ class BoundingBoxCollection(ShapeCollection):
         """
         return Event(*[box.simple_event for box in self.bounding_boxes])
 
-    def merge(self, other: BoundingBoxCollection) -> BoundingBoxCollection:
+    def merge(self, other: AxisAlignedBoundingBoxCollection) -> AxisAlignedBoundingBoxCollection:
         """
         Merge another bounding box collection into this one.
 
@@ -241,14 +241,14 @@ class BoundingBoxCollection(ShapeCollection):
         assert (
             self.reference_frame == other.reference_frame
         ), "The reference frames of the bounding box collections must be the same."
-        return BoundingBoxCollection(
+        return AxisAlignedBoundingBoxCollection(
             reference_frame=self.reference_frame,
             shapes=self.bounding_boxes + other.bounding_boxes,
         )
 
     def bloat(
         self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
-    ) -> BoundingBoxCollection:
+    ) -> AxisAlignedBoundingBoxCollection:
         """
         Enlarges all bounding boxes in the collection by a given amount in all dimensions.
 
@@ -258,7 +258,7 @@ class BoundingBoxCollection(ShapeCollection):
 
         :return: The enlarged bounding box collection
         """
-        return BoundingBoxCollection(
+        return AxisAlignedBoundingBoxCollection(
             [box.bloat(x_amount, y_amount, z_amount) for box in self.bounding_boxes],
             self.reference_frame,
         )
@@ -269,7 +269,7 @@ class BoundingBoxCollection(ShapeCollection):
         reference_frame: KinematicStructureEntity,
         simple_event: SimpleEvent,
         keep_surface: bool = False,
-    ) -> BoundingBoxCollection:
+    ) -> AxisAlignedBoundingBoxCollection:
         """
         Create a list of bounding boxes from a simple random event.
 
@@ -278,27 +278,29 @@ class BoundingBoxCollection(ShapeCollection):
         :param keep_surface: Whether to keep events that are infinitely thin
         :return: The list of bounding boxes.
         """
-        bounding_boxes = BoundingBox.from_simple_event(
+        bounding_boxes = AxisAlignedBoundingBox.from_simple_event(
             simple_event, reference_frame, keep_surface
         )
-        return BoundingBoxCollection(bounding_boxes, reference_frame)
+        return AxisAlignedBoundingBoxCollection(bounding_boxes, reference_frame)
 
     @classmethod
     def from_event(
-        cls, reference_frame: KinematicStructureEntity, event: Event
+        cls, reference_frame: KinematicStructureEntity, event: Event, keep_surface: bool = False,
+
     ) -> Self:
         """
         Create a list of bounding boxes from a random event.
 
         :param reference_frame: The reference frame of the bounding boxes.
         :param event: The random event.
+        :param keep_surface: Whether to keep events that are infinitely thin
         :return: The list of bounding boxes.
         """
         return cls(
             [
                 box
                 for simple_event in event.simple_sets
-                for box in cls.from_simple_event(reference_frame, simple_event)
+                for box in cls.from_simple_event(reference_frame, simple_event, keep_surface)
             ],
             reference_frame,
         )

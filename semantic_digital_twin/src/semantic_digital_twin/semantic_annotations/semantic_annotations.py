@@ -48,7 +48,7 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
 )
 from semantic_digital_twin.world_description.geometry import Scale, TriangleMesh
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
     ShapeCollection,
 )
 from semantic_digital_twin.world_description.world_entity import (
@@ -95,7 +95,7 @@ class Handle(HasRootBody):
         handle_event -= inner_box
 
         handle_body = Body(name=name)
-        collision = BoundingBoxCollection.from_event(
+        collision = AxisAlignedBoundingBoxCollection.from_event(
             handle_body, handle_event
         ).as_shapes()
         handle_body.collision = collision
@@ -158,7 +158,7 @@ class Aperture(HasRootRegion):
         aperture_region = Region(name=name)
 
         scale_event = scale.to_simple_event().as_composite_set()
-        aperture_geometry = BoundingBoxCollection.from_event(
+        aperture_geometry = AxisAlignedBoundingBoxCollection.from_event(
             aperture_region, scale_event
         ).as_shapes()
         aperture_region.area = aperture_geometry
@@ -241,7 +241,7 @@ class Door(HasHandle, HasHinge):
 
         door_event = scale.to_simple_event().as_composite_set()
         door_body = Body(name=name)
-        bounding_box_collection = BoundingBoxCollection.from_event(
+        bounding_box_collection = AxisAlignedBoundingBoxCollection.from_event(
             door_body, door_event
         )
         collision = bounding_box_collection.as_shapes()
@@ -490,7 +490,7 @@ class Wall(HasApertures):
 
         wall_body = Body(name=name)
         wall_event = cls._create_wall_event(scale).as_composite_set()
-        wall_collision = BoundingBoxCollection.from_event(
+        wall_collision = AxisAlignedBoundingBoxCollection.from_event(
             wall_body, wall_event
         ).as_shapes()
 

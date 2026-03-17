@@ -58,7 +58,7 @@ from semantic_digital_twin.world_description.graph_of_convex_sets import (
     GraphOfConvexSets,
 )
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 from semantic_digital_twin.world_description.world_entity import Body
 from pycram.config.action_conf import ActionConfig
@@ -780,7 +780,7 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
 
     @staticmethod
     def _create_surface_event(
-        body: Body, search_space: BoundingBoxCollection, wall_bloat: float
+        body: Body, search_space: AxisAlignedBoundingBoxCollection, wall_bloat: float
     ) -> Optional[Event]:
         """
         Creates an event that describes the surface of the link we want to sample from.
@@ -821,7 +821,7 @@ class ProbabilisticSemanticLocation(LocationDesignatorDescription):
                 ],
             )
         )
-        obstacle_collection = BoundingBoxCollection(
+        obstacle_collection = AxisAlignedBoundingBoxCollection(
             shapes=obstacle_boxes, reference_frame=global_root
         )
         walls = GraphOfConvexSets.obstacles_from_bounding_boxes(
@@ -1297,7 +1297,7 @@ class ProbabilisticCostmapLocation(LocationDesignatorDescription):
         :return: A tuple containing the reachable space condition, navigation space condition and room condition
         """
 
-        link_searchspace = BoundingBoxCollection(
+        link_searchspace = AxisAlignedBoundingBoxCollection(
             [
                 BoundingBox(
                     target_position.x - search_distance,

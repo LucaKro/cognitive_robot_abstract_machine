@@ -2391,7 +2391,7 @@ class ShapeCollectionDAO(
 class BoundingBoxCollectionDAO(
     ShapeCollectionDAO,
     DataAccessObject[
-        semantic_digital_twin.world_description.shape_collection.BoundingBoxCollection
+        semantic_digital_twin.world_description.shape_collection.AxisAlignedBoundingBoxCollection
     ],
 ):
 

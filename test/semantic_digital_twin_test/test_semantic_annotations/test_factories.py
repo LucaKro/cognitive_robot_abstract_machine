@@ -55,7 +55,7 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.geometry import Scale, Box
 from semantic_digital_twin.world_description.shape_collection import (
     ShapeCollection,
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 from semantic_digital_twin.world_description.world_entity import Body, Region
 from semantic_digital_twin.world_description.degree_of_freedom import (
@@ -525,7 +525,7 @@ class TestFactories(unittest.TestCase):
                 name=PrefixedName("table"), world=world
             )
         table_scale = Scale(1.0, 1.0, 0.1)
-        table.root.collision = BoundingBoxCollection.from_event(
+        table.root.collision = AxisAlignedBoundingBoxCollection.from_event(
             table.root, table_scale.to_simple_event().as_composite_set()
         ).as_shapes()
         table.root.visual = table.root.collision
@@ -550,7 +550,7 @@ class TestFactories(unittest.TestCase):
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(z=1.5),
             )
         table_scale = Scale(1.0, 1.0, 0.5)
-        table.root.collision = BoundingBoxCollection.from_event(
+        table.root.collision = AxisAlignedBoundingBoxCollection.from_event(
             table.root, table_scale.to_simple_event().as_composite_set()
         ).as_shapes()
         table.root.visual = table.root.collision

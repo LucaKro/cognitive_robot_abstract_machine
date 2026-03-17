@@ -51,7 +51,7 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
 )
 from semantic_digital_twin.world_description.geometry import Scale
 from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
+    AxisAlignedBoundingBoxCollection,
 )
 from semantic_digital_twin.world_description.world_entity import (
     SemanticAnnotation,
@@ -341,7 +341,7 @@ class HasRootBody(HasRootKinematicStructureEntity, ABC):
         body = Body(name=name)
 
         if scale is not None:
-            collision_shapes = BoundingBoxCollection.from_event(
+            collision_shapes = AxisAlignedBoundingBoxCollection.from_event(
                 body, scale.to_simple_event().as_composite_set()
             ).as_shapes()
             body.collision = collision_shapes
@@ -452,7 +452,7 @@ class HasApertures(HasRootBody, ABC):
             self.root
         ).event
         new_wall_event = wall_event - hole_event
-        new_bounding_box_collection = BoundingBoxCollection.from_event(
+        new_bounding_box_collection = AxisAlignedBoundingBoxCollection.from_event(
             self.root, new_wall_event
         ).as_shapes()
         self.root.collision = new_bounding_box_collection
@@ -831,7 +831,7 @@ class HasSupportingSurface(HasStorageSpace, ABC):
 
         :param object_bloat: The amount of bloat to apply to the object events.
         """
-        area_of_self = BoundingBoxCollection.from_shapes(self.supporting_surface.area)
+        area_of_self = AxisAlignedBoundingBoxCollection.from_shapes(self.supporting_surface.area)
         area_of_self.transform_all_shapes_to_own_frame()
         event = area_of_self.event
 
@@ -967,7 +967,7 @@ class HasCaseAsRootBody(HasSupportingSurface, ABC):
         container_event = cls._create_container_event(scale, wall_thickness)
 
         body = Body(name=name)
-        collision_shapes = BoundingBoxCollection.from_event(
+        collision_shapes = AxisAlignedBoundingBoxCollection.from_event(
             body, container_event
         ).as_shapes()
         body.collision = collision_shapes
