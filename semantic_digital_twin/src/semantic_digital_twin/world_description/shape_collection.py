@@ -13,7 +13,11 @@ from typing_extensions import Dict, Any, Self, Optional, List, Iterator
 from typing_extensions import TYPE_CHECKING
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
-from semantic_digital_twin.world_description.geometry import Shape, BoundingBox, Color
+from semantic_digital_twin.world_description.geometry import (
+    Shape,
+    Color,
+    AxisAlignedBoundingBox,
+)
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
 
@@ -136,9 +140,10 @@ class ShapeCollection(SubclassJSONSerializer):
         for shape in self.shapes:
             if shape.origin.reference_frame is None:
                 continue
-            local_bounding_box: BoundingBox = shape.axis_aligned_bounding_box
-            transformed_bounding_box = local_bounding_box.transform(reference_frame)
-            transformed_bounding_boxes.append(transformed_bounding_box)
+
+            transformed_bounding_boxes.append(
+                shape.to_axis_aligned_bounding_box_collection_in_frame(reference_frame)
+            )
 
         return BoundingBoxCollection(
             transformed_bounding_boxes,
@@ -202,21 +207,21 @@ class BoundingBoxCollection(ShapeCollection):
     Dataclass for storing a collection of bounding boxes.
     """
 
-    shapes: List[BoundingBox]
+    shapes: List[AxisAlignedBoundingBox]
 
     def __post_init__(self):
         if not self.reference_frame:
             raise ValueError("BoundingBoxCollection must have a reference frame.")
         for box in self.bounding_boxes:
             assert (
-                box.origin.reference_frame == self.reference_frame
+                box.reference_frame == self.reference_frame
             ), "All bounding boxes must have the same reference frame."
 
-    def __iter__(self) -> Iterator[BoundingBox]:
+    def __iter__(self) -> Iterator[AxisAlignedBoundingBox]:
         return iter(self.bounding_boxes)
 
     @property
-    def bounding_boxes(self) -> List[BoundingBox]:
+    def bounding_boxes(self) -> List[AxisAlignedBoundingBox]:
         return self.shapes
 
     @property

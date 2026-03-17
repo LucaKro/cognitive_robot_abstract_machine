@@ -12,12 +12,14 @@ import numpy as np
 import trimesh
 import trimesh.exchange.stl
 from PIL import Image
+from scipy.spatial import ConvexHull
 from trimesh.visual.texture import TextureVisuals, SimpleMaterial
 from typing_extensions import Optional, List, Dict, Any, Self, Tuple, TYPE_CHECKING
 
 from krrood.adapters.exceptions import JSON_TYPE_NAME
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 from random_events.interval import closed, SimpleInterval, Bound
+from random_events.polytope import Polytope
 from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.mixin import HasSimulatorProperties
@@ -27,6 +29,9 @@ from semantic_digital_twin.spatial_types import (
     Vector3,
 )
 from semantic_digital_twin.utils import IDGenerator
+from semantic_digital_twin.world_description.shape_collection import (
+    BoundingBoxCollection,
+)
 
 if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_entity import (
@@ -220,9 +225,20 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
 
     def to_axis_aligned_bounding_box_collection_in_frame(
         self, new_reference_frame: KinematicStructureEntity
-    ):
+    ) -> BoundingBoxCollection:
         box = self.axis_aligned_bounding_box.to_box()
         transformed_box = box.transform(new_reference_frame)
+        corners = [corner.to_list()[:3] for corner in transformed_box.get_corners()]
+
+        hull = ConvexHull(corners)
+        A = hull.equations[:, :-1]
+        b = -hull.equations[:, -1]
+
+        poly = Polytope(A, b)
+        room_event = poly.inner_box_approximation(minimum_volume=0.025)
+        return BoundingBoxCollection.from_event(
+            reference_frame=new_reference_frame, event=room_event
+        )
 
     @property
     @abstractmethod
@@ -646,9 +662,71 @@ class Cylinder(Shape):
             color=from_json(data["color"], **kwargs),
         )
 
+@dataclass
+class AbstractBox(ABC):
+
+    @property
+    @abstractmethod
+    def min_point(self) -> Point3:
+        """
+        The minimum point of the box.
+        """
+
+    @property
+    @abstractmethod
+    def max_point(self) -> Point3:
+        """
+        The maximum point of the box.
+        """
+
+    @property
+    def simple_event(self) -> SimpleEvent:
+        """
+        :return: The bounding box as a random event.
+        """
+        x_interval = SimpleInterval(
+            lower=float(self.min_point.x),
+            upper=float(self.max_point.x),
+            left=Bound.CLOSED,
+            right=Bound.CLOSED,
+        )
+        y_interval = SimpleInterval(
+            lower=float(self.min_point.y),
+            upper=float(self.max_point.y),
+            left=Bound.CLOSED,
+            right=Bound.CLOSED,
+        )
+        z_interval = SimpleInterval(
+            lower=float(self.min_point.z),
+            upper=float(self.max_point.z),
+            left=Bound.CLOSED,
+            right=Bound.CLOSED,
+        )
+        return SimpleEvent(
+            {
+                SpatialVariables.x.value: x_interval,
+                SpatialVariables.y.value: y_interval,
+                SpatialVariables.z.value: z_interval,
+            }
+        )
+
+    def get_corners(self) -> List[Point3]:
+        """
+        Get the 8 corners of the bounding box as Point3 objects.
+
+        :return: A list of Point3 objects representing the corners of the bounding box.
+        """
+        min_point = self.min_point
+        max_point = self.max_point
+        return [
+            Point3(x=x, y=y, z=z, reference_frame=self.min_point.reference_frame)
+            for x in (min_point.x, max_point.x)
+            for y in (min_point.y, max_point.y)
+            for z in (min_point.z, max_point.z)
+        ]
 
 @dataclass(eq=False)
-class Box(Shape):
+class Box(Shape, AbstractBox):
     """
     A box shape. Pivot point is at the center of the box.
     """
@@ -710,37 +788,6 @@ class Box(Shape):
     @property
     def height(self) -> float:
         return self.scale.z
-
-    @property
-    def simple_event(self) -> SimpleEvent:
-        """
-        :return: The bounding box as a random event.
-        """
-        x_interval = SimpleInterval(
-            lower=float(self.min_point.x),
-            upper=float(self.max_point.x),
-            left=Bound.CLOSED,
-            right=Bound.CLOSED,
-        )
-        y_interval = SimpleInterval(
-            lower=float(self.min_point.y),
-            upper=float(self.max_point.y),
-            left=Bound.CLOSED,
-            right=Bound.CLOSED,
-        )
-        z_interval = SimpleInterval(
-            lower=float(self.min_point.z),
-            upper=float(self.max_point.z),
-            left=Bound.CLOSED,
-            right=Bound.CLOSED,
-        )
-        return SimpleEvent(
-            {
-                SpatialVariables.x.value: x_interval,
-                SpatialVariables.y.value: y_interval,
-                SpatialVariables.z.value: z_interval,
-            }
-        )
 
     @classmethod
     def from_simple_event(
@@ -809,7 +856,7 @@ class Box(Shape):
         x, y, z = (float(point_in_bb.x), float(point_in_bb.y), float(point_in_bb.z))
         return self.simple_event.contains((x, y, z))
 
-    def intersection_with(self, other: Self) -> Optional[Self]:
+    def intersection_with(self, other: Box) -> Optional[Self]:
         """
         Compute the intersection of two bounding boxes.
 
@@ -829,22 +876,6 @@ class Box(Shape):
         :param amount: The amount to enlarge the bounding box
         """
         return self.bloat(amount, amount, amount)
-
-    def get_corners(self) -> List[Point3]:
-        """
-        Get the 8 corners of the bounding box as Point3 objects.
-
-        :return: A list of Point3 objects representing the corners of the bounding box.
-        """
-        min_point = self.min_point
-        max_point = self.max_point
-        reference_frame = self.origin.reference_frame
-        return [
-            Point3(x=x, y=y, z=z, reference_frame=reference_frame)
-            for x in (min_point.x, max_point.x)
-            for y in (min_point.y, max_point.y)
-            for z in (min_point.z, max_point.z)
-        ]
 
     @classmethod
     def from_min_max(cls, min_point: Point3, max_point: Point3) -> Self:
@@ -885,14 +916,60 @@ class Box(Shape):
 
 
 @dataclass
-class AxisAlignedBoundingBox:
+class AxisAlignedBoundingBox(AbstractBox):
     """
-    A simple axis-aligned bounding box defined by a minimum and maximum point.
+    A simple axis-aligned bounding box defined by its minimum and maximum coordinates relative to an origin.
+    """
+
+    min_x: float
+    """
+    The minimum x-coordinate of the bounding box, relative to the origin.
+    """
+
+    min_y: float
+    """
+    The minimum y-coordinate of the bounding box, relative to the origin.
+    """
+
+    min_z: float
+    """
+    The minimum z-coordinate of the bounding box, relative to the origin.
+    """
+
+    max_x: float
+    """
+    The maximum x-coordinate of the bounding box, relative to the origin.
+    """
+
+    max_y: float
+    """
+    The maximum y-coordinate of the bounding box, relative to the origin.
+    """
+
+    max_z: float
+    """
+    The maximum z-coordinate of the bounding box, relative to the origin.
     """
 
     reference_frame: KinematicStructureEntity
-    min_point: Point3
-    max_point: Point3
 
     def to_box(self) -> Box:
         return Box.from_min_max(self.min_point, self.max_point)
+
+    @cached_property
+    def min_point(self) -> Point3:
+        return Point3(
+            x=self.min_x,
+            y=self.min_y,
+            z=self.min_z,
+            reference_frame=self.reference_frame,
+        )
+
+    @cached_property
+    def max_point(self) -> Point3:
+        return Point3(
+            x=self.max_x,
+            y=self.max_y,
+            z=self.max_z,
+            reference_frame=self.reference_frame,
+        )
