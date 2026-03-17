@@ -136,7 +136,7 @@ class ShapeCollection(SubclassJSONSerializer):
         for shape in self.shapes:
             if shape.origin.reference_frame is None:
                 continue
-            local_bounding_box: BoundingBox = shape.local_frame_bounding_box
+            local_bounding_box: BoundingBox = shape.axis_aligned_bounding_box
             transformed_bounding_box = local_bounding_box.transform(reference_frame)
             transformed_bounding_boxes.append(transformed_bounding_box)
 
@@ -313,7 +313,7 @@ class BoundingBoxCollection(ShapeCollection):
                 shape.origin.reference_frame == shapes.reference_frame
             ), "All shapes must have the same reference frame."
 
-        local_bbs = [shape.local_frame_bounding_box for shape in shapes]
+        local_bbs = [shape.axis_aligned_bounding_box for shape in shapes]
         return cls(
             [bb.transform(shapes.reference_frame) for bb in local_bbs],
             shapes.reference_frame,

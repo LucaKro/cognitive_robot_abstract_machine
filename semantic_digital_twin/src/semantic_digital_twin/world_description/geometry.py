@@ -169,10 +169,10 @@ class Scale:
 
         return simple_event
 
-    def to_bounding_box(self) -> BoundingBox:
+    def to_box(self) -> Box:
         min_point = Point3(-self.x / 2, -self.y / 2, -self.z / 2)
         max_point = Point3(self.x / 2, self.y / 2, self.z / 2)
-        return BoundingBox.from_min_max(min_point, max_point)
+        return Box.from_min_max(min_point, max_point)
 
     def to_np(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
@@ -201,15 +201,26 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
         """
 
     @property
-    def local_frame_bounding_box(self) -> BoundingBox:
+    def axis_aligned_bounding_box(self) -> AxisAlignedBoundingBox:
         """
         Returns the local bounding box of the box.
         The bounding box is axis-aligned and centered at the origin.
         """
-        return BoundingBox(
-            scale=self.dimensions,
-            origin=self.origin,
+        x_half_length = self.dimensions.x / 2
+        y_half_length = self.dimensions.y / 2
+        z_half_length = self.dimensions.z / 2
+        min_point = Point3(-x_half_length, -y_half_length, -z_half_length)
+        max_point = Point3(x_half_length, y_half_length, z_half_length)
+
+        return AxisAlignedBoundingBox(
+            min_point=min_point,
+            max_point=max_point,
+            reference_frame=self.origin.reference_frame,
         )
+
+    def to_axis_aligned_bounding_box_collection_in_frame(self, new_reference_frame: KinematicStructureEntity):
+        box = self.axis_aligned_bounding_box.to_box()
+        transformed_box = box.transform(new_reference_frame)
 
     @property
     @abstractmethod
@@ -618,7 +629,7 @@ class Cylinder(Shape):
         return mesh
 
     @property
-    def scale(self) -> Scale:
+    def dimensions(self) -> Scale:
         return Scale(self.width, self.width, self.height)
 
     def to_json(self) -> Dict[str, Any]:
@@ -666,13 +677,6 @@ class Box(Shape):
             color=from_json(data["color"], **kwargs),
         )
 
-
-@dataclass(eq=False)
-class BoundingBox(Box):
-    """
-    An axis-aligned bounding box defined by its minimum and maximum coordinates in the x, y, and z directions via a Scale
-    """
-
     @cached_property
     def min_point(self):
         half_x = self.scale.x / 2
@@ -692,10 +696,6 @@ class BoundingBox(Box):
             half_x, half_y, half_z, reference_frame=self.origin.reference_frame
         )
         return self.origin.to_position() + half_vector
-
-    def __hash__(self):
-        # The hash should be this since comparing those via hash is checking if those are the same and not just equal
-        return hash((self.scale, self.origin.reference_frame))
 
     @property
     def depth(self) -> float:
@@ -781,7 +781,7 @@ class BoundingBox(Box):
 
     def bloat(
         self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
-    ) -> BoundingBox:
+    ) -> Self:
         """
         Enlarges the bounding box by a given amount in all dimensions.
 
@@ -795,7 +795,7 @@ class BoundingBox(Box):
             y=self.scale.y + y_amount,
             z=self.scale.z + z_amount,
         )
-        return BoundingBox(scale=new_scale, origin=self.origin)
+        return self.__class__(scale=new_scale, origin=self.origin)
 
     def contains(self, point: Point3) -> bool:
         """
@@ -807,7 +807,7 @@ class BoundingBox(Box):
         x, y, z = (float(point_in_bb.x), float(point_in_bb.y), float(point_in_bb.z))
         return self.simple_event.contains((x, y, z))
 
-    def intersection_with(self, other: BoundingBox) -> Optional[BoundingBox]:
+    def intersection_with(self, other: Self) -> Optional[Self]:
         """
         Compute the intersection of two bounding boxes.
 
@@ -820,7 +820,7 @@ class BoundingBox(Box):
             return None
         return self.__class__.from_simple_event(result, self.origin.reference_frame)
 
-    def bloat_all(self, amount: float) -> BoundingBox:
+    def bloat_all(self, amount: float) -> Self:
         """
         Enlarge the axis-aligned bounding box in all dimensions by a given amount.
 
@@ -867,12 +867,12 @@ class BoundingBox(Box):
             ),
         )
 
-    def transform(self, new_reference: KinematicStructureEntity) -> Self:
+    def transform(self, new_reference_frame: KinematicStructureEntity) -> Self:
         """
         Transform the bounding box to a different reference frame.
         """
         world_T_old_reference = self.origin.reference_frame.global_pose
-        world_T_new_reference = new_reference.global_pose
+        world_T_new_reference = new_reference_frame.global_pose
         new_reference_T_old_reference = (
             world_T_new_reference.inverse() @ world_T_old_reference
         )
@@ -881,7 +881,17 @@ class BoundingBox(Box):
 
         return self.__class__(scale=self.scale, origin=new_reference_T_origin)
 
-    def __eq__(self, other: BoundingBox) -> bool:
-        return self.scale == other.scale and np.allclose(
-            self.origin.to_np(), other.origin.to_np()
-        )
+
+@dataclass
+class AxisAlignedBoundingBox:
+    """
+    A simple axis-aligned bounding box defined by a minimum and maximum point.
+    """
+
+    reference_frame: KinematicStructureEntity
+    min_point: Point3
+    max_point: Point3
+
+    def to_box(self) -> Box:
+        return Box.from_min_max(self.min_point, self.max_point)
+

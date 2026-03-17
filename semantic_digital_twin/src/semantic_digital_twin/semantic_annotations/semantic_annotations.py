@@ -410,7 +410,7 @@ class Floor(HasSupportingSurface):
         :param name: The name of the floor body.
         :param scale: The scale defining the floor polytope.
         """
-        polytope = scale.to_bounding_box().get_corners()
+        polytope = scale.to_box().get_corners()
         return cls.create_with_new_body_from_polytope_in_world(
             name=name,
             floor_polytope=polytope,
