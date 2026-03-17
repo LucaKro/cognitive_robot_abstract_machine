@@ -831,7 +831,9 @@ class HasSupportingSurface(HasStorageSpace, ABC):
 
         :param object_bloat: The amount of bloat to apply to the object events.
         """
-        area_of_self = AxisAlignedBoundingBoxCollection.from_shapes(self.supporting_surface.area)
+        area_of_self = AxisAlignedBoundingBoxCollection.from_shapes(
+            self.supporting_surface.area
+        )
         area_of_self.transform_all_shapes_to_own_frame()
         event = area_of_self.event
 

@@ -30,7 +30,9 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 from semantic_digital_twin.world_description.geometry import BoundingBox
-from semantic_digital_twin.world_description.shape_collection import AxisAlignedBoundingBoxCollection
+from semantic_digital_twin.world_description.shape_collection import (
+    AxisAlignedBoundingBoxCollection,
+)
 from semantic_digital_twin.world_description.world_entity import (
     Body,
     RootedSemanticAnnotation,

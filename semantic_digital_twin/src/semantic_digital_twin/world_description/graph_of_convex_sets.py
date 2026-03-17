@@ -4,10 +4,15 @@ import logging
 
 import matplotlib.pyplot as plt
 from semantic_digital_twin.world_description.geometry import BoundingBox
-from semantic_digital_twin.world_description.shape_collection import AxisAlignedBoundingBoxCollection
+from semantic_digital_twin.world_description.shape_collection import (
+    AxisAlignedBoundingBoxCollection,
+)
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation, SemanticEnvironmentAnnotation
+from semantic_digital_twin.world_description.world_entity import (
+    SemanticAnnotation,
+    SemanticEnvironmentAnnotation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +78,9 @@ class GraphOfConvexSets:
     """
 
     def __init__(
-        self, world: World, search_space: Optional[AxisAlignedBoundingBoxCollection] = None
+        self,
+        world: World,
+        search_space: Optional[AxisAlignedBoundingBoxCollection] = None,
     ):
         self.search_space = self._make_search_space(world, search_space)
         self.graph = rx.PyGraph(multigraph=False)
@@ -249,7 +256,9 @@ class GraphOfConvexSets:
 
     @classmethod
     def _make_search_space(
-        cls, world: World, search_space: Optional[AxisAlignedBoundingBoxCollection] = None
+        cls,
+        world: World,
+        search_space: Optional[AxisAlignedBoundingBoxCollection] = None,
     ):
         """
         Create the default search space if it is not given.
@@ -307,25 +316,29 @@ class GraphOfConvexSets:
 
         world_root = search_space.reference_frame
 
-        bloated_obstacles: AxisAlignedBoundingBoxCollection = AxisAlignedBoundingBoxCollection(
-            [
-                bloat_obstacle(bb)
-                for bb in semantic_obstacle_annotation.as_bounding_box_collection_at_origin(
-                    HomogeneousTransformationMatrix(reference_frame=world_root)
-                )
-            ],
-            world_root,
-        )
-
-        if semantic_wall_annotation is not None:
-            bloated_walls: AxisAlignedBoundingBoxCollection = AxisAlignedBoundingBoxCollection(
+        bloated_obstacles: AxisAlignedBoundingBoxCollection = (
+            AxisAlignedBoundingBoxCollection(
                 [
-                    bloat_wall(bb)
-                    for bb in semantic_wall_annotation.as_bounding_box_collection_at_origin(
+                    bloat_obstacle(bb)
+                    for bb in semantic_obstacle_annotation.as_bounding_box_collection_at_origin(
                         HomogeneousTransformationMatrix(reference_frame=world_root)
                     )
                 ],
                 world_root,
+            )
+        )
+
+        if semantic_wall_annotation is not None:
+            bloated_walls: AxisAlignedBoundingBoxCollection = (
+                AxisAlignedBoundingBoxCollection(
+                    [
+                        bloat_wall(bb)
+                        for bb in semantic_wall_annotation.as_bounding_box_collection_at_origin(
+                            HomogeneousTransformationMatrix(reference_frame=world_root)
+                        )
+                    ],
+                    world_root,
+                )
             )
             bloated_obstacles.merge(bloated_walls)
 

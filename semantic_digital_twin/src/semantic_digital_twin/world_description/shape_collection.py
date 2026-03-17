@@ -231,7 +231,9 @@ class AxisAlignedBoundingBoxCollection(ShapeCollection):
         """
         return Event(*[box.simple_event for box in self.bounding_boxes])
 
-    def merge(self, other: AxisAlignedBoundingBoxCollection) -> AxisAlignedBoundingBoxCollection:
+    def merge(
+        self, other: AxisAlignedBoundingBoxCollection
+    ) -> AxisAlignedBoundingBoxCollection:
         """
         Merge another bounding box collection into this one.
 
@@ -285,8 +287,10 @@ class AxisAlignedBoundingBoxCollection(ShapeCollection):
 
     @classmethod
     def from_event(
-        cls, reference_frame: KinematicStructureEntity, event: Event, keep_surface: bool = False,
-
+        cls,
+        reference_frame: KinematicStructureEntity,
+        event: Event,
+        keep_surface: bool = False,
     ) -> Self:
         """
         Create a list of bounding boxes from a random event.
@@ -300,7 +304,9 @@ class AxisAlignedBoundingBoxCollection(ShapeCollection):
             [
                 box
                 for simple_event in event.simple_sets
-                for box in cls.from_simple_event(reference_frame, simple_event, keep_surface)
+                for box in cls.from_simple_event(
+                    reference_frame, simple_event, keep_surface
+                )
             ],
             reference_frame,
         )
