@@ -141,8 +141,10 @@ class ShapeCollection(SubclassJSONSerializer):
             if shape.origin.reference_frame is None:
                 continue
 
-            transformed_bounding_boxes.append(
-                shape.to_axis_aligned_bounding_box_collection_in_frame(reference_frame)
+            transformed_bounding_boxes.extend(
+                shape.to_axis_aligned_bounding_box_collection_in_frame(
+                    reference_frame
+                ).bounding_boxes
             )
 
         return AxisAlignedBoundingBoxCollection(
@@ -189,7 +191,7 @@ class ShapeCollection(SubclassJSONSerializer):
         return (
             self.as_axis_aligned_bounding_box_collection_in_frame(self.reference_frame)
             .bounding_box()
-            .scale
+            .dimensions
         )
 
     @property

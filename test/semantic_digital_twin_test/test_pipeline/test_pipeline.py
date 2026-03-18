@@ -87,7 +87,7 @@ class PipelineTestCase(unittest.TestCase):
 
         original_bounding_boxes = [
             body.collision.as_axis_aligned_bounding_box_collection_in_frame(
-                HomogeneousTransformationMatrix(reference_frame=world.root)
+                reference_frame=world.root
             ).bounding_boxes[0]
             for body in world.bodies_with_collision
         ]

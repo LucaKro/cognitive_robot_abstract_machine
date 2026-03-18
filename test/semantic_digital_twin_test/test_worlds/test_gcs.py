@@ -6,7 +6,7 @@ from random_events.interval import SimpleInterval
 from random_events.product_algebra import SimpleEvent
 
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.geometry import AxisAlignedBoundingBox
 from semantic_digital_twin.world_description.shape_collection import (
     AxisAlignedBoundingBoxCollection,
     ShapeCollection,
@@ -38,7 +38,7 @@ class GCSTestCase(unittest.TestCase):
             cls.world.add_kinematic_structure_entity(Body())
         gcs = GraphOfConvexSets(cls.world)
 
-        obstacle = BoundingBox(0, 0, 0, 1, 1, 1, cls.world.root)
+        obstacle = AxisAlignedBoundingBox(0, 0, 0, 1, 1, 1, cls.world.root)
 
         z_lim = SimpleInterval(0.45, 0.55)
         x_lim = SimpleInterval(-2, 3)
@@ -98,16 +98,14 @@ class GCSFromWorldTestCase(unittest.TestCase):
     def test_from_world(self):
         search_space = AxisAlignedBoundingBoxCollection(
             [
-                BoundingBox(
+                AxisAlignedBoundingBox(
                     min_x=-5,
                     max_x=-2,
                     min_y=-1,
                     max_y=2,
                     min_z=0,
                     max_z=2,
-                    origin=HomogeneousTransformationMatrix(
-                        reference_frame=self.world.root
-                    ),
+                    reference_frame=self.world.root,
                 )
             ],
             self.world.root,
@@ -135,16 +133,14 @@ class GCSFromWorldTestCase(unittest.TestCase):
     def test_navigation_map_from_world(self):
         search_space = AxisAlignedBoundingBoxCollection(
             [
-                BoundingBox(
+                AxisAlignedBoundingBox(
                     min_x=-5,
                     max_x=-2,
                     min_y=-1,
                     max_y=2,
                     min_z=0,
                     max_z=2,
-                    origin=HomogeneousTransformationMatrix(
-                        reference_frame=self.world.root
-                    ),
+                    reference_frame=self.world.root,
                 )
             ],
             self.world.root,

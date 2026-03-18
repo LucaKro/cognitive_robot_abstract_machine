@@ -29,7 +29,7 @@ from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.geometry import AxisAlignedBoundingBox
 from semantic_digital_twin.world_description.shape_collection import (
     AxisAlignedBoundingBoxCollection,
 )
@@ -440,7 +440,7 @@ class Base(KinematicChain):
     """
 
     @property
-    def bounding_box(self) -> BoundingBox:
+    def bounding_box(self) -> AxisAlignedBoundingBox:
         bounding_boxes = [
             kse.collision.as_axis_aligned_bounding_box_collection_in_frame(
                 self._world.root

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 import matplotlib.pyplot as plt
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.geometry import AxisAlignedBoundingBox
 from semantic_digital_twin.world_description.shape_collection import (
     AxisAlignedBoundingBoxCollection,
 )
@@ -62,12 +62,12 @@ class GraphOfConvexSets:
     The bounding box of the search space. Defaults to the entire three dimensional space.
     """
 
-    graph: rx.PyGraph[BoundingBox]
+    graph: rx.PyGraph[AxisAlignedBoundingBox]
     """
     The connectivity graph of the convex sets.
     """
 
-    box_to_index_map: Dict[BoundingBox, int]
+    box_to_index_map: Dict[AxisAlignedBoundingBox, int]
     """
     A mapping from bounding boxes to their indices in the graph.
     """
@@ -101,7 +101,7 @@ class GraphOfConvexSets:
         }
         return subgraph
 
-    def add_node(self, box: BoundingBox):
+    def add_node(self, box: AxisAlignedBoundingBox):
         self.box_to_index_map[box] = self.graph.add_node(box)
 
     def calculate_connectivity(self, tolerance=0.001):
@@ -123,14 +123,14 @@ class GraphOfConvexSets:
             )
 
         def _intersection_box(a_min, a_max, b_min, b_max):
-            return BoundingBox(
+            return AxisAlignedBoundingBox(
                 max(a_min[0], b_min[0]),
                 max(a_min[1], b_min[1]),
                 max(a_min[2], b_min[2]),
                 min(a_max[0], b_max[0]),
                 min(a_max[1], b_max[1]),
                 min(a_max[2], b_max[2]),
-                HomogeneousTransformationMatrix(reference_frame=self.world.root),
+                reference_frame=self.world.root,
             )
 
         # Build a 3-D R-tree
@@ -194,7 +194,7 @@ class GraphOfConvexSets:
         occupied_space = ~free_space & self.search_space.event
         return occupied_space.plot(color="red")
 
-    def node_of_point(self, point: Point3) -> Optional[BoundingBox]:
+    def node_of_point(self, point: Point3) -> Optional[AxisAlignedBoundingBox]:
         """
         Find the node that contains a point.
 
@@ -245,7 +245,9 @@ class GraphOfConvexSets:
 
         for source, target in zip(path, path[1:]):
 
-            intersection: BoundingBox = self.graph.get_edge_data(source, target)
+            intersection: AxisAlignedBoundingBox = self.graph.get_edge_data(
+                source, target
+            )
             x_target = intersection.x_interval.center()
             y_target = intersection.y_interval.center()
             z_target = intersection.z_interval.center()
@@ -266,16 +268,14 @@ class GraphOfConvexSets:
         if search_space is None:
             search_space = AxisAlignedBoundingBoxCollection(
                 shapes=[
-                    BoundingBox(
+                    AxisAlignedBoundingBox(
                         min_x=-np.inf,
                         min_y=-np.inf,
                         min_z=-np.inf,
                         max_x=np.inf,
                         max_y=np.inf,
                         max_z=np.inf,
-                        origin=HomogeneousTransformationMatrix(
-                            reference_frame=world.root
-                        ),
+                        reference_frame=world.root,
                     )
                 ],
                 reference_frame=world.root,
@@ -320,8 +320,8 @@ class GraphOfConvexSets:
             AxisAlignedBoundingBoxCollection(
                 [
                     bloat_obstacle(bb)
-                    for bb in semantic_obstacle_annotation.as_bounding_box_collection_at_origin(
-                        HomogeneousTransformationMatrix(reference_frame=world_root)
+                    for bb in semantic_obstacle_annotation.as_bounding_box_collection_in_frame(
+                        reference_frame=world_root
                     )
                 ],
                 world_root,
@@ -333,7 +333,7 @@ class GraphOfConvexSets:
                 AxisAlignedBoundingBoxCollection(
                     [
                         bloat_wall(bb)
-                        for bb in semantic_wall_annotation.as_bounding_box_collection_at_origin(
+                        for bb in semantic_wall_annotation.as_bounding_box_collection_in_frame(
                             HomogeneousTransformationMatrix(reference_frame=world_root)
                         )
                     ],

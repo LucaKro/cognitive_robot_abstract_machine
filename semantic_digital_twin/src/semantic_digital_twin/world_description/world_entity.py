@@ -641,27 +641,6 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
         """
         return self._kinematic_structure_entities(Region)
 
-    def as_bounding_box_collection_at_origin(
-        self, origin: HomogeneousTransformationMatrix
-    ) -> AxisAlignedBoundingBoxCollection:
-        """
-        Returns a bounding box collection that contains the bounding boxes of all bodies in this semantic annotation.
-        :param reference_frame: The reference frame to express the bounding boxes in.
-        :returns: A collection of bounding boxes in world-space coordinates.
-        """
-
-        collections = iter(
-            entity.collision.as_axis_aligned_bounding_box_collection_in_frame(origin)
-            for entity in self.kinematic_structure_entities
-            if isinstance(entity, Body) and entity.has_collision()
-        )
-        bbs = AxisAlignedBoundingBoxCollection([], origin.reference_frame)
-
-        for bb_collection in collections:
-            bbs = bbs.merge(bb_collection)
-
-        return bbs
-
     def as_bounding_box_collection_in_frame(
         self, reference_frame: KinematicStructureEntity
     ) -> AxisAlignedBoundingBoxCollection:
@@ -670,9 +649,20 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
         :param reference_frame: The reference frame to express the bounding boxes in.
         :returns: A collection of bounding boxes in world-space coordinates.
         """
-        return self.as_bounding_box_collection_at_origin(
-            HomogeneousTransformationMatrix(reference_frame=reference_frame)
+
+        collections = iter(
+            entity.collision.as_axis_aligned_bounding_box_collection_in_frame(
+                reference_frame=reference_frame
+            )
+            for entity in self.kinematic_structure_entities
+            if isinstance(entity, Body) and entity.has_collision()
         )
+        bbs = AxisAlignedBoundingBoxCollection([], reference_frame)
+
+        for bb_collection in collections:
+            bbs = bbs.merge(bb_collection)
+
+        return bbs
 
 
 @dataclass(eq=False)

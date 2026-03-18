@@ -21,6 +21,7 @@ from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, fro
 from random_events.interval import closed, SimpleInterval, Bound
 from random_events.polytope import Polytope
 from random_events.product_algebra import SimpleEvent
+from random_events.variable import Continuous
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.mixin import HasSimulatorProperties
 from semantic_digital_twin.spatial_types import (
@@ -29,9 +30,6 @@ from semantic_digital_twin.spatial_types import (
     Vector3,
 )
 from semantic_digital_twin.utils import IDGenerator
-from semantic_digital_twin.world_description.shape_collection import (
-    AxisAlignedBoundingBoxCollection,
-)
 
 if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_entity import (
@@ -40,6 +38,9 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     from semantic_digital_twin.world import World
+    from semantic_digital_twin.world_description.shape_collection import (
+        AxisAlignedBoundingBoxCollection,
+    )
 
 id_generator = IDGenerator()
 
@@ -235,6 +236,10 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
     def to_axis_aligned_bounding_box_collection_in_frame(
         self, new_reference_frame: KinematicStructureEntity
     ) -> AxisAlignedBoundingBoxCollection:
+        from semantic_digital_twin.world_description.shape_collection import (
+            AxisAlignedBoundingBoxCollection,
+        )
+
         box = self.axis_aligned_bounding_box.to_box()
         transformed_box = box.transform(new_reference_frame)
         corners = [corner.to_list()[:3] for corner in transformed_box.get_corners()]
@@ -244,9 +249,16 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
         b = -hull.equations[:, -1]
 
         poly = Polytope(A, b)
-        room_event = poly.inner_box_approximation(minimum_volume=0.025)
+        bounding_box_approximation = poly.inner_box_approximation(minimum_volume=0.025)
+        bounding_box_approximation = bounding_box_approximation.update_variables(
+            {
+                Continuous("x_0"): SpatialVariables.x.value,
+                Continuous("x_1"): SpatialVariables.y.value,
+                Continuous("x_2"): SpatialVariables.z.value,
+            }
+        )
         return AxisAlignedBoundingBoxCollection.from_event(
-            reference_frame=new_reference_frame, event=room_event
+            reference_frame=new_reference_frame, event=bounding_box_approximation
         )
 
     @property
@@ -776,6 +788,14 @@ class AbstractBox(ABC):
         :return: The list of boxes.
         """
 
+    @property
+    def dimensions(self) -> Scale:
+        return Scale(
+            x=float(self.max_point.x - self.min_point.x),
+            y=float(self.max_point.y - self.min_point.y),
+            z=float(self.max_point.z - self.min_point.z),
+        )
+
 
 @dataclass(eq=False)
 class Box(Shape, AbstractBox):
@@ -795,6 +815,7 @@ class Box(Shape, AbstractBox):
         mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
         return mesh
 
+    @property
     def dimensions(self) -> Scale:
         return self.scale
 
@@ -936,7 +957,7 @@ class Box(Shape, AbstractBox):
         return self.__class__(scale=self.scale, origin=new_reference_T_origin)
 
 
-@dataclass
+@dataclass(eq=False)
 class AxisAlignedBoundingBox(AbstractBox):
     """
     A simple axis-aligned bounding box defined by its minimum and maximum coordinates relative to an origin.
@@ -1064,3 +1085,16 @@ class AxisAlignedBoundingBox(AbstractBox):
                 )
             )
         return result
+
+    def __hash__(self):
+        return hash(
+            (
+                self.min_x,
+                self.min_y,
+                self.min_z,
+                self.max_x,
+                self.max_y,
+                self.max_z,
+                self.reference_frame,
+            )
+        )

@@ -221,12 +221,12 @@ def is_supported_by(
         return False
     bounding_box_supported_body = (
         supported_body.collision.as_axis_aligned_bounding_box_collection_in_frame(
-            HomogeneousTransformationMatrix(reference_frame=supported_body)
+            reference_frame=supported_body
         ).event
     )
     bounding_box_supporting_body = (
         supporting_body.collision.as_axis_aligned_bounding_box_collection_in_frame(
-            HomogeneousTransformationMatrix(reference_frame=supported_body)
+            reference_frame=supported_body
         ).event
     )
 

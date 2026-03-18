@@ -272,6 +272,24 @@ class ShapeDAO_simulator_additional_properties_association(
     )
 
 
+class BoxDAO_simulator_additional_properties_association(
+    Base, AssociationDataAccessObject
+):
+
+    __tablename__ = "_10806025084644783079510372522330027303980329702413258699010615"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_boxdao_id: Mapped[int] = mapped_column(ForeignKey("BoxDAO.database_id"))
+    target_simulatoradditionalpropertydao_id: Mapped[int] = mapped_column(
+        ForeignKey("SimulatorAdditionalPropertyDAO.database_id")
+    )
+
+    target: Mapped[SimulatorAdditionalPropertyDAO] = relationship(
+        "SimulatorAdditionalPropertyDAO",
+        foreign_keys=[target_simulatoradditionalpropertydao_id],
+    )
+
+
 class ShapeCollectionDAO_shapes_association(Base, AssociationDataAccessObject):
 
     __tablename__ = "_10690769161909727122075553340095638664377970261192207149203117"
@@ -935,6 +953,26 @@ class DerivativeMap_floatDAO(
     )
 
 
+class AbstractBoxDAO(
+    Base, DataAccessObject[semantic_digital_twin.world_description.geometry.AbstractBox]
+):
+
+    __tablename__ = "AbstractBoxDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    polymorphic_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, use_existing_column=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "polymorphic_type",
+        "polymorphic_identity": "AbstractBoxDAO",
+    }
+
+
 class AccelerationVariableDAO(
     Base,
     DataAccessObject[
@@ -961,14 +999,19 @@ class AccelerationVariableDAO(
     )
 
 
-class BoundingBoxDAO(
-    Base, DataAccessObject[semantic_digital_twin.world_description.geometry.BoundingBox]
+class AxisAlignedBoundingBoxDAO(
+    AbstractBoxDAO,
+    DataAccessObject[
+        semantic_digital_twin.world_description.geometry.AxisAlignedBoundingBox
+    ],
 ):
 
-    __tablename__ = "BoundingBoxDAO"
+    __tablename__ = "AxisAlignedBoundingBoxDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
+        ForeignKey(AbstractBoxDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
     )
 
     min_x: Mapped[builtins.float] = mapped_column(use_existing_column=True)
@@ -978,20 +1021,23 @@ class BoundingBoxDAO(
     max_y: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     max_z: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
-    origin_id: Mapped[int] = mapped_column(
-        ForeignKey(
-            "HomogeneousTransformationMatrixMappingDAO.database_id", use_alter=True
-        ),
+    reference_frame_id: Mapped[int] = mapped_column(
+        ForeignKey("KinematicStructureEntityDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    origin: Mapped[HomogeneousTransformationMatrixMappingDAO] = relationship(
-        "HomogeneousTransformationMatrixMappingDAO",
+    reference_frame: Mapped[KinematicStructureEntityDAO] = relationship(
+        "KinematicStructureEntityDAO",
         uselist=False,
-        foreign_keys=[origin_id],
+        foreign_keys=[reference_frame_id],
         post_update=True,
     )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "AxisAlignedBoundingBoxDAO",
+        "inherit_condition": database_id == AbstractBoxDAO.database_id,
+    }
 
 
 class CollisionCheckDAO(
@@ -2255,28 +2301,60 @@ class ShapeDAO(
 
 
 class BoxDAO(
-    ShapeDAO, DataAccessObject[semantic_digital_twin.world_description.geometry.Box]
+    AbstractBoxDAO,
+    DataAccessObject[semantic_digital_twin.world_description.geometry.Box],
 ):
 
     __tablename__ = "BoxDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ShapeDAO.database_id), primary_key=True, use_existing_column=True
+        ForeignKey(AbstractBoxDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
     )
 
+    origin_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "HomogeneousTransformationMatrixMappingDAO.database_id", use_alter=True
+        ),
+        nullable=True,
+        use_existing_column=True,
+    )
+    color_id: Mapped[int] = mapped_column(
+        ForeignKey("ColorDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
     scale_id: Mapped[int] = mapped_column(
         ForeignKey("ScaleDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
+    simulator_additional_properties: Mapped[
+        builtins.list[BoxDAO_simulator_additional_properties_association]
+    ] = relationship(
+        "BoxDAO_simulator_additional_properties_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[BoxDAO_simulator_additional_properties_association.source_boxdao_id]",
+    )
+    origin: Mapped[HomogeneousTransformationMatrixMappingDAO] = relationship(
+        "HomogeneousTransformationMatrixMappingDAO",
+        uselist=False,
+        foreign_keys=[origin_id],
+        post_update=True,
+    )
+    color: Mapped[ColorDAO] = relationship(
+        "ColorDAO", uselist=False, foreign_keys=[color_id], post_update=True
+    )
     scale: Mapped[ScaleDAO] = relationship(
         "ScaleDAO", uselist=False, foreign_keys=[scale_id], post_update=True
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "BoxDAO",
-        "inherit_condition": database_id == ShapeDAO.database_id,
+        "inherit_condition": database_id == AbstractBoxDAO.database_id,
     }
 
 
@@ -2388,14 +2466,14 @@ class ShapeCollectionDAO(
     }
 
 
-class BoundingBoxCollectionDAO(
+class AxisAlignedBoundingBoxCollectionDAO(
     ShapeCollectionDAO,
     DataAccessObject[
         semantic_digital_twin.world_description.shape_collection.AxisAlignedBoundingBoxCollection
     ],
 ):
 
-    __tablename__ = "BoundingBoxCollectionDAO"
+    __tablename__ = "AxisAlignedBoundingBoxCollectionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(ShapeCollectionDAO.database_id),
@@ -2404,7 +2482,7 @@ class BoundingBoxCollectionDAO(
     )
 
     __mapper_args__ = {
-        "polymorphic_identity": "BoundingBoxCollectionDAO",
+        "polymorphic_identity": "AxisAlignedBoundingBoxCollectionDAO",
         "inherit_condition": database_id == ShapeCollectionDAO.database_id,
     }
 
