@@ -445,6 +445,12 @@ class RobotAnnotatorInterface:
         with self.world.modify_world():
             joint.position = value
 
+    def set_joint_positions(self, positions: Dict[str, float]):
+        with self.world.modify_world():
+            for jnt in self._active_joints:
+                if jnt.name.name in positions:
+                    jnt.position = positions[jnt.name.name]
+
     def add_part(self, class_name: str, part_type: str, parent_class_name: str = ""):
         node = PartNode(class_name=class_name, part_type=part_type)
         node.parent = parent_class_name
@@ -750,57 +756,165 @@ class AddPartDialog(QDialog):
 
 
 class JointStateEditorDialog(QDialog):
-    def __init__(self, joint_names: List[str], existing: Optional[JointStateSpec] = None, parent=None):
+    def __init__(
+        self,
+        interface: "RobotAnnotatorInterface",
+        part_class_name: str,
+        joint_names: List[str],
+        existing: Optional[JointStateSpec] = None,
+        parent=None,
+    ):
         super().__init__(parent)
+        self._interface = interface
+        self._part_class_name = part_class_name
+        self._joint_names = joint_names
+        self._joint_by_name = {j.name.name: j for j in interface._active_joints}
+        self._updating = False
+        self._user_edited_name = False
+
+        # Snapshot all joint positions so we can reset when the dialog closes
+        self._original_positions = {j.name.name: j.position for j in interface._active_joints}
+
         self.setWindowTitle("Edit Joint State")
-        self.setMinimumWidth(400)
+        self.setMinimumSize(520, 450)
         layout = QVBoxLayout(self)
         form = QFormLayout()
 
         self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("e.g. left_arm_park")
+        self.name_edit.setPlaceholderText("e.g. MyArmPark")
+        self.name_edit.textEdited.connect(self._on_name_edited)
         form.addRow("State Name:", self.name_edit)
 
         self.type_combo = QComboBox()
         for opt in STATE_TYPE_OPTIONS:
             self.type_combo.addItem(opt)
+        self.type_combo.currentTextChanged.connect(self._on_type_changed)
         form.addRow("State Type:", self.type_combo)
 
         layout.addLayout(form)
-        layout.addWidget(QLabel("Joint values:"))
+        layout.addWidget(QLabel("Joint positions (drag slider or type value):"))
 
         self._spinboxes: Dict[str, QDoubleSpinBox] = {}
+        self._sliders: Dict[str, QSlider] = {}
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         inner = QWidget()
         inner_layout = QFormLayout(inner)
+
         for jn in joint_names:
+            jnt = self._joint_by_name.get(jn)
+            lo, hi = -3.14, 3.14
+            if jnt:
+                dof = jnt.dof
+                if dof.limits.lower.position is not None:
+                    lo = dof.limits.lower.position
+                if dof.limits.upper.position is not None:
+                    hi = dof.limits.upper.position
+
             sb = QDoubleSpinBox()
-            sb.setRange(-10.0, 10.0)
-            sb.setSingleStep(0.01)
+            sb.setRange(lo, hi)
+            sb.setSingleStep(0.001)
             sb.setDecimals(4)
             self._spinboxes[jn] = sb
-            inner_layout.addRow(jn + ":", sb)
-        scroll.setWidget(inner)
-        scroll.setMinimumHeight(150)
-        layout.addWidget(scroll)
 
-        if existing is not None:
-            self.name_edit.setText(existing.name)
-            idx = self.type_combo.findText(existing.state_type)
-            if idx >= 0:
-                self.type_combo.setCurrentIndex(idx)
-            for i, jn in enumerate(joint_names):
-                if i < len(existing.values):
-                    self._spinboxes[jn].setValue(existing.values[i])
+            slider = QSlider(Qt.Horizontal)
+            slider.setMinimum(0)
+            slider.setMaximum(1000)
+            self._sliders[jn] = slider
+
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(slider, stretch=3)
+            row_layout.addWidget(sb, stretch=1)
+            inner_layout.addRow(jn + ":", row)
+
+            def _make_slider_cb(name_, lo_, hi_):
+                def cb(val):
+                    if self._updating:
+                        return
+                    self._updating = True
+                    pos = lo_ + (hi_ - lo_) * val / 1000.0
+                    self._spinboxes[name_].setValue(pos)
+                    j_ = self._joint_by_name.get(name_)
+                    if j_:
+                        self._interface.set_joint_position(j_, pos)
+                    self._updating = False
+                return cb
+
+            def _make_spin_cb(name_, lo_, hi_):
+                def cb(val):
+                    if self._updating:
+                        return
+                    self._updating = True
+                    sv = int((val - lo_) / (hi_ - lo_) * 1000) if hi_ != lo_ else 0
+                    self._sliders[name_].setValue(max(0, min(1000, sv)))
+                    j_ = self._joint_by_name.get(name_)
+                    if j_:
+                        self._interface.set_joint_position(j_, val)
+                    self._updating = False
+                return cb
+
+            slider.valueChanged.connect(_make_slider_cb(jn, lo, hi))
+            sb.valueChanged.connect(_make_spin_cb(jn, lo, hi))
+
+        scroll.setWidget(inner)
+        scroll.setMinimumHeight(200)
+        layout.addWidget(scroll)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def get_spec(self, joint_names: List[str]) -> JointStateSpec:
-        values = [self._spinboxes[jn].value() for jn in joint_names]
+        if existing is not None:
+            self._user_edited_name = True
+            self.name_edit.setText(existing.name)
+            idx = self.type_combo.findText(existing.state_type)
+            if idx >= 0:
+                self.type_combo.setCurrentIndex(idx)
+            apply_vals = {jn: existing.values[i] for i, jn in enumerate(joint_names) if i < len(existing.values)}
+            for jn, val in apply_vals.items():
+                self._set_slider_spinbox(jn, val)
+            self._interface.set_joint_positions(apply_vals)
+        else:
+            self._update_default_name()
+            # Initialise widgets from current world positions (no world change needed)
+            for jn in joint_names:
+                jnt = self._joint_by_name.get(jn)
+                if jnt:
+                    self._set_slider_spinbox(jn, jnt.position)
+
+    def _set_slider_spinbox(self, name: str, value: float):
+        self._updating = True
+        sb = self._spinboxes.get(name)
+        sl = self._sliders.get(name)
+        if sb:
+            sb.setValue(value)
+        if sl and sb:
+            lo, hi = sb.minimum(), sb.maximum()
+            sv = int((value - lo) / (hi - lo) * 1000) if hi != lo else 0
+            sl.setValue(max(0, min(1000, sv)))
+        self._updating = False
+
+    def _on_name_edited(self):
+        self._user_edited_name = True
+
+    def _on_type_changed(self, _: str):
+        if not self._user_edited_name:
+            self._update_default_name()
+
+    def _update_default_name(self):
+        suffix = self.type_combo.currentText().split(".")[-1].capitalize()
+        self.name_edit.setText(f"{self._part_class_name}{suffix}")
+
+    def done(self, result: int):
+        self._interface.set_joint_positions(self._original_positions)
+        super().done(result)
+
+    def get_spec(self) -> JointStateSpec:
+        values = [self._spinboxes[jn].value() for jn in self._joint_names]
         return JointStateSpec(
             name=self.name_edit.text().strip(),
             state_type=self.type_combo.currentText(),
@@ -1255,10 +1369,11 @@ class PartConfigPanel(QWidget):
         if node is None:
             return
         self._update_joint_names_for_part(node)
-        dialog = JointStateEditorDialog(self._joint_names, parent=self)
+        dialog = JointStateEditorDialog(
+            self.interface, self._current_class, self._joint_names, parent=self
+        )
         if dialog.exec_() == QDialog.Accepted:
-            spec = dialog.get_spec(self._joint_names)
-            node.joint_states.append(spec)
+            node.joint_states.append(dialog.get_spec())
             self._refresh_joint_states(node)
 
     def _on_edit_joint_state(self):
@@ -1271,9 +1386,12 @@ class PartConfigPanel(QWidget):
         if idx < 0 or idx >= len(node.joint_states):
             return
         self._update_joint_names_for_part(node)
-        dialog = JointStateEditorDialog(self._joint_names, existing=node.joint_states[idx], parent=self)
+        dialog = JointStateEditorDialog(
+            self.interface, self._current_class, self._joint_names,
+            existing=node.joint_states[idx], parent=self
+        )
         if dialog.exec_() == QDialog.Accepted:
-            node.joint_states[idx] = dialog.get_spec(self._joint_names)
+            node.joint_states[idx] = dialog.get_spec()
             self._refresh_joint_states(node)
 
     def _on_remove_joint_state(self):
@@ -1322,79 +1440,6 @@ class PartConfigPanel(QWidget):
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class JointSliderPanel(QWidget):
-    interface: RobotAnnotatorInterface
-
-    def __post_init__(self):
-        super().__init__()
-        self._sliders: Dict[str, QSlider] = {}
-        self._labels: Dict[str, QLabel] = {}
-        self._joints: Dict[str, ActiveConnection1DOF] = {}
-        self._setup_ui()
-
-    def _setup_ui(self):
-        outer = QVBoxLayout(self)
-        outer.addWidget(QLabel("<b>Joint Positions</b>"))
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setMaximumHeight(200)
-        self._inner = QWidget()
-        self._inner_layout = QVBoxLayout(self._inner)
-        scroll.setWidget(self._inner)
-        outer.addWidget(scroll)
-
-    def refresh(self):
-        while self._inner_layout.count():
-            item = self._inner_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._sliders.clear()
-        self._labels.clear()
-        self._joints.clear()
-
-        for joint in self.interface._active_joints:
-            name = joint.name.name
-            dof = joint.dof
-            lo = dof.limits.lower.position if dof.limits.lower.position is not None else -3.14
-            hi = dof.limits.upper.position if dof.limits.upper.position is not None else 3.14
-
-            row = QWidget()
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 0, 0, 0)
-
-            label = QLabel(f"{name}: 0.000")
-            label.setMinimumWidth(200)
-            self._labels[name] = label
-
-            slider = QSlider(Qt.Horizontal)
-            slider.setMinimum(0)
-            slider.setMaximum(1000)
-            slider.setValue(
-                int((0.0 - lo) / (hi - lo) * 1000) if hi != lo else 0
-            )
-
-            lo_val = lo
-            hi_val = hi
-
-            def make_callback(jnt, lo_, hi_, lbl, nm):
-                def cb(val):
-                    pos = lo_ + (hi_ - lo_) * val / 1000.0
-                    lbl.setText(f"{nm}: {pos:.3f}")
-                    self.interface.set_joint_position(jnt, pos)
-                return cb
-
-            slider.valueChanged.connect(make_callback(joint, lo_val, hi_val, label, name))
-
-            row_layout.addWidget(label)
-            row_layout.addWidget(slider)
-            self._inner_layout.addWidget(row)
-            self._sliders[name] = slider
-            self._joints[name] = joint
-
-        if not self._sliders:
-            self._inner_layout.addWidget(QLabel("No active joints loaded."))
 
 
 # ---------------------------------------------------------------------------
@@ -1501,15 +1546,6 @@ class Application(QMainWindow):
         splitter.setSizes([250, 350, 400])
         main_layout.addWidget(splitter, stretch=1)
 
-        line2 = QFrame()
-        line2.setFrameShape(QFrame.HLine)
-        line2.setFrameShadow(QFrame.Sunken)
-        main_layout.addWidget(line2)
-
-        # Joint sliders
-        self.slider_panel = JointSliderPanel(self.interface)
-        main_layout.addWidget(self.slider_panel)
-
         # Bottom: generate button
         bottom_bar = QHBoxLayout()
         self.btn_generate = QPushButton("Generate Robot File")
@@ -1537,7 +1573,6 @@ class Application(QMainWindow):
         try:
             self.interface.load_urdf(path)
             self.body_list_panel.refresh()
-            self.slider_panel.refresh()
             self.part_tree_panel._rebuild_tree()
             QMessageBox.information(
                 self,
