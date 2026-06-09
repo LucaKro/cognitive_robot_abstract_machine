@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import signal
 import sys
 from dataclasses import dataclass, field
@@ -63,6 +64,13 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.geometry import Color
 from semantic_digital_twin.world_description.world_entity import Body
+
+def _filename_to_camel_case(path: str) -> str:
+    """Convert a file path's base name (without extension) to CamelCase."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    parts = re.split(r"[^a-zA-Z0-9]+", stem)
+    return "".join(p.capitalize() for p in parts if p) or "MyRobot"
+
 
 # ---------------------------------------------------------------------------
 # Jinja2 template for the generated robot file
@@ -321,10 +329,66 @@ class RobotAnnotatorInterface:
             for c in self.world.connections
             if isinstance(c, ActiveConnection1DOF)
         ]
+        self.rename_robot(_filename_to_camel_case(urdf_path))
+
+    def rename_robot(self, new_name: str):
+        if not new_name or new_name == self.robot_class_name:
+            return
+        old_name = self.robot_class_name
+        if old_name in self.parts:
+            node = self.parts.pop(old_name)
+            node.class_name = new_name
+            self.parts[new_name] = node
+            for child in node.children:
+                if child in self.parts:
+                    self.parts[child].parent = new_name
+        self.robot_class_name = new_name
+
+    def _generate_default_name(self, part_type: str) -> str:
+        return f"{self.robot_class_name}{part_type}"
+
+    def propagate_tip_to_children_roots(self, class_name: str):
+        """When a part's tip is set, copy it to direct children whose root is still empty."""
+        node = self.parts.get(class_name)
+        if node is None or not node.tip_link:
+            return
+        for child_name in node.children:
+            child = self.parts.get(child_name)
+            if child and not child.root_link:
+                child.root_link = node.tip_link
+
+    def get_valid_root_bodies(self, part_class_name: str) -> List[str]:
+        """Root candidates = descendants of the parent part's root body (or all bodies)."""
+        if not self.robot:
+            return self.body_names
+        node = self.parts.get(part_class_name)
+        parent_node = self.parts.get(node.parent) if (node and node.parent) else None
+        if parent_node and parent_node.root_link:
+            try:
+                parent_root = self.world.get_body_by_name(parent_node.root_link)
+                branch = self.world.get_kinematic_structure_entities_of_branch(parent_root)
+                return [b.name.name for b in branch]
+            except Exception:
+                pass
+        return self.body_names
+
+    def get_valid_tip_bodies(self, part_class_name: str) -> List[str]:
+        """Tip candidates = descendants of the part's own root body (excluding root itself)."""
+        if not self.robot:
+            return self.body_names
+        node = self.parts.get(part_class_name)
+        if node and node.root_link:
+            try:
+                root_body = self.world.get_body_by_name(node.root_link)
+                branch = self.world.get_kinematic_structure_entities_of_branch(root_body)
+                return [b.name.name for b in branch if b.name.name != node.root_link]
+            except Exception:
+                pass
+        return self.body_names
 
     @property
     def body_names(self) -> List[str]:
-        return sorted(b.name.name for b in self.world.bodies)
+        return [b.name.name for b in self.world.bodies_topologically_sorted]
 
     def highlight_body(self, body_name: str):
         with self.world.modify_world():
@@ -344,6 +408,10 @@ class RobotAnnotatorInterface:
     def add_part(self, class_name: str, part_type: str, parent_class_name: str = ""):
         node = PartNode(class_name=class_name, part_type=part_type)
         node.parent = parent_class_name
+        if parent_class_name and parent_class_name in self.parts:
+            parent_node = self.parts[parent_class_name]
+            if parent_node.tip_link:
+                node.root_link = parent_node.tip_link
         self.parts[class_name] = node
         if parent_class_name and parent_class_name in self.parts:
             self.parts[parent_class_name].children.append(class_name)
@@ -563,26 +631,67 @@ class RobotAnnotatorInterface:
 # ---------------------------------------------------------------------------
 
 
-class AddPartDialog(QDialog):
-    def __init__(self, parent=None):
+class BodySelectionDialog(QDialog):
+    def __init__(self, bodies: List[str], title: str = "Select Body", parent=None):
         super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumSize(300, 400)
+        layout = QVBoxLayout(self)
+
+        self._list = QListWidget()
+        for body in bodies:
+            self._list.addItem(body)
+        self._list.itemDoubleClicked.connect(lambda _: self.accept())
+        layout.addWidget(self._list)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_selected_body(self) -> Optional[str]:
+        item = self._list.currentItem()
+        return item.text() if item else None
+
+
+class AddPartDialog(QDialog):
+    def __init__(self, interface: RobotAnnotatorInterface, parent=None):
+        super().__init__(parent)
+        self._interface = interface
+        self._user_edited_name = False
         self.setWindowTitle("Add Robot Part")
         self.setMinimumWidth(320)
         layout = QFormLayout(self)
 
         self.class_name_edit = QLineEdit()
         self.class_name_edit.setPlaceholderText("e.g. MyRobotLeftArm")
+        self.class_name_edit.textEdited.connect(self._on_name_edited)
         layout.addRow("Class Name:", self.class_name_edit)
 
         self.type_combo = QComboBox()
         for pt in PART_TYPES:
-            self.type_combo.addItem(pt)
+            if pt != "Robot":
+                self.type_combo.addItem(pt)
+        self.type_combo.currentTextChanged.connect(self._on_type_changed)
         layout.addRow("Part Type:", self.type_combo)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
+
+        self._update_default_name()
+
+    def _on_name_edited(self):
+        self._user_edited_name = True
+
+    def _on_type_changed(self, _part_type: str):
+        if not self._user_edited_name:
+            self._update_default_name()
+
+    def _update_default_name(self):
+        default = self._interface._generate_default_name(self.type_combo.currentText())
+        self.class_name_edit.setText(default)
 
     def get_class_name(self) -> str:
         return self.class_name_edit.text().strip()
@@ -778,7 +887,7 @@ class PartTreePanel(QWidget):
         selected = self.tree.currentItem()
         parent_class = selected.text(0) if selected else self.interface.robot_class_name
 
-        dialog = AddPartDialog(self)
+        dialog = AddPartDialog(self.interface, self)
         if dialog.exec_() != QDialog.Accepted:
             return
         class_name = dialog.get_class_name()
@@ -857,6 +966,7 @@ class PartConfigPanel(QWidget):
         super().__init__()
         self._current_class: Optional[str] = None
         self._joint_names: List[str] = []
+        self._block_auto_save: bool = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -908,7 +1018,6 @@ class PartConfigPanel(QWidget):
         hw_layout = QVBoxLayout(hw_group)
         self.hw_all_active_radio = QCheckBox("All active connections")
         self.hw_all_active_radio.setChecked(True)
-        self.hw_all_active_radio.stateChanged.connect(self._on_hw_changed)
         hw_layout.addWidget(self.hw_all_active_radio)
         self._layout.addWidget(hw_group)
 
@@ -988,52 +1097,66 @@ class PartConfigPanel(QWidget):
         js_layout.addLayout(js_btn_layout)
         self._layout.addWidget(js_group)
 
-        btn_apply = QPushButton("Apply Changes")
-        btn_apply.clicked.connect(self._on_apply)
-        self._layout.addWidget(btn_apply)
-
         self._layout.addStretch()
 
+        # Auto-save: write to the model on every field change
+        self.root_edit.textChanged.connect(self._auto_save)
+        self.tip_edit.textChanged.connect(self._auto_save)
+        self.tool_frame_edit.textChanged.connect(self._auto_save)
+        self.hw_all_active_radio.stateChanged.connect(self._auto_save)
+        self.fov_h_spin.valueChanged.connect(self._auto_save)
+        self.fov_v_spin.valueChanged.connect(self._auto_save)
+        self.min_h_spin.valueChanged.connect(self._auto_save)
+        self.max_h_spin.valueChanged.connect(self._auto_save)
+        self.forward_axis_combo.currentTextChanged.connect(self._auto_save)
+        self.default_cam_check.stateChanged.connect(self._auto_save)
+        self.is_thumb_check.stateChanged.connect(self._auto_save)
+        self.ros_path_edit.textChanged.connect(self._auto_save)
+
     def load_part(self, class_name: str):
-        self._current_class = class_name
-        node = self.interface.parts.get(class_name)
-        if node is None:
-            return
+        self._block_auto_save = True
+        try:
+            self._current_class = class_name
+            node = self.interface.parts.get(class_name)
+            if node is None:
+                return
 
-        self.root_edit.setText(node.root_link)
-        self.tip_edit.setText(node.tip_link)
-        self.tool_frame_edit.setText(node.tool_frame_link)
+            self.root_edit.setText(node.root_link)
+            self.tip_edit.setText(node.tip_link)
+            self.tool_frame_edit.setText(node.tool_frame_link)
 
-        tip_enabled = node.needs_tip
-        self.tip_edit.setEnabled(tip_enabled)
-        self.btn_tip_from_list.setEnabled(tip_enabled)
+            tip_enabled = node.needs_tip
+            self.tip_edit.setEnabled(tip_enabled)
+            self.btn_tip_from_list.setEnabled(tip_enabled)
 
-        tool_enabled = node.needs_tool_frame
-        self.tool_frame_edit.setEnabled(tool_enabled)
-        self.btn_tool_from_list.setEnabled(tool_enabled)
+            tool_enabled = node.needs_tool_frame
+            self.tool_frame_edit.setEnabled(tool_enabled)
+            self.btn_tool_from_list.setEnabled(tool_enabled)
 
-        self.hw_all_active_radio.setChecked(node.hw_mode == "all_active")
+            self.hw_all_active_radio.setChecked(node.hw_mode == "all_active")
 
-        self.camera_group.setVisible(node.part_type == "Camera")
-        self.finger_group.setVisible(node.part_type == "Finger")
-        self.robot_group.setVisible(node.part_type == "Robot")
+            self.camera_group.setVisible(node.part_type == "Camera")
+            self.finger_group.setVisible(node.part_type == "Finger")
+            self.robot_group.setVisible(node.part_type == "Robot")
 
-        if node.part_type == "Camera":
-            self.fov_h_spin.setValue(node.fov_h)
-            self.fov_v_spin.setValue(node.fov_v)
-            self.min_h_spin.setValue(node.min_height)
-            self.max_h_spin.setValue(node.max_height)
-            self.forward_axis_combo.setCurrentText(node.forward_axis)
-            self.default_cam_check.setChecked(node.is_default_camera)
+            if node.part_type == "Camera":
+                self.fov_h_spin.setValue(node.fov_h)
+                self.fov_v_spin.setValue(node.fov_v)
+                self.min_h_spin.setValue(node.min_height)
+                self.max_h_spin.setValue(node.max_height)
+                self.forward_axis_combo.setCurrentText(node.forward_axis)
+                self.default_cam_check.setChecked(node.is_default_camera)
 
-        if node.part_type == "Finger":
-            self.is_thumb_check.setChecked(node.is_thumb)
+            if node.part_type == "Finger":
+                self.is_thumb_check.setChecked(node.is_thumb)
 
-        if node.part_type == "Robot":
-            self.ros_path_edit.setText(node.ros_file_path)
+            if node.part_type == "Robot":
+                self.ros_path_edit.setText(node.ros_file_path)
 
-        self._refresh_joint_states(node)
-        self._update_joint_names_for_part(node)
+            self._refresh_joint_states(node)
+            self._update_joint_names_for_part(node)
+        finally:
+            self._block_auto_save = False
 
     def _update_joint_names_for_part(self, node: PartNode):
         if node.root_link and node.tip_link and self.interface.robot:
@@ -1058,19 +1181,41 @@ class PartConfigPanel(QWidget):
         for js in node.joint_states:
             self.js_list.addItem(f"{js.name}  [{js.state_type}]")
 
-    def _set_from_list(self, field: str):
-        body = self.body_list_panel.selected_body
+    def _set_from_list(self, link_field: str):
+        if self._current_class is None:
+            return
+        if link_field == "root":
+            bodies = self.interface.get_valid_root_bodies(self._current_class)
+            title = "Select Root Body"
+        elif link_field == "tip":
+            bodies = self.interface.get_valid_tip_bodies(self._current_class)
+            title = "Select Tip Body"
+        else:
+            bodies = self.interface.body_names
+            title = "Select Tool Frame Body"
+
+        if not bodies:
+            QMessageBox.information(self, "No Bodies", "No valid bodies available. Load a URDF first.")
+            return
+        dialog = BodySelectionDialog(bodies, title, self)
+        if dialog.exec_() != QDialog.Accepted:
+            return
+        body = dialog.get_selected_body()
         if not body:
             return
-        if field == "root":
+        if link_field == "root":
             self.root_edit.setText(body)
-        elif field == "tip":
+        elif link_field == "tip":
             self.tip_edit.setText(body)
-        elif field == "tool":
+        else:
             self.tool_frame_edit.setText(body)
 
-    def _on_hw_changed(self, state):
-        pass  # simple checkbox, applied on Apply
+    def _auto_save(self):
+        if self._block_auto_save:
+            return
+        self._on_apply()
+        if self._current_class:
+            self.interface.propagate_tip_to_children_roots(self._current_class)
 
     def _on_add_joint_state(self):
         if self._current_class is None:
@@ -1410,8 +1555,6 @@ class Application(QMainWindow):
                 "Add a Robot root first using 'Set as Robot Root' in the Part Hierarchy panel.",
             )
             return
-        # Apply current config before generating
-        self.config_panel._on_apply()
         code = self.interface.generate_code(robot_name)
         dialog = CodePreviewDialog(code, self)
         dialog.exec_()
