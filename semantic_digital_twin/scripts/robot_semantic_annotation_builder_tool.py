@@ -261,6 +261,7 @@ class PartNode:
     root_link: str = ""
     tip_link: str = ""
     tool_frame_link: str = ""
+    root_auto_propagated: bool = False  # True when root was set by parent propagation
     is_thumb: bool = False
     is_default_camera: bool = True
     fov_h: float = 1.047
@@ -347,15 +348,20 @@ class RobotAnnotatorInterface:
     def _generate_default_name(self, part_type: str) -> str:
         return f"{self.robot_class_name}{part_type}"
 
-    def propagate_tip_to_children_roots(self, class_name: str):
-        """When a part's tip is set, copy it to direct children whose root is still empty."""
+    def propagate_endpoint_to_children(self, class_name: str):
+        """Propagate parent's endpoint (tip for kinematic chains, root otherwise) to direct
+        children whose root is still empty or was itself auto-propagated."""
         node = self.parts.get(class_name)
-        if node is None or not node.tip_link:
+        if node is None:
+            return
+        endpoint = self._parent_endpoint(node)
+        if not endpoint:
             return
         for child_name in node.children:
             child = self.parts.get(child_name)
-            if child and not child.root_link:
-                child.root_link = node.tip_link
+            if child and (not child.root_link or child.root_auto_propagated):
+                child.root_link = endpoint
+                child.root_auto_propagated = True
 
     def get_valid_root_bodies(self, part_class_name: str) -> List[str]:
         """Root candidates = descendants of the parent part's root body (or all bodies)."""
@@ -410,11 +416,20 @@ class RobotAnnotatorInterface:
         node.parent = parent_class_name
         if parent_class_name and parent_class_name in self.parts:
             parent_node = self.parts[parent_class_name]
-            if parent_node.tip_link:
-                node.root_link = parent_node.tip_link
+            endpoint = self._parent_endpoint(parent_node)
+            if endpoint:
+                node.root_link = endpoint
+                node.root_auto_propagated = True
         self.parts[class_name] = node
         if parent_class_name and parent_class_name in self.parts:
             self.parts[parent_class_name].children.append(class_name)
+
+    @staticmethod
+    def _parent_endpoint(parent_node: PartNode) -> str:
+        """The link that a new child should use as its root."""
+        if parent_node.needs_tip:
+            return parent_node.tip_link
+        return parent_node.root_link
 
     def remove_part(self, class_name: str):
         node = self.parts.get(class_name)
@@ -1182,25 +1197,7 @@ class PartConfigPanel(QWidget):
             self.js_list.addItem(f"{js.name}  [{js.state_type}]")
 
     def _set_from_list(self, link_field: str):
-        if self._current_class is None:
-            return
-        if link_field == "root":
-            bodies = self.interface.get_valid_root_bodies(self._current_class)
-            title = "Select Root Body"
-        elif link_field == "tip":
-            bodies = self.interface.get_valid_tip_bodies(self._current_class)
-            title = "Select Tip Body"
-        else:
-            bodies = self.interface.body_names
-            title = "Select Tool Frame Body"
-
-        if not bodies:
-            QMessageBox.information(self, "No Bodies", "No valid bodies available. Load a URDF first.")
-            return
-        dialog = BodySelectionDialog(bodies, title, self)
-        if dialog.exec_() != QDialog.Accepted:
-            return
-        body = dialog.get_selected_body()
+        body = self.body_list_panel.selected_body
         if not body:
             return
         if link_field == "root":
@@ -1215,7 +1212,7 @@ class PartConfigPanel(QWidget):
             return
         self._on_apply()
         if self._current_class:
-            self.interface.propagate_tip_to_children_roots(self._current_class)
+            self.interface.propagate_endpoint_to_children(self._current_class)
 
     def _on_add_joint_state(self):
         if self._current_class is None:
@@ -1263,7 +1260,10 @@ class PartConfigPanel(QWidget):
         if node is None:
             return
 
-        node.root_link = self.root_edit.text().strip()
+        new_root = self.root_edit.text().strip()
+        if new_root != node.root_link:
+            node.root_auto_propagated = False
+        node.root_link = new_root
         node.tip_link = self.tip_edit.text().strip()
         node.tool_frame_link = self.tool_frame_edit.text().strip()
         node.hw_mode = "all_active" if self.hw_all_active_radio.isChecked() else "none"
