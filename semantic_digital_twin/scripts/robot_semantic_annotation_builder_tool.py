@@ -40,6 +40,7 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QFrame,
     QAbstractItemView,
+    QHeaderView,
 )
 
 try:
@@ -362,6 +363,39 @@ class RobotAnnotatorInterface:
             if child and (not child.root_link or child.root_auto_propagated):
                 child.root_link = endpoint
                 child.root_auto_propagated = True
+
+    def get_bodies_in_part_scope(self, part_class_name: str) -> List[str]:
+        """All bodies in the selected part's own kinematic branch (root inclusive)."""
+        if not self.robot:
+            return self.body_names
+        node = self.parts.get(part_class_name)
+        if node and node.root_link:
+            try:
+                root_body = self.world.get_body_by_name(node.root_link)
+                branch = self.world.get_kinematic_structure_entities_of_branch(root_body)
+                return [b.name.name for b in branch]
+            except Exception:
+                pass
+        return self.body_names
+
+    def rename_part(self, old_name: str, new_name: str) -> bool:
+        if not new_name or old_name == new_name:
+            return False
+        if new_name in self.parts:
+            return False
+        node = self.parts.pop(old_name)
+        node.class_name = new_name
+        self.parts[new_name] = node
+        if node.parent and node.parent in self.parts:
+            parent = self.parts[node.parent]
+            idx = parent.children.index(old_name)
+            parent.children[idx] = new_name
+        for child_name in node.children:
+            if child_name in self.parts:
+                self.parts[child_name].parent = new_name
+        if self.robot_class_name == old_name:
+            self.robot_class_name = new_name
+        return True
 
     def get_valid_root_bodies(self, part_class_name: str) -> List[str]:
         """Root candidates = descendants of the parent part's root body (or all bodies)."""
@@ -797,25 +831,20 @@ class BodyListPanel(QWidget):
         self.list_widget.currentTextChanged.connect(self._on_body_selected)
         layout.addWidget(self.list_widget)
 
-        btn_layout = QHBoxLayout()
-        self.btn_set_root = QPushButton("Set Root")
-        self.btn_set_tip = QPushButton("Set Tip")
-        self.btn_set_tool = QPushButton("Set Tool Frame")
-        for btn in (self.btn_set_root, self.btn_set_tip, self.btn_set_tool):
-            btn.setEnabled(False)
-            btn_layout.addWidget(btn)
-        layout.addLayout(btn_layout)
-
         self.status_label = QLabel("Load a URDF to see bodies.")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
-    def refresh(self):
+    def refresh(self, bodies: Optional[List[str]] = None):
+        prev = self._selected_body
         self.list_widget.clear()
-        for name in self.interface.body_names:
+        names = bodies if bodies is not None else self.interface.body_names
+        for name in names:
             self.list_widget.addItem(name)
-        for btn in (self.btn_set_root, self.btn_set_tip, self.btn_set_tool):
-            btn.setEnabled(True)
+        if prev and prev in names:
+            hits = self.list_widget.findItems(prev, Qt.MatchExactly)
+            if hits:
+                self.list_widget.setCurrentItem(hits[0])
 
     def _on_body_selected(self, name: str):
         self._selected_body = name
@@ -851,6 +880,7 @@ class PartTreePanel(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Class", "Type"])
+        self.tree.header().setSectionResizeMode(QHeaderView.Stretch)
         self.tree.setDragDropMode(QAbstractItemView.InternalMove)
         self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
@@ -864,39 +894,6 @@ class PartTreePanel(QWidget):
         btn_layout.addWidget(self.btn_add)
         btn_layout.addWidget(self.btn_remove)
         layout.addLayout(btn_layout)
-
-        robot_row = QHBoxLayout()
-        robot_row.addWidget(QLabel("Robot class name:"))
-        self.robot_name_edit = QLineEdit("MyRobot")
-        self.robot_name_edit.textChanged.connect(self._on_robot_name_changed)
-        robot_row.addWidget(self.robot_name_edit)
-        self.btn_add_robot = QPushButton("Set as Robot Root")
-        self.btn_add_robot.clicked.connect(self._on_add_robot_root)
-        robot_row.addWidget(self.btn_add_robot)
-        layout.addLayout(robot_row)
-
-    def _on_robot_name_changed(self, text: str):
-        old_name = self.interface.robot_class_name
-        if old_name in self.interface.parts:
-            node = self.interface.parts.pop(old_name)
-            node.class_name = text
-            self.interface.parts[text] = node
-            for child in node.children:
-                if child in self.interface.parts:
-                    self.interface.parts[child].parent = text
-        self.interface.robot_class_name = text
-        self._rebuild_tree()
-
-    def _on_add_robot_root(self):
-        name = self.robot_name_edit.text().strip()
-        if not name:
-            return
-        if name not in self.interface.parts:
-            self.interface.parts[name] = PartNode(
-                class_name=name, part_type="Robot"
-            )
-            self.interface.robot_class_name = name
-        self._rebuild_tree()
 
     def _on_add(self):
         selected = self.tree.currentItem()
@@ -982,11 +979,21 @@ class PartConfigPanel(QWidget):
         self._current_class: Optional[str] = None
         self._joint_names: List[str] = []
         self._block_auto_save: bool = False
+        self.part_renamed_callback = None  # (old_name, new_name) -> None
         self._setup_ui()
 
     def _setup_ui(self):
         self._outer = QVBoxLayout(self)
         self._outer.addWidget(QLabel("<b>Part Configuration</b>"))
+
+        # --- Class name (always visible, commit on Enter/focus-loss) ---
+        name_row = QHBoxLayout()
+        name_row.addWidget(QLabel("Class Name:"))
+        self.class_name_edit = QLineEdit()
+        self.class_name_edit.setPlaceholderText("ClassName")
+        self.class_name_edit.editingFinished.connect(self._on_class_name_committed)
+        name_row.addWidget(self.class_name_edit)
+        self._outer.addLayout(name_row)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1136,6 +1143,7 @@ class PartConfigPanel(QWidget):
             if node is None:
                 return
 
+            self.class_name_edit.setText(node.class_name)
             self.root_edit.setText(node.root_link)
             self.tip_edit.setText(node.tip_link)
             self.tool_frame_edit.setText(node.tool_frame_link)
@@ -1207,12 +1215,38 @@ class PartConfigPanel(QWidget):
         else:
             self.tool_frame_edit.setText(body)
 
+    def _on_class_name_committed(self):
+        if self._block_auto_save or self._current_class is None:
+            return
+        new_name = self.class_name_edit.text().strip()
+        if not new_name or new_name == self._current_class:
+            return
+        if new_name in self.interface.parts:
+            QMessageBox.warning(self, "Duplicate", f"A part named '{new_name}' already exists.")
+            self.class_name_edit.setText(self._current_class)
+            return
+        old_name = self._current_class
+        if self.interface.rename_part(old_name, new_name):
+            self._current_class = new_name
+            if self.part_renamed_callback:
+                self.part_renamed_callback(old_name, new_name)
+
     def _auto_save(self):
         if self._block_auto_save:
             return
+        old_root = ""
+        if self._current_class:
+            node = self.interface.parts.get(self._current_class)
+            if node:
+                old_root = node.root_link
         self._on_apply()
         if self._current_class:
             self.interface.propagate_endpoint_to_children(self._current_class)
+            node = self.interface.parts.get(self._current_class)
+            if node and node.root_link != old_root:
+                self.body_list_panel.refresh(
+                    self.interface.get_bodies_in_part_scope(self._current_class)
+                )
 
     def _on_add_joint_state(self):
         if self._current_class is None:
@@ -1461,21 +1495,11 @@ class Application(QMainWindow):
         splitter.addWidget(self.part_tree_panel)
 
         self.config_panel = PartConfigPanel(self.interface, self.body_list_panel)
+        self.config_panel.part_renamed_callback = self._on_part_renamed
         splitter.addWidget(self.config_panel)
 
         splitter.setSizes([250, 350, 400])
         main_layout.addWidget(splitter, stretch=1)
-
-        # Wire body list buttons
-        self.body_list_panel.btn_set_root.clicked.connect(
-            lambda: self._set_link_on_current_part("root")
-        )
-        self.body_list_panel.btn_set_tip.clicked.connect(
-            lambda: self._set_link_on_current_part("tip")
-        )
-        self.body_list_panel.btn_set_tool.clicked.connect(
-            lambda: self._set_link_on_current_part("tool")
-        )
 
         line2 = QFrame()
         line2.setFrameShape(QFrame.HLine)
@@ -1514,7 +1538,7 @@ class Application(QMainWindow):
             self.interface.load_urdf(path)
             self.body_list_panel.refresh()
             self.slider_panel.refresh()
-            self.part_tree_panel.robot_name_edit.setText(self.interface.robot_class_name)
+            self.part_tree_panel._rebuild_tree()
             QMessageBox.information(
                 self,
                 "Loaded",
@@ -1527,24 +1551,11 @@ class Application(QMainWindow):
     def _on_part_selected(self, class_name: str):
         if class_name in self.interface.parts:
             self.config_panel.load_part(class_name)
+            filtered = self.interface.get_bodies_in_part_scope(class_name)
+            self.body_list_panel.refresh(filtered)
 
-    def _set_link_on_current_part(self, field: str):
-        body = self.body_list_panel.selected_body
-        if not body:
-            return
-        class_name = self.part_tree_panel.get_selected_class()
-        if not class_name or class_name not in self.interface.parts:
-            return
-        node = self.interface.parts[class_name]
-        if field == "root":
-            node.root_link = body
-            self.config_panel.root_edit.setText(body)
-        elif field == "tip":
-            node.tip_link = body
-            self.config_panel.tip_edit.setText(body)
-        elif field == "tool":
-            node.tool_frame_link = body
-            self.config_panel.tool_frame_edit.setText(body)
+    def _on_part_renamed(self, _old_name: str, _new_name: str):
+        self.part_tree_panel._rebuild_tree()
 
     def _on_generate(self):
         robot_name = self.interface.robot_class_name
@@ -1552,7 +1563,7 @@ class Application(QMainWindow):
             QMessageBox.warning(
                 self,
                 "No Robot",
-                "Add a Robot root first using 'Set as Robot Root' in the Part Hierarchy panel.",
+                "No robot root found. Use 'Add Part' with type Robot in the Part Hierarchy panel.",
             )
             return
         code = self.interface.generate_code(robot_name)
