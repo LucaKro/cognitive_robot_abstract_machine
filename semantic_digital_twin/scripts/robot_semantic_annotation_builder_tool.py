@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import rclpy
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -242,6 +242,15 @@ STATE_TYPE_OPTIONS = [
     "GripperState.CLOSE",
 ]
 
+# Joint state types available per robot part type (empty = joint states not applicable)
+PART_STATE_TYPES: Dict[str, List[str]] = {
+    "Torso":       ["StaticJointState.TRANSPORT", "StaticJointState.PARK"],
+    "Arm":         ["StaticJointState.PARK", "StaticJointState.TRANSPORT"],
+    "Neck":        ["StaticJointState.PARK", "StaticJointState.TRANSPORT"],
+    "EndEffector": ["GripperState.OPEN", "GripperState.CLOSE"],
+    "Finger":      ["GripperState.OPEN", "GripperState.CLOSE"],
+}
+
 
 @dataclass
 class JointStateSpec:
@@ -349,20 +358,40 @@ class RobotAnnotatorInterface:
     def _generate_default_name(self, part_type: str) -> str:
         return f"{self.robot_class_name}{part_type}"
 
+    def _generate_unique_name(self, part_type: str) -> str:
+        base = self._generate_default_name(part_type)
+        if base not in self.parts:
+            return base
+        i = 2
+        while f"{base}{i}" in self.parts:
+            i += 1
+        return f"{base}{i}"
+
     def propagate_endpoint_to_children(self, class_name: str):
-        """Propagate parent's endpoint (tip for kinematic chains, root otherwise) to direct
-        children whose root is still empty or was itself auto-propagated."""
+        """Propagate parent's endpoint to children whose root is empty, auto-propagated,
+        or outside the parent's kinematic scope (which should never be valid)."""
         node = self.parts.get(class_name)
         if node is None:
             return
         endpoint = self._parent_endpoint(node)
         if not endpoint:
             return
+        parent_scope: Optional[set] = None
+        if node.root_link:
+            parent_scope = set(self.get_bodies_in_part_scope(class_name))
         for child_name in node.children:
             child = self.parts.get(child_name)
-            if child and (not child.root_link or child.root_auto_propagated):
+            if child is None:
+                continue
+            out_of_scope = (
+                parent_scope is not None
+                and child.root_link
+                and child.root_link not in parent_scope
+            )
+            if not child.root_link or child.root_auto_propagated or out_of_scope:
                 child.root_link = endpoint
                 child.root_auto_propagated = True
+                self.propagate_endpoint_to_children(child_name)
 
     def get_bodies_in_part_scope(self, part_class_name: str) -> List[str]:
         """All bodies in the selected part's own kinematic branch (root inclusive)."""
@@ -682,6 +711,19 @@ class RobotAnnotatorInterface:
 
 
 # ---------------------------------------------------------------------------
+# Custom tree widget that emits a signal after internal drag-drop
+# ---------------------------------------------------------------------------
+
+
+class _PartTree(QTreeWidget):
+    items_rearranged = pyqtSignal()
+
+    def dropEvent(self, event):
+        super().dropEvent(event)
+        self.items_rearranged.emit()
+
+
+# ---------------------------------------------------------------------------
 # Dialogs
 # ---------------------------------------------------------------------------
 
@@ -762,6 +804,7 @@ class JointStateEditorDialog(QDialog):
         part_class_name: str,
         joint_names: List[str],
         existing: Optional[JointStateSpec] = None,
+        state_type_options: Optional[List[str]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -786,8 +829,12 @@ class JointStateEditorDialog(QDialog):
         form.addRow("State Name:", self.name_edit)
 
         self.type_combo = QComboBox()
-        for opt in STATE_TYPE_OPTIONS:
+        options = state_type_options if state_type_options else STATE_TYPE_OPTIONS
+        for opt in options:
             self.type_combo.addItem(opt)
+        # When editing an existing spec whose type isn't in the filtered list, add it
+        if existing and existing.state_type not in options:
+            self.type_combo.addItem(existing.state_type)
         self.type_combo.currentTextChanged.connect(self._on_type_changed)
         form.addRow("State Type:", self.type_combo)
 
@@ -992,43 +1039,39 @@ class PartTreePanel(QWidget):
         header.addWidget(QLabel("<b>Part Hierarchy</b>"))
         layout.addLayout(header)
 
-        self.tree = QTreeWidget()
+        self.tree = _PartTree()
         self.tree.setHeaderLabels(["Class", "Type"])
         self.tree.header().setSectionResizeMode(QHeaderView.Stretch)
         self.tree.setDragDropMode(QAbstractItemView.InternalMove)
         self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
+        self.tree.items_rearranged.connect(self._sync_hierarchy_from_tree)
         layout.addWidget(self.tree)
 
-        btn_layout = QHBoxLayout()
-        self.btn_add = QPushButton("Add Part")
-        self.btn_add.clicked.connect(self._on_add)
+        remove_layout = QHBoxLayout()
         self.btn_remove = QPushButton("Remove Part")
         self.btn_remove.clicked.connect(self._on_remove)
-        btn_layout.addWidget(self.btn_add)
-        btn_layout.addWidget(self.btn_remove)
-        layout.addLayout(btn_layout)
+        remove_layout.addWidget(self.btn_remove)
+        layout.addLayout(remove_layout)
 
-    def _on_add(self):
-        selected = self.tree.currentItem()
-        parent_class = selected.text(0) if selected else self.interface.robot_class_name
+        add_group = QGroupBox("Add Part")
+        add_grid = QHBoxLayout(add_group)
+        add_grid.setSpacing(4)
+        for pt in [t for t in PART_TYPES if t != "Robot"]:
+            btn = QPushButton(pt)
+            btn.clicked.connect(lambda checked, part_type=pt: self._on_quick_add(part_type))
+            add_grid.addWidget(btn)
+        layout.addWidget(add_group)
 
-        dialog = AddPartDialog(self.interface, self)
-        if dialog.exec_() != QDialog.Accepted:
-            return
-        class_name = dialog.get_class_name()
-        part_type = dialog.get_part_type()
-        if not class_name:
-            QMessageBox.warning(self, "Missing Name", "Please enter a class name.")
-            return
-        if class_name in self.interface.parts:
-            QMessageBox.warning(self, "Duplicate", f"'{class_name}' already exists.")
-            return
+    def _on_quick_add(self, part_type: str):
         try:
+            selected = self.tree.currentItem()
+            parent_class = selected.text(0) if selected else self.interface.robot_class_name
+            class_name = self.interface._generate_unique_name(part_type)
             self.interface.add_part(class_name, part_type, parent_class)
             self._rebuild_tree()
             self.part_selection_changed(class_name)
-        except Exception as exc:
+        except Exception:
             import traceback
             QMessageBox.critical(self, "Error adding part", traceback.format_exc())
 
@@ -1072,6 +1115,28 @@ class PartTreePanel(QWidget):
             child_item = QTreeWidgetItem([child_name, child_node.part_type])
             parent_item.addChild(child_item)
             self._add_children(child_item, child_name)
+
+    def _sync_hierarchy_from_tree(self):
+        """Rebuild parent/children relationships in interface.parts to match the visual tree."""
+        for node in self.interface.parts.values():
+            node.children = []
+            node.parent = ""
+
+        def walk(item: QTreeWidgetItem, parent_name: str):
+            class_name = item.text(0)
+            node = self.interface.parts.get(class_name)
+            if node:
+                node.parent = parent_name
+            if parent_name:
+                parent_node = self.interface.parts.get(parent_name)
+                if parent_node and class_name not in parent_node.children:
+                    parent_node.children.append(class_name)
+            for i in range(item.childCount()):
+                walk(item.child(i), class_name)
+
+        root = self.tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            walk(root.child(i), "")
 
     def get_selected_class(self) -> Optional[str]:
         item = self.tree.currentItem()
@@ -1216,8 +1281,8 @@ class PartConfigPanel(QWidget):
         self.robot_group.setVisible(False)
 
         # --- Joint states ---
-        js_group = QGroupBox("Joint States")
-        js_layout = QVBoxLayout(js_group)
+        self.js_group = QGroupBox("Joint States")
+        js_layout = QVBoxLayout(self.js_group)
         self.js_list = QListWidget()
         js_layout.addWidget(self.js_list)
         js_btn_layout = QHBoxLayout()
@@ -1231,7 +1296,7 @@ class PartConfigPanel(QWidget):
         js_btn_layout.addWidget(self.btn_edit_js)
         js_btn_layout.addWidget(self.btn_remove_js)
         js_layout.addLayout(js_btn_layout)
-        self._layout.addWidget(js_group)
+        self._layout.addWidget(self.js_group)
 
         self._layout.addStretch()
 
@@ -1275,6 +1340,7 @@ class PartConfigPanel(QWidget):
             self.camera_group.setVisible(node.part_type == "Camera")
             self.finger_group.setVisible(node.part_type == "Finger")
             self.robot_group.setVisible(node.part_type == "Robot")
+            self.js_group.setEnabled(node.part_type in PART_STATE_TYPES)
 
             if node.part_type == "Camera":
                 self.fov_h_spin.setValue(node.fov_h)
@@ -1368,9 +1434,13 @@ class PartConfigPanel(QWidget):
         node = self.interface.parts.get(self._current_class)
         if node is None:
             return
+        state_types = PART_STATE_TYPES.get(node.part_type)
+        if not state_types:
+            return
         self._update_joint_names_for_part(node)
         dialog = JointStateEditorDialog(
-            self.interface, self._current_class, self._joint_names, parent=self
+            self.interface, self._current_class, self._joint_names,
+            state_type_options=state_types, parent=self
         )
         if dialog.exec_() == QDialog.Accepted:
             node.joint_states.append(dialog.get_spec())
@@ -1385,10 +1455,12 @@ class PartConfigPanel(QWidget):
         idx = self.js_list.currentRow()
         if idx < 0 or idx >= len(node.joint_states):
             return
+        state_types = PART_STATE_TYPES.get(node.part_type)
         self._update_joint_names_for_part(node)
         dialog = JointStateEditorDialog(
             self.interface, self._current_class, self._joint_names,
-            existing=node.joint_states[idx], parent=self
+            existing=node.joint_states[idx],
+            state_type_options=state_types, parent=self
         )
         if dialog.exec_() == QDialog.Accepted:
             node.joint_states[idx] = dialog.get_spec()
