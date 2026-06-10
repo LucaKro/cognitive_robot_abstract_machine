@@ -11,7 +11,10 @@ from typing import Dict, List, Optional
 
 import rclpy
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QPen
 from PyQt5.QtWidgets import (
+    QProxyStyle,
+    QStyle,
     QApplication,
     QMainWindow,
     QWidget,
@@ -303,6 +306,8 @@ class RobotAnnotatorInterface:
     robot_class_name: str = field(init=False, default="MyRobot")
     ros_file_path: str = field(init=False, default="")
     _active_joints: List[ActiveConnection1DOF] = field(init=False, default_factory=list)
+    _scope_cache: Dict[str, List[str]] = field(init=False, default_factory=dict)
+    _body_names_cache: Optional[List[str]] = field(init=False, default=None)
 
     def __post_init__(self):
         self.world = World()
@@ -339,6 +344,8 @@ class RobotAnnotatorInterface:
         self._active_joints = [
             c for c in self.world.connections if isinstance(c, ActiveConnection1DOF)
         ]
+        self._scope_cache.clear()
+        self._body_names_cache = None
         self.rename_robot(_filename_to_camel_case(urdf_path))
 
     def rename_robot(self, new_name: str):
@@ -393,20 +400,25 @@ class RobotAnnotatorInterface:
                 self.propagate_endpoint_to_children(child_name)
 
     def get_bodies_in_part_scope(self, part_class_name: str) -> List[str]:
-        """All bodies in the selected part's own kinematic branch (root inclusive)."""
+        """All bodies in the selected part's own kinematic branch (root inclusive).
+        Result is cached by root link — safe because the world is static after URDF load.
+        """
         if not self.robot:
             return self.body_names
         node = self.parts.get(part_class_name)
-        if node and node.root_link:
-            try:
-                root_body = self.world.get_body_by_name(node.root_link)
-                branch = self.world.get_kinematic_structure_entities_of_branch(
-                    root_body
-                )
-                return [b.name.name for b in branch]
-            except Exception:
-                pass
-        return self.body_names
+        if not (node and node.root_link):
+            return self.body_names
+        root_link = node.root_link
+        if root_link in self._scope_cache:
+            return self._scope_cache[root_link]
+        try:
+            root_body = self.world.get_body_by_name(root_link)
+            branch = self.world.get_kinematic_structure_entities_of_branch(root_body)
+            result = [b.name.name for b in branch]
+        except Exception:
+            result = self.body_names
+        self._scope_cache[root_link] = result
+        return result
 
     def rename_part(self, old_name: str, new_name: str) -> bool:
         if not new_name or old_name == new_name:
@@ -462,7 +474,11 @@ class RobotAnnotatorInterface:
 
     @property
     def body_names(self) -> List[str]:
-        return [b.name.name for b in self.world.bodies_topologically_sorted]
+        if self._body_names_cache is None:
+            self._body_names_cache = [
+                b.name.name for b in self.world.bodies_topologically_sorted
+            ]
+        return self._body_names_cache
 
     def highlight_body(self, body_name: str):
         with self.world.modify_world():
@@ -720,8 +736,33 @@ class RobotAnnotatorInterface:
 
 
 # ---------------------------------------------------------------------------
-# Custom tree widget that emits a signal after internal drag-drop
+# Tree branch-line style and custom tree widget
 # ---------------------------------------------------------------------------
+
+
+class _TreeBranchStyle(QProxyStyle):
+    """Draws ├─ / └─ connector lines for tree branches without requiring image files."""
+
+    def drawPrimitive(self, element, option, painter, widget=None):
+        if element != QStyle.PE_IndicatorBranch:
+            super().drawPrimitive(element, option, painter, widget)
+            return
+        painter.save()
+        painter.setPen(QPen(QColor("#999999"), 1))
+        rect = option.rect
+        mid_x = (rect.left() + rect.right()) // 2
+        mid_y = (rect.top() + rect.bottom()) // 2
+        has_sibling = bool(option.state & QStyle.State_Sibling)
+        is_item = bool(option.state & QStyle.State_Item)
+        # vertical line: full height if more siblings follow, half height for last item
+        if has_sibling:
+            painter.drawLine(mid_x, rect.top(), mid_x, rect.bottom())
+        elif is_item:
+            painter.drawLine(mid_x, rect.top(), mid_x, mid_y)
+        # horizontal connector to the item
+        if is_item:
+            painter.drawLine(mid_x, mid_y, rect.right(), mid_y)
+        painter.restore()
 
 
 class _PartTree(QTreeWidget):
@@ -999,6 +1040,10 @@ class BodyListPanel(QWidget):
     def __post_init__(self):
         super().__init__()
         self._selected_body: Optional[str] = None
+        self._highlight_timer = QTimer()
+        self._highlight_timer.setSingleShot(True)
+        self._highlight_timer.setInterval(120)
+        self._highlight_timer.timeout.connect(self._do_highlight)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1014,21 +1059,30 @@ class BodyListPanel(QWidget):
         layout.addWidget(self.status_label)
 
     def refresh(self, bodies: Optional[List[str]] = None):
-        prev = self._selected_body
-        self.list_widget.clear()
         names = bodies if bodies is not None else self.interface.body_names
-        for name in names:
-            self.list_widget.addItem(name)
+        current = [
+            self.list_widget.item(i).text() for i in range(self.list_widget.count())
+        ]
+        if names == current:
+            return
+        prev = self._selected_body
+        self.list_widget.blockSignals(True)
+        self.list_widget.setUpdatesEnabled(False)
+        self.list_widget.clear()
+        self.list_widget.addItems(names)
+        self.list_widget.setUpdatesEnabled(True)
+        self.list_widget.blockSignals(False)
         if prev and prev in names:
-            hits = self.list_widget.findItems(prev, Qt.MatchExactly)
-            if hits:
-                self.list_widget.setCurrentItem(hits[0])
+            self.list_widget.setCurrentRow(names.index(prev))
 
     def _on_body_selected(self, name: str):
         self._selected_body = name
-        if name:
-            self.interface.highlight_body(name)
-            self.status_label.setText(f"Selected: {name}")
+        self._highlight_timer.start()
+
+    def _do_highlight(self):
+        if self._selected_body:
+            self.interface.highlight_body(self._selected_body)
+            self.status_label.setText(f"Selected: {self._selected_body}")
 
     @property
     def selected_body(self) -> Optional[str]:
@@ -1057,11 +1111,16 @@ class PartTreePanel(QWidget):
         layout.addLayout(header)
 
         self.tree = _PartTree()
-        self.tree.setStyleSheet("QTreeWidget::item { min-height: 28px; padding: 2px 6px; }")
+        self.tree.setStyle(_TreeBranchStyle())
+        self.tree.setStyleSheet(
+            "QTreeWidget::item { min-height: 28px; padding: 2px 6px; }"
+        )
         self.tree.setHeaderLabels(["Class", "Type"])
         self.tree.header().setSectionResizeMode(QHeaderView.Stretch)
         self.tree.setDragDropMode(QAbstractItemView.InternalMove)
         self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tree.setItemsExpandable(False)
+        self.tree.setUniformRowHeights(True)
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
         self.tree.items_rearranged.connect(self._sync_hierarchy_from_tree)
         layout.addWidget(self.tree)
@@ -1160,6 +1219,7 @@ class PartTreePanel(QWidget):
         root = self.tree.invisibleRootItem()
         for i in range(root.childCount()):
             walk(root.child(i), "")
+        self.tree.expandAll()
 
     def get_selected_class(self) -> Optional[str]:
         item = self.tree.currentItem()
@@ -1182,6 +1242,10 @@ class PartConfigPanel(QWidget):
         self._joint_names: List[str] = []
         self._block_auto_save: bool = False
         self.part_renamed_callback = None  # (old_name, new_name) -> None
+        self._auto_save_timer = QTimer(self)
+        self._auto_save_timer.setSingleShot(True)
+        self._auto_save_timer.setInterval(250)
+        self._auto_save_timer.timeout.connect(self._do_auto_save)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1441,19 +1505,22 @@ class PartConfigPanel(QWidget):
     def _auto_save(self):
         if self._block_auto_save:
             return
+        self._auto_save_timer.start()
+
+    def _do_auto_save(self):
+        if self._block_auto_save or self._current_class is None:
+            return
         old_root = ""
-        if self._current_class:
-            node = self.interface.parts.get(self._current_class)
-            if node:
-                old_root = node.root_link
+        node = self.interface.parts.get(self._current_class)
+        if node:
+            old_root = node.root_link
         self._on_apply()
-        if self._current_class:
-            self.interface.propagate_endpoint_to_children(self._current_class)
-            node = self.interface.parts.get(self._current_class)
-            if node and node.root_link != old_root:
-                self.body_list_panel.refresh(
-                    self.interface.get_bodies_in_part_scope(self._current_class)
-                )
+        self.interface.propagate_endpoint_to_children(self._current_class)
+        node = self.interface.parts.get(self._current_class)
+        if node and node.root_link != old_root:
+            self.body_list_panel.refresh(
+                self.interface.get_bodies_in_part_scope(self._current_class)
+            )
 
     def _on_add_joint_state(self):
         if self._current_class is None:
@@ -1598,6 +1665,11 @@ class Application(QMainWindow):
         self.interface = RobotAnnotatorInterface()
         self.timer.start(1000)
         self.timer.timeout.connect(lambda: None)
+        self._pending_selection: Optional[str] = None
+        self._selection_timer = QTimer(self)
+        self._selection_timer.setSingleShot(True)
+        self._selection_timer.setInterval(0)
+        self._selection_timer.timeout.connect(self._load_selected_part)
         self._init_ui()
 
     def _init_ui(self):
@@ -1683,9 +1755,15 @@ class Application(QMainWindow):
 
     def _on_part_selected(self, class_name: str):
         if class_name in self.interface.parts:
-            self.config_panel.load_part(class_name)
-            filtered = self.interface.get_bodies_in_part_scope(class_name)
-            self.body_list_panel.refresh(filtered)
+            self._pending_selection = class_name
+            self._selection_timer.start()  # restarts if already running, coalescing rapid clicks
+
+    def _load_selected_part(self):
+        class_name = self._pending_selection
+        if not class_name or class_name not in self.interface.parts:
+            return
+        self.config_panel.load_part(class_name)
+        self.body_list_panel.refresh(self.interface.get_bodies_in_part_scope(class_name))
 
     def _on_part_renamed(self, _old_name: str, _new_name: str):
         self.part_tree_panel._rebuild_tree()
