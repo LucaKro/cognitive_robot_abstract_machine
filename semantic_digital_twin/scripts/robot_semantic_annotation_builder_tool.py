@@ -66,6 +66,7 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.geometry import Color
 from semantic_digital_twin.world_description.world_entity import Body
 
+
 def _filename_to_camel_case(path: str) -> str:
     """Convert a file path's base name (without extension) to CamelCase."""
     stem = os.path.splitext(os.path.basename(path))[0]
@@ -244,11 +245,11 @@ STATE_TYPE_OPTIONS = [
 
 # Joint state types available per robot part type (empty = joint states not applicable)
 PART_STATE_TYPES: Dict[str, List[str]] = {
-    "Torso":       ["StaticJointState.TRANSPORT", "StaticJointState.PARK"],
-    "Arm":         ["StaticJointState.PARK", "StaticJointState.TRANSPORT"],
-    "Neck":        ["StaticJointState.PARK", "StaticJointState.TRANSPORT"],
+    "Torso": ["StaticJointState.TRANSPORT", "StaticJointState.PARK"],
+    "Arm": ["StaticJointState.PARK", "StaticJointState.TRANSPORT"],
+    "Neck": ["StaticJointState.PARK", "StaticJointState.TRANSPORT"],
     "EndEffector": ["GripperState.OPEN", "GripperState.CLOSE"],
-    "Finger":      ["GripperState.OPEN", "GripperState.CLOSE"],
+    "Finger": ["GripperState.OPEN", "GripperState.CLOSE"],
 }
 
 
@@ -336,9 +337,7 @@ class RobotAnnotatorInterface:
         self._register_visualization()
         self.robot = MinimalRobot.from_world(self.world)
         self._active_joints = [
-            c
-            for c in self.world.connections
-            if isinstance(c, ActiveConnection1DOF)
+            c for c in self.world.connections if isinstance(c, ActiveConnection1DOF)
         ]
         self.rename_robot(_filename_to_camel_case(urdf_path))
 
@@ -401,7 +400,9 @@ class RobotAnnotatorInterface:
         if node and node.root_link:
             try:
                 root_body = self.world.get_body_by_name(node.root_link)
-                branch = self.world.get_kinematic_structure_entities_of_branch(root_body)
+                branch = self.world.get_kinematic_structure_entities_of_branch(
+                    root_body
+                )
                 return [b.name.name for b in branch]
             except Exception:
                 pass
@@ -435,7 +436,9 @@ class RobotAnnotatorInterface:
         if parent_node and parent_node.root_link:
             try:
                 parent_root = self.world.get_body_by_name(parent_node.root_link)
-                branch = self.world.get_kinematic_structure_entities_of_branch(parent_root)
+                branch = self.world.get_kinematic_structure_entities_of_branch(
+                    parent_root
+                )
                 return [b.name.name for b in branch]
             except Exception:
                 pass
@@ -449,7 +452,9 @@ class RobotAnnotatorInterface:
         if node and node.root_link:
             try:
                 root_body = self.world.get_body_by_name(node.root_link)
-                branch = self.world.get_kinematic_structure_entities_of_branch(root_body)
+                branch = self.world.get_kinematic_structure_entities_of_branch(
+                    root_body
+                )
                 return [b.name.name for b in branch if b.name.name != node.root_link]
             except Exception:
                 pass
@@ -559,56 +564,48 @@ class RobotAnnotatorInterface:
         pt = node.part_type
 
         if pt == "Robot":
-            return self._infer_robot_mixins(node)
+            return self._infer_child_mixins(node)
         if pt == "Arm":
             ee = self.get_arm_end_effector(class_name)
             ee_str = ee if ee else "EndEffector"
-            return [f"Arm[{ee_str}]"]
+            return [f"Arm[{ee_str}]"] + self._infer_child_mixins(node)
         if pt == "Neck":
             cam = self.get_neck_camera(class_name)
             cam_str = cam if cam else "Camera"
-            return [f"Neck[{cam_str}]"]
+            return [f"Neck[{cam_str}]"] + self._infer_child_mixins(node)
         if pt == "Torso":
-            return ["Torso"] + self._infer_torso_arm_mixins(node)
+            return ["Torso"] + self._infer_child_mixins(node)
         if pt == "EndEffector":
-            return ["EndEffector"] + self._infer_finger_mixins(node)
+            return ["EndEffector"] + self._infer_child_mixins(node)
         if pt == "MobileBase":
-            return ["MobileBase"]
+            return ["MobileBase"] + self._infer_child_mixins(node)
         if pt == "Finger":
-            return ["Finger"]
+            return ["Finger"] + self._infer_child_mixins(node)
         if pt == "Camera":
-            return ["Camera"]
-        return [pt]
+            return ["Camera"] + self._infer_child_mixins(node)
+        return [pt] + self._infer_child_mixins(node)
 
-    def _infer_robot_mixins(self, node: PartNode) -> List[str]:
+    def _infer_child_mixins(self, node: PartNode) -> List[str]:
+        """Infer Has* mixins from direct children, unrestricted by parent type."""
+        by_type: Dict[str, List[str]] = {}
+        for c in node.children:
+            by_type.setdefault(self.parts[c].part_type, []).append(c)
+
         mixins = []
-        arm_children = [c for c in node.children if self.parts[c].part_type == "Arm"]
-        torso_children = [c for c in node.children if self.parts[c].part_type == "Torso"]
-        mobile_base_children = [c for c in node.children if self.parts[c].part_type == "MobileBase"]
-        sensor_children = [c for c in node.children if self.parts[c].part_type == "Camera"]
-
-        if mobile_base_children:
-            mixins.append(f"HasMobileBase[{mobile_base_children[0]}]")
-        if torso_children:
-            mixins.append(f"HasTorso[{torso_children[0]}]")
-        mixins += self._arm_mixins(arm_children)
-        if sensor_children:
-            sensor_str = ", ".join(sensor_children)
-            mixins.append(f"HasSensors[{sensor_str}]")
-        return mixins
-
-    def _infer_torso_arm_mixins(self, node: PartNode) -> List[str]:
-        mixins = []
-        arm_children = [c for c in node.children if self.parts[c].part_type == "Arm"]
-        neck_children = [c for c in node.children if self.parts[c].part_type == "Neck"]
-        sensor_children = [c for c in node.children if self.parts[c].part_type == "Camera"]
-
-        if neck_children:
-            mixins.append(f"HasNeck[{neck_children[0]}]")
-        mixins += self._arm_mixins(arm_children)
-        if sensor_children:
-            sensor_str = ", ".join(sensor_children)
-            mixins.append(f"HasSensors[{sensor_str}]")
+        if "MobileBase" in by_type:
+            mixins.append(f"HasMobileBase[{by_type['MobileBase'][0]}]")
+        if "Torso" in by_type:
+            mixins.append(f"HasTorso[{by_type['Torso'][0]}]")
+        if "Neck" in by_type:
+            mixins.append(f"HasNeck[{by_type['Neck'][0]}]")
+        mixins += self._arm_mixins(by_type.get("Arm", []))
+        if "EndEffector" in by_type:
+            mixins.append(f"HasEndEffector[{by_type['EndEffector'][0]}]")
+        finger_children = by_type.get("Finger", [])
+        if finger_children:
+            mixins += self._finger_mixins_from_list(finger_children)
+        if "Camera" in by_type:
+            mixins.append(f"HasSensors[{', '.join(by_type['Camera'])}]")
         return mixins
 
     def _arm_mixins(self, arm_children: List[str]) -> List[str]:
@@ -621,20 +618,15 @@ class RobotAnnotatorInterface:
         arms_str = ", ".join(arm_children)
         return [f"HasArms[{arms_str}]"]
 
-    def _infer_finger_mixins(self, node: PartNode) -> List[str]:
-        finger_children = [c for c in node.children if self.parts[c].part_type == "Finger"]
+    def _finger_mixins_from_list(self, finger_children: List[str]) -> List[str]:
         if len(finger_children) == 0:
             return []
         if len(finger_children) == 2:
             return [f"HasTwoFingers[{finger_children[0]}, {finger_children[1]}]"]
         thumbs = [c for c in finger_children if self.parts[c].is_thumb]
         others = [c for c in finger_children if not self.parts[c].is_thumb]
-        if thumbs:
-            all_fingers = thumbs + others
-        else:
-            all_fingers = finger_children
-        fingers_str = ", ".join(all_fingers)
-        return [f"HasFingers[{fingers_str}]"]
+        all_fingers = (thumbs + others) if thumbs else finger_children
+        return [f"HasFingers[{', '.join(all_fingers)}]"]
 
     def _collect_all_mixins(self, parts_in_order: List[PartNode]) -> List[str]:
         mixin_names = set()
@@ -642,19 +634,36 @@ class RobotAnnotatorInterface:
             for bc in part.base_classes_str.split(", "):
                 bc = bc.strip()
                 for mixin in [
-                    "HasMobileBase", "HasTorso", "HasOneArm", "HasLeftRightArm",
-                    "HasArms", "HasNeck", "HasSensors", "HasFingers", "HasTwoFingers",
+                    "HasMobileBase",
+                    "HasTorso",
+                    "HasOneArm",
+                    "HasLeftRightArm",
+                    "HasArms",
+                    "HasNeck",
+                    "HasSensors",
+                    "HasFingers",
+                    "HasTwoFingers",
                     "HasEndEffector",
                 ]:
                     if bc.startswith(mixin):
                         mixin_names.add(mixin)
         return sorted(mixin_names)
 
-    def _collect_all_robot_part_bases(self, parts_in_order: List[PartNode]) -> List[str]:
+    def _collect_all_robot_part_bases(
+        self, parts_in_order: List[PartNode]
+    ) -> List[str]:
         base_names = set()
         for part in parts_in_order:
             pt = part.part_type
-            if pt in ("MobileBase", "Torso", "Arm", "Neck", "EndEffector", "Finger", "Camera"):
+            if pt in (
+                "MobileBase",
+                "Torso",
+                "Arm",
+                "Neck",
+                "EndEffector",
+                "Finger",
+                "Camera",
+            ):
                 base_names.add(pt)
         return sorted(base_names)
 
@@ -816,7 +825,9 @@ class JointStateEditorDialog(QDialog):
         self._user_edited_name = False
 
         # Snapshot all joint positions so we can reset when the dialog closes
-        self._original_positions = {j.name.name: j.position for j in interface._active_joints}
+        self._original_positions = {
+            j.name.name: j.position for j in interface._active_joints
+        }
 
         self.setWindowTitle("Edit Joint State")
         self.setMinimumSize(520, 450)
@@ -888,6 +899,7 @@ class JointStateEditorDialog(QDialog):
                     if j_:
                         self._interface.set_joint_position(j_, pos)
                     self._updating = False
+
                 return cb
 
             def _make_spin_cb(name_, lo_, hi_):
@@ -901,6 +913,7 @@ class JointStateEditorDialog(QDialog):
                     if j_:
                         self._interface.set_joint_position(j_, val)
                     self._updating = False
+
                 return cb
 
             slider.valueChanged.connect(_make_slider_cb(jn, lo, hi))
@@ -921,7 +934,11 @@ class JointStateEditorDialog(QDialog):
             idx = self.type_combo.findText(existing.state_type)
             if idx >= 0:
                 self.type_combo.setCurrentIndex(idx)
-            apply_vals = {jn: existing.values[i] for i, jn in enumerate(joint_names) if i < len(existing.values)}
+            apply_vals = {
+                jn: existing.values[i]
+                for i, jn in enumerate(joint_names)
+                if i < len(existing.values)
+            }
             for jn, val in apply_vals.items():
                 self._set_slider_spinbox(jn, val)
             self._interface.set_joint_positions(apply_vals)
@@ -1040,6 +1057,7 @@ class PartTreePanel(QWidget):
         layout.addLayout(header)
 
         self.tree = _PartTree()
+        self.tree.setStyleSheet("QTreeWidget::item { min-height: 28px; padding: 2px 6px; }")
         self.tree.setHeaderLabels(["Class", "Type"])
         self.tree.header().setSectionResizeMode(QHeaderView.Stretch)
         self.tree.setDragDropMode(QAbstractItemView.InternalMove)
@@ -1059,20 +1077,25 @@ class PartTreePanel(QWidget):
         add_grid.setSpacing(4)
         for pt in [t for t in PART_TYPES if t != "Robot"]:
             btn = QPushButton(pt)
-            btn.clicked.connect(lambda checked, part_type=pt: self._on_quick_add(part_type))
+            btn.clicked.connect(
+                lambda checked, part_type=pt: self._on_quick_add(part_type)
+            )
             add_grid.addWidget(btn)
         layout.addWidget(add_group)
 
     def _on_quick_add(self, part_type: str):
         try:
             selected = self.tree.currentItem()
-            parent_class = selected.text(0) if selected else self.interface.robot_class_name
+            parent_class = (
+                selected.text(0) if selected else self.interface.robot_class_name
+            )
             class_name = self.interface._generate_unique_name(part_type)
             self.interface.add_part(class_name, part_type, parent_class)
             self._rebuild_tree()
             self.part_selection_changed(class_name)
         except Exception:
             import traceback
+
             QMessageBox.critical(self, "Error adding part", traceback.format_exc())
 
     def _on_remove(self):
@@ -1366,7 +1389,9 @@ class PartConfigPanel(QWidget):
             try:
                 root_body = self.interface.world.get_body_by_name(node.root_link)
                 tip_body = self.interface.world.get_body_by_name(node.tip_link)
-                chain = self.interface.world.compute_chain_of_connections(root_body, tip_body)
+                chain = self.interface.world.compute_chain_of_connections(
+                    root_body, tip_body
+                )
                 self._joint_names = [
                     c.name.name for c in chain if isinstance(c, ActiveConnection1DOF)
                 ]
@@ -1402,7 +1427,9 @@ class PartConfigPanel(QWidget):
         if not new_name or new_name == self._current_class:
             return
         if new_name in self.interface.parts:
-            QMessageBox.warning(self, "Duplicate", f"A part named '{new_name}' already exists.")
+            QMessageBox.warning(
+                self, "Duplicate", f"A part named '{new_name}' already exists."
+            )
             self.class_name_edit.setText(self._current_class)
             return
         old_name = self._current_class
@@ -1439,8 +1466,11 @@ class PartConfigPanel(QWidget):
             return
         self._update_joint_names_for_part(node)
         dialog = JointStateEditorDialog(
-            self.interface, self._current_class, self._joint_names,
-            state_type_options=state_types, parent=self
+            self.interface,
+            self._current_class,
+            self._joint_names,
+            state_type_options=state_types,
+            parent=self,
         )
         if dialog.exec_() == QDialog.Accepted:
             node.joint_states.append(dialog.get_spec())
@@ -1458,9 +1488,12 @@ class PartConfigPanel(QWidget):
         state_types = PART_STATE_TYPES.get(node.part_type)
         self._update_joint_names_for_part(node)
         dialog = JointStateEditorDialog(
-            self.interface, self._current_class, self._joint_names,
+            self.interface,
+            self._current_class,
+            self._joint_names,
             existing=node.joint_states[idx],
-            state_type_options=state_types, parent=self
+            state_type_options=state_types,
+            parent=self,
         )
         if dialog.exec_() == QDialog.Accepted:
             node.joint_states[idx] = dialog.get_spec()
@@ -1505,13 +1538,6 @@ class PartConfigPanel(QWidget):
 
         if node.part_type == "Robot":
             node.ros_file_path = self.ros_path_edit.text().strip()
-
-
-# ---------------------------------------------------------------------------
-# Joint slider panel
-# ---------------------------------------------------------------------------
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -1576,7 +1602,7 @@ class Application(QMainWindow):
 
     def _init_ui(self):
         self.setWindowTitle("Robot Semantic Annotation Builder")
-        self.setMinimumSize(1100, 700)
+        self.setMinimumSize(1200, 800)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -1615,7 +1641,7 @@ class Application(QMainWindow):
         self.config_panel.part_renamed_callback = self._on_part_renamed
         splitter.addWidget(self.config_panel)
 
-        splitter.setSizes([250, 350, 400])
+        splitter.setSizes([200, 500, 400])
         main_layout.addWidget(splitter, stretch=1)
 
         # Bottom: generate button
@@ -1665,6 +1691,7 @@ class Application(QMainWindow):
         self.part_tree_panel._rebuild_tree()
 
     def _on_generate(self):
+        self.part_tree_panel._sync_hierarchy_from_tree()
         robot_name = self.interface.robot_class_name
         if robot_name not in self.interface.parts:
             QMessageBox.warning(
