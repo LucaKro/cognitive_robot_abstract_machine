@@ -26,78 +26,57 @@ Used Concepts:
 - [](world-structure-manipulation)
 - [](world-state-manipulation)
 
-First, let's create a simple table with one leg.
+First, let's create a simple table with one leg. We describe the bodies with `BodySpec`s and spawn them into the
+world, as introduced in [](creating-custom-bodies).
 
 ```{code-cell} ipython3
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.connections import FixedConnection, Connection6DoF
+from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale
-from semantic_digital_twin.world_description.world_entity import Body, Region
+from semantic_digital_twin.world_description.specs import BodySpec, RegionSpec
+from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 
 world = World()
 
 root = Body(name=PrefixedName("root"))
-
-table_leg = Body(name=PrefixedName("leg"))
-leg_shapes = [
-    Box(
-        origin=HomogeneousTransformationMatrix(reference_frame=table_leg),
-        scale=Scale(0.1, 0.1, 0.6),
-    )
-]
-table_leg.collision = leg_shapes
-table_leg.visual = leg_shapes
-
-table_top = Body(name=PrefixedName("top"))
-table_top_shapes = [
-    Box(
-        origin=HomogeneousTransformationMatrix(reference_frame=table_top),
-        scale=Scale(1, 1, 0.05),
-    )
-]
-table_top.collision = table_top_shapes
-table_top.visual = table_top_shapes
-
 with world.modify_world():
-    root_to_leg = Connection6DoF.create_with_dofs(parent=root, child=table_leg, world=world)
-    world.add_connection(root_to_leg)
+    world.add_body(root)
 
-    leg_to_top = FixedConnection(
-        parent=table_leg,
-        child=table_top,
-        parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-            z=0.3, reference_frame=table_leg
-        ),
-    )
-    world.add_connection(leg_to_top)
+table_leg = BodySpec.box(PrefixedName("leg"), scale=Scale(0.1, 0.1, 0.6)).spawn(
+    world, connection_type=Connection6DoF
+)
+table_top = BodySpec.box(PrefixedName("top"), scale=Scale(1, 1, 0.05)).spawn(
+    world,
+    parent=table_leg,
+    pose=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.3),
+)
 ```
 
-Next, we create a region describing the top of the table. We declare that the region is a very thin box that sits on top of the table-top.
+Next, we describe a region for the top of the table. We declare that the region is a very thin box that sits on
+top of the table-top. Regions are described by a `RegionSpec`, the counterpart of `BodySpec` for semantic areas.
 
 ```{code-cell} ipython3
-table_surface = Region(
+table_surface_spec = RegionSpec(
     name=PrefixedName("supporting surface of table"),
+    shapes=[
+        Box(
+            origin=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.05 / 2),
+            scale=Scale(1, 1, 0.001),
+        )
+    ],
 )
-
-surface = Box(
-    origin=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.05 / 2, reference_frame=table_surface),
-    scale=Scale(1, 1, 0.001),
-)
-table_surface.area = [surface]
 ```
 
 Regions are connected the same way bodies are connected.
 Hence, you can specify how the regions move w. r. t. to a body or even another region.
-We will now say the the region moves exactly as the table top moves.
+We will now say the the region moves exactly as the table top moves, by spawning it with the table top as its
+parent (the default `FixedConnection` keeps it rigidly attached).
 
 ```{code-cell} ipython3
-with world.modify_world():
-    world.add_kinematic_structure_entity(table_surface)
-    connection = FixedConnection(table_top, table_surface)
-    world.add_connection(connection)
+table_surface = table_surface_spec.spawn(world, parent=table_top)
 print(world.regions)
 ```
 
@@ -107,7 +86,7 @@ We can now see that if we move the table, we also move the region.
 print(table_surface.global_pose.to_position().to_np()[:3])
 
 with world.modify_world():
-    root_to_leg.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+    table_leg.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=1.0, y=2.0, reference_frame=table_leg
     )
 

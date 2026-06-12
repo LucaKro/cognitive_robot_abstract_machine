@@ -17,6 +17,10 @@ kernelspec:
 Factories, used by calling the `create_with_new_body_in_world` method of a semantic annotation inheriting from 
 `HasRootBody`, are convenience builders that usually a create the respective semantic annotation as well as a new body 
 with geometry that was generated based on parameters in the world provided to the factory.
+The geometry itself is described by a `BodySpec`, which each annotation produces through its `create_body_spec`
+classmethod — that is where annotation-specific assumptions live (for example, a `Handle` generates a hollow
+U-shape instead of a plain box). The factory then takes care of inserting the body into the world and wiring
+the connection and annotation.
 Factories always spawn bodies relative to the world root. If you for some reason only have a transform relative to some 
 other body, `world.transform(parent_T_your_body, world.root)` to get the correct `root_T_your_body`.
 They are ideal for quickly setting up generic geometries of environments without having to wire all bodies, connections, 
@@ -46,17 +50,15 @@ root = Body(name=PrefixedName("root"))
 with world.modify_world():
     world.add_body(root)
 with world.modify_world():
-    drawer= Drawer.create_with_new_body_in_world(
-        name=PrefixedName("drawer"),
-        scale=Scale(0.2, 0.4, 0.2),
+    drawer = Drawer.create_with_new_body_in_world(
         world=world,
+        body_spec=Drawer.create_body_spec(PrefixedName("drawer"), scale=Scale(0.2, 0.4, 0.2)),
         world_root_T_self=HomogeneousTransformationMatrix(),
     )
     handle = Handle.create_with_new_body_in_world(
-        name=PrefixedName("drawer_handle"),
-        world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.1),
         world=world,
-        scale=Scale(0.05, 0.1, 0.02)
+        body_spec=Handle.create_body_spec(PrefixedName("drawer_handle"), scale=Scale(0.05, 0.1, 0.02)),
+        world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.1),
     )
     drawer.add_handle(handle)
 

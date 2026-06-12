@@ -45,31 +45,29 @@ root = Body(name=PrefixedName("root"))
 with world.modify_world():
     world.add_body(root)
 with world.modify_world():
-    drawer= Drawer.create_with_new_body_in_world(
-        name=PrefixedName("drawer"),
-        scale=Scale(0.3, 0.3, 0.2),
+    drawer = Drawer.create_with_new_body_in_world(
         world=world,
+        body_spec=Drawer.create_body_spec(PrefixedName("drawer"), scale=Scale(0.3, 0.3, 0.2)),
         world_root_T_self=HomogeneousTransformationMatrix(),
     )
     handle = Handle.create_with_new_body_in_world(
-        name=PrefixedName("drawer_handle"),
-        world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.15),
         world=world,
+        body_spec=Handle.create_body_spec(PrefixedName("drawer_handle")),
+        world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.15),
     )
     drawer.add_handle(handle)
 
     slider = Slider.create_with_new_body_in_world(
-        name=PrefixedName("drawer_slider"),
-        world_root_T_self=HomogeneousTransformationMatrix(),
         world=world,
+        body_spec=Slider.create_body_spec(PrefixedName("drawer_slider")),
+        world_root_T_self=HomogeneousTransformationMatrix(),
         active_axis=Vector3.X()
     )
     drawer.add_slider(slider)
 
     dresser = Dresser.create_with_new_body_in_world(
-        name=PrefixedName("dresser"),
-        scale=Scale(0.31, 0.31, 0.21),
         world=world,
+        body_spec=Dresser.create_body_spec(PrefixedName("dresser"), scale=Scale(0.31, 0.31, 0.21)),
     )
 
     dresser.add_drawer(drawer)

@@ -24,11 +24,8 @@ from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.connections import (
-    FixedConnection,
-)
 from semantic_digital_twin.world_description.geometry import Box, Scale
-from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import (
     Body,
     KinematicStructureEntity,
@@ -66,18 +63,11 @@ class IsVisibleBy(PoseValidator):
 
         :return: True if the target pose is visible for the robot, False otherwise
         """
-        gen_body = Body(
+        gen_body = BodySpec(
             name=PrefixedName("vist_test_obj", "coraplex"),
-            collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
-        )
-        with self.world.modify_world():
-            self.world.add_connection(
-                FixedConnection(
-                    parent=self.world.root,
-                    child=gen_body,
-                    parent_T_connection_expression=self.target_pose.to_homogeneous_matrix(),
-                )
-            )
+            shapes=[Box(scale=Scale(0.1, 0.1, 0.1))],
+            visual_shapes=[],
+        ).spawn(self.world, pose=self.target_pose.to_homogeneous_matrix())
 
         result = self._ray_test(gen_body)
 
