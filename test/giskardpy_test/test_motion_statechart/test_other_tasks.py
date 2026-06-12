@@ -735,16 +735,16 @@ class TestOpenClose:
 
         with pr2_world_copy.modify_world():
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"),
                 world=pr2_world_copy,
+                body_spec=Door.create_body_spec(PrefixedName("door")),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5, z=1, yaw=np.pi, reference_frame=pr2_world_copy.root
                 ),
             )
 
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
                 world=pr2_world_copy,
+                body_spec=Handle.create_body_spec(PrefixedName("handle")),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5,
                     y=0.45,
@@ -762,8 +762,8 @@ class TestOpenClose:
             upper_limits.velocity = 1
 
             hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName("hinge"),
                 world=pr2_world_copy,
+                body_spec=Hinge.create_body_spec(PrefixedName("hinge")),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5,
                     y=-0.5,

@@ -63,6 +63,7 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
 )
 from semantic_digital_twin.world_description.geometry import BoundingBox, Scale
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import (
     Body,
     KinematicStructureEntity,
@@ -257,15 +258,13 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
         world: World,
+        body_spec: BodySpec,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
         active_axis: Optional[Vector3] = None,
         connection_multiplier: float = 1.0,
         connection_offset: float = 0.0,
-        scale: Scale = None,
-        **kwargs,
     ) -> Self:
         raise UselessConceptError(
             message="The bodies needed for RobotParts should already exist in the world after parsing a URDF"

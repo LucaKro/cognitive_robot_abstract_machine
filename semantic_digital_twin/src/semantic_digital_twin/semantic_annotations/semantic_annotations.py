@@ -45,6 +45,7 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
+from semantic_digital_twin.world_description.specs import BodySpec, RegionSpec
 from semantic_digital_twin.world_description.geometry import Scale, Mesh, Color
 from semantic_digital_twin.world_description.shape_collection import (
     BoundingBoxCollection,
@@ -75,19 +76,22 @@ class Handle(HasRootBody):
     """
 
     @classmethod
-    def create_with_new_body_in_world(
+    def create_body_spec(
         cls,
         name: PrefixedName,
-        world: World,
-        world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
-        connection_limits: Optional[DegreeOfFreedomLimits] = None,
-        active_axis: Optional[Vector3] = None,
-        connection_multiplier: float = 1.0,
-        connection_offset: float = 0.0,
-        *,
         scale: Scale = Scale(0.1, 0.02, 0.02),
+        *,
         thickness: float = 0.005,
-    ) -> Self:
+        **kwargs,
+    ) -> BodySpec:
+        """
+        Create the spec for a hollow "U" shaped handle.
+
+        :param name: The name of the body.
+        :param scale: The scale of the handle.
+        :param thickness: The thickness of the handle walls.
+        :return: The created spec.
+        """
         handle_event = cls._create_handle_geometry(scale=scale).as_composite_set()
 
         inner_box = cls._create_handle_geometry(
@@ -96,15 +100,7 @@ class Handle(HasRootBody):
 
         handle_event -= inner_box
 
-        handle_body = Body(name=name)
-        collision = BoundingBoxCollection.from_event(
-            handle_body, handle_event
-        ).as_shapes()
-        handle_body.collision = collision
-        handle_body.visual = collision
-        return cls._create_with_connection_in_world(
-            name, world, handle_body, world_root_T_self
-        )
+        return BodySpec.from_event(name, handle_event)
 
     @classmethod
     def _create_handle_geometry(
@@ -148,31 +144,21 @@ class Aperture(HasRootRegion):
     """
 
     @classmethod
-    def create_with_new_region_in_world(
+    def create_region_spec(
         cls,
         name: PrefixedName,
-        world: World,
-        world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
-        connection_limits: Optional[DegreeOfFreedomLimits] = None,
-        active_axis: Vector3 = Vector3.Z(),
-        connection_multiplier: float = 1.0,
-        connection_offset: float = 0.0,
-        *,
         scale: Scale = Scale(),
-    ) -> Self:
+        **kwargs,
+    ) -> RegionSpec:
         """
-        Create a new semantic annotation with a new region in the given world.
+        Create the spec for an aperture: a box-shaped region of the given scale.
+
+        :param name: The name of the region.
+        :param scale: The scale of the aperture.
+        :return: The created spec.
         """
-        aperture_region = Region(name=name)
-
-        scale_event = scale.to_simple_event().as_composite_set()
-        aperture_geometry = BoundingBoxCollection.from_event(
-            aperture_region, scale_event
-        ).as_shapes()
-        aperture_region.area = aperture_geometry
-
-        return cls._create_with_connection_in_world(
-            name, world, aperture_region, world_root_T_self
+        return RegionSpec.from_event(
+            name, scale.to_simple_event().as_composite_set()
         )
 
     @classmethod
@@ -190,7 +176,9 @@ class Aperture(HasRootRegion):
             .scale
         )
         return cls.create_with_new_region_in_world(
-            name, world, parent_T_self, scale=body_scale
+            world=world,
+            region_spec=cls.create_region_spec(name, scale=body_scale),
+            world_root_T_self=parent_T_self,
         )
 
 
@@ -232,51 +220,77 @@ class Door(HasHandle, HasHinge):
     """
 
     @classmethod
-    def create_with_new_body_in_world(
+    def create_body_spec(
         cls,
         name: PrefixedName,
+        scale: Scale = Scale(0.03, 1, 2),
+        **kwargs,
+    ) -> BodySpec:
+        """
+        Create the spec for a door plane. The scale must be thinner along x than
+        along y and z.
+
+        :param name: The name of the body.
+        :param scale: The scale of the door.
+        :return: The created spec.
+        """
+        if not (scale.x < scale.y and scale.x < scale.z):
+            raise InvalidPlaneDimensions(scale, clazz=Door)
+
+        # This creates an event around the scale, so if the scale is 1 the event will be from -0.5 to 0.5.
+        return BodySpec.from_event(name, scale.to_simple_event().as_composite_set())
+
+    @classmethod
+    def create_with_new_body_in_world(
+        cls,
         world: World,
+        body_spec: BodySpec,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
         active_axis: Vector3 = Vector3.Z(),
         connection_multiplier: float = 1.0,
         connection_offset: float = 0.0,
-        *,
-        scale: Scale = Scale(0.03, 1, 2),
     ) -> Self:
-        if not (scale.x < scale.y and scale.x < scale.z):
-            raise InvalidPlaneDimensions(scale, clazz=Door)
-
-        # This creates an event around the scale, so if the scale is 1 the event will be from -0.5 to 0.5.
-        door_event = scale.to_simple_event().as_composite_set()
-        door_body = Body(name=name)
-        bounding_box_collection = BoundingBoxCollection.from_event(
-            door_body, door_event
+        door = super().create_with_new_body_in_world(
+            world=world,
+            body_spec=body_spec,
+            world_root_T_self=world_root_T_self,
+            connection_limits=connection_limits,
+            active_axis=active_axis,
+            connection_multiplier=connection_multiplier,
+            connection_offset=connection_offset,
         )
-        collision = bounding_box_collection.as_shapes()
-        door_body.collision = collision
-        door_body.visual = collision
+        door.entry_way = cls._create_entry_way_in_world(
+            body_spec.name, world, door.root
+        )
+        return door
 
+    @classmethod
+    def _create_entry_way_in_world(
+        cls, name: PrefixedName, world: World, door_body: Body
+    ) -> EntryWay:
+        """
+        Create the entry way covered by the door and add it to the world,
+        attached to the door body.
+
+        :param name: The name of the door, used to derive the entry way names.
+        :param world: The world to add the entry way to.
+        :param door_body: The door body the entry way is attached to.
+        :return: The created entry way.
+        """
         entry_way_name = PrefixedName(name.name + "entry_way", name.prefix)
         entry_way_region_name = PrefixedName(
             name.name + "entry_way_region", name.prefix
         )
 
-        entry_way_region = Region(
-            name=entry_way_region_name,
-            area=ShapeCollection([Mesh.from_trimesh(mesh=door_body.combined_mesh)]),
-        )
-        entry_way_region.area.dye_shapes(Color(R=1.0, G=1.0, B=1.0, A=0.2))
+        entry_way_mesh = Mesh.from_trimesh(mesh=door_body.combined_mesh)
+        entry_way_mesh.color = Color(R=1.0, G=1.0, B=1.0, A=0.2)
+        entry_way_region = RegionSpec(
+            name=entry_way_region_name, shapes=[entry_way_mesh]
+        ).spawn(world, parent=door_body)
         entry_way = EntryWay(name=entry_way_name, root=entry_way_region)
-        world.add_region(entry_way.root)
-        world.add_connection(FixedConnection(door_body, entry_way.root))
         world.add_semantic_annotation(entry_way)
-
-        door = cls._create_with_connection_in_world(
-            name, world, door_body, world_root_T_self
-        )
-        door.entry_way = entry_way
-        return door
+        return entry_way
 
     def calculate_world_T_hinge_based_on_handle(
         self, opening_axis: Vector3
@@ -421,31 +435,25 @@ class Wardrobe(Cabinet, HasDrawers, HasDoors): ...
 class Floor(HasSupportingSurface):
 
     @classmethod
-    def create_with_new_body_in_world(
+    def create_body_spec(
         cls,
         name: PrefixedName,
-        world: World,
-        world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
-        connection_limits: Optional[DegreeOfFreedomLimits] = None,
-        active_axis: Vector3 = Vector3.Z(),
-        connection_multiplier: float = 1.0,
-        connection_offset: float = 0.0,
-        *,
         scale: Scale = Scale(),
-    ) -> Self:
+        *,
+        floor_polytope: Optional[List[Point3]] = None,
+        **kwargs,
+    ) -> BodySpec:
         """
-        Create a Floor semantic annotation with a new body defined by the given scale.
+        Create the spec for a floor: the convex hull of the given polytope, or
+        of the scale's bounding box when no polytope is given.
 
-        :param name: The name of the floor body.
+        :param name: The name of the body.
         :param scale: The scale defining the floor polytope.
+        :param floor_polytope: A list of 3D points defining the floor polytope.
+        :return: The created spec.
         """
-        polytope = scale.to_bounding_box().get_points()
-        return cls.create_with_new_body_from_polytope_in_world(
-            name=name,
-            floor_polytope=polytope,
-            world=world,
-            world_root_T_self=world_root_T_self,
-        )
+        polytope = floor_polytope or scale.to_bounding_box().get_points()
+        return BodySpec(name=name, shapes=[Mesh.from_3d_points(points_3d=polytope)])
 
     @classmethod
     def create_with_new_body_from_polytope_in_world(
@@ -461,9 +469,10 @@ class Floor(HasSupportingSurface):
         :param name: The name of the floor body.
         :param floor_polytope: A list of 3D points defining the floor poly
         """
-        room_body = Body.from_3d_points(name=name, points_3d=floor_polytope)
-        return cls._create_with_connection_in_world(
-            name, world, room_body, world_root_T_self
+        return cls.create_with_new_body_in_world(
+            world=world,
+            body_spec=cls.create_body_spec(name, floor_polytope=floor_polytope),
+            world_root_T_self=world_root_T_self,
         )
 
 
@@ -502,34 +511,25 @@ class Wall(HasApertures):
     """
 
     @classmethod
-    def create_with_new_body_in_world(
+    def create_body_spec(
         cls,
         name: PrefixedName,
-        world: World,
-        world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
-        connection_limits: Optional[DegreeOfFreedomLimits] = None,
-        active_axis: Vector3 = Vector3.Z(),
-        connection_multiplier: float = 1.0,
-        connection_offset: float = 0.0,
-        *,
         scale: Scale = Scale(),
-    ) -> Self:
+        **kwargs,
+    ) -> BodySpec:
+        """
+        Create the spec for a wall plane. The scale must be thinner along x than
+        along y and z.
+
+        :param name: The name of the body.
+        :param scale: The scale of the wall.
+        :return: The created spec.
+        """
         if not (scale.x < scale.y and scale.x < scale.z):
             raise InvalidPlaneDimensions(scale, clazz=Wall)
 
-        wall_body = Body(name=name)
         # This creates an event exactly as the scale, so if the scale is 1 the event will be from 0 to 1.
-        wall_event = cls._create_wall_event(scale).as_composite_set()
-        wall_collision = BoundingBoxCollection.from_event(
-            wall_body, wall_event
-        ).as_shapes()
-
-        wall_body.collision = wall_collision
-        wall_body.visual = wall_collision
-
-        return cls._create_with_connection_in_world(
-            name, world, wall_body, world_root_T_self
-        )
+        return BodySpec.from_event(name, cls._create_wall_event(scale).as_composite_set())
 
     @property
     def doors(self) -> Iterable[Door]:

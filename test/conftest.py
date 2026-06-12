@@ -804,102 +804,92 @@ def kitchen_environment_fixture():
         world.add_kinematic_structure_entity(root)
         fruit_table = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("fruit_table"),
+            body_spec=Table.create_body_spec(PrefixedName("fruit_table"), scale=Scale(2, 2, 1)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=0
             ),
-            scale=Scale(2, 2, 1),
         )
 
         vegetable_table = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("vegetable_table"),
+            body_spec=Table.create_body_spec(PrefixedName("vegetable_table"), scale=Scale(2, 2, 1)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=2
             ),
-            scale=Scale(2, 2, 1),
         )
 
         empty_table = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("empty_table"),
+            body_spec=Table.create_body_spec(PrefixedName("empty_table"), scale=Scale(2, 2, 1)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=4
             ),
-            scale=Scale(2, 2, 1),
         )
 
         empty_table2 = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("empty_table2"),
+            body_spec=Table.create_body_spec(PrefixedName("empty_table2"), scale=Scale(2, 2, 1)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=6
             ),
-            scale=Scale(2, 2, 1),
         )
 
         apple = Apple.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("apple"),
+            body_spec=Apple.create_body_spec(PrefixedName("apple"), scale=Scale(0.10, 0.10, 0.10)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=0.55
             ),
-            scale=Scale(0.10, 0.10, 0.10),
         )
         for color in apple.bodies[0].visual.shapes:
             color.color = Color.RED()
 
         orange = Orange.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("orange"),
+            body_spec=Orange.create_body_spec(PrefixedName("orange"), scale=Scale(0.10, 0.10, 0.10)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=0.5, z=0.55
             ),
-            scale=Scale(0.10, 0.10, 0.10),
         )
         for color in orange.bodies[0].visual.shapes:
             color.color = Color.ORANGE()
 
         banana1 = Banana.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("banana1"),
+            body_spec=Banana.create_body_spec(PrefixedName("banana1"), scale=Scale(0.10, 0.10, 0.60)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=0.6, z=0.75
             ),
-            scale=Scale(0.10, 0.10, 0.60),
         )
         for color in banana1.bodies[0].visual.shapes:
             color.color = Color.YELLOW()
 
         carrot = Carrot.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("carrot"),
+            body_spec=Carrot.create_body_spec(PrefixedName("carrot"), scale=Scale(0.05, 0.05, 0.20)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=2.6
             ),
-            scale=Scale(0.05, 0.05, 0.20),
         )
         for color in carrot.bodies[0].visual.shapes:
             color.color = Color.ORANGE()
 
         lettuce = Lettuce.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("lettuce"),
+            body_spec=Lettuce.create_body_spec(PrefixedName("lettuce"), scale=Scale(0.15, 0.15, 0.10)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1.5, z=2.55
             ),
-            scale=Scale(0.15, 0.15, 0.10),
         )
         for color in lettuce.bodies[0].visual.shapes:
             color.color = Color.GREEN()
 
         banana = Banana.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("banana"),
+            body_spec=Banana.create_body_spec(PrefixedName("banana"), scale=Scale(0.20, 0.05, 0.05)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=10, y=10, z=10
             ),
-            scale=Scale(0.20, 0.05, 0.05),
         )
         for color in banana.bodies[0].visual.shapes:
             color.color = Color.YELLOW()

@@ -303,9 +303,8 @@ class Sage10kWall(Sage10kWithID):
 
         with world.modify_world():
             annotation = Wall.create_with_new_body_in_world(
-                name=wall_name,
-                scale=wall_scale,
                 world=world,
+                body_spec=Wall.create_body_spec(wall_name, scale=wall_scale),
                 world_root_T_self=parent_T_wall,
             )
 
@@ -616,9 +615,8 @@ class Sage10kDoor(Sage10kWithID):
 
         with world.modify_world():
             annotation = DoorWithType.create_with_new_body_in_world(
-                name=name,
-                scale=scale,
                 world=world,
+                body_spec=DoorWithType.create_body_spec(name, scale=scale),
                 world_root_T_self=world_root_T_self,
             )
             annotation.type_description = self.door_type
@@ -692,10 +690,9 @@ class Sage10kDoor(Sage10kWithID):
 
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=handle_name,
                 world=world,
+                body_spec=Handle.create_body_spec(handle_name, scale=Scale(0.05, 0.02, 0.2)),
                 world_root_T_self=world_root_T_handle,
-                scale=Scale(0.05, 0.02, 0.2),
             )
             door.add_handle(handle)
         return handle
@@ -718,8 +715,8 @@ class Sage10kDoor(Sage10kWithID):
 
         with world.modify_world():
             hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName(name="hinge", prefix=door.root.name.name),
                 world=world,
+                body_spec=Hinge.create_body_spec(PrefixedName(name="hinge", prefix=door.root.name.name)),
                 active_axis=Vector3.Z(),
                 world_root_T_self=world_root_T_hinge,
                 connection_limits=DegreeOfFreedomLimits(lower=lower, upper=upper),
@@ -806,9 +803,8 @@ class Sage10kRoom(Sage10kWithID):
 
         with world.modify_world():
             floor_annotation = Floor.create_with_new_body_in_world(
-                scale=Scale(x=self.dimensions.x, y=self.dimensions.y, z=0.01),
                 world=world,
-                name=floor_name,
+                body_spec=Floor.create_body_spec(floor_name, scale=Scale(x=self.dimensions.x, y=self.dimensions.y, z=0.01)),
                 world_root_T_self=parent_T_floor,
             )
 

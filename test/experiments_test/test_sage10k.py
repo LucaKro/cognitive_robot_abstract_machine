@@ -45,16 +45,14 @@ def wall_door_handle_world():
 
     with world.modify_world():
         wall = Wall.create_with_new_body_in_world(
-            name=PrefixedName("wall"),
             world=world,
-            scale=Scale(0.1, 4, 2),
+            body_spec=Wall.create_body_spec(PrefixedName("wall"), scale=Scale(0.1, 4, 2)),
         )
         wall.root.visual.dye_shapes(Color(R=0.6, G=0.6, B=0.6))
 
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"),
             world=world,
-            scale=Scale(0.11, 1, 2),
+            body_spec=Door.create_body_spec(PrefixedName("door"), scale=Scale(0.11, 1, 2)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(z=1.0),
         )
         door.root.visual.dye_shapes(Color(R=0.55, G=0.27, B=0.07))
@@ -64,15 +62,14 @@ def wall_door_handle_world():
 
     with world.modify_world():
         handle = Handle.create_with_new_body_in_world(
-            name=PrefixedName("handle"),
             world=world,
+            body_spec=Handle.create_body_spec(PrefixedName("handle"), scale=Scale(0.05, 0.02, 0.2)),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 z=0.6,
                 y=0.25,
                 x=0.06,
                 yaw=np.pi,
             ),
-            scale=Scale(0.05, 0.02, 0.2),
         )
         handle.root.visual.dye_shapes(Color(R=0.8, G=0.8, B=0.1))
         door.add_handle(handle)
@@ -80,8 +77,8 @@ def wall_door_handle_world():
     world_T_hinge = door.calculate_world_T_hinge_based_on_handle(Vector3.Z())
     with world.modify_world():
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"),
             world=world,
+            body_spec=Hinge.create_body_spec(PrefixedName("hinge")),
             active_axis=Vector3.Z(),
             world_root_T_self=world_T_hinge,
             connection_limits=DegreeOfFreedomLimits(

@@ -231,15 +231,14 @@ class ProcthorDoor:
         handle_name = PrefixedName(f"{name.name}_handle", name.prefix)
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=handle_name,
                 world=world,
+                body_spec=Handle.create_body_spec(handle_name),
                 world_root_T_self=world_T_handle,
             )
 
             door = Door.create_with_new_body_in_world(
-                name=name,
                 world=world,
-                scale=scale,
+                body_spec=Door.create_body_spec(name, scale=scale),
                 world_root_T_self=world_T_door,
             )
             door.add_handle(handle)
@@ -247,8 +246,8 @@ class ProcthorDoor:
         with world.modify_world():
             world_T_hinge = door.calculate_world_T_hinge_based_on_handle(Vector3.Z())
             hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName(f"{name.name}_hinge", name.prefix),
                 world=world,
+                body_spec=Hinge.create_body_spec(PrefixedName(f"{name.name}_hinge", name.prefix)),
                 world_root_T_self=world_T_hinge,
                 active_axis=Vector3.Z(),
             )
@@ -414,9 +413,8 @@ class ProcthorWall:
         """
         with world.modify_world():
             wall = Wall.create_with_new_body_in_world(
-                name=self.name,
-                scale=self.scale,
                 world=world,
+                body_spec=Wall.create_body_spec(self.name, scale=self.scale),
                 world_root_T_self=self.world_T_wall,
             )
 

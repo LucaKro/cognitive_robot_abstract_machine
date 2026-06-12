@@ -22,14 +22,11 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
     DegreeOfFreedomLimits,
 )
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.geometry import (
     Box,
     Scale,
-    Sphere,
-    Cylinder,
-    Mesh,
 )
-from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -87,57 +84,25 @@ def world_setup() -> Tuple[
 def world_setup_simple():
     world = World()
     root = Body(name=PrefixedName(name="root", prefix="world"))
-    body1 = Body(
-        name=PrefixedName("box", prefix="test"),
-        collision=ShapeCollection(
-            [
-                Box(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(),
-                    scale=Scale(0.2, 0.2, 0.2),
-                )
-            ]
+    specs = [
+        BodySpec.box(PrefixedName("box", prefix="test"), scale=Scale(0.2, 0.2, 0.2)),
+        BodySpec.cylinder(
+            PrefixedName("cylinder", prefix="test"), width=0.5, height=0.2
         ),
-    )
-    body2 = Body(
-        name=PrefixedName("cylinder", prefix="test"),
-        collision=ShapeCollection(
-            [
-                Cylinder(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(),
-                    width=0.5,
-                    height=0.2,
-                )
-            ]
+        BodySpec.sphere(PrefixedName("sphere", prefix="test"), radius=0.1),
+        BodySpec.mesh(
+            PrefixedName("mesh", prefix="test"),
+            filename=os.path.join(
+                Path(files("semantic_digital_twin")).parent.parent,
+                "resources",
+                "stl",
+                "jeroen_cup.stl",
+            ),
+            scale=Scale(10, 10, 10),
         ),
-    )
-    body3 = Body(
-        name=PrefixedName("sphere", prefix="test"),
-        collision=ShapeCollection(
-            [Sphere(origin=HomogeneousTransformationMatrix.from_xyz_rpy(), radius=0.1)]
-        ),
-    )
-
-    body4 = Body(
-        name=PrefixedName("mesh", prefix="test"),
-        collision=ShapeCollection(
-            [
-                Mesh(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(),
-                    filename=os.path.join(
-                        Path(files("semantic_digital_twin")).parent.parent,
-                        "resources",
-                        "stl",
-                        "jeroen_cup.stl",
-                    ),
-                    scale=Scale(10, 10, 10),
-                )
-            ]
-        ),
-    )
-    body5 = Body(
-        name=PrefixedName("compound", prefix="test"),
-        collision=ShapeCollection(
-            [
+        BodySpec(
+            name=PrefixedName("compound", prefix="test"),
+            shapes=[
                 Box(
                     origin=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.05),
                     scale=Scale(0.1, 0.2, 0.2),
@@ -146,38 +111,15 @@ def world_setup_simple():
                     origin=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.05),
                     scale=Scale(0.1, 0.2, 0.2),
                 ),
-            ]
+            ],
         ),
-    )
+    ]
 
     with world.modify_world():
-        world.add_kinematic_structure_entity(body1)
-        world.add_kinematic_structure_entity(body2)
-        world.add_kinematic_structure_entity(body3)
-        world.add_kinematic_structure_entity(body4)
-        world.add_kinematic_structure_entity(body5)
-
-        c_root_body1 = Connection6DoF.create_with_dofs(
-            parent=root, child=body1, world=world
-        )
-        c_root_body2 = Connection6DoF.create_with_dofs(
-            parent=root, child=body2, world=world
-        )
-        c_root_body3 = Connection6DoF.create_with_dofs(
-            parent=root, child=body3, world=world
-        )
-        c_root_body4 = Connection6DoF.create_with_dofs(
-            parent=root, child=body4, world=world
-        )
-        c_root_body5 = Connection6DoF.create_with_dofs(
-            parent=root, child=body5, world=world
-        )
-
-        world.add_connection(c_root_body1)
-        world.add_connection(c_root_body2)
-        world.add_connection(c_root_body3)
-        world.add_connection(c_root_body4)
-        world.add_connection(c_root_body5)
+        body1, body2, body3, body4, body5 = [
+            spec.spawn(world, parent=root, connection_type=Connection6DoF)
+            for spec in specs
+        ]
     return world, body1, body2, body3, body4, body5
 
 
@@ -185,65 +127,18 @@ def world_setup_simple():
 def ray_test_world():
     world = World()
     root = Body(name=PrefixedName(name="root", prefix="world"))
-    body1 = Body(
-        name=PrefixedName("name1", prefix="test"),
-        collision=ShapeCollection(
-            [
-                Box(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(),
-                    scale=Scale(0.25, 0.25, 0.25),
-                )
-            ]
-        ),
-    )
-    body2 = Body(
-        name=PrefixedName("name2", prefix="test"),
-        collision=ShapeCollection(
-            [
-                Box(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(),
-                    scale=Scale(0.25, 0.25, 0.25),
-                )
-            ]
-        ),
-    )
-    body3 = Body(
-        name=PrefixedName("name3", prefix="test"),
-        collision=ShapeCollection(
-            [Sphere(origin=HomogeneousTransformationMatrix.from_xyz_rpy(), radius=0.01)]
-        ),
-    )
-
-    body4 = Body(
-        name=PrefixedName("name4", prefix="test"),
-        collision=ShapeCollection(
-            [Sphere(origin=HomogeneousTransformationMatrix.from_xyz_rpy(), radius=0.01)]
-        ),
-    )
+    specs = [
+        BodySpec.box(PrefixedName("name1", prefix="test"), scale=Scale(0.25, 0.25, 0.25)),
+        BodySpec.box(PrefixedName("name2", prefix="test"), scale=Scale(0.25, 0.25, 0.25)),
+        BodySpec.sphere(PrefixedName("name3", prefix="test"), radius=0.01),
+        BodySpec.sphere(PrefixedName("name4", prefix="test"), radius=0.01),
+    ]
 
     with world.modify_world():
-        world.add_kinematic_structure_entity(body1)
-        world.add_kinematic_structure_entity(body2)
-        world.add_kinematic_structure_entity(body3)
-        world.add_kinematic_structure_entity(body4)
-
-        c_root_body1 = Connection6DoF.create_with_dofs(
-            parent=root, child=body1, world=world
-        )
-        c_root_body2 = Connection6DoF.create_with_dofs(
-            parent=root, child=body2, world=world
-        )
-        c_root_body3 = Connection6DoF.create_with_dofs(
-            parent=root, child=body3, world=world
-        )
-        c_root_body4 = Connection6DoF.create_with_dofs(
-            parent=root, child=body4, world=world
-        )
-
-        world.add_connection(c_root_body1)
-        world.add_connection(c_root_body2)
-        world.add_connection(c_root_body3)
-        world.add_connection(c_root_body4)
+        body1, body2, body3, body4 = [
+            spec.spawn(world, parent=root, connection_type=Connection6DoF)
+            for spec in specs
+        ]
     return world, body1, body2, body3, body4
 
 

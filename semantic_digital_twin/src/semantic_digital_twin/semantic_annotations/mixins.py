@@ -49,7 +49,8 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
-from semantic_digital_twin.world_description.geometry import Scale
+from semantic_digital_twin.world_description.specs import BodySpec, RegionSpec
+from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import (
     BoundingBoxCollection,
 )
@@ -320,45 +321,65 @@ class HasRootBody(HasRootKinematicStructureEntity, ABC):
     """
 
     @classmethod
-    def create_with_new_body_in_world(
+    def create_body_spec(
         cls,
         name: PrefixedName,
+        scale: Optional[Scale] = None,
+        **kwargs,
+    ) -> BodySpec:
+        """
+        Create the BodySpec encoding this annotation's geometry assumptions.
+
+        This is the single geometry hook used by create_with_new_body_in_world:
+        subclasses with non-trivial geometry (hollow handles, container cases,
+        plane validation, ...) override this method instead of the whole factory.
+        The spec is world-independent, so it can also be used standalone to
+        preview the geometry or spawn plain bodies.
+
+        :param name: The name of the body.
+        :param scale: The scale used to generate the geometry of the body.
+                      Default: a single box of this scale; no shapes when None.
+        :param kwargs: Additional geometry parameters of subclasses.
+        :return: The created spec.
+        """
+        return BodySpec(name=name, shapes=[Box(scale=scale)] if scale is not None else [])
+
+    @classmethod
+    def create_with_new_body_in_world(
+        cls,
         world: World,
+        body_spec: BodySpec,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
         active_axis: Optional[Vector3] = None,
         connection_multiplier: float = 1.0,
         connection_offset: float = 0.0,
-        scale: Scale = None,
-        **kwargs,
     ) -> Self:
         """
         Create a new semantic annotation with a new body in the given world.
 
-        :param name: The name of the semantic annotation.
+        The spec is the single source of truth for the body: the annotation and
+        its root body take the spec's name. Use cls.create_body_spec for a spec
+        with this class' geometry assumptions (and their validation); any plain
+        BodySpec is accepted as explicit user intent.
+
         :param world: The world to add the annotation and body to.
-        :param world_root_T_self: The initial pose of the body in the world root frame.
+        :param body_spec: The spec describing the body.
+        :param world_root_T_self: The initial pose of the body in the world root
+                                  frame. Takes precedence over the spec's pose.
         :param connection_limits: The limits for the connection's degrees of freedom.
         :param active_axis: The active axis for the connection.
         :param connection_multiplier: The multiplier for the connection.
         :param connection_offset: The offset for the connection.
-        :param scale: The scale used to generate the geometry of the body.
         :return: The created semantic annotation instance.
         """
-        body = Body(name=name)
-
-        if scale is not None:
-            collision_shapes = BoundingBoxCollection.from_event(
-                body, scale.to_simple_event().as_composite_set()
-            ).as_shapes()
-            body.collision = collision_shapes
-            body.visual = collision_shapes
+        body = body_spec.to_body()
 
         return cls._create_with_connection_in_world(
-            name=name,
+            name=body_spec.name,
             world=world,
             kinematic_structure_entity=body,
-            world_root_T_self=world_root_T_self,
+            world_root_T_self=body_spec._copied_pose(world_root_T_self),
             connection_multiplier=connection_multiplier,
             connection_offset=connection_offset,
             active_axis=active_axis,
@@ -378,36 +399,59 @@ class HasRootRegion(HasRootKinematicStructureEntity, ABC):
     """
 
     @classmethod
-    def create_with_new_region_in_world(
+    def create_region_spec(
         cls,
         name: PrefixedName,
+        **kwargs,
+    ) -> RegionSpec:
+        """
+        Create the RegionSpec encoding this annotation's geometry assumptions.
+
+        This is the single geometry hook used by create_with_new_region_in_world:
+        subclasses with non-trivial geometry override this method instead of the
+        whole factory. Default: a region without shapes.
+
+        :param name: The name of the region.
+        :param kwargs: Additional geometry parameters of subclasses.
+        :return: The created spec.
+        """
+        return RegionSpec(name=name)
+
+    @classmethod
+    def create_with_new_region_in_world(
+        cls,
         world: World,
+        region_spec: RegionSpec,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
         active_axis: Optional[Vector3] = None,
         connection_multiplier: float = 1.0,
         connection_offset: float = 0.0,
-        **kwargs,
     ) -> Self:
         """
         Create a new semantic annotation with a new region in the given world.
 
-        :param name: The name of the semantic annotation.
+        The spec is the single source of truth for the region: the annotation and
+        its root region take the spec's name. Use cls.create_region_spec for a
+        spec with this class' geometry assumptions.
+
         :param world: The world to add the annotation and region to.
-        :param world_root_T_self: The initial pose of the region in the world root frame.
+        :param region_spec: The spec describing the region.
+        :param world_root_T_self: The initial pose of the region in the world root
+                                  frame. Takes precedence over the spec's pose.
         :param connection_limits: The limits for the connection's degrees of freedom.
         :param active_axis: The active axis for the connection.
         :param connection_multiplier: The multiplier for the connection.
         :param connection_offset: The offset for the connection.
         :return: The created semantic annotation instance.
         """
-        region = Region(name=name)
+        region = region_spec.to_region()
 
         return cls._create_with_connection_in_world(
-            name=name,
+            name=region_spec.name,
             world=world,
             kinematic_structure_entity=region,
-            world_root_T_self=world_root_T_self,
+            world_root_T_self=region_spec._copied_pose(world_root_T_self),
             connection_multiplier=connection_multiplier,
             connection_offset=connection_offset,
             active_axis=active_axis,
@@ -988,50 +1032,25 @@ class HasCaseAsRootBody(HasSupportingSurface, ABC):
         ...
 
     @classmethod
-    def create_with_new_body_in_world(
+    def create_body_spec(
         cls,
         name: PrefixedName,
-        world: World,
-        world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
-        connection_limits: Optional[DegreeOfFreedomLimits] = None,
-        active_axis: Optional[Vector3] = None,
-        connection_multiplier: float = 1.0,
-        connection_offset: float = 0.0,
         scale: Scale = Scale(),
         *,
         wall_thickness: float = 0.01,
-    ) -> Self:
+        **kwargs,
+    ) -> BodySpec:
         """
-        Create a new semantic annotation with a new body in the given world.
+        Create the spec for a hollow case: a container with walls of the given
+        thickness, open along the class' hole_direction.
 
-        :param name: The name of the semantic annotation.
-        :param world: The world to add the annotation and body to.
-        :param world_root_T_self: The initial pose of the body in the world root frame.
-        :param connection_limits: The limits for the connection's degrees of freedom.
-        :param active_axis: The active axis for the connection.
-        :param connection_multiplier: The multiplier for the connection.
-        :param connection_offset: The offset for the connection.
+        :param name: The name of the body.
         :param scale: The scale of the case.
         :param wall_thickness: The thickness of the case walls.
-        :return: The created semantic annotation instance.
+        :return: The created spec.
         """
-        container_event = cls._create_container_event(scale, wall_thickness)
-
-        body = Body(name=name)
-        collision_shapes = BoundingBoxCollection.from_event(
-            body, container_event
-        ).as_shapes()
-        body.collision = collision_shapes
-        body.visual = collision_shapes
-        return cls._create_with_connection_in_world(
-            name=name,
-            world=world,
-            kinematic_structure_entity=body,
-            world_root_T_self=world_root_T_self,
-            connection_multiplier=connection_multiplier,
-            connection_offset=connection_offset,
-            active_axis=active_axis,
-            connection_limits=connection_limits,
+        return BodySpec.from_event(
+            name, cls._create_container_event(scale, wall_thickness)
         )
 
     @classmethod

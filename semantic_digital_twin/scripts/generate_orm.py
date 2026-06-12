@@ -29,6 +29,11 @@ from semantic_digital_twin.world import (
     ResetStateContextManager,
     WorldModelUpdateContextManager,
 )
+from semantic_digital_twin.world_description.specs import (
+    BodySpec,
+    KinematicStructureEntitySpec,
+    RegionSpec,
+)
 
 # remove classes that should not be mapped
 ignore_classes = {
@@ -39,6 +44,9 @@ ignore_classes = {
     ContainsType,
     SemanticDirection,
     SubclassJSONSerializer,
+    KinematicStructureEntitySpec,
+    BodySpec,
+    RegionSpec,
 }
 
 
