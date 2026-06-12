@@ -168,8 +168,8 @@ class BodySpec(KinematicStructureEntitySpec[Body]):
     Declarative, world-independent description of a :class:`Body`.
 
     The shapes are used for both collision and visual geometry (one shared
-    :class:`ShapeCollection`, like :meth:`Body.from_shape_collection`); build a
-    `Body` directly if you need them to differ.
+    :class:`ShapeCollection`, like :meth:`Body.from_shape_collection`); set
+    `visual_shapes` when visual geometry should differ from collision geometry.
 
     The 90% case::
 
@@ -182,6 +182,12 @@ class BodySpec(KinematicStructureEntitySpec[Body]):
     Inertia properties of created bodies. None means the Body default.
     """
 
+    visual_shapes: Optional[List[Shape]] = None
+    """
+    Visual shapes when they differ from `shapes`. None shares `shapes` for both
+    collision and visual (one collection); an empty list means no visual geometry.
+    """
+
     def to_body(self, name: Optional[Union[str, PrefixedName]] = None) -> Body:
         """
         Create a new, world-independent body from this spec.
@@ -192,9 +198,19 @@ class BodySpec(KinematicStructureEntitySpec[Body]):
         """
         if isinstance(name, str):
             name = PrefixedName(name)
-        body = Body.from_shape_collection(
-            name=name or self.name, shape_collection=ShapeCollection(self._copied_shapes())
-        )
+        if self.visual_shapes is None:
+            body = Body.from_shape_collection(
+                name=name or self.name,
+                shape_collection=ShapeCollection(self._copied_shapes()),
+            )
+        else:
+            body = Body(
+                name=name or self.name,
+                collision=ShapeCollection(self._copied_shapes()),
+                visual=ShapeCollection(
+                    [shape.copy_for_world(None) for shape in self.visual_shapes]
+                ),
+            )
         if self.inertial is not None:
             body.inertial = deepcopy(self.inertial)
         return body

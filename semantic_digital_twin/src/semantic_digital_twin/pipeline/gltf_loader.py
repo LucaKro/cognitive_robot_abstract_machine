@@ -93,10 +93,8 @@ class GLTFLoader(Step):
         shape_collection = ShapeCollection([triangle_mesh])
 
         # Create Body
-        body = Body(
-            name=PrefixedName(name),
-            collision=shape_collection,
-            visual=shape_collection,  # Use same for both collision and visual
+        body = Body.from_shape_collection(
+            name=PrefixedName(name), shape_collection=shape_collection
         )
 
         return body

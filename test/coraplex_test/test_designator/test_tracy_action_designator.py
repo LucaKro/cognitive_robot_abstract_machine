@@ -42,41 +42,26 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import Body
 
 
 @pytest.fixture(scope="session")
 def tracy_block_world(tracy_world):
-    box1 = Body(
-        name=PrefixedName("box1"),
-        collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
-        visual=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
-    )
-
-    box2 = Body(
-        name=PrefixedName("box2"),
-        collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
-        visual=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
-    )
-
+    box_spec = BodySpec.box("box", Scale(0.1, 0.1, 0.1))
     with tracy_world.modify_world():
-        box1_connection = Connection6DoF.create_with_dofs(
+        box_spec.spawn(
             tracy_world,
-            tracy_world.root,
-            box1,
-            PrefixedName("box1_connection"),
-            HomogeneousTransformationMatrix.from_xyz_rpy(0.8, 0.5, 0.93),
+            name="box1",
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(0.8, 0.5, 0.93),
+            connection_type=Connection6DoF,
         )
-
-        box2_connection = Connection6DoF.create_with_dofs(
+        box_spec.spawn(
             tracy_world,
-            tracy_world.root,
-            box2,
-            PrefixedName("box2_connection"),
-            HomogeneousTransformationMatrix.from_xyz_rpy(0.8, -0.5, 0.93),
+            name="box2",
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(0.8, -0.5, 0.93),
+            connection_type=Connection6DoF,
         )
-        tracy_world.add_connection(box1_connection)
-        tracy_world.add_connection(box2_connection)
     return tracy_world
 
 

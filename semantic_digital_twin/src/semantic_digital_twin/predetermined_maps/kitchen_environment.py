@@ -24,10 +24,8 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Point3,
 )
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
-from semantic_digital_twin.world_description.connections import FixedConnection, RevoluteConnection
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
-from semantic_digital_twin.world_description.geometry import Cylinder
-from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.spatial_types.spatial_types import Vector3
 from semantic_digital_twin.world_description.degree_of_freedom import (
@@ -69,23 +67,14 @@ class KitchenEnvironment:
         """
         root = world.root
 
-        north_west_wall = Cylinder(width=1.53, height=3.00)
-        shape_geometry = ShapeCollection([north_west_wall])
-        north_west_wall_body = Body(
-            name=PrefixedName("north_west_wall_body"),
-            collision=shape_geometry,
-            visual=shape_geometry,
-        )
-
-        root_C_north_west_wall = FixedConnection(
-            parent=root,
-            child=north_west_wall_body,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=4.924, y=6.295, z=1.50
-            ),
-        )
-
         with world.modify_world():
+            BodySpec.cylinder("north_west_wall_body", width=1.53, height=3.00).spawn(
+                world,
+                parent=root,
+                pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=4.924, y=6.295, z=1.50
+                ),
+            )
             south_wall1 = Wall.create_with_new_body_in_world(
                 world=world,
                 body_spec=Wall.create_body_spec(PrefixedName("south_wall1"), scale=Scale(x=0.05, y=1.00, z=3.00)),
@@ -174,7 +163,6 @@ class KitchenEnvironment:
                 ),
             )
 
-            world.add_connection(root_C_north_west_wall)
             return world
 
     def _build_environment_furniture(self, world: World):

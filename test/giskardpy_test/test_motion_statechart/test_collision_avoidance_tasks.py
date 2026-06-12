@@ -80,6 +80,7 @@ from semantic_digital_twin.world_description.geometry import (
     Color,
 )
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import (
     Body,
 )
@@ -145,42 +146,28 @@ def test_external_collision_avoidance(cylinder_bot_world: World):
 def test_external_collision_avoidance_battle():
     strong_robot_world = World()
     with strong_robot_world.modify_world():
-        strong = Body(
-            name=PrefixedName("strong"),
-            collision=ShapeCollection(
-                [Cylinder(width=0.1, height=0.1, color=Color(R=1, G=0, B=0, A=1))]
-            ),
-        )
+        strong = BodySpec.cylinder(
+            "strong", width=0.1, height=0.1, color=Color(R=1, G=0, B=0, A=1)
+        ).to_body()
         strong_robot_world.add_body(strong)
         strong_robot_sa = MinimalRobot.from_world(strong_robot_world)
 
     weak_robot_world = World()
     with weak_robot_world.modify_world():
-        weak = Body(
-            name=PrefixedName("weak"),
-            collision=ShapeCollection(
-                [Cylinder(width=0.1, height=0.1, color=Color(R=0, G=0, B=1, A=1))]
-            ),
-        )
+        weak = BodySpec.cylinder(
+            "weak", width=0.1, height=0.1, color=Color(R=0, G=0, B=1, A=1)
+        ).to_body()
         weak_robot_world.add_body(weak)
         weak_robot_sa = MinimalRobot.from_world(weak_robot_world)
 
     world = World()
 
     with world.modify_world():
-        wall = Body(
-            name=PrefixedName("wall"),
-            collision=ShapeCollection([Box(scale=Scale(x=0.1, y=10, z=0.1))]),
-        )
         map = Body(name=PrefixedName("map"))
-        world.add_connection(
-            FixedConnection(
-                parent=map,
-                child=wall,
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    x=0.5
-                ),
-            )
+        wall = BodySpec.box("wall", Scale(x=0.1, y=10, z=0.1)).spawn(
+            world,
+            parent=map,
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
         )
         strong_odom = Body(name=PrefixedName("strong_odom"))
         world.add_connection(

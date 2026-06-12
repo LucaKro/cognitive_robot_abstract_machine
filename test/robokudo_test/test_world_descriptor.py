@@ -4,6 +4,7 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -12,31 +13,22 @@ def test_get_predefined_object_bodies():
     test_world = world_descriptor.world
     root = test_world.root
 
-    foobar1_shape = Box(scale=Scale(0.10, 0.06, 0.05), color=Color(0.1, 0.2, 0.8, 1.0))
-    foobar1_body = Body(
-        name=PrefixedName(name="foobar", prefix="transform_example"),
-        visual=ShapeCollection([foobar1_shape]),
-        collision=ShapeCollection([foobar1_shape]),
+    box_spec = BodySpec.box(
+        PrefixedName(name="foobar", prefix="transform_example"),
+        Scale(0.10, 0.06, 0.05),
+        color=Color(0.1, 0.2, 0.8, 1.0),
     )
-
-    foobar2_shape = Box(scale=Scale(0.10, 0.06, 0.05), color=Color(0.1, 0.2, 0.8, 1.0))
-    foobar2_body = Body(
-        name=PrefixedName(name="foobar2", prefix="transform_example"),
-        visual=ShapeCollection([foobar2_shape]),
-        collision=ShapeCollection([foobar2_shape]),
-    )
-
     with test_world.modify_world():
-        result_world_C_foobar1 = Connection6DoF.create_with_dofs(
-            parent=root, child=foobar1_body, world=test_world
+        foobar1_body = box_spec.spawn(test_world, connection_type=Connection6DoF)
+        foobar2_body = box_spec.spawn(
+            test_world,
+            name=PrefixedName(name="foobar2", prefix="transform_example"),
+            connection_type=Connection6DoF,
         )
-        result_world_C_foobar2 = Connection6DoF.create_with_dofs(
-            parent=root, child=foobar2_body, world=test_world
-        )
-        test_world.add_connection(result_world_C_foobar1)
-        test_world.add_connection(result_world_C_foobar2)
         test_world.add_semantic_annotation(PredefinedObject(body=foobar1_body))
         test_world.add_semantic_annotation(PredefinedObject(body=foobar2_body))
+    result_world_C_foobar1 = foobar1_body.parent_connection
+    result_world_C_foobar2 = foobar2_body.parent_connection
 
     # Set origins in a separate modification block so FK is compiled first
     with test_world.modify_world():

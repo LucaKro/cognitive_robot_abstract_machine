@@ -41,19 +41,14 @@ from semantic_digital_twin.world_description.geometry import (
     BoundingBox,
 )
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec, RegionSpec
 from semantic_digital_twin.world_description.world_entity import Body, Region
 
 
 @pytest.fixture(scope="function")
 def two_block_world():
     def make_body(name: str) -> Body:
-        result = Body(name=PrefixedName(name))
-        collision = Box(
-            scale=Scale(1.0, 1.0, 1.0),
-            origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=result),
-        )
-        result.collision = ShapeCollection([collision], reference_frame=result)
-        return result
+        return BodySpec.box(name, Scale(1.0, 1.0, 1.0)).to_body()
 
     world = World()
 
@@ -75,41 +70,19 @@ def two_block_world():
 def test_in_contact():
     w = World()
 
-    b1 = Body(name=PrefixedName("b1"))
-    collision1 = Box(
-        scale=Scale(1.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-            0,
-            0,
-            0.0,
-            0,
-            0,
-            0,
-            reference_frame=b1,
-        ),
-        color=Color(1.0, 0.0, 0.0),
-    )
-    b1.collision = ShapeCollection([collision1])
-
-    b2 = Body(name=PrefixedName("b2"))
-    collision2 = Box(
-        scale=Scale(1.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-            0.9, 0, 0.0, 0, 0, 0, reference_frame=b2
-        ),
+    b1 = BodySpec.box("b1", Scale(1.0, 1.0, 1.0), color=Color(1.0, 0.0, 0.0)).to_body()
+    b2 = BodySpec.box(
+        "b2",
+        Scale(1.0, 1.0, 1.0),
         color=Color(0.0, 1.0, 0.0),
-    )
-    b2.collision = ShapeCollection([collision2])
-
-    b3 = Body(name=PrefixedName("b3"))
-    collision3 = Box(
-        scale=Scale(1.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-            1.8, 0, 0.0, 0, 0, 0, reference_frame=b3
-        ),
+        origin=HomogeneousTransformationMatrix.from_xyz_rpy(0.9, 0, 0.0, 0, 0, 0),
+    ).to_body()
+    b3 = BodySpec.box(
+        "b3",
+        Scale(1.0, 1.0, 1.0),
         color=Color(0.0, 0.0, 1.0),
-    )
-    b3.collision = ShapeCollection([collision3])
+        origin=HomogeneousTransformationMatrix.from_xyz_rpy(1.8, 0, 0.0, 0, 0, 0),
+    ).to_body()
 
     with w.modify_world():
         w.add_kinematic_structure_entity(b1)
@@ -124,25 +97,12 @@ def test_in_contact():
 
 def test_robot_in_contact(pr2_world_copy: World):
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
-    body = Body(name=PrefixedName("test_body"))
-    collision1 = Box(
-        scale=Scale(1.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-            z=0.5,
-            reference_frame=body,
-        ),
+    body = BodySpec.box(
+        "test_body",
+        Scale(1.0, 1.0, 1.0),
         color=Color(1.0, 0.0, 0.0),
-    )
-    body.collision = ShapeCollection([collision1])
-
-    with pr2_world_copy.modify_world():
-        pr2_world_copy.add_connection(
-            Connection6DoF.create_with_dofs(
-                parent=pr2_world_copy.root,
-                child=body,
-                world=pr2_world_copy,
-            )
-        )
+        origin=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.5),
+    ).spawn(pr2_world_copy, connection_type=Connection6DoF)
 
     # Ensure the call runs without raising
     assert robot_in_collision(pr2)
@@ -154,26 +114,12 @@ def test_robot_in_contact(pr2_world_copy: World):
 
 
 def test_get_visible_objects(pr2_world_copy: World):
-    body = Body(name=PrefixedName("test_body"))
-    collision1 = Box(
-        scale=Scale(1.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=2.0,
-            z=1.0,
-            reference_frame=body,
-        ),
+    body = BodySpec.box(
+        "test_body",
+        Scale(1.0, 1.0, 1.0),
         color=Color(1.0, 0.0, 0.0),
-    )
-    body.collision = ShapeCollection([collision1])
-
-    with pr2_world_copy.modify_world():
-        pr2_world_copy.add_connection(
-            Connection6DoF.create_with_dofs(
-                parent=pr2_world_copy.root,
-                child=body,
-                world=pr2_world_copy,
-            )
-        )
+        origin=HomogeneousTransformationMatrix.from_xyz_rpy(x=2.0, z=1.0),
+    ).spawn(pr2_world_copy, connection_type=Connection6DoF)
 
     camera = pr2_world_copy.get_semantic_annotations_by_type(Camera)[0]
 
@@ -186,36 +132,18 @@ def test_occluding_bodies(pr2_world_state_reset: World):
         HomogeneousTransformationMatrix.from_xyz_rpy(0, 0, 0)
     )
 
-    def make_body(name: str) -> Body:
-        result = Body(name=PrefixedName(name))
-        collision = Box(
-            scale=Scale(1.0, 1.0, 1.0),
-            origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=result),
-        )
-        result.collision = ShapeCollection([collision])
-        return result
-
-    obstacle = make_body("obstacle")
-    occluded_body = make_body("occluded_body")
-
+    block = BodySpec(name="block", shapes=[Box(scale=Scale(1.0, 1.0, 1.0))])
     with world.modify_world():
-        root = world.root
-        c1 = FixedConnection(
-            parent=root,
-            child=obstacle,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                reference_frame=root, x=3, z=0.8
-            ),
+        obstacle = block.spawn(
+            world,
+            name="obstacle",
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(x=3, z=0.8),
         )
-        c2 = FixedConnection(
-            parent=root,
-            child=occluded_body,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                reference_frame=root, x=10, z=0.5
-            ),
+        occluded_body = block.spawn(
+            world,
+            name="occluded_body",
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(x=10, z=0.5),
         )
-        world.add_connection(c1)
-        world.add_connection(c2)
 
     camera = world.get_semantic_annotations_by_type(Camera)[0]
 
@@ -267,22 +195,13 @@ def test_behind_and_in_front_of(two_block_world):
 
 def test_body_in_region(two_block_world):
     center, top = two_block_world
-    region = Region(name=PrefixedName("test_region"))
-    region_box = Box(
-        scale=Scale(1.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=region),
+    region = RegionSpec(
+        name="test_region", shapes=[Box(scale=Scale(1.0, 1.0, 1.0))]
+    ).spawn(
+        center._world,
+        parent=center,
+        pose=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.5),
     )
-    region.area = ShapeCollection([region_box])
-
-    with center._world.modify_world():
-        connection = FixedConnection(
-            parent=center,
-            child=region,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                z=0.5, reference_frame=center
-            ),
-        )
-        center._world.add_connection(connection)
     assert is_body_in_region(center, region) == 0.5
     assert is_body_in_region(top, region) == 0.0
 
@@ -314,13 +233,9 @@ def test_is_body_in_gripper(pr2_world_copy):
     )
 
     # Create krrood_test box between fingers
-    test_box = Body(name=PrefixedName("test_box"))
-    box_collision = Box(
-        scale=Scale(0.05, 0.01, 0.05),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=test_box),
-        color=Color(1.0, 0.0, 0.0),
-    )
-    test_box.collision = ShapeCollection([box_collision])
+    test_box = BodySpec.box(
+        "test_box", Scale(0.05, 0.01, 0.05), color=Color(1.0, 0.0, 0.0)
+    ).to_body()
 
     # Calculate position between fingers
     finger1_pos = (
@@ -410,24 +325,11 @@ def test_reachable(pr2_world_state_reset, rclpy_node):
 
 def test_blocking(pr2_world_copy):
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
-    obstacle = Body(name=PrefixedName("obstacle"))
-    collision = Box(
-        scale=Scale(3.0, 1.0, 1.0),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=1.0, z=0.5, reference_frame=obstacle
-        ),
-    )
-    obstacle.collision = ShapeCollection([collision])
-    obstacle.visual = ShapeCollection([collision])
-
-    with pr2_world_copy.modify_world():
-        pr2_world_copy.add_connection(
-            Connection6DoF.create_with_dofs(
-                parent=pr2_world_copy.root,
-                child=obstacle,
-                world=pr2_world_copy,
-            )
-        )
+    obstacle = BodySpec.box(
+        "obstacle",
+        Scale(3.0, 1.0, 1.0),
+        origin=HomogeneousTransformationMatrix.from_xyz_rpy(x=1.0, z=0.5),
+    ).spawn(pr2_world_copy, connection_type=Connection6DoF)
 
     assert obstacle not in pr2.bodies
     assert robot_in_collision(pr2)
@@ -514,14 +416,7 @@ def test_bodies_in_gripper(pr2_apartment_world):
     tcp = world.get_body_by_name("l_gripper_tool_frame")
     pr2 = world.get_semantic_annotations_by_type(PR2)[0]
 
-    with world.modify_world():
-        body = Body(
-            name=PrefixedName("mock_milk"),
-            collision=ShapeCollection([Box(scale=Scale(0.05, 0.05, 0.3))]),
-        )
-
-        connection = FixedConnection(tcp, body)
-        world.add_connection(connection)
+    body = BodySpec.box("mock_milk", Scale(0.05, 0.05, 0.3)).spawn(world, parent=tcp)
 
     pr2.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, -2, 0

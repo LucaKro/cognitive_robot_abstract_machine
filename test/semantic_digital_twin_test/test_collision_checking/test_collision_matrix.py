@@ -50,18 +50,13 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.geometry import Sphere
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import Body
 
 
 class TestCollisionRules:
     def test_get_distances(self, pr2_world_copy):
-        with pr2_world_copy.modify_world():
-            env = Body(
-                name=PrefixedName("env"),
-                collision=ShapeCollection([Sphere(radius=0.5)]),
-            )
-            root_C_env = FixedConnection(pr2_world_copy.root, env)
-            pr2_world_copy.add_connection(root_C_env)
+        env = BodySpec.sphere("env", radius=0.5).spawn(pr2_world_copy)
 
         base_link = pr2_world_copy.get_body_by_name("base_link")
         torso_lift_link = pr2_world_copy.get_body_by_name("torso_lift_link")
@@ -279,16 +274,10 @@ class TestCollisionRules:
             buffer_zone_distance=1, violated_distance=0.1, robot=pr2
         )
         rule.update(pr2_apartment_world)
-        with pr2_apartment_world.modify_world():
-            body = Body(
-                name=PrefixedName("muh"),
-                collision=ShapeCollection(shapes=[Sphere(radius=0.05)]),
-            )
-            connection = FixedConnection(
-                parent=pr2_apartment_world.get_body_by_name("r_gripper_tool_frame"),
-                child=body,
-            )
-            pr2_apartment_world.add_connection(connection)
+        body = BodySpec.sphere("muh", radius=0.05).spawn(
+            pr2_apartment_world,
+            parent=pr2_apartment_world.get_body_by_name("r_gripper_tool_frame"),
+        )
         rule.update(pr2_apartment_world)
         rule.apply_to_collision_matrix(collision_matrix)
         pr2_bodies = set(pr2.bodies_with_collision)
@@ -438,16 +427,10 @@ class TestCollisionRules:
         assert len(rule.allowed_collision_pairs) == normal_allowed_pairs
 
         # attach an object to the robot, this object should not be checked with gripper tool frame
-        with pr2_world_copy.modify_world():
-            body = Body(
-                name=PrefixedName("muh"),
-                collision=ShapeCollection(shapes=[Sphere(radius=0.05)]),
-            )
-            connection = FixedConnection(
-                parent=pr2_world_copy.get_body_by_name("r_gripper_tool_frame"),
-                child=body,
-            )
-            pr2_world_copy.add_connection(connection)
+        body = BodySpec.sphere("muh", radius=0.05).spawn(
+            pr2_world_copy,
+            parent=pr2_world_copy.get_body_by_name("r_gripper_tool_frame"),
+        )
 
         rule.update(pr2_world_copy)
         assert (
@@ -557,19 +540,13 @@ class TestCollisionGroups:
     def test_robot_base_and_external_body_connected_to_same_virtual_parent(self):
         world = World()
         with world.modify_world():
-            robot_base = Body(
-                name=PrefixedName("robot_base"),
-                collision=ShapeCollection([Sphere(radius=0.3)]),
-            )
+            robot_base = BodySpec.sphere("robot_base", radius=0.3).to_body()
             world.add_body(robot_base)
             MinimalRobot.from_world(world)  # robot.root = robot_base
 
         with world.modify_world():
             map_body = Body(name=PrefixedName("map"))
-            obstacle = Body(
-                name=PrefixedName("obstacle"),
-                collision=ShapeCollection([Sphere(radius=0.1)]),
-            )
+            obstacle = BodySpec.sphere("obstacle", radius=0.1).to_body()
             world.add_connection(FixedConnection(parent=map_body, child=robot_base))
             world.add_connection(
                 Connection6DoF.create_with_dofs(

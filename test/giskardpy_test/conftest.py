@@ -21,6 +21,7 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import (
     Body,
 )
@@ -53,20 +54,10 @@ def better_pr2_pose():
 
 @pytest.fixture(scope="function")
 def pr2_with_box(pr2_world_copy) -> World:
-    with pr2_world_copy.modify_world():
-        box = Body(
-            name=PrefixedName("box"),
-            visual=ShapeCollection(shapes=[Box(scale=Scale(1, 1, 1))]),
-            collision=ShapeCollection(shapes=[Box(scale=Scale(1, 1, 1))]),
-        )
-        root_C_box = FixedConnection(
-            parent=pr2_world_copy.root,
-            child=box,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=1.2, z=0.3, reference_frame=pr2_world_copy.root
-            ),
-        )
-        pr2_world_copy.add_connection(root_C_box)
+    BodySpec.box("box", Scale(1, 1, 1)).spawn(
+        pr2_world_copy,
+        pose=HomogeneousTransformationMatrix.from_xyz_rpy(x=1.2, z=0.3),
+    )
     return pr2_world_copy
 
 

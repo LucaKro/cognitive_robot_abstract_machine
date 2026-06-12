@@ -74,6 +74,7 @@ from semantic_digital_twin.world_description.geometry import (
     Color,
 )
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.world_entity import (
     Body,
 )
@@ -161,10 +162,7 @@ def count_worlds():
 def cylinder_bot_world():
     robot_world = World()
     with robot_world.modify_world():
-        robot = Body(
-            name=PrefixedName("bot"),
-            collision=ShapeCollection(shapes=[Cylinder(width=0.1, height=0.5)]),
-        )
+        robot = BodySpec.cylinder("bot", width=0.1, height=0.5).to_body()
         robot_world.add_body(robot)
         MinimalRobot.from_world(robot_world)
     world = World()
@@ -172,31 +170,17 @@ def cylinder_bot_world():
         body = Body(
             name=PrefixedName("map"),
         )
-        environment = Body(
-            name=PrefixedName("environment"),
-            collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
-        )
-        env_connection = FixedConnection(
+        environment = BodySpec.cylinder("environment", width=0.5, height=0.5).spawn(
+            world,
             parent=body,
-            child=environment,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                1
-            ),
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(1),
         )
-        world.add_connection(env_connection)
 
-        environment2 = Body(
-            name=PrefixedName("environment2"),
-            collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
-        )
-        env_connection2 = FixedConnection(
+        environment2 = BodySpec.cylinder("environment2", width=0.5, height=0.5).spawn(
+            world,
             parent=body,
-            child=environment2,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                y=0.5
-            ),
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(y=0.5),
         )
-        world.add_connection(env_connection2)
 
         connection = OmniDrive.create_with_dofs(
             world=world, parent=body, child=robot_world.root
@@ -215,41 +199,14 @@ def cylinder_bot_world():
 def self_collision_bot_world():
     world = World()
     with world.modify_world():
-        robot = Body(
-            name=PrefixedName("map"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
-        l_shoulder = Body(
-            name=PrefixedName("l_shoulder"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
-        l_tip = Body(
-            name=PrefixedName("l_tip"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
-        l_thumb = Body(
-            name=PrefixedName("l_thumb"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
-        r_shoulder = Body(
-            name=PrefixedName("r_shoulder"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
-        r_tip = Body(
-            name=PrefixedName("r_tip"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
-        r_thumb = Body(
-            name=PrefixedName("r_thumb"),
-            collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-            visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
-        )
+        sphere = BodySpec.sphere("sphere", radius=0.1)
+        robot = sphere.to_body(name="map")
+        l_shoulder = sphere.to_body(name="l_shoulder")
+        l_tip = sphere.to_body(name="l_tip")
+        l_thumb = sphere.to_body(name="l_thumb")
+        r_shoulder = sphere.to_body(name="r_shoulder")
+        r_tip = sphere.to_body(name="r_tip")
+        r_thumb = sphere.to_body(name="r_thumb")
 
         world.add_connection(
             RevoluteConnection.create_with_dofs(
@@ -341,10 +298,7 @@ def supported_abstract_robots():
 def cylinder_bot_diff_world():
     robot_world = World()
     with robot_world.modify_world():
-        robot = Body(
-            name=PrefixedName("bot"),
-            collision=ShapeCollection(shapes=[Cylinder(width=0.1, height=0.5)]),
-        )
+        robot = BodySpec.cylinder("bot", width=0.1, height=0.5).to_body()
         robot_world.add_body(robot)
         MinimalRobot.from_world(robot_world)
     world = World()
@@ -352,18 +306,11 @@ def cylinder_bot_diff_world():
         body = Body(
             name=PrefixedName("map"),
         )
-        environment = Body(
-            name=PrefixedName("environment"),
-            collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
-        )
-        env_connection = FixedConnection(
+        environment = BodySpec.cylinder("environment", width=0.5, height=0.5).spawn(
+            world,
             parent=body,
-            child=environment,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                1
-            ),
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(1),
         )
-        world.add_connection(env_connection)
 
         connection = DifferentialDrive.create_with_dofs(
             world=world, parent=body, child=robot_world.root
@@ -554,89 +501,32 @@ def _simple_apartment_setup():
         root = Body(name=PrefixedName("root"))
         world.add_body(root)
 
-        box = Body(
-            name=PrefixedName("box"),
-            collision=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
-            visual=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
+        box_spec = BodySpec.box("box", Scale(1, 1, 0.95))
+        box_spec.spawn(
+            world,
+            parent=root,
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(2, 0, 0.375),
+        )
+        box_spec.spawn(
+            world,
+            name="box_2",
+            parent=root,
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(-2, 0, 0.375),
         )
 
-        box_2 = Body(
-            name=PrefixedName("box_2"),
-            collision=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
-            visual=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
-        )
-
-        box_1_connection = FixedConnection(
-            parent=world.root,
-            child=box,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                2, 0, 0.375, reference_frame=world.root
-            ),
-        )
-        box_2_connection = FixedConnection(
-            parent=root,
-            child=box_2,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                -2, 0, 0.375
-            ),
-        )
-
-        wall1 = Body(
-            name=PrefixedName("wall_1"),
-            collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-            visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-        )
-        wall2 = Body(
-            name=PrefixedName("wall_2"),
-            collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-            visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-        )
-        wall3 = Body(
-            name=PrefixedName("wall_3"),
-            collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-            visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-        )
-        wall4 = Body(
-            name=PrefixedName("wall_4"),
-            collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-            visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
-        )
-
-        wall_1_connection = FixedConnection(
-            parent=root,
-            child=wall1,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                0, -4, 1
-            ),
-        )
-        wall_2_connection = FixedConnection(
-            parent=root,
-            child=wall2,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                0, 4, 1
-            ),
-        )
-        wall_3_connection = FixedConnection(
-            parent=root,
-            child=wall3,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+        wall_spec = BodySpec.box("wall", Scale(8, 0.1, 2))
+        wall_poses = {
+            "wall_1": HomogeneousTransformationMatrix.from_xyz_rpy(0, -4, 1),
+            "wall_2": HomogeneousTransformationMatrix.from_xyz_rpy(0, 4, 1),
+            "wall_3": HomogeneousTransformationMatrix.from_xyz_rpy(
                 -4, 0, 1, yaw=np.pi / 2
             ),
-        )
-        wall_4_connection = FixedConnection(
-            parent=root,
-            child=wall4,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+            "wall_4": HomogeneousTransformationMatrix.from_xyz_rpy(
                 4, 0, 1, yaw=np.pi / 2
             ),
-        )
-
-        world.add_connection(box_1_connection)
-        world.add_connection(box_2_connection)
-        world.add_connection(wall_1_connection)
-        world.add_connection(wall_2_connection)
-        world.add_connection(wall_3_connection)
-        world.add_connection(wall_4_connection)
+        }
+        for wall_name, wall_pose in wall_poses.items():
+            wall_spec.spawn(world, name=wall_name, parent=root, pose=wall_pose)
 
     milk_world = STLParser(
         os.path.join(
@@ -894,13 +784,9 @@ def kitchen_environment_fixture():
         for color in banana.bodies[0].visual.shapes:
             color.color = Color.YELLOW()
 
-    fake_robot = Cylinder(width=0.45, height=1.5)
-    shape_geometry = ShapeCollection([fake_robot])
-    fake_robot_body = Body(
-        name=PrefixedName("base_link_body"),
-        collision=shape_geometry,
-        visual=shape_geometry,
-    )
+    fake_robot_body = BodySpec.cylinder(
+        "base_link_body", width=0.45, height=1.5
+    ).to_body()
 
     root_C_fake_robot = FixedConnection(
         parent=root,

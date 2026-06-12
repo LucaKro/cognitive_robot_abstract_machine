@@ -180,10 +180,9 @@ class FBXParser(MeshParser):
                             )
 
                             meshes.append(t_mesh)
-                    body = Body(
+                    body = Body.from_shape_collection(
                         name=PrefixedName(name),
-                        collision=ShapeCollection(meshes),
-                        visual=ShapeCollection(meshes),
+                        shape_collection=ShapeCollection(meshes),
                     )
                     world.add_body(body)
 

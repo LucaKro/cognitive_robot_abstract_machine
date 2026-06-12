@@ -31,10 +31,9 @@ class MeshParser:
         mesh_shape = Mesh(
             origin=HomogeneousTransformationMatrix(), filename=self.file_path
         )
-        body = Body(
+        body = Body.from_shape_collection(
             name=PrefixedName(file_name),
-            collision=ShapeCollection([mesh_shape]),
-            visual=ShapeCollection([mesh_shape]),
+            shape_collection=ShapeCollection([mesh_shape]),
         )
 
         world = World()

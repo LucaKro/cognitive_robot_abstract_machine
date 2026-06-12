@@ -287,3 +287,37 @@ def test_aperture_region_spec_parity(world_with_root):
         aperture.root.combined_mesh.bounds, [[-0.05, -0.5, -0.5], [0.05, 0.5, 0.5]]
     )
     assert aperture.name == spec.name
+
+
+def test_visual_shapes_none_shares_collection():
+    body = BodySpec.box("crate", Scale(0.2, 0.2, 0.2)).to_body()
+    assert body.visual is body.collision
+
+
+def test_visual_shapes_separate_collections():
+    spec = BodySpec(
+        name="crate",
+        shapes=[Box(scale=Scale(0.2, 0.2, 0.2))],
+        visual_shapes=[Box(scale=Scale(0.3, 0.3, 0.3))],
+    )
+    body1 = spec.to_body()
+    body2 = spec.to_body(name="crate2")
+
+    assert body1.visual is not body1.collision
+    assert body1.collision[0].scale.x == 0.2
+    assert body1.visual[0].scale.x == 0.3
+    assert body1.visual[0].origin.reference_frame is body1
+    assert body1.visual[0] is not body2.visual[0]
+    # prototypes stay unbound
+    assert spec.visual_shapes[0].origin.reference_frame is None
+
+
+def test_visual_shapes_empty_means_collision_only():
+    spec = BodySpec(
+        name="invisible",
+        shapes=[Box(scale=Scale(0.2, 0.2, 0.2))],
+        visual_shapes=[],
+    )
+    body = spec.to_body()
+    assert len(body.collision) == 1
+    assert len(body.visual) == 0

@@ -3,6 +3,7 @@ import pytest
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.world_entity import Region, Body
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.geometry import Color, Scale, Box
 from semantic_digital_twin.world_description.graph_of_convex_sets import (
     navigation_map_at_target,
@@ -34,21 +35,9 @@ def simple_world():
         )
 
     # Add an obstacle body
-    obstacle = Body(
-        name=PrefixedName("obstacle"),
-        collision=ShapeCollection([Box(scale=Scale(0.5, 0.5, 0.5))]),
+    BodySpec.box("obstacle", Scale(0.5, 0.5, 0.5)).spawn(
+        world, pose=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5, y=0.5)
     )
-    with world.modify_world():
-        world.add_body(obstacle)
-        world.add_connection(
-            FixedConnection(
-                parent=world.root,
-                child=obstacle,
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    x=0.5, y=0.5
-                ),
-            )
-        )
     return world, target
 
 

@@ -26,6 +26,7 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color, Cylinder
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.specs import BodySpec, RegionSpec
 from semantic_digital_twin.world_description.world_entity import Body, Region, Actuator
 
 from physics_simulators.mujoco_simulator import MujocoSimulator
@@ -176,51 +177,29 @@ def test_world_multi_sim_with_change(test_urdf_1_world):
 
         start_time = time.time()
 
-        new_body = Body(name=PrefixedName("test_body"))
-        box_origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=0.2, y=0.4, z=3.0, roll=0, pitch=0.5, yaw=0, reference_frame=new_body
-        )
-        box = Box(
-            origin=box_origin,
-            scale=Scale(1.0, 1.5, 0.5),
-            color=Color(1.0, 0.0, 0.0, 1.0),
-        )
-        new_body.collision = ShapeCollection([box], reference_frame=new_body)
-
         logger.debug(f"Time before adding new body: {time.time() - start_time}s")
-        with test_urdf_1_world.modify_world():
-            test_urdf_1_world.add_connection(
-                Connection6DoF.create_with_dofs(
-                    world=test_urdf_1_world,
-                    parent=test_urdf_1_world.root,
-                    child=new_body,
-                )
-            )
+        new_body = BodySpec.box(
+            "test_body",
+            Scale(1.0, 1.5, 0.5),
+            color=Color(1.0, 0.0, 0.0, 1.0),
+            origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=0.2, y=0.4, z=3.0, roll=0, pitch=0.5, yaw=0
+            ),
+        ).spawn(test_urdf_1_world, connection_type=Connection6DoF)
         logger.debug(f"Time after adding new body: {time.time() - start_time}s")
 
         assert new_body.name.name in multi_sim.simulator.get_all_body_names().result
 
         time.sleep(0.5)
 
-        region = Region(name=PrefixedName("test_region"))
-        region_box = Box(
-            scale=Scale(0.1, 0.5, 0.2),
-            origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=region),
-            color=Color(0.0, 1.0, 0.0, 0.8),
-        )
-        region.area = ShapeCollection([region_box], reference_frame=region)
-
         logger.debug(f"Time before add adding region: {time.time() - start_time}s")
-        with test_urdf_1_world.modify_world():
-            test_urdf_1_world.add_connection(
-                FixedConnection(
-                    parent=test_urdf_1_world.root,
-                    child=region,
-                    parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        z=0.5
-                    ),
-                )
-            )
+        region = RegionSpec(
+            name="test_region",
+            shapes=[Box(scale=Scale(0.1, 0.5, 0.2), color=Color(0.0, 1.0, 0.0, 0.8))],
+        ).spawn(
+            test_urdf_1_world,
+            pose=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.5),
+        )
         logger.debug(f"Time after add adding region: {time.time() - start_time}s")
 
         assert region.name.name in multi_sim.simulator.get_all_body_names().result
@@ -365,34 +344,17 @@ def test_mujocosim_world_with_added_objects(test_urdf_1_world):
 
 def test_spawn_body_with_connections():
     def spawn_robot_body(spawn_world: World) -> Body:
-        spawn_body = Body(name=PrefixedName("robot"))
-        box_origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=0, y=0, z=0.5, roll=0, pitch=0, yaw=0, reference_frame=spawn_body
-        )
-        box = Box(
-            origin=box_origin,
-            scale=Scale(0.4, 0.4, 1.0),
+        return BodySpec.box(
+            "robot",
+            Scale(0.4, 0.4, 1.0),
             color=Color(0.9, 0.9, 0.9, 1.0),
-        )
-        spawn_body.collision = ShapeCollection([box], reference_frame=spawn_body)
-
-        with spawn_world.modify_world():
-            spawn_world.add_connection(
-                FixedConnection(parent=spawn_world.root, child=spawn_body)
-            )
-
-        return spawn_body
+            origin=HomogeneousTransformationMatrix.from_xyz_rpy(z=0.5),
+        ).spawn(spawn_world)
 
     def spawn_shoulder_bodies(spawn_world: World, root_body: Body) -> tuple[Body, Body]:
-        spawn_left_shoulder_body = Body(name=PrefixedName("left_shoulder"))
-        cylinder = Cylinder(
-            width=0.2,
-            height=0.1,
-            color=Color(0.9, 0.1, 0.1, 1.0),
-        )
-        spawn_left_shoulder_body.collision = ShapeCollection(
-            [cylinder], reference_frame=spawn_left_shoulder_body
-        )
+        spawn_left_shoulder_body = BodySpec.cylinder(
+            "left_shoulder", width=0.2, height=0.1, color=Color(0.9, 0.1, 0.1, 1.0)
+        ).to_body()
         dof = DegreeOfFreedom(name=PrefixedName("left_shoulder_joint"))
         left_shoulder_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=0,
@@ -417,15 +379,9 @@ def test_spawn_body_with_connections():
                 )
             )
 
-        spawn_right_shoulder_body = Body(name=PrefixedName("right_shoulder"))
-        cylinder = Cylinder(
-            width=0.2,
-            height=0.1,
-            color=Color(0.9, 0.1, 0.1, 1.0),
-        )
-        spawn_right_shoulder_body.collision = ShapeCollection(
-            [cylinder], reference_frame=spawn_right_shoulder_body
-        )
+        spawn_right_shoulder_body = BodySpec.cylinder(
+            "right_shoulder", width=0.2, height=0.1, color=Color(0.9, 0.1, 0.1, 1.0)
+        ).to_body()
         dof = DegreeOfFreedom(name=PrefixedName("right_shoulder_joint"))
         right_shoulder_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=0,
@@ -491,35 +447,17 @@ def test_world_sim_state_sync():
     def spawn_state_sync_scene(
         spawn_world: World,
     ) -> tuple[Body, Connection6DoF]:
-        plane_body = Body(name=PrefixedName("ground_plane"))
-        plane_body.collision = ShapeCollection(
-            [
-                Box(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        reference_frame=plane_body
-                    ),
-                    scale=Scale(2.0, 2.0, plane_half_thickness * 2),
-                    color=Color(1.0, 1.0, 0.0, 1.0),
-                )
-            ],
-            reference_frame=plane_body,
-        )
+        plane_body = BodySpec.box(
+            "ground_plane",
+            Scale(2.0, 2.0, plane_half_thickness * 2),
+            color=Color(1.0, 1.0, 0.0, 1.0),
+        ).to_body()
 
-        falling_box = Body(name=PrefixedName("falling_box"))
-        falling_box.collision = ShapeCollection(
-            [
-                Box(
-                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        reference_frame=falling_box
-                    ),
-                    scale=Scale(
-                        box_half_size * 2, box_half_size * 2, box_half_size * 2
-                    ),
-                    color=Color(1.0, 0.0, 0.0, 1.0),
-                )
-            ],
-            reference_frame=falling_box,
-        )
+        falling_box = BodySpec.box(
+            "falling_box",
+            Scale(box_half_size * 2, box_half_size * 2, box_half_size * 2),
+            color=Color(1.0, 0.0, 0.0, 1.0),
+        ).to_body()
 
         with spawn_world.modify_world():
             spawn_world.add_connection(

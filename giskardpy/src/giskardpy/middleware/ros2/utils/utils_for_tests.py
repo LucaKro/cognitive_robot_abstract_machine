@@ -27,6 +27,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import WorldEntityNotFoundError
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.world_description.specs import BodySpec
 from semantic_digital_twin.world_description.connections import (
     OmniDrive,
     FixedConnection,
@@ -270,18 +271,9 @@ class GiskardTester(ABC):
             spatial_object=pose,
             target_frame=parent_link,
         )
-        with self.api.world.modify_world():
-            box = Body(name=PrefixedName(name))
-            box_shape = Box(scale=Scale(*size))
-            box.collision.append(box_shape)
-            box.visual.append(box_shape)
-
-            connection = FixedConnection(
-                parent=parent_link,
-                child=box,
-                parent_T_connection_expression=parent_T_pose,
-            )
-            self.api.world.add_connection(connection)
+        BodySpec.box(name, Scale(*size)).spawn(
+            self.api.world, parent=parent_link, pose=parent_T_pose
+        )
         self.wait_heartbeats()
 
     def add_sphere_to_world(
@@ -297,20 +289,11 @@ class GiskardTester(ABC):
             parent_link = self.api.world.get_kinematic_structure_entity_by_name(
                 parent_link
             )
-        with self.api.world.modify_world():
-            sphere = Body(name=PrefixedName(name))
-            sphere_shape = Sphere(radius=radius)
-            sphere.collision.append(sphere_shape)
-            sphere.visual.append(sphere_shape)
-
-            connection = FixedConnection(
-                parent=parent_link,
-                child=sphere,
-                parent_T_connection_expression=Ros2ToSemDTConverter.convert(
-                    pose, self.api.world
-                ),
-            )
-            self.api.world.add_connection(connection)
+        BodySpec.sphere(name, radius).spawn(
+            self.api.world,
+            parent=parent_link,
+            pose=Ros2ToSemDTConverter.convert(pose, self.api.world),
+        )
         self.wait_heartbeats()
 
     def add_cylinder_to_world(
@@ -331,18 +314,9 @@ class GiskardTester(ABC):
             spatial_object=Ros2ToSemDTConverter.convert(pose, self.api.world),
             target_frame=parent_link,
         )
-        with self.api.world.modify_world():
-            cylinder = Body(name=PrefixedName(name))
-            cylinder_shape = Cylinder(width=radius * 2, height=height)
-            cylinder.collision.append(cylinder_shape)
-            cylinder.visual.append(cylinder_shape)
-
-            connection = FixedConnection(
-                parent=parent_link,
-                child=cylinder,
-                parent_T_connection_expression=parent_T_pose,
-            )
-            self.api.world.add_connection(connection)
+        BodySpec.cylinder(name, width=radius * 2, height=height).spawn(
+            self.api.world, parent=parent_link, pose=parent_T_pose
+        )
         self.wait_heartbeats()
 
     def add_mesh_to_world(
@@ -363,18 +337,9 @@ class GiskardTester(ABC):
             spatial_object=Ros2ToSemDTConverter.convert(pose, self.api.world),
             target_frame=parent_link,
         )
-        with self.api.world.modify_world():
-            mesh_body = Body(name=PrefixedName(name))
-            mesh_shape = Mesh(filename=mesh, scale=Scale(*scale))
-            mesh_body.collision.append(mesh_shape)
-            mesh_body.visual.append(mesh_shape)
-
-            connection = FixedConnection(
-                parent=parent_link,
-                child=mesh_body,
-                parent_T_connection_expression=parent_T_pose,
-            )
-            self.api.world.add_connection(connection)
+        BodySpec.mesh(name, filename=mesh, scale=Scale(*scale)).spawn(
+            self.api.world, parent=parent_link, pose=parent_T_pose
+        )
         self.wait_heartbeats()
 
     def add_urdf_to_world(
