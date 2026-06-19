@@ -40,8 +40,6 @@ from robokudo.utils.annotation_conversion import (
     Location2ODConverter,
 )
 from robokudo_msgs.msg import ObjectDesignator, ShapeSize
-
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.geometry import (
     Box as SemDTBox,
@@ -467,7 +465,7 @@ class TestUtilsAnnotationConversion(object):
         converter = Location2ODConverter()
 
         loc = LocationAnnotation()
-        loc.region = Region(name=PrefixedName(name="some_weird_non_default_name"))
+        loc.region = Region(name="some_weird_non_default_name")
 
         converter.convert(loc, CAS(), od)
 

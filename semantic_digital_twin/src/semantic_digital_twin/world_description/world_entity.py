@@ -49,7 +49,6 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     ReferenceFrameMismatchError,
     WorldEntityWithIDNotInKwargs,
@@ -99,14 +98,14 @@ class WorldEntity(Symbol):
     The semantic annotations this entity is part of.
     """
 
-    name: PrefixedName = field(default=None, kw_only=True, hash=False)
+    name: str = field(default=None, kw_only=True, hash=False)
     """
     The identifier for this world entity.
     """
 
     def __post_init__(self):
         if self.name is None:
-            self.name = PrefixedName(f"{self.__class__.__name__}_{hash(self)}")
+            self.name = f"{self.__class__.__name__}_{hash(self)}"
         if self._world is not None:
             self.add_to_world(self._world)
 
@@ -403,13 +402,13 @@ class KinematicStructureEntity(WorldEntityWithSimulatorProperties, ABC):
     @classmethod
     @abstractmethod
     def from_shape_collection(
-        cls, name: PrefixedName, shape_collection: ShapeCollection
+        cls, name: str, shape_collection: ShapeCollection
     ) -> Self: ...
 
     @classmethod
     def from_3d_points(
         cls,
-        name: PrefixedName,
+        name: str,
         points_3d: List[Point3],
         minimum_thickness: float = 0.005,
         sv_ratio_tol: float = 1e-7,
@@ -465,7 +464,7 @@ class Body(KinematicStructureEntity):
 
     def __post_init__(self):
         if not self.name:
-            self.name = PrefixedName(f"body_{id_generator(self)}")
+            self.name = f"body_{id_generator(self)}"
 
         self.visual.reference_frame = self
         self.collision.reference_frame = self
@@ -474,7 +473,7 @@ class Body(KinematicStructureEntity):
 
     @classmethod
     def from_shape_collection(
-        cls, name: PrefixedName, shape_collection: ShapeCollection
+        cls, name: str, shape_collection: ShapeCollection
     ) -> Self:
         return cls(name=name, collision=shape_collection, visual=shape_collection)
 
@@ -547,7 +546,7 @@ class Region(KinematicStructureEntity):
 
     @classmethod
     def from_shape_collection(
-        cls, name: PrefixedName, shape_collection: ShapeCollection
+        cls, name: str, shape_collection: ShapeCollection
     ):
         return cls(name=name, area=shape_collection)
 
@@ -611,10 +610,7 @@ class SemanticAnnotation(WorldEntityWithSimulatorProperties):
 
     def __post_init__(self):
         if self.name is None:
-            self.name = PrefixedName(
-                name=f"{self.__class__.__name__}",
-                prefix=self._world.name if self._world is not None else None,
-            )
+            self.name = f"{self.__class__.__name__}"
 
     @classmethod
     @memoize
@@ -924,10 +920,8 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
     @classmethod
     def _generate_default_name(
         cls, parent: KinematicStructureEntity, child: KinematicStructureEntity
-    ) -> PrefixedName:
-        return PrefixedName(
-            f"{parent.name.name}_T_{child.name.name}", prefix=child.name.prefix
-        )
+    ) -> str:
+        return f"{parent.name}_T_{child.name}"
 
     def __hash__(self):
         return hash((self.parent, self.child))
@@ -970,7 +964,7 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         *args,
         **kwargs,
     ) -> Self:
@@ -1033,7 +1027,7 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             other_child,
             parent_T_connection_expression=parent_T_connection_expression,
             connection_T_child_expression=connection_T_child_expression,
-            name=PrefixedName(self.name.name, prefix=self.name.prefix),
+            name=self.name,
         )
 
     def copy_with_new_parent(

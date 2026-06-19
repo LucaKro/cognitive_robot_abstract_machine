@@ -13,7 +13,6 @@ from semantic_digital_twin.adapters.ros.tfwrapper import TFWrapper
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
@@ -32,7 +31,7 @@ def test_tf_publisher(rclpy_node, pr2_world_state_reset):
 
     assert tf_wrapper.wait_for_transform(
         "odom_combined",
-        "pr2/base_footprint",
+        "base_footprint",
         timeout=Duration(seconds=1.0),
         time=Time(),
     )
@@ -59,7 +58,7 @@ def test_clear(rclpy_node, pr2_world_copy):
 
     assert tf_wrapper.wait_for_transform(
         "odom_combined",
-        "pr2/base_footprint",
+        "base_footprint",
         timeout=Duration(seconds=1.0),
         time=Time(),
     )
@@ -81,7 +80,7 @@ def test_clear(rclpy_node, pr2_world_copy):
 
     assert tf_wrapper.wait_for_transform(
         "odom_combined",
-        "pr2/base_footprint",
+        "base_footprint",
         timeout=Duration(seconds=1.0),
         time=Time(),
     )
@@ -89,7 +88,7 @@ def test_clear(rclpy_node, pr2_world_copy):
 
 def test_tf_publisher_ignore_robot(rclpy_node, pr2_world_copy):
     with pr2_world_copy.modify_world():
-        box = Body(name=PrefixedName("box"))
+        box = Body(name="box")
         c = FixedConnection(parent=pr2_world_copy.root, child=box)
         pr2_world_copy.add_connection(c)
     tf_wrapper = TFWrapper(node=rclpy_node)
@@ -99,8 +98,8 @@ def test_tf_publisher_ignore_robot(rclpy_node, pr2_world_copy):
     )
 
     assert not tf_wrapper.wait_for_transform(
-        "pr2/base_link",
-        "pr2/base_footprint",
+        "base_link",
+        "base_footprint",
         timeout=Duration(seconds=1.0),
         time=Time(),
     )
@@ -133,8 +132,8 @@ def test_tf_publisher_kitchen(rclpy_node, pr2_apartment_world):
     milk = pr2_apartment_world.get_kinematic_structure_entities_by_name("milk.stl")[0]
 
     assert tf_wrapper.wait_for_transform(
-        "apartment/apartment_root",
-        "pr2/base_footprint",
+        "apartment_root",
+        "base_footprint",
         timeout=Duration(seconds=1.0),
         time=Time(),
     )
@@ -222,7 +221,7 @@ def test_tf_publisher_with_Regions(rclpy_node, pr2_world_state_reset):
         timeout=Duration(seconds=1.0),
         time=Time(),
     )
-    region = Region(name=PrefixedName("region"))
+    region = Region(name="region")
     connection = FixedConnection(parent=pr2_world_state_reset.root, child=region)
     with pr2_world_state_reset.modify_world():
         pr2_world_state_reset.add_region(region)
@@ -248,11 +247,11 @@ def test_empty_world(rclpy_node):
 def test_static_world(rclpy_node):
     world = World()
     with world.modify_world():
-        body1 = Body(name=PrefixedName("body1"))
-        body2 = Body(name=PrefixedName("body2"))
-        body3 = Body(name=PrefixedName("body3"))
-        body4 = Body(name=PrefixedName("body4"))
-        body5 = Body(name=PrefixedName("body5"))
+        body1 = Body(name="body1")
+        body2 = Body(name="body2")
+        body3 = Body(name="body3")
+        body4 = Body(name="body4")
+        body5 = Body(name="body5")
 
         body1_C_body2 = FixedConnection(parent=body1, child=body2)
         world.add_connection(body1_C_body2)
@@ -307,8 +306,8 @@ def test_static_world(rclpy_node):
 def test_static_world2(rclpy_node):
     world = World()
     with world.modify_world():
-        body1 = Body(name=PrefixedName("body1"))
-        body2 = Body(name=PrefixedName("body2"))
+        body1 = Body(name="body1")
+        body2 = Body(name="body2")
 
         body1_C_body2 = FixedConnection(parent=body1, child=body2)
         world.add_connection(body1_C_body2)

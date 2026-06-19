@@ -49,8 +49,8 @@ def remove_root_and_move_children_into_new_worlds(world: World) -> List[World]:
         entity
         for entity in world.kinematic_structure_entities
         if entity.parent_kinematic_structure_entity
-        and "grp" in entity.parent_kinematic_structure_entity.name.name
-        and "grp" not in entity.name.name
+        and "grp" in entity.parent_kinematic_structure_entity.name
+        and "grp" not in entity.name
     ]
 
     with world.modify_world():
@@ -59,7 +59,7 @@ def remove_root_and_move_children_into_new_worlds(world: World) -> List[World]:
         for world in worlds:
             if world.root is None:
                 ...
-            world.name = world.root.name.name
+            world.name = world.root.name
 
     return worlds
 
@@ -78,9 +78,9 @@ def replace_dresser_meshes_with_factories(
     procthor_replace_pipeline = Pipeline(
         [
             BodyFactoryReplace(
-                body_condition=lambda b: bool(dresser_pattern.fullmatch(b.name.name))
+                body_condition=lambda b: bool(dresser_pattern.fullmatch(b.name))
                 and not (
-                    "drawer" in b.name.name.lower() or "door" in b.name.name.lower()
+                    "drawer" in b.name.lower() or "door" in b.name.lower()
                 ),
                 annotation_creator=dresser_from_body_in_world,
             )
@@ -99,8 +99,8 @@ def parse_fbx_file_to_world_mapping_daos(fbx_file_path: str) -> List[WorldMappin
     pipeline = Pipeline(
         [
             CenterLocalGeometryAndPreserveWorldPose(),
-            BodyFilter(lambda x: not x.name.name.startswith("PS_")),
-            BodyFilter(lambda x: not x.name.name.endswith("slice")),
+            BodyFilter(lambda x: not x.name.startswith("PS_")),
+            BodyFilter(lambda x: not x.name.endswith("slice")),
         ]
     )
 

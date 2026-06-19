@@ -10,7 +10,6 @@ from krrood.ormatic.utils import classproperty
 from krrood.symbolic_math import symbolic_math
 from random_events.interval import closed
 from random_events.product_algebra import SimpleEvent
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.exceptions import (
     InvalidPlaneDimensions,
@@ -77,7 +76,7 @@ class Handle(HasRootBody):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -154,7 +153,7 @@ class Aperture(HasRootRegion):
     @classmethod
     def create_with_new_region_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -182,7 +181,7 @@ class Aperture(HasRootRegion):
     @classmethod
     def create_with_new_region_in_world_from_body(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         body: Body,
         parent_T_self: Optional[HomogeneousTransformationMatrix] = None,
@@ -301,7 +300,7 @@ class Door(HasHandle, HasMechanicalJoint):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -324,10 +323,8 @@ class Door(HasHandle, HasMechanicalJoint):
         door_body.collision = collision
         door_body.visual = collision
 
-        entry_way_name = PrefixedName(name.name + "entry_way", name.prefix)
-        entry_way_region_name = PrefixedName(
-            name.name + "entry_way_region", name.prefix
-        )
+        entry_way_name = name + "entry_way"
+        entry_way_region_name = name + "entry_way_region"
 
         entry_way_region = Region(
             name=entry_way_region_name,
@@ -490,7 +487,7 @@ class Floor(HasSupportingSurface):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -517,7 +514,7 @@ class Floor(HasSupportingSurface):
     @classmethod
     def create_with_new_body_from_polytope_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         floor_polytope: List[Point3],
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
@@ -571,7 +568,7 @@ class Wall(HasApertures):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,

@@ -17,7 +17,6 @@ from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasLeftRightArm,
     HasNeck,
@@ -293,13 +292,13 @@ class Armar7LeftGripper(
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            name=f"{self.name}_open",
             mapping=dict(zip(gripper_joints, [0.0] * len(gripper_joints))),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            name=f"{self.name}_close",
             mapping=dict(zip(gripper_joints, [1.57] * len(gripper_joints))),
             state_type=GripperState.CLOSE,
         )
@@ -340,13 +339,13 @@ class Armar7RightGripper(
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            name=f"{self.name}_open",
             mapping=dict(zip(gripper_joints, [0.0] * len(gripper_joints))),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            name=f"{self.name}_close",
             mapping=dict(zip(gripper_joints, [1.57] * len(gripper_joints))),
             state_type=GripperState.CLOSE,
         )
@@ -377,7 +376,7 @@ class Armar7LeftArm(Arm[Armar7LeftGripper]):
     def setup_joint_states(self) -> List[JointState]:
         vals = [0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 0.0, 0.0]
         arm_park = JointState.from_mapping(
-            name=PrefixedName("left_arm_park", prefix=self.name.name),
+            name="left_arm_park",
             mapping=dict(zip(self.active_connections, vals)),
             state_type=StaticJointState.PARK,
         )
@@ -406,7 +405,7 @@ class Armar7RightArm(Arm[Armar7RightGripper]):
     def setup_joint_states(self) -> List[JointState]:
         vals = [0.0, 0.0, 0.25, -0.5, 1.0, -1.0, 0.0, 0.0]
         arm_park = JointState.from_mapping(
-            name=PrefixedName("right_arm_park", prefix=self.name.name),
+            name="right_arm_park",
             mapping=dict(zip(self.active_connections, vals)),
             state_type=StaticJointState.PARK,
         )
@@ -485,17 +484,17 @@ class Armar7Torso(
     def setup_joint_states(self) -> List[JointState]:
         torso_joints = self.active_connections
         torso_low = JointState.from_mapping(
-            name=PrefixedName("torso_low", prefix=self.name.name),
+            name="torso_low",
             mapping=dict(zip(torso_joints, [-0.757037, 1.74533, 2.18166 / 2])),
             state_type=TorsoState.LOW,
         )
         torso_mid = JointState.from_mapping(
-            name=PrefixedName("torso_mid", prefix=self.name.name),
+            name="torso_mid",
             mapping=dict(zip(torso_joints, [-0.757037 / 2, 1.74533 / 2, 2.18166 / 4])),
             state_type=TorsoState.MID,
         )
         torso_high = JointState.from_mapping(
-            name=PrefixedName("torso_high", prefix=self.name.name),
+            name="torso_high",
             mapping=dict(zip(torso_joints, [0.0, 0.0, 0.0])),
             state_type=TorsoState.HIGH,
         )

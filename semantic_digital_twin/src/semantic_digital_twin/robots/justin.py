@@ -10,7 +10,6 @@ from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasLeftRightArm,
     HasNeck,
@@ -232,13 +231,13 @@ class JustinLeftHand(
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            name=f"{self.name}_open",
             mapping=dict(zip(gripper_joints, [0.0] * len(gripper_joints))),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            name=f"{self.name}_close",
             mapping=dict(zip(gripper_joints, [1.0] * len(gripper_joints))),
             state_type=GripperState.CLOSE,
         )
@@ -276,13 +275,13 @@ class JustinRightHand(
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            name=f"{self.name}_open",
             mapping=dict(zip(gripper_joints, [0.0] * len(gripper_joints))),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            name=f"{self.name}_close",
             mapping=dict(zip(gripper_joints, [1.0] * len(gripper_joints))),
             state_type=GripperState.CLOSE,
         )
@@ -310,7 +309,7 @@ class JustinLeftArm(Arm[JustinLeftHand]):
 
     def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
-            name=PrefixedName("left_arm_park", prefix=self.name.name),
+            name="left_arm_park",
             mapping=dict(
                 zip(self.active_connections, [0.0] * len(self.active_connections))
             ),
@@ -336,7 +335,7 @@ class JustinRightArm(Arm[JustinRightHand]):
 
     def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
-            name=PrefixedName("right_arm_park", prefix=self.name.name),
+            name="right_arm_park",
             mapping=dict(
                 zip(self.active_connections, [0.0] * len(self.active_connections))
             ),

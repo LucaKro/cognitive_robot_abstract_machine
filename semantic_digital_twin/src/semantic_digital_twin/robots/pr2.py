@@ -22,7 +22,6 @@ from semantic_digital_twin.datastructures.definitions import (
     GripperState,
     TorsoState,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
     HasLeftRightArm,
@@ -180,13 +179,13 @@ class PR2RightGripper(
         right_gripper_joints = self.active_connections
 
         right_gripper_open = JointState.from_mapping(
-            name=PrefixedName("right_gripper_open", prefix=self.name.name),
+            name="right_gripper_open",
             mapping=dict(zip(right_gripper_joints, [0.548, 0.548])),
             state_type=GripperState.OPEN,
         )
 
         right_gripper_close = JointState.from_mapping(
-            name=PrefixedName("right_gripper_close", prefix=self.name.name),
+            name="right_gripper_close",
             mapping=dict(zip(right_gripper_joints, [0.0, 0.0])),
             state_type=GripperState.CLOSE,
         )
@@ -219,13 +218,13 @@ class PR2LeftGripper(
     def setup_joint_states(self) -> List[JointState]:
         left_gripper_joints = self.active_connections
         left_gripper_open = JointState.from_mapping(
-            name=PrefixedName("left_gripper_open", prefix=self.name.name),
+            name="left_gripper_open",
             mapping=dict(zip(left_gripper_joints, [0.548, 0.548])),
             state_type=GripperState.OPEN,
         )
 
         left_gripper_close = JointState.from_mapping(
-            name=PrefixedName("left_gripper_close", prefix=self.name.name),
+            name="left_gripper_close",
             mapping=dict(zip(left_gripper_joints, [0.0, 0.0])),
             state_type=GripperState.CLOSE,
         )
@@ -303,7 +302,7 @@ class PR2LeftArm(Arm[PR2LeftGripper]):
 
     def setup_joint_states(self) -> List[JointState]:
         left_arm_park = JointState.from_mapping(
-            name=PrefixedName("left_park", prefix=self.name.name),
+            name="left_park",
             mapping=dict(
                 zip(
                     [c for c in self.active_connections],
@@ -358,7 +357,7 @@ class PR2RightArm(Arm[PR2RightGripper]):
 
     def setup_joint_states(self) -> List[JointState]:
         right_arm_park = JointState.from_mapping(
-            name=PrefixedName("right_park", prefix=self.name.name),
+            name="right_park",
             mapping=dict(
                 zip(
                     [c for c in self.active_connections],
@@ -411,19 +410,19 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
     def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
         torso_low = JointState.from_mapping(
-            name=PrefixedName("torso_low", prefix=self.name.name),
+            name="torso_low",
             mapping=dict(zip(torso_joint, [0.0115])),
             state_type=TorsoState.LOW,
         )
 
         torso_mid = JointState.from_mapping(
-            name=PrefixedName("torso_mid", prefix=self.name.name),
+            name="torso_mid",
             mapping=dict(zip(torso_joint, [0.15])),
             state_type=TorsoState.MID,
         )
 
         torso_high = JointState.from_mapping(
-            name=PrefixedName("torso_high", prefix=self.name.name),
+            name="torso_high",
             mapping=dict(zip(torso_joint, [0.3])),
             state_type=TorsoState.HIGH,
         )

@@ -3,7 +3,6 @@ from typing import Optional, Dict, List, Tuple, Union
 
 import krrood.symbolic_math.symbolic_math as sm
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
@@ -89,7 +88,7 @@ class JointPositionList(Task):
 
 @dataclass
 class JointPositionLimitList(Task):
-    lower_upper_limits: Dict[Union[PrefixedName, str], Tuple[float, float]] = field(
+    lower_upper_limits: Dict[Union[str, str], Tuple[float, float]] = field(
         kw_only=True
     )
     weight: float = DefaultWeights.WEIGHT_BELOW_CA
@@ -245,7 +244,7 @@ class JointVelocityLimit(Task):
                     weight=self.weight,
                     task_expression=current_joint,
                     velocity_limit=max_velocity,
-                    name=joint.name.name,
+                    name=joint.name,
                 )
 
 

@@ -33,7 +33,6 @@ from robokudo.utils.transform import (
     get_quaternion_from_transform_matrix,
 )
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import Connection6DoF
@@ -256,17 +255,10 @@ class AddObjectDiff:
             )
         )
 
-        conn_name = PrefixedName(
-            name=f"{self.adapter.root.name.name}_{self.tracked_object.body.name.name}"
-        )
-
         dofs = {}
         for name in ["x", "y", "z", "qx", "qy", "qz", "qw"]:
-            prefixed_name = PrefixedName(name=name, prefix=conn_name.name)
-            dof = DegreeOfFreedom(name=prefixed_name)
-
+            dof = DegreeOfFreedom(name=name)
             dofs[name] = dof
-
             self.commands.append(AddDegreeOfFreedomModification(degree_of_freedom=dof))
 
         conn = Connection6DoF(
@@ -470,7 +462,7 @@ class SemanticDigitalTwinAdapter:
             self.root = self.world.root
             self.world.validate()
         else:
-            self.root = Body(name=PrefixedName(name="map"))
+            self.root = Body(name="map")
 
         with self.world.modify_world():
             self.world.add_kinematic_structure_entity(self.root)

@@ -14,7 +14,6 @@ from krrood.utils import get_full_class_name
 from semantic_digital_twin.semantic_annotations.natural_language import (
     NaturalLanguageWithTypeDescription,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Floor,
@@ -284,7 +283,7 @@ class Sage10kWall(Sage10kWithID):
         return wall_length, yaw
 
     def create_in_world(self, world: World, directory: Path, parent: Body) -> Wall:
-        wall_name = PrefixedName(name=self.id)
+        wall_name = self.id
 
         wall_length, yaw = self.wall_length_and_yaw
 
@@ -416,7 +415,7 @@ class Sage10kObject(Sage10kWithID):
         ply_file = directory / "objects" / f"{self.source_id}.ply"
         texture_file = directory / "objects" / f"{self.source_id}_texture.png"
         body = Body()
-        body.name = PrefixedName(name=str(body.id), prefix=self.id)
+        body.name = str(body.id)
 
         # Define the pose for the object in the world
         root_T_body = HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -601,7 +600,7 @@ class Sage10kDoor(Sage10kWithID):
         :param sage_10k_wall: The sage 10k wall that is referenced by `self.wall_id`.
         :param wall_annotation: The wall annotation created in `world` before this call.
         """
-        name = PrefixedName(name=self.id, prefix=sage_10k_wall.id)
+        name = self.id
 
         scale = Scale(x=sage_10k_wall.thickness, y=self.width, z=self.height)
 
@@ -688,7 +687,7 @@ class Sage10kDoor(Sage10kWithID):
             )
 
         world_root_T_handle = world.transform(door_T_handle, world.root)
-        handle_name = PrefixedName(name=f"{self.id}_handle", prefix=self.id)
+        handle_name = f"{self.id}_handle"
 
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
@@ -718,7 +717,7 @@ class Sage10kDoor(Sage10kWithID):
 
         with world.modify_world():
             hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName(name="hinge", prefix=door.root.name.name),
+                name="hinge",
                 world=world,
                 active_axis=Vector3.Z(),
                 world_root_T_self=world_root_T_hinge,
@@ -782,7 +781,7 @@ class Sage10kRoom(Sage10kWithID):
         :return: The annotation of the created floor.
         """
         # create the floor
-        floor_name = PrefixedName(name="floor", prefix=self.id)
+        floor_name = "floor"
         floor_mesh = Box(
             scale=Scale(x=self.dimensions.x, y=self.dimensions.y, z=0.01)
         ).mesh
@@ -993,7 +992,7 @@ class Sage10kScene(Sage10kWithID):
         """
         world = World()
 
-        root = Body(name=PrefixedName(name="map"))
+        root = Body(name="map")
 
         with world.modify_world():
             world.add_body(root)

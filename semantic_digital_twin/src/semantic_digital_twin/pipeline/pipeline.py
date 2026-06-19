@@ -93,7 +93,7 @@ class CenterLocalGeometryAndPreserveWorldPose(Step):
 
             if len(vertices) == 0:
                 logging.warning(
-                    f"Body {body.name.name} has no vertices in visual or collision shapes, skipping."
+                    f"Body {body.name} has no vertices in visual or collision shapes, skipping."
                 )
                 continue
 
@@ -146,7 +146,7 @@ class BodyFactoryReplace(Step):
     """
 
     body_condition: Callable[[Body], bool] = lambda x: bool(
-        re.compile(r"^dresser_\d+.*$").fullmatch(x.name.name)
+        re.compile(r"^dresser_\d+.*$").fullmatch(x.name)
     )
     """
     Condition to filter bodies that should be replaced. Defaults to matching bodies containing "dresser_" followed by digits in their name.

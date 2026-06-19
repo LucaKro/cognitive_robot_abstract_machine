@@ -29,7 +29,6 @@ from krrood.entity_query_language.factories import variable, contains, a, entity
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     NoJointStateWithType,
     UselessConceptError,
@@ -257,7 +256,7 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,

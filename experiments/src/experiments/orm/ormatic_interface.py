@@ -23,6 +23,7 @@ import coraplex.alternative_motion_mappings.tiago_motion_mapping
 import coraplex.datastructures.dataclasses
 import coraplex.datastructures.execution_data
 import coraplex.datastructures.grasp
+import coraplex.datastructures.grasp_scoring
 import coraplex.datastructures.trajectory
 import coraplex.exceptions
 import coraplex.language
@@ -59,6 +60,7 @@ import datetime
 import enum
 import experiments.eql_experiments.monitoring_profile
 import experiments.experiment_definitions
+import experiments.graph_of_convex_sets_experiments
 import experiments.ormatic_experiments.reliability
 import experiments.ormatic_experiments.scalability
 import experiments.sage_10k.demos
@@ -162,7 +164,6 @@ import semantic_digital_twin.collision_checking.pybullet_collision_detector
 import semantic_digital_twin.collision_checking.trimesh_collision_detector
 import semantic_digital_twin.datastructures.field_of_view
 import semantic_digital_twin.datastructures.joint_state
-import semantic_digital_twin.datastructures.prefixed_name
 import semantic_digital_twin.exceptions
 import semantic_digital_twin.mixin
 import semantic_digital_twin.orm.exceptions
@@ -486,23 +487,6 @@ class ExperimentsTableDAO_experiments_association(Base, AssociationDataAccessObj
         "ExperimentResultDAO",
         foreign_keys=[target_experimentresultdao_id],
         lazy="selectin",
-    )
-
-
-class GiskardTesterDAO_robot_names_association(Base, AssociationDataAccessObject):
-    __tablename__ = "_18552742813313585395849894661168412239528432174761485585780336"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
-    source_giskardtesterdao_id: Mapped[int] = mapped_column(
-        ForeignKey("GiskardTesterDAO.database_id")
-    )
-    target_prefixednamedao_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id")
-    )
-
-    target: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", foreign_keys=[target_prefixednamedao_id], lazy="selectin"
     )
 
 
@@ -4527,11 +4511,10 @@ class ForwardKinematicsBindingDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
+
     root_id: Mapped[int] = mapped_column(
         ForeignKey("KinematicStructureEntityDAO.database_id", use_alter=True),
         nullable=True,
@@ -4543,9 +4526,6 @@ class ForwardKinematicsBindingDAO(
         use_existing_column=True,
     )
 
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
-    )
     root: Mapped[KinematicStructureEntityDAO] = relationship(
         "KinematicStructureEntityDAO",
         uselist=False,
@@ -4688,14 +4668,8 @@ class GiskardTesterDAO(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
-    robot_names: Mapped[builtins.list[GiskardTesterDAO_robot_names_association]] = (
-        relationship(
-            "GiskardTesterDAO_robot_names_association",
-            collection_class=builtins.list,
-            cascade="all, delete-orphan",
-            foreign_keys="[GiskardTesterDAO_robot_names_association.source_giskardtesterdao_id]",
-            lazy="selectin",
-        )
+    robot_names: Mapped[typing.List[builtins.str]] = mapped_column(
+        JSON, nullable=False, use_existing_column=True
     )
 
 
@@ -4786,6 +4760,87 @@ class GiskardWrapperNodeDAO(
     }
 
 
+class GraphOfConvexSetsFreespaceExperimentResultDAO(
+    ExperimentResultDAO,
+    DataAccessObject[
+        experiments.graph_of_convex_sets_experiments.GraphOfConvexSetsFreespaceExperimentResult
+    ],
+):
+    __tablename__ = "GraphOfConvexSetsFreespaceExperimentResultDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ExperimentResultDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    world_loading_duration_milliseconds: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    obstacle_count: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    free_space_simple_set_count: Mapped[builtins.int] = mapped_column(
+        use_existing_column=True
+    )
+    free_space_bounding_box_count: Mapped[builtins.int] = mapped_column(
+        use_existing_column=True
+    )
+    graph_node_count: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    graph_edge_count: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    end_to_end_duration_milliseconds: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    environment_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    free_space_computation_duration_milliseconds_id: Mapped[int] = mapped_column(
+        ForeignKey("MeanAndStandardDeviationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    materialise_duration_milliseconds_id: Mapped[int] = mapped_column(
+        ForeignKey("MeanAndStandardDeviationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    connectivity_duration_milliseconds_id: Mapped[int] = mapped_column(
+        ForeignKey("MeanAndStandardDeviationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    free_space_computation_duration_milliseconds: Mapped[
+        MeanAndStandardDeviationDAO
+    ] = relationship(
+        "MeanAndStandardDeviationDAO",
+        uselist=False,
+        foreign_keys=[free_space_computation_duration_milliseconds_id],
+        post_update=True,
+    )
+    materialise_duration_milliseconds: Mapped[MeanAndStandardDeviationDAO] = (
+        relationship(
+            "MeanAndStandardDeviationDAO",
+            uselist=False,
+            foreign_keys=[materialise_duration_milliseconds_id],
+            post_update=True,
+        )
+    )
+    connectivity_duration_milliseconds: Mapped[MeanAndStandardDeviationDAO] = (
+        relationship(
+            "MeanAndStandardDeviationDAO",
+            uselist=False,
+            foreign_keys=[connectivity_duration_milliseconds_id],
+            post_update=True,
+        )
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "GraphOfConvexSetsFreespaceExperimentResultDAO",
+        "inherit_condition": database_id == ExperimentResultDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class GraspDescriptionDAO(
     Base, DataAccessObject[coraplex.datastructures.grasp.GraspDescription]
 ):
@@ -4827,6 +4882,30 @@ class GraspDescriptionDAO(
         foreign_keys=[end_effector_id],
         post_update=True,
     )
+
+
+class GraspScorerDAO(
+    Base, DataAccessObject[coraplex.datastructures.grasp_scoring.GraspScorer]
+):
+    __tablename__ = "GraspScorerDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    weight_normal: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    weight_distance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    weight_clearance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    penalty_collision: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    collision_tolerance: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    penalty_clearance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    penalty_unstable: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    score_partial_contact: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    ground_plane_z: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
 
 class GraspingActionDAO(
@@ -5297,6 +5376,10 @@ class JointStateDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
     target_values: Mapped[typing.List[builtins.float]] = mapped_column(
         JSON, nullable=False, use_existing_column=True
     )
@@ -5304,12 +5387,6 @@ class JointStateDAO(
         typing.Optional[semantic_digital_twin.datastructures.definitions.JointStateType]
     ] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -5322,9 +5399,6 @@ class JointStateDAO(
             foreign_keys="[JointStateDAO_connections_association.source_jointstatedao_id]",
             lazy="selectin",
         )
-    )
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
     )
 
 
@@ -7142,6 +7216,9 @@ class GraspSequenceDAO(
         ForeignKey(GoalDAO.database_id), primary_key=True, use_existing_column=True
     )
 
+    gripper_joint: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
     max_velocity: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     weight: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
@@ -7152,11 +7229,6 @@ class GraspSequenceDAO(
     )
     root_link_id: Mapped[int] = mapped_column(
         ForeignKey("BodyDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    gripper_joint_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -7171,12 +7243,6 @@ class GraspSequenceDAO(
     )
     root_link: Mapped[BodyDAO] = relationship(
         "BodyDAO", uselist=False, foreign_keys=[root_link_id], post_update=True
-    )
-    gripper_joint: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO",
-        uselist=False,
-        foreign_keys=[gripper_joint_id],
-        post_update=True,
     )
     goal_pose: Mapped[PoseMappingDAO] = relationship(
         "PoseMappingDAO", uselist=False, foreign_keys=[goal_pose_id], post_update=True
@@ -8576,6 +8642,9 @@ class NegativeConnectionVelocityDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    connection_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
     velocity: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
 
@@ -11401,24 +11470,6 @@ class PreferredGraspAlignmentDAO(
     )
 
 
-class PrefixedNameDAO(
-    Base,
-    DataAccessObject[semantic_digital_twin.datastructures.prefixed_name.PrefixedName],
-):
-    __tablename__ = "PrefixedNameDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    name: Mapped[builtins.str] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-    prefix: Mapped[typing.Optional[builtins.str]] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-
-
 class PrincipalAxesDAO(
     NPMatrix3x3DAO,
     DataAccessObject[
@@ -13680,6 +13731,31 @@ class ScaleDAO(
     x: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     y: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     z: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+
+class ScoredGraspDAO(
+    Base, DataAccessObject[coraplex.datastructures.grasp_scoring.ScoredGrasp]
+):
+    __tablename__ = "ScoredGraspDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    score: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    id: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[pose_id], post_update=True
+    )
 
 
 class SelfCollisionAvoidanceDAO(
@@ -17753,20 +17829,16 @@ class InvalidConnectionLimitsDAO(
         use_existing_column=True,
     )
 
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
+
     limits_id: Mapped[int] = mapped_column(
         ForeignKey("DegreeOfFreedomLimitsDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
-    )
     limits: Mapped[DegreeOfFreedomLimitsDAO] = relationship(
         "DegreeOfFreedomLimitsDAO",
         uselist=False,
@@ -17898,14 +17970,8 @@ class MimicDofLimitOverwriteErrorDAO(
         use_existing_column=True,
     )
 
-    dof_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    dof_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[dof_name_id], post_update=True
+    dof_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
     __mapper_args__ = {
@@ -18936,18 +19002,12 @@ class WorldEntityDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
     polymorphic_type: Mapped[str] = mapped_column(
         String(255), nullable=False, use_existing_column=True
-    )
-
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -19321,6 +19381,10 @@ class WorldEntityNotFoundErrorDAO(
         ForeignKey(UsageErrorDAO.database_id),
         primary_key=True,
         use_existing_column=True,
+    )
+
+    suggestions: Mapped[typing.List[builtins.str]] = mapped_column(
+        JSON, nullable=False, use_existing_column=True
     )
 
     __mapper_args__ = {
@@ -29315,40 +29379,22 @@ class WorldWithDiffDriveRobotDAO(
     urdf: Mapped[builtins.str] = mapped_column(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
+    root_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    robot_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    odom_body_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
 
-    root_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    robot_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    odom_body_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
     urdf_view_id: Mapped[int] = mapped_column(
         ForeignKey("AbstractRobotDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    root_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[root_name_id], post_update=True
-    )
-    robot_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[robot_name_id], post_update=True
-    )
-    odom_body_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO",
-        uselist=False,
-        foreign_keys=[odom_body_name_id],
-        post_update=True,
-    )
     urdf_view: Mapped[AbstractRobotDAO] = relationship(
         "AbstractRobotDAO", uselist=False, foreign_keys=[urdf_view_id], post_update=True
     )
@@ -29374,29 +29420,19 @@ class WorldWithFixedRobotDAO(
     urdf: Mapped[builtins.str] = mapped_column(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
+    root_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    robot_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
 
-    root_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    robot_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
     urdf_view_id: Mapped[int] = mapped_column(
         ForeignKey("AbstractRobotDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    root_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[root_name_id], post_update=True
-    )
-    robot_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[robot_name_id], post_update=True
-    )
     urdf_view: Mapped[AbstractRobotDAO] = relationship(
         "AbstractRobotDAO", uselist=False, foreign_keys=[urdf_view_id], post_update=True
     )
@@ -29423,40 +29459,22 @@ class WorldWithOmniDriveRobotDAO(
     urdf: Mapped[builtins.str] = mapped_column(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
+    root_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    robot_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    odom_body_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
 
-    root_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    robot_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    odom_body_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
     urdf_view_id: Mapped[int] = mapped_column(
         ForeignKey("AbstractRobotDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    root_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[root_name_id], post_update=True
-    )
-    robot_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[robot_name_id], post_update=True
-    )
-    odom_body_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO",
-        uselist=False,
-        foreign_keys=[odom_body_name_id],
-        post_update=True,
-    )
     urdf_view: Mapped[AbstractRobotDAO] = relationship(
         "AbstractRobotDAO", uselist=False, foreign_keys=[urdf_view_id], post_update=True
     )

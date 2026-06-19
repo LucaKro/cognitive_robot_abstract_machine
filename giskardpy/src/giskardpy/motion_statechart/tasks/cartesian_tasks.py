@@ -11,7 +11,6 @@ import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.exceptions import NodeInitializationError
 from krrood.symbolic_math.float_variable_data import FloatVariableData
 from krrood.symbolic_math.symbolic_math import VariableParameters, CompiledFunction
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     Vector3,
     Point3,
@@ -73,7 +72,7 @@ class CartesianTask(Task, ABC):
         artifacts = NodeArtifacts()
 
         self._fk_binding = ForwardKinematicsBinding(
-            name=PrefixedName("root_T_goal_ref", str(self.name)),
+            name=f"{self.name}/root_T_goal_ref",
             root=self.root_link,
             tip=self.goal_reference_frame,
             float_variable_data=context.float_variable_data,

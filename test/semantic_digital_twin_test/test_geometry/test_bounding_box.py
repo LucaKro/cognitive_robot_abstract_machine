@@ -1,8 +1,6 @@
 import numpy as np
 import pytest
 from random_events.interval import closed
-
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
@@ -84,8 +82,8 @@ def test_bounding_box_transform_different_frame(pr2_apartment_state_reset):
 def test_bounding_box_transform_rotated():
     world = World()
     with world.modify_world():
-        body1 = Body(name=PrefixedName("body1"))
-        body2 = Body(name=PrefixedName("body2"))
+        body1 = Body(name="body1")
+        body2 = Body(name="body2")
 
         connection = FixedConnection(
             body1,

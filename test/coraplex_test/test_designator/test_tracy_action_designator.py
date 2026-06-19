@@ -35,7 +35,6 @@ from semantic_digital_twin.datastructures.definitions import (
     GripperState,
     StaticJointState,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -48,13 +47,13 @@ from semantic_digital_twin.world_description.world_entity import Body
 @pytest.fixture(scope="session")
 def tracy_block_world(tracy_world):
     box1 = Body(
-        name=PrefixedName("box1"),
+        name="box1",
         collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
         visual=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
     )
 
     box2 = Body(
-        name=PrefixedName("box2"),
+        name="box2",
         collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
         visual=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
     )
@@ -64,7 +63,7 @@ def tracy_block_world(tracy_world):
             tracy_world,
             tracy_world.root,
             box1,
-            PrefixedName("box1_connection"),
+            "box1_connection",
             HomogeneousTransformationMatrix.from_xyz_rpy(0.8, 0.5, 0.93),
         )
 
@@ -72,7 +71,7 @@ def tracy_block_world(tracy_world):
             tracy_world,
             tracy_world.root,
             box2,
-            PrefixedName("box2_connection"),
+            "box2_connection",
             HomogeneousTransformationMatrix.from_xyz_rpy(0.8, -0.5, 0.93),
         )
         tracy_world.add_connection(box1_connection)

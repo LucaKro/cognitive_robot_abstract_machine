@@ -54,7 +54,7 @@ def verify_scene(world: World, scene: Sage10kScene):
 
     for room in scene.rooms:
         for obj in room.objects:
-            matching_bodies = [b for b in world.bodies if b.name.prefix == obj.id]
+            matching_bodies = [b for b in world.bodies if b.name == obj.id]
 
             if len(matching_bodies) > 1:
                 continue

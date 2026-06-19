@@ -56,7 +56,7 @@ from semantic_digital_twin.world_description.world_entity import (
 @pytest.fixture(scope="function")
 def two_block_world():
     def make_body(name: str) -> Body:
-        result = Body(name=PrefixedName(name))
+        result = Body(name=name)
         collision = Box(
             scale=Scale(1.0, 1.0, 1.0),
             origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=result),
@@ -84,7 +84,7 @@ def two_block_world():
 def test_in_contact():
     w = World()
 
-    b1 = Body(name=PrefixedName("b1"))
+    b1 = Body(name="b1")
     collision1 = Box(
         scale=Scale(1.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -100,7 +100,7 @@ def test_in_contact():
     )
     b1.collision = ShapeCollection([collision1])
 
-    b2 = Body(name=PrefixedName("b2"))
+    b2 = Body(name="b2")
     collision2 = Box(
         scale=Scale(1.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -110,7 +110,7 @@ def test_in_contact():
     )
     b2.collision = ShapeCollection([collision2])
 
-    b3 = Body(name=PrefixedName("b3"))
+    b3 = Body(name="b3")
     collision3 = Box(
         scale=Scale(1.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -133,7 +133,7 @@ def test_in_contact():
 
 def test_robot_in_contact(pr2_world_copy: World):
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
-    body = Body(name=PrefixedName("test_body"))
+    body = Body(name="test_body")
     collision1 = Box(
         scale=Scale(1.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -163,7 +163,7 @@ def test_robot_in_contact(pr2_world_copy: World):
 
 
 def test_get_visible_objects(pr2_world_copy: World):
-    body = Body(name=PrefixedName("test_body"))
+    body = Body(name="test_body")
     collision1 = Box(
         scale=Scale(1.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -196,7 +196,7 @@ def test_occluding_bodies(pr2_world_state_reset: World):
     )
 
     def make_body(name: str) -> Body:
-        result = Body(name=PrefixedName(name))
+        result = Body(name=name)
         collision = Box(
             scale=Scale(1.0, 1.0, 1.0),
             origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=result),
@@ -276,7 +276,7 @@ def test_behind_and_in_front_of(two_block_world):
 
 def test_body_in_region(two_block_world):
     center, top = two_block_world
-    region = Region(name=PrefixedName("test_region"))
+    region = Region(name="test_region")
     region_box = Box(
         scale=Scale(1.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=region),
@@ -323,7 +323,7 @@ def test_is_body_in_gripper(pr2_world_copy):
     )
 
     # Create krrood_test box between fingers
-    test_box = Body(name=PrefixedName("test_box"))
+    test_box = Body(name="test_box")
     box_collision = Box(
         scale=Scale(0.05, 0.01, 0.05),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=test_box),
@@ -419,7 +419,7 @@ def test_reachable(pr2_world_state_reset, rclpy_node):
 
 def test_blocking(pr2_world_copy):
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
-    obstacle = Body(name=PrefixedName("obstacle"))
+    obstacle = Body(name="obstacle")
     collision = Box(
         scale=Scale(3.0, 1.0, 1.0),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -525,7 +525,7 @@ def test_bodies_in_gripper(pr2_apartment_world):
 
     with world.modify_world():
         body = Body(
-            name=PrefixedName("mock_milk"),
+            name="mock_milk",
             collision=ShapeCollection([Box(scale=Scale(0.05, 0.05, 0.3))]),
         )
 
@@ -539,7 +539,7 @@ def test_bodies_in_gripper(pr2_apartment_world):
     bodies = bodies_in_gripper(pr2.left_arm.end_effector)
 
     assert len(bodies) == 1
-    assert bodies[0].name.name == "mock_milk"
+    assert bodies[0].name == "mock_milk"
     assert bodies[0] == body
 
 
@@ -562,14 +562,14 @@ def test_empty_gripper_is_not_holding_something():
             raise NotImplementedError
 
     world = World()
-    root = Body(name=PrefixedName("root", prefix="review"))
-    palm = Body(name=PrefixedName("palm", prefix="review"))
+    root = Body(name="root")
+    palm = Body(name="palm")
     collision = Box(
         scale=Scale(),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=palm),
     )
     palm.collision = ShapeCollection([collision], reference_frame=palm)
-    tool_frame = Body(name=PrefixedName("tool_frame", prefix="review"))
+    tool_frame = Body(name="tool_frame")
     with world.modify_world():
         world.add_kinematic_structure_entity(root)
         world.add_kinematic_structure_entity(palm)
@@ -577,7 +577,7 @@ def test_empty_gripper_is_not_holding_something():
         world.add_connection(FixedConnection(parent=root, child=palm))
         world.add_connection(FixedConnection(parent=palm, child=tool_frame))
         gripper = ReviewEndEffector(
-            name=PrefixedName("gripper", prefix="review"),
+            name="gripper",
             root=palm,
             tool_frame=tool_frame,
             front_facing_orientation=Quaternion(0, 0, 0, 1),
@@ -608,9 +608,9 @@ class ReviewCamera(Camera):
 def test_nothing_occludes_a_body_in_clear_line_of_sight():
 
     world = World()
-    root = Body(name=PrefixedName("root", prefix="review"))
-    camera_body = Body(name=PrefixedName("camera_body", prefix="review"))
-    target = Body(name=PrefixedName("target", prefix="review"))
+    root = Body(name="root")
+    camera_body = Body(name="camera_body")
+    target = Body(name="target")
     collision = Box(
         scale=Scale(),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=target),
@@ -639,7 +639,7 @@ def test_nothing_occludes_a_body_in_clear_line_of_sight():
             )
         )
         camera = ReviewCamera(
-            name=PrefixedName("camera", prefix="review"),
+            name="camera",
             root=camera_body,
             forward_facing_axis=Vector3.X(),
             field_of_view=FieldOfView(horizontal_angle=0.99, vertical_angle=0.75),

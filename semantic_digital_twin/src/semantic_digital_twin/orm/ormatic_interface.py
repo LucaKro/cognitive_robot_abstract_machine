@@ -57,7 +57,6 @@ import semantic_digital_twin.collision_checking.pybullet_collision_detector
 import semantic_digital_twin.collision_checking.trimesh_collision_detector
 import semantic_digital_twin.datastructures.field_of_view
 import semantic_digital_twin.datastructures.joint_state
-import semantic_digital_twin.datastructures.prefixed_name
 import semantic_digital_twin.exceptions
 import semantic_digital_twin.mixin
 import semantic_digital_twin.orm.exceptions
@@ -3392,6 +3391,10 @@ class JointStateDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
     target_values: Mapped[typing.List[builtins.float]] = mapped_column(
         JSON, nullable=False, use_existing_column=True
     )
@@ -3399,12 +3402,6 @@ class JointStateDAO(
         typing.Optional[semantic_digital_twin.datastructures.definitions.JointStateType]
     ] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -3417,9 +3414,6 @@ class JointStateDAO(
             foreign_keys="[JointStateDAO_connections_association.source_jointstatedao_id]",
             lazy="selectin",
         )
-    )
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
     )
 
 
@@ -4580,6 +4574,9 @@ class NegativeConnectionVelocityDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    connection_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
     velocity: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
 
@@ -4977,24 +4974,6 @@ class PositionVariableDAO(
 
     dof: Mapped[DegreeOfFreedomDAO] = relationship(
         "DegreeOfFreedomDAO", uselist=False, foreign_keys=[dof_id], post_update=True
-    )
-
-
-class PrefixedNameDAO(
-    Base,
-    DataAccessObject[semantic_digital_twin.datastructures.prefixed_name.PrefixedName],
-):
-    __tablename__ = "PrefixedNameDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    name: Mapped[builtins.str] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-    prefix: Mapped[typing.Optional[builtins.str]] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
 
@@ -8208,20 +8187,16 @@ class InvalidConnectionLimitsDAO(
         use_existing_column=True,
     )
 
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
+
     limits_id: Mapped[int] = mapped_column(
         ForeignKey("DegreeOfFreedomLimitsDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
-    )
     limits: Mapped[DegreeOfFreedomLimitsDAO] = relationship(
         "DegreeOfFreedomLimitsDAO",
         uselist=False,
@@ -8353,14 +8328,8 @@ class MimicDofLimitOverwriteErrorDAO(
         use_existing_column=True,
     )
 
-    dof_name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    dof_name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[dof_name_id], post_update=True
+    dof_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
     __mapper_args__ = {
@@ -9220,18 +9189,12 @@ class WorldEntityDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
     polymorphic_type: Mapped[str] = mapped_column(
         String(255), nullable=False, use_existing_column=True
-    )
-
-    name_id: Mapped[int] = mapped_column(
-        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    name: Mapped[PrefixedNameDAO] = relationship(
-        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -9605,6 +9568,10 @@ class WorldEntityNotFoundErrorDAO(
         ForeignKey(UsageErrorDAO.database_id),
         primary_key=True,
         use_existing_column=True,
+    )
+
+    suggestions: Mapped[typing.List[builtins.str]] = mapped_column(
+        JSON, nullable=False, use_existing_column=True
     )
 
     __mapper_args__ = {

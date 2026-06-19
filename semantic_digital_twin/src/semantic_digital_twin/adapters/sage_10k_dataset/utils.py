@@ -7,7 +7,6 @@ from pathlib import Path
 from enum import StrEnum
 
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.hsrb import HSRB
 
 from semantic_digital_twin.world import World
@@ -47,7 +46,7 @@ def create_hsrb_in_world(world: World):
     world_with_hsrb = hsrb_parser.parse()
     with world_with_hsrb.modify_world():
         hsrb_root = world_with_hsrb.root
-        localization_body = Body(name=PrefixedName("odom_combined"))
+        localization_body = Body(name="odom_combined")
         world_with_hsrb.add_kinematic_structure_entity(localization_body)
         c_root_bf = OmniDrive.create_with_dofs(
             parent=localization_body, child=hsrb_root, world=world_with_hsrb

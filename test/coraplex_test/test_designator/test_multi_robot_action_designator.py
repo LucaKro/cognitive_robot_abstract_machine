@@ -560,7 +560,7 @@ def test_detect(immutable_multiple_robot_apartment):
         plan.perform()
     detected_objects = plan.result
 
-    assert detected_objects[0].name.name == "milk.stl"
+    assert detected_objects[0].name == "milk.stl"
     assert detected_objects[0] is milk_body
 
 

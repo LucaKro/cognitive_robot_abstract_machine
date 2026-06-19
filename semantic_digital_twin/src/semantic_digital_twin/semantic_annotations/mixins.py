@@ -36,7 +36,6 @@ from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
 from random_events.product_algebra import Event
 from random_events.set import Set as EventSet
 from random_events.variable import Symbolic
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.exceptions import (
     AmbiguousPart,
@@ -131,7 +130,7 @@ class HasRootKinematicStructureEntity(SemanticAnnotation, ABC):
     @classmethod
     def _create_with_connection_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         kinematic_structure_entity: KinematicStructureEntity,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
@@ -232,7 +231,7 @@ class HasRootBody(HasRootKinematicStructureEntity, ABC):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -290,7 +289,7 @@ class HasRootRegion(HasRootKinematicStructureEntity, ABC):
     @classmethod
     def create_with_new_region_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -629,10 +628,7 @@ class HasSupportingSurface(IsStorageSpace, ABC):
             for x, y, z in candidates_filtered.vertices
         ]
         supporting_surface = Region.from_3d_points(
-            name=PrefixedName(
-                f"{self.root.name.name}_supporting_surface_region",
-                self.root.name.prefix,
-            ),
+            name=f"{self.root.name}_supporting_surface_region",
             points_3d=points_3d,
         )
 
@@ -887,7 +883,7 @@ class HasCaseAsRootBody(HasSupportingSurface, ABC):
     @classmethod
     def create_with_new_body_in_world(
         cls,
-        name: PrefixedName,
+        name: str,
         world: World,
         world_root_T_self: Optional[HomogeneousTransformationMatrix] = None,
         connection_limits: Optional[DegreeOfFreedomLimits] = None,

@@ -5,7 +5,6 @@ import pytest
 from typing_extensions import List
 
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     DuplicateRobotAssignmentsError,
     BrokenWorldModificationHistoryError,
@@ -60,20 +59,20 @@ def test_compute_chain_of_bodies_pr2(pr2_world_state_reset):
     )
     real = [x.name for x in real]
     assert real == [
-        PrefixedName(name="base_footprint", prefix="pr2"),
-        PrefixedName(name="base_link", prefix="pr2"),
-        PrefixedName(name="torso_lift_link", prefix="pr2"),
-        PrefixedName(name="r_shoulder_pan_link", prefix="pr2"),
-        PrefixedName(name="r_shoulder_lift_link", prefix="pr2"),
-        PrefixedName(name="r_upper_arm_roll_link", prefix="pr2"),
-        PrefixedName(name="r_upper_arm_link", prefix="pr2"),
-        PrefixedName(name="r_elbow_flex_link", prefix="pr2"),
-        PrefixedName(name="r_forearm_roll_link", prefix="pr2"),
-        PrefixedName(name="r_forearm_link", prefix="pr2"),
-        PrefixedName(name="r_wrist_flex_link", prefix="pr2"),
-        PrefixedName(name="r_wrist_roll_link", prefix="pr2"),
-        PrefixedName(name="r_gripper_palm_link", prefix="pr2"),
-        PrefixedName(name="r_gripper_tool_frame", prefix="pr2"),
+        "base_footprint",
+        "base_link",
+        "torso_lift_link",
+        "r_shoulder_pan_link",
+        "r_shoulder_lift_link",
+        "r_upper_arm_roll_link",
+        "r_upper_arm_link",
+        "r_elbow_flex_link",
+        "r_forearm_roll_link",
+        "r_forearm_link",
+        "r_wrist_flex_link",
+        "r_wrist_roll_link",
+        "r_gripper_palm_link",
+        "r_gripper_tool_frame",
     ]
 
 
@@ -89,19 +88,19 @@ def test_compute_chain_of_connections_pr2(pr2_world_state_reset):
     )
     real = [x.name for x in real]
     assert real == [
-        PrefixedName(name="base_footprint_joint", prefix="pr2"),
-        PrefixedName(name="torso_lift_joint", prefix="pr2"),
-        PrefixedName(name="r_shoulder_pan_joint", prefix="pr2"),
-        PrefixedName(name="r_shoulder_lift_joint", prefix="pr2"),
-        PrefixedName(name="r_upper_arm_roll_joint", prefix="pr2"),
-        PrefixedName(name="r_upper_arm_joint", prefix="pr2"),
-        PrefixedName(name="r_elbow_flex_joint", prefix="pr2"),
-        PrefixedName(name="r_forearm_roll_joint", prefix="pr2"),
-        PrefixedName(name="r_forearm_joint", prefix="pr2"),
-        PrefixedName(name="r_wrist_flex_joint", prefix="pr2"),
-        PrefixedName(name="r_wrist_roll_joint", prefix="pr2"),
-        PrefixedName(name="r_gripper_palm_joint", prefix="pr2"),
-        PrefixedName(name="r_gripper_tool_joint", prefix="pr2"),
+        "base_footprint_joint",
+        "torso_lift_joint",
+        "r_shoulder_pan_joint",
+        "r_shoulder_lift_joint",
+        "r_upper_arm_roll_joint",
+        "r_upper_arm_joint",
+        "r_elbow_flex_joint",
+        "r_forearm_roll_joint",
+        "r_forearm_joint",
+        "r_wrist_flex_joint",
+        "r_wrist_roll_joint",
+        "r_gripper_palm_joint",
+        "r_gripper_tool_joint",
     ]
 
 
@@ -135,9 +134,9 @@ def test_compute_split_chain_of_bodies_pr2(pr2_world_state_reset):
             root, tip
         )
     )
-    chain1 = [n.name.name for n in chain1]
-    connection = [n.name.name for n in connection]
-    chain2 = [n.name.name for n in chain2]
+    chain1 = [n.name for n in chain1]
+    connection = [n.name for n in connection]
+    chain2 = [n.name for n in chain2]
     assert chain1 == [
         "l_gripper_r_finger_tip_link",
         "l_gripper_r_finger_link",
@@ -154,8 +153,8 @@ def test_get_split_chain_pr2(pr2_world_state_reset):
         "l_gripper_l_finger_tip_link"
     )
     chain1, chain2 = pr2_world_state_reset.compute_split_chain_of_connections(root, tip)
-    chain1 = [n.name.name for n in chain1]
-    chain2 = [n.name.name for n in chain2]
+    chain1 = [n.name for n in chain1]
+    chain2 = [n.name for n in chain2]
     assert chain1 == ["l_gripper_r_finger_tip_joint", "l_gripper_r_finger_joint"]
     assert chain2 == ["l_gripper_l_finger_joint", "l_gripper_l_finger_tip_joint"]
 
@@ -372,9 +371,7 @@ def test_search_for_connections_of_type(pr2_world_state_reset: World):
 
     connections = pr2_world_state_reset.get_connections_by_type(OmniDrive)
     assert len(connections) == 1
-    assert connections[0].name == PrefixedName(
-        name="odom_combined_T_base_footprint", prefix="pr2"
-    )
+    assert connections[0].name == "odom_combined_T_base_footprint"
     assert (
         connections[0].parent
         == pr2_world_state_reset.root.child_kinematic_structure_entities[0]
@@ -387,7 +384,7 @@ def test_search_for_connections_of_type(pr2_world_state_reset: World):
 
     connections = pr2_world_state_reset.get_connections_by_type(PrismaticConnection)
     assert len(connections) == 5
-    assert connections[0].name == PrefixedName(name="torso_lift_joint", prefix="pr2")
+    assert connections[0].name == "torso_lift_joint"
     assert connections[
         0
     ].parent == pr2_world_state_reset.get_kinematic_structure_entity_by_name(
@@ -398,9 +395,7 @@ def test_search_for_connections_of_type(pr2_world_state_reset: World):
     ].child == pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "torso_lift_link"
     )
-    assert connections[1].name == PrefixedName(
-        name="r_gripper_motor_slider_joint", prefix="pr2"
-    )
+    assert connections[1].name == "r_gripper_motor_slider_joint"
     assert connections[
         1
     ].parent == pr2_world_state_reset.get_kinematic_structure_entity_by_name(
@@ -411,7 +406,7 @@ def test_search_for_connections_of_type(pr2_world_state_reset: World):
     ].child == pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "r_gripper_motor_slider_link"
     )
-    assert connections[2].name == PrefixedName(name="r_gripper_joint", prefix="pr2")
+    assert connections[2].name == "r_gripper_joint"
     assert connections[
         2
     ].parent == pr2_world_state_reset.get_kinematic_structure_entity_by_name(
@@ -436,7 +431,7 @@ def test_pr2_semantic_annotation(pr2_world_state_reset):
     assert len(pr2.get_end_effectors()) == 2
     assert len(pr2.get_arms()) == 2
     assert len(pr2.get_sensors()) == 1
-    assert pr2.torso.name.name == "PR2Torso"
+    assert pr2.torso.name == "PR2Torso"
     assert len(pr2.torso.neck.sensors) == 1
     assert pr2.left_arm and pr2.right_arm
     assert pr2.left_arm != pr2.right_arm
@@ -604,33 +599,33 @@ def test_split_chain_of_connections(pr2_world_state_reset):
     result1_names = [c.name for c in result[0]]
     result2_names = [c.name for c in result[1]]
     chain1 = [
-        PrefixedName(name="r_gripper_r_finger_joint", prefix="pr2"),
-        PrefixedName(name="r_gripper_palm_joint", prefix="pr2"),
-        PrefixedName(name="r_wrist_roll_joint", prefix="pr2"),
-        PrefixedName(name="r_wrist_flex_joint", prefix="pr2"),
-        PrefixedName(name="r_forearm_joint", prefix="pr2"),
-        PrefixedName(name="r_forearm_roll_joint", prefix="pr2"),
-        PrefixedName(name="r_elbow_flex_joint", prefix="pr2"),
-        PrefixedName(name="r_upper_arm_joint", prefix="pr2"),
-        PrefixedName(name="r_upper_arm_roll_joint", prefix="pr2"),
-        PrefixedName(name="r_shoulder_lift_joint", prefix="pr2"),
-        PrefixedName(name="r_shoulder_pan_joint", prefix="pr2"),
+        "r_gripper_r_finger_joint",
+        "r_gripper_palm_joint",
+        "r_wrist_roll_joint",
+        "r_wrist_flex_joint",
+        "r_forearm_joint",
+        "r_forearm_roll_joint",
+        "r_elbow_flex_joint",
+        "r_upper_arm_joint",
+        "r_upper_arm_roll_joint",
+        "r_shoulder_lift_joint",
+        "r_shoulder_pan_joint",
     ]
 
     chain2 = [
-        PrefixedName(name="l_shoulder_pan_joint", prefix="pr2"),
-        PrefixedName(name="l_shoulder_lift_joint", prefix="pr2"),
-        PrefixedName(name="l_upper_arm_roll_joint", prefix="pr2"),
-        PrefixedName(name="l_upper_arm_joint", prefix="pr2"),
-        PrefixedName(name="l_elbow_flex_joint", prefix="pr2"),
-        PrefixedName(name="l_forearm_roll_joint", prefix="pr2"),
-        PrefixedName(name="l_forearm_joint", prefix="pr2"),
-        PrefixedName(name="l_wrist_flex_joint", prefix="pr2"),
-        PrefixedName(name="l_wrist_roll_joint", prefix="pr2"),
-        PrefixedName(name="l_force_torque_adapter_joint", prefix="pr2"),
-        PrefixedName(name="l_force_torque_joint", prefix="pr2"),
-        PrefixedName(name="l_gripper_palm_joint", prefix="pr2"),
-        PrefixedName(name="l_gripper_l_finger_joint", prefix="pr2"),
+        "l_shoulder_pan_joint",
+        "l_shoulder_lift_joint",
+        "l_upper_arm_roll_joint",
+        "l_upper_arm_joint",
+        "l_elbow_flex_joint",
+        "l_forearm_roll_joint",
+        "l_forearm_joint",
+        "l_wrist_flex_joint",
+        "l_wrist_roll_joint",
+        "l_force_torque_adapter_joint",
+        "l_force_torque_joint",
+        "l_gripper_palm_joint",
+        "l_gripper_l_finger_joint",
     ]
     assert result1_names == chain1
     assert result2_names == chain2
@@ -764,7 +759,7 @@ def test_pr2_degrees_of_freedom_with_hardware_interface(pr2_world_state_reset):
         "head_tilt_joint",
     }
 
-    actual_dof_names = {dof.name.name for dof in dofs}
+    actual_dof_names = {dof.name for dof in dofs}
 
     assert (
         len(dofs) == 17

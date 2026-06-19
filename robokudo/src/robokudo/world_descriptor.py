@@ -8,7 +8,6 @@ It builds semantic_digital_twin entities into a shared World instance.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import Connection6DoF
@@ -71,12 +70,12 @@ class BaseWorldDescriptor:
 
         :param world: Optional shared World instance. If not provided, a new World is created.
         :param root_name: Name of the root body if a new root must be created.
-        :param root_prefix: Prefix for the root body name (None for no prefix).
+        :param root_prefix: Unused; retained for API compatibility.
         """
         self.world = world if world is not None else World()
 
         if self.world.is_empty():
-            root = Body(name=PrefixedName(name=root_name, prefix=root_prefix))
+            root = Body(name=root_name)
             with self.world.modify_world():
                 self.world.add_body(body=root)
 
@@ -120,7 +119,7 @@ class BaseWorldDescriptor:
                     collision = ShapeCollection([box])
 
                 body = Body(
-                    name=PrefixedName(name=spec.name),
+                    name=spec.name,
                     visual=ShapeCollection(shapes),
                     collision=collision,
                 )
@@ -147,7 +146,7 @@ class BaseWorldDescriptor:
         with self.world.modify_world():
             for spec in specs:
                 box = Box(scale=spec.box_scale, color=spec.color)
-                region = Region(name=PrefixedName(name=spec.name))
+                region = Region(name=spec.name)
                 area = ShapeCollection()
                 area.reference_frame = region
                 area.append(box)

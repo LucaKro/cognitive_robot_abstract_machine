@@ -26,7 +26,6 @@ from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     shortest_angular_distance,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Vector3,
@@ -120,15 +119,15 @@ def test_set_seed_odometry(pr2_world_state_reset):
 def test_joint_goal(tmp_path):
     world = World()
     with world.modify_world():
-        root = Body(name=PrefixedName("root"))
-        tip = Body(name=PrefixedName("tip"))
-        tip2 = Body(name=PrefixedName("tip2"))
+        root = Body(name="root")
+        tip = Body(name="tip")
+        tip2 = Body(name="tip2")
         ul = DerivativeMap()
         ul.velocity = 1
         ll = DerivativeMap()
         ll.velocity = -1
         dof = DegreeOfFreedom(
-            name=PrefixedName("dof", "a"),
+            name="dof",
             limits=DegreeOfFreedomLimits(lower=ll, upper=ul),
         )
         world.add_degree_of_freedom(dof)
@@ -138,7 +137,7 @@ def test_joint_goal(tmp_path):
         world.add_connection(root_C_tip)
 
         dof = DegreeOfFreedom(
-            name=PrefixedName("dof", "b"),
+            name="dof",
             limits=DegreeOfFreedomLimits(lower=ll, upper=ul),
         )
         world.add_degree_of_freedom(dof)

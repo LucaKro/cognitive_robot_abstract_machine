@@ -6,7 +6,6 @@ from pathlib import Path
 from typing_extensions import Tuple
 
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.spatial_types.spatial_types import Vector3
@@ -43,12 +42,12 @@ def world_setup() -> Tuple[
     Body,
 ]:
     world = World()
-    root = Body(name=PrefixedName(name="root", prefix="world"))
-    l1 = Body(name=PrefixedName("l1"))
-    l2 = Body(name=PrefixedName("l2"))
-    bf = Body(name=PrefixedName("bf"))
-    r1 = Body(name=PrefixedName("r1"))
-    r2 = Body(name=PrefixedName("r2"))
+    root = Body(name="root")
+    l1 = Body(name="l1")
+    l2 = Body(name="l2")
+    bf = Body(name="bf")
+    r1 = Body(name="r1")
+    r2 = Body(name="r2")
 
     with world.modify_world():
         [world.add_kinematic_structure_entity(b) for b in [root, l1, l2, bf, r1, r2]]
@@ -57,7 +56,7 @@ def world_setup() -> Tuple[
         upper_limits = DerivativeMap()
         upper_limits.velocity = 1
         dof = DegreeOfFreedom(
-            name=PrefixedName("dof"),
+            name="dof",
             limits=DegreeOfFreedomLimits(
                 lower=lower_limits,
                 upper=upper_limits,
@@ -86,9 +85,9 @@ def world_setup() -> Tuple[
 @pytest.fixture
 def world_setup_simple():
     world = World()
-    root = Body(name=PrefixedName(name="root", prefix="world"))
+    root = Body(name="root")
     body1 = Body(
-        name=PrefixedName("box", prefix="test"),
+        name="box",
         collision=ShapeCollection(
             [
                 Box(
@@ -99,7 +98,7 @@ def world_setup_simple():
         ),
     )
     body2 = Body(
-        name=PrefixedName("cylinder", prefix="test"),
+        name="cylinder",
         collision=ShapeCollection(
             [
                 Cylinder(
@@ -111,14 +110,14 @@ def world_setup_simple():
         ),
     )
     body3 = Body(
-        name=PrefixedName("sphere", prefix="test"),
+        name="sphere",
         collision=ShapeCollection(
             [Sphere(origin=HomogeneousTransformationMatrix.from_xyz_rpy(), radius=0.1)]
         ),
     )
 
     body4 = Body(
-        name=PrefixedName("mesh", prefix="test"),
+        name="mesh",
         collision=ShapeCollection(
             [
                 Mesh(
@@ -135,7 +134,7 @@ def world_setup_simple():
         ),
     )
     body5 = Body(
-        name=PrefixedName("compound", prefix="test"),
+        name="compound",
         collision=ShapeCollection(
             [
                 Box(
@@ -184,9 +183,9 @@ def world_setup_simple():
 @pytest.fixture()
 def ray_test_world():
     world = World()
-    root = Body(name=PrefixedName(name="root", prefix="world"))
+    root = Body(name="root")
     body1 = Body(
-        name=PrefixedName("name1", prefix="test"),
+        name="name1",
         collision=ShapeCollection(
             [
                 Box(
@@ -197,7 +196,7 @@ def ray_test_world():
         ),
     )
     body2 = Body(
-        name=PrefixedName("name2", prefix="test"),
+        name="name2",
         collision=ShapeCollection(
             [
                 Box(
@@ -208,14 +207,14 @@ def ray_test_world():
         ),
     )
     body3 = Body(
-        name=PrefixedName("name3", prefix="test"),
+        name="name3",
         collision=ShapeCollection(
             [Sphere(origin=HomogeneousTransformationMatrix.from_xyz_rpy(), radius=0.01)]
         ),
     )
 
     body4 = Body(
-        name=PrefixedName("name4", prefix="test"),
+        name="name4",
         collision=ShapeCollection(
             [Sphere(origin=HomogeneousTransformationMatrix.from_xyz_rpy(), radius=0.01)]
         ),
@@ -255,7 +254,7 @@ def two_arm_robot_world():
     robot = os.path.join(urdf_dir, "simple_two_arm_robot.urdf")
     world = World()
     with world.modify_world():
-        localization_body = Body(name=PrefixedName("odom_combined"))
+        localization_body = Body(name="odom_combined")
         world.add_kinematic_structure_entity(localization_body)
 
         robot_parser = URDFParser.from_file(file_path=robot)
@@ -279,7 +278,7 @@ def pr2_world():
     world_with_pr2 = pr2_parser.parse()
     with world_with_pr2.modify_world():
         pr2_root = world_with_pr2.root
-        localization_body = Body(name=PrefixedName("odom_combined"))
+        localization_body = Body(name="odom_combined")
         world_with_pr2.add_kinematic_structure_entity(localization_body)
         c_root_bf = OmniDrive.create_with_dofs(
             parent=localization_body, child=pr2_root, world=world_with_pr2

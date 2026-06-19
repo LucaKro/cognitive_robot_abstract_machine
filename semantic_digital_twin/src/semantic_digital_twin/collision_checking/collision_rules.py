@@ -825,19 +825,19 @@ class SelfCollisionMatrixRule(AllowCollisionRule, SubclassJSONSerializer):
         root.set("name", robot_name)
 
         # %% disabled links
-        for body in sorted(self.allowed_collision_bodies, key=lambda b: b.name.name):
+        for body in sorted(self.allowed_collision_bodies, key=lambda b: b.name):
             child = etree.SubElement(root, self.SRDF_DISABLE_ALL_COLLISIONS)
-            child.set("link", body.name.name)
+            child.set("link", body.name)
 
         # %% self collision matrix
         for collision_check in sorted(
             self.allowed_collision_pairs,
-            key=lambda c: f"{c.body_a.name.name}{c.body_b.name.name}",
+            key=lambda c: f"{c.body_a.name}{c.body_b.name}",
         ):
             body_a, body_b = collision_check.body_a, collision_check.body_b
             child = etree.SubElement(root, self.SRDF_DISABLE_SELF_COLLISION)
-            child.set("link1", body_a.name.name)
-            child.set("link2", body_b.name.name)
+            child.set("link1", body_a.name)
+            child.set("link2", body_b.name)
             child.set("reason", "Unknown")
 
         # Create the XML tree

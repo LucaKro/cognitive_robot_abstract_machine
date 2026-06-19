@@ -9,7 +9,6 @@ import trimesh
 from fbxloader import Object3D, Mesh as FBXMesh, Scene
 
 from semantic_digital_twin.adapters.mesh import MeshParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
 )
@@ -181,7 +180,7 @@ class FBXParser(MeshParser):
 
                             meshes.append(t_mesh)
                     body = Body(
-                        name=PrefixedName(name),
+                        name=name,
                         collision=ShapeCollection(meshes),
                         visual=ShapeCollection(meshes),
                     )

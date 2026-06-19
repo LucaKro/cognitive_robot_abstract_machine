@@ -21,7 +21,6 @@ from semantic_digital_twin.world_description.world_entity import (
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.types import NpMatrix4x4
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -65,7 +64,7 @@ class FixedConnection(Connection):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         *args,
         **kwargs,
     ) -> Self:
@@ -166,7 +165,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
         axis: Vector3,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         multiplier: float = 1.0,
         offset: float = 0.0,
         dof_limits: Optional[DegreeOfFreedomLimits] = None,
@@ -191,7 +190,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
                  its DOF added to the world.
         """
         name = name or cls._generate_default_name(parent=parent, child=child)
-        dof = DegreeOfFreedom(name=PrefixedName("dof", str(name)), limits=dof_limits)
+        dof = DegreeOfFreedom(name="dof", limits=dof_limits)
         world.add_degree_of_freedom(dof)
         connection = cls(
             name=name,
@@ -303,7 +302,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         ) = self._find_references_in_world(world)
 
         return self.__class__(
-            name=PrefixedName(self.name.name, self.name.prefix),
+            name=self.name,
             parent=other_parent,
             child=other_child,
             parent_T_connection_expression=parent_T_connection_expression,
@@ -480,7 +479,7 @@ class Connection6DoF(Connection):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
@@ -498,7 +497,7 @@ class Connection6DoF(Connection):
         :param world: The World object where the degrees of freedom are added and modified.
         :param parent: The KinematicStructureEntity serving as the parent.
         :param child: The KinematicStructureEntity serving as the child.
-        :param name: An optional PrefixedName for the connection. If None, it will be
+        :param name: An optional name string for the connection. If None, it will be
                      auto-generated based on the parent and child names.
         :param parent_T_connection_expression: Optional transformation matrix specifying
                                                the connection relationship between parent
@@ -509,19 +508,19 @@ class Connection6DoF(Connection):
         name = name or cls._generate_default_name(parent=parent, child=child)
 
         stringified_name = str(name)
-        x = DegreeOfFreedom(name=PrefixedName("x", stringified_name))
+        x = DegreeOfFreedom(name="x")
         world.add_degree_of_freedom(x)
-        y = DegreeOfFreedom(name=PrefixedName("y", stringified_name))
+        y = DegreeOfFreedom(name="y")
         world.add_degree_of_freedom(y)
-        z = DegreeOfFreedom(name=PrefixedName("z", stringified_name))
+        z = DegreeOfFreedom(name="z")
         world.add_degree_of_freedom(z)
-        qx = DegreeOfFreedom(name=PrefixedName("qx", stringified_name))
+        qx = DegreeOfFreedom(name="qx")
         world.add_degree_of_freedom(qx)
-        qy = DegreeOfFreedom(name=PrefixedName("qy", stringified_name))
+        qy = DegreeOfFreedom(name="qy")
         world.add_degree_of_freedom(qy)
-        qz = DegreeOfFreedom(name=PrefixedName("qz", stringified_name))
+        qz = DegreeOfFreedom(name="qz")
         world.add_degree_of_freedom(qz)
-        qw = DegreeOfFreedom(name=PrefixedName("qw", stringified_name))
+        qw = DegreeOfFreedom(name="qw")
         world.add_degree_of_freedom(qw)
         world.state[qw.id].position = 1.0
 
@@ -715,7 +714,7 @@ class OmniDrive(WheeledDrive):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
@@ -757,16 +756,16 @@ class OmniDrive(WheeledDrive):
         upper_rotation_limits = DerivativeMap()
         upper_rotation_limits.velocity = rotation_velocity_limits
 
-        x = DegreeOfFreedom(name=PrefixedName("x", stringified_name))
+        x = DegreeOfFreedom(name="x")
         world.add_degree_of_freedom(x)
-        y = DegreeOfFreedom(name=PrefixedName("y", stringified_name))
+        y = DegreeOfFreedom(name="y")
         world.add_degree_of_freedom(y)
-        roll = DegreeOfFreedom(name=PrefixedName("roll", stringified_name))
+        roll = DegreeOfFreedom(name="roll")
         world.add_degree_of_freedom(roll)
-        pitch = DegreeOfFreedom(name=PrefixedName("pitch", stringified_name))
+        pitch = DegreeOfFreedom(name="pitch")
         world.add_degree_of_freedom(pitch)
         yaw = DegreeOfFreedom(
-            name=PrefixedName("yaw", stringified_name),
+            name="yaw",
             limits=DegreeOfFreedomLimits(
                 lower=lower_rotation_limits,
                 upper=upper_rotation_limits,
@@ -775,7 +774,7 @@ class OmniDrive(WheeledDrive):
         world.add_degree_of_freedom(yaw)
 
         x_vel = DegreeOfFreedom(
-            name=PrefixedName("x_vel", stringified_name),
+            name="x_vel",
             limits=DegreeOfFreedomLimits(
                 lower=lower_translation_limits,
                 upper=upper_translation_limits,
@@ -783,7 +782,7 @@ class OmniDrive(WheeledDrive):
         )
         world.add_degree_of_freedom(x_vel)
         y_vel = DegreeOfFreedom(
-            name=PrefixedName("y_vel", stringified_name),
+            name="y_vel",
             limits=DegreeOfFreedomLimits(
                 lower=lower_translation_limits,
                 upper=upper_translation_limits,
@@ -1010,7 +1009,7 @@ class DifferentialDrive(WheeledDrive):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
@@ -1046,16 +1045,16 @@ class DifferentialDrive(WheeledDrive):
         upper_rotation_limits = DerivativeMap()
         upper_rotation_limits.velocity = rotation_velocity_limits
 
-        x = DegreeOfFreedom(name=PrefixedName("x", stringified_name))
+        x = DegreeOfFreedom(name="x")
         world.add_degree_of_freedom(x)
-        y = DegreeOfFreedom(name=PrefixedName("y", stringified_name))
+        y = DegreeOfFreedom(name="y")
         world.add_degree_of_freedom(y)
-        roll = DegreeOfFreedom(name=PrefixedName("roll", stringified_name))
+        roll = DegreeOfFreedom(name="roll")
         world.add_degree_of_freedom(roll)
-        pitch = DegreeOfFreedom(name=PrefixedName("pitch", stringified_name))
+        pitch = DegreeOfFreedom(name="pitch")
         world.add_degree_of_freedom(pitch)
         yaw = DegreeOfFreedom(
-            name=PrefixedName("yaw", stringified_name),
+            name="yaw",
             limits=DegreeOfFreedomLimits(
                 lower=lower_rotation_limits,
                 upper=upper_rotation_limits,
@@ -1064,7 +1063,7 @@ class DifferentialDrive(WheeledDrive):
         world.add_degree_of_freedom(yaw)
 
         x_vel = DegreeOfFreedom(
-            name=PrefixedName("x_vel", stringified_name),
+            name="x_vel",
             limits=DegreeOfFreedomLimits(
                 lower=lower_translation_limits,
                 upper=upper_translation_limits,

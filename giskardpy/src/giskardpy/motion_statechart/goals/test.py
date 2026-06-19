@@ -8,7 +8,6 @@ from giskardpy.motion_statechart.graph_node import Goal, CancelMotion
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.motion_statechart.test_nodes.test_nodes import ConstTrueNode
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -17,7 +16,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 class GraspSequence(Goal):
     tip_link: Body = field(kw_only=True)
     root_link: Body = field(kw_only=True)
-    gripper_joint: PrefixedName = field(kw_only=True)
+    gripper_joint: str = field(kw_only=True)
     goal_pose: Pose = field(kw_only=True)
     max_velocity: float = 100
     weight: float = DefaultWeights.WEIGHT_ABOVE_CA

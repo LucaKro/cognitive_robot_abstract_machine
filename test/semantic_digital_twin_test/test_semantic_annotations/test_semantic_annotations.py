@@ -128,16 +128,16 @@ def test_has_root_kinematic_structure_entity_aggregate_bodies(kitchen_world):
 
 def test_has_hinge_has_slider_aggregate_bodies():
     world = World()
-    root = Body(name=PrefixedName("root"))
+    root = Body(name="root")
     with world.modify_world():
         world.add_kinematic_structure_entity(root)
 
-    door_body = Body(name=PrefixedName("door_body"))
-    drawer_body = Body(name=PrefixedName("drawer_body"))
-    handle1_body = Body(name=PrefixedName("handle1_body"))
-    handle2_body = Body(name=PrefixedName("handle2_body"))
-    hinge_body = Body(name=PrefixedName("hinge_body"))
-    slider_body = Body(name=PrefixedName("slider_body"))
+    door_body = Body(name="door_body")
+    drawer_body = Body(name="drawer_body")
+    handle1_body = Body(name="handle1_body")
+    handle2_body = Body(name="handle2_body")
+    hinge_body = Body(name="hinge_body")
+    slider_body = Body(name="slider_body")
     handle1 = Handle(root=handle1_body)
     handle2 = Handle(root=handle2_body)
     hinge = Hinge(root=hinge_body)
@@ -185,7 +185,7 @@ def test_handle_semantic_annotation_eql(apartment_world_copy):
     body = variable(type_=Body, domain=apartment_world_copy.bodies)
     query = an(
         entity(inference(Handle)(root=body)).where(
-            in_("handle", body.name.name.lower())
+            in_("handle", body.name.lower())
         )
     )
     handles = list(query.evaluate())
@@ -221,7 +221,7 @@ def test_generated_semantic_annotations(kitchen_world):
         "semantic_annotations"
     ]
     drawer_container_names = [
-        v.root.name.name
+        v.root.name
         for v in found_semantic_annotations
         if isinstance(v, HasCaseAsRootBody)
     ]
@@ -239,7 +239,7 @@ def test_apartment_semantic_annotations(apartment_world_copy):
 
     found_semantic_annotations = world_reasoner.infer_semantic_annotations()
     drawer_container_names = [
-        v.root.name.name
+        v.root.name
         for v in found_semantic_annotations
         if isinstance(v, HasCaseAsRootBody)
     ]
@@ -310,7 +310,7 @@ def test_minimal_robot_annotation(pr2_world_state_reset):
     with world_copy.modify_world():
         MinimalRobot.from_world(world_copy)
         pr2_root = world_copy.root
-        localization_body = Body(name=PrefixedName("odom_combined"))
+        localization_body = Body(name="odom_combined")
         world_copy.add_kinematic_structure_entity(localization_body)
         c_root_bf = OmniDrive.create_with_dofs(
             parent=localization_body, child=pr2_root, world=world_copy
@@ -342,8 +342,8 @@ def test_kinematic_chain_with_root_equal_tip_has_no_connections():
             raise NotImplementedError
 
     world = World()
-    root = Body(name=PrefixedName("root", prefix="review"))
-    link = Body(name=PrefixedName("link", prefix="review"))
+    root = Body(name="root")
+    link = Body(name="link")
     collision = Box(
         scale=Scale(),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=link),
@@ -357,7 +357,7 @@ def test_kinematic_chain_with_root_equal_tip_has_no_connections():
         )
         world.add_connection(joint)
         chain = ReviewKinematicChain(
-            name=PrefixedName("chain", prefix="review"), root=link, tip=link
+            name="chain", root=link, tip=link
         )
         world.add_semantic_annotation(chain)
 

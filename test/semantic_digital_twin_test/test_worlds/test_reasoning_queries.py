@@ -24,7 +24,7 @@ def test_load_environment_returns_world():
     """
     world = KitchenEnvironment().get_world()
     assert isinstance(world, World)
-    assert world.root.name == PrefixedName("root")
+    assert world.root.name == "root"
 
 
 def test_world_reasoner_reason_returns_dicts():

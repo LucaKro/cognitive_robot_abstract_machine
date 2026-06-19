@@ -7,7 +7,6 @@ from krrood.symbolic_math.exceptions import (
     UnsupportedOperationError,
     WrongDimensionsError,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     SpatialTypesError,
 )
@@ -67,8 +66,8 @@ class TestRotationMatrix:
             )
 
     def test_reference_frames(self):
-        reference_frame = Body(name=PrefixedName("muh"))
-        reference_frame2 = Body(name=PrefixedName("muh2"))
+        reference_frame = Body(name="muh")
+        reference_frame2 = Body(name="muh2")
         m1 = RotationMatrix(reference_frame=reference_frame)
         m2 = RotationMatrix(reference_frame=reference_frame2)
         q = Quaternion(reference_frame=reference_frame)
@@ -1177,10 +1176,10 @@ class TestTransformationMatrix:
         assert np.allclose(t.to_np(), t_copy.to_np())
 
     def test_reference_frames(self):
-        reference_frame = Body(name=PrefixedName("muh"))
-        child_frame = Body(name=PrefixedName("kikariki"))
-        reference_frame2 = Body(name=PrefixedName("muh2"))
-        child_frame2 = Body(name=PrefixedName("kikariki2"))
+        reference_frame = Body(name="muh")
+        child_frame = Body(name="kikariki")
+        reference_frame2 = Body(name="muh2")
+        child_frame2 = Body(name="kikariki2")
         t1 = HomogeneousTransformationMatrix(
             reference_frame=reference_frame, child_frame=child_frame
         )

@@ -26,7 +26,6 @@ from krrood.adapters.json_serializer import (
 )
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar, trinary_logic_not
 from krrood.exceptions import DataclassException
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     Point3,
     Vector3,
@@ -211,7 +210,7 @@ class TrinaryCondition(SubclassJSONSerializer):
             case ast.UnaryOp():
                 return TrinaryCondition._parse_ast_not(node, observation_variables)
             case ast.Constant(value=str(val)):
-                variable_name = str(PrefixedName("observation", val))
+                variable_name = f"{val}/observation"
                 for v in observation_variables:
                     if variable_name == v.name:
                         return v
@@ -440,11 +439,11 @@ class MotionStatechartNode(SubclassJSONSerializer):
         Finalizes the initialization parts that require the motion statechart to be set.
         """
         self._observation_variable = ObservationVariable(
-            name=str(PrefixedName("observation", self.unique_name)),
+            name=f"{self.unique_name}/observation",
             motion_statechart_node=self,
         )
         self._life_cycle_variable = LifeCycleVariable(
-            name=str(PrefixedName("life_cycle", self.unique_name)),
+            name=f"{self.unique_name}/life_cycle",
             motion_statechart_node=self,
         )
 

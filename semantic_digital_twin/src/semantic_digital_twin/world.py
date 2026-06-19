@@ -40,7 +40,6 @@ from semantic_digital_twin.collision_checking.collision_manager import Collision
 from semantic_digital_twin.collision_checking.pybullet_collision_detector import (
     BulletCollisionDetector,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.types import NpMatrix4x4
 from semantic_digital_twin.exceptions import (
     DuplicateWorldEntityError,
@@ -1112,7 +1111,7 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_semantic_annotation_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> SemanticAnnotation:
         semantic_annotation: SemanticAnnotation = (
             self._get_world_entity_by_name_from_iterable(
@@ -1123,7 +1122,7 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_kinematic_structure_entity_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> KinematicStructureEntity:
         return self._get_world_entity_by_name_from_iterable(
             name, self.kinematic_structure_entities
@@ -1131,7 +1130,7 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_kinematic_structure_entity_in_branch_by_name(
-        self, branch_root: KinematicStructureEntity, name: Union[str, PrefixedName]
+        self, branch_root: KinematicStructureEntity, name: Union[str, str]
     ) -> KinematicStructureEntity:
         kinematic_structure_entities = self.get_kinematic_structure_entities_of_branch(
             branch_root
@@ -1141,7 +1140,7 @@ class World(HasSimulatorProperties):
         )
 
     @memoize
-    def get_body_by_name(self, name: Union[str, PrefixedName]) -> Body:
+    def get_body_by_name(self, name: Union[str, str]) -> Body:
         return self._get_world_entity_by_name_from_iterable(name, self.bodies)
 
     def get_bodies_by_global_position(
@@ -1156,7 +1155,7 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_body_in_branch_by_name(
-        self, branch_root: KinematicStructureEntity, name: Union[str, PrefixedName]
+        self, branch_root: KinematicStructureEntity, name: Union[str, str]
     ) -> Body:
         bodies = [
             kse
@@ -1167,26 +1166,25 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_degree_of_freedom_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> DegreeOfFreedom:
         return self._get_world_entity_by_name_from_iterable(
             name, self.degrees_of_freedom
         )
 
     @memoize
-    def get_connection_by_name(self, name: Union[str, PrefixedName]) -> Connection:
+    def get_connection_by_name(self, name: Union[str, str]) -> Connection:
         return self._get_world_entity_by_name_from_iterable(name, self.connections)
 
     def _get_world_entity_by_name_from_iterable(
         self,
-        name: Union[str, PrefixedName],
+        name: Union[str, str],
         world_entity_iterable: list[GenericWorldEntity],
     ) -> GenericWorldEntity:
         """
         If more than one world entity matches the specified name, or if no world entity is found,
         an exception is raised.
-        :param name: The name of the entity to retrieve. Can be a string or
-            a `PrefixedName` instance.
+        :param name: The name of the entity to retrieve.
         :param world_entity_iterable:
         :return: The `WorldEntity` object that matches the given name.
         :raises WorldEntityNotFoundError: If no world entity with the given name exists.
@@ -1210,7 +1208,7 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_semantic_annotations_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> List[SemanticAnnotation]:
         return self._get_world_entities_by_name_from_iterable(
             name, self.semantic_annotations
@@ -1218,19 +1216,19 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_kinematic_structure_entities_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> List[KinematicStructureEntity]:
         return self._get_world_entities_by_name_from_iterable(
             name, self.kinematic_structure_entities
         )
 
     @memoize
-    def get_bodies_by_name(self, name: Union[str, PrefixedName]) -> List[Body]:
+    def get_bodies_by_name(self, name: Union[str, str]) -> List[Body]:
         return self._get_world_entities_by_name_from_iterable(name, self.bodies)
 
     @memoize
     def get_degrees_of_freedom_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> List[DegreeOfFreedom]:
         return self._get_world_entities_by_name_from_iterable(
             name, self.degrees_of_freedom
@@ -1238,16 +1236,16 @@ class World(HasSimulatorProperties):
 
     @memoize
     def get_connections_by_name(
-        self, name: Union[str, PrefixedName]
+        self, name: Union[str, str]
     ) -> List[Connection]:
         return self._get_world_entities_by_name_from_iterable(name, self.connections)
 
     @staticmethod
     def _suggest_world_entity_names(
-        name: Union[str, PrefixedName],
+        name: Union[str, str],
         world_entity_iterable: Iterable[GenericWorldEntity],
         max_suggestions: int = 3,
-    ) -> List[PrefixedName]:
+    ) -> List[str]:
         """
         Compute "did you mean" candidates for a failed lookup of `name`.
 
@@ -1260,53 +1258,38 @@ class World(HasSimulatorProperties):
         :return: The names of existing world entities that closely match `name`.
         """
         candidates = [world_entity.name for world_entity in world_entity_iterable]
-        searched_name = name.name if isinstance(name, PrefixedName) else name
-        suggestions = [
-            candidate for candidate in candidates if candidate.name == searched_name
-        ]
+        suggestions = [candidate for candidate in candidates if candidate == name]
         close_names = difflib.get_close_matches(
-            searched_name,
-            {candidate.name for candidate in candidates},
+            name,
+            set(candidates),
             n=max_suggestions,
         )
         suggestions += [
             candidate
             for candidate in candidates
-            if candidate.name in close_names and candidate not in suggestions
+            if candidate in close_names and candidate not in suggestions
         ]
         return suggestions[:max_suggestions]
 
     @staticmethod
     def _get_world_entities_by_name_from_iterable(
-        name: Union[str, PrefixedName],
+        name: Union[str, str],
         world_entity_iterable: Iterable[GenericWorldEntity],
     ) -> List[GenericWorldEntity]:
         """
         Retrieve a world entity by its name from an iterable of world entities.
         This iterable would, for example, be self.connections or self.kinematic_structure_entities.
-        This method accepts either a string or a `PrefixedName` instance.
-        It searches through the provided iterable and returns the list of world entities
-        that matches the given name.
-        If only a string was provided, it matches against the name without prefix.
-        If a `PrefixedName` was provided, it matches against the full name including prefix.
+        Searches through the provided iterable and returns all world entities
+        whose name matches the given string exactly.
         :param name: The name of the world entity to search for.
-        :param world_entity_iterable: The iterable to search for the world entity, for example self.connections or self.kinematic_structure_entities.
+        :param world_entity_iterable: The iterable to search, for example self.connections or self.kinematic_structure_entities.
         :return: The list of `WorldEntity` that match the given name.
         """
-
-        match name:
-            case PrefixedName():
-                return [
-                    world_entity
-                    for world_entity in world_entity_iterable
-                    if world_entity.name == name
-                ]
-            case str():
-                return [
-                    world_entity
-                    for world_entity in world_entity_iterable
-                    if world_entity.name.name == name
-                ]
+        return [
+            world_entity
+            for world_entity in world_entity_iterable
+            if world_entity.name == name
+        ]
 
     def get_degree_of_freedom_by_id(self, id: UUID) -> DegreeOfFreedom:
         return self._get_world_entity_by_hash(hash(id))
@@ -2188,7 +2171,7 @@ class World(HasSimulatorProperties):
         return graphviz_draw(
             self.kinematic_structure,
             node_attr_fn=lambda kinematic_structure_entity: {
-                "label": kinematic_structure_entity.name.name,
+                "label": kinematic_structure_entity.name,
                 "style": "filled",
                 "fillcolor": "lightgray",
             },

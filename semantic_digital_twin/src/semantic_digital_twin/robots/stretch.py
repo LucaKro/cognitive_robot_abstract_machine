@@ -18,7 +18,6 @@ from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
     HasOneArm,
@@ -101,13 +100,13 @@ class StretchGripper(EndEffector, HasTwoFingers[StretchLeftFinger, StretchRightF
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName("gripper_open", prefix=self.name.name),
+            name="gripper_open",
             mapping=dict(zip(gripper_joints, [0.109, 0.109])),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName("gripper_close", prefix=self.name.name),
+            name="gripper_close",
             mapping=dict(zip(gripper_joints, [0.0, 0.0])),
             state_type=GripperState.CLOSE,
         )
@@ -137,7 +136,7 @@ class StretchArm(Arm[StretchGripper]):
 
     def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
-            name=PrefixedName("arm_park", prefix=self.name.name),
+            name="arm_park",
             mapping={self._world.get_connection_by_name("joint_lift"): 0.5},
             state_type=StaticJointState.PARK,
         )
@@ -290,19 +289,19 @@ class StretchTorso(Torso, HasNeck[StretchNeck], HasOneArm[StretchArm]):
     def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
         torso_low = JointState.from_mapping(
-            name=PrefixedName("torso_low", prefix=self.name.name),
+            name="torso_low",
             mapping=dict(zip(torso_joint, [0.0])),
             state_type=TorsoState.LOW,
         )
 
         torso_mid = JointState.from_mapping(
-            name=PrefixedName("torso_mid", prefix=self.name.name),
+            name="torso_mid",
             mapping=dict(zip(torso_joint, [0.5])),
             state_type=TorsoState.MID,
         )
 
         torso_high = JointState.from_mapping(
-            name=PrefixedName("torso_high", prefix=self.name.name),
+            name="torso_high",
             mapping=dict(zip(torso_joint, [1])),
             state_type=TorsoState.HIGH,
         )

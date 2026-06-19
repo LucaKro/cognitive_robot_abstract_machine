@@ -11,7 +11,6 @@ from pathlib import Path
 
 from semantic_digital_twin.world import World
 from semantic_digital_twin.pipeline.gltf_loader import GLTFLoader
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.exceptions import RootNodeNotFoundError
@@ -129,7 +128,7 @@ class TestGLTFLoader:
         body = loader._trimesh_to_body(mesh, "test_cube")
 
         assert isinstance(body, Body)
-        assert body.name == PrefixedName("test_cube")
+        assert body.name == "test_cube"
         assert body.collision is not None
         assert body.visual is not None
         assert len(body.collision.shapes) == 1
@@ -218,7 +217,7 @@ class TestGLTFLoader:
             world = loader._build_world_from_elements(world_elements, connection, world)
 
         assert world.root is not None
-        assert world.root.name == PrefixedName("root_body")
+        assert world.root.name == "root_body"
         assert len(list(world.kinematic_structure_entities)) == 1
 
     def test_build_world_with_connections(self):
@@ -246,14 +245,14 @@ class TestGLTFLoader:
             world = loader._build_world_from_elements(world_elements, connection, world)
 
         assert world.root is not None
-        assert world.root.name == PrefixedName("parent")
+        assert world.root.name == "parent"
         assert len(list(world.kinematic_structure_entities)) == 2
         assert len(list(world.connections)) == 1
 
         conn = list(world.connections)[0]
         assert isinstance(conn, FixedConnection)
-        assert conn.parent.name == PrefixedName("parent")
-        assert conn.child.name == PrefixedName("child")
+        assert conn.parent.name == "parent"
+        assert conn.child.name == "child"
 
     def test_grouping_similar_meshes_basic(self):
         """Test grouping meshes with similar names."""

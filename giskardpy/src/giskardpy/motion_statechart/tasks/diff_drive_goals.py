@@ -6,7 +6,6 @@ from typing import Optional
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Task
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     Point3,
     Vector3,
@@ -26,7 +25,7 @@ class DifferentialDriveTangentialToPoint(Task):
 
     def __post_init__(self):
         self.tip = context.world.get_kinematic_structure_entity_by_name(
-            PrefixedName("base_footprint", prefix=self.group_name)
+            "base_footprint"
         )
         self.root = context.world.root()
         self.goal_point = context.world.transform(

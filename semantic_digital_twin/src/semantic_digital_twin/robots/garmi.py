@@ -19,7 +19,6 @@ from semantic_digital_twin.datastructures.definitions import (
 )
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasLeftRightArm,
     HasMobileBase,
@@ -270,12 +269,12 @@ class GarmiLeftGripper(
         """
         gripper_joints = self.active_connections
         gripper_open = JointState.from_mapping(
-            name=PrefixedName("gripper_open", prefix=self.name.name),
+            name="gripper_open",
             mapping=dict(zip(gripper_joints, [0.04, 0.04])),
             state_type=GripperState.OPEN,
         )
         gripper_close = JointState.from_mapping(
-            name=PrefixedName("gripper_close", prefix=self.name.name),
+            name="gripper_close",
             mapping=dict(zip(gripper_joints, [0.0, 0.0])),
             state_type=GripperState.CLOSE,
         )
@@ -324,12 +323,12 @@ class GarmiRightGripper(
         """
         gripper_joints = self.active_connections
         gripper_open = JointState.from_mapping(
-            name=PrefixedName("gripper_open", prefix=self.name.name),
+            name="gripper_open",
             mapping=dict(zip(gripper_joints, [0.04, 0.04])),
             state_type=GripperState.OPEN,
         )
         gripper_close = JointState.from_mapping(
-            name=PrefixedName("gripper_close", prefix=self.name.name),
+            name="gripper_close",
             mapping=dict(zip(gripper_joints, [0.0, 0.0])),
             state_type=GripperState.CLOSE,
         )
@@ -383,13 +382,13 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
         Sets up the park configuration for the arm.
         """
         arm_park = JointState.from_mapping(
-            name=PrefixedName("park", prefix=self.name.name),
+            name="park",
             mapping={
                 connection: position
                 for connection in self.connections
                 if not isinstance(connection, FixedConnection)
                 for joint_name, position in self.ARM_PARK_CONFIGURATION.items()
-                if connection.name.name.endswith(joint_name)
+                if connection.name.endswith(joint_name)
             },
             state_type=StaticJointState.PARK,
         )
@@ -442,13 +441,13 @@ class GarmiRightArm(Arm[GarmiRightGripper]):
         Sets up the park configuration for the arm.
         """
         arm_park = JointState.from_mapping(
-            name=PrefixedName("park", prefix=self.name.name),
+            name="park",
             mapping={
                 connection: position
                 for connection in self.connections
                 if not isinstance(connection, FixedConnection)
                 for joint_name, position in self.ARM_PARK_CONFIGURATION.items()
-                if connection.name.name.endswith(joint_name)
+                if connection.name.endswith(joint_name)
             },
             state_type=StaticJointState.PARK,
         )
@@ -501,7 +500,7 @@ class GarmiTorso(
         )
         return [
             JointState.from_mapping(
-                name=PrefixedName(name, prefix=self.name.name),
+                name=name,
                 mapping=dict(zip(lift_joints, positions)),
                 state_type=state_type,
             )

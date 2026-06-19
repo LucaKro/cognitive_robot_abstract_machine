@@ -8,7 +8,6 @@ from typing_extensions import Dict, Any
 import krrood.symbolic_math.symbolic_math as sm
 from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
 from semantic_digital_twin.world_description.world_entity import WorldEntityWithID
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     InvalidConnectionLimits,
     MimicDofLimitOverwriteError,
@@ -156,16 +155,16 @@ class DegreeOfFreedom(WorldEntityWithID, SubclassJSONSerializer):
         """
         assert self._world is not None
         self.variables.position = PositionVariable(
-            name=str(PrefixedName("position", prefix=str(self.name))), dof=self
+            name=f"{self.name}/position", dof=self
         )
         self.variables.velocity = VelocityVariable(
-            name=str(PrefixedName("velocity", prefix=str(self.name))), dof=self
+            name=f"{self.name}/velocity", dof=self
         )
         self.variables.acceleration = AccelerationVariable(
-            name=str(PrefixedName("acceleration", prefix=str(self.name))), dof=self
+            name=f"{self.name}/acceleration", dof=self
         )
         self.variables.jerk = JerkVariable(
-            name=str(PrefixedName("jerk", prefix=str(self.name))), dof=self
+            name=f"{self.name}/jerk", dof=self
         )
 
     def has_position_limits(self) -> bool:

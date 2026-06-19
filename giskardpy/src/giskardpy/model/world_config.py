@@ -9,7 +9,6 @@ from sqlalchemy import select
 
 from krrood.ormatic.data_access_objects.helper import get_dao_class
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.orm.utils import semantic_digital_twin_sessionmaker
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
@@ -46,14 +45,14 @@ class EmptyWorld(WorldConfig):
         #     Derivatives.jerk: None
         # }
         # self.set_default_limits(self._default_limits)
-        self.add_empty_link(PrefixedName("map"))
+        self.add_empty_link("map")
 
 
 @dataclass
 class WorldWithFixedRobot(WorldConfig):
     urdf: str = field(kw_only=True)
-    root_name: PrefixedName = field(default=PrefixedName("map"))
-    robot_name: PrefixedName = field(default=PrefixedName("robot"))
+    root_name: str = field(default="map")
+    robot_name: str = field(default="robot")
     robot_root: KinematicStructureEntity = field(init=False)
     urdf_view: AbstractRobot = field(kw_only=True, default=MinimalRobot)
 
@@ -72,9 +71,9 @@ class WorldWithFixedRobot(WorldConfig):
 @dataclass
 class WorldWithOmniDriveRobot(WorldConfig):
     urdf: str = field(kw_only=True)
-    root_name: PrefixedName = field(default=PrefixedName("map"))
-    robot_name: PrefixedName = field(default=PrefixedName("robot"))
-    odom_body_name: PrefixedName = field(default=PrefixedName("odom"))
+    root_name: str = field(default="map")
+    robot_name: str = field(default="robot")
+    odom_body_name: str = field(default="odom")
     urdf_view: AbstractRobot = field(kw_only=True, default=MinimalRobot)
     localization: Connection6DoF = field(init=False)
     robot: AbstractRobot = field(init=False)
@@ -105,9 +104,9 @@ class WorldWithOmniDriveRobot(WorldConfig):
 @dataclass
 class WorldWithDiffDriveRobot(WorldConfig):
     urdf: str = field(kw_only=True)
-    root_name: PrefixedName = field(default=PrefixedName("map"))
-    robot_name: PrefixedName = field(default=PrefixedName("robot"))
-    odom_body_name: PrefixedName = field(default=PrefixedName("odom"))
+    root_name: str = field(default="map")
+    robot_name: str = field(default="robot")
+    odom_body_name: str = field(default="odom")
     urdf_view: AbstractRobot = field(kw_only=True, default=MinimalRobot)
     localization: Connection6DoF = field(init=False)
     robot: AbstractRobot = field(init=False)

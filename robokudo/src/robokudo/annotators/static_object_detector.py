@@ -189,7 +189,7 @@ class StaticObjectDetectorAnnotator(BaseAnnotator):
 
     @staticmethod
     def _body_name(body: Body) -> str:
-        return body.name.name
+        return body.name
 
     @staticmethod
     def _select_body_shape_collection(body: Body):

@@ -366,7 +366,7 @@ class ExternalCollisionAvoidance(Goal):
             max_avoided_bodies = group.get_max_avoided_bodies(context.collision_manager)
             for index in range(max_avoided_bodies):
                 distance_monitor = _ExternalCollisionHasData(
-                    name=f"{self.name}/monitor({group.root.name.name, index})",
+                    name=f"{self.name}/monitor({group.root.name, index})",
                     collision_group=group,
                     collision_index=index,
                     external_collision_manager=self.external_collision_manager,
@@ -374,7 +374,7 @@ class ExternalCollisionAvoidance(Goal):
                 self.add_node(distance_monitor)
 
                 task = _ExternalCollisionAvoidanceTask(
-                    name=f"{self.name}/task({group.root.name.name, index})",
+                    name=f"{self.name}/task({group.root.name, index})",
                     collision_group=group,
                     max_velocity=self.max_velocity,
                     collision_index=index,
@@ -682,7 +682,7 @@ class SelfCollisionAvoidance(Goal):
             )
 
             distance_monitor = _SelfCollisionHasData(
-                name=f"{self.name}/{group_a.root.name.name, group_b.root.name.name}/monitor",
+                name=f"{self.name}/{group_a.root.name, group_b.root.name}/monitor",
                 collision_group_a=group_a,
                 collision_group_b=group_b,
                 self_collision_manager=self.self_collision_manager,
@@ -690,7 +690,7 @@ class SelfCollisionAvoidance(Goal):
             self.add_node(distance_monitor)
 
             task = _SelfCollisionAvoidanceTask(
-                name=f"{self.name}/{group_a.root.name.name, group_b.root.name.name}/task",
+                name=f"{self.name}/{group_a.root.name, group_b.root.name}/task",
                 collision_group_a=group_a,
                 collision_group_b=group_b,
                 max_velocity=self.max_velocity,

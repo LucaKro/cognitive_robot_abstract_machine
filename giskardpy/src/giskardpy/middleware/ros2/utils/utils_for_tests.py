@@ -23,7 +23,6 @@ from semantic_digital_twin.collision_checking.collision_detector import (
     CollisionCheckingResult,
 )
 from semantic_digital_twin.collision_checking.collision_rules import AvoidAllCollisions
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import WorldEntityNotFoundError
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -127,7 +126,7 @@ class GiskardTester(ABC):
     total_time_spend_giskarding: int = 0
     total_time_spend_moving: int = 0
     default_env_name: Optional[str] = None
-    robot_names: List[PrefixedName] = field(default_factory=list)
+    robot_names: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         self.async_loop = asyncio.new_event_loop()
@@ -211,8 +210,8 @@ class GiskardTester(ABC):
 
     def compare_joint_state(
         self,
-        current_js: Dict[Union[str, PrefixedName], float],
-        goal_js: Dict[Union[str, PrefixedName], float],
+        current_js: Dict[Union[str, str], float],
+        goal_js: Dict[Union[str, str], float],
         decimal: int = 2,
     ):
         for joint_name in goal_js:
@@ -271,7 +270,7 @@ class GiskardTester(ABC):
             target_frame=parent_link,
         )
         with self.api.world.modify_world():
-            box = Body(name=PrefixedName(name))
+            box = Body(name=name)
             box_shape = Box(scale=Scale(*size))
             box.collision.append(box_shape)
             box.visual.append(box_shape)
@@ -289,7 +288,7 @@ class GiskardTester(ABC):
         name: str,
         radius: float = 1.0,
         pose: PoseStamped = None,
-        parent_link: str | PrefixedName | None = None,
+        parent_link: str | None = None,
     ) -> None:
         if parent_link is None:
             parent_link = self.api.world.root
@@ -298,7 +297,7 @@ class GiskardTester(ABC):
                 parent_link
             )
         with self.api.world.modify_world():
-            sphere = Body(name=PrefixedName(name))
+            sphere = Body(name=name)
             sphere_shape = Sphere(radius=radius)
             sphere.collision.append(sphere_shape)
             sphere.visual.append(sphere_shape)
@@ -319,7 +318,7 @@ class GiskardTester(ABC):
         height: float,
         radius: float,
         pose: PoseStamped = None,
-        parent_link: str | PrefixedName | None = None,
+        parent_link: str | None = None,
     ) -> None:
         if parent_link is None:
             parent_link = self.api.world.root
@@ -332,7 +331,7 @@ class GiskardTester(ABC):
             target_frame=parent_link,
         )
         with self.api.world.modify_world():
-            cylinder = Body(name=PrefixedName(name))
+            cylinder = Body(name=name)
             cylinder_shape = Cylinder(width=radius * 2, height=height)
             cylinder.collision.append(cylinder_shape)
             cylinder.visual.append(cylinder_shape)
@@ -350,7 +349,7 @@ class GiskardTester(ABC):
         pose: PoseStamped,
         name: str = "meshy",
         mesh: str = "",
-        parent_link: str | PrefixedName | None = None,
+        parent_link: str | None = None,
         scale: Tuple[float, float, float] = (1.0, 1.0, 1.0),
     ) -> None:
         if parent_link is None:
@@ -364,7 +363,7 @@ class GiskardTester(ABC):
             target_frame=parent_link,
         )
         with self.api.world.modify_world():
-            mesh_body = Body(name=PrefixedName(name))
+            mesh_body = Body(name=name)
             mesh_shape = Mesh(filename=mesh, scale=Scale(*scale))
             mesh_body.collision.append(mesh_shape)
             mesh_body.visual.append(mesh_shape)
@@ -382,7 +381,7 @@ class GiskardTester(ABC):
         name: str,
         urdf: str,
         pose: HomogeneousTransformationMatrix,
-        parent_link: str | PrefixedName | None = None,
+        parent_link: str | None = None,
     ) -> None:
         if parent_link is None:
             parent_link = self.api.world.root
@@ -405,7 +404,7 @@ class GiskardTester(ABC):
     def update_parent_link_of_group(
         self,
         name: str,
-        parent_link: str | PrefixedName | None = None,
+        parent_link: str | None = None,
     ) -> None:
         with self.api.world.modify_world():
             body = self.api.world.get_kinematic_structure_entity_by_name(name)

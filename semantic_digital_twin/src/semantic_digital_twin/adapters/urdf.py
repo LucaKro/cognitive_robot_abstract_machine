@@ -9,7 +9,6 @@ from semantic_digital_twin.adapters.package_resolver import (
     CompositePathResolver,
     PathResolver,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import NegativeConnectionVelocity
 from semantic_digital_twin.spatial_types.derivatives import Derivatives, DerivativeMap
 from semantic_digital_twin.spatial_types.spatial_types import (
@@ -161,10 +160,10 @@ class URDFParser:
     def parse(self) -> World:
         prefix = self.parsed.name
         links = [
-            self.parse_link(link, PrefixedName(link.name, prefix))
+            self.parse_link(link, link.name)
             for link in self.parsed.links
         ]
-        root = [link for link in links if link.name.name == self.parsed.get_root()][0]
+        root = [link for link in links if link.name == self.parsed.get_root()][0]
         world = World()
         world.name = self.prefix
         with world.modify_world():
@@ -180,8 +179,8 @@ class URDFParser:
 
             parsed_joints = []
             for joint in main_joints + mimic_joints:
-                parent = [link for link in links if link.name.name == joint.parent][0]
-                child = [link for link in links if link.name.name == joint.child][0]
+                parent = [link for link in links if link.name == joint.parent][0]
+                child = [link for link in links if link.name == joint.child][0]
                 parsed_joint = self.parse_joint(joint, parent, child, world, prefix)
                 parsed_joints.append(parsed_joint)
 
@@ -209,7 +208,7 @@ class URDFParser:
         :param prefix: The prefix for naming connections and DOFs.
         :return: A connection object representing the parsed joint.
         """
-        connection_name = PrefixedName(joint.name, prefix)
+        connection_name = joint.name
         connection_type = connection_type_map.get(joint.type, Connection)
         translation_offset = getattr(joint.origin, "xyz", [0, 0, 0])
         rotation_offset = getattr(joint.origin, "rpy", [0, 0, 0])
@@ -237,7 +236,7 @@ class URDFParser:
                 joint.mimic.multiplier if joint.mimic.multiplier is not None else 1
             )
             offset = joint.mimic.offset if joint.mimic.offset is not None else 0
-            dof_name = PrefixedName(joint.mimic.joint, prefix)
+            dof_name = joint.mimic.joint
 
         if dof_name not in [d.name for d in world.degrees_of_freedom]:
             lower_limits, upper_limits = urdf_joint_to_limits(joint)
@@ -262,14 +261,14 @@ class URDFParser:
         )
         return result
 
-    def parse_link(self, link: urdfpy.Link, parent_frame: PrefixedName) -> Body:
+    def parse_link(self, link: urdfpy.Link, parent_frame: str) -> Body:
         """
         Parses a URDF link to a link object.
         :param link: The URDF link to parse.
         :param parent_frame: The parent frame of the link, used for transformations of collisions and visuals.
         :return: The parsed link object.
         """
-        name = PrefixedName(prefix=self.prefix, name=link.name)
+        name = link.name
         body = Body(name=name)
         visuals = self.parse_geometry(link.visuals, body)
         collisions = self.parse_geometry(link.collisions, body)

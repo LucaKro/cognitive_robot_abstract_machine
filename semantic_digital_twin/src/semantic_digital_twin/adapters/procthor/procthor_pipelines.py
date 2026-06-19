@@ -1,6 +1,4 @@
 import re
-
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.semantic_annotations.position_descriptions import (
     SemanticPositionDescription,
@@ -43,9 +41,7 @@ def drawer_from_body_in_world(drawer_body: Body, world: World) -> Drawer:
         )
         world_T_handle = world_T_drawer @ drawer_T_handle
         handle = Handle.create_with_new_body_in_world(
-            name=PrefixedName(
-                drawer_body.name.name + "_handle", drawer_body.name.prefix
-            ),
+            name=drawer_body.name + "_handle",
             scale=Scale(0.05, 0.1, 0.02),
             world=world,
             world_root_T_self=world_T_handle,
@@ -87,7 +83,7 @@ def door_from_body_in_world(door_body: Body, world: World) -> Door:
         )
 
         handle = Handle.create_with_new_body_in_world(
-            name=PrefixedName(door_body.name.name + "_handle", door_body.name.prefix),
+            name=door_body.name + "_handle",
             scale=Scale(0.05, 0.1, 0.02),
             world=world,
             world_root_T_self=world_T_handle,
@@ -96,7 +92,7 @@ def door_from_body_in_world(door_body: Body, world: World) -> Door:
     with world.modify_world():
         world_T_hinge = door.calculate_world_T_hinge_based_on_handle(Vector3.Z())
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName(door_body.name.name + "_hinge", door_body.name.prefix),
+            name=door_body.name + "_hinge",
             world=world,
             world_root_T_self=world_T_hinge,
             active_axis=Vector3.Z(),
@@ -126,10 +122,10 @@ def dresser_from_body_in_world(dresser: Body, world: World) -> Dresser:
             dresser.root
         ):
             child: Body
-            if bool(drawer_pattern.fullmatch(child.name.name)):
+            if bool(drawer_pattern.fullmatch(child.name)):
                 drawer = drawer_from_body_in_world(child, world)
                 dresser.add(drawer)
-            elif bool(door_pattern.fullmatch(child.name.name)):
+            elif bool(door_pattern.fullmatch(child.name)):
                 door = door_from_body_in_world(child, world)
                 dresser.add(door)
 

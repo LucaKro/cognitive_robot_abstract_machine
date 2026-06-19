@@ -7,7 +7,6 @@ from threading import Lock
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World, Body
 from semantic_digital_twin.world_description.connections import Connection6DoF
 
@@ -123,11 +122,6 @@ def world_has_body_by_name(world: World, body_name: str) -> bool:
     return len(bodies) > 0
 
 
-# def add_dummy_frame_if_non_existent(frame_name: str) -> None:
-#     if not world_has_body_by_name(world=world_instance(), body_name=frame_name):
-#         with world_instance().modify_world():
-#             world_instance().add_body(
-#                 semantic_digital_twin.world.Body(name=PrefixedName(name=frame_name)))
 
 
 def setup_world_for_camera_frame(world_frame: str, camera_frame: str) -> None:
@@ -146,8 +140,8 @@ def setup_world_for_camera_frame(world_frame: str, camera_frame: str) -> None:
 
     if not world_exists and not camera_exists:
         with world_instance().modify_world():
-            world_body = Body(name=PrefixedName(name=world_frame))
-            camera_body = Body(name=PrefixedName(name=camera_frame))
+            world_body = Body(name=world_frame)
+            camera_body = Body(name=camera_frame)
             world_c_camera = Connection6DoF.create_with_dofs(
                 parent=world_body, child=camera_body, world=world_instance()
             )

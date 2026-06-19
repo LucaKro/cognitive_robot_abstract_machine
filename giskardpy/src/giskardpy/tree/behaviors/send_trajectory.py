@@ -1,7 +1,6 @@
 from typing import List, Dict, Any
 
 from giskardpy.middleware.ros2 import rospy
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 
@@ -66,7 +65,7 @@ class SendFollowJointTrajectory(GiskardBehavior):
         ActionClient.__init__(self, str(self), action_type, None, self.action_namespace)
 
         controlled_joint_names = [
-            PrefixedName(j, self.group_name) for j in params["joints"]
+            j for j in params["joints"]
         ]
         if len(controlled_joint_names) == 0:
             raise ValueError(f"'{self.action_namespace}' has no joints")

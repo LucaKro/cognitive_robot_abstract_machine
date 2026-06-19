@@ -13,7 +13,6 @@ from semantic_digital_twin.adapters.procthor.procthor_pipelines import (
     drawer_from_body_in_world,
     door_from_body_in_world,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.pipeline.pipeline import (
     Step,
     Pipeline,
@@ -35,8 +34,8 @@ class PipelineTestCase(unittest.TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.dummy_world = World()
-        b1 = Body(name=PrefixedName("body1", "krrood_test"))
-        b2 = Body(name=PrefixedName("body2", "krrood_test"))
+        b1 = Body(name="body1")
+        b2 = Body(name="body2")
         c1 = FixedConnection(b1, b2, HomogeneousTransformationMatrix())
         with cls.dummy_world.modify_world():
             cls.dummy_world.add_body(b1)
@@ -54,7 +53,7 @@ class PipelineTestCase(unittest.TestCase):
 
         @dataclass
         class TestStep(Step):
-            body_name: PrefixedName
+            body_name: str
 
             def _apply(self, world: World) -> World:
                 b1 = Body(name=self.body_name)
@@ -62,7 +61,7 @@ class PipelineTestCase(unittest.TestCase):
                 return world
 
         pipeline = Pipeline(
-            steps=[TestStep(body_name=PrefixedName("body1", "krrood_test"))]
+            steps=[TestStep(body_name="body1")]
         )
 
         dummy_world = World()
@@ -70,17 +69,17 @@ class PipelineTestCase(unittest.TestCase):
         dummy_world = pipeline.apply(dummy_world)
 
         self.assertEqual(len(dummy_world.bodies), 1)
-        self.assertEqual(dummy_world.root.name, PrefixedName("body1", "krrood_test"))
+        self.assertEqual(dummy_world.root.name, "body1")
 
     def test_body_filter(self):
 
         pipeline = Pipeline(
-            steps=[BodyFilter(lambda x: x.name == PrefixedName("body1", "krrood_test"))]
+            steps=[BodyFilter(lambda x: x.name == "body1")]
         )
 
         filtered_world = pipeline.apply(self.dummy_world)
         self.assertEqual(len(filtered_world.bodies), 1)
-        self.assertEqual(filtered_world.root.name, PrefixedName("body1", "krrood_test"))
+        self.assertEqual(filtered_world.root.name, "body1")
 
     def test_center_local_geometry_and_preserve_world_pose(self):
         world = FBXParser(self.fbx_path).parse()
@@ -130,10 +129,10 @@ class PipelineTestCase(unittest.TestCase):
             [
                 BodyFactoryReplace(
                     body_condition=lambda b: bool(
-                        dresser_pattern.fullmatch(b.name.name)
+                        dresser_pattern.fullmatch(b.name)
                     )
                     and not (
-                        "drawer" in b.name.name.lower() or "door" in b.name.name.lower()
+                        "drawer" in b.name.lower() or "door" in b.name.lower()
                     ),
                     annotation_creator=dresser_from_body_in_world,
                 )
@@ -160,7 +159,7 @@ class PipelineTestCase(unittest.TestCase):
 
         dresser = dresser_from_body_in_world(dresser, world)
 
-        self.assertEqual(dresser.name.name, "dresser_205")
+        self.assertEqual(dresser.name, "dresser_205")
 
     def test_drawer_from_body(self):
         world = FBXParser(self.fbx_path).parse()
@@ -169,7 +168,7 @@ class PipelineTestCase(unittest.TestCase):
 
         drawer = drawer_from_body_in_world(drawer, world)
 
-        self.assertEqual(drawer.name.name, "dresser_drawer_205_1")
+        self.assertEqual(drawer.name, "dresser_drawer_205_1")
 
     def test_door_from_body(self):
         world = FBXParser(self.fbx_path).parse()
@@ -178,7 +177,7 @@ class PipelineTestCase(unittest.TestCase):
 
         door = door_from_body_in_world(door, world)
 
-        self.assertEqual(door.name.name, "dresser_door_217_1")
+        self.assertEqual(door.name, "dresser_door_217_1")
 
 
 if __name__ == "__main__":

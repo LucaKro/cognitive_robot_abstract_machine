@@ -1,5 +1,4 @@
 from robokudo.world_descriptor import BaseWorldDescriptor, PredefinedObject
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
@@ -14,14 +13,14 @@ def test_get_predefined_object_bodies():
 
     foobar1_shape = Box(scale=Scale(0.10, 0.06, 0.05), color=Color(0.1, 0.2, 0.8, 1.0))
     foobar1_body = Body(
-        name=PrefixedName(name="foobar", prefix="transform_example"),
+        name="foobar",
         visual=ShapeCollection([foobar1_shape]),
         collision=ShapeCollection([foobar1_shape]),
     )
 
     foobar2_shape = Box(scale=Scale(0.10, 0.06, 0.05), color=Color(0.1, 0.2, 0.8, 1.0))
     foobar2_body = Body(
-        name=PrefixedName(name="foobar2", prefix="transform_example"),
+        name="foobar2",
         visual=ShapeCollection([foobar2_shape]),
         collision=ShapeCollection([foobar2_shape]),
     )

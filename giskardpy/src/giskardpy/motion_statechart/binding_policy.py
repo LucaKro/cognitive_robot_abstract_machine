@@ -3,7 +3,6 @@ from enum import Enum
 
 from krrood.symbolic_math.float_variable_data import FloatVariableData
 from krrood.symbolic_math.symbolic_math import SymbolicMathType
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import (
@@ -40,7 +39,7 @@ class ForwardKinematicsBinding:
     """
     Reference to the FloatVariableData used for storing variables for the forward kinematics.
     """
-    name: PrefixedName
+    name: str
     """
     Name of the Binding. It is used for naming the auxiliary variables.
     ..warning:: ensure to generate a unique name, e.g., using the name of the MotionStatechartNode.

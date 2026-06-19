@@ -28,7 +28,6 @@ from giskardpy.motion_statechart.tasks.feature_functions import (
 )
 from giskardpy.motion_statechart.tasks.pointing import Pointing, PointingCone
 from giskardpy.utils.math import angle_between_vector
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
     Door,
@@ -735,7 +734,7 @@ class TestOpenClose:
 
         with pr2_world_copy.modify_world():
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"),
+                name="door",
                 world=pr2_world_copy,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5, z=1, yaw=np.pi, reference_frame=pr2_world_copy.root
@@ -743,7 +742,7 @@ class TestOpenClose:
             )
 
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=pr2_world_copy,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5,
@@ -762,7 +761,7 @@ class TestOpenClose:
             upper_limits.velocity = 1
 
             hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName("hinge"),
+                name="hinge",
                 world=pr2_world_copy,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5,

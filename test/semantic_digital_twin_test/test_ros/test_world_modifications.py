@@ -8,7 +8,6 @@ from krrood.adapters.json_serializer import from_json, to_json
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
     Door,
@@ -45,8 +44,8 @@ class ConnectionModificationTestCase(unittest.TestCase):
         w = World()
 
         with w.modify_world():
-            b1 = Body(name=PrefixedName("b1"))
-            b2 = Body(name=PrefixedName("b2"))
+            b1 = Body(name="b1")
+            b2 = Body(name="b2")
             w.add_kinematic_structure_entity(b1)
             w.add_kinematic_structure_entity(b2)
 
@@ -57,12 +56,12 @@ class ConnectionModificationTestCase(unittest.TestCase):
         w = World()
 
         with w.modify_world():
-            b1 = Body(name=PrefixedName("b1"))
-            b2 = Body(name=PrefixedName("b2"))
+            b1 = Body(name="b1")
+            b2 = Body(name="b2")
             w.add_kinematic_structure_entity(b1)
             w.add_kinematic_structure_entity(b2)
 
-            dof = DegreeOfFreedom(name=PrefixedName("dofyboi"))
+            dof = DegreeOfFreedom(name="dofyboi")
             w.add_degree_of_freedom(dof)
             connection = RevoluteConnection(
                 b1, b2, axis=Vector3.from_iterable([0, 0, 1]), dof_id=dof.id
@@ -78,16 +77,16 @@ class ConnectionModificationTestCase(unittest.TestCase):
         world = World()
 
         with world.modify_world():
-            b1 = Body(name=PrefixedName("b1"))
-            b2 = Body(name=PrefixedName("b2"))
-            b3 = Body(name=PrefixedName("b3"))
+            b1 = Body(name="b1")
+            b2 = Body(name="b2")
+            b3 = Body(name="b3")
             world.add_kinematic_structure_entity(b1)
             world.add_kinematic_structure_entity(b2)
             world.add_kinematic_structure_entity(b3)
             world.add_connection(
                 Connection6DoF.create_with_dofs(parent=b1, child=b2, world=world)
             )
-            dof = DegreeOfFreedom(name=PrefixedName("dofyboi"))
+            dof = DegreeOfFreedom(name="dofyboi")
             world.add_degree_of_freedom(dof)
             world.add_connection(
                 PrismaticConnection(
@@ -155,7 +154,7 @@ class ConnectionModificationTestCase(unittest.TestCase):
     def test_semantic_annotation_modifications(self):
         w = World()
         with w.modify_world():
-            w.add_kinematic_structure_entity(b1 := Body(name=PrefixedName("b1")))
+            w.add_kinematic_structure_entity(b1 := Body(name="b1"))
         v1 = Handle(root=b1)
         v2 = Door(root=b1, handle=v1)
 
@@ -182,21 +181,21 @@ class ConnectionModificationTestCase(unittest.TestCase):
     def test_duplicate_name_modification_serialization(self):
         w = World()
         with w.modify_world():
-            b1 = Body(name=PrefixedName("b1"))
+            b1 = Body(name="b1")
             w.add_kinematic_structure_entity(b1)
 
-            b2 = Body(name=PrefixedName("b1"))  # Duplicate name
+            b2 = Body(name="b1")  # Duplicate name
             w.add_kinematic_structure_entity(b2)
 
-            b3 = Body(name=PrefixedName("b3"))
+            b3 = Body(name="b3")
             w.add_kinematic_structure_entity(b3)
 
             c1 = Connection6DoF.create_with_dofs(
-                name=PrefixedName("name1"), parent=b1, child=b2, world=w
+                name="name1", parent=b1, child=b2, world=w
             )
             w.add_connection(c1)
             c2 = Connection6DoF.create_with_dofs(
-                name=PrefixedName("name1"), parent=b1, child=b3, world=w
+                name="name1", parent=b1, child=b3, world=w
             )
             w.add_connection(c2)
 
@@ -215,14 +214,14 @@ class ConnectionModificationTestCase(unittest.TestCase):
     def test_actuator_serialization(self):
         w = World()
         with w.modify_world():
-            b1 = Body(name=PrefixedName("b1"))
+            b1 = Body(name="b1")
             w.add_kinematic_structure_entity(b1)
-            b2 = Body(name=PrefixedName("b2"))
+            b2 = Body(name="b2")
             w.add_kinematic_structure_entity(b2)
             c = Connection6DoF.create_with_dofs(parent=b1, child=b2, world=w)
             w.add_connection(c)
             dof = w.degrees_of_freedom[0]
-            actuator = Actuator(name=PrefixedName("actuator"))
+            actuator = Actuator(name="actuator")
             actuator.add_dof(dof)
             w.add_actuator(actuator)
 
@@ -242,8 +241,8 @@ class ConnectionModificationTestCase(unittest.TestCase):
 def test_connection_t_child_expression_survives_json_roundtrip():
 
     world = World()
-    root = Body(name=PrefixedName("root", prefix="review"))
-    child = Body(name=PrefixedName("child", prefix="review"))
+    root = Body(name="root")
+    child = Body(name="child")
     connection_T_child = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=1.0, y=2.0, z=3.0, child_frame=child
     )
@@ -268,7 +267,7 @@ def test_connection_t_child_expression_survives_json_roundtrip():
 
 def test_body_inertial_survives_world_deepcopy():
     world = World()
-    body = Body(name=PrefixedName("heavy_body", prefix="review"))
+    body = Body(name="heavy_body")
     collision = Box(
         scale=Scale(),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=body),
@@ -292,8 +291,8 @@ def test_design_09_failed_atomic_modification_is_not_recorded():
     stays in the history."""
 
     world = World()
-    root = Body(name=PrefixedName("root", prefix="review"))
-    child = Body(name=PrefixedName("child", prefix="review"))
+    root = Body(name="root")
+    child = Body(name="child")
     collision = Box(
         scale=Scale(),
         origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=child),
@@ -305,8 +304,8 @@ def test_design_09_failed_atomic_modification_is_not_recorded():
         connection = FixedConnection(parent=root, child=child)
         world.add_connection(connection)
 
-    outside_parent = Body(name=PrefixedName("outside_parent", prefix="review"))
-    outside_child = Body(name=PrefixedName("outside_child", prefix="review"))
+    outside_parent = Body(name="outside_parent")
+    outside_child = Body(name="outside_child")
 
     with world.modify_world():
         bad_connection = FixedConnection(parent=outside_parent, child=outside_child)

@@ -16,7 +16,6 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.datastructures.definitions import JointStateType
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -45,7 +44,7 @@ class JointState(SubclassJSONSerializer):
     A type to better describe this state
     """
 
-    name: PrefixedName = field(default=PrefixedName("JointState"))
+    name: str = field(default="JointState")
     """
     A Name for this JointState
     """
@@ -102,7 +101,7 @@ class JointState(SubclassJSONSerializer):
         cls,
         mapping: Dict[ActiveConnection1DOF, float],
         state_type: JointStateType = None,
-        name: PrefixedName = PrefixedName("JointState"),
+        name: str = "JointState",
     ):
         return cls(
             state_type=state_type,

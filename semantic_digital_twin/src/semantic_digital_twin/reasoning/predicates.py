@@ -15,7 +15,6 @@ from krrood.entity_query_language.predicate import (
     symbolic_function,
 )
 from random_events.interval import Interval
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.spatial_computations.ik_solver import (
     MaxIterationsException,
@@ -134,7 +133,7 @@ def occluding_bodies(camera: Camera, body: Body) -> List[Body]:
 
     # create a world only containing the target body
     world_without_occlusion = deepcopy(body._world)
-    root = Body(name=PrefixedName("root"))
+    root = Body(name="root")
     with world_without_occlusion.modify_world():
         world_without_occlusion.clear()
         world_without_occlusion.add_body(root)

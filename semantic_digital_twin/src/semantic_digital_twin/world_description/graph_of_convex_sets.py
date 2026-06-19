@@ -48,7 +48,6 @@ from semantic_digital_twin.world_description.geometry import (
 from semantic_digital_twin.world_description.shape_collection import (
     BoundingBoxCollection,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 logger = logging.getLogger(__name__)
 
@@ -703,7 +702,7 @@ class GraphOfConvexSets:
 
     def create_as_region(
         self,
-        name: Optional[PrefixedName] = None,
+        name: Optional[str] = None,
         color: Color = Color(0.5, 1.0, 0.5, 0.5),
     ) -> Region:
         """
@@ -715,7 +714,7 @@ class GraphOfConvexSets:
         :return: The region.
         """
         if name is None:
-            name = PrefixedName("gcs_region")
+            name = "gcs_region"
 
         bbox_collection = BoundingBoxCollection(
             shapes=list(self.graph.nodes()),
@@ -898,7 +897,7 @@ def create_reference_frame_with_only_yaw_from_body(body: Body) -> Body:
 
     world = body._world
     reference_frame = Body(
-        name=PrefixedName(prefix=str(body.name), name="base_with_yaw")
+        name="base_with_yaw"
     )
 
     world_T_body = world.transform(body.global_pose, world.root)

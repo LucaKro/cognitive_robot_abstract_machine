@@ -1742,11 +1742,11 @@ class TestWeightScaling:
         giskard.execute()
         # assert (
         #     god_map.debug_expression_manager.evaluated_debug_expressions[
-        #         PrefixedName(name="arm_scaling", prefix="")
+        #         "arm_scaling"
         #     ][0]
         #     * 1000
         #     < god_map.debug_expression_manager.evaluated_debug_expressions[
-        #         PrefixedName(name="base_scaling", prefix="")
+        #         "base_scaling"
         #     ][0]
         # )
 
@@ -1768,7 +1768,7 @@ class TestWeightScaling:
         giskard.execute(local_min_end=False)
         # assert (
         #     god_map.debug_expression_manager.evaluated_debug_expressions[
-        #         PrefixedName(name=f"mIndex {giskard.r_tip}", prefix="")
+        #         f"mIndex {giskard.r_tip}"
         #     ][0]
         #     >= m_threshold - 0.01
         # )
@@ -1800,13 +1800,13 @@ class TestWeightScaling:
         giskard.execute()
         # assert (
         #     god_map.debug_expression_manager.evaluated_debug_expressions[
-        #         PrefixedName(name=f"mIndex {giskard.r_tip}", prefix="")
+        #         f"mIndex {giskard.r_tip}"
         #     ][0]
         #     >= m_threshold - 0.02
         # )
         # assert (
         #     god_map.debug_expression_manager.evaluated_debug_expressions[
-        #         PrefixedName(name=f"mIndex {giskard.l_tip}", prefix="")
+        #         f"mIndex {giskard.l_tip}"
         #     ][0]
         #     >= m_threshold - 0.02
         # )

@@ -8,7 +8,6 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from semantic_digital_twin.adapters.mesh import STLParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -41,7 +40,7 @@ def tracy_milk_world(tracy_world):
     )
     with tracy_copy.modify_world():
         box = Body(
-            name=PrefixedName("box"),
+            name="box",
             collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
         )
         connection = Connection6DoF.create_with_dofs(tracy_copy, tracy_copy.root, box)

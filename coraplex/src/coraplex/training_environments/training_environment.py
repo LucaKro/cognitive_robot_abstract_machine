@@ -37,7 +37,6 @@ from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import (
     EndEffector,
     AbstractRobot,
@@ -157,8 +156,8 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
 
         with world_with_urdf.modify_world():
             old_root = world_with_urdf.root
-            map = Body(name=PrefixedName("map"))
-            localization_body = Body(name=PrefixedName("odom_combined"))
+            map = Body(name="map")
+            localization_body = Body(name="odom_combined")
 
             map_C_localization = Connection6DoF.create_with_dofs(
                 world_with_urdf, map, localization_body

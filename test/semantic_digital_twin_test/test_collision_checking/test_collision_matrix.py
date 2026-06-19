@@ -39,7 +39,6 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 from semantic_digital_twin.collision_checking.pybullet_collision_detector import (
     BulletCollisionDetector,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.pr2 import PR2
@@ -57,7 +56,7 @@ class TestCollisionRules:
     def test_get_distances(self, pr2_world_copy):
         with pr2_world_copy.modify_world():
             env = Body(
-                name=PrefixedName("env"),
+                name="env",
                 collision=ShapeCollection([Sphere(radius=0.5)]),
             )
             root_C_env = FixedConnection(pr2_world_copy.root, env)
@@ -281,7 +280,7 @@ class TestCollisionRules:
         rule.update(pr2_apartment_world)
         with pr2_apartment_world.modify_world():
             body = Body(
-                name=PrefixedName("muh"),
+                name="muh",
                 collision=ShapeCollection(shapes=[Sphere(radius=0.05)]),
             )
             connection = FixedConnection(
@@ -359,7 +358,7 @@ class TestCollisionRules:
         expected_check = CollisionCheck.create_and_validate(base_link, head_pan_link)
         assert expected_check in rule.allowed_collision_pairs
         assert 0 < len(rule.allowed_collision_pairs) < len(collision_checks)
-        rule.save_self_collision_matrix(robot_name=pr2.name.name, file_name="test.srdf")
+        rule.save_self_collision_matrix(robot_name=pr2.name, file_name="test.srdf")
 
         rule = SelfCollisionMatrixRule()
         rule.allowed_collision_bodies = {base_link}
@@ -440,7 +439,7 @@ class TestCollisionRules:
         # attach an object to the robot, this object should not be checked with gripper tool frame
         with pr2_world_copy.modify_world():
             body = Body(
-                name=PrefixedName("muh"),
+                name="muh",
                 collision=ShapeCollection(shapes=[Sphere(radius=0.05)]),
             )
             connection = FixedConnection(
@@ -558,22 +557,22 @@ class TestCollisionGroups:
         world = World()
         with world.modify_world():
             robot_base = Body(
-                name=PrefixedName("robot_base"),
+                name="robot_base",
                 collision=ShapeCollection([Sphere(radius=0.3)]),
             )
             world.add_body(robot_base)
             MinimalRobot.from_world(world)  # robot.root = robot_base
 
         with world.modify_world():
-            map_body = Body(name=PrefixedName("map"))
+            map_body = Body(name="map")
             obstacle = Body(
-                name=PrefixedName("obstacle"),
+                name="obstacle",
                 collision=ShapeCollection([Sphere(radius=0.1)]),
             )
             world.add_connection(FixedConnection(parent=map_body, child=robot_base))
             world.add_connection(
                 Connection6DoF.create_with_dofs(
-                    world, map_body, obstacle, PrefixedName("obstacle_conn")
+                    world, map_body, obstacle, "obstacle_conn"
                 )
             )
 

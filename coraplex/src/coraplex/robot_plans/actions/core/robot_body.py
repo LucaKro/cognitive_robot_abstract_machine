@@ -45,7 +45,7 @@ class MoveTorsoAction(ActionDescription):
         self.add_subplan(
             execute_single(
                 MoveJointsMotion(
-                    [c.name.name for c in joint_state.connections],
+                    [c.name for c in joint_state.connections],
                     joint_state.target_values,
                 ),
             )
@@ -113,7 +113,7 @@ class ParkArmsAction(ActionDescription):
         values = []
         for arm in arm_chain:
             joint_state = arm.get_joint_state_by_type(StaticJointState.PARK)
-            names.extend([c.name.name for c in joint_state.connections])
+            names.extend([c.name for c in joint_state.connections])
             values.extend(joint_state.target_values)
         return names, values
 

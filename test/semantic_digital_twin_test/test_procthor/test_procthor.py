@@ -20,7 +20,6 @@ from semantic_digital_twin.adapters.procthor.procthor_parser import (
 from semantic_digital_twin.adapters.procthor.procthor_resolver import (
     ProcthorResolver,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bread,
     Floor,
@@ -49,7 +48,7 @@ class ProcTHORTestCase(unittest.TestCase):
             cls.house_json = json.load(f)
 
         cls.world = World(name="TestWorld")
-        world_root = Body(name=PrefixedName("TestWorldRoot"))
+        world_root = Body(name="TestWorldRoot")
         with cls.world.modify_world():
             cls.world.add_kinematic_structure_entity(world_root)
 
@@ -127,7 +126,7 @@ class ProcTHORTestCase(unittest.TestCase):
         procthor_room = ProcthorRoom(room_dict=room)
         procthor_room.add_to_world(self.world)
         self.assertEqual(
-            self.world.root.child_kinematic_structure_entities[0].name.name,
+            self.world.root.child_kinematic_structure_entities[0].name,
             "Kitchen_4_floor",
         )
 
@@ -211,7 +210,7 @@ class ProcTHORTestCase(unittest.TestCase):
         double_door = procthor_door.add_to_world(self.world)
         doors = self.world.get_semantic_annotations_by_type(Door)
 
-        self.assertEqual(double_door.name.name, "Doorway_Double_7_room1_room4")
+        self.assertEqual(double_door.name, "Doorway_Double_7_room1_room4")
         self.assertEqual(len(doors), 2)
 
     def test_wall_creation(self):

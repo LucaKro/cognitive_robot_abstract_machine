@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 import krrood.symbolic_math.symbolic_math as sm
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import SpatialTypeNotJsonSerializable
 from semantic_digital_twin.spatial_types import Pose2D, Pose, Point3, Quaternion
 from semantic_digital_twin.spatial_types.spatial_types import RotationMatrix
@@ -35,7 +34,7 @@ class TestPose2DConstruction:
         assert p.shape == (3, 1)
 
     def test_reference_frame(self):
-        frame = Body(name=PrefixedName("world"))
+        frame = Body(name="world")
         p = Pose2D(x=1, y=2, yaw=0, reference_frame=frame)
         assert p.reference_frame is frame
 
@@ -73,7 +72,7 @@ class TestPose2DToPose:
         assert pitch.to_np() == pytest.approx(0.0, abs=1e-6)
 
     def test_to_pose_reference_frame_propagated(self):
-        frame = Body(name=PrefixedName("map"))
+        frame = Body(name="map")
         p2 = Pose2D(x=1, y=2, yaw=0, reference_frame=frame)
         assert p2.to_pose().reference_frame is frame
 
@@ -130,14 +129,14 @@ class TestPose2DFromPose:
         assert recovered.yaw.to_np() == pytest.approx(0.7, abs=1e-6)
 
     def test_from_pose_inherits_reference_frame(self):
-        frame = Body(name=PrefixedName("base"))
+        frame = Body(name="base")
         pose = Pose.from_xyz_rpy(1, 2, 3, 0, 0, 0.5, reference_frame=frame)
         p2 = Pose2D.from_pose(pose)
         assert p2.reference_frame is frame
 
     def test_from_pose_override_reference_frame(self):
-        frame1 = Body(name=PrefixedName("a"))
-        frame2 = Body(name=PrefixedName("b"))
+        frame1 = Body(name="a")
+        frame2 = Body(name="b")
         pose = Pose.from_xyz_rpy(0, 0, 0, 0, 0, 0, reference_frame=frame1)
         p2 = Pose2D.from_pose(pose, reference_frame=frame2)
         assert p2.reference_frame is frame2

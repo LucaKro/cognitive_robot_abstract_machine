@@ -18,7 +18,6 @@ from semantic_digital_twin.datastructures.definitions import (
     StaticJointState,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasLeftRightArm,
     HasTwoFingers,
@@ -148,13 +147,13 @@ class TracyLeftGripper(
         ]
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName("left_gripper_open", prefix=self.name.name),
+            name="left_gripper_open",
             mapping=dict(zip(left_gripper_joints, [0.0, 0.0])),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName("left_gripper_close", prefix=self.name.name),
+            name="left_gripper_close",
             mapping=dict(
                 zip(
                     left_gripper_joints,
@@ -199,13 +198,13 @@ class TracyRightGripper(
         ]
 
         gripper_open = JointState.from_mapping(
-            name=PrefixedName("right_gripper_open", prefix=self.name.name),
+            name="right_gripper_open",
             mapping=dict(zip(right_gripper_joints, [0.0, 0.0])),
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
-            name=PrefixedName("right_gripper_close", prefix=self.name.name),
+            name="right_gripper_close",
             mapping=dict(zip(right_gripper_joints, [0.8, -0.8])),
             state_type=GripperState.CLOSE,
         )
@@ -236,7 +235,7 @@ class TracyLeftArm(Arm[TracyLeftGripper]):
     def setup_joint_states(self) -> List[JointState]:
         connections = self.active_connections
         arm_park = JointState.from_mapping(
-            name=PrefixedName("left_arm_park", prefix=self.name.name),
+            name="left_arm_park",
             mapping=dict(zip(connections, [2.62, -1.035, 1.13, -0.966, -0.88, 2.07])),
             state_type=StaticJointState.PARK,
         )
@@ -263,7 +262,7 @@ class TracyRightArm(Arm[TracyRightGripper]):
     def setup_joint_states(self) -> List[JointState]:
         connections = self.active_connections
         arm_park = JointState.from_mapping(
-            name=PrefixedName("right_arm_park", prefix=self.name.name),
+            name="right_arm_park",
             mapping=dict(zip(connections, [3.72, -2.07, -1.17, 4.0, 0.82, 0.75])),
             state_type=StaticJointState.PARK,
         )

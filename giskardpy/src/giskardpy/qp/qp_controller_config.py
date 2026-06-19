@@ -9,7 +9,6 @@ from typing import Dict, Type
 from typing_extensions import TYPE_CHECKING
 
 from giskardpy.qp.solvers.qp_solver_piqp import QPSolverPIQP
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 
@@ -63,7 +62,7 @@ class QPControllerConfig:
     .. warning:: Minimum value is 4, otherwise it becomes impossible to integrate jerk into the QP formulation.
     """
 
-    dof_weights: Dict[PrefixedName, DerivativeMap[float]] = field(
+    dof_weights: Dict[str, DerivativeMap[float]] = field(
         default_factory=lambda: defaultdict(
             lambda: DerivativeMap(None, 0.01, None, None)
         )
@@ -144,15 +143,15 @@ class QPControllerConfig:
         )
 
     def set_dof_weight(
-        self, dof_name: PrefixedName, derivative: Derivatives, weight: float
+        self, dof_name: str, derivative: Derivatives, weight: float
     ):
         """Set weight for a specific DOF derivative."""
         self.dof_weights[dof_name][derivative] = weight
 
-    def set_dof_weights(self, dof_name: PrefixedName, weight_map: DerivativeMap[float]):
+    def set_dof_weights(self, dof_name: str, weight_map: DerivativeMap[float]):
         """Set multiple weights for a DOF."""
         self.dof_weights[dof_name] = weight_map
 
-    def get_dof_weight(self, dof_name: PrefixedName, derivative: Derivatives) -> float:
+    def get_dof_weight(self, dof_name: str, derivative: Derivatives) -> float:
         """Get weight for a specific DOF derivative."""
         return self.dof_weights[dof_name][derivative]

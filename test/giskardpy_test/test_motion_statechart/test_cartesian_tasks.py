@@ -41,7 +41,6 @@ from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     trinary_logic_not,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.spatial_types import (
@@ -397,7 +396,7 @@ class TestCartesianTasks:
         """Test combined position and orientation control in parallel."""
         with _hsr_world_setup.modify_world():
             box = Body(
-                name=PrefixedName("muh"),
+                name="muh",
                 collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
             )
             connection = FixedConnection(

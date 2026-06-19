@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 
 from giskardpy.model.world_config import WorldWithOmniDriveRobot
 from giskardpy.middleware.ros2.giskard import RobotInterfaceConfig
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.world_description.connections import (
@@ -12,7 +11,7 @@ from semantic_digital_twin.world_description.connections import (
 
 @dataclass
 class WorldWithPR2Config(WorldWithOmniDriveRobot):
-    odom_body_name: PrefixedName = PrefixedName("odom_combined")
+    odom_body_name: str = "odom_combined"
     urdf_view: AbstractRobot = field(kw_only=True, default=PR2, init=False)
 
 

@@ -19,7 +19,6 @@ from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.view_manager import ViewManager
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -67,7 +66,7 @@ class IsVisibleBy(PoseValidator):
         :return: True if the target pose is visible for the robot, False otherwise
         """
         gen_body = Body(
-            name=PrefixedName("vist_test_obj", "coraplex"),
+            name="vist_test_obj",
             collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
         )
         with self.world.modify_world():

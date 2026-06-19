@@ -6,7 +6,6 @@ import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.graph_node import Task
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import Vector3, HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 from semantic_digital_twin.world_description.connections import OmniDrive
@@ -33,7 +32,7 @@ class BaseTrajFollower(Goal):
     def x_symbol(
         self,
         t: int,
-        free_variable_name: PrefixedName,
+        free_variable_name: str,
         derivative: Derivatives = Derivatives.position,
     ) -> sm.FloatVariable:
         expr = (
@@ -43,7 +42,7 @@ class BaseTrajFollower(Goal):
 
     def current_traj_point(
         self,
-        free_variable_name: PrefixedName,
+        free_variable_name: str,
         start_t: float,
         derivative: Derivatives = Derivatives.position,
     ) -> sm.Scalar:

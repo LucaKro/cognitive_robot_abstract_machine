@@ -27,7 +27,7 @@ class JointGroupVelController(GiskardBehavior):
             connection.has_hardware_interface = True
         self.msg = None
         rospy.node.get_logger().info(
-            f"Created publisher for {self.cmd_topic} for {[c.name.name for c in self.connections]}"
+            f"Created publisher for {self.cmd_topic} for {[c.name for c in self.connections]}"
         )
 
     @catch_and_raise_to_blackboard

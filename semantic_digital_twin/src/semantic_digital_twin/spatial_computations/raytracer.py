@@ -78,20 +78,20 @@ class RayTracer:
         bodies_to_add = [
             body
             for body in self.world.bodies
-            if body.name.name not in "\t".join(self.scene.graph.nodes)
+            if body.name not in "\t".join(self.scene.graph.nodes)
         ]
         for body in bodies_to_add:
             for i, collision in enumerate(body.collision):
                 self.scene.add_geometry(
                     collision.mesh,
-                    node_name=body.name.name + f"_collision_{i}",
+                    node_name=body.name + f"_collision_{i}",
                     parent_node_name="world",
                     transform=self.world.compute_forward_kinematics_np(
                         self.world.root, body
                     )
                     @ collision.origin.to_np(),
                 )
-                self.scene_to_index[body.name.name + f"_collision_{i}"] = body.index
+                self.scene_to_index[body.name + f"_collision_{i}"] = body.index
                 self.index_to_body[body.index] = body
 
     def update_transforms(self):
@@ -105,7 +105,7 @@ class RayTracer:
                     self.world.compute_forward_kinematics_np(self.world.root, body)
                     @ collision.origin.to_np()
                 )
-                self.scene.graph[body.name.name + f"_collision_{i}"] = transform
+                self.scene.graph[body.name + f"_collision_{i}"] = transform
 
     def create_segmentation_mask(
         self,

@@ -8,19 +8,18 @@ from semantic_digital_twin.world_description.graph_of_convex_sets import (
     navigation_map_at_target,
 )
 from semantic_digital_twin.world import World
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
 
 @pytest.fixture
 def simple_world():
     world = World()
-    root = Body(name=PrefixedName("map"))
+    root = Body(name="map")
     with world.modify_world():
         world.add_body(root)
 
     # Add a target body
-    target = Body(name=PrefixedName("target"))
+    target = Body(name="target")
     with world.modify_world():
         world.add_body(target)
         world.add_connection(
@@ -35,7 +34,7 @@ def simple_world():
 
     # Add an obstacle body
     obstacle = Body(
-        name=PrefixedName("obstacle"),
+        name="obstacle",
         collision=ShapeCollection([Box(scale=Scale(0.5, 0.5, 0.5))]),
     )
     with world.modify_world():

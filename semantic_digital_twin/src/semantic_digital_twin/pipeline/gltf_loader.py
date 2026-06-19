@@ -14,7 +14,6 @@ from ..world_description.connections import FixedConnection
 from ..world_description.shape_collection import ShapeCollection
 from ..world_description.geometry import Mesh, Scale
 from ..spatial_types import HomogeneousTransformationMatrix
-from ..datastructures.prefixed_name import PrefixedName
 
 
 @dataclass
@@ -94,7 +93,7 @@ class GLTFLoader(Step):
 
         # Create Body
         body = Body(
-            name=PrefixedName(name),
+            name=name,
             collision=shape_collection,
             visual=shape_collection,  # Use same for both collision and visual
         )
@@ -182,7 +181,7 @@ class GLTFLoader(Step):
             parent=parent_body,
             child=child_body,
             parent_T_connection_expression=relative_transform,
-            name=PrefixedName(f"{parent_node}_{child_node}"),
+            name=f"{parent_node}_{child_node}",
         )
         world.add_connection(conn)
 
@@ -213,7 +212,7 @@ class GLTFLoader(Step):
                 parent_T_connection_expression=HomogeneousTransformationMatrix(
                     root_transform
                 ),
-                name=PrefixedName(f"object_root_{object_root}"),
+                name=f"object_root_{object_root}",
             )
             world.add_connection(conn)
 
@@ -229,7 +228,7 @@ class GLTFLoader(Step):
 
     def _create_empty_body(self, name: str) -> Body:
         """Generate a body instance without any geometry."""
-        return Body(name=PrefixedName(name))
+        return Body(name=name)
 
     def _process_node(
         self, node: str, body_parent: str, visited_nodes: Set[str]

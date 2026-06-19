@@ -11,7 +11,6 @@ from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     SpatialTypeNotJsonSerializable,
     WorldEntityWithIDNotInKwargs,
@@ -37,7 +36,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 def test_body_json_serialization():
     world = World()
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     collision = [
         Box(origin=HomogeneousTransformationMatrix.from_xyz_rpy(0, 1, 0, 0, 0, 1, body))
     ]
@@ -85,8 +84,8 @@ def test_dof_hardware_interface_serialization():
 
 
 def test_transformation_matrix_json_serialization():
-    body = Body(name=PrefixedName("body"))
-    body2 = Body(name=PrefixedName("body2"))
+    body = Body(name="body")
+    body2 = Body(name="body2")
     transform = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=1, y=2, z=3, roll=1, pitch=2, yaw=3, reference_frame=body, child_frame=body2
     )
@@ -102,7 +101,7 @@ def test_transformation_matrix_json_serialization():
 
 
 def test_point3_json_serialization():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     point = Point3(1, 2, 3, reference_frame=body)
     json_data = point.to_json()
     kwargs = {}
@@ -115,14 +114,14 @@ def test_point3_json_serialization():
 
 
 def test_point3_json_serialization_with_expression():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     point = Point3(f := FloatVariable(name="muh"), reference_frame=body)
     with pytest.raises(SpatialTypeNotJsonSerializable):
         point.to_json()
 
 
 def test_KinematicStructureEntityNotInKwargs():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     point = Point3(1, 2, 3, reference_frame=body)
     json_data = point.to_json()
     kwargs = {}
@@ -131,7 +130,7 @@ def test_KinematicStructureEntityNotInKwargs():
 
 
 def test_KinematicStructureEntityNotInKwargs2():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     point = Point3(1, 2, 3, reference_frame=body)
     json_data = point.to_json()
     tracker = WorldEntityWithIDKwargsTracker.from_world(World())
@@ -140,21 +139,21 @@ def test_KinematicStructureEntityNotInKwargs2():
 
 
 def test_vector3_json_serialization_with_expression():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     vector = Vector3(f := FloatVariable(name="muh"), reference_frame=body)
     with pytest.raises(SpatialTypeNotJsonSerializable):
         vector.to_json()
 
 
 def test_quaternion_json_serialization_with_expression():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     quaternion = Quaternion(f := FloatVariable(name="muh"), reference_frame=body)
     with pytest.raises(SpatialTypeNotJsonSerializable):
         quaternion.to_json()
 
 
 def test_rotation_matrix_json_serialization_with_expression():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     f = FloatVariable(name="muh")
     rotation = RotationMatrix.from_rpy(roll=f, reference_frame=body)
     with pytest.raises(SpatialTypeNotJsonSerializable):
@@ -162,7 +161,7 @@ def test_rotation_matrix_json_serialization_with_expression():
 
 
 def test_transformation_matrix_json_serialization_with_expression():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     transform = HomogeneousTransformationMatrix.from_xyz_rpy(
         f := FloatVariable(name="muh"), reference_frame=body
     )
@@ -171,7 +170,7 @@ def test_transformation_matrix_json_serialization_with_expression():
 
 
 def test_vector3_json_serialization():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     vector = Vector3(1, 2, 3, reference_frame=body)
     json_data = vector.to_json()
     kwargs = {}
@@ -184,7 +183,7 @@ def test_vector3_json_serialization():
 
 
 def test_quaternion_json_serialization():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     quaternion = Quaternion(1, 0, 0, 0, reference_frame=body)
     json_data = quaternion.to_json()
     kwargs = {}
@@ -197,7 +196,7 @@ def test_quaternion_json_serialization():
 
 
 def test_rotation_matrix_json_serialization():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     rotation = RotationMatrix.from_rpy(roll=1, pitch=2, yaw=3, reference_frame=body)
     json_data = rotation.to_json()
     kwargs = {}
@@ -210,7 +209,7 @@ def test_rotation_matrix_json_serialization():
 
 
 def test_pose_json_serialization():
-    body = Body(name=PrefixedName("body"))
+    body = Body(name="body")
     pose = Pose.from_xyz_rpy(
         x=4, y=5, z=7, roll=1, pitch=2, yaw=3, reference_frame=body
     )
@@ -226,8 +225,8 @@ def test_pose_json_serialization():
 
 def test_connection_json_serialization_with_world():
     world = World()
-    body = Body(name=PrefixedName("body"))
-    body2 = Body(name=PrefixedName("body2"))
+    body = Body(name="body")
+    body2 = Body(name="body2")
     with world.modify_world():
         world.add_kinematic_structure_entity(body)
         world.add_kinematic_structure_entity(body2)
@@ -262,8 +261,8 @@ def test_connection_json_serialization_with_world():
 
 def test_transformation_matrix_json_serialization_with_world_in_kwargs():
     world = World()
-    body = Body(name=PrefixedName("body"))
-    body2 = Body(name=PrefixedName("body2"))
+    body = Body(name="body")
+    body2 = Body(name="body2")
     with world.modify_world():
         world.add_kinematic_structure_entity(body)
         world.add_kinematic_structure_entity(body2)

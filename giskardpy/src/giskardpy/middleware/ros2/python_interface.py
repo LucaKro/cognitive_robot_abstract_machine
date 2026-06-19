@@ -23,7 +23,6 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from semantic_digital_twin.adapters.ros.world_fetcher import fetch_world_from_service
 from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchronizer
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world import World
 
@@ -59,7 +58,7 @@ class GiskardWrapper:
         sleep(0.3)
 
     @property
-    def robot_name(self) -> PrefixedName:
+    def robot_name(self) -> str:
         return self.robot.name
 
     @property

@@ -45,7 +45,7 @@ class TestWorldDescriptorBootstrapAnnotator:
             PredefinedObject
         )
         predefined_object_names = {
-            annotation.body.name.name
+            annotation.body.name
             for annotation in predefined_objects
             if annotation.body is not None
         }

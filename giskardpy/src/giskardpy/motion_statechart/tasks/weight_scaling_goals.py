@@ -111,10 +111,10 @@ class MaxManipulability(Task):
         )
 
         context.add_debug_expression(
-            f"mIndex {self.tip_link.name.name}", m, derivatives_to_plot=[0, 1]
+            f"mIndex {self.tip_link.name}", m, derivatives_to_plot=[0, 1]
         )
         context.add_debug_expression(
-            f"mIndex {self.tip_link.name.name} threshold",
+            f"mIndex {self.tip_link.name} threshold",
             self.m_threshold,
             derivatives_to_plot=[0, 1],
         )

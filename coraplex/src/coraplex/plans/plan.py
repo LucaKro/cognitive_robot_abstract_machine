@@ -376,7 +376,7 @@ class Plan:
         """
         self.context.world = deepcopy(self.initial_world)
         self.context.robot = self.context.world.get_semantic_annotation_by_name(
-            self.context.robot.name.name
+            self.context.robot.name
         )
 
     def replay(self):

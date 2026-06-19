@@ -19,7 +19,6 @@ from krrood.adapters.exceptions import JSONSerializationError
 from krrood.symbolic_math.symbolic_math import SymbolicMathType
 from krrood.exceptions import DataclassException
 from semantic_digital_twin.datastructures.definitions import JointStateType
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
     from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
@@ -129,7 +128,7 @@ class NegativeConnectionVelocity(DataclassException):
     An error that happens when a negative velocity limit is provided for a connection.
     """
 
-    connection_name: Union[str, PrefixedName]
+    connection_name: Union[str, str]
     """
     The name of the connection for which the velocity limit is negative.
     """
@@ -318,7 +317,7 @@ class InvalidConnectionLimits(UsageError):
     Raised when the lower limit is not less than the upper limit for a degree of freedom.
     """
 
-    name: PrefixedName
+    name: str
     """
     The name of the degree of freedom.
     """
@@ -341,7 +340,7 @@ class MimicDofLimitOverwriteError(UsageError):
     Raised when trying to overwrite the limits of a mimic degree of freedom.
     """
 
-    dof_name: PrefixedName
+    dof_name: str
     """
     The name of the mimic degree of freedom.
     """
@@ -746,8 +745,8 @@ class DuplicateWorldEntityError(UsageError):
     def suggest_correction(self) -> str:
         return (
             "if this came from a lookup with a plain string name, disambiguate by passing a "
-            "PrefixedName with the desired prefix, or use the plural get_..._by_name variant "
-            "to retrieve all matches."
+            "use the plural get_..._by_name variant to retrieve all matches, "
+            "or qualify the name with a prefix before lookup."
         )
 
 
@@ -924,15 +923,15 @@ class PathResolutionError(ParsingError):
 
 @dataclass
 class WorldEntityNotFoundError(UsageError):
-    name_or_hash: Union[str, PrefixedName, int]
+    name_or_hash: Union[str, str, int]
 
-    suggestions: List[Union[str, PrefixedName]] = field(default_factory=list)
+    suggestions: List[Union[str, str]] = field(default_factory=list)
     """
     Names of existing world entities that closely match the searched name.
     """
 
     def error_message(self) -> str:
-        if isinstance(self.name_or_hash, (str, PrefixedName)):
+        if isinstance(self.name_or_hash, str):
             return f"No world entity with name '{self.name_or_hash}' found."
         return f"No world entity with hash {self.name_or_hash} found."
 

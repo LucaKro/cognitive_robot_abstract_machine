@@ -21,7 +21,6 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
 )
@@ -96,7 +95,7 @@ def test_insert(session):
     scale = Scale(1.0, 1.0, 1.0)
     color = Color(0.0, 1.0, 1.0)
     shape1 = Box(origin=origin, scale=scale, color=color)
-    b1 = Body(name=PrefixedName("b1"), collision=ShapeCollection([shape1]))
+    b1 = Body(name="b1", collision=ShapeCollection([shape1]))
 
     dao: BodyDAO = to_dao(b1)
     assert dao.collision.shapes[0].target.origin is not None
@@ -179,18 +178,18 @@ def test_part_whole_relationship_field_survives_deepcopy():
     copy_functions = [copy, deepcopy]
     for copy_function in copy_functions:
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             drawer = Drawer.create_with_new_body_in_world(
-                name=PrefixedName("drawer"), scale=Scale(0.2, 0.3, 0.2), world=world
+                name="drawer", scale=Scale(0.2, 0.3, 0.2), world=world
             )
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"), world=world
+                name="handle", world=world
             )
             slider = Slider.create_with_new_body_in_world(
-                name=PrefixedName("slider"), world=world, active_axis=Vector3.X()
+                name="slider", world=world, active_axis=Vector3.X()
             )
             drawer.add(handle)
             drawer.add(slider)
@@ -234,18 +233,18 @@ def test_part_whole_relationship_field_metadata_survives_orm_round_trip(session)
     (handle, mechanical_joint) must survive the round trip.
     """
     world = World()
-    root = Body(name=PrefixedName("root"))
+    root = Body(name="root")
     with world.modify_world():
         world.add_body(root)
     with world.modify_world():
         drawer = Drawer.create_with_new_body_in_world(
-            name=PrefixedName("drawer"), scale=Scale(0.2, 0.3, 0.2), world=world
+            name="drawer", scale=Scale(0.2, 0.3, 0.2), world=world
         )
         handle = Handle.create_with_new_body_in_world(
-            name=PrefixedName("handle"), world=world
+            name="handle", world=world
         )
         slider = Slider.create_with_new_body_in_world(
-            name=PrefixedName("slider"), world=world, active_axis=Vector3.X()
+            name="slider", world=world, active_axis=Vector3.X()
         )
         drawer.add(handle)
         drawer.add(slider)

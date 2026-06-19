@@ -19,7 +19,6 @@ from giskardpy.middleware.ros2.ros2_interface import (
 )
 from giskardpy.tree.blackboard_utils import GiskardBlackboard
 from giskardpy.tree.branches.giskard_bt import GiskardBT
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 from semantic_digital_twin.world import World
@@ -127,7 +126,7 @@ class RobotInterfaceConfig(ABC):
             )
 
     def register_controlled_joints(
-        self, joint_names: List[Union[str, PrefixedName]]
+        self, joint_names: List[Union[str, str]]
     ) -> None:
         if not GiskardBlackboard().tree_config.is_standalone():
             raise SetupException(

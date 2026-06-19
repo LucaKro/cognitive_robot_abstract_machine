@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from random_events.product_algebra import Event
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     CannotBeAPartOf,
     AmbiguousPart,
@@ -77,12 +76,12 @@ from semantic_digital_twin.world_description.world_entity import Body
 class TestFactories(unittest.TestCase):
     def test_handle_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             returned_handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 scale=Scale(0.1, 0.2, 0.03),
                 thickness=0.03,
                 world=world,
@@ -103,17 +102,17 @@ class TestFactories(unittest.TestCase):
 
     def test_basic_has_body_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             returned_hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName("hinge"),
+                name="hinge",
                 world=world,
                 active_axis=Vector3.Z(),
             )
             returned_slider = Slider.create_with_new_body_in_world(
-                name=PrefixedName("slider"),
+                name="slider",
                 world=world,
                 active_axis=Vector3.X(),
             )
@@ -135,12 +134,12 @@ class TestFactories(unittest.TestCase):
 
     def test_door_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             returned_door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+                name="door", scale=Scale(0.03, 1, 2), world=world
             )
         semantic_door_annotations = world.get_semantic_annotations_by_type(Door)
         self.assertEqual(len(semantic_door_annotations), 1)
@@ -158,41 +157,41 @@ class TestFactories(unittest.TestCase):
 
     def test_door_factory_invalid(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             with pytest.raises(InvalidPlaneDimensions):
                 Door.create_with_new_body_in_world(
-                    name=PrefixedName("door"),
+                    name="door",
                     scale=Scale(1, 1, 2),
                     world=world,
                 )
 
             with pytest.raises(InvalidPlaneDimensions):
                 Door.create_with_new_body_in_world(
-                    name=PrefixedName("door"),
+                    name="door",
                     scale=Scale(1, 2, 1),
                     world=world,
                 )
 
         with pytest.raises(MissingWorldModificationContextError):
             Door.create_with_new_body_in_world(
-                name=PrefixedName("door"),
+                name="door",
                 world=world,
             )
 
     def test_has_hinge_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+                name="door", scale=Scale(0.03, 1, 2), world=world
             )
             hinge = Hinge.create_with_new_body_in_world(
-                name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+                name="hinge", world=world, active_axis=Vector3.Z()
             )
         assert len(world.kinematic_structure_entities) == 4
         assert isinstance(hinge.root.parent_connection, RevoluteConnection)
@@ -206,18 +205,18 @@ class TestFactories(unittest.TestCase):
 
     def test_has_handle_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"),
+                name="door",
                 scale=Scale(0.03, 1, 2),
                 world=world,
             )
 
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=world,
             )
         assert len(world.kinematic_structure_entities) == 4
@@ -231,12 +230,12 @@ class TestFactories(unittest.TestCase):
 
     def test_case_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             fridge = Fridge.create_with_new_body_in_world(
-                name=PrefixedName("case"),
+                name="case",
                 world=world,
                 scale=Scale(1, 1, 2.0),
             )
@@ -250,12 +249,12 @@ class TestFactories(unittest.TestCase):
 
     def test_drawer_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             drawer = Drawer.create_with_new_body_in_world(
-                name=PrefixedName("drawer"),
+                name="drawer",
                 world=world,
                 scale=Scale(0.2, 0.3, 0.2),
             )
@@ -265,17 +264,17 @@ class TestFactories(unittest.TestCase):
 
     def test_has_slider_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             drawer = Drawer.create_with_new_body_in_world(
-                name=PrefixedName("drawer"),
+                name="drawer",
                 scale=Scale(0.2, 0.3, 0.2),
                 world=world,
             )
             slider = Slider.create_with_new_body_in_world(
-                name=PrefixedName("slider"), world=world, active_axis=Vector3.X()
+                name="slider", world=world, active_axis=Vector3.X()
             )
         assert len(world.kinematic_structure_entities) == 3
         with world.modify_world():
@@ -287,17 +286,17 @@ class TestFactories(unittest.TestCase):
 
     def test_has_drawer_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             fridge = Fridge.create_with_new_body_in_world(
-                name=PrefixedName("case"),
+                name="case",
                 world=world,
                 scale=Scale(1, 1, 2.0),
             )
             drawer = Drawer.create_with_new_body_in_world(
-                name=PrefixedName("drawer"), world=world
+                name="drawer", world=world
             )
             fridge.add(drawer)
 
@@ -307,17 +306,17 @@ class TestFactories(unittest.TestCase):
 
     def test_has_doors_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             fridge = Fridge.create_with_new_body_in_world(
-                name=PrefixedName("case"),
+                name="case",
                 world=world,
                 scale=Scale(1, 1, 2.0),
             )
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("left_door"),
+                name="left_door",
                 world=world,
             )
             fridge.add(door)
@@ -328,12 +327,12 @@ class TestFactories(unittest.TestCase):
 
     def test_floor_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             floor = Floor.create_with_new_body_in_world(
-                name=PrefixedName("floor"),
+                name="floor",
                 world=world,
                 scale=Scale(5, 5, 0.01),
             )
@@ -344,12 +343,12 @@ class TestFactories(unittest.TestCase):
 
     def test_wall_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             wall = Wall.create_with_new_body_in_world(
-                name=PrefixedName("wall"),
+                name="wall",
                 scale=Scale(0.1, 4, 2),
                 world=world,
             )
@@ -360,12 +359,12 @@ class TestFactories(unittest.TestCase):
 
     def test_aperture_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             aperture = Aperture.create_with_new_region_in_world(
-                name=PrefixedName("wall"),
+                name="wall",
                 scale=Scale(0.1, 4, 2),
                 world=world,
             )
@@ -376,17 +375,17 @@ class TestFactories(unittest.TestCase):
 
     def test_aperture_from_body_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"),
+                name="door",
                 scale=Scale(0.03, 1, 2),
                 world=world,
             )
             aperture = Aperture.create_with_new_region_in_world_from_body(
-                name=PrefixedName("wall"),
+                name="wall",
                 world=world,
                 body=door.root,
             )
@@ -397,22 +396,22 @@ class TestFactories(unittest.TestCase):
 
     def test_has_aperture_factory(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             wall = Wall.create_with_new_body_in_world(
-                name=PrefixedName("wall"),
+                name="wall",
                 scale=Scale(0.1, 4, 2),
                 world=world,
             )
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"),
+                name="door",
                 scale=Scale(0.03, 1, 2),
                 world=world,
             )
             aperture = Aperture.create_with_new_region_in_world_from_body(
-                name=PrefixedName("wall"),
+                name="wall",
                 world=world,
                 body=door.root,
             )
@@ -423,12 +422,12 @@ class TestFactories(unittest.TestCase):
 
     def _setup_door(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"), scale=Scale(0.03, 1.0, 2.0), world=world
+                name="door", scale=Scale(0.03, 1.0, 2.0), world=world
             )
         return world, door
 
@@ -442,7 +441,7 @@ class TestFactories(unittest.TestCase):
         # Add handle at y=0.4 (right side of door center)
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(y=0.4),
             )
@@ -461,7 +460,7 @@ class TestFactories(unittest.TestCase):
         # Add handle at y=-0.4 (left side of door center)
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(y=-0.4),
             )
@@ -479,7 +478,7 @@ class TestFactories(unittest.TestCase):
         # Add handle
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     y=0.4, z=0.0
@@ -500,7 +499,7 @@ class TestFactories(unittest.TestCase):
         # Add handle
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     y=0.5, z=0.0
@@ -523,7 +522,7 @@ class TestFactories(unittest.TestCase):
         world, door = self._setup_door()
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"),
+                name="handle",
                 world=world,
             )
             door.add(handle)
@@ -532,12 +531,12 @@ class TestFactories(unittest.TestCase):
 
     def test_calculate_supporting_surface(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             table = Table.create_with_new_body_in_world(
-                name=PrefixedName("table"), world=world
+                name="table", world=world
             )
         table_scale = Scale(1.0, 1.0, 0.1)
         table.root.collision = BoundingBoxCollection.from_event(
@@ -555,12 +554,12 @@ class TestFactories(unittest.TestCase):
 
     def test_supporting_surface_position_on_top_of_table(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             table = Table.create_with_new_body_in_world(
-                name=PrefixedName("table"),
+                name="table",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(z=1.5),
             )
@@ -583,30 +582,30 @@ class TestFactories(unittest.TestCase):
 
     def test_sample_points_from_surface(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             milk = Milk.create_with_new_body_in_world(
-                name=PrefixedName("milk"),
+                name="milk",
                 world=world,
                 scale=Scale(0.03, 0.03, 0.1),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
             )
             cereal = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal"),
+                name="cereal",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.5),
             )
             table = Table.create_with_new_body_in_world(
-                name=PrefixedName("table"), world=world, scale=Scale(1.0, 1.0, 0.1)
+                name="table", world=world, scale=Scale(1.0, 1.0, 0.1)
             )
             table.add_object(milk)
             table.add_object(cereal)
 
             cereal_to_place = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal_to_place"),
+                name="cereal_to_place",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
             )
@@ -626,30 +625,30 @@ class TestFactories(unittest.TestCase):
 
     def test_sample_points_from_surface_with_category_of_interest(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             milk = Milk.create_with_new_body_in_world(
-                name=PrefixedName("milk"),
+                name="milk",
                 world=world,
                 scale=Scale(0.03, 0.03, 0.1),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
             )
             cereal = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal"),
+                name="cereal",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.5),
             )
             cereal2 = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal"),
+                name="cereal",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(y=0.2),
             )
             table = Table.create_with_new_body_in_world(
-                name=PrefixedName("table"), world=world, scale=Scale(1.0, 1.0, 0.1)
+                name="table", world=world, scale=Scale(1.0, 1.0, 0.1)
             )
             table.add_object(milk)
             table.add_object(cereal)
@@ -673,24 +672,24 @@ class TestFactories(unittest.TestCase):
 
     def test_remove_objects_from_sampling_event(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             milk = Milk.create_with_new_body_in_world(
-                name=PrefixedName("milk"),
+                name="milk",
                 world=world,
                 scale=Scale(0.03, 0.03, 0.1),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
             )
             cereal = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal"),
+                name="cereal",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.5),
             )
             table = Table.create_with_new_body_in_world(
-                name=PrefixedName("table"), world=world, scale=Scale(1.0, 1.0, 0.1)
+                name="table", world=world, scale=Scale(1.0, 1.0, 0.1)
             )
             table.add_object(milk)
             table.add_object(cereal)
@@ -712,37 +711,37 @@ class TestFactories(unittest.TestCase):
 
     def test_sample_points_from_surface_with_object_and_category_of_interest(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             milk = Milk.create_with_new_body_in_world(
-                name=PrefixedName("milk"),
+                name="milk",
                 world=world,
                 scale=Scale(0.03, 0.03, 0.1),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
             )
             cereal = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal"),
+                name="cereal",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.5),
             )
             cereal2 = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal"),
+                name="cereal",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(y=0.2),
             )
             table = Table.create_with_new_body_in_world(
-                name=PrefixedName("table"), world=world, scale=Scale(1.0, 1.0, 0.1)
+                name="table", world=world, scale=Scale(1.0, 1.0, 0.1)
             )
             table.add_object(milk)
             table.add_object(cereal)
             table.add_object(cereal2)
 
             cereal_to_place = Cereal.create_with_new_body_in_world(
-                name=PrefixedName("cereal_to_place"),
+                name="cereal_to_place",
                 world=world,
                 scale=Scale(0.1, 0.03, 0.2),
             )
@@ -764,7 +763,7 @@ class TestFactories(unittest.TestCase):
 
     def test_floor_polytope(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         points = [
             Point3(0, 0, 0, reference_frame=root),
             Point3(1, 0, 0, reference_frame=root),
@@ -775,28 +774,28 @@ class TestFactories(unittest.TestCase):
             world.add_body(root)
         with world.modify_world():
             floor = Floor.create_with_new_body_from_polytope_in_world(
-                name=PrefixedName("floor"), world=world, floor_polytope=points
+                name="floor", world=world, floor_polytope=points
             )
         self.assertEqual(len(world.get_semantic_annotations_by_type(Floor)), 1)
         self.assertTrue(len(floor.root.collision) > 0)
 
     def test_wall_doors(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             wall = Wall.create_with_new_body_in_world(
-                name=PrefixedName("wall"), scale=Scale(0.1, 4, 2), world=world
+                name="wall", scale=Scale(0.1, 4, 2), world=world
             )
 
             door_scale = Scale(0.01, 1, 1)
             door = Door.create_with_new_body_in_world(
-                name=PrefixedName("door"), scale=door_scale, world=world
+                name="door", scale=door_scale, world=world
             )
 
             door2 = Door.create_with_new_body_in_world(
-                name=PrefixedName("door2"),
+                name="door2",
                 scale=door_scale,
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=2),
@@ -808,28 +807,28 @@ class TestFactories(unittest.TestCase):
 
     def test_handle_with_thickness(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             handle = Handle.create_with_new_body_in_world(
-                name=PrefixedName("handle"), world=world, thickness=0.005
+                name="handle", world=world, thickness=0.005
             )
         self.assertTrue(len(handle.root.collision) > 1)
 
     def test_add_aperture_geometry(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             wall = Wall.create_with_new_body_in_world(
-                name=PrefixedName("wall"), scale=Scale(0.01, 4, 2), world=world
+                name="wall", scale=Scale(0.01, 4, 2), world=world
             )
             initial_shapes_count = len(wall.root.collision)
 
             aperture = Aperture.create_with_new_region_in_world(
-                name=PrefixedName("aperture"), scale=Scale(0.1, 1, 1), world=world
+                name="aperture", scale=Scale(0.1, 1, 1), world=world
             )
             wall.add(aperture)
         self.assertIn(aperture, wall.apertures)
@@ -837,7 +836,7 @@ class TestFactories(unittest.TestCase):
 
     def test_create_with_connection_limits(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         lower = DerivativeMap[float]()
         lower.position = -0.5
         upper = DerivativeMap[float]()
@@ -848,7 +847,7 @@ class TestFactories(unittest.TestCase):
             world.add_body(root)
         with world.modify_world():
             Hinge.create_with_new_body_in_world(
-                name=PrefixedName("hinge"),
+                name="hinge",
                 world=world,
                 connection_limits=limits,
                 active_axis=Vector3.Z(),
@@ -860,7 +859,7 @@ class TestFactories(unittest.TestCase):
 
     def test_create_with_invalid_connection_limits(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         lower = DerivativeMap[float]()
@@ -871,7 +870,7 @@ class TestFactories(unittest.TestCase):
 
         with self.assertRaises(InvalidConnectionLimits), world.modify_world():
             Hinge.create_with_new_body_in_world(
-                name=PrefixedName("hinge"),
+                name="hinge",
                 world=world,
                 connection_limits=limits,
                 active_axis=Vector3.Z(),
@@ -879,27 +878,27 @@ class TestFactories(unittest.TestCase):
 
     def test_perceivable_cup(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             cup = Cup.create_with_new_body_in_world(
-                name=PrefixedName("cup"), world=world
+                name="cup", world=world
             )
         cup.class_label = "plastic_cup"
         self.assertEqual(cup.class_label, "plastic_cup")
 
     def test_is_storage_space(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             cabinet = Cabinet.create_with_new_body_in_world(
-                name=PrefixedName("cabinet"), world=world, scale=Scale(0.5, 0.5, 1.0)
+                name="cabinet", world=world, scale=Scale(0.5, 0.5, 1.0)
             )
             cup = Cup.create_with_new_body_in_world(
-                name=PrefixedName("cup"), world=world
+                name="cup", world=world
             )
 
             cabinet.add_object(cup)
@@ -909,20 +908,20 @@ class TestFactories(unittest.TestCase):
 
     def test_has_objects_mismatching_world(self):
         world1 = World()
-        root1 = Body(name=PrefixedName("root1"))
+        root1 = Body(name="root1")
         with world1.modify_world():
             world1.add_body(root1)
         with world1.modify_world():
             cabinet = Cabinet.create_with_new_body_in_world(
-                name=PrefixedName("cabinet"), world=world1, scale=Scale(0.5, 0.5, 1.0)
+                name="cabinet", world=world1, scale=Scale(0.5, 0.5, 1.0)
             )
         world2 = World()
-        root2 = Body(name=PrefixedName("root2"))
+        root2 = Body(name="root2")
         with world2.modify_world():
             world2.add_body(root2)
         with world2.modify_world():
             cup = Cup.create_with_new_body_in_world(
-                name=PrefixedName("cup"), world=world2
+                name="cup", world=world2
             )
 
         with self.assertRaises(MismatchingWorld):
@@ -930,26 +929,26 @@ class TestFactories(unittest.TestCase):
 
     def test_double_door_view_point(self):
         world = World()
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         with world.modify_world():
             world.add_body(root)
         with world.modify_world():
             door_left = Door.create_with_new_body_in_world(
-                name=PrefixedName("door_left"),
+                name="door_left",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, y=0.5
                 ),
             )
             door_right = Door.create_with_new_body_in_world(
-                name=PrefixedName("door_right"),
+                name="door_right",
                 world=world,
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, y=-0.5
                 ),
             )
             double_door = DoubleDoor(
-                door_0=door_left, door_1=door_right, name=PrefixedName("double_door")
+                door_0=door_left, door_1=door_right, name="double_door"
             )
             world.add_semantic_annotation(double_door)
 
@@ -983,7 +982,7 @@ class _AnnotationWithOverlappingPartWholeRelationshipFields(
 
 def _world_with_root() -> World:
     world = World()
-    root = Body(name=PrefixedName("root"))
+    root = Body(name="root")
     with world.modify_world():
         world.add_body(root)
     return world
@@ -994,10 +993,10 @@ def test_add_routes_handle_as_child():
     world = _world_with_root()
     with world.modify_world():
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         handle = Handle.create_with_new_body_in_world(
-            name=PrefixedName("handle"), world=world
+            name="handle", world=world
         )
         door.add(handle)
 
@@ -1010,10 +1009,10 @@ def test_add_routes_hinge_by_reparenting_self():
     world = _world_with_root()
     with world.modify_world():
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         door.add(hinge)
 
@@ -1027,10 +1026,10 @@ def test_add_routes_slider_by_reparenting_self():
     world = _world_with_root()
     with world.modify_world():
         drawer = Drawer.create_with_new_body_in_world(
-            name=PrefixedName("drawer"), scale=Scale(0.2, 0.3, 0.2), world=world
+            name="drawer", scale=Scale(0.2, 0.3, 0.2), world=world
         )
         slider = Slider.create_with_new_body_in_world(
-            name=PrefixedName("slider"), world=world, active_axis=Vector3.X()
+            name="slider", world=world, active_axis=Vector3.X()
         )
         drawer.add(slider)
 
@@ -1044,13 +1043,13 @@ def test_add_routes_plural_drawer_and_door():
     world = _world_with_root()
     with world.modify_world():
         fridge = Fridge.create_with_new_body_in_world(
-            name=PrefixedName("fridge"), world=world, scale=Scale(1, 1, 2.0)
+            name="fridge", world=world, scale=Scale(1, 1, 2.0)
         )
         drawer = Drawer.create_with_new_body_in_world(
-            name=PrefixedName("drawer"), world=world
+            name="drawer", world=world
         )
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         fridge.add(drawer)
         fridge.add(door)
@@ -1066,13 +1065,13 @@ def test_add_routes_aperture_with_cut():
     world = _world_with_root()
     with world.modify_world():
         wall = Wall.create_with_new_body_in_world(
-            name=PrefixedName("wall"), scale=Scale(0.1, 4, 2), world=world
+            name="wall", scale=Scale(0.1, 4, 2), world=world
         )
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         aperture = Aperture.create_with_new_region_in_world_from_body(
-            name=PrefixedName("aperture"), world=world, body=door.root
+            name="aperture", world=world, body=door.root
         )
         wall.add(aperture)
 
@@ -1085,13 +1084,13 @@ def test_add_object_stores_occupants():
     world = _world_with_root()
     with world.modify_world():
         table = Table.create_with_new_body_in_world(
-            name=PrefixedName("table"), world=world, scale=Scale(1.0, 1.0, 0.1)
+            name="table", world=world, scale=Scale(1.0, 1.0, 0.1)
         )
         milk = Milk.create_with_new_body_in_world(
-            name=PrefixedName("milk"), world=world, scale=Scale(0.03, 0.03, 0.1)
+            name="milk", world=world, scale=Scale(0.03, 0.03, 0.1)
         )
         cereal = Cereal.create_with_new_body_in_world(
-            name=PrefixedName("cereal"), world=world, scale=Scale(0.1, 0.03, 0.2)
+            name="cereal", world=world, scale=Scale(0.1, 0.03, 0.2)
         )
         table.add_object(milk)
         table.add_object(cereal)
@@ -1106,10 +1105,10 @@ def test_add_does_not_route_occupants():
     world = _world_with_root()
     with world.modify_world():
         fridge = Fridge.create_with_new_body_in_world(
-            name=PrefixedName("fridge"), world=world, scale=Scale(1, 1, 2.0)
+            name="fridge", world=world, scale=Scale(1, 1, 2.0)
         )
         milk = Milk.create_with_new_body_in_world(
-            name=PrefixedName("milk"), world=world, scale=Scale(0.03, 0.03, 0.1)
+            name="milk", world=world, scale=Scale(0.03, 0.03, 0.1)
         )
         with pytest.raises(CannotBeAPartOf):
             fridge.add(milk)
@@ -1123,10 +1122,10 @@ def test_add_rejects_unsupported_part_type():
     world = _world_with_root()
     with world.modify_world():
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         drawer = Drawer.create_with_new_body_in_world(
-            name=PrefixedName("drawer"), world=world
+            name="drawer", world=world
         )
         # A Door has handle/hinge part-whole relationship fields but no drawer field.
         with pytest.raises(CannotBeAPartOf):
@@ -1138,10 +1137,10 @@ def test_add_raises_on_ambiguous_part():
     world = _world_with_root()
     with world.modify_world():
         whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
-            name=PrefixedName("whole"), world=world
+            name="whole", world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         # A Hinge is both a MechanicalJoint (joint field) and a Hinge (specific_joint field).
         with pytest.raises(AmbiguousPart):
@@ -1153,10 +1152,10 @@ def test_add_field_name_resolves_ambiguity_to_base_field():
     world = _world_with_root()
     with world.modify_world():
         whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
-            name=PrefixedName("whole"), world=world
+            name="whole", world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         whole.add(hinge, field_name="joint")
     assert whole.joint is hinge
@@ -1168,10 +1167,10 @@ def test_add_field_name_resolves_ambiguity_to_specific_field():
     world = _world_with_root()
     with world.modify_world():
         whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
-            name=PrefixedName("whole"), world=world
+            name="whole", world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         whole.add(hinge, field_name="specific_joint")
     assert whole.specific_joint is hinge
@@ -1183,10 +1182,10 @@ def test_add_unknown_field_name_raises():
     world = _world_with_root()
     with world.modify_world():
         whole = _AnnotationWithOverlappingPartWholeRelationshipFields.create_with_new_body_in_world(
-            name=PrefixedName("whole"), world=world
+            name="whole", world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         with pytest.raises(UnknownPartWholeRelationshipField):
             whole.add(hinge, field_name="not_a_field")
@@ -1197,10 +1196,10 @@ def test_add_field_name_with_mismatching_type_raises():
     world = _world_with_root()
     with world.modify_world():
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         handle = Handle.create_with_new_body_in_world(
-            name=PrefixedName("handle"), world=world
+            name="handle", world=world
         )
         # 'mechanical_joint' is a real part-whole field of Door, but a Handle is not a MechanicalJoint.
         with pytest.raises(CannotBeAPartOf):
@@ -1222,17 +1221,17 @@ def test_mechanical_joint_mount_splices_under_whole_parent():
     world = _world_with_root()
     with world.modify_world():
         fridge = Fridge.create_with_new_body_in_world(
-            name=PrefixedName("fridge"), world=world, scale=Scale(1, 1, 2.0)
+            name="fridge", world=world, scale=Scale(1, 1, 2.0)
         )
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         # Place the door inside the fridge first, so its parent is the fridge (not the world root).
         fridge.add(door)
         assert door.root.parent_kinematic_structure_entity == fridge.root
 
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         door.add(hinge)
 
@@ -1256,10 +1255,10 @@ def test_mechanical_joint_mount_onto_same_whole_is_idempotent():
     world = _world_with_root()
     with world.modify_world():
         door = Door.create_with_new_body_in_world(
-            name=PrefixedName("door"), scale=Scale(0.03, 1, 2), world=world
+            name="door", scale=Scale(0.03, 1, 2), world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         door.add(hinge)
         door.add(hinge)
@@ -1273,13 +1272,13 @@ def test_mechanical_joint_cannot_be_mounted_onto_a_second_whole():
     world = _world_with_root()
     with world.modify_world():
         door1 = Door.create_with_new_body_in_world(
-            name=PrefixedName("door1"), scale=Scale(0.03, 1, 2), world=world
+            name="door1", scale=Scale(0.03, 1, 2), world=world
         )
         door2 = Door.create_with_new_body_in_world(
-            name=PrefixedName("door2"), scale=Scale(0.03, 1, 2), world=world
+            name="door2", scale=Scale(0.03, 1, 2), world=world
         )
         hinge = Hinge.create_with_new_body_in_world(
-            name=PrefixedName("hinge"), world=world, active_axis=Vector3.Z()
+            name="hinge", world=world, active_axis=Vector3.Z()
         )
         door1.add(hinge)
         with pytest.raises(MechanicalJointAlreadyMounted):

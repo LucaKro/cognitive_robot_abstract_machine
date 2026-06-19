@@ -72,4 +72,4 @@ def test_pr2_parsing(pr2_xml_parser):
 
     assert len(world.kinematic_structure_entities) > 0
     assert len(world.connections) > 0
-    assert world.root.name.name == "world"
+    assert world.root.name == "world"

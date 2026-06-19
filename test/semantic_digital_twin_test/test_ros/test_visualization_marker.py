@@ -13,7 +13,6 @@ from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
     ShapeSource,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.connections import (
     OmniDrive,
@@ -174,7 +173,7 @@ def test_trimesh(rclpy_node):
     visual: Mesh = world.root.visual.shapes[0]
     world.root.visual.shapes[0] = visual
     with world.modify_world():
-        body2 = Body(name=PrefixedName("body2"))
+        body2 = Body(name="body2")
         body_C_body2 = FixedConnection(parent=world.root, child=body2)
         world.add_connection(body_C_body2)
     tf_wrapper = TFWrapper(node=rclpy_node)

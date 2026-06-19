@@ -32,7 +32,6 @@ from krrood.ontomatic.property_descriptor.attribute_introspector import (
 from krrood.utils import recursive_subclasses
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.hsrb import HSRB
@@ -162,7 +161,7 @@ def cylinder_bot_world():
     robot_world = World()
     with robot_world.modify_world():
         robot = Body(
-            name=PrefixedName("bot"),
+            name="bot",
             collision=ShapeCollection(shapes=[Cylinder(width=0.1, height=0.5)]),
         )
         robot_world.add_body(robot)
@@ -170,10 +169,10 @@ def cylinder_bot_world():
     world = World()
     with world.modify_world():
         body = Body(
-            name=PrefixedName("map"),
+            name="map",
         )
         environment = Body(
-            name=PrefixedName("environment"),
+            name="environment",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
         )
         env_connection = FixedConnection(
@@ -186,7 +185,7 @@ def cylinder_bot_world():
         world.add_connection(env_connection)
 
         environment2 = Body(
-            name=PrefixedName("environment2"),
+            name="environment2",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
         )
         env_connection2 = FixedConnection(
@@ -216,37 +215,37 @@ def self_collision_bot_world():
     world = World()
     with world.modify_world():
         robot = Body(
-            name=PrefixedName("map"),
+            name="map",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
         l_shoulder = Body(
-            name=PrefixedName("l_shoulder"),
+            name="l_shoulder",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
         l_tip = Body(
-            name=PrefixedName("l_tip"),
+            name="l_tip",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
         l_thumb = Body(
-            name=PrefixedName("l_thumb"),
+            name="l_thumb",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
         r_shoulder = Body(
-            name=PrefixedName("r_shoulder"),
+            name="r_shoulder",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
         r_tip = Body(
-            name=PrefixedName("r_tip"),
+            name="r_tip",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
         r_thumb = Body(
-            name=PrefixedName("r_thumb"),
+            name="r_thumb",
             collision=ShapeCollection(shapes=[Sphere(radius=0.1)]),
             visual=ShapeCollection(shapes=[Sphere(radius=0.1)]),
         )
@@ -342,7 +341,7 @@ def cylinder_bot_diff_world():
     robot_world = World()
     with robot_world.modify_world():
         robot = Body(
-            name=PrefixedName("bot"),
+            name="bot",
             collision=ShapeCollection(shapes=[Cylinder(width=0.1, height=0.5)]),
         )
         robot_world.add_body(robot)
@@ -350,10 +349,10 @@ def cylinder_bot_diff_world():
     world = World()
     with world.modify_world():
         body = Body(
-            name=PrefixedName("map"),
+            name="map",
         )
         environment = Body(
-            name=PrefixedName("environment"),
+            name="environment",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.5)]),
         )
         env_connection = FixedConnection(
@@ -395,8 +394,8 @@ def world_with_urdf_factory(
 
     with world_with_urdf.modify_world():
         old_root = world_with_urdf.root
-        map = Body(name=PrefixedName("map"))
-        localization_body = Body(name=PrefixedName("odom_combined"))
+        map = Body(name="map")
+        localization_body = Body(name="odom_combined")
 
         map_C_localization = Connection6DoF.create_with_dofs(
             world_with_urdf, map, localization_body
@@ -551,17 +550,17 @@ def apartment_world_pr2_copy_with_context(_apartment_world_setup, _pr2_world_set
 def _simple_apartment_setup():
     world = World()
     with world.modify_world():
-        root = Body(name=PrefixedName("root"))
+        root = Body(name="root")
         world.add_body(root)
 
         box = Body(
-            name=PrefixedName("box"),
+            name="box",
             collision=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
             visual=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
         )
 
         box_2 = Body(
-            name=PrefixedName("box_2"),
+            name="box_2",
             collision=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
             visual=ShapeCollection([Box(scale=Scale(1, 1, 0.95))]),
         )
@@ -582,22 +581,22 @@ def _simple_apartment_setup():
         )
 
         wall1 = Body(
-            name=PrefixedName("wall_1"),
+            name="wall_1",
             collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
             visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
         )
         wall2 = Body(
-            name=PrefixedName("wall_2"),
+            name="wall_2",
             collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
             visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
         )
         wall3 = Body(
-            name=PrefixedName("wall_3"),
+            name="wall_3",
             collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
             visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
         )
         wall4 = Body(
-            name=PrefixedName("wall_4"),
+            name="wall_4",
             collision=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
             visual=ShapeCollection([Box(scale=Scale(8, 0.1, 2))]),
         )
@@ -798,13 +797,13 @@ def rclpy_node():
 def kitchen_environment_fixture():
     world = World()
     all_elements_connections = []
-    root = Body(name=PrefixedName("root"))
+    root = Body(name="root")
 
     with world.modify_world():
         world.add_kinematic_structure_entity(root)
         fruit_table = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("fruit_table"),
+            name="fruit_table",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=0
             ),
@@ -813,7 +812,7 @@ def kitchen_environment_fixture():
 
         vegetable_table = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("vegetable_table"),
+            name="vegetable_table",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=2
             ),
@@ -822,7 +821,7 @@ def kitchen_environment_fixture():
 
         empty_table = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("empty_table"),
+            name="empty_table",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=4
             ),
@@ -831,7 +830,7 @@ def kitchen_environment_fixture():
 
         empty_table2 = Table.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("empty_table2"),
+            name="empty_table2",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=6
             ),
@@ -840,7 +839,7 @@ def kitchen_environment_fixture():
 
         apple = Apple.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("apple"),
+            name="apple",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=0.55
             ),
@@ -851,7 +850,7 @@ def kitchen_environment_fixture():
 
         orange = Orange.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("orange"),
+            name="orange",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=0.5, z=0.55
             ),
@@ -862,7 +861,7 @@ def kitchen_environment_fixture():
 
         banana1 = Banana.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("banana1"),
+            name="banana1",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=0.6, z=0.75
             ),
@@ -873,7 +872,7 @@ def kitchen_environment_fixture():
 
         carrot = Carrot.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("carrot"),
+            name="carrot",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1, z=2.6
             ),
@@ -884,7 +883,7 @@ def kitchen_environment_fixture():
 
         lettuce = Lettuce.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("lettuce"),
+            name="lettuce",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=1, y=1.5, z=2.55
             ),
@@ -895,7 +894,7 @@ def kitchen_environment_fixture():
 
         banana = Banana.create_with_new_body_in_world(
             world=world,
-            name=PrefixedName("banana"),
+            name="banana",
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=10, y=10, z=10
             ),
@@ -907,7 +906,7 @@ def kitchen_environment_fixture():
     fake_robot = Cylinder(width=0.45, height=1.5)
     shape_geometry = ShapeCollection([fake_robot])
     fake_robot_body = Body(
-        name=PrefixedName("base_link_body"),
+        name="base_link_body",
         collision=shape_geometry,
         visual=shape_geometry,
     )

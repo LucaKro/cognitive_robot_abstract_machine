@@ -44,7 +44,6 @@ from semantic_digital_twin.collision_checking.collision_matrix import CollisionC
 from semantic_digital_twin.collision_checking.collision_rules import (
     SelfCollisionMatrixRule,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.world import World
@@ -103,14 +102,14 @@ class SelfCollisionMatrixInterface:
     def __post_init__(self):
         self.world = World()
         with self.world.modify_world():
-            self.world.add_body(Body(name=PrefixedName("map")))
+            self.world.add_body(Body(name="map"))
 
     def load_urdf(self, urdf_path: str):
         robot_world = URDFParser.from_file(urdf_path).parse()
         self.self_collision_matrix_rule = SelfCollisionMatrixRule()
         with self.world.modify_world():
             self.world.clear()
-            self.world.add_body(map := Body(name=PrefixedName("map")))
+            self.world.add_body(map := Body(name="map"))
             self.world.merge_world(
                 robot_world, FixedConnection(parent=map, child=robot_world.root)
             )
@@ -130,7 +129,7 @@ class SelfCollisionMatrixInterface:
 
     @property
     def bodies(self) -> List[Body]:
-        return list(sorted(self.world.bodies_with_collision, key=lambda x: x.name.name))
+        return list(sorted(self.world.bodies_with_collision, key=lambda x: x.name))
 
     @property
     def enabled_bodies(self) -> List[Body]:
@@ -186,7 +185,7 @@ class SelfCollisionMatrixInterface:
     def safe_srdf(self, file_path: str):
         self._sync_reasons_to_collision_pairs()
         self.self_collision_matrix_rule.save_self_collision_matrix(
-            self.robot.name.name, file_path
+            self.robot.name, file_path
         )
 
     def _sync_reasons_to_collision_pairs(self):
@@ -362,7 +361,7 @@ class CollisionMatrixTable(QTableWidget):
 
     @property
     def body_names(self) -> list[str]:
-        return [body.name.name for body in self.bodies]
+        return [body.name for body in self.bodies]
 
     def synchronize(self):
         self.self_collision_matrix_interface.world.notify_state_change()
@@ -591,7 +590,7 @@ class DisableBodyItem(QWidget):
 
     @property
     def text(self) -> str:
-        return self.body.name.name
+        return self.body.name
 
     def checkbox_callback(self, state):
         if state == Qt.Checked:

@@ -37,7 +37,6 @@ from krrood.ormatic.data_access_objects.dao import selectin_loading
 from krrood.ormatic.data_access_objects.helper import to_dao
 from krrood.ormatic.utils import create_engine, drop_database
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -59,8 +58,8 @@ def _build_pr2_world() -> World:
 
     with world.modify_world():
         old_root = world.root
-        map_body = Body(name=PrefixedName("map"))
-        odom = Body(name=PrefixedName("odom_combined"))
+        map_body = Body(name="map")
+        odom = Body(name="odom_combined")
         map_C_odom = Connection6DoF.create_with_dofs(world, map_body, odom)
         world.add_connection(map_C_odom)
         drive = OmniDrive.create_with_dofs(parent=odom, child=old_root, world=world)

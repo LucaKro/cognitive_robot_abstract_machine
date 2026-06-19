@@ -30,7 +30,6 @@ from semantic_digital_twin.callbacks.callback import (
     ModelChangeCallback,
     StateChangeCallback,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     QuaternionConversionError,
     MujocoEntityNotFoundError,
@@ -254,8 +253,8 @@ class EntityConverter(ABC):
         """
         return {
             self.name_str: (
-                entity.name.name
-                if hasattr(entity, "name") and isinstance(entity.name, PrefixedName)
+                entity.name
+                if hasattr(entity, "name")
                 else f"{type(entity).__name__.lower()}_{id(entity)}"
             )
         }
@@ -574,9 +573,9 @@ class Connection1DOFConverter(ConnectionConverter, ABC):
                 self.damping_str: entity.dynamics.damping,
             }
         )
-        if dof.name.name != joint_props["name"] and dof.name.name != "dof":
+        if dof.name != joint_props["name"] and dof.name != "dof":
             joint_props["equality_joint"] = {
-                "joint": dof.name.name,
+                "joint": dof.name,
                 "data": [entity.offset, entity.multiplier, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             }
         return joint_props
@@ -648,7 +647,7 @@ class ActuatorConverter(EntityConverter, ABC):
         :return: A dictionary of actuator properties, by default containing list of DOF names.
         """
         actuator_props = EntityConverter._convert(self, entity)
-        actuator_props["dof_names"] = [dof.name.name for dof in entity.dofs]
+        actuator_props["dof_names"] = [dof.name for dof in entity.dofs]
         return actuator_props
 
 
@@ -671,7 +670,7 @@ class CameraConverter(EntityConverter, ABC):
         :return: A dictionary of camer properties, by default containing list of DOF names.
         """
         camera_props = EntityConverter._convert(self, entity)
-        camera_props["body"] = entity.body.name.name
+        camera_props["body"] = entity.body.name
         return camera_props
 
 
@@ -1340,7 +1339,7 @@ class MultiSimBuilder(ABC):
         self._world = world
         self._asset_folder_path = os.path.join(os.path.dirname(file_path), "assets")
 
-        root = Body(name=PrefixedName("world"))
+        root = Body(name="world")
 
         if not os.path.exists(self.asset_folder_path):
             os.makedirs(self.asset_folder_path)
@@ -1591,7 +1590,7 @@ class MujocoBuilder(MultiSimBuilder):
         geom_props = MujocoGeomConverter.convert(
             shape, visible=is_visible, collidable=is_collidable
         )
-        parent_body_name = parent.name.name
+        parent_body_name = parent.name
         parent_body_spec = self._find_entity(
             entity_type=mujoco.mjtObj.mjOBJ_BODY, entity_name=parent_body_name
         )
@@ -1724,7 +1723,7 @@ class MujocoBuilder(MultiSimBuilder):
                 joint_props["actfrcrange"] = mujoco_joint.actuator_force_range
                 break
 
-        child_body_name = connection.child.name.name
+        child_body_name = connection.child.name
         child_body_spec = self._find_entity(
             entity_type=mujoco.mjtObj.mjOBJ_BODY, entity_name=child_body_name
         )
@@ -1733,7 +1732,7 @@ class MujocoBuilder(MultiSimBuilder):
                 entity_name=child_body_name,
                 entity_type=mujoco.mjtObj.mjOBJ_BODY,
             )
-        joint_name = connection.name.name
+        joint_name = connection.name
         joint_spec = child_body_spec.add_joint(**joint_props)
         if joint_spec is None:
             raise MujocoEntityNotFoundError(
@@ -1751,12 +1750,12 @@ class MujocoBuilder(MultiSimBuilder):
             (
                 conn
                 for conn in actuator._world.connections
-                if dof_name in [dof.name.name for dof in conn.dofs]
+                if dof_name in [dof.name for dof in conn.dofs]
             ),
             None,
         )
         if connection is not None:
-            connection_name = connection.name.name
+            connection_name = connection.name
             joint_spec = self._find_entity(
                 entity_type=mujoco.mjtObj.mjOBJ_JOINT, entity_name=connection_name
             )
@@ -1770,7 +1769,7 @@ class MujocoBuilder(MultiSimBuilder):
         else:
             actuator_props["target"] = dof_name
             actuator_props["trntype"] = mujoco.mjtTrn.mjTRN_TENDON
-        actuator_name = actuator.name.name
+        actuator_name = actuator.name
         actuator_spec = self.spec.add_actuator(**actuator_props)
         if actuator_spec is None:
             raise MujocoEntityNotFoundError(
@@ -1804,14 +1803,14 @@ class MujocoBuilder(MultiSimBuilder):
 
         :param body: The body or region to build.
         """
-        if body.name.name == "world":
+        if body.name == "world":
             return
         body_props = MujocoKinematicStructureEntityConverter.convert(body)
         for mujoco_body in body.simulator_additional_properties:
             if isinstance(mujoco_body, MujocoBody):
                 body_props["gravcomp"] = mujoco_body.gravitation_compensation_factor
                 body_props["mocap"] = mujoco_body.motion_capture
-        parent_body_name = body.parent_connection.parent.name.name
+        parent_body_name = body.parent_connection.parent.name
         parent_body_spec = self._find_entity(
             entity_type=mujoco.mjtObj.mjOBJ_BODY, entity_name=parent_body_name
         )
@@ -2229,7 +2228,7 @@ class MujocoKinematicStructureEntitySpawner(
             entity_name=entity_name,
             entity_type="body",
             entity_properties=kinematic_structure_entity_props,
-            parent_name=entity.parent_connection.parent.name.name,
+            parent_name=entity.parent_connection.parent.name,
         )
         return (
             result.type
@@ -2252,7 +2251,7 @@ class MujocoKinematicStructureEntitySpawner(
             entity_name=shape_name,
             entity_type="geom",
             entity_properties=shape_props,
-            parent_name=parent.name.name,
+            parent_name=parent.name,
         )
         return (
             result.type
@@ -2295,7 +2294,7 @@ class MujocoConnectionSpawner(MujocoEntitySpawner, ConnectionSpawner):
             entity_name=joint_name,
             entity_type="joint",
             entity_properties=joint_props,
-            parent_name=connection.child.name.name,
+            parent_name=connection.child.name,
         )
         return (
             result.type
@@ -2347,10 +2346,10 @@ class MujocoFreejointSpawner(MujocoEntitySpawner, Connection6DOFSpawner):
         self, simulator: MujocoSimulator, connection: Connection
     ) -> bool:
         result = simulator.add_entity(
-            entity_name=connection.name.name,
+            entity_name=connection.name,
             entity_type="joint",
             entity_properties={"type": mujoco.mjtJoint.mjJNT_FREE},
-            parent_name=connection.child.name.name,
+            parent_name=connection.child.name,
         )
         return (
             result.type
@@ -2374,12 +2373,12 @@ class MujocoActuatorSpawner(MujocoEntitySpawner, ActuatorSpawner):
             (
                 conn
                 for conn in actuator._world.connections
-                if dof_name in [dof.name.name for dof in conn.dofs]
+                if dof_name in [dof.name for dof in conn.dofs]
             ),
             None,
         )
         assert connection is not None, f"Connection for DOF {dof_name} not found."
-        connection_name = connection.name.name
+        connection_name = connection.name
         joint_spec = simulator.get_joint(joint_name=connection_name).result
         if joint_spec is None:
             raise MujocoEntityNotFoundError(
@@ -2520,7 +2519,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         """
         mj_model = self.simulator._mj_model
         joint_id = mujoco.mj_name2id(
-            mj_model, mujoco.mjtObj.mjOBJ_JOINT, connection.name.name
+            mj_model, mujoco.mjtObj.mjOBJ_JOINT, connection.name
         )
         if joint_id == -1:
             return None
@@ -2625,7 +2624,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                     "sim→world sync: unsupported connection type %s for "
                     "joint %s; skipping",
                     type(connection).__name__,
-                    connection.name.name,
+                    connection.name,
                 )
 
         if changed:
@@ -2744,7 +2743,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                     "world→sim sync: unsupported connection type %s for "
                     "joint %s; skipping",
                     type(connection).__name__,
-                    connection.name.name,
+                    connection.name,
                 )
 
         self._state_callback.update_previous_world_state()

@@ -36,7 +36,7 @@ def conclusion_90574698325129464513441443063592862114(case) -> List[Handle]:
         kse = variable(Body, case.kinematic_structure_entities)
         return (
             entity(inference(Handle)(root=kse))
-            .where(contains(kse.name.name.lower(), "handle"))
+            .where(contains(kse.name.lower(), "handle"))
             .tolist()
         )
 
@@ -132,7 +132,7 @@ def conclusion_10840634078579061471470540436169882059(case) -> List[Fridge]:
             entity(inference(Fridge)(root=revolute_connection.parent, doors=door))
             .where(
                 revolute_connection.child == door.root,
-                contains(door.root.name.name.lower(), "fridge"),
+                contains(door.root.name.lower(), "fridge"),
             )
             .grouped_by(revolute_connection.parent)
             .tolist()

@@ -8,7 +8,6 @@ import numpy
 
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.tracy import Tracy
@@ -176,7 +175,7 @@ def test_world_multi_sim_with_change(test_urdf_1_world):
 
         start_time = time.time()
 
-        new_body = Body(name=PrefixedName("test_body"))
+        new_body = Body(name="test_body")
         box_origin = HomogeneousTransformationMatrix.from_xyz_rpy(
             x=0.2, y=0.4, z=3.0, roll=0, pitch=0.5, yaw=0, reference_frame=new_body
         )
@@ -198,11 +197,11 @@ def test_world_multi_sim_with_change(test_urdf_1_world):
             )
         logger.debug(f"Time after adding new body: {time.time() - start_time}s")
 
-        assert new_body.name.name in multi_sim.simulator.get_all_body_names().result
+        assert new_body.name in multi_sim.simulator.get_all_body_names().result
 
         time.sleep(0.5)
 
-        region = Region(name=PrefixedName("test_region"))
+        region = Region(name="test_region")
         region_box = Box(
             scale=Scale(0.1, 0.5, 0.2),
             origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=region),
@@ -223,7 +222,7 @@ def test_world_multi_sim_with_change(test_urdf_1_world):
             )
         logger.debug(f"Time after add adding region: {time.time() - start_time}s")
 
-        assert region.name.name in multi_sim.simulator.get_all_body_names().result
+        assert region.name in multi_sim.simulator.get_all_body_names().result
 
         time.sleep(0.5)
 
@@ -249,7 +248,7 @@ def test_world_multi_sim_with_change(test_urdf_1_world):
             test_urdf_1_world.add_actuator(actuator=actuator)
         logger.debug(f"Time after adding new actuator: {time.time() - start_time}s")
 
-        assert actuator.name.name in multi_sim.simulator.get_all_actuator_names().result
+        assert actuator.name in multi_sim.simulator.get_all_actuator_names().result
 
         time.sleep(4.0)
         multi_sim.stop_simulation()
@@ -365,7 +364,7 @@ def test_mujocosim_world_with_added_objects(test_urdf_1_world):
 
 def test_spawn_body_with_connections():
     def spawn_robot_body(spawn_world: World) -> Body:
-        spawn_body = Body(name=PrefixedName("robot"))
+        spawn_body = Body(name="robot")
         box_origin = HomogeneousTransformationMatrix.from_xyz_rpy(
             x=0, y=0, z=0.5, roll=0, pitch=0, yaw=0, reference_frame=spawn_body
         )
@@ -384,7 +383,7 @@ def test_spawn_body_with_connections():
         return spawn_body
 
     def spawn_shoulder_bodies(spawn_world: World, root_body: Body) -> tuple[Body, Body]:
-        spawn_left_shoulder_body = Body(name=PrefixedName("left_shoulder"))
+        spawn_left_shoulder_body = Body(name="left_shoulder")
         cylinder = Cylinder(
             width=0.2,
             height=0.1,
@@ -393,7 +392,7 @@ def test_spawn_body_with_connections():
         spawn_left_shoulder_body.collision = ShapeCollection(
             [cylinder], reference_frame=spawn_left_shoulder_body
         )
-        dof = DegreeOfFreedom(name=PrefixedName("left_shoulder_joint"))
+        dof = DegreeOfFreedom(name="left_shoulder_joint")
         left_shoulder_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=0,
             pos_y=0.3,
@@ -417,7 +416,7 @@ def test_spawn_body_with_connections():
                 )
             )
 
-        spawn_right_shoulder_body = Body(name=PrefixedName("right_shoulder"))
+        spawn_right_shoulder_body = Body(name="right_shoulder")
         cylinder = Cylinder(
             width=0.2,
             height=0.1,
@@ -426,7 +425,7 @@ def test_spawn_body_with_connections():
         spawn_right_shoulder_body.collision = ShapeCollection(
             [cylinder], reference_frame=spawn_right_shoulder_body
         )
-        dof = DegreeOfFreedom(name=PrefixedName("right_shoulder_joint"))
+        dof = DegreeOfFreedom(name="right_shoulder_joint")
         right_shoulder_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=0,
             pos_y=-0.3,
@@ -491,7 +490,7 @@ def test_world_sim_state_sync():
     def spawn_state_sync_scene(
         spawn_world: World,
     ) -> tuple[Body, Connection6DoF]:
-        plane_body = Body(name=PrefixedName("ground_plane"))
+        plane_body = Body(name="ground_plane")
         plane_body.collision = ShapeCollection(
             [
                 Box(
@@ -505,7 +504,7 @@ def test_world_sim_state_sync():
             reference_frame=plane_body,
         )
 
-        falling_box = Body(name=PrefixedName("falling_box"))
+        falling_box = Body(name="falling_box")
         falling_box.collision = ShapeCollection(
             [
                 Box(

@@ -15,7 +15,6 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Door
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -33,8 +32,8 @@ def create_dummy_world():
     Create a simple world with two bodies and a connection.
     """
     world = World()
-    body_1 = Body(name=PrefixedName("body_1"))
-    body_2 = Body(name=PrefixedName("body_2"))
+    body_1 = Body(name="body_1")
+    body_2 = Body(name="body_2")
     with world.modify_world():
         world.add_kinematic_structure_entity(body_1)
         world.add_kinematic_structure_entity(body_2)
@@ -99,9 +98,9 @@ def test_service_callback_with_multiple_modifications(rclpy_node):
     fetcher = FetchWorldServer(node=rclpy_node, world=world)
 
     # Make multiple modifications
-    body_1 = Body(name=PrefixedName("body_1"))
-    body_2 = Body(name=PrefixedName("body_2"))
-    body_3 = Body(name=PrefixedName("body_3"))
+    body_1 = Body(name="body_1")
+    body_2 = Body(name="body_2")
+    body_3 = Body(name="body_3")
 
     with world.modify_world():
         world.add_kinematic_structure_entity(body_1)
@@ -171,7 +170,7 @@ def test_semantic_annotation_modifications(rclpy_node):
     resolves the issue
     """
     w1 = World(name="w1")
-    b1 = Body(name=PrefixedName("b1"))
+    b1 = Body(name="b1")
     v1 = Handle(root=b1)
     v2 = Door(root=b1, handle=v1)
 

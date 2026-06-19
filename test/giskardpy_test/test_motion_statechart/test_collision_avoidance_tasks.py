@@ -57,7 +57,6 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidAllCollisions,
     AllowAllCollisions,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.tracy import Tracy
@@ -146,7 +145,7 @@ def test_external_collision_avoidance_battle():
     strong_robot_world = World()
     with strong_robot_world.modify_world():
         strong = Body(
-            name=PrefixedName("strong"),
+            name="strong",
             collision=ShapeCollection(
                 [Cylinder(width=0.1, height=0.1, color=Color(R=1, G=0, B=0, A=1))]
             ),
@@ -157,7 +156,7 @@ def test_external_collision_avoidance_battle():
     weak_robot_world = World()
     with weak_robot_world.modify_world():
         weak = Body(
-            name=PrefixedName("weak"),
+            name="weak",
             collision=ShapeCollection(
                 [Cylinder(width=0.1, height=0.1, color=Color(R=0, G=0, B=1, A=1))]
             ),
@@ -169,10 +168,10 @@ def test_external_collision_avoidance_battle():
 
     with world.modify_world():
         wall = Body(
-            name=PrefixedName("wall"),
+            name="wall",
             collision=ShapeCollection([Box(scale=Scale(x=0.1, y=10, z=0.1))]),
         )
-        map = Body(name=PrefixedName("map"))
+        map = Body(name="map")
         world.add_connection(
             FixedConnection(
                 parent=map,
@@ -182,7 +181,7 @@ def test_external_collision_avoidance_battle():
                 ),
             )
         )
-        strong_odom = Body(name=PrefixedName("strong_odom"))
+        strong_odom = Body(name="strong_odom")
         world.add_connection(
             FixedConnection(
                 parent=map,
@@ -192,7 +191,7 @@ def test_external_collision_avoidance_battle():
                 ),
             )
         )
-        weak_odom = Body(name=PrefixedName("weak_odom"))
+        weak_odom = Body(name="weak_odom")
         world.add_connection(
             FixedConnection(
                 parent=map,
@@ -718,7 +717,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World, rclpy_node):
     root = cylinder_bot_world.root
     with cylinder_bot_world.modify_world():
         env2 = Body(
-            name=PrefixedName("environment2"),
+            name="environment2",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
         )
         env_connection = FixedConnection(
@@ -731,7 +730,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World, rclpy_node):
         cylinder_bot_world.add_connection(env_connection)
 
         env3 = Body(
-            name=PrefixedName("environment3"),
+            name="environment3",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
         )
         env_connection = FixedConnection(
@@ -743,7 +742,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World, rclpy_node):
         )
         cylinder_bot_world.add_connection(env_connection)
         env4 = Body(
-            name=PrefixedName("environment4"),
+            name="environment4",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
         )
         env_connection = FixedConnection(
@@ -755,7 +754,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World, rclpy_node):
         )
         cylinder_bot_world.add_connection(env_connection)
         env5 = Body(
-            name=PrefixedName("environment5"),
+            name="environment5",
             collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
         )
         env_connection = FixedConnection(
@@ -829,7 +828,7 @@ def test_collision_for_robot_with_static_base(tracy_world):
     tool_frame = world.get_body_by_name("r_gripper_tool_frame")
     with world.modify_world():
         obstacle = Body(
-            name=PrefixedName("obstacle"),
+            name="obstacle",
             collision=ShapeCollection([Box(scale=Scale(0.4, 0.4, 0.4))]),
         )
         world.add_connection(
@@ -837,7 +836,7 @@ def test_collision_for_robot_with_static_base(tracy_world):
                 world,
                 world.root,
                 obstacle,
-                PrefixedName("obstacle_conn"),
+                "obstacle_conn",
                 HomogeneousTransformationMatrix.from_xyz_rpy(
                     0.5, 0.5, 1, reference_frame=world.root
                 ),

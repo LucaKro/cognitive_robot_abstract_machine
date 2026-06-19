@@ -59,7 +59,7 @@ def parse_procthor_worlds_and_calculate_containment_ratio():
             ]
         )
         for body in world.bodies:
-            resolved = resolver.resolve(body.name.name)
+            resolved = resolver.resolve(body.name)
             if resolved:
                 with world.modify_world():
                     world.add_semantic_annotation(

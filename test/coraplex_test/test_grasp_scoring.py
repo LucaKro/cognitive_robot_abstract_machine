@@ -7,9 +7,7 @@ from coraplex.datastructures.grasp_scoring import (
     GraspScorer,
     load_successful_grasps_from_dataset,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3, Quaternion
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 import uuid
 from semantic_digital_twin.world_description.world_entity import Body
@@ -130,7 +128,7 @@ def test_load_successful_grasps_from_dataset(tmp_path):
     engine = create_engine(db_uri)
     PycramBase.metadata.create_all(engine)
 
-    body = Body(name=PrefixedName(name="test_body"))
+    body = Body(name="test_body")
     test_uuid = body.id
 
     grasp = GraspPose(

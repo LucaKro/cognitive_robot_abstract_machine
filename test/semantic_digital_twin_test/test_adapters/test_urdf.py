@@ -104,7 +104,7 @@ def test_pr2_parsing(pr2_parser):
     world.validate()
     assert len(world.kinematic_structure_entities) > 0
     assert len(world.connections) > 0
-    assert world.root.name.name == "base_footprint"
+    assert world.root.name == "base_footprint"
 
 
 def test_mimic_joints(pr2_parser):
@@ -122,4 +122,4 @@ def test_xacro():
     world.validate()
     assert len(world.kinematic_structure_entities) > 0
     assert len(world.connections) > 0
-    assert world.root.name.name == "base_footprint"
+    assert world.root.name == "base_footprint"

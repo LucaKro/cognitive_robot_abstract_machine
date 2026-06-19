@@ -61,7 +61,7 @@ class JointStatePublisher:
             h.frame_id = ""
             joint_state_msg = JointState()
             joint_state_msg.header = h
-            joint_state_msg.name = [dof.name.name for dof in dofs]
+            joint_state_msg.name = [dof.name for dof in dofs]
             joint_state_msg.position = current_joint_states
             # joint_state_msg.velocity = [joint_state[1] for joint_state in current_joint_states]
             self.joint_state_pub.publish(joint_state_msg)

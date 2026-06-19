@@ -12,7 +12,6 @@ import numpy as np
 from krrood.symbolic_math.symbolic_math import FloatVariable
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 from semantic_digital_twin.callbacks.callback import StateChangeCallback
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     DofNotInWorldStateError,
     IncorrectWorldStateValueShapeError,
@@ -246,7 +245,7 @@ class WorldState(MutableMapping[UUID, WorldStateEntryView]):
                 + " })"
             )
 
-    def to_position_dict(self) -> Dict[PrefixedName, float]:
+    def to_position_dict(self) -> Dict[str, float]:
         with self.world_lock:
             return {
                 self._world.get_degree_of_freedom_by_id(dof_id)

@@ -10,7 +10,6 @@ from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.exceptions import PointOccupiedError
 from semantic_digital_twin.spatial_types import Point3, Pose
@@ -180,11 +179,11 @@ def test_from_world_with_rotated_box():
     """
     world = World()
     with world.modify_world():
-        root_body = Body(name=PrefixedName("map"))
+        root_body = Body(name="map")
         world.add_kinematic_structure_entity(root_body)
 
         # Box 1: at origin
-        axis_aligned_box_body = Body(name=PrefixedName("box_one"))
+        axis_aligned_box_body = Body(name="box_one")
         world.add_connection(
             FixedConnection.create_with_dofs(world, root_body, axis_aligned_box_body)
         )
@@ -192,7 +191,7 @@ def test_from_world_with_rotated_box():
         axis_aligned_box_body.collision.append(axis_aligned_box)
 
         # Box 2: at (2, 0, 0) rotated 45 deg around Z
-        rotated_box_body = Body(name=PrefixedName("box_two"))
+        rotated_box_body = Body(name="box_two")
         rotated_box_body_pose = HomogeneousTransformationMatrix.from_xyz_rpy(
             2, 0, 0, 0, np.pi / 4, np.pi / 4, reference_frame=root_body
         )

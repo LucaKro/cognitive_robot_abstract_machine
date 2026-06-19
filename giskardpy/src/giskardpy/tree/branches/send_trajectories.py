@@ -6,7 +6,6 @@ from giskardpy.tree.behaviors.send_trajectory import SendFollowJointTrajectory
 from giskardpy.tree.branches.control_loop import ControlLoop
 from giskardpy.tree.branches.prepare_control_loop import PrepareBaseTrajControlLoop
 from giskardpy.tree.composites.better_parallel import Parallel, ParallelPolicy
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 
 
@@ -41,7 +40,7 @@ class ExecuteTraj(Sequence):
         self,
         cmd_vel_topic: str,
         track_only_velocity: bool = False,
-        joint_name: PrefixedName = None,
+        joint_name: str = None,
     ):
         if not hasattr(self, "prepare_base_control"):
             self.prepare_base_control = PrepareBaseTrajControlLoop()

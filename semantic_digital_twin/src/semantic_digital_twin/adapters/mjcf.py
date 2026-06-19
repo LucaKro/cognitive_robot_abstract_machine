@@ -18,7 +18,6 @@ from semantic_digital_twin.adapters.multi_sim import (
     MujocoJoint,
     MujocoTendon,
 )
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import WorldEntityNotFoundError
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -107,7 +106,7 @@ class MJCFParser:
             self.parse_equalities()
             self.parse_tendons()
 
-            root = Body(name=PrefixedName(worldbody.name))
+            root = Body(name=worldbody.name)
             self.world.add_body(root)
 
             for mujoco_body in worldbody.bodies:
@@ -130,7 +129,7 @@ class MJCFParser:
 
         :param mujoco_body: The Mujoco body to parse.
         """
-        body = Body(name=PrefixedName(mujoco_body.name))
+        body = Body(name=mujoco_body.name)
         visuals = []
         collisions = []
         for mujoco_geom in mujoco_body.geoms:
@@ -418,7 +417,7 @@ class MJCFParser:
                 )
                 if mujoco_joint.type == mujoco.mjtJoint.mjJNT_HINGE:
                     connection = RevoluteConnection(
-                        name=PrefixedName(mujoco_joint.name),
+                        name=mujoco_joint.name,
                         parent=parent_body,
                         child=child_body,
                         parent_T_connection_expression=parent_body_to_joint_transform,
@@ -429,7 +428,7 @@ class MJCFParser:
                     )
                 elif mujoco_joint.type == mujoco.mjtJoint.mjJNT_SLIDE:
                     connection = PrismaticConnection(
-                        name=PrefixedName(mujoco_joint.name),
+                        name=mujoco_joint.name,
                         parent=parent_body,
                         child=child_body,
                         parent_T_connection_expression=parent_body_to_joint_transform,
@@ -473,7 +472,7 @@ class MJCFParser:
                 and mujoco_joint.range[1] == 0
             ):
                 dof = DegreeOfFreedom(
-                    name=PrefixedName(dof_name),
+                    name=dof_name,
                 )
             else:
                 lower_limits = DerivativeMap()
@@ -481,7 +480,7 @@ class MJCFParser:
                 upper_limits = DerivativeMap()
                 upper_limits.position = mujoco_joint.range[1]
                 dof = DegreeOfFreedom(
-                    name=PrefixedName(dof_name),
+                    name=dof_name,
                     limits=DegreeOfFreedomLimits(
                         lower=lower_limits, upper=upper_limits
                     ),
@@ -504,7 +503,7 @@ class MJCFParser:
                 f"Warning: Actuator {actuator_name} has trntype {mujoco_actuator.trntype}, which is not supported. Skipping actuator."
             )
             return
-        actuator = Actuator(name=PrefixedName(actuator_name))
+        actuator = Actuator(name=actuator_name)
         if mujoco_actuator.trntype == mujoco.mjtTrn.mjTRN_JOINT:
             joint_name = mujoco_actuator.target
             connection = self.world.get_connection_by_name(joint_name)
@@ -647,7 +646,7 @@ class MJCFParser:
                 assert coef is not None and coef is not None
                 joints[name] = coef
             dof = DegreeOfFreedom(
-                name=PrefixedName(tendon.name),
+                name=tendon.name,
             )
             self.world.add_degree_of_freedom(dof)
             self.world.simulator_additional_properties.append(
