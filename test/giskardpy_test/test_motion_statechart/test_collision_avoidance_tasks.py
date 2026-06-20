@@ -837,8 +837,8 @@ def test_collision_for_robot_with_static_base(tracy_world):
                 world,
                 world.root,
                 obstacle,
-                PrefixedName("obstacle_conn"),
-                HomogeneousTransformationMatrix.from_xyz_rpy(
+                name=PrefixedName("obstacle_conn"),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                     0.5, 0.5, 1, reference_frame=world.root
                 ),
             )

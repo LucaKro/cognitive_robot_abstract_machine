@@ -14,12 +14,13 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
     DegreeOfFreedomLimits,
 )
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import (
+    DegreeOfFreedomOwnership,
+    DegreeOfFreedomRole,
+)
 from semantic_digital_twin.world_description.world_entity import (
     Connection,
     KinematicStructureEntity,
-)
-from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
-    WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.types import NpMatrix4x4
@@ -65,8 +66,8 @@ class FixedConnection(Connection):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         name: Optional[PrefixedName] = None,
-        *args,
         **kwargs,
     ) -> Self:
         return FixedConnection(parent=parent, child=child, name=name, **kwargs)
@@ -125,7 +126,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 
     dof_id: UUID = field(kw_only=True)
     """
-    UUID of a Degree of freedom to control movement along the axis.
+    UUID of the Degree of freedom controlling movement along the axis.
     """
 
     dynamics: JointDynamics = field(default_factory=JointDynamics)
@@ -142,22 +143,13 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         return result
 
     @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
-        parent = tracker.get_world_entity_with_id(id=from_json(data["parent_id"]))
-        child = tracker.get_world_entity_with_id(id=from_json(data["child_id"]))
-        return cls(
-            name=from_json(data["name"]),
-            parent=parent,
-            child=child,
-            parent_T_connection_expression=from_json(
-                data["parent_T_connection_expression"], **kwargs
-            ),
-            axis=Vector3.from_iterable(data["axis"]),
-            multiplier=data["multiplier"],
-            offset=data["offset"],
-            dof_id=from_json(data["id"]),
-        )
+    def _extra_from_json_kwargs(cls, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        return {
+            "axis": Vector3.from_iterable(data["axis"]),
+            "multiplier": data["multiplier"],
+            "offset": data["offset"],
+            "dof_id": from_json(data["id"]),
+        }
 
     @classmethod
     def create_with_dofs(
@@ -165,12 +157,12 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         axis: Vector3,
         name: Optional[PrefixedName] = None,
         multiplier: float = 1.0,
         offset: float = 0.0,
         dof_limits: Optional[DegreeOfFreedomLimits] = None,
-        *args,
         **kwargs,
     ) -> Self:
         """
@@ -201,22 +193,25 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
             multiplier=multiplier,
             offset=offset,
             dof_id=dof.id,
-            *args,
             **kwargs,
         )
         return connection
 
-    def add_to_world(self, world: World):
-        super().add_to_world(world)
+    def __post_init__(self):
+        super().__post_init__()
         if self.multiplier is None:
-            self.multiplier = 1
-        else:
-            self.multiplier = self.multiplier
+            self.multiplier = 1.0
         if self.offset is None:
-            self.offset = 0
-        else:
-            self.offset = self.offset
-        self.axis = self.axis
+            self.offset = 0.0
+
+    def _connection_specific_kwargs(self) -> Dict[str, Any]:
+        return {
+            "axis": self.axis,
+            "multiplier": self.multiplier,
+            "offset": self.offset,
+            "dynamics": self.dynamics,
+            "dof_id": self.dof_id,
+        }
 
     @property
     def dof(self) -> DegreeOfFreedom:
@@ -294,44 +289,6 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         self._world.state[self.raw_dof.id].jerk = value / self.multiplier
         self._world.notify_state_change()
 
-    def copy_for_world(self, world: World):
-        (
-            other_parent,
-            other_child,
-            parent_T_connection_expression,
-            connection_T_child_expression,
-        ) = self._find_references_in_world(world)
-
-        return self.__class__(
-            name=PrefixedName(self.name.name, self.name.prefix),
-            parent=other_parent,
-            child=other_child,
-            parent_T_connection_expression=parent_T_connection_expression,
-            connection_T_child_expression=connection_T_child_expression,
-            axis=self.axis,
-            multiplier=self.multiplier,
-            offset=self.offset,
-            dof_id=self.dof_id,
-        )
-
-    def copy_with_new_parent(
-        self,
-        new_parent: KinematicStructureEntity,
-        parent_T_connection_expression: HomogeneousTransformationMatrix,
-    ) -> Self:
-        # Reuse the same degree of freedom so the joint state is kept.
-        return self.__class__(
-            parent=new_parent,
-            child=self.child,
-            parent_T_connection_expression=parent_T_connection_expression,
-            connection_T_child_expression=self.connection_T_child_expression,
-            axis=self.axis,
-            multiplier=self.multiplier,
-            offset=self.offset,
-            dof_id=self.dof_id,
-            dynamics=self.dynamics,
-        )
-
 
 @dataclass(eq=False)
 class PrismaticConnection(ActiveConnection1DOF):
@@ -374,86 +331,61 @@ class Connection6DoF(Connection):
     Useful for synchronizing with transformations from external providers.
     """
 
-    x_id: UUID = field(kw_only=True)
-    """
-    Displacement of child KinematicStructureEntity with respect to parent KinematicStructureEntity along the x-axis.
-    """
-    y_id: UUID = field(kw_only=True)
-    """
-    Displacement of child KinematicStructureEntity with respect to parent KinematicStructureEntity along the y-axis.
-    """
-    z_id: UUID = field(kw_only=True)
-    """
-    Displacement of child KinematicStructureEntity with respect to parent KinematicStructureEntity along the z-axis.
-    """
-
-    qx_id: UUID = field(kw_only=True)
-    qy_id: UUID = field(kw_only=True)
-    qz_id: UUID = field(kw_only=True)
-    qw_id: UUID = field(kw_only=True)
-    """
-    Rotation of child KinematicStructureEntity with respect to parent KinematicStructureEntity represented as a quaternion.
-    """
-
-    def to_json(self) -> Dict[str, Any]:
-        result = super().to_json()
-        result["x_id"] = to_json(self.x_id)
-        result["y_id"] = to_json(self.y_id)
-        result["z_id"] = to_json(self.z_id)
-        result["qx_id"] = to_json(self.qx_id)
-        result["qy_id"] = to_json(self.qy_id)
-        result["qz_id"] = to_json(self.qz_id)
-        result["qw_id"] = to_json(self.qw_id)
-        return result
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
-        parent = tracker.get_world_entity_with_id(id=from_json(data["parent_id"]))
-        child = tracker.get_world_entity_with_id(id=from_json(data["child_id"]))
-        return cls(
-            name=from_json(data["name"]),
-            parent=parent,
-            child=child,
-            parent_T_connection_expression=from_json(
-                data["parent_T_connection_expression"], **kwargs
-            ),
-            x_id=from_json(data["x_id"]),
-            y_id=from_json(data["y_id"]),
-            z_id=from_json(data["z_id"]),
-            qx_id=from_json(data["qx_id"]),
-            qy_id=from_json(data["qy_id"]),
-            qz_id=from_json(data["qz_id"]),
-            qw_id=from_json(data["qw_id"]),
-        )
-
     @property
     def x(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.x_id)
+        return self._dof_by_role(DegreeOfFreedomRole.X)
 
     @property
     def y(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.y_id)
+        return self._dof_by_role(DegreeOfFreedomRole.Y)
 
     @property
     def z(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.z_id)
+        return self._dof_by_role(DegreeOfFreedomRole.Z)
 
     @property
     def qx(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.qx_id)
+        return self._dof_by_role(DegreeOfFreedomRole.QX)
 
     @property
     def qy(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.qy_id)
+        return self._dof_by_role(DegreeOfFreedomRole.QY)
 
     @property
     def qz(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.qz_id)
+        return self._dof_by_role(DegreeOfFreedomRole.QZ)
 
     @property
     def qw(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.qw_id)
+        return self._dof_by_role(DegreeOfFreedomRole.QW)
+
+    @property
+    def x_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.X)
+
+    @property
+    def y_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.Y)
+
+    @property
+    def z_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.Z)
+
+    @property
+    def qx_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QX)
+
+    @property
+    def qy_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QY)
+
+    @property
+    def qz_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QZ)
+
+    @property
+    def qw_id(self) -> UUID:
+        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QW)
 
     def add_to_world(self, world: World):
         super().add_to_world(world)
@@ -480,11 +412,11 @@ class Connection6DoF(Connection):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         name: Optional[PrefixedName] = None,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
-        *args,
         **kwargs,
     ) -> Self:
         """
@@ -530,18 +462,18 @@ class Connection6DoF(Connection):
             child=child,
             parent_T_connection_expression=parent_T_connection_expression,
             name=name,
-            x_id=x.id,
-            y_id=y.id,
-            z_id=z.id,
-            qx_id=qx.id,
-            qy_id=qy.id,
-            qz_id=qz.id,
-            qw_id=qw.id,
+            degrees_of_freedom=DegreeOfFreedomOwnership.create(
+                passive={
+                    DegreeOfFreedomRole.X: x.id,
+                    DegreeOfFreedomRole.Y: y.id,
+                    DegreeOfFreedomRole.Z: z.id,
+                    DegreeOfFreedomRole.QX: qx.id,
+                    DegreeOfFreedomRole.QY: qy.id,
+                    DegreeOfFreedomRole.QZ: qz.id,
+                    DegreeOfFreedomRole.QW: qw.id,
+                }
+            ),
         )
-
-    @property
-    def passive_dofs(self) -> List[DegreeOfFreedom]:
-        return [self.x, self.y, self.z, self.qx, self.qy, self.qz, self.qw]
 
     @property
     def origin(self) -> HomogeneousTransformationMatrix:
@@ -564,40 +496,72 @@ class Connection6DoF(Connection):
         self._world.state[self.qw.id].position = orientation[3]
         self._world.notify_state_change()
 
-    def copy_for_world(self, world: World) -> Connection6DoF:
-        """
-        Copies this 6DoF connection for another world. Returns a new connection with references to the given world.
-        :param world: The world to copy this connection for.
-        :return: A copy of this connection for the given world.
-        """
-        (
-            other_parent,
-            other_child,
-            parent_T_connection_expression,
-            connection_T_child_expression,
-        ) = self._find_references_in_world(world)
-
-        return Connection6DoF(
-            name=deepcopy(self.name),
-            parent=other_parent,
-            child=other_child,
-            parent_T_connection_expression=parent_T_connection_expression,
-            connection_T_child_expression=connection_T_child_expression,
-            x_id=deepcopy(self.x_id),
-            y_id=deepcopy(self.y_id),
-            z_id=deepcopy(self.z_id),
-            qx_id=deepcopy(self.qx_id),
-            qy_id=deepcopy(self.qy_id),
-            qz_id=deepcopy(self.qz_id),
-            qw_id=deepcopy(self.qw_id),
-        )
-
 
 @dataclass(eq=False)
 class WheeledDrive(ActiveConnection, HasUpdateState, ABC):
     """
     Superclass for connections that describe a drive, e.g., an omnidirectional drive or a differential drive.
     """
+
+    @property
+    def x(self) -> DegreeOfFreedom:
+        return self._dof_by_role(DegreeOfFreedomRole.X)
+
+    @property
+    def y(self) -> DegreeOfFreedom:
+        return self._dof_by_role(DegreeOfFreedomRole.Y)
+
+    @property
+    def roll(self) -> DegreeOfFreedom:
+        return self._dof_by_role(DegreeOfFreedomRole.ROLL)
+
+    @property
+    def pitch(self) -> DegreeOfFreedom:
+        return self._dof_by_role(DegreeOfFreedomRole.PITCH)
+
+    @property
+    def yaw(self) -> DegreeOfFreedom:
+        return self._dof_by_role(DegreeOfFreedomRole.YAW)
+
+    @property
+    def x_velocity(self) -> DegreeOfFreedom:
+        return self._dof_by_role(DegreeOfFreedomRole.X_VELOCITY)
+
+    @property
+    def origin(self) -> HomogeneousTransformationMatrix:
+        return super().origin
+
+    @origin.setter
+    def origin(
+        self, transformation: Union[NpMatrix4x4, HomogeneousTransformationMatrix]
+    ) -> None:
+        """
+        Overwrites the origin of the connection by projecting it onto the plane the drive can move in.
+
+        .. note::
+            A planar drive only represents x, y, and yaw, so the z, roll, and pitch components of
+            ``transformation`` are intentionally ignored.
+        """
+        if isinstance(transformation, np.ndarray):
+            transformation = HomogeneousTransformationMatrix(data=transformation)
+        position = transformation.to_position()
+        _, _, yaw = transformation.to_rotation_matrix().to_rpy()
+        self._world.state[self.x.id].position = position.x
+        self._world.state[self.y.id].position = position.y
+        self._world.state[self.yaw.id].position = yaw
+        self._world.notify_state_change()
+
+    def get_free_variable_names(self) -> List[UUID]:
+        return [self.x.id, self.y.id, self.yaw.id]
+
+    @property
+    def has_hardware_interface(self) -> bool:
+        return self.x_velocity.has_hardware_interface
+
+    @has_hardware_interface.setter
+    def has_hardware_interface(self, value: bool) -> None:
+        for dof in self.active_dofs:
+            dof.has_hardware_interface = value
 
 
 @dataclass(eq=False)
@@ -617,76 +581,9 @@ class OmniDrive(WheeledDrive):
         They are combined into one active dof.
     """
 
-    # passive dofs
-    x_id: UUID = field(kw_only=True)
-    y_id: UUID = field(kw_only=True)
-    roll_id: UUID = field(kw_only=True)
-    pitch_id: UUID = field(kw_only=True)
-
-    # active dofs
-    yaw_id: UUID = field(kw_only=True)
-    x_velocity_id: UUID = field(kw_only=True)
-    y_velocity_id: UUID = field(kw_only=True)
-
-    def to_json(self) -> Dict[str, Any]:
-        result = super().to_json()
-        result["x_id"] = to_json(self.x_id)
-        result["y_id"] = to_json(self.y_id)
-        result["roll_id"] = to_json(self.roll_id)
-        result["pitch_id"] = to_json(self.pitch_id)
-        result["yaw_id"] = to_json(self.yaw_id)
-        result["x_velocity_id"] = to_json(self.x_velocity_id)
-        result["y_velocity_id"] = to_json(self.y_velocity_id)
-        return result
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
-        parent = tracker.get_world_entity_with_id(id=from_json(data["parent_id"]))
-        child = tracker.get_world_entity_with_id(id=from_json(data["child_id"]))
-        return cls(
-            name=from_json(data["name"], **kwargs),
-            parent=parent,
-            child=child,
-            parent_T_connection_expression=from_json(
-                data["parent_T_connection_expression"], **kwargs
-            ),
-            x_id=from_json(data["x_id"]),
-            y_id=from_json(data["y_id"]),
-            roll_id=from_json(data["roll_id"]),
-            pitch_id=from_json(data["pitch_id"]),
-            yaw_id=from_json(data["yaw_id"]),
-            x_velocity_id=from_json(data["x_velocity_id"]),
-            y_velocity_id=from_json(data["y_velocity_id"]),
-        )
-
-    @property
-    def x(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.x_id)
-
-    @property
-    def y(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.y_id)
-
-    @property
-    def roll(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.roll_id)
-
-    @property
-    def pitch(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.pitch_id)
-
-    @property
-    def yaw(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.yaw_id)
-
-    @property
-    def x_velocity(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.x_velocity_id)
-
     @property
     def y_velocity(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.y_velocity_id)
+        return self._dof_by_role(DegreeOfFreedomRole.Y_VELOCITY)
 
     def add_to_world(self, world: World):
         super().add_to_world(world)
@@ -715,13 +612,13 @@ class OmniDrive(WheeledDrive):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         name: Optional[PrefixedName] = None,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
         translation_velocity_limits: float = 0.6,
         rotation_velocity_limits: float = 0.5,
-        *args,
         **kwargs,
     ) -> Self:
         """
@@ -796,28 +693,20 @@ class OmniDrive(WheeledDrive):
             child=child,
             parent_T_connection_expression=parent_T_connection_expression,
             name=name,
-            x_id=x.id,
-            y_id=y.id,
-            roll_id=roll.id,
-            pitch_id=pitch.id,
-            yaw_id=yaw.id,
-            x_velocity_id=x_vel.id,
-            y_velocity_id=y_vel.id,
-            *args,
-            **kwargs,
+            degrees_of_freedom=DegreeOfFreedomOwnership.create(
+                active={
+                    DegreeOfFreedomRole.X_VELOCITY: x_vel.id,
+                    DegreeOfFreedomRole.Y_VELOCITY: y_vel.id,
+                    DegreeOfFreedomRole.YAW: yaw.id,
+                },
+                passive={
+                    DegreeOfFreedomRole.X: x.id,
+                    DegreeOfFreedomRole.Y: y.id,
+                    DegreeOfFreedomRole.ROLL: roll.id,
+                    DegreeOfFreedomRole.PITCH: pitch.id,
+                },
+            ),
         )
-
-    @property
-    def active_dofs(self) -> List[DegreeOfFreedom]:
-        return [self.x_velocity, self.y_velocity, self.yaw]
-
-    @property
-    def passive_dofs(self) -> List[DegreeOfFreedom]:
-        return [self.x, self.y, self.roll, self.pitch]
-
-    @property
-    def dofs(self) -> List[DegreeOfFreedom]:
-        return self.active_dofs + self.passive_dofs
 
     def update_state(self, dt: float) -> None:
         state = self._world.state
@@ -832,70 +721,6 @@ class OmniDrive(WheeledDrive):
         y_velocity = np.sin(delta) * x_vel + np.cos(delta) * y_vel
         state[self.y.id].position += y_velocity * dt
 
-    @property
-    def origin(self) -> HomogeneousTransformationMatrix:
-        return super().origin
-
-    @origin.setter
-    def origin(
-        self, transformation: Union[NpMatrix4x4, HomogeneousTransformationMatrix]
-    ) -> None:
-        """
-        Overwrites the origin of the connection.
-        .. warning:: Ignores z position, pitch, and yaw values.
-        :param parent_T_child:
-        """
-        if isinstance(transformation, np.ndarray):
-            transformation = HomogeneousTransformationMatrix(data=transformation)
-        position = transformation.to_position()
-        roll, pitch, yaw = transformation.to_rotation_matrix().to_rpy()
-        self._world.state[self.x.id].position = position.x
-        self._world.state[self.y.id].position = position.y
-        self._world.state[self.yaw.id].position = yaw
-        self._world.notify_state_change()
-
-    def get_free_variable_names(self) -> List[UUID]:
-        return [self.x.id, self.y.id, self.yaw.id]
-
-    @property
-    def has_hardware_interface(self) -> bool:
-        return self.x_velocity.has_hardware_interface
-
-    @has_hardware_interface.setter
-    def has_hardware_interface(self, value: bool) -> None:
-        self.x_velocity.has_hardware_interface = value
-        self.y_velocity.has_hardware_interface = value
-        self.yaw.has_hardware_interface = value
-
-    def copy_for_world(self, world: World) -> OmniDrive:
-        """
-        Copies this OmniDriveConnection for the provided world. This finds the references for the parent and child in
-        the new world and returns a new connection with references to the new parent and child.
-        :param world: The world where the connection is copied.
-        :return: The connection with references to the new parent and child.
-        """
-        (
-            other_parent,
-            other_child,
-            parent_T_connection_expression,
-            connection_T_child_expression,
-        ) = self._find_references_in_world(world)
-
-        return OmniDrive(
-            name=deepcopy(self.name),
-            parent=other_parent,
-            child=other_child,
-            parent_T_connection_expression=parent_T_connection_expression,
-            connection_T_child_expression=connection_T_child_expression,
-            x_id=deepcopy(self.x_id),
-            y_id=deepcopy(self.y_id),
-            roll_id=deepcopy(self.roll_id),
-            pitch_id=deepcopy(self.pitch_id),
-            yaw_id=deepcopy(self.yaw_id),
-            x_velocity_id=deepcopy(self.x_velocity_id),
-            y_velocity_id=deepcopy(self.y_velocity_id),
-        )
-
 
 @dataclass(eq=False)
 class DifferentialDrive(WheeledDrive):
@@ -903,85 +728,6 @@ class DifferentialDrive(WheeledDrive):
     A connection describing a differential drive.
     It can rotate around its z-axis and drive in x-direction. It allows movement in the x-y plane.
     """
-
-    x_id: UUID = field(kw_only=True)
-    """
-    Passive DoFs describing the measured odometry in x with respect to parent frame.
-    """
-    y_id: UUID = field(kw_only=True)
-    """
-    Passive DoFs describing the measured odometry in y with respect to parent frame.
-    """
-    roll_id: UUID = field(kw_only=True)
-    """
-    Passive DoF describing the measured odometry in roll using the IMU sensor.
-    """
-    pitch_id: UUID = field(kw_only=True)
-    """
-    Passive DoF describing the measured odometry in pitch using the IMU sensor.
-    """
-    yaw_id: UUID = field(kw_only=True)
-    """
-    Active DoF describing rotation around the robot's z-axis.
-    """
-    x_velocity_id: UUID = field(kw_only=True)
-    """
-    Actibe DoF describing the measured and commanded velocity in x. Represented with respect to the child frame.
-    """
-
-    def to_json(self) -> Dict[str, Any]:
-        result = super().to_json()
-        result["x_id"] = to_json(self.x_id)
-        result["y_id"] = to_json(self.y_id)
-        result["roll_id"] = to_json(self.roll_id)
-        result["pitch_id"] = to_json(self.pitch_id)
-        result["yaw_id"] = to_json(self.yaw_id)
-        result["x_velocity_id"] = to_json(self.x_velocity_id)
-        return result
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
-        parent = tracker.get_world_entity_with_id(id=from_json(data["parent_id"]))
-        child = tracker.get_world_entity_with_id(id=from_json(data["child_id"]))
-        return cls(
-            name=from_json(data["name"], **kwargs),
-            parent=parent,
-            child=child,
-            parent_T_connection_expression=HomogeneousTransformationMatrix.from_json(
-                data["parent_T_connection_expression"], **kwargs
-            ),
-            x_id=from_json(data["x_id"]),
-            y_id=from_json(data["y_id"]),
-            roll_id=from_json(data["roll_id"]),
-            pitch_id=from_json(data["pitch_id"]),
-            yaw_id=from_json(data["yaw_id"]),
-            x_velocity_id=from_json(data["x_velocity_id"]),
-        )
-
-    @property
-    def x(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.x_id)
-
-    @property
-    def y(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.y_id)
-
-    @property
-    def roll(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.roll_id)
-
-    @property
-    def pitch(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.pitch_id)
-
-    @property
-    def yaw(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.yaw_id)
-
-    @property
-    def x_velocity(self) -> DegreeOfFreedom:
-        return self._world.get_degree_of_freedom_by_id(self.x_velocity_id)
 
     def add_to_world(self, world: World):
         super().add_to_world(world)
@@ -1010,13 +756,13 @@ class DifferentialDrive(WheeledDrive):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         name: Optional[PrefixedName] = None,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
         translation_velocity_limits: float = 0.6,
         rotation_velocity_limits: float = 0.5,
-        *args,
         **kwargs,
     ) -> Self:
         """
@@ -1077,27 +823,19 @@ class DifferentialDrive(WheeledDrive):
             child=child,
             parent_T_connection_expression=parent_T_connection_expression,
             name=name,
-            x_id=x.id,
-            y_id=y.id,
-            roll_id=roll.id,
-            pitch_id=pitch.id,
-            yaw_id=yaw.id,
-            x_velocity_id=x_vel.id,
-            *args,
-            **kwargs,
+            degrees_of_freedom=DegreeOfFreedomOwnership.create(
+                active={
+                    DegreeOfFreedomRole.X_VELOCITY: x_vel.id,
+                    DegreeOfFreedomRole.YAW: yaw.id,
+                },
+                passive={
+                    DegreeOfFreedomRole.X: x.id,
+                    DegreeOfFreedomRole.Y: y.id,
+                    DegreeOfFreedomRole.ROLL: roll.id,
+                    DegreeOfFreedomRole.PITCH: pitch.id,
+                },
+            ),
         )
-
-    @property
-    def active_dofs(self) -> List[DegreeOfFreedom]:
-        return [self.x_velocity, self.yaw]
-
-    @property
-    def passive_dofs(self) -> List[DegreeOfFreedom]:
-        return [self.x, self.y, self.roll, self.pitch]
-
-    @property
-    def dofs(self) -> List[DegreeOfFreedom]:
-        return self.active_dofs + self.passive_dofs
 
     def update_state(self, dt: float) -> None:
         state = self._world.state
@@ -1109,65 +847,3 @@ class DifferentialDrive(WheeledDrive):
         state[self.x.id].position += x_velocity * dt
         y_velocity = np.sin(delta) * x_vel
         state[self.y.id].position += y_velocity * dt
-
-    @property
-    def origin(self) -> HomogeneousTransformationMatrix:
-        return super().origin
-
-    @origin.setter
-    def origin(
-        self, transformation: Union[NpMatrix4x4, HomogeneousTransformationMatrix]
-    ) -> None:
-        """
-        Overwrites the origin of the connection.
-        .. warning:: Ignores z position, pitch, and yaw values.
-        :param parent_T_child:
-        """
-        if isinstance(transformation, np.ndarray):
-            transformation = HomogeneousTransformationMatrix(data=transformation)
-        position = transformation.to_position()
-        roll, pitch, yaw = transformation.to_rotation_matrix().to_rpy()
-        self._world.state[self.x.id].position = position.x
-        self._world.state[self.y.id].position = position.y
-        self._world.state[self.yaw.id].position = yaw
-        self._world.notify_state_change()
-
-    def get_free_variable_names(self) -> List[UUID]:
-        return [self.x.id, self.y.id, self.yaw.id]
-
-    @property
-    def has_hardware_interface(self) -> bool:
-        return self.x_velocity.has_hardware_interface
-
-    @has_hardware_interface.setter
-    def has_hardware_interface(self, value: bool) -> None:
-        self.x_velocity.has_hardware_interface = value
-        self.yaw.has_hardware_interface = value
-
-    def copy_for_world(self, world: World) -> DifferentialDrive:
-        """
-        Copies this DiffDriveConnection for the provided world. This finds the references for the parent and child in
-        the new world and returns a new connection with references to the new parent and child.
-        :param world: The world where the connection is copied.
-        :return: The connection with references to the new parent and child.
-        """
-        (
-            other_parent,
-            other_child,
-            parent_T_connection_expression,
-            connection_T_child_expression,
-        ) = self._find_references_in_world(world)
-
-        return DifferentialDrive(
-            name=deepcopy(self.name),
-            parent=other_parent,
-            child=other_child,
-            parent_T_connection_expression=parent_T_connection_expression,
-            connection_T_child_expression=connection_T_child_expression,
-            x_id=deepcopy(self.x_id),
-            y_id=deepcopy(self.y_id),
-            roll_id=deepcopy(self.roll_id),
-            pitch_id=deepcopy(self.pitch_id),
-            yaw_id=deepcopy(self.yaw_id),
-            x_velocity_id=deepcopy(self.x_velocity_id),
-        )

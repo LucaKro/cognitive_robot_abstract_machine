@@ -62,6 +62,10 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
 )
 from semantic_digital_twin.utils import IDGenerator, camel_case_split
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import (
+    DegreeOfFreedomOwnership,
+    DegreeOfFreedomRole,
+)
 from semantic_digital_twin.world_description.geometry import Mesh
 from semantic_digital_twin.world_description.inertial_properties import Inertial
 from semantic_digital_twin.world_description.shape_collection import (
@@ -814,8 +818,15 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
        This is always created by the connection and not should be copied.
     2. connection_T_child describes the pose of the child relative to the connection and must be constant.
 
-    This split is necessary for copying Connections, because they need parent_T_connection as an input parameter and 
+    This split is necessary for copying Connections, because they need parent_T_connection as an input parameter and
     connection_T_child is generated in the __post_init__ method.
+    """
+
+    degrees_of_freedom: DegreeOfFreedomOwnership = field(
+        default_factory=DegreeOfFreedomOwnership, kw_only=True
+    )
+    """
+    The degrees of freedom this connection owns, identified by role.
     """
 
     def __post_init__(self):
@@ -871,6 +882,7 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         result["connection_T_child_expression"] = to_json(
             self.connection_T_child_expression
         )
+        result["degrees_of_freedom"] = self.degrees_of_freedom.to_json()
         return result
 
     @classmethod
@@ -888,7 +900,21 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             connection_T_child_expression=from_json(
                 data["connection_T_child_expression"], **kwargs
             ),
+            degrees_of_freedom=DegreeOfFreedomOwnership.from_json(
+                data["degrees_of_freedom"]
+            ),
+            **cls._extra_from_json_kwargs(data, **kwargs),
         )
+
+    @classmethod
+    def _extra_from_json_kwargs(cls, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """
+        Constructor keyword arguments specific to a connection subclass during deserialization.
+
+        Subclasses that carry state beyond their degrees of freedom (e.g. an axis) override this to
+        restore it from ``data``.
+        """
+        return {}
 
     @property
     def origin_expression(self) -> HomogeneousTransformationMatrix:
@@ -898,13 +924,27 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             @ self.connection_T_child_expression
         )
 
+    def _dof_by_role(self, role: DegreeOfFreedomRole) -> DegreeOfFreedom:
+        """
+        :return: The owned degree of freedom with the given role, resolved against the world.
+        """
+        return self._world.get_degree_of_freedom_by_id(
+            self.degrees_of_freedom.id_for(role)
+        )
+
     @property
     def active_dofs(self) -> List[DegreeOfFreedom]:
-        return []
+        return [
+            self._world.get_degree_of_freedom_by_id(dof_id)
+            for dof_id in self.degrees_of_freedom.active_ids()
+        ]
 
     @property
     def passive_dofs(self) -> List[DegreeOfFreedom]:
-        return []
+        return [
+            self._world.get_degree_of_freedom_by_id(dof_id)
+            for dof_id in self.degrees_of_freedom.passive_ids()
+        ]
 
     @property
     def controlled_dofs(self) -> List[DegreeOfFreedom]:
@@ -951,18 +991,11 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         return Matrix.vstack([position, orientation]).T
 
     @property
-    def dofs(self) -> Set[DegreeOfFreedom]:
+    def dofs(self) -> List[DegreeOfFreedom]:
         """
-        Returns the degrees of freedom associated with this connection.
+        The degrees of freedom owned by this connection, active ones first.
         """
-        dofs = set()
-
-        if hasattr(self, "active_dofs"):
-            dofs.update(set(self.active_dofs))
-        if hasattr(self, "passive_dofs"):
-            dofs.update(set(self.passive_dofs))
-
-        return dofs
+        return self.active_dofs + self.passive_dofs
 
     @classmethod
     def create_with_dofs(
@@ -970,20 +1003,23 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         world: World,
         parent: KinematicStructureEntity,
         child: KinematicStructureEntity,
+        *,
         name: Optional[PrefixedName] = None,
-        *args,
         **kwargs,
     ) -> Self:
         """
         This method will automatically generate the degrees of freedom for this connection into the given world
         and initialize the connection with the generated dofs.
+
+        Everything after ``world``, ``parent`` and ``child`` is keyword-only, so that subclasses can
+        extend the interface with their own keyword arguments without breaking a shared positional
+        contract.
+
         :param world: Reference to the world where the dofs should be added.
         :param parent: parent of the connection.
         :param child: child of the connection.
         :param name: name of the connection.
-        :param args: additional arguments the subclass might need
-        :param kwargs: additional keyword arguments the subclass might need
-        :return:
+        :param kwargs: additional keyword arguments the subclass might need.
         """
         raise NotImplementedError(f"{cls}.create_with_dofs is not implemented.")
 
@@ -1014,6 +1050,15 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         )
         return other_parent, other_child, parent_T_connection, connection_T_child
 
+    def _connection_specific_kwargs(self) -> Dict[str, Any]:
+        """
+        Constructor keyword arguments specific to a connection subclass when copying it.
+
+        Subclasses that carry state beyond their degrees of freedom (e.g. an axis) override this to
+        preserve it. The degrees of freedom themselves are handled by the copy methods.
+        """
+        return {}
+
     def copy_for_world(self, world: World) -> Self:
         """
         Copies this connection to the given world the parent and child references are updated to the new world as well
@@ -1029,11 +1074,13 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         ) = self._find_references_in_world(world)
 
         return self.__class__(
-            other_parent,
-            other_child,
+            parent=other_parent,
+            child=other_child,
             parent_T_connection_expression=parent_T_connection_expression,
             connection_T_child_expression=connection_T_child_expression,
             name=PrefixedName(self.name.name, prefix=self.name.prefix),
+            degrees_of_freedom=deepcopy(self.degrees_of_freedom),
+            **self._connection_specific_kwargs(),
         )
 
     def copy_with_new_parent(
@@ -1044,14 +1091,16 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         """
         Create a copy of this connection re-parented under ``new_parent``, using
         ``parent_T_connection_expression`` as the new parent offset and keeping the same child and
-        ``connection_T_child_expression``. Subclasses carrying extra state (e.g. an active degree of
-        freedom) override this to preserve it. Used to move a branch without collapsing its connection.
+        ``connection_T_child_expression``. The same degrees of freedom are reused so their state is
+        kept. Used to move a branch without collapsing its connection.
         """
         return self.__class__(
             parent=new_parent,
             child=self.child,
             parent_T_connection_expression=parent_T_connection_expression,
             connection_T_child_expression=self.connection_T_child_expression,
+            degrees_of_freedom=deepcopy(self.degrees_of_freedom),
+            **self._connection_specific_kwargs(),
         )
 
     def update_references_for_world(self, world: World):

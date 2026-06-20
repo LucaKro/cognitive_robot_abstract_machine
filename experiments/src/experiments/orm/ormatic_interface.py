@@ -23,6 +23,7 @@ import coraplex.alternative_motion_mappings.tiago_motion_mapping
 import coraplex.datastructures.dataclasses
 import coraplex.datastructures.execution_data
 import coraplex.datastructures.grasp
+import coraplex.datastructures.grasp_scoring
 import coraplex.datastructures.trajectory
 import coraplex.exceptions
 import coraplex.language
@@ -59,6 +60,7 @@ import datetime
 import enum
 import experiments.eql_experiments.monitoring_profile
 import experiments.experiment_definitions
+import experiments.graph_of_convex_sets_experiments
 import experiments.ormatic_experiments.reliability
 import experiments.ormatic_experiments.scalability
 import experiments.sage_10k.demos
@@ -203,6 +205,7 @@ import semantic_digital_twin.world
 import semantic_digital_twin.world_description.connection_properties
 import semantic_digital_twin.world_description.connections
 import semantic_digital_twin.world_description.degree_of_freedom
+import semantic_digital_twin.world_description.degree_of_freedom_ownership
 import semantic_digital_twin.world_description.geometry
 import semantic_digital_twin.world_description.inertial_properties
 import semantic_digital_twin.world_description.shape_collection
@@ -446,6 +449,25 @@ class CollisionViolatedErrorDAO_violated_collisions_association(
 
     target: Mapped[ClosestPointsDAO] = relationship(
         "ClosestPointsDAO", foreign_keys=[target_closestpointsdao_id], lazy="selectin"
+    )
+
+
+class DegreeOfFreedomOwnershipDAO_dofs_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_10693430126193589294345119746509567216557044345465015095431281"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_degreeoffreedomownershipdao_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomOwnershipDAO.database_id")
+    )
+    target_owneddegreeoffreedomdao_id: Mapped[int] = mapped_column(
+        ForeignKey("OwnedDegreeOfFreedomDAO.database_id")
+    )
+
+    target: Mapped[OwnedDegreeOfFreedomDAO] = relationship(
+        "OwnedDegreeOfFreedomDAO",
+        foreign_keys=[target_owneddegreeoffreedomdao_id],
+        lazy="selectin",
     )
 
 
@@ -3335,6 +3357,29 @@ class DegreeOfFreedomLimitsDAO(
     )
 
 
+class DegreeOfFreedomOwnershipDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.world_description.degree_of_freedom_ownership.DegreeOfFreedomOwnership
+    ],
+):
+    __tablename__ = "DegreeOfFreedomOwnershipDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    dofs: Mapped[builtins.list[DegreeOfFreedomOwnershipDAO_dofs_association]] = (
+        relationship(
+            "DegreeOfFreedomOwnershipDAO_dofs_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[DegreeOfFreedomOwnershipDAO_dofs_association.source_degreeoffreedomownershipdao_id]",
+            lazy="selectin",
+        )
+    )
+
+
 class DerivativeConstraintDAO(
     BaseConstraintDAO, DataAccessObject[giskardpy.qp.constraint.DerivativeConstraint]
 ):
@@ -4786,6 +4831,87 @@ class GiskardWrapperNodeDAO(
     }
 
 
+class GraphOfConvexSetsFreespaceExperimentResultDAO(
+    ExperimentResultDAO,
+    DataAccessObject[
+        experiments.graph_of_convex_sets_experiments.GraphOfConvexSetsFreespaceExperimentResult
+    ],
+):
+    __tablename__ = "GraphOfConvexSetsFreespaceExperimentResultDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ExperimentResultDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    world_loading_duration_milliseconds: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    obstacle_count: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    free_space_simple_set_count: Mapped[builtins.int] = mapped_column(
+        use_existing_column=True
+    )
+    free_space_bounding_box_count: Mapped[builtins.int] = mapped_column(
+        use_existing_column=True
+    )
+    graph_node_count: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    graph_edge_count: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    end_to_end_duration_milliseconds: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    environment_name: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    free_space_computation_duration_milliseconds_id: Mapped[int] = mapped_column(
+        ForeignKey("MeanAndStandardDeviationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    materialise_duration_milliseconds_id: Mapped[int] = mapped_column(
+        ForeignKey("MeanAndStandardDeviationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    connectivity_duration_milliseconds_id: Mapped[int] = mapped_column(
+        ForeignKey("MeanAndStandardDeviationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    free_space_computation_duration_milliseconds: Mapped[
+        MeanAndStandardDeviationDAO
+    ] = relationship(
+        "MeanAndStandardDeviationDAO",
+        uselist=False,
+        foreign_keys=[free_space_computation_duration_milliseconds_id],
+        post_update=True,
+    )
+    materialise_duration_milliseconds: Mapped[MeanAndStandardDeviationDAO] = (
+        relationship(
+            "MeanAndStandardDeviationDAO",
+            uselist=False,
+            foreign_keys=[materialise_duration_milliseconds_id],
+            post_update=True,
+        )
+    )
+    connectivity_duration_milliseconds: Mapped[MeanAndStandardDeviationDAO] = (
+        relationship(
+            "MeanAndStandardDeviationDAO",
+            uselist=False,
+            foreign_keys=[connectivity_duration_milliseconds_id],
+            post_update=True,
+        )
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "GraphOfConvexSetsFreespaceExperimentResultDAO",
+        "inherit_condition": database_id == ExperimentResultDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class GraspDescriptionDAO(
     Base, DataAccessObject[coraplex.datastructures.grasp.GraspDescription]
 ):
@@ -4827,6 +4953,30 @@ class GraspDescriptionDAO(
         foreign_keys=[end_effector_id],
         post_update=True,
     )
+
+
+class GraspScorerDAO(
+    Base, DataAccessObject[coraplex.datastructures.grasp_scoring.GraspScorer]
+):
+    __tablename__ = "GraspScorerDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    weight_normal: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    weight_distance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    weight_clearance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    penalty_collision: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    collision_tolerance: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    penalty_clearance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    penalty_unstable: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    score_partial_contact: Mapped[builtins.float] = mapped_column(
+        use_existing_column=True
+    )
+    ground_plane_z: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
 
 class GraspingActionDAO(
@@ -9453,6 +9603,32 @@ class OrientationReachedDAO(
     }
 
 
+class OwnedDegreeOfFreedomDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.world_description.degree_of_freedom_ownership.OwnedDegreeOfFreedom
+    ],
+):
+    __tablename__ = "OwnedDegreeOfFreedomDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    is_active: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    role: Mapped[
+        semantic_digital_twin.world_description.degree_of_freedom_ownership.DegreeOfFreedomRole
+    ] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    id: Mapped[uuid.UUID] = mapped_column(
+        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
+    )
+
+
 class OwnerDAO(
     Base, DataAccessObject[experiments.eql_experiments.monitoring_profile.Owner]
 ):
@@ -13680,6 +13856,31 @@ class ScaleDAO(
     x: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     y: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     z: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+
+class ScoredGraspDAO(
+    Base, DataAccessObject[coraplex.datastructures.grasp_scoring.ScoredGrasp]
+):
+    __tablename__ = "ScoredGraspDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    score: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    id: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[pose_id], post_update=True
+    )
 
 
 class SelfCollisionAvoidanceDAO(
@@ -18992,6 +19193,11 @@ class ConnectionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    degrees_of_freedom_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomOwnershipDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     simulator_additional_properties: Mapped[
         builtins.list[ConnectionDAO_simulator_additional_properties_association]
@@ -19029,6 +19235,12 @@ class ConnectionDAO(
             foreign_keys=[connection_T_child_expression_id],
             post_update=True,
         )
+    )
+    degrees_of_freedom: Mapped[DegreeOfFreedomOwnershipDAO] = relationship(
+        "DegreeOfFreedomOwnershipDAO",
+        uselist=False,
+        foreign_keys=[degrees_of_freedom_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -19180,25 +19392,6 @@ class DifferentialDriveDAO(
         use_existing_column=True,
     )
 
-    x_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    y_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    roll_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    pitch_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    yaw_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    x_velocity_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "DifferentialDriveDAO",
         "inherit_condition": database_id == WheeledDriveDAO.database_id,
@@ -19216,28 +19409,6 @@ class OmniDriveDAO(
         ForeignKey(WheeledDriveDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    x_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    y_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    roll_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    pitch_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    yaw_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    x_velocity_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    y_velocity_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
     )
 
     __mapper_args__ = {
@@ -19259,28 +19430,6 @@ class Connection6DoFDAO(
         ForeignKey(ConnectionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    x_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    y_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    z_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    qx_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    qy_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    qz_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
-    qw_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
     )
 
     __mapper_args__ = {

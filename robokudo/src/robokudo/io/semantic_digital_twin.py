@@ -38,6 +38,10 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import (
+    DegreeOfFreedomOwnership,
+    DegreeOfFreedomRole,
+)
 from semantic_digital_twin.world_description.geometry import Shape, Color, Scale, Box
 from semantic_digital_twin.world_description.world_entity import (
     Body,
@@ -272,13 +276,17 @@ class AddObjectDiff:
         conn = Connection6DoF(
             parent=self.adapter.root,
             child=self.tracked_object.body,
-            x_id=dofs["x"].id,
-            y_id=dofs["y"].id,
-            z_id=dofs["z"].id,
-            qx_id=dofs["qx"].id,
-            qy_id=dofs["qy"].id,
-            qz_id=dofs["qz"].id,
-            qw_id=dofs["qw"].id,
+            degrees_of_freedom=DegreeOfFreedomOwnership.create(
+                passive={
+                    DegreeOfFreedomRole.X: dofs["x"].id,
+                    DegreeOfFreedomRole.Y: dofs["y"].id,
+                    DegreeOfFreedomRole.Z: dofs["z"].id,
+                    DegreeOfFreedomRole.QX: dofs["qx"].id,
+                    DegreeOfFreedomRole.QY: dofs["qy"].id,
+                    DegreeOfFreedomRole.QZ: dofs["qz"].id,
+                    DegreeOfFreedomRole.QW: dofs["qw"].id,
+                }
+            ),
         )
         self.commands.append(AddConnectionModification(connection=conn))
 

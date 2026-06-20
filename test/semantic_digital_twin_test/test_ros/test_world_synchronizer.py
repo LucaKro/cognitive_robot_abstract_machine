@@ -58,6 +58,10 @@ from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import (
+    DegreeOfFreedomOwnership,
+    DegreeOfFreedomRole,
+)
 from semantic_digital_twin.world_description.geometry import Scale
 from semantic_digital_twin.world_description.world_entity import (
     Body,
@@ -126,13 +130,17 @@ def create_dummy_world(w: Optional[World] = None) -> World:
             Connection6DoF(
                 parent=b1,
                 child=b2,
-                x_id=x_dof.id,
-                y_id=y_dof.id,
-                z_id=z_dof.id,
-                qx_id=qx_dof.id,
-                qy_id=qy_dof.id,
-                qz_id=qz_dof.id,
-                qw_id=qw_dof.id,
+                degrees_of_freedom=DegreeOfFreedomOwnership.create(
+                    passive={
+                        DegreeOfFreedomRole.X: x_dof.id,
+                        DegreeOfFreedomRole.Y: y_dof.id,
+                        DegreeOfFreedomRole.Z: z_dof.id,
+                        DegreeOfFreedomRole.QX: qx_dof.id,
+                        DegreeOfFreedomRole.QY: qy_dof.id,
+                        DegreeOfFreedomRole.QZ: qz_dof.id,
+                        DegreeOfFreedomRole.QW: qw_dof.id,
+                    }
+                ),
             )
         )
     return w
