@@ -44,7 +44,7 @@ class TestDegreeOfFreedomOwnership:
                 assert dof_id == original.id
                 return replacement
 
-        resolved = ownership.for_world(_FakeWorld())
+        resolved = ownership.copy_for_world(_FakeWorld())
         assert resolved.dof_for(DegreeOfFreedomRole.X) is replacement
 
     def test_single_active_builds_one_active_main_dof(self):

@@ -49,7 +49,7 @@ class JointPositionList(Task):
 
         errors = []
         for connection, target in self.goal_state.items():
-            current = connection.dof.variables.position
+            current = connection.degree_of_fredom.variables.position
             target = self.apply_limits_to_target(target, connection)
             velocity = self.apply_limits_to_velocity(self.max_velocity, connection)
             if (

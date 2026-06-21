@@ -190,20 +190,15 @@ class DegreeOfFreedom(WorldEntityWithID, SubclassJSONSerializer):
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> DegreeOfFreedom:
-        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
         uuid = from_json(data["id"])
-        if tracker.has_world_entity_with_id(uuid):
-            return tracker.get_world_entity_with_id(uuid)
         lower_limits = from_json(data["lower_limits"], **kwargs)
         upper_limits = from_json(data["upper_limits"], **kwargs)
-        result = cls(
+        return cls(
             name=from_json(data["name"]),
             limits=DegreeOfFreedomLimits(lower=lower_limits, upper=upper_limits),
             id=uuid,
             has_hardware_interface=data["has_hardware_interface"],
         )
-        tracker.add_world_entity_with_id(result)
-        return result
 
     def __deepcopy__(self, memo):
         result = DegreeOfFreedom(

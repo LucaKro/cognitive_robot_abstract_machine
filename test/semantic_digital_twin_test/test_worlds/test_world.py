@@ -43,7 +43,9 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 )
 from semantic_digital_twin.testing import world_setup
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.degree_of_freedom_ownership import DegreeOfFreedomOwnership
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import (
+    DegreeOfFreedomOwnership,
+)
 from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
     RevoluteConnection,
@@ -485,8 +487,8 @@ def test_merge_with_connection(world_setup, pr2_world_copy):
     origin = HomogeneousTransformationMatrix(pose)
 
     connection = pr2_world_copy.get_connection_by_name("l_gripper_l_finger_joint")
-    connection_dof_id = connection.dof.id
-    pr2_world_copy.state[connection.dof.id].position = 0.55
+    connection_dof_id = connection.degree_of_fredom.id
+    pr2_world_copy.state[connection.degree_of_fredom.id].position = 0.55
     pr2_world_copy.notify_state_change()
     expected_fk = pr2_world_copy.compute_forward_kinematics(
         connection.parent, connection.child
@@ -1043,7 +1045,9 @@ def test_overwrite_dof_limits_mimic(world_setup):
             offset=23,
             multiplier=-2,
             axis=Vector3(0, 0, 1),
-            degrees_of_freedom=DegreeOfFreedomOwnership.single_active(connection.raw_dof),
+            degrees_of_freedom=DegreeOfFreedomOwnership.single_active(
+                connection.raw_dof
+            ),
         )
         world.add_body(body)
         world.add_connection(mimic_connection)

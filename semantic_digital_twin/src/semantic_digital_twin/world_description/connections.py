@@ -9,6 +9,9 @@ import numpy as np
 from typing_extensions import List, TYPE_CHECKING, Union, Optional, Self, Dict, Any
 
 from krrood.adapters.json_serializer import from_json, to_json
+from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
+    WorldEntityWithIDKwargsTracker,
+)
 from semantic_digital_twin.world_description.connection_properties import JointDynamics
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
@@ -139,8 +142,25 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
+
         return cls(
-            **cls._base_kwargs_from_json(data, **kwargs),
+            **{
+                "name": from_json(data["name"]),
+                "parent": tracker.get_world_entity_with_id(
+                    id=from_json(data["parent_id"])
+                ),
+                "child": tracker.get_world_entity_with_id(
+                    id=from_json(data["child_id"])
+                ),
+                "parent_T_connection_expression": from_json(
+                    data["parent_T_connection_expression"], **kwargs
+                ),
+                "connection_T_child_expression": from_json(
+                    data["connection_T_child_expression"], **kwargs
+                ),
+                "degrees_of_freedom": from_json(data["degrees_of_freedom"], **kwargs),
+            },
             axis=from_json(data["axis"], **kwargs),
             multiplier=data["multiplier"],
             offset=data["offset"],

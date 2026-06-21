@@ -4816,14 +4816,17 @@ class OwnedDegreeOfFreedomDAO(
         use_existing_column=True,
     )
 
-    dof_id: Mapped[int] = mapped_column(
+    degree_of_fredom_id: Mapped[int] = mapped_column(
         ForeignKey("DegreeOfFreedomDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    dof: Mapped[DegreeOfFreedomDAO] = relationship(
-        "DegreeOfFreedomDAO", uselist=False, foreign_keys=[dof_id], post_update=True
+    degree_of_fredom: Mapped[DegreeOfFreedomDAO] = relationship(
+        "DegreeOfFreedomDAO",
+        uselist=False,
+        foreign_keys=[degree_of_fredom_id],
+        post_update=True,
     )
 
 

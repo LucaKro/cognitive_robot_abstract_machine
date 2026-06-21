@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Self
 
 from typing_extensions import Dict, List, Optional, TYPE_CHECKING
+
+from krrood.adapters.json_serializer import to_json, from_json, SubclassJSONSerializer
+from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
+    WorldEntityWithIDKwargsTracker,
+)
 
 if TYPE_CHECKING:
     from semantic_digital_twin.world import World
@@ -39,7 +45,7 @@ class DegreeOfFreedomRole(Enum):
 
 
 @dataclass
-class OwnedDegreeOfFreedom:
+class OwnedDegreeOfFreedom(SubclassJSONSerializer):
     """
     A single degree of freedom owned by a connection, identified by its role.
 
@@ -50,8 +56,25 @@ class OwnedDegreeOfFreedom:
     role: DegreeOfFreedomRole
     """The role this degree of freedom plays within the owning connection."""
 
-    dof: DegreeOfFreedom
+    degree_of_fredom: DegreeOfFreedom
     """The owned degree of freedom."""
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            **super().to_json(),
+            "role": to_json(self.role),
+            "degree_of_fredom": to_json(self.degree_of_fredom.id),
+        }
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
+        return cls(
+            role=from_json(data["role"]),
+            degree_of_fredom=tracker.get_world_entity_with_id(
+                from_json(data["degree_of_fredom"], **kwargs)
+            ),
+        )
 
 
 @dataclass
@@ -80,11 +103,11 @@ class DegreeOfFreedomOwnership:
         """
         return cls(
             active=[
-                OwnedDegreeOfFreedom(role=role, dof=dof)
+                OwnedDegreeOfFreedom(role=role, degree_of_fredom=dof)
                 for role, dof in (active or {}).items()
             ],
             passive=[
-                OwnedDegreeOfFreedom(role=role, dof=dof)
+                OwnedDegreeOfFreedom(role=role, degree_of_fredom=dof)
                 for role, dof in (passive or {}).items()
             ],
         )
@@ -103,20 +126,20 @@ class DegreeOfFreedomOwnership:
         """
         for owned in self.active + self.passive:
             if owned.role == role:
-                return owned.dof
+                return owned.degree_of_fredom
         raise KeyError(role)
 
     def active_dofs(self) -> List[DegreeOfFreedom]:
         """
         :return: The active degrees of freedom, in declaration order.
         """
-        return [owned.dof for owned in self.active]
+        return [owned.degree_of_fredom for owned in self.active]
 
     def passive_dofs(self) -> List[DegreeOfFreedom]:
         """
         :return: The passive degrees of freedom, in declaration order.
         """
-        return [owned.dof for owned in self.passive]
+        return [owned.degree_of_fredom for owned in self.passive]
 
     def all_dofs(self) -> List[DegreeOfFreedom]:
         """
@@ -124,7 +147,7 @@ class DegreeOfFreedomOwnership:
         """
         return self.active_dofs() + self.passive_dofs()
 
-    def for_world(self, world: World) -> DegreeOfFreedomOwnership:
+    def copy_for_world(self, world: World) -> DegreeOfFreedomOwnership:
         """
         Re-resolve every owned degree of freedom against ``world`` by id.
 
@@ -138,7 +161,9 @@ class DegreeOfFreedomOwnership:
             return [
                 OwnedDegreeOfFreedom(
                     role=owned.role,
-                    dof=world.get_degree_of_freedom_by_id(owned.dof.id),
+                    degree_of_fredom=world.get_degree_of_freedom_by_id(
+                        owned.degree_of_fredom.id
+                    ),
                 )
                 for owned in owned_dofs
             ]

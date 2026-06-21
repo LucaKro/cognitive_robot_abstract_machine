@@ -496,17 +496,23 @@ def test_pr2_tighten_dof_velocity_limits_of_1dof_connections(pr2_world_state_res
     pr2.tighten_dof_velocity_limits_of_1dof_connections(new_limits)
     # if spacial case triggers, but the new limit is above the old one, nothing happens
     assert (
-        pr2._world.get_connection_by_name("head_pan_joint").dof.limits.upper.velocity
+        pr2._world.get_connection_by_name(
+            "head_pan_joint"
+        ).degree_of_fredom.limits.upper.velocity
         == 1
     )
     # new limit is applied to joint without spacial case
     assert (
-        pr2._world.get_connection_by_name("head_tilt_joint").dof.limits.upper.velocity
+        pr2._world.get_connection_by_name(
+            "head_tilt_joint"
+        ).degree_of_fredom.limits.upper.velocity
         == 0.5
     )
     # non-spacial case where the old limit is below 1
     assert (
-        pr2._world.get_connection_by_name("torso_lift_joint").dof.limits.upper.velocity
+        pr2._world.get_connection_by_name(
+            "torso_lift_joint"
+        ).degree_of_fredom.limits.upper.velocity
         == 0.013
     )
 

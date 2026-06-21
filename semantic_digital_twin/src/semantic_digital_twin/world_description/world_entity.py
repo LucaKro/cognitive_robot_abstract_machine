@@ -872,13 +872,6 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         self.parent_T_connection_expression.reference_frame = self.parent
         self.connection_T_child_expression.child_frame = self.child
 
-    @staticmethod
-    def _owned_dofs_to_json(owned_dofs: List[OwnedDegreeOfFreedom]) -> List[Dict[str, Any]]:
-        return [
-            {"role": owned.role.name, "dof_id": to_json(owned.dof.id)}
-            for owned in owned_dofs
-        ]
-
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
         result["name"] = to_json(self.name)
@@ -890,50 +883,31 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         result["connection_T_child_expression"] = to_json(
             self.connection_T_child_expression
         )
-        result["degrees_of_freedom"] = {
-            "active": self._owned_dofs_to_json(self.degrees_of_freedom.active),
-            "passive": self._owned_dofs_to_json(self.degrees_of_freedom.passive),
-        }
+        result["degrees_of_freedom"] = to_json(self.degrees_of_freedom)
         return result
 
     @classmethod
-    def _base_kwargs_from_json(cls, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        """
-        Constructor keyword arguments for the fields defined on the base :class:`Connection`.
-
-        Subclasses that add fields override :meth:`_from_json` and combine these base keyword
-        arguments with their own, following the standard ``SubclassJSONSerializer`` convention.
-        """
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         tracker = WorldEntityWithIDKwargsTracker.from_kwargs(kwargs)
 
-        def owned_dofs(entries: List[Dict[str, Any]]) -> List[OwnedDegreeOfFreedom]:
-            return [
-                OwnedDegreeOfFreedom(
-                    role=DegreeOfFreedomRole[entry["role"]],
-                    dof=tracker.get_world_entity_with_id(from_json(entry["dof_id"])),
-                )
-                for entry in entries
-            ]
-
-        return {
-            "name": from_json(data["name"]),
-            "parent": tracker.get_world_entity_with_id(id=from_json(data["parent_id"])),
-            "child": tracker.get_world_entity_with_id(id=from_json(data["child_id"])),
-            "parent_T_connection_expression": from_json(
-                data["parent_T_connection_expression"], **kwargs
-            ),
-            "connection_T_child_expression": from_json(
-                data["connection_T_child_expression"], **kwargs
-            ),
-            "degrees_of_freedom": DegreeOfFreedomOwnership(
-                active=owned_dofs(data["degrees_of_freedom"]["active"]),
-                passive=owned_dofs(data["degrees_of_freedom"]["passive"]),
-            ),
-        }
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(**cls._base_kwargs_from_json(data, **kwargs))
+        return cls(
+            **{
+                "name": from_json(data["name"]),
+                "parent": tracker.get_world_entity_with_id(
+                    id=from_json(data["parent_id"])
+                ),
+                "child": tracker.get_world_entity_with_id(
+                    id=from_json(data["child_id"])
+                ),
+                "parent_T_connection_expression": from_json(
+                    data["parent_T_connection_expression"], **kwargs
+                ),
+                "connection_T_child_expression": from_json(
+                    data["connection_T_child_expression"], **kwargs
+                ),
+                "degrees_of_freedom": from_json(data["degrees_of_freedom"], **kwargs),
+            }
+        )
 
     @property
     def origin_expression(self) -> HomogeneousTransformationMatrix:
@@ -1087,7 +1061,7 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             child=other_child,
             parent_T_connection_expression=parent_T_connection_expression,
             connection_T_child_expression=connection_T_child_expression,
-            degrees_of_freedom=self.degrees_of_freedom.for_world(world),
+            degrees_of_freedom=self.degrees_of_freedom.copy_for_world(world),
         )
 
     def copy_with_new_parent(
@@ -1107,7 +1081,7 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
             parent=new_parent,
             parent_T_connection_expression=parent_T_connection_expression,
             connection_T_child_expression=self.connection_T_child_expression,
-            degrees_of_freedom=self.degrees_of_freedom.for_world(self._world),
+            degrees_of_freedom=self.degrees_of_freedom.copy_for_world(self._world),
         )
 
     def update_references_for_world(self, world: World):
@@ -1121,7 +1095,7 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer):
         self.parent = parent
         self.child = child
         self.parent_T_connection_expression.reference_frame = parent
-        self.degrees_of_freedom = self.degrees_of_freedom.for_world(world)
+        self.degrees_of_freedom = self.degrees_of_freedom.copy_for_world(world)
 
 
 GenericConnection = TypeVar("GenericConnection", bound=Connection)
