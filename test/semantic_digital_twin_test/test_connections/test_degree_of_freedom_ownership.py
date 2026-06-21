@@ -37,7 +37,9 @@ class TestDegreeOfFreedomOwnership:
         original = _dof("x")
         replacement = _dof("x")
         replacement.id = original.id
-        ownership = DegreeOfFreedomOwnership.create(passive={DegreeOfFreedomRole.X: original})
+        ownership = DegreeOfFreedomOwnership.create(
+            passive={DegreeOfFreedomRole.X: original}
+        )
 
         class _FakeWorld:
             def get_degree_of_freedom_by_id(self, dof_id):
