@@ -22,6 +22,7 @@ from semantic_digital_twin.utils import (
     robot_name_from_urdf_string,
 )
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import DegreeOfFreedomOwnership
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
     PrismaticConnection,
@@ -258,7 +259,7 @@ class URDFParser:
             multiplier=multiplier,
             offset=offset,
             axis=Vector3(*map(int, joint.axis), reference_frame=parent),
-            dof_id=dof.id,
+            degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof),
         )
         return result
 

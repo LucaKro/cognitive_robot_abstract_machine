@@ -16,7 +16,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, Mapped, mapped_column, DeclarativeBase
 
 import builtins
-import coraplex.orm.model
 import enum
 import krrood.adapters.json_serializer
 import krrood.ormatic.custom_types
@@ -326,8 +325,29 @@ class AvoidCollisionBetweenGroupsDAO_body_group_b_association(
     )
 
 
-class DegreeOfFreedomOwnershipDAO_dofs_association(Base, AssociationDataAccessObject):
-    __tablename__ = "_10693430126193589294345119746509567216557044345465015095431281"
+class DegreeOfFreedomOwnershipDAO_active_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_49589591587546359942628852996543866141237555684688905129531130"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_degreeoffreedomownershipdao_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomOwnershipDAO.database_id")
+    )
+    target_owneddegreeoffreedomdao_id: Mapped[int] = mapped_column(
+        ForeignKey("OwnedDegreeOfFreedomDAO.database_id")
+    )
+
+    target: Mapped[OwnedDegreeOfFreedomDAO] = relationship(
+        "OwnedDegreeOfFreedomDAO",
+        foreign_keys=[target_owneddegreeoffreedomdao_id],
+        lazy="selectin",
+    )
+
+
+class DegreeOfFreedomOwnershipDAO_passive_association(
+    Base, AssociationDataAccessObject
+):
+    __tablename__ = "_71293527398849208427112282083114309062170287652531672992454092"
 
     database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
@@ -2559,12 +2579,21 @@ class DegreeOfFreedomOwnershipDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
-    dofs: Mapped[builtins.list[DegreeOfFreedomOwnershipDAO_dofs_association]] = (
+    active: Mapped[builtins.list[DegreeOfFreedomOwnershipDAO_active_association]] = (
         relationship(
-            "DegreeOfFreedomOwnershipDAO_dofs_association",
+            "DegreeOfFreedomOwnershipDAO_active_association",
             collection_class=builtins.list,
             cascade="all, delete-orphan",
-            foreign_keys="[DegreeOfFreedomOwnershipDAO_dofs_association.source_degreeoffreedomownershipdao_id]",
+            foreign_keys="[DegreeOfFreedomOwnershipDAO_active_association.source_degreeoffreedomownershipdao_id]",
+            lazy="selectin",
+        )
+    )
+    passive: Mapped[builtins.list[DegreeOfFreedomOwnershipDAO_passive_association]] = (
+        relationship(
+            "DegreeOfFreedomOwnershipDAO_passive_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[DegreeOfFreedomOwnershipDAO_passive_association.source_degreeoffreedomownershipdao_id]",
             lazy="selectin",
         )
     )
@@ -4779,8 +4808,6 @@ class OwnedDegreeOfFreedomDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
-    is_active: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
-
     role: Mapped[
         semantic_digital_twin.world_description.degree_of_freedom_ownership.DegreeOfFreedomRole
     ] = mapped_column(
@@ -4788,8 +4815,15 @@ class OwnedDegreeOfFreedomDAO(
         nullable=False,
         use_existing_column=True,
     )
-    id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
+
+    dof_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    dof: Mapped[DegreeOfFreedomDAO] = relationship(
+        "DegreeOfFreedomDAO", uselist=False, foreign_keys=[dof_id], post_update=True
     )
 
 
@@ -4962,27 +4996,6 @@ class PipelineDAO(
         cascade="all, delete-orphan",
         foreign_keys="[PipelineDAO_steps_association.source_pipelinedao_id]",
         lazy="selectin",
-    )
-
-
-class PlanMappingDAO(Base, DataAccessObject[coraplex.orm.model.PlanMapping]):
-    __tablename__ = "PlanMappingDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    initial_world_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
-        ForeignKey("WorldMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    initial_world: Mapped[WorldMappingDAO] = relationship(
-        "WorldMappingDAO",
-        uselist=False,
-        foreign_keys=[initial_world_id],
-        post_update=True,
     )
 
 
@@ -7541,30 +7554,6 @@ class PoseMappingDAO(
     }
 
 
-class GrasPoseMappingDAO(
-    PoseMappingDAO, DataAccessObject[coraplex.orm.model.GrasPoseMapping]
-):
-    __tablename__ = "GrasPoseMappingDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(PoseMappingDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    arm: Mapped[typing.Optional[coraplex.datastructures.enums.Arms]] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "GrasPoseMappingDAO",
-        "inherit_condition": database_id == PoseMappingDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
 class Pose2DMappingDAO(
     SpatialTypeDAO, DataAccessObject[semantic_digital_twin.orm.model.Pose2DMapping]
 ):
@@ -9485,10 +9474,6 @@ class ActiveConnection1DOFDAO(
 
     multiplier: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     offset: Mapped[builtins.float] = mapped_column(use_existing_column=True)
-
-    dof_id: Mapped[uuid.UUID] = mapped_column(
-        sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
-    )
 
     axis_id: Mapped[int] = mapped_column(
         ForeignKey("Vector3MappingDAO.database_id", use_alter=True),

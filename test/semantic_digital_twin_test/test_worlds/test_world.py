@@ -43,6 +43,7 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 )
 from semantic_digital_twin.testing import world_setup
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import DegreeOfFreedomOwnership
 from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
     RevoluteConnection,
@@ -1042,7 +1043,7 @@ def test_overwrite_dof_limits_mimic(world_setup):
             offset=23,
             multiplier=-2,
             axis=Vector3(0, 0, 1),
-            dof_id=connection.dof_id,
+            degrees_of_freedom=DegreeOfFreedomOwnership.single_active(connection.raw_dof),
         )
         world.add_body(body)
         world.add_connection(mimic_connection)

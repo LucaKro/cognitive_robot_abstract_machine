@@ -278,13 +278,13 @@ class AddObjectDiff:
             child=self.tracked_object.body,
             degrees_of_freedom=DegreeOfFreedomOwnership.create(
                 passive={
-                    DegreeOfFreedomRole.X: dofs["x"].id,
-                    DegreeOfFreedomRole.Y: dofs["y"].id,
-                    DegreeOfFreedomRole.Z: dofs["z"].id,
-                    DegreeOfFreedomRole.QX: dofs["qx"].id,
-                    DegreeOfFreedomRole.QY: dofs["qy"].id,
-                    DegreeOfFreedomRole.QZ: dofs["qz"].id,
-                    DegreeOfFreedomRole.QW: dofs["qw"].id,
+                    DegreeOfFreedomRole.X: dofs["x"],
+                    DegreeOfFreedomRole.Y: dofs["y"],
+                    DegreeOfFreedomRole.Z: dofs["z"],
+                    DegreeOfFreedomRole.QX: dofs["qx"],
+                    DegreeOfFreedomRole.QY: dofs["qy"],
+                    DegreeOfFreedomRole.QZ: dofs["qz"],
+                    DegreeOfFreedomRole.QW: dofs["qw"],
                 }
             ),
         )

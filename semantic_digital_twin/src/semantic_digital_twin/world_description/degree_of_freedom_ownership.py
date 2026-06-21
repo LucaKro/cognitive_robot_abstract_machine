@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from uuid import UUID
 
-from typing_extensions import Any, Dict, List, Optional
+from typing_extensions import Dict, List, Optional, TYPE_CHECKING
 
-from krrood.adapters.json_serializer import from_json, to_json
+if TYPE_CHECKING:
+    from semantic_digital_twin.world import World
+    from semantic_digital_twin.world_description.degree_of_freedom import (
+        DegreeOfFreedom,
+    )
 
 
 class DegreeOfFreedomRole(Enum):
@@ -40,99 +43,106 @@ class OwnedDegreeOfFreedom:
     """
     A single degree of freedom owned by a connection, identified by its role.
 
-    The degree of freedom itself lives in the world; only its id is stored here.
+    Whether it is active or passive is expressed by which list it lives in on
+    :class:`DegreeOfFreedomOwnership`, not by a field here.
     """
 
     role: DegreeOfFreedomRole
     """The role this degree of freedom plays within the owning connection."""
 
-    id: UUID
-    """The id of the owned degree of freedom."""
-
-    is_active: bool
-    """Whether the degree of freedom can be actively controlled."""
+    dof: DegreeOfFreedom
+    """The owned degree of freedom."""
 
 
 @dataclass
 class DegreeOfFreedomOwnership:
     """
-    The degrees of freedom a connection owns.
+    The degrees of freedom a connection owns, split into active (controllable) and passive ones.
 
-    This is the single place a connection declares which degrees of freedom it owns and how they are
-    classified into active and passive.
+    The degrees of freedom are stored as object references, just like a connection's parent and
+    child.
     """
 
-    dofs: List[OwnedDegreeOfFreedom] = field(default_factory=list)
-    """The owned degrees of freedom, in declaration order."""
+    active: List[OwnedDegreeOfFreedom] = field(default_factory=list)
+    """The actively controllable degrees of freedom, in declaration order."""
+
+    passive: List[OwnedDegreeOfFreedom] = field(default_factory=list)
+    """The passive degrees of freedom, in declaration order."""
 
     @classmethod
     def create(
         cls,
-        active: Optional[Dict[DegreeOfFreedomRole, UUID]] = None,
-        passive: Optional[Dict[DegreeOfFreedomRole, UUID]] = None,
+        active: Optional[Dict[DegreeOfFreedomRole, DegreeOfFreedom]] = None,
+        passive: Optional[Dict[DegreeOfFreedomRole, DegreeOfFreedom]] = None,
     ) -> DegreeOfFreedomOwnership:
         """
-        Build an ownership from role-to-id mappings for active and passive degrees of freedom.
+        Build an ownership from role-to-degree-of-freedom mappings for active and passive dofs.
         """
-        owned = [
-            OwnedDegreeOfFreedom(role=role, id=dof_id, is_active=True)
-            for role, dof_id in (active or {}).items()
-        ]
-        owned += [
-            OwnedDegreeOfFreedom(role=role, id=dof_id, is_active=False)
-            for role, dof_id in (passive or {}).items()
-        ]
-        return cls(dofs=owned)
-
-    def id_for(self, role: DegreeOfFreedomRole) -> UUID:
-        """
-        :return: The id of the owned degree of freedom with the given role.
-        :raises KeyError: If no owned degree of freedom has the given role.
-        """
-        for owned in self.dofs:
-            if owned.role == role:
-                return owned.id
-        raise KeyError(role)
-
-    def active_ids(self) -> List[UUID]:
-        """
-        :return: The ids of the active degrees of freedom, in declaration order.
-        """
-        return [owned.id for owned in self.dofs if owned.is_active]
-
-    def passive_ids(self) -> List[UUID]:
-        """
-        :return: The ids of the passive degrees of freedom, in declaration order.
-        """
-        return [owned.id for owned in self.dofs if not owned.is_active]
-
-    def all_ids(self) -> List[UUID]:
-        """
-        :return: The ids of all owned degrees of freedom, in declaration order.
-        """
-        return [owned.id for owned in self.dofs]
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "dofs": [
-                {
-                    "role": owned.role.name,
-                    "id": to_json(owned.id),
-                    "is_active": owned.is_active,
-                }
-                for owned in self.dofs
-            ]
-        }
+        return cls(
+            active=[
+                OwnedDegreeOfFreedom(role=role, dof=dof)
+                for role, dof in (active or {}).items()
+            ],
+            passive=[
+                OwnedDegreeOfFreedom(role=role, dof=dof)
+                for role, dof in (passive or {}).items()
+            ],
+        )
 
     @classmethod
-    def from_json(cls, data: Dict[str, Any]) -> DegreeOfFreedomOwnership:
-        return cls(
-            dofs=[
+    def single_active(cls, dof: DegreeOfFreedom) -> DegreeOfFreedomOwnership:
+        """
+        Build an ownership for a one-degree-of-freedom joint whose single dof is the active ``MAIN``.
+        """
+        return cls.create(active={DegreeOfFreedomRole.MAIN: dof})
+
+    def dof_for(self, role: DegreeOfFreedomRole) -> DegreeOfFreedom:
+        """
+        :return: The owned degree of freedom with the given role.
+        :raises KeyError: If no owned degree of freedom has the given role.
+        """
+        for owned in self.active + self.passive:
+            if owned.role == role:
+                return owned.dof
+        raise KeyError(role)
+
+    def active_dofs(self) -> List[DegreeOfFreedom]:
+        """
+        :return: The active degrees of freedom, in declaration order.
+        """
+        return [owned.dof for owned in self.active]
+
+    def passive_dofs(self) -> List[DegreeOfFreedom]:
+        """
+        :return: The passive degrees of freedom, in declaration order.
+        """
+        return [owned.dof for owned in self.passive]
+
+    def all_dofs(self) -> List[DegreeOfFreedom]:
+        """
+        :return: All owned degrees of freedom, active ones first.
+        """
+        return self.active_dofs() + self.passive_dofs()
+
+    def for_world(self, world: World) -> DegreeOfFreedomOwnership:
+        """
+        Re-resolve every owned degree of freedom against ``world`` by id.
+
+        Used when copying or merging a connection into another world, so the ownership points at the
+        target world's degree-of-freedom instances rather than the source world's.
+        """
+
+        def resolved(
+            owned_dofs: List[OwnedDegreeOfFreedom],
+        ) -> List[OwnedDegreeOfFreedom]:
+            return [
                 OwnedDegreeOfFreedom(
-                    role=DegreeOfFreedomRole[owned["role"]],
-                    id=from_json(owned["id"]),
-                    is_active=owned["is_active"],
+                    role=owned.role,
+                    dof=world.get_degree_of_freedom_by_id(owned.dof.id),
                 )
-                for owned in data["dofs"]
+                for owned in owned_dofs
             ]
+
+        return DegreeOfFreedomOwnership(
+            active=resolved(self.active), passive=resolved(self.passive)
         )

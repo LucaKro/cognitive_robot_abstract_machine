@@ -29,6 +29,7 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world import World, Body
 from semantic_digital_twin.world_description.connection_properties import JointDynamics
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import DegreeOfFreedomOwnership
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
     PrismaticConnection,
@@ -424,7 +425,7 @@ class MJCFParser:
                         parent_T_connection_expression=parent_body_to_joint_transform,
                         connection_T_child_expression=joint_to_child_body_transform,
                         axis=joint_axis,
-                        dof_id=dof.id,
+                        degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof),
                         dynamics=joint_dynamics,
                     )
                 elif mujoco_joint.type == mujoco.mjtJoint.mjJNT_SLIDE:
@@ -435,7 +436,7 @@ class MJCFParser:
                         parent_T_connection_expression=parent_body_to_joint_transform,
                         connection_T_child_expression=joint_to_child_body_transform,
                         axis=joint_axis,
-                        dof_id=dof.id,
+                        degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof),
                         dynamics=joint_dynamics,
                     )
                 else:

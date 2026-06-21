@@ -74,6 +74,33 @@ class TestUniformConstructionInterface:
             )
 
 
+class TestDegreesOfFreedomOwnershipIsUniversal:
+    """``degrees_of_freedom`` is the single source of truth for every connection, 1-DOF included."""
+
+    def test_single_dof_joint_owns_its_dof_through_ownership(self):
+        world, root, base = _two_body_world()
+        with world.modify_world():
+            world.add_kinematic_structure_entity(root)
+            world.add_kinematic_structure_entity(base)
+            revolute = RevoluteConnection.create_with_dofs(
+                world, root, base, axis=Vector3.Z(reference_frame=root)
+            )
+            world.add_connection(revolute)
+        owned = revolute.degrees_of_freedom.all_dofs()
+        assert owned == [revolute.raw_dof]
+        assert revolute.dof_id == revolute.raw_dof.id
+
+    def test_mimic_joints_share_one_dof_object(self, world_setup):
+        world = world_setup[0]
+        prismatic = next(
+            c for c in world.connections if isinstance(c, PrismaticConnection)
+        )
+        revolute = next(
+            c for c in world.connections if isinstance(c, RevoluteConnection)
+        )
+        assert prismatic.raw_dof is revolute.raw_dof
+
+
 class TestDegreesOfFreedomContract:
     """The ``dofs`` accessor must return the same container type for every connection."""
 

@@ -18,6 +18,7 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
 )
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import DegreeOfFreedomOwnership
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
     FixedConnection,
@@ -412,7 +413,7 @@ def test_spawn_body_with_connections():
                     parent=root_body,
                     child=spawn_left_shoulder_body,
                     axis=Vector3.Z(reference_frame=spawn_left_shoulder_body),
-                    dof_id=dof.id,
+                    degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof),
                     parent_T_connection_expression=left_shoulder_origin,
                 )
             )
@@ -445,7 +446,7 @@ def test_spawn_body_with_connections():
                     parent=root_body,
                     child=spawn_right_shoulder_body,
                     axis=Vector3.Z(reference_frame=spawn_right_shoulder_body),
-                    dof_id=dof.id,
+                    degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof),
                     parent_T_connection_expression=right_shoulder_origin,
                 )
             )

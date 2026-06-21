@@ -573,7 +573,7 @@ class TestCollisionGroups:
             world.add_connection(FixedConnection(parent=map_body, child=robot_base))
             world.add_connection(
                 Connection6DoF.create_with_dofs(
-                    world, map_body, obstacle, PrefixedName("obstacle_conn")
+                    world, map_body, obstacle, name=PrefixedName("obstacle_conn")
                 )
             )
 

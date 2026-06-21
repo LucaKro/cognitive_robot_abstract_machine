@@ -132,13 +132,13 @@ def create_dummy_world(w: Optional[World] = None) -> World:
                 child=b2,
                 degrees_of_freedom=DegreeOfFreedomOwnership.create(
                     passive={
-                        DegreeOfFreedomRole.X: x_dof.id,
-                        DegreeOfFreedomRole.Y: y_dof.id,
-                        DegreeOfFreedomRole.Z: z_dof.id,
-                        DegreeOfFreedomRole.QX: qx_dof.id,
-                        DegreeOfFreedomRole.QY: qy_dof.id,
-                        DegreeOfFreedomRole.QZ: qz_dof.id,
-                        DegreeOfFreedomRole.QW: qw_dof.id,
+                        DegreeOfFreedomRole.X: x_dof,
+                        DegreeOfFreedomRole.Y: y_dof,
+                        DegreeOfFreedomRole.Z: z_dof,
+                        DegreeOfFreedomRole.QX: qx_dof,
+                        DegreeOfFreedomRole.QY: qy_dof,
+                        DegreeOfFreedomRole.QZ: qz_dof,
+                        DegreeOfFreedomRole.QW: qw_dof,
                     }
                 ),
             )
@@ -497,7 +497,7 @@ def test_ChangeDifHasHardwareInterface(rclpy_node):
         dof = DegreeOfFreedom(name=PrefixedName("dof"))
         w1.add_degree_of_freedom(dof)
         connection = PrismaticConnection(
-            dof_id=dof.id, parent=body1, child=body2, axis=Vector3(1, 1, 1)
+            degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof), parent=body1, child=body2, axis=Vector3(1, 1, 1)
         )
         w1.add_connection(connection)
     assert len(w1.kinematic_structure_entities) == 2

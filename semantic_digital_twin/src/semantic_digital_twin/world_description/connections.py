@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 import numpy as np
-from typing_extensions import List, TYPE_CHECKING, Union, Optional, Dict, Any, Self
+from typing_extensions import List, TYPE_CHECKING, Union, Optional, Self, Dict, Any
 
 from krrood.adapters.json_serializer import from_json, to_json
 from semantic_digital_twin.world_description.connection_properties import JointDynamics
@@ -124,11 +124,6 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
     Movement along the axis is offset by this value. Useful if Connections share DoFs.
     """
 
-    dof_id: UUID = field(kw_only=True)
-    """
-    UUID of the Degree of freedom controlling movement along the axis.
-    """
-
     dynamics: JointDynamics = field(default_factory=JointDynamics)
     """
     Dynamic properties of the joint.
@@ -136,20 +131,21 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["axis"] = self.axis.to_np().tolist()
+        result["axis"] = to_json(self.axis)
         result["multiplier"] = self.multiplier
         result["offset"] = self.offset
-        result["id"] = to_json(self.dof_id)
+        result["dynamics"] = to_json(self.dynamics)
         return result
 
     @classmethod
-    def _extra_from_json_kwargs(cls, data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        return {
-            "axis": Vector3.from_iterable(data["axis"]),
-            "multiplier": data["multiplier"],
-            "offset": data["offset"],
-            "dof_id": from_json(data["id"]),
-        }
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        return cls(
+            **cls._base_kwargs_from_json(data, **kwargs),
+            axis=from_json(data["axis"], **kwargs),
+            multiplier=data["multiplier"],
+            offset=data["offset"],
+            dynamics=from_json(data["dynamics"], **kwargs),
+        )
 
     @classmethod
     def create_with_dofs(
@@ -192,7 +188,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
             axis=axis,
             multiplier=multiplier,
             offset=offset,
-            dof_id=dof.id,
+            degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof),
             **kwargs,
         )
         return connection
@@ -204,14 +200,12 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         if self.offset is None:
             self.offset = 0.0
 
-    def _connection_specific_kwargs(self) -> Dict[str, Any]:
-        return {
-            "axis": self.axis,
-            "multiplier": self.multiplier,
-            "offset": self.offset,
-            "dynamics": self.dynamics,
-            "dof_id": self.dof_id,
-        }
+    @property
+    def dof_id(self) -> UUID:
+        """
+        :return: The id of the degree of freedom controlling movement along the axis.
+        """
+        return self.raw_dof.id
 
     @property
     def dof(self) -> DegreeOfFreedom:
@@ -243,11 +237,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         A reference to the Degree of Freedom associated with this connection.
         .. warning:: WITHOUT multiplier and offset applied.
         """
-        return self._world.get_degree_of_freedom_by_id(self.dof_id)
-
-    @property
-    def active_dofs(self) -> List[DegreeOfFreedom]:
-        return [self.raw_dof]
+        return self.degrees_of_freedom.dof_for(DegreeOfFreedomRole.MAIN)
 
     @property
     def position(self) -> float:
@@ -361,31 +351,31 @@ class Connection6DoF(Connection):
 
     @property
     def x_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.X)
+        return self.x.id
 
     @property
     def y_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.Y)
+        return self.y.id
 
     @property
     def z_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.Z)
+        return self.z.id
 
     @property
     def qx_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QX)
+        return self.qx.id
 
     @property
     def qy_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QY)
+        return self.qy.id
 
     @property
     def qz_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QZ)
+        return self.qz.id
 
     @property
     def qw_id(self) -> UUID:
-        return self.degrees_of_freedom.id_for(DegreeOfFreedomRole.QW)
+        return self.qw.id
 
     def add_to_world(self, world: World):
         super().add_to_world(world)
@@ -464,13 +454,13 @@ class Connection6DoF(Connection):
             name=name,
             degrees_of_freedom=DegreeOfFreedomOwnership.create(
                 passive={
-                    DegreeOfFreedomRole.X: x.id,
-                    DegreeOfFreedomRole.Y: y.id,
-                    DegreeOfFreedomRole.Z: z.id,
-                    DegreeOfFreedomRole.QX: qx.id,
-                    DegreeOfFreedomRole.QY: qy.id,
-                    DegreeOfFreedomRole.QZ: qz.id,
-                    DegreeOfFreedomRole.QW: qw.id,
+                    DegreeOfFreedomRole.X: x,
+                    DegreeOfFreedomRole.Y: y,
+                    DegreeOfFreedomRole.Z: z,
+                    DegreeOfFreedomRole.QX: qx,
+                    DegreeOfFreedomRole.QY: qy,
+                    DegreeOfFreedomRole.QZ: qz,
+                    DegreeOfFreedomRole.QW: qw,
                 }
             ),
         )
@@ -695,15 +685,15 @@ class OmniDrive(WheeledDrive):
             name=name,
             degrees_of_freedom=DegreeOfFreedomOwnership.create(
                 active={
-                    DegreeOfFreedomRole.X_VELOCITY: x_vel.id,
-                    DegreeOfFreedomRole.Y_VELOCITY: y_vel.id,
-                    DegreeOfFreedomRole.YAW: yaw.id,
+                    DegreeOfFreedomRole.X_VELOCITY: x_vel,
+                    DegreeOfFreedomRole.Y_VELOCITY: y_vel,
+                    DegreeOfFreedomRole.YAW: yaw,
                 },
                 passive={
-                    DegreeOfFreedomRole.X: x.id,
-                    DegreeOfFreedomRole.Y: y.id,
-                    DegreeOfFreedomRole.ROLL: roll.id,
-                    DegreeOfFreedomRole.PITCH: pitch.id,
+                    DegreeOfFreedomRole.X: x,
+                    DegreeOfFreedomRole.Y: y,
+                    DegreeOfFreedomRole.ROLL: roll,
+                    DegreeOfFreedomRole.PITCH: pitch,
                 },
             ),
         )
@@ -825,14 +815,14 @@ class DifferentialDrive(WheeledDrive):
             name=name,
             degrees_of_freedom=DegreeOfFreedomOwnership.create(
                 active={
-                    DegreeOfFreedomRole.X_VELOCITY: x_vel.id,
-                    DegreeOfFreedomRole.YAW: yaw.id,
+                    DegreeOfFreedomRole.X_VELOCITY: x_vel,
+                    DegreeOfFreedomRole.YAW: yaw,
                 },
                 passive={
-                    DegreeOfFreedomRole.X: x.id,
-                    DegreeOfFreedomRole.Y: y.id,
-                    DegreeOfFreedomRole.ROLL: roll.id,
-                    DegreeOfFreedomRole.PITCH: pitch.id,
+                    DegreeOfFreedomRole.X: x,
+                    DegreeOfFreedomRole.Y: y,
+                    DegreeOfFreedomRole.ROLL: roll,
+                    DegreeOfFreedomRole.PITCH: pitch,
                 },
             ),
         )

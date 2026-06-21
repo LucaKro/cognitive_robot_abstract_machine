@@ -33,6 +33,7 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.degree_of_freedom_ownership import DegreeOfFreedomOwnership
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
     ActiveConnection1DOF,
@@ -133,7 +134,7 @@ def test_joint_goal(tmp_path):
         )
         world.add_degree_of_freedom(dof)
         root_C_tip = RevoluteConnection(
-            parent=root, child=tip, axis=Vector3.Z(), dof_id=dof.id
+            parent=root, child=tip, axis=Vector3.Z(), degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof)
         )
         world.add_connection(root_C_tip)
 
@@ -143,7 +144,7 @@ def test_joint_goal(tmp_path):
         )
         world.add_degree_of_freedom(dof)
         root_C_tip2 = RevoluteConnection(
-            parent=root, child=tip2, axis=Vector3.Z(), dof_id=dof.id
+            parent=root, child=tip2, axis=Vector3.Z(), degrees_of_freedom=DegreeOfFreedomOwnership.single_active(dof)
         )
         world.add_connection(root_C_tip2)
 
