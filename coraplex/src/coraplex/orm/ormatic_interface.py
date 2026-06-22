@@ -20129,7 +20129,7 @@ class OfficeChairDAO(
 class ShelvingUnitDAO(
     FurnitureDAO,
     DataAccessObject[
-        semantic_digital_twin.semantic_annotations.semantic_annotations.ShelvingUnit
+        semantic_digital_twin.semantic_annotations.semantic_annotations.Shelf
     ],
 ):
     __tablename__ = "ShelvingUnitDAO"

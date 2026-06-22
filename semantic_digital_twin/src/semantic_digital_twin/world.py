@@ -1166,6 +1166,14 @@ class World(HasSimulatorProperties):
         return self._get_world_entity_by_name_from_iterable(name, bodies)
 
     @memoize
+    def get_connection_in_branch_by_name(
+        self, branch_root: KinematicStructureEntity, name: Union[str, PrefixedName]
+    ):
+        return self._get_world_entity_by_name_from_iterable(
+            name, self.get_connections_of_branch(branch_root)
+        )
+
+    @memoize
     def get_degree_of_freedom_by_name(
         self, name: Union[str, PrefixedName]
     ) -> DegreeOfFreedom:

@@ -78,6 +78,7 @@ if TYPE_CHECKING:
         Handle,
         Aperture,
         MechanicalJoint,
+        ShelfLayer,
     )
     from semantic_digital_twin.world import World
 
@@ -493,6 +494,20 @@ class HasDoors(PartWholeRelationship, ABC):
     )
     """
     The doors of the semantic annotation.
+    """
+
+
+@dataclass(eq=False)
+class HasShelfLayers(PartWholeRelationship, ABC):
+    """
+    A mixin class for semantic annotations that have shelf layers.
+    """
+
+    shelf_layers: List[ShelfLayer] = part_whole_relationship_field(
+        default_factory=list, hash=False, kw_only=True
+    )
+    """
+    The shelf_layers of the semantic annotation.
     """
 
 

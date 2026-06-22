@@ -6,6 +6,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from importlib.resources import files
 from pathlib import Path
+
+import numpy as np
 from typing_extensions import Self, Union, List
 
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -40,6 +42,7 @@ from semantic_digital_twin.robots.robot_parts import (
 )
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
+from semantic_digital_twin.world_description.connections import ActiveConnection
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
@@ -49,7 +52,7 @@ from semantic_digital_twin.world_description.world_entity import (
 class StretchLeftFinger(Finger):
 
     def setup_hardware_interfaces(self):
-        pass
+        return
 
     def setup_joint_states(self) -> List[JointState]:
         return []
@@ -72,7 +75,7 @@ class StretchLeftFinger(Finger):
 class StretchRightFinger(Finger):
 
     def setup_hardware_interfaces(self):
-        pass
+        return
 
     def setup_joint_states(self) -> List[JointState]:
         return []
@@ -95,7 +98,7 @@ class StretchRightFinger(Finger):
 class StretchGripper(EndEffector, HasTwoFingers[StretchLeftFinger, StretchRightFinger]):
 
     def setup_hardware_interfaces(self):
-        self._setup_hardware_interfaces_for_active_connections()
+        return
 
     def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
@@ -133,12 +136,31 @@ class StretchGripper(EndEffector, HasTwoFingers[StretchLeftFinger, StretchRightF
 class StretchArm(Arm[StretchGripper]):
 
     def setup_hardware_interfaces(self):
-        self._setup_hardware_interfaces_for_active_connections()
+        controlled_joints = [
+            "joint_gripper_finger_left",
+            "joint_gripper_finger_right",
+            "joint_lift",
+            "joint_arm_l3",
+            "joint_arm_l2",
+            "joint_arm_l1",
+            "joint_arm_l0",
+            "joint_wrist_yaw",
+            "joint_head_pan",
+            "joint_head_tilt",
+        ]
+        for joint_name in controlled_joints:
+            connection: ActiveConnection = self._world.get_connection_in_branch_by_name(
+                branch_root=self.root, name=joint_name
+            )
+            connection.has_hardware_interface = True
 
     def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("arm_park", prefix=self.name.name),
-            mapping={self._world.get_connection_by_name("joint_lift"): 0.5},
+            mapping={
+                self._world.get_connection_by_name("joint_lift"): 0.5,
+                self._world.get_connection_by_name("joint_wrist_yaw"): np.pi / 2,
+            },
             state_type=StaticJointState.PARK,
         )
 
@@ -285,7 +307,14 @@ class StretchNeck(
 class StretchTorso(Torso, HasNeck[StretchNeck], HasOneArm[StretchArm]):
 
     def setup_hardware_interfaces(self):
-        self._setup_hardware_interfaces_for_active_connections()
+        controlled_joints = [
+            "joint_lift",
+        ]
+        for joint_name in controlled_joints:
+            connection: ActiveConnection = self._world.get_connection_in_branch_by_name(
+                branch_root=self.root, name=joint_name
+            )
+            connection.has_hardware_interface = True
 
     def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
@@ -326,7 +355,15 @@ class StretchMobileBase(MobileBase, HasTorso[StretchTorso]):
     forward_axis: Vector3 = field(default_factory=Vector3.NEGATIVE_Y)
 
     def setup_hardware_interfaces(self):
-        pass
+        controlled_joints = [
+            "joint_right_wheel",
+            "joint_left_wheel",
+        ]
+        for joint_name in controlled_joints:
+            connection: ActiveConnection = self._world.get_connection_in_branch_by_name(
+                branch_root=self.root, name=joint_name
+            )
+            connection.has_hardware_interface = True
 
     def setup_joint_states(self) -> List[JointState]:
         return []

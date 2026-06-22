@@ -1,41 +1,27 @@
 import threading
-from time import sleep
 
 import threading
-from time import sleep
 
 import numpy as np
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 
-import pycram.alternative_motion_mappings.stretch_motion_mapping  # type: ignore
-from pycram.datastructures.dataclasses import Context
-from pycram.datastructures.enums import (
+import coraplex.alternative_motion_mappings.stretch_motion_mapping  # type: ignore
+from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.enums import (
     Arms,
     ApproachDirection,
     VerticalAlignment,
     ExecutionType,
-    DetectionTechnique,
 )
-from pycram.datastructures.grasp import GraspDescription
-from pycram.motion_executor import ExecutionEnvironment
-from pycram.plans.factories import sequential
-from pycram.robot_plans import (
-    MoveJointsMotion,
-    MoveGripperMotion,
-)
-from pycram.robot_plans.actions.core.misc import DetectAction
-from pycram.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
-from pycram.robot_plans.actions.core.pick_up import PickUpAction
-from pycram.robot_plans.actions.core.placing import PlaceAction
-from pycram.robot_plans.actions.core.robot_body import (
+from coraplex.datastructures.grasp import GraspDescription
+from coraplex.motion_executor import ExecutionEnvironment
+from coraplex.plans.factories import sequential
+from coraplex.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.placing import PlaceAction
+from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
-    StretchExtendArm,
-    StretchRetractArm,
-    StretchTorsoShelfPickPlaceHeight,
-    StretchTorsoTablePickPlaceHeight,
-    MoveTorsoAction,
-    SetGripperAction,
 )
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.package_resolver import CompositePathResolver
@@ -43,12 +29,8 @@ from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
 from semantic_digital_twin.adapters.ros.world_fetcher import fetch_world_from_service
-from semantic_digital_twin.adapters.ros.world_synchronizer import (
-    ModelSynchronizer,
-    StateSynchronizer,
-)
+from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchronizer
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -74,7 +56,7 @@ executor.add_node(node)
 thread = threading.Thread(target=executor.spin, daemon=True, name="rclpy-executor")
 thread.start()
 
-exec_type = ExecutionType.REAL
+exec_type = ExecutionType.SIMULATED
 
 exec_env = ExecutionEnvironment(exec_type)
 
@@ -98,10 +80,9 @@ if exec_type == ExecutionType.SIMULATED:
 else:
 
     world = fetch_world_from_service(node)
-    ModelSynchronizer(_world=world, node=node)
-    StateSynchronizer(_world=world, node=node)
+    WorldSynchronizer(_world=world, node=node)
 
-if not world.is_entity_in_world_by_name("cheeze_it.obj"):
+if not world.get_bodies_by_name("cheeze_it.obj"):
     with world.modify_world():
         shelf = Shelf.create_with_new_body_in_world(
             world=world,
@@ -128,7 +109,7 @@ if not world.is_entity_in_world_by_name("cheeze_it.obj"):
             ),
             scale=Scale(0.305, 0.85, 0.018),
         )
-        shelf.add_shelf_layer(shelf_layer1)
+        shelf.add(shelf_layer1)
         shelf_layer2 = ShelfLayer.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("shelf_layer2"),
@@ -141,7 +122,7 @@ if not world.is_entity_in_world_by_name("cheeze_it.obj"):
             ),
             scale=Scale(0.305, 0.85, 0.018),
         )
-        shelf.add_shelf_layer(shelf_layer2)
+        shelf.add(shelf_layer2)
         shelf_layer3 = ShelfLayer.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("shelf_layer3"),
@@ -154,7 +135,7 @@ if not world.is_entity_in_world_by_name("cheeze_it.obj"):
             ),
             scale=Scale(0.305, 0.85, 0.018),
         )
-        shelf.add_shelf_layer(shelf_layer3)
+        shelf.add(shelf_layer3)
         shelf_layer4 = ShelfLayer.create_with_new_body_in_world(
             world=world,
             name=PrefixedName("shelf_layer4"),
@@ -167,7 +148,7 @@ if not world.is_entity_in_world_by_name("cheeze_it.obj"):
             ),
             scale=Scale(0.305, 0.85, 0.018),
         )
-        shelf.add_shelf_layer(shelf_layer4)
+        shelf.add(shelf_layer4)
 
         Wall.create_with_new_body_in_world(
             world=world,
@@ -352,7 +333,7 @@ context = Context(
 grasp_desc = GraspDescription(
     ApproachDirection.FRONT,
     VerticalAlignment.NoAlignment,
-    robot_annotation.arm.manipulator,
+    robot_annotation.get_arms()[0].end_effector,
 )
 
 # input("Ready ...")

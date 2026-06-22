@@ -31,6 +31,7 @@ from semantic_digital_twin.semantic_annotations.mixins import (
     IsPerceivable,
     HasRootBody,
     IsStorageSpace,
+    HasShelfLayers,
 )
 from semantic_digital_twin.spatial_types import (
     Point3,
@@ -954,7 +955,7 @@ class TrashCan(HasRootBody, Furniture):
 
 
 @dataclass(eq=False)
-class ShelvingUnit(Furniture):
+class Shelf(Cabinet, HasShelfLayers):
     """
     A shelving unit.
     """
