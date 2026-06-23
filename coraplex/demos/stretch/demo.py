@@ -7,6 +7,8 @@ import rclpy
 from rclpy.executors import SingleThreadedExecutor
 
 import coraplex.alternative_motion_mappings.stretch_motion_mapping  # type: ignore
+from krrood.utils import recursive_subclasses
+from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     Arms,
@@ -327,7 +329,12 @@ print(len(world.bodies))
 
 robot_annotation = world.get_semantic_annotations_by_type(Stretch)[0]
 context = Context(
-    world, robot_annotation, node, _debug=False, evaluate_conditions=False
+    world,
+    robot_annotation,
+    node,
+    _debug=False,
+    evaluate_conditions=False,
+    alternative_motion_mappings=recursive_subclasses(AlternativeMotion),
 )
 
 grasp_desc = GraspDescription(

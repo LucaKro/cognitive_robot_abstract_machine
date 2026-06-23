@@ -145,6 +145,8 @@ class StretchArm(Arm[StretchGripper]):
             "joint_arm_l1",
             "joint_arm_l0",
             "joint_wrist_yaw",
+            "joint_wrist_pitch",
+            "joint_wrist_roll",
             "joint_head_pan",
             "joint_head_tilt",
         ]
