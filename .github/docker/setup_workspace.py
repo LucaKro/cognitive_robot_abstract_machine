@@ -272,6 +272,11 @@ def main():
             "iai_weiss_wpg_300-120-gripper",
             ["griplink"],
         ),
+        Repository(
+            "https://github.com/geriatronics/garmi_description.git",
+            "main",
+            "garmi_description",
+        ),
     ]
 
     for repo in repos:
