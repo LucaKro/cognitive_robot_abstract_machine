@@ -95,6 +95,7 @@ class TransportAction(ActionDescription):
                 keep_joint_states=True,
             ),
             OpenAction(handle, self.arm),
+            MoveTorsoAction(TorsoState.HIGH),
         ]
 
     @property

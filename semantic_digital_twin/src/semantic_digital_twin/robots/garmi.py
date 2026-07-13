@@ -295,7 +295,7 @@ class GarmiLeftGripper(
             tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "arm_0_gripper_fr3_hand_tcp"
             ),
-            front_facing_orientation=Quaternion(0, 0, 0, 1),
+            front_facing_orientation=Quaternion(0, 0.70710678, 0, 0.70710678),
         )
 
 
@@ -349,7 +349,7 @@ class GarmiRightGripper(
             tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "arm_1_gripper_fr3_hand_tcp"
             ),
-            front_facing_orientation=Quaternion(0, 0, 0, 1),
+            front_facing_orientation=Quaternion(0, 0.70710678, 0, 0.70710678),
         )
 
 
@@ -560,7 +560,7 @@ class GarmiMobileBase(MobileBase, HasTorso[GarmiTorso]):
             root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "chassis_link"
             ),
-            full_body_controlled=True,
+            full_body_controlled=False,
         )
 
 
@@ -576,7 +576,7 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
         """
         Returns the ROS file path for the GARMI robot description.
         """
-        raise NotImplementedError("We dont have the ROS Package yet")
+        return "package://garmi_description/urdf/garmi.urdf"
 
     @classmethod
     def _get_root_body_name(cls) -> str:
