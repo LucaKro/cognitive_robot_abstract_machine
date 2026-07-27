@@ -1,6 +1,5 @@
 import os
 import threading
-import time
 import math
 
 import rclpy
@@ -13,7 +12,6 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -39,11 +37,7 @@ from semantic_digital_twin.world_description.connections import (
     OmniDrive,
 )
 from semantic_digital_twin.world_description.world_entity import Body
-from semantic_digital_twin.spatial_types.spatial_types import Pose
-from spatial_types import Point3
-from world import World
-
-print("imports done")
+from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 
 SAMPLE_PLACE_POSES = False  # False → use hardcoded fallback poses instead
 
@@ -75,7 +69,7 @@ SPOON_STL = os.path.join(
 SPOON_IN_DRAWER_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(-0.12, 0.0, 0.0)
 
 
-def build_world() -> World:
+def build_world() -> tuple[World, Garmi]:
     apartment_world = MJCFParser(GARMI_ENV_XML, use_visual_as_collision=True).parse()
     garmi_world = URDFParser.from_file(GARMI_URDF).parse()
 
@@ -208,7 +202,9 @@ with simulated_robot:
         context,
     ).perform()
 
-try:
-    ros_thread.join()
-except KeyboardInterrupt:
-    ros_executor.shutdown()
+# Keep publishing markers only when run directly; an importing test run exits instead.
+if __name__ == "__main__":
+    try:
+        ros_thread.join()
+    except KeyboardInterrupt:
+        ros_executor.shutdown()

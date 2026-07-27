@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 import argparse
-from threading import Thread
 
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.behavior_tree_config import ClosedLoopBTConfig
 from giskardpy.middleware.ros2.giskard import Giskard
 from giskardpy.middleware.ros2.scripts.other_robots.garmi.configs import (
+    GARMI_INTERACTIVE_MARKER_ROOT_LINKS,
+    GARMI_INTERACTIVE_MARKER_TIP_LINKS,
     GarmiVelocityInterface,
     WorldWithGarmiConfig,
 )
@@ -14,12 +15,6 @@ from giskardpy.middleware.ros2.scripts.tools.interactive_marker import (
 )
 from giskardpy.middleware.ros2.utils.utils import load_xacro
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-
-GARMI_ROOT_LINKS = ["arm_mount_left_link", "map"]
-GARMI_TIP_LINKS = [
-    "left_fr3_hand_tcp",  # left arm TCP
-    "right_fr3_hand_tcp",  # right arm TCP
-]
 
 
 def main() -> None:
@@ -45,14 +40,10 @@ def main() -> None:
     )
 
     if args.interactive_marker:
-        Thread(
-            target=lambda: InteractiveMarkerNode(
-                root_links=GARMI_ROOT_LINKS,
-                tip_links=GARMI_TIP_LINKS,
-            ),
-            daemon=True,
-            name="interactive_marker",
-        ).start()
+        InteractiveMarkerNode.start_in_background_thread(
+            root_links=GARMI_INTERACTIVE_MARKER_ROOT_LINKS,
+            tip_links=GARMI_INTERACTIVE_MARKER_TIP_LINKS,
+        )
 
     giskard.live()
 

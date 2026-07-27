@@ -49,12 +49,9 @@ class NavigateAction(ActionDescription):
         obstacles.
         """
         drive_variable = variable_from(context.robot.drive is not None)
-        # Note: Bug: pycram.exceptions.ConditionNotSatisfied: Pre-Condition for Action 'NavigateAction' is not satisfied, following statements are false: []
         return and_(
-            True,
-            True,
-            # is_pose_free_for_robot(context.robot, variables["target_location"]),
-            # drive_variable,
+            is_pose_free_for_robot(context.robot, variables["target_location"]),
+            drive_variable,
         )
 
     @staticmethod

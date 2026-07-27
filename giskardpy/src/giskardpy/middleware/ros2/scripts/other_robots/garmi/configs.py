@@ -26,7 +26,9 @@ GARMI_LEFT_ARM_JOINTS = [
     "left_fr3_joint6",
     "left_fr3_joint7",
 ]
-"""Names of the seven left FR3 arm joints, ordered from base to tip."""
+"""
+Names of the seven left FR3 arm joints, ordered from base to tip.
+"""
 
 GARMI_RIGHT_ARM_JOINTS = [
     "right_fr3_joint1",
@@ -37,13 +39,29 @@ GARMI_RIGHT_ARM_JOINTS = [
     "right_fr3_joint6",
     "right_fr3_joint7",
 ]
-"""Names of the seven right FR3 arm joints, ordered from base to tip."""
+"""
+Names of the seven right FR3 arm joints, ordered from base to tip.
+"""
 
 GARMI_HEAD_JOINTS = ["o1_motor_1", "o1_motor_2"]
-"""Names of the head pan and tilt joints."""
+"""
+Names of the head pan and tilt joints.
+"""
 
 GARMI_LIFT_JOINTS = ["lift_0_lower_joint", "lift_0_upper_joint"]
-"""Names of the two prismatic torso lift joints."""
+"""
+Names of the two prismatic torso lift joints.
+"""
+
+GARMI_INTERACTIVE_MARKER_ROOT_LINKS = ["arm_mount_left_link", "map"]
+"""
+Root links of the kinematic chains controllable via interactive markers.
+"""
+
+GARMI_INTERACTIVE_MARKER_TIP_LINKS = ["left_fr3_hand_tcp", "right_fr3_hand_tcp"]
+"""
+Tip links (arm TCPs) corresponding to :data:`GARMI_INTERACTIVE_MARKER_ROOT_LINKS`.
+"""
 
 
 @dataclass
