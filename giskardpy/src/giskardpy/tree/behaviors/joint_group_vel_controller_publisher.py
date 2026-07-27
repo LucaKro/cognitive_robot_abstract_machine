@@ -22,19 +22,26 @@ from semantic_digital_twin.world_description.connections import (
 
 
 class VelocityCommand(ABC):
-    """Builds the command message a joint-group velocity controller expects from per-joint velocities."""
+    """
+    Builds the command message a joint-group velocity controller expects from per-joint
+    velocities.
+    """
 
     message_type: ClassVar[type]
     """The ROS message type published on the command topic."""
 
     @abstractmethod
     def create_message(self, velocities: List[float]) -> Any:
-        """Pack the per-joint velocities into a fresh message of :attr:`message_type`."""
+        """
+        Pack the per-joint velocities into a fresh message of :attr:`message_type`.
+        """
 
 
 @dataclass
 class Float64MultiArrayVelocityCommand(VelocityCommand):
-    """Commands a controller that consumes :class:`std_msgs.msg.Float64MultiArray`."""
+    """
+    Commands a controller that consumes :class:`std_msgs.msg.Float64MultiArray`.
+    """
 
     message_type: ClassVar[type] = Float64MultiArray
 
@@ -46,7 +53,9 @@ class Float64MultiArrayVelocityCommand(VelocityCommand):
 
 @dataclass
 class MultiDOFVelocityCommand(VelocityCommand):
-    """Commands a controller that consumes :class:`control_msgs.msg.MultiDOFCommand`."""
+    """
+    Commands a controller that consumes :class:`control_msgs.msg.MultiDOFCommand`.
+    """
 
     message_type: ClassVar[type] = MultiDOFCommand
 
@@ -60,11 +69,17 @@ class JointGroupVelController(GiskardBehavior):
     connections: List[ActiveConnection1DOF]
 
     minimum_valid_velocity: float
-    """Minimum magnitude that small non-prismatic, non-finger joint velocities are raised
-    to so the hardware actually moves. A value of ``0.0`` disables clamping."""
+    """
+    Minimum magnitude that small non-prismatic, non-finger joint velocities are raised
+    to so the hardware actually moves.
+
+    A value of ``0.0`` disables clamping.
+    """
 
     velocity_command: VelocityCommand
-    """Strategy that builds the command message published to the controller."""
+    """
+    Strategy that builds the command message published to the controller.
+    """
 
     def __init__(
         self,
@@ -99,7 +114,9 @@ class JointGroupVelController(GiskardBehavior):
         return Status.RUNNING
 
     def _commanded_velocity(self, connection: ActiveConnection1DOF) -> float:
-        """Raise a small non-prismatic, non-finger velocity to the minimum valid magnitude."""
+        """
+        Raise a small non-prismatic, non-finger velocity to the minimum valid magnitude.
+        """
         velocity = connection.velocity
         if (
             isinstance(connection, PrismaticConnection)

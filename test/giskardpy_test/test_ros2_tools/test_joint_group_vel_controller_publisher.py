@@ -25,10 +25,14 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 @dataclass
 class RecordingPublisher:
-    """Stand-in for a ROS publisher that stores the last published message."""
+    """
+    Stand-in for a ROS publisher that stores the last published message.
+    """
 
     published_message: Optional[Float64MultiArray] = None
-    """The most recently published message, or ``None`` if nothing was published."""
+    """
+    The most recently published message, or ``None`` if nothing was published.
+    """
 
     def publish(self, message: Float64MultiArray) -> None:
         self.published_message = message
@@ -36,16 +40,24 @@ class RecordingPublisher:
 
 @dataclass
 class ConnectionSpec:
-    """Describes a connection to be built for the controller test."""
+    """
+    Describes a connection to be built for the controller test.
+    """
 
     name: str
-    """The connection name; ``"finger"`` substrings opt the joint out of clamping."""
+    """
+    The connection name; ``"finger"`` substrings opt the joint out of clamping.
+    """
 
     velocity: float
-    """The commanded velocity written to the world state before ticking."""
+    """
+    The commanded velocity written to the world state before ticking.
+    """
 
     connection_type: type = RevoluteConnection
-    """The concrete connection class to instantiate."""
+    """
+    The concrete connection class to instantiate.
+    """
 
 
 def build_controller(
@@ -53,7 +65,9 @@ def build_controller(
     minimum_valid_velocity: float = 0.0,
     velocity_command: Optional[VelocityCommand] = None,
 ) -> JointGroupVelController:
-    """Build a controller over a chain of freshly created connections."""
+    """
+    Build a controller over a chain of freshly created connections.
+    """
     world = World()
     connections: List[ActiveConnection1DOF] = []
     with world.modify_world():
@@ -81,7 +95,9 @@ def build_controller(
 
 
 def tick_message(controller: JointGroupVelController) -> object:
-    """Replace the publisher with a recorder, tick once, and return the published message."""
+    """
+    Replace the publisher with a recorder, tick once, and return the published message.
+    """
     recorder = RecordingPublisher()
     controller.cmd_pub = recorder
     assert controller.update() == Status.RUNNING
@@ -89,7 +105,9 @@ def tick_message(controller: JointGroupVelController) -> object:
 
 
 def tick(controller: JointGroupVelController) -> List[float]:
-    """Replace the publisher with a recorder, tick once, and return the data."""
+    """
+    Replace the publisher with a recorder, tick once, and return the data.
+    """
     recorder = RecordingPublisher()
     controller.cmd_pub = recorder
     assert controller.update() == Status.RUNNING
