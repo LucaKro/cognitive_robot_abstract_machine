@@ -177,27 +177,28 @@ with simulated_robot:
             ParkArmsAction(arm=Arms.BOTH),
             # Note: always need TorsoState.HIGH or next(iter(self)) of CostmapLocation fails
             MoveTorsoAction(TorsoState.HIGH),
-            TransportAction(
-                object_designator=world.get_body_by_name("bowl.stl"),
-                arm=Arms.RIGHT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.RIGHT,
-                    VerticalAlignment.TOP,
-                    garmi_robot.get_right_arm_if_specified().end_effector,
-                ),
-                target_location=bowl_target_pose,
-            ),
-            MoveTorsoAction(TorsoState.HIGH),
-            TransportAction(
-                object_designator=world.get_body_by_name("spoon.stl"),
-                arm=Arms.RIGHT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.RIGHT,
-                    VerticalAlignment.TOP,
-                    garmi_robot.get_right_arm_if_specified().end_effector,
-                ),
-                target_location=spoon_target_pose,
-            ),
+            # Transport is not working yet on the garmi
+            # TransportAction(
+            #     object_designator=world.get_body_by_name("bowl.stl"),
+            #     arm=Arms.RIGHT,
+            #     grasp_description=GraspDescription(
+            #         ApproachDirection.RIGHT,
+            #         VerticalAlignment.TOP,
+            #         garmi_robot.get_right_arm_if_specified().end_effector,
+            #     ),
+            #     target_location=bowl_target_pose,
+            # ),
+            # MoveTorsoAction(TorsoState.HIGH),
+            # TransportAction(
+            #     object_designator=world.get_body_by_name("spoon.stl"),
+            #     arm=Arms.RIGHT,
+            #     grasp_description=GraspDescription(
+            #         ApproachDirection.RIGHT,
+            #         VerticalAlignment.TOP,
+            #         garmi_robot.get_right_arm_if_specified().end_effector,
+            #     ),
+            #     target_location=spoon_target_pose,
+            # ),
         ],
         context,
     ).perform()
