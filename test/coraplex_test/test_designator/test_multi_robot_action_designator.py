@@ -67,6 +67,8 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.world import World
 
+from .robot_annotation_lookup import get_or_create_robot_annotation
+
 # The alternative motion mappings that should be available to the plans in this test module.
 # Resolution filters by robot type and execution type, so passing the full set is always safe.
 ALTERNATIVE_MOTION_MAPPINGS = [
@@ -158,7 +160,7 @@ def setup_multi_robot_apartment(
         )
         view = apartment_copy.get_semantic_annotations_by_type(Garmi)
         if not view:
-            view = Garmi.from_world(apartment_copy)
+            view = get_or_create_robot_annotation(apartment_copy, Garmi)
         else:
             view = view[0]
         view.root.parent_connection.origin = (
