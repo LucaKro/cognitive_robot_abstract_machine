@@ -46,23 +46,17 @@ def test_resolves_texture_from_material_name_when_it_is_a_real_file(tmp_path):
     texture_file.write_bytes(b"fake png data")
     material = FakeMaterial(name=str(texture_file), image=FakeImageWithoutFilename())
 
-    assert MujocoMeshConverter._resolve_texture_file_path(
-        material, str(tmp_path)
-    ) == str(texture_file)
+    assert MujocoMeshConverter._resolve_texture_file_path(material) == str(texture_file)
 
 
-def test_resolves_texture_from_image_filename_when_material_name_is_not_a_file(
-    tmp_path,
-):
+def test_resolves_texture_from_image_filename_when_material_name_is_not_a_file(tmp_path):
     texture_file = tmp_path / "texture.png"
     texture_file.write_bytes(b"fake png data")
     material = FakeMaterial(
         name="material_0", image=FakeImageWithFilename(filename=str(texture_file))
     )
 
-    assert MujocoMeshConverter._resolve_texture_file_path(
-        material, str(tmp_path)
-    ) == str(texture_file)
+    assert MujocoMeshConverter._resolve_texture_file_path(material) == str(texture_file)
 
 
 def test_resolves_texture_from_image_info_file_path(tmp_path):
@@ -73,37 +67,10 @@ def test_resolves_texture_from_image_info_file_path(tmp_path):
         image=FakeImageWithoutFilename(info={"file_path": str(texture_file)}),
     )
 
-    assert MujocoMeshConverter._resolve_texture_file_path(
-        material, str(tmp_path)
-    ) == str(texture_file)
+    assert MujocoMeshConverter._resolve_texture_file_path(material) == str(texture_file)
 
 
-def test_returns_none_for_a_programmatically_generated_texture_with_no_backing_file(
-    tmp_path,
-):
+def test_returns_none_for_a_programmatically_generated_texture_with_no_backing_file():
     material = FakeMaterial(name="material_0", image=FakeImageWithoutFilename())
 
-    assert (
-        MujocoMeshConverter._resolve_texture_file_path(material, str(tmp_path)) is None
-    )
-
-
-def test_resolves_texture_named_relative_to_its_mesh(tmp_path):
-    """
-    trimesh reports a texture path relative to the mesh that named it, which is only
-    meaningful next to that mesh, so resolution starts from the mesh's directory rather
-    than the process working directory.
-
-    Without this the texture is silently not found and the geom renders with MuJoCo's
-    default gray instead of its texture.
-    """
-    texture_file = tmp_path / "texture.png"
-    texture_file.write_bytes(b"fake png data")
-    material = FakeMaterial(
-        name="material_0",
-        image=FakeImageWithoutFilename(info={"file_path": "texture.png"}),
-    )
-
-    assert MujocoMeshConverter._resolve_texture_file_path(
-        material, str(tmp_path)
-    ) == str(texture_file)
+    assert MujocoMeshConverter._resolve_texture_file_path(material) is None
