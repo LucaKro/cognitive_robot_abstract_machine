@@ -8,7 +8,6 @@ from typing import Tuple
 
 import time
 import trimesh
-import PIL.ImageFile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -1380,9 +1379,11 @@ class MujocoMeshConverter(MujocoGeomConverter, MeshConverter):
             generated image (for example a flat "glass" material) with no backing file.
         """
         image = material.image
-        candidates = [material.name, image.info.get("file_path", "")]
-        if isinstance(image, PIL.ImageFile.ImageFile):
-            candidates.append(image.filename)
+        candidates = [
+            material.name,
+            getattr(image, "filename", ""),
+            (getattr(image, "info", None) or {}).get("file_path", ""),
+        ]
         for candidate in candidates:
             if not isinstance(candidate, str) or not candidate:
                 continue
