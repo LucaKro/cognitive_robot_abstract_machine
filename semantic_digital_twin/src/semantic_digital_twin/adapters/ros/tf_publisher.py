@@ -169,7 +169,7 @@ class TFPublisher(StateChangeCallback):
     Callback for updating the tf message cache on model update.
     """
 
-    throttle_state_updates: int = 1
+    throttle_state_updates: int = 20
     """
     Only published every n-th state update.
     """

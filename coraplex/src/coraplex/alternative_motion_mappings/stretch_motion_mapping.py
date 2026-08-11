@@ -155,15 +155,18 @@ class StretchClose(ClosingMotion, AlternativeMotion[Stretch]):
             goal_normal=Vector3(1, 0, 0, reference_frame=self.object_part),
             tip_normal=Vector3(0, -1, 0, self.robot.root),
         )
-        close = Close(tip_link=tip, environment_link=self.object_part)
+        close = Close(
+            tip_link=tip,
+            environment_link=self.object_part,
+            goal_joint_state=self.goal_joint_state,
+        )
         return Parallel([cart, align, close])
 
 
 class StretchMoveGripperMotion(MoveGripperMotion, AlternativeMotion[Stretch]):
     """
-    Gripper motion tuned for Stretch: forces convergence checks to hold for at
-    least one second so the local minimum isn't reported before the gripper
-    has actually moved.
+    Gripper motion tuned for Stretch: forces convergence checks to hold for at least one
+    second so the local minimum isn't reported before the gripper has actually moved.
     """
 
     execution_type = ExecutionType.SIMULATED, ExecutionType.REAL

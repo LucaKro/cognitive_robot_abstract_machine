@@ -249,6 +249,7 @@ import semantic_digital_twin.world_description.world_state
 import semantic_digital_twin.world_description.world_state_trajectory_plotter
 import sqlalchemy.sql.sqltypes
 import trimesh.base
+import types
 import typing
 import typing_extensions
 import uuid
@@ -271,6 +272,7 @@ class Base(DeclarativeBase):
         uuid.UUID: sqlalchemy.sql.sqltypes.UUID,
         pathlib.Path: krrood.ormatic.custom_types.PathType,
         krrood.adapters.json_serializer.JSONData: krrood.ormatic.custom_types.JSONDataType,
+        types.NoneType: krrood.ormatic.custom_types.TypeType,
         numpy.ndarray: coraplex.orm.model.NumpyType,
     }
 
@@ -5656,6 +5658,7 @@ class CloseActionDAO(
         use_existing_column=True,
     )
 
+    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     grasping_prepose_distance: Mapped[builtins.float] = mapped_column(
         use_existing_column=True
     )
@@ -5664,6 +5667,13 @@ class CloseActionDAO(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
         use_existing_column=True,
+    )
+    approach_direction: Mapped[coraplex.datastructures.enums.ApproachDirection] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
     )
 
     object_designator_id: Mapped[int] = mapped_column(
@@ -5695,6 +5705,9 @@ class OpenActionDAO(
         use_existing_column=True,
     )
 
+    goal_joint_state: Mapped[typing.Optional[builtins.float]] = mapped_column(
+        use_existing_column=True
+    )
     grasping_prepose_distance: Mapped[builtins.float] = mapped_column(
         use_existing_column=True
     )
@@ -5703,6 +5716,13 @@ class OpenActionDAO(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
         use_existing_column=True,
+    )
+    approach_direction: Mapped[coraplex.datastructures.enums.ApproachDirection] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
     )
 
     object_designator_id: Mapped[int] = mapped_column(
@@ -6636,6 +6656,8 @@ class ClosingMotionDAO(
         use_existing_column=True,
     )
 
+    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
@@ -6690,6 +6712,10 @@ class OpeningMotionDAO(
         ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
+    )
+
+    goal_joint_state: Mapped[typing.Optional[builtins.float]] = mapped_column(
+        use_existing_column=True
     )
 
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(

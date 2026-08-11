@@ -153,9 +153,9 @@ class Location(Iterable[Pose]):
 @dataclass
 class DeferredLocation(Iterable[Pose]):
     """
-    Lazily rebuilds a concrete :class:`Location` from current world state on each
-    iteration, so its pose generator and validators reflect the world at the moment the
-    location is consumed (execution time) rather than when the plan was constructed.
+    Lazily rebuilds its pose candidates from current world state on each iteration, so
+    they reflect the world at the moment the location is consumed (execution time)
+    rather than when the plan was constructed.
 
     .. warning::
         :meth:`__iter__` must stay a generator (``yield from``). Returning
@@ -165,9 +165,11 @@ class DeferredLocation(Iterable[Pose]):
         first ``next``, which only happens once the underspecified action is grounded.
     """
 
-    location_factory: Callable[[], Location]
+    location_factory: Callable[[], Iterable[Pose]]
     """
-    Builds a fresh :class:`Location` from the current world state.
+    Builds a fresh source of pose candidates from the current world state.
+
+    A :class:`Location` is the usual choice, but any iterable of poses works.
     """
 
     def __iter__(self) -> Iterator[Pose]:

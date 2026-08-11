@@ -1,17 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import timedelta
 from typing import List
 
-from typing_extensions import Optional, Any
+from typing_extensions import Optional
 
-from krrood.entity_query_language.factories import (
-    a,
-    an,
-    entity,
-    variable,
-)
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
@@ -27,9 +20,15 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.view_manager import ViewManager
+from krrood.entity_query_language.factories import (
+    a,
+    an,
+    entity,
+    variable,
+)
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer, Door
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -81,9 +80,18 @@ class TransportAction(ActionDescription):
             ).where(drawer.root == container)
         )
         drawer_annotation = list(drawer_annotation.evaluate())
-        if len(drawer_annotation) == 0:
+
+        door_annotation = an(
+            entity(
+                door := variable(Door, domain=self.world.semantic_annotations)
+            ).where(door.root.parent_kinematic_structure_entity == container)
+        )
+        door_annotation = list(door_annotation.evaluate())
+
+        selected_annotations = drawer_annotation + door_annotation
+        if len(selected_annotations) == 0:
             return []
-        handle = drawer_annotation[0].handle.root
+        handle = selected_annotations[0].handle.root
 
         return [
             a(NavigateAction)(

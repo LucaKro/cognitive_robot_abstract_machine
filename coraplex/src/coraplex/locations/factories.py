@@ -85,7 +85,7 @@ def reachability_location(
     man = ViewManager.get_end_effector_view(arm, context.robot)
 
     grasp_description = grasp_description or GraspDescription(
-        ApproachDirection.FRONT,
+        ApproachDirection.BACK,
         VerticalAlignment.NoAlignment,
         man,
     )

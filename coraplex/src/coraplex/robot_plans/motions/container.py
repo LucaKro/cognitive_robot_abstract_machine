@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from typing_extensions import Optional
+
 from giskardpy.motion_statechart.goals.open_close import Open, Close
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -29,7 +31,11 @@ class OpeningMotion(BaseMotion):
     @property
     def _motion_chart(self):
         tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
-        return Open(tip_link=tip, environment_link=self.object_part)
+        return Open(
+            tip_link=tip,
+            environment_link=self.object_part,
+            goal_joint_state=1.45,
+        )
 
 
 @dataclass
@@ -48,6 +54,11 @@ class ClosingMotion(BaseMotion):
     Arm that should be used.
     """
 
+    goal_joint_state: float = 0.01
+    """
+    How far the container is left open.
+    """
+
     def perform(self):
         return
 
@@ -55,5 +66,7 @@ class ClosingMotion(BaseMotion):
     def _motion_chart(self):
         tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
         return Close(
-            tip_link=tip, environment_link=self.object_part, goal_joint_state=0.01
+            tip_link=tip,
+            environment_link=self.object_part,
+            goal_joint_state=self.goal_joint_state,
         )

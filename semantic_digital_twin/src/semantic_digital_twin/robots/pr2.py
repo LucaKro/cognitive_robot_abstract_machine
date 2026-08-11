@@ -449,6 +449,7 @@ class PR2MobileBase(MobileBase[OmniDrive], HasTorso[PR2Torso]):
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+            full_body_controlled=True,
         )
 
 
