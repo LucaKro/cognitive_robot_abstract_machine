@@ -318,7 +318,9 @@ class GraspingAction(ActionDescription):
 
         return sequential(
             [
-                MoveToolCenterPointMotion(pre_pose, self.arm),
+                MoveToolCenterPointMotion(
+                    pre_pose, self.arm, allow_gripper_collision=True
+                ),
                 MoveGripperMotion(GripperState.OPEN, self.arm),
                 MoveToolCenterPointMotion(
                     grasp_pose, self.arm, allow_gripper_collision=True

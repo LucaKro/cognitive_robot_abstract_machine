@@ -109,7 +109,7 @@ MILK_SCALE = Scale(0.065, 0.065, 0.2)
 The extents of the milk carton.
 """
 
-SHELF_LAYER_SCALE = Scale(0.4, 0.44, 0.02)
+SHELF_LAYER_SCALE = Scale(0.45, 0.5, 0.02)
 """
 The extents of the shelf layer the milk stands on.
 
@@ -197,7 +197,7 @@ Stops short of the shut door for the same reason :data:`DOOR_OPENING_ANGLE` stop
 of the fully swung one, and leaves the door a finger's width ajar.
 """
 
-DOOR_IS_CLOSED_ANGLE = 0.2
+DOOR_IS_CLOSED_ANGLE = 0.02
 """
 Up to which fridge door angle, in radians, the door counts as closed.
 """
