@@ -2896,6 +2896,23 @@ class DrawerDAO_objects_association(Base, AssociationDataAccessObject):
     )
 
 
+class FridgeDAO_shelf_layers_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_82315155131617713176582392154722651254927423500830615406703510"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_fridgedao_id: Mapped[int] = mapped_column(
+        ForeignKey("FridgeDAO.database_id")
+    )
+    target_shelflayerdao_id: Mapped[int] = mapped_column(
+        ForeignKey("ShelfLayerDAO.database_id")
+    )
+
+    target: Mapped[ShelfLayerDAO] = relationship(
+        "ShelfLayerDAO", foreign_keys=[target_shelflayerdao_id], lazy="selectin"
+    )
+
+
 class MicrowaveDAO_doors_association(Base, AssociationDataAccessObject):
     __tablename__ = "_35812101388176730312141457055540524846783346443279015104871397"
 
@@ -5141,6 +5158,24 @@ class MotionNodeDAO(
     }
 
 
+class StandaloneMotionNodeDAO(
+    MotionNodeDAO, DataAccessObject[coraplex.plans.plan_node.StandaloneMotionNode]
+):
+    __tablename__ = "StandaloneMotionNodeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(MotionNodeDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "StandaloneMotionNodeDAO",
+        "inherit_condition": database_id == MotionNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class UnderspecifiedNodeDAO(
     ExecutionBoundaryNodeDAO,
     DataAccessObject[coraplex.plans.plan_node.UnderspecifiedNode],
@@ -5811,6 +5846,7 @@ class CloseActionDAO(
         use_existing_column=True,
     )
 
+    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
     grasping_prepose_distance: Mapped[builtins.float] = mapped_column(
         use_existing_column=True
     )
@@ -5819,6 +5855,13 @@ class CloseActionDAO(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
         use_existing_column=True,
+    )
+    approach_direction: Mapped[coraplex.datastructures.enums.ApproachDirection] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
     )
 
     object_designator_id: Mapped[int] = mapped_column(
@@ -5850,6 +5893,9 @@ class OpenActionDAO(
         use_existing_column=True,
     )
 
+    goal_joint_state: Mapped[typing.Optional[builtins.float]] = mapped_column(
+        use_existing_column=True
+    )
     grasping_prepose_distance: Mapped[builtins.float] = mapped_column(
         use_existing_column=True
     )
@@ -5858,6 +5904,13 @@ class OpenActionDAO(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
         use_existing_column=True,
+    )
+    approach_direction: Mapped[coraplex.datastructures.enums.ApproachDirection] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
     )
 
     object_designator_id: Mapped[int] = mapped_column(
@@ -6779,17 +6832,37 @@ class BaseMotionDAO(
     }
 
 
-class ClosingMotionDAO(
-    BaseMotionDAO,
-    DataAccessObject[coraplex.robot_plans.motions.container.ClosingMotion],
+class StandaloneMotionDAO(
+    BaseMotionDAO, DataAccessObject[coraplex.robot_plans.motions.base.StandaloneMotion]
 ):
-    __tablename__ = "ClosingMotionDAO"
+    __tablename__ = "StandaloneMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "StandaloneMotionDAO",
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ClosingMotionDAO(
+    StandaloneMotionDAO,
+    DataAccessObject[coraplex.robot_plans.motions.container.ClosingMotion],
+):
+    __tablename__ = "ClosingMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(StandaloneMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
@@ -6809,7 +6882,7 @@ class ClosingMotionDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "ClosingMotionDAO",
-        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "inherit_condition": database_id == StandaloneMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -6836,13 +6909,13 @@ class StretchCloseDAO(
 
 
 class OpeningMotionDAO(
-    BaseMotionDAO,
+    StandaloneMotionDAO,
     DataAccessObject[coraplex.robot_plans.motions.container.OpeningMotion],
 ):
     __tablename__ = "OpeningMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(BaseMotionDAO.database_id),
+        ForeignKey(StandaloneMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -6865,7 +6938,7 @@ class OpeningMotionDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "OpeningMotionDAO",
-        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "inherit_condition": database_id == StandaloneMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -36441,6 +36514,16 @@ class FridgeDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(CabinetDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    shelf_layers: Mapped[builtins.list[FridgeDAO_shelf_layers_association]] = (
+        relationship(
+            "FridgeDAO_shelf_layers_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[FridgeDAO_shelf_layers_association.source_fridgedao_id]",
+            lazy="selectin",
+        )
     )
 
     __mapper_args__ = {

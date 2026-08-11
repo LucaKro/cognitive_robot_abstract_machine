@@ -2056,6 +2056,23 @@ class DrawerDAO_objects_association(Base, AssociationDataAccessObject):
     )
 
 
+class FridgeDAO_shelf_layers_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_82315155131617713176582392154722651254927423500830615406703510"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_fridgedao_id: Mapped[int] = mapped_column(
+        ForeignKey("FridgeDAO.database_id")
+    )
+    target_shelflayerdao_id: Mapped[int] = mapped_column(
+        ForeignKey("ShelfLayerDAO.database_id")
+    )
+
+    target: Mapped[ShelfLayerDAO] = relationship(
+        "ShelfLayerDAO", foreign_keys=[target_shelflayerdao_id], lazy="selectin"
+    )
+
+
 class MicrowaveDAO_doors_association(Base, AssociationDataAccessObject):
     __tablename__ = "_35812101388176730312141457055540524846783346443279015104871397"
 
@@ -22262,6 +22279,16 @@ class FridgeDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(CabinetDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    shelf_layers: Mapped[builtins.list[FridgeDAO_shelf_layers_association]] = (
+        relationship(
+            "FridgeDAO_shelf_layers_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[FridgeDAO_shelf_layers_association.source_fridgedao_id]",
+            lazy="selectin",
+        )
     )
 
     __mapper_args__ = {

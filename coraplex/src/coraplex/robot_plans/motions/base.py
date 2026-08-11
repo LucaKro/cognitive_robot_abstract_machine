@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from inspect import signature
 from typing_extensions import TypeVar, Type, Optional
@@ -91,6 +91,15 @@ class BaseMotion(Designator):
                 ]
             )
         ]
+
+
+@dataclass
+class StandaloneMotion(BaseMotion, ABC):
+    """
+    A motion that is executed in a motion statechart of its own.
+
+    The motions around it are still merged with each other, never with this one.
+    """
 
 
 MotionType = TypeVar("MotionType", bound=BaseMotion)
