@@ -8,6 +8,10 @@ from typing_extensions import List
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    ExternalCollisionAvoidance,
+    UpdateTemporaryCollisionRules,
+)
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
@@ -24,6 +28,9 @@ from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.view_manager import ViewManager
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowCollisionForBodies,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -240,8 +247,27 @@ class AreReachableBy(PoseValidator):
                 for pose in sequence
             ]
 
+        for arm in Arms:
+            if (
+                self.tip_link
+                == ViewManager.get_end_effector_view(arm, self.robot).tool_frame
+            ):
+                correct_arm = arm
+        end_effector = ViewManager.get_end_effector_view(correct_arm, self.robot)
+        allowed_bodies = end_effector.bodies_with_collision
+
         msc = MotionStatechart()
         msc.add_node(sequence_node := Sequence(sequence))
+        # msc.add_node(ExternalCollisionAvoidance())
+        # msc.add_node(
+        #     UpdateTemporaryCollisionRules(
+        #         temporary_rules=[
+        #             AllowCollisionForBodies(
+        #                 allowed_collision_bodies=set(allowed_bodies)
+        #             )
+        #         ]
+        #     )
+        # )
         msc.add_node(EndMotion.when_true(sequence_node))
 
         return msc

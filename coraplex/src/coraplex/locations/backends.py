@@ -24,6 +24,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
     AllowCollisionRule,
     AllowCollisionBetweenGroups,
+    AllowCollisionForBodies,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -147,16 +148,15 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                 pose_seq,
                 UpdateTemporaryCollisionRules(
                     temporary_rules=[
-                        AllowCollisionBetweenGroups(
-                            body_group_a=end_effector.bodies_with_collision,
-                            body_group_b=(
-                                [self.target] if isinstance(self.target, Body) else []
+                        AllowCollisionForBodies(
+                            allowed_collision_bodies=set(
+                                end_effector.bodies_with_collision
                             ),
                         )
                     ]
                 ),
                 ExternalCollisionAvoidance(
-                    robot=robot, cancel_if_collision_violated=False
+                    robot=robot, cancel_if_collision_violated=True
                 ),
             ]
         )

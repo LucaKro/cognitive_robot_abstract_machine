@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import Callable, ClassVar, Iterator
+from typing_extensions import ClassVar
 
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from krrood.entity_query_language.factories import (
@@ -44,11 +44,8 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.demonstrations import RobotDemonstration
-from coraplex.locations.base import (
-    DeferredLocation,
-    Location,
-    PoseGeneratorBackend,
-)
+from coraplex.locations.base import DeferredLocation
+from coraplex.locations.factories import giskard_reachability_location
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
@@ -148,30 +145,6 @@ ISLAND_APPROACH_YAW = np.pi
 The heading the robot faces at the kitchen island, which it reaches from positive x.
 """
 
-STANDING_DISTANCE = 0.65
-"""
-How far behind a pre-grasp pose the robot stands, in meters, to reach it.
-
-Close enough to reach, far enough that the arm can still fold into its approach without
-fouling what it is reaching into.
-"""
-
-STANDING_DISTANCES = (0.45, 0.55, 0.65, 0.75)
-"""
-How far behind a pre-grasp pose the robot may stand instead, in meters, when
-:data:`STANDING_DISTANCE` is blocked.
-"""
-
-STANDING_LATERAL_OFFSETS = (0.0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9)
-"""
-How far the robot may step sideways out of the approach line, in meters.
-
-Squarely behind the pre-grasp pose is where the robot belongs, but it is also where the
-fridge door sweeps once it stands open, so reaching into the fridge needs a step to the
-side, the way a person stands beside an open door rather than behind it. Positive is to
-the robot's left.
-"""
-
 PLACE_POSITION_ON_ISLAND = (-0.9, 1.2)
 """
 Where on the kitchen island the milk ends up, in x and y.
@@ -235,58 +208,6 @@ The fridge, and with it its handle, is turned by half a turn against the room, s
 handle's own front points into the fridge and is reached from its back. The handle turns
 with the door, so this holds whether the door is being opened or shut.
 """
-
-# %% where to stand
-
-
-@dataclass
-class StandingPoseCandidates(PoseGeneratorBackend):
-    """
-    Base poses from which a gripper can start its approach, least displaced from
-    standing squarely behind the pre-grasp pose first.
-
-    Displacement is ordered rather than distance to the target: standing closer is not
-    better, since an arm too close to what it reaches into cannot fold into its approach
-    at all.
-
-    Generates candidates only; :class:`~coraplex.locations.base.Location` is what
-    discards the ones in collision.
-    """
-
-    pre_grasp_pose: Pose
-    """
-    The pose the gripper approaches the grasped body from.
-    """
-
-    world: World
-    """
-    The world the candidates are expressed in.
-    """
-
-    def __iter__(self) -> Iterator[Pose]:
-        approach = self.world.transform(
-            self.pre_grasp_pose.to_homogeneous_matrix(), self.world.root
-        ).to_np()
-        yaw = float(np.arctan2(approach[1, 0], approach[0, 0]))
-        placements = sorted(
-            (
-                (
-                    abs(distance - STANDING_DISTANCE) + abs(lateral_offset),
-                    distance,
-                    lateral_offset,
-                )
-                for distance in STANDING_DISTANCES
-                for lateral_offset in STANDING_LATERAL_OFFSETS
-            )
-        )
-        for _, distance, lateral_offset in placements:
-            yield Pose.from_xyz_rpy(
-                approach[0, 3] - distance * np.cos(yaw) - lateral_offset * np.sin(yaw),
-                approach[1, 3] - distance * np.sin(yaw) + lateral_offset * np.cos(yaw),
-                yaw=yaw,
-                reference_frame=self.world.root,
-            )
-
 
 # %% the demonstration
 
@@ -402,33 +323,34 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         )
 
     @staticmethod
-    def navigate_behind(
-        pre_grasp_pose: Callable[[], Pose], context: Context
+    def navigate_within_reach(
+        target: Body | Pose,
+        arm: Arms,
+        grasp_description: GraspDescription,
+        context: Context,
     ) -> Match[NavigateAction]:
         """
-        Drive to where the robot has to stand to reach a pre-grasp pose, which keeps it
-        behind its own hand however the grasped body happens to be turned.
+        Drive to a base pose the target can be reached from with ``arm``.
 
         Every action of a plan is expanded before its first motion runs, which is too
-        early to read a standing pose: earlier steps still move both the robot and the
+        early to choose a standing pose: earlier steps still move both the robot and the
         handle riding the swinging door. An underspecified action is grounded once
         execution reaches it, which is late enough.
 
-        :param pre_grasp_pose: Reads the pose the gripper approaches from, out of the
-            world as it stands by then.
+        :param target: The body or pose the gripper has to reach.
+        :param arm: The arm that has to reach it.
+        :param grasp_description: How the gripper takes hold of the target.
         :param context: The context the standing pose is chosen in.
         """
-
-        def free_standing_pose() -> Location:
-            return Location(
-                context,
-                pre_grasp_pose(),
-                StandingPoseCandidates(pre_grasp_pose(), context.world),
-                [],
-            )
-
         return a(NavigateAction)(
-            target_location=variable(Pose, domain=DeferredLocation(free_standing_pose)),
+            target_location=variable(
+                Pose,
+                domain=DeferredLocation(
+                    lambda: giskard_reachability_location(
+                        target, context, arm, grasp_description
+                    )
+                ),
+            ),
             keep_joint_states=True,
         )
 
@@ -461,9 +383,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             [
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
-                self.navigate_behind(
-                    lambda: handle_grasp.grasp_pose_sequence(handle)[0], context
-                ),
+                self.navigate_within_reach(handle, DOOR_ARM, handle_grasp, context),
                 OpenAction(
                     handle,
                     DOOR_ARM,
@@ -471,14 +391,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     DOOR_OPENING_ANGLE,
                 ),
                 ParkArmsAction(Arms.BOTH),
-                self.navigate_behind(
-                    lambda: milk_grasp.grasp_pose_sequence(milk_body)[0], context
-                ),
+                self.navigate_within_reach(milk_body, MILK_ARM, milk_grasp, context),
                 PickUpAction(milk_body, MILK_ARM, milk_grasp),
                 ParkArmsAction(Arms.BOTH),
-                self.navigate_behind(
-                    lambda: handle_grasp.grasp_pose_sequence(handle)[0], context
-                ),
+                self.navigate_within_reach(handle, DOOR_ARM, handle_grasp, context),
                 CloseAction(
                     handle,
                     DOOR_ARM,
@@ -486,10 +402,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     DOOR_CLOSING_ANGLE,
                 ),
                 ParkArmsAction(Arms.BOTH),
-                self.navigate_behind(
-                    lambda: milk_grasp.pose_sequence(place_pose, milk_body)[0],
-                    context,
-                ),
+                self.navigate_within_reach(place_pose, MILK_ARM, milk_grasp, context),
                 PlaceAction(milk_body, place_pose, MILK_ARM),
                 ParkArmsAction(Arms.BOTH),
             ],
@@ -509,7 +422,8 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
     :return: The world the demonstration acted on.
     """
     demonstration = KitchenFridgeDemonstration(
-        used_robot=PR2, execution_type=execution_type, collision_avoidance=False
+        used_robot=PR2,
+        execution_type=execution_type,  # collision_avoidance=False
     )
     world = demonstration.run()
 
