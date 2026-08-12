@@ -189,20 +189,22 @@ that is never reported as reached, so the motion runs until it is killed by the 
 budget. This sits just under what the door actually achieves.
 """
 
-DOOR_CLOSING_ANGLE = 0.1
+DOOR_CLOSING_ANGLE = 0.05
 """
-How far the fridge door is left standing open after closing, in radians.
+How far the fridge door stands open after closing, in radians.
 
-Stops short of the shut door for the same reason :data:`DOOR_OPENING_ANGLE` stops short
-of the fully swung one, and leaves the door a finger's width ajar.
+A hair above the hinge's lower limit, because a goal *at* a limit is only approached
+asymptotically and never reported as reached, which hangs the motion until its tick
+budget runs out. Stays under :data:`DOOR_IS_CLOSED_ANGLE`, so the door still counts as
+shut.
 """
 
-DOOR_IS_CLOSED_ANGLE = 0.02
+DOOR_IS_CLOSED_ANGLE = 0.1
 """
 Up to which fridge door angle, in radians, the door counts as closed.
 """
 
-PLACEMENT_TOLERANCE = 0.05
+PLACEMENT_TOLERANCE = 0.1
 """
 How far, in meters, the milk may end up from where it was placed.
 """
@@ -225,15 +227,14 @@ Whichever arm this is, it cannot be :data:`MILK_ARM`: the door is shut again whi
 milk is still being carried, so that hand is not free.
 """
 
-HANDLE_OPENING_APPROACH_DIRECTION = ApproachDirection.BACK
+HANDLE_APPROACH_DIRECTION = ApproachDirection.BACK
 """
-The side of the shut handle the gripper comes from.
+The side of the fridge door handle the gripper comes from.
 
 The fridge, and with it its handle, is turned by half a turn against the room, so the
-shut handle's own front points into the fridge and is reached from its back.
+handle's own front points into the fridge and is reached from its back. The handle turns
+with the door, so this holds whether the door is being opened or shut.
 """
-
-HANDLE_CLOSING_APPROACH_DIRECTION = ApproachDirection.BACK
 
 # %% where to stand
 
@@ -443,13 +444,8 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         place_pose = self.place_pose_on_island(world)
 
         door_end_effector = ViewManager.get_end_effector_view(DOOR_ARM, context.robot)
-        opening_grasp = GraspDescription(
-            HANDLE_OPENING_APPROACH_DIRECTION,
-            VerticalAlignment.NoAlignment,
-            door_end_effector,
-        )
-        closing_grasp = GraspDescription(
-            HANDLE_CLOSING_APPROACH_DIRECTION,
+        handle_grasp = GraspDescription(
+            HANDLE_APPROACH_DIRECTION,
             VerticalAlignment.NoAlignment,
             door_end_effector,
         )
@@ -466,12 +462,12 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
                 self.navigate_behind(
-                    lambda: opening_grasp.grasp_pose_sequence(handle)[0], context
+                    lambda: handle_grasp.grasp_pose_sequence(handle)[0], context
                 ),
                 OpenAction(
                     handle,
                     DOOR_ARM,
-                    HANDLE_OPENING_APPROACH_DIRECTION,
+                    HANDLE_APPROACH_DIRECTION,
                     DOOR_OPENING_ANGLE,
                 ),
                 ParkArmsAction(Arms.BOTH),
@@ -481,12 +477,12 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 PickUpAction(milk_body, MILK_ARM, milk_grasp),
                 ParkArmsAction(Arms.BOTH),
                 self.navigate_behind(
-                    lambda: closing_grasp.grasp_pose_sequence(handle)[0], context
+                    lambda: handle_grasp.grasp_pose_sequence(handle)[0], context
                 ),
                 CloseAction(
                     handle,
                     DOOR_ARM,
-                    HANDLE_CLOSING_APPROACH_DIRECTION,
+                    HANDLE_APPROACH_DIRECTION,
                     DOOR_CLOSING_ANGLE,
                 ),
                 ParkArmsAction(Arms.BOTH),
