@@ -42,9 +42,6 @@ from coraplex.robot_plans.actions.core.robot_body import (
 from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from rustworkx.rustworkx import NoEdgeBetweenNodes
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-    VizMarkerPublisher,
-)
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
     GripperState,
@@ -569,13 +566,17 @@ def test_detect(immutable_multiple_robot_apartment):
     with simulated_robot:
         plan.perform()
 
-    # Detection no longer returns a value; it writes the result into the
-    # world/belief state by marking the perceived annotation with its class label.
+    # Detection returns no value; it writes what it saw into the world by moving the
+    # perceived annotation's body to the detected pose.
     milk_annotations = world.get_semantic_annotations_by_type(Milk)
     assert milk_annotations
     perceived = milk_annotations[0]
-    assert perceived.class_label == "Milk"
     assert milk_body in perceived.bodies
+    np.testing.assert_allclose(
+        milk_body.global_pose.to_position().to_np().flatten()[:3],
+        (2.5, -2, 1.2),
+        atol=1e-9,
+    )
 
 
 def test_open(immutable_multiple_robot_apartment):

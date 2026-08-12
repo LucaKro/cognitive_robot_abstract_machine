@@ -37,6 +37,35 @@ def pr2_xml_parser():
     return MJCFParser(os.path.join(MJCF_DIR, "pr2_kinematic_tree.xml"))
 
 
+def test_from_file_carries_the_parsing_parameters():
+    file_path = os.path.join(MJCF_DIR, "table.xml")
+    parser = MJCFParser.from_file(
+        file_path, prefix="env", mimic_joints={"left": "right"}
+    )
+
+    assert parser.file_path == file_path
+    assert parser.prefix == "env"
+    assert parser.mimic_joints == {"left": "right"}
+
+
+def test_from_file_defaults_the_prefix_to_the_file_name():
+    parser = MJCFParser.from_file(os.path.join(MJCF_DIR, "table.xml"))
+
+    assert parser.prefix == "table"
+    assert parser.mimic_joints == {}
+
+
+def test_parsing_twice_yields_independent_worlds(table_xml_parser):
+    first = table_xml_parser.parse()
+    second = table_xml_parser.parse()
+
+    assert first is not second
+    first_ids = {body.id for body in first.bodies}
+    second_ids = {body.id for body in second.bodies}
+    assert len(first.bodies) == len(second.bodies)
+    assert first_ids.isdisjoint(second_ids)
+
+
 def test_table_parsing(table_xml_parser):
     body_num = 7
     world = table_xml_parser.parse()
