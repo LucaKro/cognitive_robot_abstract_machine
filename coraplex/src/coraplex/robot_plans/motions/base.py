@@ -77,7 +77,8 @@ class BaseMotion(Designator):
         """
         :param arm: The arm whose manipulator may collide with the environment.
         :return: Collision rules that only allow collisions between the manipulator of
-            the given arm and the environment.
+            the given arm and the environment. A body held in that manipulator hangs
+            below its tool frame and is one of its bodies, so it is freed along with it.
         """
         manipulator_bodies = (
             ViewManager().get_end_effector_view(arm, self.robot).bodies_with_collision

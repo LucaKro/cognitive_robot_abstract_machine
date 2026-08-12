@@ -161,7 +161,13 @@ class GiskardExecutable(Executable):
                 end_trigger = trinary_logic_or(end_trigger, *skip_end_conditions)
 
         if GiskardExecutable.collision_avoidance:
-            self._current_motion_state_chart.add_node(ExternalCollisionAvoidance())
+            # The avoidance constraints keep the robot off its surroundings on their own.
+            # Cancelling on a violation on top of that ends whole plans over a single
+            # tick, and does so even when it cannot name a single violated pair, so the
+            # motion is left to run and be judged by whether it reaches its goal.
+            self._current_motion_state_chart.add_node(
+                ExternalCollisionAvoidance(cancel_if_collision_violated=False)
+            )
 
         end_motion = EndMotion()
         end_motion.start_condition = end_trigger

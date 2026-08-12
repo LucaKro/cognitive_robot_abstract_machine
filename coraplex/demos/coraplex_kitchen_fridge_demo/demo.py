@@ -53,6 +53,7 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from coraplex.robot_plans.motions.container import CLOSED_ENOUGH_MARGIN
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.datastructures.definitions import TorsoState
@@ -145,7 +146,7 @@ ISLAND_APPROACH_YAW = np.pi
 The heading the robot faces at the kitchen island, which it reaches from positive x.
 """
 
-PLACE_POSITION_ON_ISLAND = (-0.9, 1.2)
+PLACE_POSITION_ON_ISLAND = (-0.7, 1.2)
 """
 Where on the kitchen island the milk ends up, in x and y.
 
@@ -164,17 +165,18 @@ budget. This sits just under what the door actually achieves.
 
 DOOR_CLOSING_ANGLE = 0.05
 """
-How far the fridge door stands open after closing, in radians.
+How far the fridge door is asked to stand open after closing, in radians.
 
-A hair above the hinge's lower limit, because a goal *at* a limit is only approached
-asymptotically and never reported as reached, which hangs the motion until its tick
-budget runs out. Stays under :data:`DOOR_IS_CLOSED_ANGLE`, so the door still counts as
-shut.
+A hair above the hinge's lower limit: the last stretch onto a limit is only approached
+asymptotically, so aiming at the limit itself leaves the door resting outside the
+tolerance rather than inside it.
 """
 
-DOOR_IS_CLOSED_ANGLE = 0.1
+DOOR_IS_CLOSED_ANGLE = DOOR_CLOSING_ANGLE + CLOSED_ENOUGH_MARGIN
 """
 Up to which fridge door angle, in radians, the door counts as closed.
+
+As far as the closing motion may leave it, since that is what it guarantees.
 """
 
 PLACEMENT_TOLERANCE = 0.1
@@ -422,8 +424,7 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
     :return: The world the demonstration acted on.
     """
     demonstration = KitchenFridgeDemonstration(
-        used_robot=PR2,
-        execution_type=execution_type,  # collision_avoidance=False
+        used_robot=PR2, execution_type=execution_type
     )
     world = demonstration.run()
 

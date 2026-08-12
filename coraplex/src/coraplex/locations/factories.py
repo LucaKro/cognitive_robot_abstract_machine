@@ -197,6 +197,10 @@ def giskard_reachability_location(
     Factory method that creates a location with a Giskard backend, the giskard backend
     uses the Giskard full-body control to find a robot pose.
 
+    The location carries no reachability validator: its backend hands out a pose only
+    once the robot has driven there and reached the target from it, so the reach has
+    already been performed by the time a candidate appears.
+
     :param target: Target pose or body that should be reachable
     :param context: Plan context in which to create the location
     :param arm: Arm to use for reachability estimation
@@ -204,39 +208,16 @@ def giskard_reachability_location(
     :returns: A location that is reachable from the target pose, using Giskard for
         reachability estimation.
     """
-    target_pose, target_body = (
-        (target.global_pose, target) if isinstance(target, Body) else (target, None)
-    )
-
-    man = ViewManager.get_end_effector_view(arm, context.robot)
+    target_pose = target.global_pose if isinstance(target, Body) else target
 
     grasp_description = grasp_description or GraspDescription(
         ApproachDirection.FRONT,
         VerticalAlignment.NoAlignment,
-        man,
+        ViewManager.get_end_effector_view(arm, context.robot),
     )
 
     backend = GiskardLocationBackend(
         target, arm, grasp_description, context.robot, context.world
     )
 
-    return Location(
-        context,
-        target_pose,
-        backend,
-        [
-            AreReachableBy(
-                pose_sequence=grasp_description.pose_sequence(
-                    target_pose,
-                    _get_object_in_hand(context.robot, context.world, arm)
-                    or target_body,
-                ),
-                context=Context(
-                    robot=context.robot,
-                    world=context.world,
-                    alternative_motion_mappings=context.alternative_motion_mappings,
-                ),
-                tip_link=man.tool_frame,
-            )
-        ],
-    )
+    return Location(context, target_pose, backend, [])

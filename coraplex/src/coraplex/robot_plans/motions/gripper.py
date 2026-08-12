@@ -236,13 +236,20 @@ class MoveToolCenterPointMotion(
             and self.robot.mobile_base.full_body_controlled
             else self.robot.root
         )
+        # A move that is allowed to touch what it manipulates also has to outrank the
+        # buffer zones kept around it, or the goal is given up on at the edge of one.
+        weight = (
+            DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+            if self.allow_gripper_collision
+            else DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+        )
         if self.movement_type == MovementType.TRANSLATION:
             task = CartesianPosition(
                 root_link=root,
                 tip_link=tip,
                 goal_point=self.target.to_position(),
                 name="MoveTCP",
-                weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
+                weight=weight,
                 threshold=self.resolved_position_threshold(),
             )
         else:
@@ -251,14 +258,18 @@ class MoveToolCenterPointMotion(
                 tip_link=tip,
                 goal_pose=self.target,
                 name="MoveTCP",
-                weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
+                weight=weight,
                 translation_threshold=self.resolved_position_threshold(),
                 orientation_threshold=self.resolved_orientation_threshold(),
             )
-        velocity_limit_nodes = self._velocity_limit_nodes(root, tip)
-        if not velocity_limit_nodes:
+        accompanying_nodes = self._velocity_limit_nodes(root, tip)
+        if self.allow_gripper_collision:
+            accompanying_nodes.extend(
+                self._only_allow_gripper_collision_rules(self.arm)
+            )
+        if not accompanying_nodes:
             return task
-        return Parallel([task, *velocity_limit_nodes], name="MoveTCP")
+        return Parallel([task, *accompanying_nodes], name="MoveTCP")
 
 
 @dataclass

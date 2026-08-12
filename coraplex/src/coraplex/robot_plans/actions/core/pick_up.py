@@ -91,7 +91,7 @@ class ReachAction(ActionDescription, ReachTuningParameters, HasGraspDetectionThr
             MoveToolCenterPointMotion(
                 target_pre_pose,
                 self.arm,
-                allow_gripper_collision=False,
+                allow_gripper_collision=True,
                 max_linear_velocity=self.pre_approach_linear_velocity,
             ),
         ]
@@ -103,7 +103,7 @@ class ReachAction(ActionDescription, ReachTuningParameters, HasGraspDetectionThr
             MoveToolCenterPointMotion(
                 target_pose,
                 self.arm,
-                allow_gripper_collision=False,
+                allow_gripper_collision=True,
                 movement_type=MovementType.CARTESIAN,
                 max_linear_velocity=self.final_approach_linear_velocity,
             )

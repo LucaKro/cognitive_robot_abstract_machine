@@ -3702,7 +3702,7 @@ class GiskardLocationBackendDAO(
         use_existing_column=True,
     )
 
-    distance_to_obstacle: Mapped[builtins.float] = mapped_column(
+    distance_to_obstacle: Mapped[typing.Optional[builtins.float]] = mapped_column(
         use_existing_column=True
     )
 
@@ -11761,6 +11761,7 @@ class OpenDAO(
         use_existing_column=True
     )
     weight: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+    threshold: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
     tip_link_id: Mapped[int] = mapped_column(
         ForeignKey("KinematicStructureEntityDAO.database_id", use_alter=True),

@@ -24,7 +24,11 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
+from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveBaseGoal
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    UpdateTemporaryCollisionRules,
+)
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -221,6 +225,52 @@ def test_move_tool_center_point_motion_max_angular_velocity_adds_real_limit(
         if isinstance(node, CartesianRotationVelocityLimit)
     )
     assert velocity_limit_node.max_angular_velocity == 0.2
+
+
+def test_move_tool_center_point_motion_allows_the_gripper_to_touch_what_it_grasps(
+    immutable_model_world,
+):
+    """
+    ``allow_gripper_collision`` must reach the collision manager: without the rule that
+    frees the manipulator, external collision avoidance keeps the gripper a buffer zone
+    away from whatever it reaches for, and the grasp never closes on it.
+    """
+    world, view, context = immutable_model_world
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target,
+        Arms.LEFT,
+        allow_gripper_collision=True,
+        movement_type=MovementType.CARTESIAN,
+    )
+    execute_single(motion, context=context)
+
+    rules_node = next(
+        node
+        for node in motion.motion_chart.nodes
+        if isinstance(node, UpdateTemporaryCollisionRules)
+    )
+    allowed_bodies = set(
+        ViewManager().get_end_effector_view(Arms.LEFT, view).bodies_with_collision
+    )
+    assert set(rules_node.temporary_rules[0].body_group_b) == allowed_bodies
+
+
+def test_move_tool_center_point_motion_keeps_the_gripper_clear_by_default(
+    immutable_model_world,
+):
+    """
+    Without ``allow_gripper_collision`` the motion adds no collision rule of its own, so
+    the robot's own rules decide how close the gripper may come.
+    """
+    world, view, context = immutable_model_world
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(target, Arms.LEFT)
+    execute_single(motion, context=context)
+
+    assert isinstance(motion.motion_chart, CartesianPose)
 
 
 def test_move_gripper_motion_finger_velocity_adds_real_limit(immutable_model_world):

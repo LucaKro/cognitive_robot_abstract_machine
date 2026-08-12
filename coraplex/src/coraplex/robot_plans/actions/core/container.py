@@ -26,7 +26,11 @@ from coraplex.plans.plan_node import PlanNode
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction
-from coraplex.robot_plans.motions.container import OpeningMotion, ClosingMotion
+from coraplex.robot_plans.motions.container import (
+    CLOSED_ENOUGH_MARGIN,
+    ClosingMotion,
+    OpeningMotion,
+)
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
@@ -35,14 +39,6 @@ from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from semantic_digital_twin.world_description.world_entity import Body
-
-CLOSED_ENOUGH_MARGIN = 0.09
-"""
-How far past its goal a container may stand and still count as closed.
-
-The margin the fixed bound of the default goal used to allow.
-"""
-
 
 @dataclass
 class OpenAction(ActionDescription):
