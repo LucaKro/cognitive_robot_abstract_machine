@@ -213,6 +213,9 @@ class PickUpAction(
                 MoveGripperMotion(
                     motion=GripperState.CLOSE,
                     gripper=self.arm,
+                    # Fingers closing on an object touch it, which is the grasp rather
+                    # than a collision to abort over.
+                    allow_gripper_collision=True,
                     finger_velocity=self.grasp_closing_velocity,
                     stall_minimum_time=self.grasp_stall_minimum_time,
                     tolerate_stall=self.tolerate_grasp_stall,

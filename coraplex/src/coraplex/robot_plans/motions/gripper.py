@@ -175,6 +175,10 @@ class MoveGripperMotion(BaseMotion, GripperStallToleranceParameters):
                     max_velocity=self.finger_velocity,
                 )
             )
+        if self.allow_gripper_collision:
+            accompanying_nodes.extend(
+                self._only_allow_gripper_collision_rules(self.gripper)
+            )
         return Parallel([done_node, *accompanying_nodes], name=name)
 
     def _hold_tool_center_point(self, end_effector: EndEffector) -> CartesianPose:

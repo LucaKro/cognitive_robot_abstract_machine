@@ -8,7 +8,7 @@ from typing_extensions import Iterator, List
 from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.locations.backends import GiskardLocationBackend
+from coraplex.locations.backends import CANDIDATE_ROUNDS, GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.data_types import DefaultWeights
@@ -164,8 +164,9 @@ _CLEAR_OF_THE_BASE = 0.08
 A gap, in meters, that the robot's base is reported close to but not in collision with.
 
 Wider than the margin the PR2's own rules keep around its base, narrower than the
-distance at which the collision detector stops reporting the pair at all -- which is what
-makes a candidate at this distance tell a proximity check apart from a collision check.
+distance at which the collision detector stops reporting the pair at all -- which is
+what makes a candidate at this distance tell a proximity check apart from a collision
+check.
 """
 
 
@@ -492,7 +493,9 @@ def test_giskard_backend_reaches_for_a_pose_with_what_the_gripper_holds(
     """
     world, robot, context = single_robot_world
     end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
-    held = _box_at(world, end_effector.tool_frame.global_pose.to_position(), Scale(0.05, 0.05, 0.2))
+    held = _box_at(
+        world, end_effector.tool_frame.global_pose.to_position(), Scale(0.05, 0.05, 0.2)
+    )
     with world.modify_world():
         world.remove_connection(held.parent_connection)
         world.add_connection(
@@ -530,9 +533,7 @@ def test_giskard_backend_demands_the_accuracy_the_motions_demand(single_robot_wo
     backend = _backend_reaching_for(candidate, robot, world)
     end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
 
-    executor = backend.setup_giskard_executor(
-        [candidate], world, robot, end_effector
-    )
+    executor = backend.setup_giskard_executor([candidate], world, robot, end_effector)
 
     tolerances = MotionToleranceConfig()
     goals = [
@@ -550,10 +551,11 @@ def test_giskard_backend_demands_the_accuracy_the_motions_demand(single_robot_wo
 
 def test_giskard_backend_judges_a_reach_the_way_execution_runs_it(single_robot_world):
     """
-    The reach the backend tries out stands in for one the gripper may touch through, so
-    it has to be weighted and cancelled like that one -- a check that gives way at every
-    buffer zone, or gives up at every violated one, rejects standing poses the
-    manipulation then has no trouble with.
+    The reach the backend tries out has to be judged under the rules the drive there
+    obeys: it keeps to its buffer zones like any other reach, and it ends on a violated
+    collision the way execution does. Weighted above the avoidance instead, it would
+    drive into what it should keep clear of and then reject the candidate over the
+    contact it made itself.
     """
     world, robot, context = single_robot_world
     candidate = _candidate(world)
@@ -569,7 +571,7 @@ def test_giskard_backend_judges_a_reach_the_way_execution_runs_it(single_robot_w
     ]
     assert goals
     assert all(
-        goal.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE for goal in goals
+        goal.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE for goal in goals
     )
     avoidance = [
         node
@@ -577,4 +579,104 @@ def test_giskard_backend_judges_a_reach_the_way_execution_runs_it(single_robot_w
         if isinstance(node, ExternalCollisionAvoidance)
     ]
     assert len(avoidance) == 1
-    assert not avoidance[0].cancel_if_collision_violated
+    assert avoidance[0].cancel_if_collision_violated
+
+
+# %% a search that finds nothing draws again
+
+
+@dataclass
+class DrawsADifferentBatchEachTime:
+    """
+    Stands in for a costmap, whose draw is random and so hands out its own set of
+    candidates every time it is iterated.
+    """
+
+    batches: List[List[Pose]]
+    """
+    The candidates to hand out, one batch per draw, empty once they run out.
+    """
+
+    def __iter__(self) -> Iterator[Pose]:
+        return iter(self.batches.pop(0) if self.batches else [])
+
+
+def test_giskard_backend_draws_a_new_batch_when_a_batch_finds_nothing(
+    single_robot_world, monkeypatch
+):
+    """
+    Seeds are drawn at random, so a batch that comes back empty says the draw was
+    unlucky, not that there is nowhere to stand.
+
+    Giving up on the first one fails plans that the next draw would have grounded.
+    """
+    world, robot, context = single_robot_world
+    unreachable, reachable = _candidate(world), _candidate_at_the_origin(world)
+    backend = _backend_reaching_for(unreachable, robot, world)
+    executors = iter([UnsolvableMotionExecutor(TimeoutError()), MotionlessExecutor()])
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_costmap",
+        lambda self, pose: DrawsADifferentBatchEachTime([[unreachable], [reachable]]),
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_giskard_executor",
+        lambda self, *args, **kwargs: next(executors),
+    )
+
+    yielded_poses = list(backend)
+
+    assert len(yielded_poses) == 1
+    np.testing.assert_allclose(yielded_poses[0].to_np(), reachable.to_np(), atol=1e-9)
+
+
+def test_giskard_backend_gives_up_once_its_rounds_are_spent(
+    single_robot_world, monkeypatch
+):
+    """
+    A target that cannot be reached from anywhere has to be reported as such: drawing
+    for ever would hang a plan that should fail.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    backend = _backend_reaching_for(candidate, robot, world)
+    attempted_reaches = []
+    monkeypatch.setattr(
+        GiskardLocationBackend, "setup_costmap", lambda self, pose: [candidate]
+    )
+
+    def build(self, *args, **kwargs):
+        attempted_reaches.append(candidate)
+        return UnsolvableMotionExecutor(TimeoutError())
+
+    monkeypatch.setattr(GiskardLocationBackend, "setup_giskard_executor", build)
+
+    assert list(backend) == []
+    assert len(attempted_reaches) == CANDIDATE_ROUNDS
+
+
+def test_giskard_backend_does_not_reach_from_a_pose_it_cannot_stand_at(
+    single_robot_world, monkeypatch
+):
+    """
+    Simulating a reach costs hundreds of control ticks, and no arm movement makes a pose
+    the robot does not even fit at into one it can work from.
+    """
+    world, robot, context = single_robot_world
+    _box_in_front_of(world, robot, gap=-_OBSTACLE_SCALE.x)
+    candidate = _candidate_at_the_origin(world)
+    backend = _backend_reaching_for(candidate, robot, world)
+    attempted_reaches = []
+    monkeypatch.setattr(
+        GiskardLocationBackend, "setup_costmap", lambda self, pose: [candidate]
+    )
+
+    def build(self, *args, **kwargs):
+        attempted_reaches.append(candidate)
+        return MotionlessExecutor()
+
+    monkeypatch.setattr(GiskardLocationBackend, "setup_giskard_executor", build)
+
+    assert list(backend) == []
+    assert attempted_reaches == []

@@ -40,6 +40,7 @@ from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from semantic_digital_twin.world_description.world_entity import Body
 
+
 @dataclass
 class OpenAction(ActionDescription):
     """
@@ -90,7 +91,7 @@ class OpenAction(ActionDescription):
         return sequential(
             [
                 GraspingAction(self.object_designator, self.arm, grasp_description),
-                OpeningMotion(self.object_designator, self.arm),
+                OpeningMotion(self.object_designator, self.arm, self.goal_joint_state),
                 MoveGripperMotion(
                     GripperState.OPEN, self.arm, allow_gripper_collision=True
                 ),

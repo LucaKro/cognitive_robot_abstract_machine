@@ -17,6 +17,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.world_description.world_entity import Body
 from coraplex.alternative_motion_mapping import AlternativeMotion
 
 logger = logging.getLogger(__name__)

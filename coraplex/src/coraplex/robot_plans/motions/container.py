@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from typing_extensions import Optional
 
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.open_close import Open, Close
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
@@ -44,6 +45,13 @@ class ContainerMotion(StandaloneMotion):
     arm: Arms
     """
     Arm that should be used.
+    """
+
+    goal_joint_state: Optional[float] = None
+    """
+    How far the container is driven, in the unit of its own degree of freedom.
+
+    ``None`` drives it as far as that degree of freedom goes.
     """
 
     def perform(self):
@@ -97,7 +105,8 @@ class OpeningMotion(ContainerMotion):
             Open(
                 tip_link=tip,
                 environment_link=self.object_part,
-                goal_joint_state=1.45,
+                goal_joint_state=self.goal_joint_state,
+                weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
                 name="Open",
             )
         )
@@ -109,11 +118,6 @@ class ClosingMotion(ContainerMotion):
     Designator for closing a container.
     """
 
-    goal_joint_state: float = 0.01
-    """
-    How far the container is left open.
-    """
-
     @property
     def _motion_chart(self):
         tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
@@ -122,6 +126,7 @@ class ClosingMotion(ContainerMotion):
                 tip_link=tip,
                 environment_link=self.object_part,
                 goal_joint_state=self.goal_joint_state,
+                weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
                 name="Close",
             )
         )

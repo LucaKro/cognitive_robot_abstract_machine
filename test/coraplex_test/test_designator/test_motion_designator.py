@@ -24,7 +24,6 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from coraplex.robot_plans.motions.container import (
-    CLOSED_ENOUGH_MARGIN,
     ClosingMotion,
     OpeningMotion,
 )
@@ -34,7 +33,7 @@ from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveB
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
-from giskardpy.motion_statechart.goals.open_close import Close
+from giskardpy.motion_statechart.goals.open_close import Close, Open
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
@@ -51,6 +50,7 @@ from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types import Point3, Quaternion
+from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 try:
@@ -79,6 +79,15 @@ def _goal_types(chart):
     :return: The types of every node in a motion chart.
     """
     return [type(node) for node in _nodes_of(chart)]
+
+
+def _container_goal(motion):
+    """
+    :return: The goal driving the container in a container motion's chart.
+    """
+    return next(
+        node for node in _nodes_of(motion.motion_chart) if isinstance(node, Open)
+    )
 
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
@@ -312,7 +321,9 @@ def test_move_tool_center_point_motion_outranks_buffers_when_it_may_touch(
     world, view, context = immutable_model_world
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
-    touching = MoveToolCenterPointMotion(target, Arms.LEFT, allow_gripper_collision=True)
+    touching = MoveToolCenterPointMotion(
+        target, Arms.LEFT, allow_gripper_collision=True
+    )
     execute_single(touching, context=context)
     keeping_clear = MoveToolCenterPointMotion(target, Arms.LEFT)
     execute_single(keeping_clear, context=context)
@@ -390,12 +401,90 @@ def test_placing_lets_the_gripper_touch_what_it_sets_down(immutable_model_world)
     assert carrying.allow_gripper_collision
     assert lowering.allow_gripper_collision
 
+    release = next(m for m in motions if isinstance(m, MoveGripperMotion))
+    assert release.allow_gripper_collision
+
+
+def test_what_the_hand_holds_may_touch_what_the_hand_may(immutable_model_world):
+    """
+    An object being put down rests on the surface it is placed on before the fingers
+    open, and one being lifted still rests on what it stood on.
+
+    It is no part of the manipulator, so a rule written from the manipulator alone
+    leaves it out and the placement ends as a collision.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_body_by_name("milk.stl")
+
+    holding = MoveGripperMotion(GripperState.OPEN, Arms.LEFT, True, held_body=milk)
+    execute_single(holding, context=context)
+
+    rules_node = next(
+        node
+        for node in _nodes_of(holding.motion_chart)
+        if isinstance(node, UpdateTemporaryCollisionRules)
+    )
+    assert milk in rules_node.temporary_rules[0].body_group_b
+
+
+def test_placing_lets_what_it_sets_down_touch_the_surface(immutable_model_world):
+    """
+    Which object is in the hand is the action's to say: the chart is built before the
+    hand ever takes hold of it, so it cannot be found by looking below the tool frame.
+    """
+    world, view, context = immutable_model_world
+    test_world = deepcopy(world)
+    milk = test_world.get_body_by_name("milk.stl")
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=test_world.root)
+
+    motions = _motions_of(
+        PlaceAction(milk, target, Arms.LEFT), Context.from_world(test_world)
+    )
+
+    touching = [
+        motion
+        for motion in motions
+        if isinstance(motion, (MoveToolCenterPointMotion, MoveGripperMotion))
+        and motion.allow_gripper_collision
+    ]
+    assert len(touching) == 3
+    assert all(motion.held_body is milk for motion in touching)
+
+
+def test_a_gripper_that_may_touch_says_which_bodies_may(immutable_model_world):
+    """
+    Fingers that close on an object, or open around one standing on a surface, are in
+    contact by the time they move.
+
+    Collision avoidance has to be told, or the motion is ended over the very contact it
+    was asked to make.
+    """
+    world, view, context = immutable_model_world
+
+    touching = MoveGripperMotion(GripperState.CLOSE, Arms.LEFT, True)
+    execute_single(touching, context=context)
+    keeping_clear = MoveGripperMotion(GripperState.CLOSE, Arms.LEFT)
+    execute_single(keeping_clear, context=context)
+
+    rules_node = next(
+        node
+        for node in _nodes_of(touching.motion_chart)
+        if isinstance(node, UpdateTemporaryCollisionRules)
+    )
+    assert set(rules_node.temporary_rules[0].body_group_b) == set(
+        ViewManager().get_end_effector_view(Arms.LEFT, view).bodies_with_collision
+    )
+    assert not any(
+        isinstance(node, UpdateTemporaryCollisionRules)
+        for node in _nodes_of(keeping_clear.motion_chart)
+    )
+
 
 def test_move_gripper_motion_holds_the_tool_center_point(immutable_model_world):
     """
     Nothing else asks the arm to stay while a hand opens or closes, so without a hold of
-    its own the arm drifts off what the motion before it reached -- and whatever is being
-    put down is let go somewhere else.
+    its own the arm drifts off what the motion before it reached -- and whatever is
+    being put down is let go somewhere else.
     """
     world, view, context = immutable_model_world
 
@@ -413,9 +502,11 @@ def test_move_gripper_motion_holds_the_tool_center_point(immutable_model_world):
 
 def test_a_hand_keeps_its_goal_until_the_motion_ends(immutable_model_world):
     """
-    The chart keeps ticking until the world settles. A motion that retires the moment its
-    goal is observed leaves the robot free for those ticks, so the one that has to leave
-    the robot where it put it must say that it holds on.
+    The chart keeps ticking until the world settles.
+
+    A motion that retires the moment its goal is observed leaves the robot free for
+    those ticks, so the one that has to leave the robot where it put it must say that it
+    holds on.
     """
     assert MoveGripperMotion.holds_its_goal_until_the_motion_ends
     assert not MoveToolCenterPointMotion.holds_its_goal_until_the_motion_ends
@@ -446,13 +537,58 @@ def test_container_motions_hold_the_handle_they_grasped(immutable_model_world):
         )
 
 
+def test_a_container_does_not_outrank_keeping_the_robot_clear(immutable_model_world):
+    """
+    The hand stays on the handle while the container travels, so a container goal that
+    outranks collision avoidance drags the whole robot after it -- into the very
+    furniture the container is part of.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab10_m")
+
+    opening = OpeningMotion(handle, Arms.LEFT)
+    execute_single(opening, context=context)
+    closing = ClosingMotion(handle, Arms.LEFT)
+    execute_single(closing, context=context)
+
+    for motion in (opening, closing):
+        assert (
+            _container_goal(motion).weight
+            == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+        )
+
+
+def test_container_motions_drive_to_the_goal_state_they_were_given(
+    immutable_model_world,
+):
+    """
+    How far a container is driven is the caller's to say, and a motion that has an angle
+    of its own opens every door equally far no matter what it was asked for.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab10_m")
+    goal_state = 0.25
+
+    opening = OpeningMotion(handle, Arms.LEFT, goal_state)
+    execute_single(opening, context=context)
+    closing = ClosingMotion(handle, Arms.LEFT, goal_state)
+    execute_single(closing, context=context)
+    as_far_as_it_goes = OpeningMotion(handle, Arms.LEFT)
+    execute_single(as_far_as_it_goes, context=context)
+
+    assert _container_goal(opening).goal_joint_state == goal_state
+    assert _container_goal(closing).goal_joint_state == goal_state
+    assert _container_goal(as_far_as_it_goes).goal_joint_state is None
+
+
 def test_container_motions_tolerate_the_last_stretch_onto_the_limit(
     immutable_model_world,
 ):
     """
     A mechanism driven onto its own limit is only approached asymptotically, so a motion
-    that insists on arriving exactly never reports that a shut container is shut. It is
-    done once the container arrives *or* stops moving, which is as far as it goes.
+    that insists on arriving exactly never reports that a shut container is shut.
+
+    It is done once the container arrives *or* stops moving, which is as far as it goes.
     """
     world, view, context = immutable_model_world
     handle = world.get_body_by_name("handle_cab10_m")

@@ -25,6 +25,7 @@ from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlign
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import real_robot, simulated_robot
 from coraplex.plans.condition_nodes import PlanNodeStatusMonitor
+from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction, ReachAction
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
@@ -38,6 +39,9 @@ def reach_action_executable(immutable_model_world):
     """
     world, view, context = immutable_model_world
     milk_connection = world.get_body_by_name("milk.stl").parent_connection
+    # Where a body stands is model rather than state, so the fixture around this one puts
+    # it back itself; left moved, the milk stands in the way of every test that follows.
+    origin_before = milk_connection.origin
     milk_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 0.7, 0, 0, 0, reference_frame=milk_connection.parent
     )
@@ -55,7 +59,8 @@ def reach_action_executable(immutable_model_world):
         context=context,
     )
     plan.notify()
-    return plan.parse()
+    yield plan.parse()
+    milk_connection.origin = origin_before
 
 
 def test_motion_state_chart_simulated_execution_adds_tasks_directly(
@@ -101,10 +106,12 @@ def test_motion_state_chart_simulated_execution_adds_condition_and_pause_interru
     # one pause + one interrupt monitor per task
     assert len(chart.get_nodes_by_type(PlanNodeStatusMonitor)) == 2 * task_count
 
+
 def test_only_the_last_motion_may_keep_its_goal(immutable_model_world):
     """
-    A motion hands the robot over to the motion after it once its goal is observed. Only
-    the last one hands it to nobody -- and the chart keeps ticking until the world
+    A motion hands the robot over to the motion after it once its goal is observed.
+
+    Only the last one hands it to nobody -- and the chart keeps ticking until the world
     settles -- so only there may a motion keep its goal in force.
     """
     world, view, context = immutable_model_world
@@ -134,11 +141,11 @@ def test_only_the_last_motion_may_keep_its_goal(immutable_model_world):
         assert str(task.end_condition) == str(task.observation_variable)
 
 
-def test_collision_avoidance_does_not_cancel_the_motion(immutable_model_world):
+def test_collision_avoidance_cancels_the_motion_it_guards(immutable_model_world):
     """
-    The avoidance constraints keep the robot off its surroundings by themselves.
-    Cancelling on top of that ends a whole plan over a single tick, so the motion is left
-    to run and be judged by whether it reaches its goal.
+    A violated collision ends the motion it happened in, so a plan cannot carry on
+    through what it was told to keep clear of, and whatever contact a motion does need
+    has to be declared rather than tolerated everywhere.
     """
     world, view, context = immutable_model_world
     plan = execute_single(
@@ -152,4 +159,17 @@ def test_collision_avoidance_does_not_cancel_the_motion(immutable_model_world):
 
     avoidance = chart.get_nodes_by_type(ExternalCollisionAvoidance)
     assert len(avoidance) == 1
-    assert not avoidance[0].cancel_if_collision_violated
+    assert avoidance[0].cancel_if_collision_violated
+
+
+def test_configuring_an_environment_leaves_the_shared_one_alone():
+    """
+    The environments are module-level and shared by everyone who imports them, so one
+    plan asking for collision avoidance must not switch it on for every plan that runs
+    after it.
+    """
+    with simulated_robot(collision_avoidance=True):
+        assert GiskardExecutable.collision_avoidance
+
+    with simulated_robot:
+        assert not GiskardExecutable.collision_avoidance

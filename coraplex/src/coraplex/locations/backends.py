@@ -9,7 +9,6 @@ from typing_extensions import List, Optional, Union, Iterable, Iterator
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
@@ -24,7 +23,7 @@ from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.datastructures.dataclasses import MotionToleranceConfig
 from coraplex.datastructures.enums import Arms
 from coraplex.datastructures.grasp import GraspDescription, GraspPose
-from coraplex.locations.base import PoseGeneratorBackend
+from coraplex.locations.base import Location, PoseGeneratorBackend
 from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostmap
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -198,11 +197,6 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                     goal_pose=pose,
                     translation_threshold=tolerances.default_tcp_position_threshold,
                     orientation_threshold=tolerances.tool_orientation_threshold,
-                    # The reach this stands in for is one the gripper may touch through,
-                    # and it outranks the buffer zones for that reason. Judging it by a
-                    # goal that does not would reject standing poses the manipulation
-                    # then has no trouble with.
-                    weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
                 )
                 for pose in pose_sequence
             ]
@@ -219,9 +213,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                         )
                     ]
                 ),
-                ExternalCollisionAvoidance(
-                    robot=robot, cancel_if_collision_violated=False
-                ),
+                ExternalCollisionAvoidance(robot=robot),
             ]
         )
         msc.add_node(EndMotion.when_true(pose_seq))
@@ -262,6 +254,20 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
         return [transport_pose, placing_pose]
 
+    def can_stand_at(self, standing_pose: Pose) -> bool:
+        """
+        Whether the robot fits where it would start out from.
+
+        Costs one collision query against the several hundred control ticks of
+        :meth:`can_reach_target_from`, which is why it is asked first: a place the robot
+        cannot even stand in is not worth reaching from.
+
+        :param standing_pose: Where the robot's root would stand.
+        """
+        with self.world.reset_state_context():
+            self.robot.set_root_pose(standing_pose)
+            return not Location.stands_in_collision(self.world, self.robot)
+
     def can_reach_target_from(self, standing_pose: Pose) -> bool:
         """
         Whether full-body control brings the target within reach for a robot that starts
@@ -292,6 +298,8 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
 
         for pose_candidate in self.setup_costmap(target_pose):
+            if not self.can_stand_at(pose_candidate):
+                continue
             if not self.can_reach_target_from(pose_candidate):
                 continue
             yield pose_candidate

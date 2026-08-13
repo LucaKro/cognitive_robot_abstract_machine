@@ -109,7 +109,7 @@ class Location(Iterable[Pose]):
 
             test_robot.set_root_pose(pose_candidate)
 
-            if self._stands_in_collision(test_world, test_robot):
+            if self.stands_in_collision(test_world, test_robot):
                 logger.debug(f"Candidate pose in collision, skipping")
                 continue
 
@@ -120,7 +120,7 @@ class Location(Iterable[Pose]):
                 yield pose_candidate
 
     @staticmethod
-    def _stands_in_collision(world: World, robot: AbstractRobot) -> bool:
+    def stands_in_collision(world: World, robot: AbstractRobot) -> bool:
         """
         Whether the robot, as it currently stands, is closer to its surroundings than
         its own collision rules permit.

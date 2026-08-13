@@ -53,7 +53,6 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
-from coraplex.robot_plans.motions.container import CLOSED_ENOUGH_MARGIN
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.datastructures.definitions import TorsoState
@@ -154,32 +153,39 @@ The southern half of the island, clear of the stove and of the drawer handles. T
 height is measured from the island surface instead of being fixed here.
 """
 
+DOOR_SPEED_LIMIT = 1.0
+"""
+How fast the fridge door may swing, in radians per second.
+
+The kitchen's URDF describes the hinge with 10 rad/s, a speed a door does not turn at.
+The controller keeps a braking margin from a joint's own position limit that grows with
+that limit, and at 10 rad/s the margin is wide enough that the door can neither be swung
+fully open nor shut.
+"""
+
 DOOR_OPENING_ANGLE = 1.45
 """
-How far the fridge door is swung open, in radians: as far as it goes.
+How far the fridge door is swung open, in radians.
 
-The hinge's nominal limit is 1.5708, but the swing stops around 1.47 and a goal above
-that is never reported as reached, so the motion runs until it is killed by the tick
-budget. This sits just under what the door actually achieves.
+Wide enough to reach past it into the fridge, short of the hinge's 1.5708 limit so the
+swing does not have to be timed against the door frame.
 """
 
-DOOR_CLOSING_ANGLE = 0.05
+DOOR_CLOSING_ANGLE = 0.0
 """
-How far the fridge door is asked to stand open after closing, in radians.
-
-A hair above the hinge's lower limit: the last stretch onto a limit is only approached
-asymptotically, so aiming at the limit itself leaves the door resting outside the
-tolerance rather than inside it.
+How far the fridge door is asked to stand open after closing, in radians: shut.
 """
 
-DOOR_IS_CLOSED_ANGLE = DOOR_CLOSING_ANGLE + CLOSED_ENOUGH_MARGIN
+DOOR_IS_CLOSED_ANGLE = 0.02
 """
 Up to which fridge door angle, in radians, the door counts as closed.
 
-As far as the closing motion may leave it, since that is what it guarantees.
+The closing motion parks the door within about a hundredth of a radian of the hinge's
+limit, half a degree of swing, so this is how exactly the door shuts rather than how far
+ajar it may stand.
 """
 
-PLACEMENT_TOLERANCE = 0.01
+PLACEMENT_TOLERANCE = 0.02
 """
 How far, in meters, the milk may end up from where it was placed.
 
@@ -243,6 +249,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
         with world.modify_world():
             WorldReasoner(world).reason()
+
+        hinge = self.fridge_door(world).root.parent_connection
+        hinge.raw_dof.limits.upper.velocity = DOOR_SPEED_LIMIT
+        hinge.raw_dof.limits.lower.velocity = -DOOR_SPEED_LIMIT
 
         return world
 
@@ -437,7 +447,7 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
     door_angle = demonstration.fridge_door(world).root.parent_connection.position
     print(f"milk placed at {np.round(milk_position, 3)}")
     print(f"Expected milk to be placed at {np.round(expected_position, 3)}")
-    print(f"fridge door closed to {door_angle:.2f} rad")
+    print(f"fridge door closed to {door_angle:.4f} rad")
 
     assert np.allclose(milk_position, expected_position, atol=PLACEMENT_TOLERANCE)
     assert door_angle < DOOR_IS_CLOSED_ANGLE

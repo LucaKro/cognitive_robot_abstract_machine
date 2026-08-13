@@ -6862,6 +6862,10 @@ class ContainerMotionDAO(
         use_existing_column=True,
     )
 
+    goal_joint_state: Mapped[typing.Optional[builtins.float]] = mapped_column(
+        use_existing_column=True
+    )
+
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
@@ -6896,8 +6900,6 @@ class ClosingMotionDAO(
         primary_key=True,
         use_existing_column=True,
     )
-
-    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
     __mapper_args__ = {
         "polymorphic_identity": "ClosingMotionDAO",
@@ -6980,6 +6982,16 @@ class MoveGripperMotionDAO(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
         use_existing_column=True,
+    )
+
+    held_body_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    held_body: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[held_body_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -7211,9 +7223,17 @@ class MoveToolCenterPointMotionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    held_body_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     target: Mapped[PoseMappingDAO] = relationship(
         "PoseMappingDAO", uselist=False, foreign_keys=[target_id], post_update=True
+    )
+    held_body: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[held_body_id], post_update=True
     )
 
     __mapper_args__ = {
