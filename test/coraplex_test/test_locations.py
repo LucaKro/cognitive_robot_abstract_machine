@@ -5,13 +5,18 @@ import numpy as np
 import pytest
 from typing_extensions import Iterator, List
 
-from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.view_manager import ViewManager
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import CollisionViolatedError
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    ExternalCollisionAvoidance,
+)
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
@@ -458,3 +463,118 @@ def test_giskard_backend_solves_the_reach_the_grasp_performs(
         pre_pose.to_np().tolist(),
         grasp_pose.to_np().tolist(),
     ]
+
+
+# %% the backend solves the reach the action will perform, in the world it was given
+
+
+def test_giskard_backend_moves_into_the_world_it_is_given(single_robot_world):
+    world, robot, context = single_robot_world
+    target = _box_in_front_of(world, robot, gap=0.5)
+    backend = _backend_reaching_for(target, robot, world)
+    other_world = deepcopy(world)
+
+    moved = backend.copy_for_world(other_world)
+
+    assert moved.world is other_world
+    assert moved.robot is other_world.get_semantic_annotation_by_id(robot.id)
+    assert moved.target is other_world.get_world_entity_with_id_by_id(target.id)
+    assert moved.grasp_description.end_effector.tool_frame._world is other_world
+
+
+def test_giskard_backend_reaches_for_a_pose_with_what_the_gripper_holds(
+    single_robot_world,
+):
+    """
+    Placing puts the *held body* on the target, so the hand has to stop short of it by
+    that body -- which is the reach
+    :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction` performs.
+    """
+    world, robot, context = single_robot_world
+    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+    held = _box_at(world, end_effector.tool_frame.global_pose.to_position(), Scale(0.05, 0.05, 0.2))
+    with world.modify_world():
+        world.remove_connection(held.parent_connection)
+        world.add_connection(
+            FixedConnection(parent=end_effector.tool_frame, child=held)
+        )
+    target = Pose.from_xyz_rpy(1.0, 0.5, 0.8, reference_frame=world.root)
+    backend = _backend_reaching_for(target, robot, world)
+
+    sequence = backend.reach_sequence()
+
+    transport, placing, _ = backend.grasp_description.place_pose_sequence(target)
+    assert [pose.to_np().tolist() for pose in sequence] == [
+        transport.to_np().tolist(),
+        placing.to_np().tolist(),
+    ]
+
+
+def test_giskard_backend_reaches_for_a_pose_directly_with_an_empty_hand(
+    single_robot_world,
+):
+    world, robot, context = single_robot_world
+    target = Pose.from_xyz_rpy(1.0, 0.5, 0.8, reference_frame=world.root)
+    backend = _backend_reaching_for(target, robot, world)
+
+    assert backend.reach_sequence() == [target]
+
+
+def test_giskard_backend_demands_the_accuracy_the_motions_demand(single_robot_world):
+    """
+    A pose the backend calls reachable at a looser tolerance than the motion insists on
+    is a pose the motion can stall at.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    backend = _backend_reaching_for(candidate, robot, world)
+    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+
+    executor = backend.setup_giskard_executor(
+        [candidate], world, robot, end_effector
+    )
+
+    tolerances = MotionToleranceConfig()
+    goals = [
+        node
+        for node in executor.motion_statechart.nodes
+        if isinstance(node, CartesianPose)
+    ]
+    assert goals
+    assert all(
+        goal.translation_threshold == tolerances.default_tcp_position_threshold
+        and goal.orientation_threshold == tolerances.tool_orientation_threshold
+        for goal in goals
+    )
+
+
+def test_giskard_backend_judges_a_reach_the_way_execution_runs_it(single_robot_world):
+    """
+    The reach the backend tries out stands in for one the gripper may touch through, so
+    it has to be weighted and cancelled like that one -- a check that gives way at every
+    buffer zone, or gives up at every violated one, rejects standing poses the
+    manipulation then has no trouble with.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    backend = _backend_reaching_for(candidate, robot, world)
+    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+
+    executor = backend.setup_giskard_executor([candidate], world, robot, end_effector)
+
+    goals = [
+        node
+        for node in executor.motion_statechart.nodes
+        if isinstance(node, CartesianPose)
+    ]
+    assert goals
+    assert all(
+        goal.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE for goal in goals
+    )
+    avoidance = [
+        node
+        for node in executor.motion_statechart.nodes
+        if isinstance(node, ExternalCollisionAvoidance)
+    ]
+    assert len(avoidance) == 1
+    assert not avoidance[0].cancel_if_collision_violated

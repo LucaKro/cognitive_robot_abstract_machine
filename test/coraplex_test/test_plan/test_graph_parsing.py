@@ -386,8 +386,9 @@ def test_open_action_runs_the_open_goal_in_its_own_chart(immutable_model_world):
         GiskardExecutable,
         GiskardExecutable,
     ]
+    (container_goal,) = executable.execution_list[1].motion_mappings.values()
     assert [
-        type(task) for task in executable.execution_list[1].motion_mappings.values()
+        type(node) for node in container_goal.nodes[0].nodes if isinstance(node, Open)
     ] == [Open]
 
 
@@ -409,8 +410,9 @@ def test_close_action_runs_the_close_goal_in_its_own_chart(immutable_model_world
         GiskardExecutable,
         GiskardExecutable,
     ]
+    (container_goal,) = executable.execution_list[1].motion_mappings.values()
     assert [
-        type(task) for task in executable.execution_list[1].motion_mappings.values()
+        type(node) for node in container_goal.nodes[0].nodes if isinstance(node, Close)
     ] == [Close]
 
 

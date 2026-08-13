@@ -179,9 +179,12 @@ Up to which fridge door angle, in radians, the door counts as closed.
 As far as the closing motion may leave it, since that is what it guarantees.
 """
 
-PLACEMENT_TOLERANCE = 0.1
+PLACEMENT_TOLERANCE = 0.01
 """
 How far, in meters, the milk may end up from where it was placed.
+
+Nothing here is subject to gravity or contact forces, so a placement that goes to plan
+lands on the target rather than near it.
 """
 
 # %% who reaches for what

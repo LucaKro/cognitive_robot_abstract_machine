@@ -9,6 +9,7 @@ from typing_extensions import List, Optional, Union, Iterable, Iterator
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
@@ -197,6 +198,11 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                     goal_pose=pose,
                     translation_threshold=tolerances.default_tcp_position_threshold,
                     orientation_threshold=tolerances.tool_orientation_threshold,
+                    # The reach this stands in for is one the gripper may touch through,
+                    # and it outranks the buffer zones for that reason. Judging it by a
+                    # goal that does not would reject standing poses the manipulation
+                    # then has no trouble with.
+                    weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
                 )
                 for pose in pose_sequence
             ]
@@ -214,7 +220,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                     ]
                 ),
                 ExternalCollisionAvoidance(
-                    robot=robot, cancel_if_collision_violated=True
+                    robot=robot, cancel_if_collision_violated=False
                 ),
             ]
         )

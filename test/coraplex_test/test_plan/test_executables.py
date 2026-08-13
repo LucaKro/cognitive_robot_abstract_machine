@@ -9,11 +9,15 @@ condition monitors wired in.
 
 import pytest
 
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    ExternalCollisionAvoidance,
+)
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
 )
+from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -22,7 +26,8 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import real_robot, simulated_robot
 from coraplex.plans.condition_nodes import PlanNodeStatusMonitor
 from coraplex.plans.factories import execute_single
-from coraplex.robot_plans.actions.core.pick_up import ReachAction
+from coraplex.robot_plans.actions.core.pick_up import GraspingAction, ReachAction
+from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 
 
 @pytest.fixture
@@ -95,3 +100,56 @@ def test_motion_state_chart_simulated_execution_adds_condition_and_pause_interru
 
     # one pause + one interrupt monitor per task
     assert len(chart.get_nodes_by_type(PlanNodeStatusMonitor)) == 2 * task_count
+
+def test_only_the_last_motion_may_keep_its_goal(immutable_model_world):
+    """
+    A motion hands the robot over to the motion after it once its goal is observed. Only
+    the last one hands it to nobody -- and the chart keeps ticking until the world
+    settles -- so only there may a motion keep its goal in force.
+    """
+    world, view, context = immutable_model_world
+    plan = execute_single(
+        GraspingAction(
+            world.get_body_by_name("milk.stl"),
+            Arms.RIGHT,
+            GraspDescription(
+                ApproachDirection.FRONT,
+                VerticalAlignment.NoAlignment,
+                view.right_arm.end_effector,
+            ),
+        ),
+        context=context,
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    with simulated_robot:
+        executable.motion_state_chart
+
+    motions = list(executable.motion_mappings.keys())
+    tasks = list(executable.motion_mappings.values())
+    assert motions[-1].designator.holds_its_goal_until_the_motion_ends
+    assert str(tasks[-1].end_condition) != str(tasks[-1].observation_variable)
+    for task in tasks[:-1]:
+        assert str(task.end_condition) == str(task.observation_variable)
+
+
+def test_collision_avoidance_does_not_cancel_the_motion(immutable_model_world):
+    """
+    The avoidance constraints keep the robot off its surroundings by themselves.
+    Cancelling on top of that ends a whole plan over a single tick, so the motion is left
+    to run and be judged by whether it reaches its goal.
+    """
+    world, view, context = immutable_model_world
+    plan = execute_single(
+        MoveGripperMotion(GripperState.OPEN, Arms.RIGHT), context=context
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    with simulated_robot(collision_avoidance=True):
+        chart = executable.motion_state_chart
+
+    avoidance = chart.get_nodes_by_type(ExternalCollisionAvoidance)
+    assert len(avoidance) == 1
+    assert not avoidance[0].cancel_if_collision_violated

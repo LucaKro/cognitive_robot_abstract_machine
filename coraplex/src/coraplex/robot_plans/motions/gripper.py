@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import ClassVar, Optional, List
 
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
@@ -133,6 +133,12 @@ class MoveGripperMotion(BaseMotion, GripperStallToleranceParameters):
     If the gripper is allowed to collide with something
     """
 
+    holds_its_goal_until_the_motion_ends: ClassVar[bool] = True
+    """
+    Whatever the fingers were closed or opened around stays where the hand left it, so
+    the arm may not be freed while the world settles around it.
+    """
+
     def perform(self):
         return
 
@@ -161,14 +167,31 @@ class MoveGripperMotion(BaseMotion, GripperStallToleranceParameters):
                 [joint_task, stall_monitor], minimum_success=1, name=name
             )
 
-        if self.finger_velocity is None:
-            return done_node
+        accompanying_nodes = [self._hold_tool_center_point(arm)]
+        if self.finger_velocity is not None:
+            accompanying_nodes.append(
+                JointVelocityLimit(
+                    connections=list(goal_state.connections),
+                    max_velocity=self.finger_velocity,
+                )
+            )
+        return Parallel([done_node, *accompanying_nodes], name=name)
 
-        velocity_limit = JointVelocityLimit(
-            connections=list(goal_state.connections),
-            max_velocity=self.finger_velocity,
+    def _hold_tool_center_point(self, end_effector: EndEffector) -> CartesianPose:
+        """
+        :param end_effector: The end effector whose fingers are moving.
+        :return: A goal that keeps the tool center point where the fingers started
+            moving. Nothing else asks the arm to stay while a hand opens or closes, and
+            an arm left free drifts out of the pose the motion before it worked to
+            reach -- pushed by the very buffer zones that pose was chosen to respect.
+        """
+        return CartesianPose(
+            root_link=self.world.root,
+            tip_link=end_effector.tool_frame,
+            goal_pose=Pose(reference_frame=end_effector.tool_frame),
+            name="hold tool center point",
+            weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
         )
-        return Parallel([done_node, velocity_limit], name=name)
 
 
 @dataclass

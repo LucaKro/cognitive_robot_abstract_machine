@@ -48,14 +48,6 @@ class Open(Goal):
         default=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE, kw_only=True
     )
 
-    threshold: float = field(default=0.01, kw_only=True)
-    """
-    How close the mechanism has to come to :attr:`goal_joint_state` to count as done.
-
-    A goal near the mechanism's own limit is only approached asymptotically, so one that
-    has to arrive exactly never reports success.
-    """
-
     def expand(self, context: MotionStatechartContext) -> None:
         self.connection = self.environment_link.get_first_parent_connection_of_type(
             ActiveConnection1DOF
@@ -75,7 +67,6 @@ class Open(Goal):
                         {self.connection: self.goal_joint_state}
                     ),
                     weight=self.weight,
-                    threshold=self.threshold,
                 ),
                 CartesianPose(
                     name="hold handle",
@@ -146,7 +137,6 @@ class Close(Open):
                         {self.connection: self.goal_joint_state}
                     ),
                     weight=self.weight,
-                    threshold=self.threshold,
                 ),
                 CartesianPose(
                     name="hold handle",

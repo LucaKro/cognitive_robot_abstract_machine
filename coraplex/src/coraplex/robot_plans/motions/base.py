@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from inspect import signature
-from typing_extensions import TypeVar, Type, Optional
+from typing_extensions import ClassVar, TypeVar, Type, Optional
 
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
@@ -32,6 +32,16 @@ class BaseMotion(Designator):
 
     Motions are like builders for Motion State Charts. Motions never create any other
     motions or actions. Motions create exactly one goal.
+    """
+
+    holds_its_goal_until_the_motion_ends: ClassVar[bool] = False
+    """
+    Whether this motion keeps its goal in force after reaching it.
+
+    A motion normally retires once its goal is observed, which hands the robot to the
+    motion after it. The last motion of a chart hands it to nobody, and the chart keeps
+    ticking until the world settles, so a motion that has to leave the robot exactly
+    where it put it says so here.
     """
 
     def perform(self):

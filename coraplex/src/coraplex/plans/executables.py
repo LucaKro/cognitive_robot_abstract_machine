@@ -241,8 +241,16 @@ class GiskardExecutable(Executable):
         skip_end_conditions = []
         plan_nodes = list(self.motion_mappings.keys())
         for index, (plan_node, task) in enumerate(zip(plan_nodes, tasks)):
-            # a task is done once its own goal is observed (as giskard's Sequence does)
-            task.end_condition = task.observation_variable
+            # A task is done once its own goal is observed (as giskard's Sequence does),
+            # which hands the robot to the task after it. Only the last task hands it to
+            # nobody, so only there can a motion keep its goal in force while the chart
+            # winds down.
+            holds_on = (
+                task is tasks[-1]
+                and plan_node.designator.holds_its_goal_until_the_motion_ends
+            )
+            if not holds_on:
+                task.end_condition = task.observation_variable
 
             pause_monitor = PlanNodeStatusMonitor(
                 predicate=lambda node=plan_node: node.is_paused,

@@ -6850,19 +6850,17 @@ class StandaloneMotionDAO(
     }
 
 
-class ClosingMotionDAO(
+class ContainerMotionDAO(
     StandaloneMotionDAO,
-    DataAccessObject[coraplex.robot_plans.motions.container.ClosingMotion],
+    DataAccessObject[coraplex.robot_plans.motions.container.ContainerMotion],
 ):
-    __tablename__ = "ClosingMotionDAO"
+    __tablename__ = "ContainerMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(StandaloneMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
-
-    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
@@ -6881,8 +6879,29 @@ class ClosingMotionDAO(
     )
 
     __mapper_args__ = {
-        "polymorphic_identity": "ClosingMotionDAO",
+        "polymorphic_identity": "ContainerMotionDAO",
         "inherit_condition": database_id == StandaloneMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ClosingMotionDAO(
+    ContainerMotionDAO,
+    DataAccessObject[coraplex.robot_plans.motions.container.ClosingMotion],
+):
+    __tablename__ = "ClosingMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ContainerMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    goal_joint_state: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ClosingMotionDAO",
+        "inherit_condition": database_id == ContainerMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -6909,36 +6928,20 @@ class StretchCloseDAO(
 
 
 class OpeningMotionDAO(
-    StandaloneMotionDAO,
+    ContainerMotionDAO,
     DataAccessObject[coraplex.robot_plans.motions.container.OpeningMotion],
 ):
     __tablename__ = "OpeningMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(StandaloneMotionDAO.database_id),
+        ForeignKey(ContainerMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    object_part_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    object_part: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_part_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "OpeningMotionDAO",
-        "inherit_condition": database_id == StandaloneMotionDAO.database_id,
+        "inherit_condition": database_id == ContainerMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -11761,7 +11764,6 @@ class OpenDAO(
         use_existing_column=True
     )
     weight: Mapped[builtins.float] = mapped_column(use_existing_column=True)
-    threshold: Mapped[builtins.float] = mapped_column(use_existing_column=True)
 
     tip_link_id: Mapped[int] = mapped_column(
         ForeignKey("KinematicStructureEntityDAO.database_id", use_alter=True),
