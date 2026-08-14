@@ -289,7 +289,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                     continue
                 if not self.can_reach_target():
                     continue
-                yield pose_candidate
+            yield pose_candidate
 
 
 @dataclass

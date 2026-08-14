@@ -7,10 +7,14 @@ simulation, tasks are added individually and get pause/interrupt monitors and pr
 condition monitors wired in.
 """
 
+from copy import deepcopy
+
 import pytest
+
 
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
+    UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion
@@ -19,8 +23,10 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import real_robot, simulated_robot
@@ -29,6 +35,7 @@ from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction, ReachAction
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
+from coraplex.view_manager import ViewManager
 
 
 @pytest.fixture
@@ -173,3 +180,40 @@ def test_configuring_an_environment_leaves_the_shared_one_alone():
 
     with simulated_robot:
         assert not GiskardExecutable.collision_avoidance
+
+
+def test_a_chart_is_built_from_the_world_the_motion_will_run_in(immutable_model_world):
+    """
+    Everything before a motion has run by the time it starts, so its chart has to be
+    built then rather than when the plan was parsed.
+
+    Built at parse time, a hand that picks something up along the way is still described
+    as empty, and what it carries is left out of the contacts the hand is allowed to
+    make.
+    """
+    world, view, context = immutable_model_world
+    test_world = deepcopy(world)
+    test_context = Context.from_world(test_world)
+    milk = test_world.get_body_by_name("milk.stl")
+    tool_frame = ViewManager.get_end_effector_view(
+        Arms.RIGHT, test_context.robot
+    ).tool_frame
+    plan = execute_single(
+        MoveGripperMotion(GripperState.OPEN, Arms.RIGHT, allow_gripper_collision=True),
+        context=test_context,
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    with test_world.modify_world():
+        test_world.remove_connection(milk.parent_connection)
+        test_world.add_connection(FixedConnection(parent=tool_frame, child=milk))
+
+    rules_node = next(
+        node
+        for task in executable.motion_mappings.values()
+        for node in task.nodes
+        if isinstance(node, UpdateTemporaryCollisionRules)
+    )
+
+    assert milk in rules_node.temporary_rules[0].body_group_b

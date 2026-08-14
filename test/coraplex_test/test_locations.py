@@ -8,7 +8,7 @@ from typing_extensions import Iterator, List
 from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.locations.backends import CANDIDATE_ROUNDS, GiskardLocationBackend
+from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.data_types import DefaultWeights
@@ -585,58 +585,13 @@ def test_giskard_backend_judges_a_reach_the_way_execution_runs_it(single_robot_w
 # %% a search that finds nothing draws again
 
 
-@dataclass
-class DrawsADifferentBatchEachTime:
-    """
-    Stands in for a costmap, whose draw is random and so hands out its own set of
-    candidates every time it is iterated.
-    """
-
-    batches: List[List[Pose]]
-    """
-    The candidates to hand out, one batch per draw, empty once they run out.
-    """
-
-    def __iter__(self) -> Iterator[Pose]:
-        return iter(self.batches.pop(0) if self.batches else [])
-
-
-def test_giskard_backend_draws_a_new_batch_when_a_batch_finds_nothing(
+def test_giskard_backend_gives_up_when_no_candidate_works(
     single_robot_world, monkeypatch
 ):
     """
-    Seeds are drawn at random, so a batch that comes back empty says the draw was
-    unlucky, not that there is nowhere to stand.
-
-    Giving up on the first one fails plans that the next draw would have grounded.
-    """
-    world, robot, context = single_robot_world
-    unreachable, reachable = _candidate(world), _candidate_at_the_origin(world)
-    backend = _backend_reaching_for(unreachable, robot, world)
-    executors = iter([UnsolvableMotionExecutor(TimeoutError()), MotionlessExecutor()])
-    monkeypatch.setattr(
-        GiskardLocationBackend,
-        "setup_costmap",
-        lambda self, pose: DrawsADifferentBatchEachTime([[unreachable], [reachable]]),
-    )
-    monkeypatch.setattr(
-        GiskardLocationBackend,
-        "setup_giskard_executor",
-        lambda self, *args, **kwargs: next(executors),
-    )
-
-    yielded_poses = list(backend)
-
-    assert len(yielded_poses) == 1
-    np.testing.assert_allclose(yielded_poses[0].to_np(), reachable.to_np(), atol=1e-9)
-
-
-def test_giskard_backend_gives_up_once_its_rounds_are_spent(
-    single_robot_world, monkeypatch
-):
-    """
-    A target that cannot be reached from anywhere has to be reported as such: drawing
-    for ever would hang a plan that should fail.
+    A target that cannot be reached from anywhere has to be reported as such, once each
+    candidate has been given its turn: searching for ever would hang a plan that should
+    fail.
     """
     world, robot, context = single_robot_world
     candidate = _candidate(world)
@@ -653,7 +608,7 @@ def test_giskard_backend_gives_up_once_its_rounds_are_spent(
     monkeypatch.setattr(GiskardLocationBackend, "setup_giskard_executor", build)
 
     assert list(backend) == []
-    assert len(attempted_reaches) == CANDIDATE_ROUNDS
+    assert attempted_reaches == [candidate]
 
 
 def test_giskard_backend_does_not_reach_from_a_pose_it_cannot_stand_at(
@@ -671,6 +626,36 @@ def test_giskard_backend_does_not_reach_from_a_pose_it_cannot_stand_at(
     monkeypatch.setattr(
         GiskardLocationBackend, "setup_costmap", lambda self, pose: [candidate]
     )
+
+    def build(self, *args, **kwargs):
+        attempted_reaches.append(candidate)
+        return MotionlessExecutor()
+
+    monkeypatch.setattr(GiskardLocationBackend, "setup_giskard_executor", build)
+
+    assert list(backend) == []
+    assert attempted_reaches == []
+
+
+def test_giskard_backend_skips_a_candidate_that_cannot_see_the_target(
+    single_robot_world, monkeypatch
+):
+    """
+    A body has to be seen to be worked with, and looking costs a ray where trying costs
+    hundreds of control ticks, so a candidate the target is hidden from is dropped before
+    a reach is simulated from it.
+    """
+    world, robot, context = single_robot_world
+    target = _box_at(
+        world, Point3.from_iterable([1.0, 0.5, 0.8]), Scale(0.05, 0.05, 0.2)
+    )
+    candidate = _candidate_at_the_origin(world)
+    backend = _backend_reaching_for(target, robot, world)
+    attempted_reaches = []
+    monkeypatch.setattr(
+        GiskardLocationBackend, "setup_costmap", lambda self, pose: [candidate]
+    )
+    monkeypatch.setattr(PR2, "can_see_body", lambda self, body: False)
 
     def build(self, *args, **kwargs):
         attempted_reaches.append(candidate)

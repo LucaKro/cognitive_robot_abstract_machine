@@ -64,7 +64,7 @@ class LanguageNode(PlanNode, ABC):
         child_execs = [child.parse() for child in self.children]
 
         return GiskardExecutable(
-            motion_mappings=self.merge_motion_mappings(child_execs),
+            motion_nodes=self.merge_motion_nodes(child_execs),
             context=self.plan.context,
         )
 

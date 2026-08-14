@@ -359,7 +359,7 @@ class PlanNode(PlanEntity):
                 continue
             result.append(
                 GiskardExecutable(
-                    motion_mappings=self.merge_motion_mappings(group),
+                    motion_nodes=self.merge_motion_nodes(group),
                     context=self.plan.context,
                 )
             )
@@ -373,8 +373,7 @@ class PlanNode(PlanEntity):
             to it.
         """
         return isinstance(executable, GiskardExecutable) and not any(
-            isinstance(node, ExecutionBoundaryNode)
-            for node in executable.motion_mappings
+            isinstance(node, ExecutionBoundaryNode) for node in executable.motion_nodes
         )
 
     def group_mergeable_executables(
@@ -400,16 +399,14 @@ class PlanNode(PlanEntity):
             groups.append([executable])
         return groups
 
-    def merge_motion_mappings(
-        self, motions: List[GiskardExecutable]
-    ) -> Dict[MotionNode, Task]:
+    def merge_motion_nodes(self, motions: List[GiskardExecutable]) -> List[MotionNode]:
         """
-        Combine the motion mappings of several giskard executables into one mapping.
+        Combine the motions of several giskard executables into one run order.
+
+        The motions themselves are combined rather than the tasks they turn into, so
+        that a merged executable still builds its chart when it runs.
         """
-        new_mappings = {}
-        for motion in motions:
-            new_mappings.update(motion.motion_mappings)
-        return new_mappings
+        return [node for motion in motions for node in motion.motion_nodes]
 
 
 @dataclass(eq=False, repr=False)
@@ -714,11 +711,7 @@ class MotionNode(DesignatorNode):
         return None
 
     def parse(self) -> Executable:
-        task = self.motion.motion_chart
-
-        return GiskardExecutable(
-            motion_mappings={self: task}, context=self.plan.context
-        )
+        return GiskardExecutable(motion_nodes=[self], context=self.plan.context)
 
 
 @dataclass(eq=False, repr=False)

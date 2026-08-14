@@ -405,52 +405,6 @@ def test_placing_lets_the_gripper_touch_what_it_sets_down(immutable_model_world)
     assert release.allow_gripper_collision
 
 
-def test_what_the_hand_holds_may_touch_what_the_hand_may(immutable_model_world):
-    """
-    An object being put down rests on the surface it is placed on before the fingers
-    open, and one being lifted still rests on what it stood on.
-
-    It is no part of the manipulator, so a rule written from the manipulator alone
-    leaves it out and the placement ends as a collision.
-    """
-    world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
-
-    holding = MoveGripperMotion(GripperState.OPEN, Arms.LEFT, True, held_body=milk)
-    execute_single(holding, context=context)
-
-    rules_node = next(
-        node
-        for node in _nodes_of(holding.motion_chart)
-        if isinstance(node, UpdateTemporaryCollisionRules)
-    )
-    assert milk in rules_node.temporary_rules[0].body_group_b
-
-
-def test_placing_lets_what_it_sets_down_touch_the_surface(immutable_model_world):
-    """
-    Which object is in the hand is the action's to say: the chart is built before the
-    hand ever takes hold of it, so it cannot be found by looking below the tool frame.
-    """
-    world, view, context = immutable_model_world
-    test_world = deepcopy(world)
-    milk = test_world.get_body_by_name("milk.stl")
-    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=test_world.root)
-
-    motions = _motions_of(
-        PlaceAction(milk, target, Arms.LEFT), Context.from_world(test_world)
-    )
-
-    touching = [
-        motion
-        for motion in motions
-        if isinstance(motion, (MoveToolCenterPointMotion, MoveGripperMotion))
-        and motion.allow_gripper_collision
-    ]
-    assert len(touching) == 3
-    assert all(motion.held_body is milk for motion in touching)
-
-
 def test_a_gripper_that_may_touch_says_which_bodies_may(immutable_model_world):
     """
     Fingers that close on an object, or open around one standing on a surface, are in

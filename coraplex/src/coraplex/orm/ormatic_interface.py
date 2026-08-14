@@ -379,6 +379,23 @@ class ExecutableDAO_execution_list_association(Base, AssociationDataAccessObject
     )
 
 
+class GiskardExecutableDAO_motion_nodes_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_14079648207705940085881584709520339822473234321239213416213158"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_giskardexecutabledao_id: Mapped[int] = mapped_column(
+        ForeignKey("GiskardExecutableDAO.database_id")
+    )
+    target_motionnodedao_id: Mapped[int] = mapped_column(
+        ForeignKey("MotionNodeDAO.database_id")
+    )
+
+    target: Mapped[MotionNodeDAO] = relationship(
+        "MotionNodeDAO", foreign_keys=[target_motionnodedao_id], lazy="selectin"
+    )
+
+
 class MotionDidNotFinishDAO_failed_motions_association(
     Base, AssociationDataAccessObject
 ):
@@ -4236,6 +4253,15 @@ class GiskardExecutableDAO(
         use_existing_column=True,
     )
 
+    motion_nodes: Mapped[
+        builtins.list[GiskardExecutableDAO_motion_nodes_association]
+    ] = relationship(
+        "GiskardExecutableDAO_motion_nodes_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[GiskardExecutableDAO_motion_nodes_association.source_giskardexecutabledao_id]",
+        lazy="selectin",
+    )
     pre_condition_node: Mapped[ConditionNodeDAO] = relationship(
         "ConditionNodeDAO",
         uselist=False,
@@ -6984,16 +7010,6 @@ class MoveGripperMotionDAO(
         use_existing_column=True,
     )
 
-    held_body_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    held_body: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[held_body_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "MoveGripperMotionDAO",
         "inherit_condition": database_id == BaseMotionDAO.database_id,
@@ -7223,17 +7239,9 @@ class MoveToolCenterPointMotionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    held_body_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
 
     target: Mapped[PoseMappingDAO] = relationship(
         "PoseMappingDAO", uselist=False, foreign_keys=[target_id], post_update=True
-    )
-    held_body: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[held_body_id], post_update=True
     )
 
     __mapper_args__ = {
