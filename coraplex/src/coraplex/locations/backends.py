@@ -166,7 +166,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
 
         reachability_map = occupancy_map + gaussian_map
-        reachability_map.number_of_samples = CANDIDATE_SEEDS
+        reachability_map.number_of_samples = CANDIDATE_SEEDS * 5
         reachability_map.sample_randomly = True
 
         return reachability_map
@@ -254,43 +254,24 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
         return [transport_pose, placing_pose]
 
-    def can_stand_at(self, standing_pose: Pose) -> bool:
-        """
-        Whether the robot fits where it would start out from.
-
-        Costs one collision query against the several hundred control ticks of
-        :meth:`can_reach_target_from`, which is why it is asked first: a place the robot
-        cannot even stand in is not worth reaching from.
-
-        :param standing_pose: Where the robot's root would stand.
-        """
-        with self.world.reset_state_context():
-            self.robot.set_root_pose(standing_pose)
-            return not Location.stands_in_collision(self.world, self.robot)
-
-    def can_reach_target_from(self, standing_pose: Pose) -> bool:
+    def can_reach_target(self) -> bool:
         """
         Whether full-body control brings the target within reach for a robot that starts
-        out standing at ``standing_pose``.
+        out standing at the current pose.
 
         The robot is free to drive while it reaches, exactly as it is when the
         manipulation itself runs, so what this answers is whether standing here is a
         workable place to start from -- not whether the arm alone spans the distance.
-
-        :param standing_pose: Where the robot's root starts out.
         """
         end_effector = ViewManager.get_end_effector_view(self.arm, self.robot)
-        with self.world.reset_state_context():
-            self.robot.set_root_pose(standing_pose)
-            executor = self.setup_giskard_executor(
-                self.reach_sequence(), self.world, self.robot, end_effector
-            )
-            try:
-                executor.tick_until_end(CANDIDATE_TICK_BUDGET)
-            except UNREACHED_TARGET_OUTCOMES as outcome:
-                logger.debug(f"Target not reached from {standing_pose}: {outcome}")
-                return False
-            return True
+        executor = self.setup_giskard_executor(
+            self.reach_sequence(), self.world, self.robot, end_effector
+        )
+        try:
+            executor.tick_until_end(CANDIDATE_TICK_BUDGET)
+        except UNREACHED_TARGET_OUTCOMES:
+            return False
+        return True
 
     def __iter__(self) -> Iterator[Pose]:
         target_pose = (
@@ -298,11 +279,17 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
 
         for pose_candidate in self.setup_costmap(target_pose):
-            if not self.can_stand_at(pose_candidate):
-                continue
-            if not self.can_reach_target_from(pose_candidate):
-                continue
-            yield pose_candidate
+            with self.world.reset_state_context():
+                self.robot.set_root_pose(pose_candidate)
+                if Location.stands_in_collision(self.world, self.robot):
+                    continue
+                if isinstance(self.target, Body) and not self.robot.can_see_body(
+                    self.target
+                ):
+                    continue
+                if not self.can_reach_target():
+                    continue
+                yield pose_candidate
 
 
 @dataclass

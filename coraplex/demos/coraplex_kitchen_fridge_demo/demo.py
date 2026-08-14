@@ -145,7 +145,7 @@ ISLAND_APPROACH_YAW = np.pi
 The heading the robot faces at the kitchen island, which it reaches from positive x.
 """
 
-PLACE_POSITION_ON_ISLAND = (-0.7, 1.2)
+PLACE_POSITION_ON_ISLAND = (-0.8, 1.2)
 """
 Where on the kitchen island the milk ends up, in x and y.
 
@@ -392,7 +392,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ViewManager.get_end_effector_view(MILK_ARM, context.robot),
         )
 
-        # context.debug = True
+        context.debug = True
 
         return sequential(
             [
