@@ -30,6 +30,15 @@ You will:
 - Leave a plan underspecified, so it settles against the world it finds at execution time
 - Derive the opening and shutting from where the milk stands, instead of writing them down
 
++++ {"tags": ["exercise"]}
+
+```{note}
+Stuck on a section? The [published version of this page](https://lucakro.github.io/cognitive_robot_abstract_machine/coraplex/self_assessment/exercises/0_writing_a_robot_plan.html)
+carries a worked solution for every one of them.
+```
+
++++
+
 ## 0. Setup
 
 This section builds the kitchen with a PR2 in it, stands the milk in the fridge, and
