@@ -29,6 +29,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     ShelfLayer,
 )
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.geometry import Mesh
 from semantic_digital_twin.world_description.world_entity import Body
 
 # %% loading the demo
@@ -137,6 +138,35 @@ def test_the_kitchen_is_furnished_before_the_milk_arrives(demonstration):
     assert demonstration.is_scene_populated(world)
 
 
+def test_the_milk_is_spawned_from_its_mesh(demonstration, milk_body):
+    """
+    The carton is the mesh the resources ship, not a box standing in for it.
+    """
+    [shape] = milk_body.collision.shapes
+
+    assert isinstance(shape, Mesh)
+    assert Path(shape.filename) == demonstration.milk_mesh_path
+
+
+def test_the_milk_stands_on_the_shelf_layer(fridge_world, milk_body):
+    """
+    The mesh's own origin lies below the carton's centre, so the carton has to be stood
+    up against its geometry rather than against its frame.
+    """
+    shelf_layer = the(
+        entity(variable(ShelfLayer, domain=fridge_world.semantic_annotations))
+    ).first()
+
+    milk_bounds = milk_body.collision.as_bounding_box_collection_in_frame(
+        fridge_world.root
+    ).bounding_box()
+    shelf_bounds = shelf_layer.root.collision.as_bounding_box_collection_in_frame(
+        fridge_world.root
+    ).bounding_box()
+
+    assert milk_bounds.min_z == pytest.approx(shelf_bounds.max_z)
+
+
 def test_the_milk_is_put_down_on_a_counter_top(demonstration, fridge_world):
     """
     The surface the demonstration places onto is one the reasoner recognises as a
@@ -227,8 +257,8 @@ def test_container_steps_leave_their_arm_open(demonstration, fridge_context, mil
 
 def test_the_opening_and_the_shutting_pull_from_the_same_side():
     """
-    The demonstration names no approach direction, so the opening and the shutting come at
-    the handle from the same side only through their own defaults.
+    The demonstration names no approach direction, so the opening and the shutting come
+    at the handle from the same side only through their own defaults.
     """
     assert CloseAction.approach_direction is OpenAction.approach_direction
 

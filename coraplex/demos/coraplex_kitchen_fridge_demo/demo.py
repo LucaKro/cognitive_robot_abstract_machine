@@ -50,6 +50,7 @@ from krrood.entity_query_language.query.match import Match
 from semantic_digital_twin.api import (
     BodySpecification,
     RobotSpecification,
+    SemanticAnnotationWithRootSpecification,
     WorldSpecification,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
@@ -66,7 +67,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.geometry import Color, Scale
+from semantic_digital_twin.world_description.geometry import Color, Mesh, Scale
 from semantic_digital_twin.world_description.world_entity import (
     Body,
     KinematicStructureEntity,
@@ -106,6 +107,13 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     milk_arm: Arms = Arms.RIGHT
     """
     The arm carrying the milk.
+    """
+
+    milk_mesh_path: Path = (
+        Path(__file__).parents[2] / "resources" / "objects" / "milk.stl"
+    )
+    """
+    The mesh the milk carton is spawned from.
     """
 
     def build_simulated_world(self) -> World:
@@ -158,29 +166,57 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         milk = variable(Milk, domain=world.semantic_annotations)
         return next(an(entity(milk)).evaluate(), None) is not None
 
+    def get_milk_specification(self) -> SemanticAnnotationWithRootSpecification[Milk]:
+        """
+        Describe the milk carton, whose shape is the mesh it is spawned from.
+
+        The mesh's own origin lies below the carton's centre, while a body is placed,
+        and a spot on a surface sampled for it, by measuring equal halves out from its
+        frame. The geometry is therefore centred on that frame here, once, rather than
+        every pose being offset against it.
+
+        :return: The specification the milk is spawned from.
+        """
+        name = "milk"
+        carton = Mesh(filename=str(self.milk_mesh_path))
+        return Milk.get_annotation_specification(
+            name,
+            BodySpecification.mesh(
+                name,
+                carton.filename,
+                origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    *-carton.mesh.bounds.mean(axis=0)
+                ),
+            ),
+        )
+
     def populate_scene(self, world: World) -> None:
         """
         Stand the milk on the fridge's shelf layer.
         """
-        specification = Milk.get_annotation_specification(
-            "milk",
-            Milk.get_default_root_kinematic_structure_entity_specification(
-                scale=Scale(0.065, 0.065, 0.2)
-            ),
-        )
+        specification = self.get_milk_specification()
 
         shelf_layer = variable(ShelfLayer, domain=world.semantic_annotations)
-        specification.spawn(
-            world,
-            parent=the(
+        shelf_layer_body = (
+            the(
                 entity(shelf_layer).where(
                     shelf_layer.name.name == self.shelf_layer_name
                 )
             )
             .first()
-            .root,
+            .root
+        )
+        specification.spawn(
+            world,
+            parent=shelf_layer_body,
             parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
-                -0.16, 0.0, 0.11
+                -0.16,
+                0.0,
+                (
+                    shelf_layer_body.collision.scale.z
+                    + specification.root_specification.scale.z
+                )
+                / 2,
             ),
         )
 
@@ -249,7 +285,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             robot=the(entity(robot)).first(),
             ros_node=self.ros_node,
             evaluate_conditions=True,
-            alternative_motion_mappings=self.alternative_motion_mappings,
         )
         context.debug = True
         return context
@@ -314,9 +349,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: giskard_reachability_location(
-                            handle, context, door_arm
-                        )
+                        lambda: giskard_reachability_location(handle, context, door_arm)
                     ),
                 ),
             ),
@@ -331,9 +364,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: giskard_reachability_location(
-                            handle, context, door_arm
-                        )
+                        lambda: giskard_reachability_location(handle, context, door_arm)
                     ),
                 ),
             ),
@@ -360,7 +391,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         return a(GraspDescription)(
             approach_direction=...,
             vertical_alignment=VerticalAlignment.NoAlignment,
-            rotate_gripper=False,
             end_effector=ViewManager.get_end_effector_view(
                 self.milk_arm, context.robot
             ),

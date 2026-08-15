@@ -41,7 +41,7 @@ carries a worked solution for every one of them.
 
 ## 0. Setup
 
-This section builds the kitchen with a PR2 in it, stands the milk in the fridge, and
+This section builds the kitchen with a PR2 in it, spawns the milk in the fridge, and
 assembles the plan context.
 
 ```{code-cell} ipython3
@@ -102,7 +102,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.geometry import Color, Scale
+from semantic_digital_twin.world_description.geometry import Color, Mesh, Scale
 from semantic_digital_twin.world_description.world_entity import (
     Body,
     KinematicStructureEntity,
@@ -117,7 +117,13 @@ kitchen_urdf = (
     / "kitchen-small.urdf"
 )
 
+milk_mesh = (
+    Path(files("coraplex")).parent.parent / "resources" / "objects" / "milk.stl"
+)
+
 SHELF_LAYER_NAME = "fridge_shelf"
+
+MILK_NAME = "milk"
 
 # How far, in meters, the base may end up from a navigation target. A motion is driven to
 # the controller's own tolerance and then wound down, and the base settles a little further
@@ -133,8 +139,8 @@ PLACEMENT_TOLERANCE = 0.02
 ### The kitchen
 
 The kitchen comes from a URDF, the robot from a
-[`RobotSpecification`](https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/autoapi/semantic_digital_twin/api/index.html#semantic_digital_twin.api.RobotSpecification), and the shelf layer the milk stands on
-from a body specification. The
+[`RobotSpecification`](https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/autoapi/semantic_digital_twin/api/index.html#semantic_digital_twin.api.RobotSpecification), the shelf layer the milk stands on
+from a body specification, and the milk carton itself from a mesh file. The
 [`WorldReasoner`](https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/autoapi/semantic_digital_twin/reasoning/world_reasoner/index.html#semantic_digital_twin.reasoning.world_reasoner.WorldReasoner) turns the URDF's bodies
 into a *fridge* with a *door* and a *handle*, which is what the plan below reaches for.
 
@@ -181,31 +187,52 @@ def build_kitchen_world() -> World:
     return world
 
 
-def stand_milk_in_fridge(world: World) -> None:
+def spawn_milk_in_world(world: World) -> None:
     """
-    Stand the milk where the demonstration starts it, which is the fridge's shelf layer.
+    Spawn the milk where the demonstration starts it.
+
+    The carton's shape is the mesh it is spawned from. That mesh's own origin lies below
+    its centre, while a body is placed, and a spot on a surface sampled for it, by
+    measuring equal halves out from its frame, so the geometry is centred on that frame
+    here.
 
     :param world: The world holding the fridge.
     """
+    carton = Mesh(filename=str(milk_mesh))
     specification = Milk.get_annotation_specification(
-        "milk",
-        Milk.get_default_root_kinematic_structure_entity_specification(
-            scale=Scale(0.065, 0.065, 0.2)
+        MILK_NAME,
+        BodySpecification.mesh(
+            MILK_NAME,
+            carton.filename,
+            origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                *-carton.mesh.bounds.mean(axis=0)
+            ),
         ),
     )
 
     shelf_layer = variable(ShelfLayer, domain=world.semantic_annotations)
+    shelf_layer_body = (
+        the(entity(shelf_layer).where(shelf_layer.name.name == SHELF_LAYER_NAME))
+        .first()
+        .root
+    )
     specification.spawn(
         world,
-        parent=the(entity(shelf_layer).where(shelf_layer.name.name == SHELF_LAYER_NAME))
-        .first()
-        .root,
-        parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(-0.16, 0.0, 0.11),
+        parent=shelf_layer_body,
+        parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+            -0.16,
+            0.0,
+            (
+                shelf_layer_body.collision.scale.z
+                + specification.root_specification.scale.z
+            )
+            / 2,
+        ),
     )
 
 
 world = build_kitchen_world()
-stand_milk_in_fridge(world)
+spawn_milk_in_world(world)
 ```
 
 ### Watching it in RViz
@@ -216,6 +243,7 @@ are positioned against. Every cell you run below then shows up in RViz.
 
 To see it, add a **MarkerArray** display, set its topic to `/semworld/viz_marker`, set its
 durability policy to **Transient Local**, and set the fixed frame to the tf root.
+If you are doing this in the Virtual Research Lab, your RVIZ should already be configured correctly.
 
 ```{code-cell} ipython3
 if not rclpy.ok():
@@ -228,14 +256,12 @@ VizMarkerPublisher(_world=world, node=ros_node).with_tf_publisher()
 ### The context
 
 A [`Context`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/datastructures/dataclasses/index.html#coraplex.datastructures.dataclasses.Context) says which world a plan acts in and
-which robot carries it out. Two of its fields matter here:
-
-- `evaluate_conditions` turns each action's pre- and post-conditions into monitors that run
-  alongside the motion. With it switched on, an action whose precondition does not hold fails
-  *before it moves*. Section 5 depends on that.
-- `alternative_motion_mappings` lets a robot substitute its own motion for a generic one.
-  `AlternativeMotion.discover_all()` hands over everything coraplex knows; resolution filters
-  by robot and execution type.
+which robot carries it out. `evaluate_conditions` turns each action's pre- and post-conditions
+into monitors that run alongside the motion. With it switched on, an action whose precondition 
+does not hold fails *before it moves*. 
+This will become relevant in Section 5.
+The `_debug` flag will provide additional visual marker in RVIZ while the robot is doing geometry 
+calculations. 
 
 ```{code-cell} ipython3
 robot = variable(PR2, domain=world.semantic_annotations)
@@ -244,18 +270,20 @@ context = Context(
     robot=the(entity(robot)).first(),
     ros_node=ros_node,
     evaluate_conditions=True,
-    alternative_motion_mappings=AlternativeMotion.discover_all(),
+    _debug=True,
 )
 ```
 
-### What the plan reaches for
+### Grasping bodies
 
-The door is opened with the **left** arm, the milk taken with the **right**.
+For now, we decide that the door is opened with the **left** arm, the milk taken with the **right**.
 
 A [`GraspDescription`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/datastructures/grasp/index.html#coraplex.datastructures.grasp.GraspDescription) says how a body is taken hold of.
 The milk's is given here, with its approach direction left as `...`, which means *any member
 of that enum*, so the side the gripper comes from is settled while the plan runs rather than
 now.
+Underspecified Statements like that were part of the previous [Chapter 3 tutorial](https://vrb.ease-crc.org/aicor-tutorial/chapter3/), but also feel free
+to ask the tutors about them if you have any questions.
 
 ```{code-cell} ipython3
 DOOR_ARM = Arms.LEFT
@@ -265,6 +293,9 @@ MILK_ARM = Arms.RIGHT
 def get_grasp_for_milk(context: Context) -> Match[GraspDescription]:
     """
     Describe a grasp without saying which side of the object the gripper comes from.
+    The approach direction is left unspecified, as it is not known until the plan is executed.
+    We do not want to pick up the milk from the top in this case, so the VerticalAlignment is
+    set to NoAlignment.
 
     :param context: The context holding the robot that reaches for it.
     :return: The grasp, still open on its approach direction.
@@ -272,7 +303,6 @@ def get_grasp_for_milk(context: Context) -> Match[GraspDescription]:
     return a(GraspDescription)(
         approach_direction=...,
         vertical_alignment=VerticalAlignment.NoAlignment,
-        rotate_gripper=False,
         end_effector=ViewManager.get_end_effector_view(MILK_ARM, context.robot),
     )
 
@@ -280,7 +310,7 @@ def get_grasp_for_milk(context: Context) -> Match[GraspDescription]:
 fridge = the(entity(variable(Fridge, domain=world.semantic_annotations))).first()
 milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
 
-handle = fridge.doors[0].handle.root
+handle_body = fridge.doors[0].handle.root
 milk_body = milk.root
 ```
 
@@ -289,18 +319,21 @@ milk_body = milk.root
 A plan is a tree of steps. [`sequential`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/plans/factories/index.html#coraplex.plans.factories.sequential) builds one whose
 children run one after another, and `perform()` on the node it returns executes it.
 
-Actions describing the robot's own body name a state rather than a place. [`ParkArmsAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/robot_body/index.html#coraplex.robot_plans.actions.core.robot_body.ParkArmsAction)
-folds the arms into the robot's park position, and
-[`MoveTorsoAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/robot_body/index.html#coraplex.robot_plans.actions.core.robot_body.MoveTorsoAction) sets the torso to one
-of the states the robot itself defines.
+Actions describing the robot's own body name a state rather than a place. 
+[`ParkArmsAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/robot_body/index.html#coraplex.robot_plans.actions.core.robot_body.ParkArmsAction)
+folds the specified arms into a folding position. The possible options are `Arms.LEFT`, 
+`Arms.RIGHT` and `Arms.BOTH`.
+[`MoveTorsoAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/robot_body/index.html#coraplex.robot_plans.actions.core.robot_body.MoveTorsoAction) moves the torso to one of the three states `TorsoState.LOW`, 
+`TorsoState.MID`, and `TorsoState.HIGH`.
+
 
 Execution happens inside an *execution environment*, which decides whether the motions drive
 a real robot or a simulated one. `simulated_robot(collision_avoidance=True)` returns a
 simulated environment that keeps every motion clear of the furniture.
 
 Your goal:
-- Build a sequential plan that parks both arms and raises the torso to `TorsoState.HIGH`,
-  store it in a variable named `plan`, and perform it in a simulated environment with
+- Build a sequential plan that parks both arms and raises the torso to a `high` state.
+  Afterwards store it in a variable named `plan`, and perform it in a simulated environment with
   collision avoidance
 
 ```{code-cell} ipython3
@@ -336,12 +369,11 @@ if not context.robot.get_torso().get_joint_state_by_type(TorsoState.HIGH).is_ach
 
 ## 2. Driving the base
 
-[`NavigateAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/navigation/index.html#coraplex.robot_plans.actions.core.navigation.NavigateAction) drives the base to a
-pose, taking that pose as its `target_location`.
+[`NavigateAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/navigation/index.html#coraplex.robot_plans.actions.core.navigation.NavigateAction) drives the base to a pose, taking that pose as its `target_location`.
 
 The pose below is a free patch of floor between the kitchen island and the counters. Writing
-standing poses out by hand works, but only as long as you know the room — the next section
-lets the robot work one out instead.
+standing poses out by hand works, but its tedious and not very dynamic. 
+The next section lets the robot work one out instead.
 
 Your goal:
 - Navigate to `free_spot` and perform the plan
@@ -382,7 +414,7 @@ one. A pose only comes out after the robot has driven there and reached the targ
 already been tried.
 
 Your goal:
-- Ground a `giskard_reachability_location` for `handle`, reached with `DOOR_ARM`, into a
+- Ground a `giskard_reachability_location` for the `handle`, reached with `DOOR_ARM`, into a
   variable named `handle_standing_pose`
 - Navigate there
 
@@ -422,12 +454,12 @@ if not np.allclose(context.robot.root.global_pose.to_position().to_np()[:2], han
 
 ## 4. Opening the fridge
 
-[`OpenAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/container/index.html#coraplex.robot_plans.actions.core.container.OpenAction) takes the *handle* of the
-thing that opens, the arm to open it with, and how far to swing it. Its `goal_joint_state` is
-in the units of the joint behind the handle — radians for a hinge, meters for a drawer rail.
+[`OpenAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/container/index.html#coraplex.robot_plans.actions.core.container.OpenAction) takes the *handle* body of the thing that opens, the arm to open it with,
+and how far to swing it. Its `goal_joint_state` is in the units of the joint behind the 
+handle. (radians for a hinge, meters for a drawer slider)
 
-The hinge's own limit is about 1.5708 rad, and a goal *at* a joint limit tends not to be
-reported as reached at all, so the angle below stops short of it.
+The hinge's own limit is about 1.5708 rad, but for noise and safety reasons, lets a be a bit
+more cautious and only allow the door to open to about 1.45 rad.
 
 Park the arms afterwards, with
 [`ParkArmsAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/robot_body/index.html#coraplex.robot_plans.actions.core.robot_body.ParkArmsAction).
@@ -453,7 +485,7 @@ DOOR_OPENING_ANGLE = 1.45
 
 plan = sequential(
     [
-        OpenAction(handle, DOOR_ARM, goal_joint_state=DOOR_OPENING_ANGLE),
+        OpenAction(handle_body, DOOR_ARM, goal_joint_state=DOOR_OPENING_ANGLE),
         ParkArmsAction(Arms.BOTH),
     ],
     context,
@@ -480,27 +512,30 @@ the robot has not moved.
 [`DeferredLocation`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/locations/base/index.html#coraplex.locations.base.DeferredLocation) wraps a factory that is called when the
 pose is actually needed, which is once execution reaches that step.
 
-That is expressed by leaving the action *underspecified*: `a(SomeAction)(...)` describes an
-action rather than building one, and `variable(SomeType, domain=...)` marks an argument as a
-choice over a domain. At execution time the candidates are tried in turn, and one whose
+That is expressed by leaving the action *underspecified* (recall the [Chapter 3 tutorial](https://vrb.ease-crc.org/aicor-tutorial/chapter3/)):
+`a(SomeAction)(...)` describes an action rather than building one, and `variable(SomeType, domain=...)` marks 
+an argument as a choice over a domain. At execution time the candidates are tried in turn, and one whose
 precondition fails — a hand that cannot reach the milk, or is not free — is discarded before
-it moves and the next one is taken. That is what `evaluate_conditions=True` is for.
-
-The navigation asks `giskard_reachability_location` for a location without a grasp, since
-which side works is what `get_grasp_for_milk` leaves open.
+it moves and the next one is taken. These preconditions are only evaluated if in the `Context` the flag
+`evaluate_conditions` is set to `True`.
 
 Your goal:
-- Build a plan that navigates to a deferred reachability location for `milk_body`, picks it
-  up with `MILK_ARM` using `get_grasp_for_milk(context)`, and parks both arms
+- Build a plan that navigates to a `deferred` `giskard_reachability_location` for `milk_body`, and then picks it
+  up with `MILK_ARM` using the underspecified `get_grasp_for_milk(context)` we defined in the earlier section about
+  `Grasping bodies`. Finally, park both arms.
 - Perform it
 
 ```{code-cell} ipython3
 :tags: [exercise]
 # TODO: leave the standing pose to be chosen while the plan runs
+# deferred_location_domain = DeferredLocation(lambda: ...)
+# target_location = variable(Pose, domain=...)
 # plan = sequential([...], context)
 # with simulated_robot(collision_avoidance=True):
 #     plan.perform()
 
+deferred_location_domain = ...
+target_location = ...
 plan = ...
 ```
 
@@ -543,13 +578,17 @@ if milk_body not in world.get_kinematic_structure_entities_of_branch(tool_frame)
 
 ## 6. Working out where to put it down
 
-The milk has to go somewhere on the kitchen island. The `WorldReasoner` you ran while building
-the world recognised the island's work surface as a `CounterTop`, and a counter top can sample
-points on its own surface. `sample_points_from_surface` returns points that a given body fits
-on, so the spot comes out somewhere different on every run.
+The milk has to go somewhere on the kitchen island. We could now predefine a pose for it like we 
+did in the beginning for the navigate action. But that would be a bit boring, wouldn't it?
+Let's define some helper functions to work out where to put the milk down.
+
+The `WorldReasoner` we ran while building the world recognised the island's work surface as
+a `CounterTop`, and a counter top can sample points on its own surface.
+`CounterTop.sample_points_from_surface` returns points that a given body fits on, so the spot comes 
+out somewhere different on every run.
 
 There are two counter tops in this kitchen, so the island's is picked out by the name of its
-body. `pose_the_robot_faces` turns a sampled point into a pose by taking the robot's heading.
+body. `robot_aligned_place_pose` turns a sampled point into a pose by using the robot's own rotation.
 
 ```{code-cell} ipython3
 def island_counter_top(world: World) -> CounterTop:
@@ -580,7 +619,7 @@ def place_spot_on_island(world: World, milk: Milk) -> Point3:
     return world.transform(next(iter(points)), world.root)
 
 
-def pose_the_robot_faces(spot: Point3, context: Context) -> Pose:
+def robot_aligned_place_pose(spot: Point3, context: Context) -> Pose:
     """
     :param spot: Where the object has to end up.
     :param context: The context holding the robot.
@@ -606,12 +645,12 @@ put it at, and the arm holding it.
 The standing pose is deferred again, for the same reason as before. The navigation is given
 `place_spot` itself — a location can take a point as well as a pose.
 
-The placing pose has to be deferred too: `pose_the_robot_faces` reads the robot's heading, and
+The placing pose has to be deferred too: `robot_aligned_place_pose` reads the robot's orientation, and
 the robot has not driven to the island yet.
 
 Your goal:
 - Navigate to a deferred reachability location for `place_spot`, place the milk at a deferred
-  `pose_the_robot_faces` for it with `MILK_ARM`, park both arms, and perform it
+  `robot_aligned_place_pose` for it with `MILK_ARM`, park both arms, and perform it
 
 ```{code-cell} ipython3
 :tags: [exercise]
@@ -640,7 +679,7 @@ plan = sequential(
             target_location=variable(
                 Pose,
                 domain=DeferredLocation(
-                    lambda: [pose_the_robot_faces(place_spot, context)]
+                    lambda: [robot_aligned_place_pose(place_spot, context)]
                 ),
             ),
             arm=MILK_ARM,
@@ -667,8 +706,8 @@ if not (surface_box.min_y <= placed_box.min_y and placed_box.max_y <= surface_bo
 ## 8. Shutting the fridge again
 
 [`CloseAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/container/index.html#coraplex.robot_plans.actions.core.container.CloseAction) takes the same arguments as
-the opening. The handle rides the swinging door, so it is somewhere else now than it was when
-you stood in front of it, and the standing pose has to be found again rather than remembered.
+the opening. The handle is attached the swinging door, so it is somewhere else now than it was when
+you stood in front of it.
 
 Your goal:
 - Navigate to a deferred reachability location for the handle, shut the door to
@@ -696,11 +735,11 @@ plan = sequential(
             target_location=variable(
                 Pose,
                 domain=DeferredLocation(
-                    lambda: giskard_reachability_location(handle, context, DOOR_ARM)
+                    lambda: giskard_reachability_location(handle_body, context, DOOR_ARM)
                 ),
             ),
         ),
-        CloseAction(handle, DOOR_ARM, goal_joint_state=DOOR_CLOSING_ANGLE),
+        CloseAction(handle_body, DOOR_ARM, goal_joint_state=DOOR_CLOSING_ANGLE),
         ParkArmsAction(Arms.BOTH),
     ],
     context,
@@ -744,7 +783,7 @@ The milk is on the island now, in nothing at all, so this runs against a fresh k
 ```{code-cell} ipython3
 :tags: [remove-input]
 fresh_world = build_kitchen_world()
-stand_milk_in_fridge(fresh_world)
+spawn_milk_in_world(fresh_world)
 fresh_fridge = the(entity(variable(Fridge, domain=fresh_world.semantic_annotations))).first()
 fresh_milk = the(entity(variable(Milk, domain=fresh_world.semantic_annotations))).first().root
 ```
@@ -917,7 +956,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         return next(an(entity(milk)).evaluate(), None) is not None
 
     def populate_scene(self, world: World) -> None:
-        stand_milk_in_fridge(world)
+        spawn_milk_in_world(world)
 
     def build_context(self, world: World) -> Context:
         robot = variable(self.used_robot, domain=world.semantic_annotations)
@@ -926,7 +965,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             robot=the(entity(robot)).first(),
             ros_node=ros_node,
             evaluate_conditions=True,
-            alternative_motion_mappings=self.alternative_motion_mappings,
+            _debug=True,
         )
 
     # TODO: build the whole plan
@@ -935,6 +974,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
 
 demonstration = KitchenFridgeDemonstration(used_robot=PR2)
+demonstration.run()
 ```
 
 ```{code-cell} ipython3
@@ -955,7 +995,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         return next(an(entity(milk)).evaluate(), None) is not None
 
     def populate_scene(self, world: World) -> None:
-        stand_milk_in_fridge(world)
+        spawn_milk_in_world(world)
 
     def build_context(self, world: World) -> Context:
         robot = variable(self.used_robot, domain=world.semantic_annotations)
@@ -964,7 +1004,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             robot=the(entity(robot)).first(),
             ros_node=ros_node,
             evaluate_conditions=True,
-            alternative_motion_mappings=self.alternative_motion_mappings,
+            _debug=True,
         )
 
     def build_plan(self, context: Context) -> PlanNode:
@@ -1005,7 +1045,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: [pose_the_robot_faces(place_spot, context)]
+                        lambda: [robot_aligned_place_pose(place_spot, context)]
                     ),
                 ),
                 arm=MILK_ARM,
@@ -1024,6 +1064,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
 
 demonstration = KitchenFridgeDemonstration(used_robot=PR2)
+demonstration.run()
 ```
 
 ```{code-cell} ipython3
@@ -1038,7 +1079,7 @@ demo_plan = demonstration.build_plan(demo_context)
 steps = [type(node.designator) if isinstance(node, ActionNode) else node.underspecified_action.factory for node in demo_plan.children]
 if steps != [ParkArmsAction, MoveTorsoAction, NavigateAction, OpenAction, ParkArmsAction, NavigateAction, PickUpAction, ParkArmsAction, NavigateAction, PlaceAction, ParkArmsAction, NavigateAction, CloseAction, ParkArmsAction]: raise ExerciseVerificationFailed(f"The plan should open the fridge, transport the milk and shut the fridge again, but it reads {steps}.")
 demo_place = next(node for node in demo_plan.children if isinstance(node, UnderspecifiedNode) and node.underspecified_action.factory is PlaceAction)
-if not isinstance(demo_place.underspecified_action.kwargs["target_location"]._domain_.domain, DeferredLocation): raise ExerciseVerificationFailed("The placing pose reads the robot's heading, so it has to be deferred until the robot has driven to the island.")
+if not isinstance(demo_place.underspecified_action.kwargs["target_location"]._domain_.domain, DeferredLocation): raise ExerciseVerificationFailed("The placing pose reads the robot's orientation, so it has to be deferred until the robot has driven to the island.")
 ```
 
 ## Where to go from here
