@@ -945,6 +945,21 @@ class HasSupportingSurface(IsStorageSpace):
         samples = samples[np.argsort(surface_circuit.log_likelihood(samples))[::-1]]
         samples = np.concatenate((samples, z_coordinate), axis=1)
 
+        surface = self.supporting_surface.area
+        half_depth = body_to_sample_for.root.collision.scale.x / 2
+
+        # %% filter out samples too close to the
+        samples = [
+            sample
+            for sample in samples
+            if surface.min_point.x + half_depth
+            <= sample[0]
+            <= surface.max_point.x - half_depth
+            and surface.min_point.y + half_depth
+            <= sample[1]
+            <= surface.max_point.y - half_depth
+        ]
+
         if category_of_interest:
             return [
                 Point3(*s[1:], reference_frame=self.supporting_surface) for s in samples

@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
+from coraplex.datastructures.enums import ApproachDirection, Arms, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.plans.plan_node import ActionNode, UnderspecifiedNode
 from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
@@ -25,11 +25,9 @@ from krrood.entity_query_language.factories import an, entity, the, variable
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     CounterTop,
-    Drawer,
     Fridge,
     Milk,
     ShelfLayer,
-    Spoon,
     Table,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -97,8 +95,12 @@ def milk_body(fridge_world) -> Body:
 
 
 @pytest.fixture(scope="module")
-def milk_grasp(demonstration, fridge_context, milk_body) -> GraspDescription:
-    return demonstration.grasps_for(milk_body, fridge_context)[0]
+def milk_grasp(demonstration, fridge_context) -> GraspDescription:
+    return GraspDescription(
+        ApproachDirection.FRONT,
+        VerticalAlignment.NoAlignment,
+        ViewManager.get_end_effector_view(demonstration.milk_arm, fridge_context.robot),
+    )
 
 
 # %% building the scene
@@ -168,24 +170,6 @@ def test_handle_of_a_body_behind_a_door(demonstration, fridge_world, milk_body):
     assert (
         demonstration.handle_of_enclosing_container(milk_body, fridge_world)
         is demonstration.fridge_door(fridge_world).handle.root
-    )
-
-
-def test_handle_of_a_body_inside_a_drawer(demonstration, apartment_world_copy):
-    """
-    A drawer holds what it contains in its own case rather than behind it, and is found
-    the same way a door is.
-    """
-    drawer = the(
-        entity(variable(Drawer, domain=apartment_world_copy.semantic_annotations))
-    ).first()
-    spoon = the(
-        entity(variable(Spoon, domain=apartment_world_copy.semantic_annotations))
-    ).first()
-
-    assert (
-        demonstration.handle_of_enclosing_container(spoon.root, apartment_world_copy)
-        is drawer.handle.root
     )
 
 
@@ -295,10 +279,10 @@ def test_plan_opens_the_fridge_and_shuts_it_again(demonstration, fridge_context)
     ]
 
 
-def test_pick_up_grasps_follow_the_milk(demonstration, fridge_context, milk_body):
+def test_pick_up_leaves_its_approach_open(demonstration, fridge_context):
     """
-    The pick-up searches over the grasps computed from where the milk actually stands,
-    rather than over one assumed side of it.
+    The pick-up says how the gripper is held but not which side it comes from, so the
+    plan settles that once it is standing in front of the milk.
     """
     plan = demonstration.build_plan(fridge_context)
     pick_up = next(
@@ -308,132 +292,9 @@ def test_pick_up_grasps_follow_the_milk(demonstration, fridge_context, milk_body
         and node.underspecified_action.factory is PickUpAction
     ).underspecified_action
 
-    assert list(pick_up.kwargs["grasp_description"]._domain_) == (
-        demonstration.grasps_for(milk_body, fridge_context)
-    )
+    grasp = pick_up.kwargs["grasp_description"]
 
-
-def test_grasps_turn_with_the_body(demonstration, fridge_context, milk_body):
-    """
-    The side the gripper comes from is worked out from how the body is turned, which is
-    what lets the plan survive the milk being put somewhere else.
-    """
-    end_effector = ViewManager.get_end_effector_view(
-        demonstration.milk_arm, fridge_context.robot
-    )
-    as_placed = GraspDescription.calculate_grasp_descriptions(
-        end_effector, milk_body.global_pose
-    )
-    turned = GraspDescription.calculate_grasp_descriptions(
-        end_effector,
-        (
-            milk_body.global_pose.to_homogeneous_matrix()
-            @ HomogeneousTransformationMatrix.from_xyz_rpy(yaw=np.pi)
-        ).to_pose(),
-    )
-
-    assert as_placed == demonstration.grasps_for(milk_body, fridge_context)
-    assert turned[0].approach_direction is not as_placed[0].approach_direction
-
-
-# %% the demo adapts to where the milk stands
-
-
-def milk_standing_in_the_open() -> "demo.KitchenFridgeDemonstration":
-    """
-    :return: A demonstration that starts the milk out on the kitchen island rather than in
-        the fridge, so nothing has to be opened to reach it.
-    """
-    layout = demo.KitchenFridgeDemonstration(used_robot=PR2)
-    world = layout.build_simulated_world()
-    layout.populate_scene(world)
-    milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
-    return demo.KitchenFridgeDemonstration(
-        used_robot=PR2,
-        milk_start_pose=layout.place_pose_on_island(world, milk),
-    )
-
-
-def test_plan_skips_the_container_for_a_milk_in_the_open():
-    """
-    A milk that stands in the open needs no door opened, so the plan is the transport
-    alone.
-    """
-    demonstration = milk_standing_in_the_open()
-    world = demonstration.build_simulated_world()
-    demonstration.populate_scene(world)
-    robot = variable(demonstration.used_robot, domain=world.semantic_annotations)
-    context = Context(
-        world=world, robot=the(entity(robot)).first(), evaluate_conditions=False
-    )
-
-    actions = [
-        (
-            type(node.designator)
-            if isinstance(node, ActionNode)
-            else node.underspecified_action.factory
-        )
-        for node in demonstration.build_plan(context).children
-    ]
-
-    assert actions == [
-        ParkArmsAction,
-        MoveTorsoAction,
-        NavigateAction,
-        PickUpAction,
-        ParkArmsAction,
-        NavigateAction,
-        PlaceAction,
-        ParkArmsAction,
-    ]
-
-
-@pytest.mark.slow
-def test_milk_turned_around_is_still_delivered():
-    """
-    Turning the carton on its shelf turns the side the gripper comes from with it, so
-    the transport goes through unchanged.
-    """
-    demonstration = demo.KitchenFridgeDemonstration(
-        used_robot=PR2,
-        shelf_layer_T_milk=demo.KitchenFridgeDemonstration(
-            used_robot=PR2
-        ).shelf_layer_T_milk
-        @ HomogeneousTransformationMatrix.from_xyz_rpy(yaw=np.pi),
-    )
-
-    world = demonstration.run()
-
-    assert_milk_was_delivered(demonstration, world)
-    assert demonstration.fridge_door(world).root.parent_connection.position < 0.02
-
-
-@pytest.mark.slow
-def test_milk_in_the_open_is_delivered():
-    """
-    With nothing to unpack, the robot still finds its standing poses and carries the
-    milk to the island.
-    """
-    demonstration = milk_standing_in_the_open()
-
-    assert_milk_was_delivered(demonstration, demonstration.run())
-
-
-def assert_milk_was_delivered(demonstration, world) -> None:
-    """
-    Check that the milk ended up resting on the kitchen island, wherever on it the
-    demonstration sampled its spot.
-    """
-    milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
-    milk_box = milk.root.collision.as_bounding_box_collection_in_frame(
-        world.root
-    ).bounding_box()
-    surface_box = (
-        demonstration.island_counter_top(world)
-        .supporting_surface.area.as_bounding_box_collection_in_frame(world.root)
-        .bounding_box()
-    )
-
-    assert milk_box.min_z == pytest.approx(surface_box.max_z, abs=0.02)
-    assert surface_box.min_x <= milk_box.min_x and milk_box.max_x <= surface_box.max_x
-    assert surface_box.min_y <= milk_box.min_y and milk_box.max_y <= surface_box.max_y
+    assert grasp.factory is GraspDescription
+    assert grasp.kwargs["approach_direction"] is Ellipsis
+    assert grasp.kwargs["vertical_alignment"] is VerticalAlignment.NoAlignment
+    assert grasp.kwargs["rotate_gripper"] is False

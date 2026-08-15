@@ -21,6 +21,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.datastructures.dataclasses import MotionToleranceConfig
+from coraplex.plans.failures import MOTION_DID_NOT_WORK_OUT
 from coraplex.datastructures.enums import Arms
 from coraplex.datastructures.grasp import GraspDescription, GraspPose
 from coraplex.locations.base import Location, PoseGeneratorBackend
@@ -49,15 +50,10 @@ A candidate that works takes well under half of this, so the budget mostly decid
 long a hopeless one is allowed to hold up the search.
 """
 
-UNREACHED_TARGET_OUTCOMES = (
-    TimeoutError,
-    InfeasibleException,
-    CollisionViolatedError,
-)
+UNREACHED_TARGET_OUTCOMES = MOTION_DID_NOT_WORK_OUT
 """
-How a full-body solve ends when the target stays out of reach: the motion runs out of
-ticks, the controller cannot satisfy its constraints, or driving there would hit
-something.
+How a full-body solve ends when the target stays out of reach, which is every way a
+motion fails to be carried out.
 """
 
 

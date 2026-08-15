@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import ClassVar, List, Optional
+from typing_extensions import ClassVar, Iterator, List, Optional, Union
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
@@ -45,14 +45,9 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from coraplex.view_manager import ViewManager
-from krrood.entity_query_language.factories import (
-    a,
-    an,
-    contains,
-    entity,
-    the,
-    variable,
-)
+from krrood.entity_query_language.factories import a, an, entity, the, variable
+from krrood.entity_query_language.predicate import symbolic_function
+from krrood.entity_query_language.query.match import Match
 from semantic_digital_twin.api import (
     BodySpecification,
     RobotSpecification,
@@ -62,11 +57,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.pr2 import PR2
-from semantic_digital_twin.semantic_annotations.mixins import (
-    HasCaseAsRootBody,
-    HasHandle,
-    HasMechanicalJoint,
-)
+from semantic_digital_twin.semantic_annotations.mixins import HasDoors, IsStorageSpace
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     CounterTop,
     Door,
@@ -79,7 +70,25 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    KinematicStructureEntity,
+)
+
+# %% what holds what
+
+
+@symbolic_function
+def contains(
+    container: KinematicStructureEntity, body: KinematicStructureEntity
+) -> bool:
+    """
+    :param container: The entity that may hold the body.
+    :param body: The entity that may be held.
+    :return: Whether nearly all of the body lies inside the container.
+    """
+    return InsideOf(body, container)() > 0.9
+
 
 # %% the demonstration
 
@@ -97,35 +106,9 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     Name of the shelf layer the milk stands on.
     """
 
-    shelf_layer_T_milk: HomogeneousTransformationMatrix = field(
-        default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
-            -0.16, 0.0, 0.11
-        )
-    )
-    """
-    The milk on the shelf layer, standing near its front edge.
-
-    Layer x runs towards the fridge opening, and the layer is 0.4 meters deep, so this
-    leaves the 0.065 meter carton just clear of the edge. The further forward it stands,
-    the further back the robot can stand to take it, and the less it has to lean into
-    the swing of the open door.
-    """
-
-    milk_start_pose: Optional[Pose] = None
-    """
-    Where the milk stands when the demonstration begins, in the world frame.
-
-    ``None`` stands it on the fridge's shelf layer at :attr:`shelf_layer_T_milk`, which
-    is what makes the fridge door part of the problem. Standing it somewhere open
-    instead leaves the plan with nothing to unpack.
-    """
-
     milk_arm: Arms = Arms.RIGHT
     """
     The arm carrying the milk.
-
-    Reaching into the fridge means standing to the left of the opening, out of the swing
-    of the open door, which leaves the milk on the robot's right.
     """
 
     def build_simulated_world(self) -> World:
@@ -187,17 +170,18 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         hinge.raw_dof.limits.upper.velocity = door_speed_limit
         hinge.raw_dof.limits.lower.velocity = -door_speed_limit
 
-        self._rest_table_on_the_floor(world)
+        self._correct_where_the_table_stands(world)
 
         return world
 
     @staticmethod
-    def _rest_table_on_the_floor(world: World) -> None:
+    def _correct_where_the_table_stands(world: World) -> None:
         """
-        Lift the table until its lowest point sits on the floor.
+        Put the table on the floor and give the robot room to get past it.
 
         The kitchen hangs the table's mesh off its own centre, so the URDF leaves two
-        thirds of a table standing and the rest buried.
+        thirds of a table standing and the rest buried. It also stands close enough to
+        the kitchen island that the robot's base clips it on the way round.
 
         :param world: The world holding the kitchen.
         """
@@ -211,7 +195,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         with world.modify_world():
             connection.parent_T_connection_expression = (
                 HomogeneousTransformationMatrix.from_xyz_rpy(
-                    z=-sunk_by, reference_frame=connection.parent
+                    # Away from the island, widening the gap the robot drives through.
+                    y=-0.5,
+                    z=-sunk_by,
+                    reference_frame=connection.parent,
                 )
                 @ connection.parent_T_connection_expression
             )
@@ -231,11 +218,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 scale=Scale(0.065, 0.065, 0.2)
             ),
         )
-        if self.milk_start_pose is not None:
-            specification.spawn(
-                world, parent_T_self=self.milk_start_pose.to_homogeneous_matrix()
-            )
-            return
 
         shelf_layer = variable(ShelfLayer, domain=world.semantic_annotations)
         specification.spawn(
@@ -247,18 +229,18 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             )
             .first()
             .root,
-            parent_T_self=self.shelf_layer_T_milk,
+            parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                -0.16, 0.0, 0.11
+            ),
         )
 
     def fridge_door(self, world: World) -> Door:
         """
         :param world: The world holding the kitchen.
-        :return: The fridge door, told apart from the kitchen's other doors by belonging
-            to the fridge.
+        :return: The fridge's door, the only one in this kitchen that opens.
         """
         fridge = variable(Fridge, domain=world.semantic_annotations)
-        door = variable(Door, domain=world.semantic_annotations)
-        return the(entity(door).where(contains(fridge.doors, door))).first()
+        return the(entity(fridge)).first().doors[0]
 
     @staticmethod
     def island_counter_top(world: World) -> CounterTop:
@@ -274,30 +256,42 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             )
         ).first()
 
-    def place_pose_on_island(self, world: World, milk: Milk) -> Pose:
+    def place_poses_on_island(self, world: World, milk: Milk) -> List[Pose]:
         """
-        Pick a spot on the kitchen island to put the milk down on.
+        Pick a target_pose on the kitchen island to put the milk down on.
 
         The counter top works out where its own surface is and how high the milk has to
-        stand to rest on it, so the spot is drawn from the surface rather than measured
-        off a bounding box. It comes out somewhere different on every run.
+        stand to rest on it, so the target_pose is drawn from the surface rather than
+        measured off a bounding box. It comes out somewhere different on every run.
+
+        The surface hands out target_poses right up to its edge, where a carton would
+        end up half over the side, so a target_pose is only taken once the whole carton
+        fits on the counter. Which way the carton then faces is left to the plan: the
+        robot walks round the island to wherever the target_pose is, and only there is
+        it clear which headings its arm can reach.
 
         :param world: The world holding the kitchen.
-        :param milk: The carton the spot has to be big enough for.
-        :return: The pose the milk is placed at.
+        :param milk: The carton the target_pose has to be big enough for.
+        :return: The same target_pose at every quarter turn, shuffled, so no heading is
+            favoured over the others.
         """
-        point = self.island_counter_top(world).sample_points_from_surface(
-            body_to_sample_for=milk, amount=1
-        )[0]
-        world_P_milk = world.transform(point, world.root)
-        return Pose.from_xyz_rpy(
-            world_P_milk.x,
-            world_P_milk.y,
-            world_P_milk.z,
-            # The robot reaches the island from positive x, so the carton faces it.
-            yaw=np.pi,
-            reference_frame=world.root,
+        counter_top = self.island_counter_top(world)
+        points = counter_top.sample_points_from_surface(
+            body_to_sample_for=milk, amount=100
         )
+
+        target_pose = next(iter(points))
+        world_T_target_pose = world.transform(target_pose, world.root)
+        return [
+            Pose.from_xyz_rpy(
+                world_T_target_pose.x,
+                world_T_target_pose.y,
+                world_T_target_pose.z,
+                yaw=quarter_turn * np.pi / 2,
+                reference_frame=world.root,
+            )
+            for quarter_turn in np.random.permutation(4)
+        ]
 
     def build_context(self, world: World) -> Context:
         """
@@ -321,41 +315,32 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     # %% reaching into containers
 
     @staticmethod
-    def container_of(openable: HasMechanicalJoint) -> Optional[Body]:
-        """
-        :param openable: A part that opens, such as a door or a drawer.
-        :return: The body holding whatever the part gives access to. A drawer holds it in
-            its own case, while a door only covers the body it hangs from.
-        """
-        if isinstance(openable, HasCaseAsRootBody):
-            return openable.root
-        return openable.root.parent_kinematic_structure_entity
-
-    def handle_of_enclosing_container(self, body: Body, world: World) -> Optional[Body]:
+    def handle_of_enclosing_container(body: Body, world: World) -> Optional[Body]:
         """
         Find what has to be pulled open before ``body`` can be taken.
+
+        Asks for the storage spaces whose own body holds the given one and takes the
+        handle of the first door among them. In this kitchen the milk is held by both the
+        fridge and the rack the fridge stands in, and only the fridge has a door.
+
+        ..note:: Only doors are followed. A drawer holds what it contains in its own case
+            and is found just as well, but its handle hangs off the drawer itself rather
+            than off a door.
 
         :param body: The body that may stand inside a container.
         :param world: The world holding both.
         :return: The handle of the container, or ``None`` when the body stands in the
-            open or in something that does not open.
+            open.
         """
-        containers = [
-            candidate
-            for candidate in world.bodies_with_collision
-            if candidate is not body
-            # How much of the body's volume has to lie inside the candidate for it
-            # to count as standing in it.
-            and InsideOf(body, candidate).compute_containment_ratio() > 0.9
-        ]
-        openable = variable(HasMechanicalJoint, domain=world.semantic_annotations)
+        storage_space = variable(IsStorageSpace, domain=world.semantic_annotations)
+        containers = an(
+            entity(storage_space).where(contains(storage_space.root, body))
+        ).evaluate()
         return next(
             (
-                found.handle.root
-                for found in an(entity(openable)).evaluate()
-                if isinstance(found, HasHandle)
-                and found.handle is not None
-                and self.container_of(found) in containers
+                container.doors[0].handle.root
+                for container in containers
+                if isinstance(container, HasDoors) and container.doors
             ),
             None,
         )
@@ -435,27 +420,50 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     # %% the plan
 
-    def grasps_for(self, body: Body, context: Context) -> List[GraspDescription]:
+    def grasp_from_any_side(self, context: Context) -> Match[GraspDescription]:
         """
-        Work out how the body can be taken hold of, from where it stands and how it is
-        turned, rather than assuming which of its sides faces the robot.
+        Describe a grasp without saying which side of the object the gripper comes from.
 
-        The approach directions are expressed in the body's own frame, so they follow it
-        wherever it is put.
+        The plan settles that once it is standing in front of the object, rather than
+        against the pose the robot happened to start the plan in.
 
-        ..note:: The candidates are computed with :attr:`milk_arm`'s gripper, while the
-            pick-up may settle on the other one. On the PR2 that makes no difference: a
-            grasp reads its end effector only for the orientation its front faces, and
-            both of its grippers face the same way.
-
-        :param body: The body to be picked up.
         :param context: The context holding the robot that reaches for it.
-        :return: The grasps, the most promising first.
+        :return: The grasp, still open on its approach direction.
         """
-        return GraspDescription.calculate_grasp_descriptions(
-            ViewManager.get_end_effector_view(self.milk_arm, context.robot),
-            body.global_pose,
+        return a(GraspDescription)(
+            approach_direction=...,
+            vertical_alignment=VerticalAlignment.NoAlignment,
+            rotate_gripper=False,
+            end_effector=ViewManager.get_end_effector_view(
+                self.milk_arm, context.robot
+            ),
         )
+
+    def standing_poses_to_reach(
+        self, target: Union[Pose, Body], context: Context
+    ) -> Iterator[Pose]:
+        """
+        Look for poses to stand in to reach the target, offering every side of it in
+        turn.
+
+        Which side works depends on how the target is turned and on what stands around it,
+        and neither is settled while the plan is being written, so no single approach is
+        picked here: the first that yields a standing pose wins.
+
+        :param target: The body or pose that has to be reachable.
+        :param context: The context the standing pose is chosen in.
+        :return: The standing poses, those approaching from the target's front first.
+        """
+        end_effector = ViewManager.get_end_effector_view(self.milk_arm, context.robot)
+        for approach_direction in ApproachDirection:
+            yield from giskard_reachability_location(
+                target,
+                context,
+                self.milk_arm,
+                GraspDescription(
+                    approach_direction, VerticalAlignment.NoAlignment, end_effector
+                ),
+            )
 
     def build_plan(self, context: Context) -> PlanNode:
         """
@@ -468,31 +476,28 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         take a deferred location, so a standing pose is chosen once execution reaches
         them.
 
-        The pick-up leaves its grasp open over the grasps the milk's own pose allows, so
-        the plan settles that against the world it finds rather than assuming which side
-        of the carton faces the robot.
+        The pick-up leaves the side it grasps from open, and the place the heading it
+        puts the carton down at, so both are settled against the world the plan finds
+        rather than against the pose the robot started in.
         """
         world = context.world
         milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
         milk_body = milk.root
-        place_pose = self.place_pose_on_island(world, milk)
-        milk_grasps = self.grasps_for(milk_body, context)
+        place_poses = self.place_poses_on_island(world, milk)
 
         transport = [
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: giskard_reachability_location(
-                            milk_body, context, self.milk_arm, milk_grasps[0]
-                        )
+                        lambda: self.standing_poses_to_reach(milk_body, context)
                     ),
                 ),
                 keep_joint_states=True,
             ),
             a(PickUpAction)(
                 object_designator=milk_body,
-                grasp_description=variable(GraspDescription, domain=milk_grasps),
+                grasp_description=self.grasp_from_any_side(context),
                 arm=self.milk_arm,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -500,14 +505,16 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: giskard_reachability_location(
-                            place_pose, context, self.milk_arm, milk_grasps[0]
-                        )
+                        lambda: self.standing_poses_to_reach(place_poses[0], context)
                     ),
                 ),
                 keep_joint_states=True,
             ),
-            PlaceAction(milk_body, place_pose, self.milk_arm),
+            a(PlaceAction)(
+                object_designator=milk_body,
+                target_location=variable(Pose, domain=place_poses),
+                arm=self.milk_arm,
+            ),
             ParkArmsAction(Arms.BOTH),
         ]
 
