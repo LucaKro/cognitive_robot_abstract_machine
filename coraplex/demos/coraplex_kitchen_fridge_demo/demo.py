@@ -8,7 +8,8 @@ that open it and shut it again are wrapped around the transport.
 
 The world is built from specifications: the kitchen comes from a URDF, the robot from a
 :class:`~semantic_digital_twin.api.RobotSpecification`, and the shelf and the milk from
-body and annotation specifications placed relative to the fridge.
+body and annotation specifications. Building the world furnishes the kitchen; populating
+the scene puts down the milk the plan is about, and nothing else.
 
 ..note:: This demonstration is written for a simulated run. Running it with
     :attr:`~coraplex.datastructures.enums.ExecutionType.REAL` fetches the world from a
@@ -52,7 +53,11 @@ from krrood.entity_query_language.factories import (
     the,
     variable,
 )
-from semantic_digital_twin.api import RobotSpecification, WorldSpecification
+from semantic_digital_twin.api import (
+    BodySpecification,
+    RobotSpecification,
+    WorldSpecification,
+)
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
@@ -67,6 +72,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Fridge,
     Milk,
     ShelfLayer,
+    Table,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -166,6 +172,15 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     the swing of the open door.
     """
 
+    milk_start_pose: Optional[Pose] = None
+    """
+    Where the milk stands when the demonstration begins, in the world frame.
+
+    ``None`` stands it on the fridge's shelf layer at :attr:`shelf_layer_T_milk`, which
+    is what makes the fridge door part of the problem. Standing it somewhere open
+    instead leaves the plan with nothing to unpack.
+    """
+
     place_x_on_island: float = -0.8
     """
     Where on the kitchen island the milk ends up, in x.
@@ -191,11 +206,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     Reaching into the fridge means standing to the left of the opening, out of the swing
     of the open door, which leaves the milk on the robot's right.
-    """
-
-    milk_approach_direction: ApproachDirection = ApproachDirection.FRONT
-    """
-    The side of the milk carton the gripper comes from.
     """
 
     door_arm: Arms = Arms.LEFT
@@ -263,9 +273,9 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     def build_simulated_world(self) -> World:
         """
-        Load the kitchen from its URDF, put the robot in it and infer what its bodies
-        mean, which is what turns the fridge's parts into a fridge with a door and a
-        handle.
+        Load the kitchen from its URDF, put the robot in it, infer what its bodies mean
+        (which is what turns the fridge's parts into a fridge with a door and a handle),
+        stand a shelf layer in the fridge, and put right what the URDF got wrong.
         """
         world = WorldSpecification.from_urdf(
             str(self.kitchen_urdf),
@@ -280,26 +290,14 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         with world.modify_world():
             WorldReasoner(world).reason()
 
-        hinge = self.fridge_door(world).root.parent_connection
-        hinge.raw_dof.limits.upper.velocity = self.door_speed_limit
-        hinge.raw_dof.limits.lower.velocity = -self.door_speed_limit
-
-        return world
-
-    def is_scene_populated(self, world: World) -> bool:
-        milk = variable(Milk, domain=world.semantic_annotations)
-        return next(an(entity(milk)).evaluate(), None) is not None
-
-    def populate_scene(self, world: World) -> None:
-        """
-        Spawn the fridge's shelf layer and the milk standing on it.
-        """
         fridge = variable(Fridge, domain=world.semantic_annotations)
         fridge_annotation = the(entity(fridge)).first()
         shelf_layer = ShelfLayer.get_annotation_specification(
             self.shelf_layer_name,
-            ShelfLayer.get_default_root_kinematic_structure_entity_specification(
-                scale=self.shelf_layer_scale
+            BodySpecification.box(
+                self.shelf_layer_name,
+                self.shelf_layer_scale,
+                color=self.shelf_layer_color,
             ),
         ).spawn(
             world,
@@ -308,15 +306,73 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         )
         with world.modify_world():
             fridge_annotation.add(shelf_layer)
-            for shape in shelf_layer.root.visual.shapes:
-                shape.color = self.shelf_layer_color
 
-        Milk.get_annotation_specification(
+        hinge = self.fridge_door(world).root.parent_connection
+        hinge.raw_dof.limits.upper.velocity = self.door_speed_limit
+        hinge.raw_dof.limits.lower.velocity = -self.door_speed_limit
+
+        self._rest_table_on_the_floor(world)
+
+        return world
+
+    @staticmethod
+    def _rest_table_on_the_floor(world: World) -> None:
+        """
+        Lift the table until its lowest point sits on the floor.
+
+        The kitchen hangs the table's mesh off its own centre, so the URDF leaves two
+        thirds of a table standing and the rest buried.
+
+        :param world: The world holding the kitchen.
+        """
+        table = the(entity(variable(Table, domain=world.semantic_annotations))).first()
+        sunk_by = (
+            table.root.collision.as_bounding_box_collection_in_frame(world.root)
+            .bounding_box()
+            .min_z
+        )
+        connection = table.root.parent_connection
+        with world.modify_world():
+            connection.parent_T_connection_expression = (
+                HomogeneousTransformationMatrix.from_xyz_rpy(
+                    z=-sunk_by, reference_frame=connection.parent
+                )
+                @ connection.parent_T_connection_expression
+            )
+
+    def is_scene_populated(self, world: World) -> bool:
+        milk = variable(Milk, domain=world.semantic_annotations)
+        return next(an(entity(milk)).evaluate(), None) is not None
+
+    def populate_scene(self, world: World) -> None:
+        """
+        Stand the milk where the demonstration starts it, which is the fridge's shelf
+        layer unless another pose was given.
+        """
+        specification = Milk.get_annotation_specification(
             self.milk_name,
             Milk.get_default_root_kinematic_structure_entity_specification(
                 scale=self.milk_scale
             ),
-        ).spawn(world, parent=shelf_layer.root, parent_T_self=self.shelf_layer_T_milk)
+        )
+        if self.milk_start_pose is not None:
+            specification.spawn(
+                world, parent_T_self=self.milk_start_pose.to_homogeneous_matrix()
+            )
+            return
+
+        shelf_layer = variable(ShelfLayer, domain=world.semantic_annotations)
+        specification.spawn(
+            world,
+            parent=the(
+                entity(shelf_layer).where(
+                    shelf_layer.name.name == self.shelf_layer_name
+                )
+            )
+            .first()
+            .root,
+            parent_T_self=self.shelf_layer_T_milk,
+        )
 
     def fridge_door(self, world: World) -> Door:
         """
@@ -328,41 +384,60 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         door = variable(Door, domain=world.semantic_annotations)
         return the(entity(door).where(contains(fridge.doors, door))).first()
 
-    def place_pose_on_island(self, world: World) -> Pose:
+    def milk_pose_on_surface(
+        self, world: World, surface_name: str, x: float, y: float, yaw: float = 0.0
+    ) -> Pose:
         """
         :param world: The world holding the kitchen.
-        :return: The pose the milk is placed at, standing on the kitchen island surface.
+        :param surface_name: Name of the body to stand the milk on.
+        :param x: Where on the surface it stands, in world x.
+        :param y: Where on the surface it stands, in world y.
+        :param yaw: How the carton is turned.
+        :return: The pose the milk stands at, resting on top of that surface.
         """
-        island_surface = variable(Body, domain=world.bodies)
+        surface = variable(Body, domain=world.bodies)
         surface_height = (
-            the(
-                entity(island_surface).where(
-                    island_surface.name.name == self.island_surface_name
-                )
-            )
+            the(entity(surface).where(surface.name.name == surface_name))
             .first()
             .collision.as_bounding_box_collection_in_frame(world.root)
             .bounding_box()
             .max_z
         )
         return Pose.from_xyz_rpy(
+            x,
+            y,
+            surface_height + self.milk_scale.z / 2,
+            yaw=yaw,
+            reference_frame=world.root,
+        )
+
+    def place_pose_on_island(self, world: World) -> Pose:
+        """
+        :param world: The world holding the kitchen.
+        :return: The pose the milk is placed at, standing on the kitchen island surface.
+        """
+        return self.milk_pose_on_surface(
+            world,
+            self.island_surface_name,
             self.place_x_on_island,
             self.place_y_on_island,
-            surface_height + self.milk_scale.z / 2,
-            yaw=self.island_approach_yaw,
-            reference_frame=world.root,
+            self.island_approach_yaw,
         )
 
     def build_context(self, world: World) -> Context:
         """
         Build the plan context around the robot in ``world``.
+
+        Conditions are evaluated, which is what makes the underspecified arms work: a
+        hand that cannot reach the milk, or that is not the one holding it, fails its
+        precondition before it moves and the next candidate is tried.
         """
         robot = variable(self.used_robot, domain=world.semantic_annotations)
         context = Context(
             world=world,
             robot=the(entity(robot)).first(),
             ros_node=self.ros_node,
-            evaluate_conditions=False,
+            evaluate_conditions=True,
             alternative_motion_mappings=self.alternative_motion_mappings,
         )
         context.debug = True
@@ -474,6 +549,28 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     # %% the plan
 
+    def grasps_for(self, body: Body, context: Context) -> List[GraspDescription]:
+        """
+        Work out how the body can be taken hold of, from where it stands and how it is
+        turned, rather than assuming which of its sides faces the robot.
+
+        The approach directions are expressed in the body's own frame, so they follow it
+        wherever it is put.
+
+        ..note:: The candidates are computed with :attr:`milk_arm`'s gripper, while the
+            pick-up may settle on the other one. On the PR2 that makes no difference: a
+            grasp reads its end effector only for the orientation its front faces, and
+            both of its grippers face the same way.
+
+        :param body: The body to be picked up.
+        :param context: The context holding the robot that reaches for it.
+        :return: The grasps, the most promising first.
+        """
+        return GraspDescription.calculate_grasp_descriptions(
+            ViewManager.get_end_effector_view(self.milk_arm, context.robot),
+            body.global_pose,
+        )
+
     def build_plan(self, context: Context) -> PlanNode:
         """
         Carry the milk to the kitchen island, opening and shutting whatever it stands
@@ -484,16 +581,16 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         handle riding the swinging door. The navigations are therefore underspecified and
         take a deferred location, so a standing pose is chosen once execution reaches
         them.
+
+        The pick-up leaves its grasp open over the grasps the milk's own pose allows, so
+        the plan settles that against the world it finds rather than assuming which side
+        of the carton faces the robot.
         """
         world = context.world
         milk = variable(Milk, domain=world.semantic_annotations)
         milk_body = the(entity(milk)).first().root
         place_pose = self.place_pose_on_island(world)
-        milk_grasp = GraspDescription(
-            self.milk_approach_direction,
-            VerticalAlignment.NoAlignment,
-            ViewManager.get_end_effector_view(self.milk_arm, context.robot),
-        )
+        milk_grasps = self.grasps_for(milk_body, context)
 
         transport = [
             a(NavigateAction)(
@@ -501,20 +598,24 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     Pose,
                     domain=DeferredLocation(
                         lambda: giskard_reachability_location(
-                            milk_body, context, self.milk_arm, milk_grasp
+                            milk_body, context, self.milk_arm, milk_grasps[0]
                         )
                     ),
                 ),
                 keep_joint_states=True,
             ),
-            PickUpAction(milk_body, self.milk_arm, milk_grasp),
+            a(PickUpAction)(
+                object_designator=milk_body,
+                grasp_description=variable(GraspDescription, domain=milk_grasps),
+                arm=self.milk_arm,
+            ),
             ParkArmsAction(Arms.BOTH),
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
                         lambda: giskard_reachability_location(
-                            place_pose, context, self.milk_arm, milk_grasp
+                            place_pose, context, self.milk_arm, milk_grasps[0]
                         )
                     ),
                 ),
