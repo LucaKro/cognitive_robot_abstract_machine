@@ -317,9 +317,11 @@ def test_mesh_scale_and_equality(test_mjcf_2_world):
 def _write_textured_tetrahedron(directory, texture_color) -> str:
     """
     Writes a minimal textured OBJ+MTL+PNG mesh (a tetrahedron, so its convex hull is
-    non-degenerate) into ``directory``, textured with a solid ``texture_color``, and returns
-    the OBJ file's path. Always named "tetra.obj"/"tetra.mtl"/"wood.png", so callers writing
-    into different directories can reproduce a texture basename collision between them.
+    non-degenerate) into ``directory``, textured with a solid ``texture_color``, and
+    returns the OBJ file's path.
+
+    Always named "tetra.obj"/"tetra.mtl"/"wood.png", so callers writing into different
+    directories can reproduce a texture basename collision between them.
     """
     directory.mkdir(parents=True, exist_ok=True)
     Image.new("RGB", (4, 4), color=texture_color).save(directory / "wood.png")
@@ -503,6 +505,98 @@ def test_builder_assigns_material_to_a_textured_primitive_shape(tmp_path):
     assert texture.file == str(texture_file)
 
 
+# %% build-time keyframe
+
+
+def _compiled_world_at_home_keyframe(
+    world: World, file_path: str
+) -> tuple[mujoco.MjModel, mujoco.MjData]:
+    """
+    Build ``world`` into an MJCF at ``file_path`` and compile it, reset to the ``home``
+    keyframe the builder writes and with forward kinematics applied.
+
+    :return: The compiled model and its data.
+    """
+    MujocoBuilder().build_world(world=world, file_path=file_path)
+    model = mujoco.MjModel.from_xml_path(file_path)
+    data = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, data, 0)
+    mujoco.mj_forward(model, data)
+    return model, data
+
+
+def _add_free_box(world: World, name: str) -> tuple[Body, Connection6DoF]:
+    """
+    Add a unit box on a 6DoF connection to ``world``'s root.
+
+    :return: The new body and the connection carrying it.
+    """
+    body = Body(
+        name=PrefixedName(name),
+        collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.1))]),
+    )
+    with world.modify_world():
+        connection = Connection6DoF.create_with_dofs(
+            world=world, parent=world.root, child=body
+        )
+        world.add_connection(connection)
+    return body, connection
+
+
+def test_builder_keyframe_gives_every_body_its_own_pose(tmp_path):
+    """
+    Regression test: the keyframe listed each connection's DoF values in
+    ``world.bodies``
+
+    order, while the compiled model lays qpos out in the order the bodies were added to
+    the spec - ``world.bodies_topologically_sorted``. Where the two disagree, every
+    free-floating object starts the simulation at some other object's pose.
+    """
+    world = World.create_with_root_body("world")
+    first, first_connection = _add_free_box(world, "first")
+    second, second_connection = _add_free_box(world, "second")
+    first_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        x=0.1, y=0.2, z=0.3, reference_frame=world.root
+    )
+    second_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        x=0.7, y=0.8, z=0.9, reference_frame=world.root
+    )
+
+    model, data = _compiled_world_at_home_keyframe(world, str(tmp_path / "scene.xml"))
+
+    for body in (first, second):
+        body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, body.name.name)
+        numpy.testing.assert_allclose(
+            data.xpos[body_id],
+            world.compute_forward_kinematics_np(world.root, body)[:3, 3],
+            atol=1e-6,
+            err_msg=f"{body.name.name} did not start at its own pose",
+        )
+
+
+def test_builder_keyframe_writes_the_free_joint_quaternion_scalar_first(tmp_path):
+    """
+    Regression test: a free joint's qpos orders its quaternion scalar-first, but the
+    keyframe wrote ``Connection6DoF``'s own DoFs, which order it scalar-last.
+
+    Even an unrotated body then started the simulation turned by half a revolution.
+    """
+    world = World.create_with_root_body("world")
+    block, connection = _add_free_box(world, "block")
+    connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        yaw=0.5, reference_frame=world.root
+    )
+
+    model, data = _compiled_world_at_home_keyframe(world, str(tmp_path / "scene.xml"))
+
+    body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block.name.name)
+    numpy.testing.assert_allclose(
+        data.xmat[body_id].reshape(3, 3),
+        world.compute_forward_kinematics_np(world.root, block)[:3, :3],
+        atol=1e-6,
+    )
+
+
 def test_mujoco_with_tracy_dae_files():
     try:
         dae_world = URDFParser.from_file(file_path=TEST_URDF_TRACY).parse()
@@ -683,11 +777,12 @@ def test_spawn_body_with_connections():
 
 
 def test_body_frame_excludes_joint_state_at_build_time():
-    """A body's static frame must be built at the reference (zero-joint) pose.
+    """
+    A body's static frame must be built at the reference (zero-joint) pose.
 
-    The joint is non-zero while the simulator is built and is evaluated at a
-    different angle, so a frame that baked in the build-time angle would have it
-    applied twice and drift away from the world forward kinematics.
+    The joint is non-zero while the simulator is built and is evaluated at a different
+    angle, so a frame that baked in the build-time angle would have it applied twice and
+    drift away from the world forward kinematics.
     """
     world = World()
     base_body = Body(name=PrefixedName("base"))
