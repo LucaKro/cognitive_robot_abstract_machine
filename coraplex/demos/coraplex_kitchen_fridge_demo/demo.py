@@ -68,6 +68,7 @@ from semantic_digital_twin.semantic_annotations.mixins import (
     HasMechanicalJoint,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    CounterTop,
     Door,
     Fridge,
     Milk,
@@ -91,71 +92,9 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     ros_node_name: ClassVar[str] = "kitchen_fridge_demo_node"
 
-    kitchen_urdf: Path = field(
-        default_factory=lambda: Path(__file__).parents[2]
-        / "resources"
-        / "worlds"
-        / "kitchen-small.urdf"
-    )
-    """
-    The kitchen the demo plays in.
-
-    Its fridge door is the only door in it that opens.
-    """
-
-    robot_start_pose: Pose = field(
-        default_factory=lambda: Pose.from_xyz_rpy(0.0, 0.0, 0.0)
-    )
-    """
-    Where the robot starts, on the free floor between the fridge and the kitchen island.
-
-    The PR2's root is its ``base_footprint``, so a height of zero puts it on the floor.
-    """
-
-    milk_name: str = "milk"
-    """
-    Name of the transported body.
-    """
-
     shelf_layer_name: str = "fridge_shelf"
     """
     Name of the shelf layer the milk stands on.
-    """
-
-    island_surface_name: str = "kitchen_island_surface"
-    """
-    Name of the kitchen island body the milk is put down on.
-    """
-
-    milk_scale: Scale = field(default_factory=lambda: Scale(0.065, 0.065, 0.2))
-    """
-    The extents of the milk carton.
-    """
-
-    shelf_layer_scale: Scale = field(default_factory=lambda: Scale(0.45, 0.5, 0.02))
-    """
-    The extents of the shelf layer the milk stands on.
-
-    Fits into the fridge cavity, which is about 0.03 meters narrower than the shell on
-    every side.
-    """
-
-    shelf_layer_color: Color = field(default_factory=lambda: Color(0.9, 0.93, 0.95))
-    """
-    The colour of the shelf layer, an off-white against the fridge's own shell.
-    """
-
-    fridge_T_shelf_layer: HomogeneousTransformationMatrix = field(
-        default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
-            0.0, 0.02, 0.0, yaw=np.pi
-        )
-    )
-    """
-    The shelf layer in the fridge frame, centered in the cavity.
-
-    The kitchen places its fridge turned by half a turn against the room, so the layer
-    turns back: everything spawned below it is then aligned with the room, and grasped
-    from the front like any other object standing in it.
     """
 
     shelf_layer_T_milk: HomogeneousTransformationMatrix = field(
@@ -181,94 +120,12 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     instead leaves the plan with nothing to unpack.
     """
 
-    place_x_on_island: float = -0.8
-    """
-    Where on the kitchen island the milk ends up, in x.
-
-    The southern half of the island, clear of the stove and of the drawer handles.
-    """
-
-    place_y_on_island: float = 1.2
-    """
-    Where on the kitchen island the milk ends up, in y.
-
-    The height is measured from the island surface instead of being fixed here.
-    """
-
-    island_approach_yaw: float = np.pi
-    """
-    The heading the robot faces at the kitchen island, which it reaches from positive x.
-    """
-
     milk_arm: Arms = Arms.RIGHT
     """
     The arm carrying the milk.
 
     Reaching into the fridge means standing to the left of the opening, out of the swing
     of the open door, which leaves the milk on the robot's right.
-    """
-
-    door_arm: Arms = Arms.LEFT
-    """
-    The arm opening and closing the fridge door.
-
-    The robot stands to the left of the fridge opening, out of the swing of the open
-    door, which puts the handle on its left.
-    """
-
-    handle_approach_direction: ApproachDirection = ApproachDirection.BACK
-    """
-    The side of the fridge door handle the gripper comes from.
-
-    The fridge, and with it its handle, is turned by half a turn against the room, so
-    the handle's own front points into the fridge and is reached from its back. The
-    handle turns with the door, so this holds whether the door is being opened or shut.
-    """
-
-    door_speed_limit: float = 1.0
-    """
-    How fast the fridge door may swing, in radians per second.
-
-    The kitchen's URDF describes the hinge with 10 rad/s, a speed a door does not turn
-    at. The controller keeps a braking margin from a joint's own position limit that
-    grows with that limit, and at 10 rad/s the margin is wide enough that the door can
-    neither be swung fully open nor shut.
-    """
-
-    door_opening_angle: float = 1.45
-    """
-    How far the fridge door is swung open, in radians.
-
-    Wide enough to reach past it into the fridge, short of the hinge's 1.5708 limit so
-    the swing does not have to be timed against the door frame.
-    """
-
-    door_closing_angle: float = 0.0
-    """
-    How far the fridge door is asked to stand open after closing, in radians: shut.
-    """
-
-    containment_ratio: float = 0.9
-    """
-    How much of a body's volume has to lie inside another body for it to count as
-    standing in it.
-    """
-
-    door_is_closed_angle: float = 0.02
-    """
-    Up to which fridge door angle, in radians, the door counts as closed.
-
-    The closing motion parks the door within about a hundredth of a radian of the
-    hinge's limit, half a degree of swing, so this is how exactly the door shuts rather
-    than how far ajar it may stand.
-    """
-
-    placement_tolerance: float = 0.02
-    """
-    How far, in meters, the milk may end up from where it was placed.
-
-    Nothing here is subject to gravity or contact forces, so a placement that goes to
-    plan lands on the target rather than near it.
     """
 
     def build_simulated_world(self) -> World:
@@ -278,11 +135,18 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         stand a shelf layer in the fridge, and put right what the URDF got wrong.
         """
         world = WorldSpecification.from_urdf(
-            str(self.kitchen_urdf),
+            str(
+                Path(__file__).parents[2]
+                / "resources"
+                / "worlds"
+                / "kitchen-small.urdf"
+            ),
             robots=[
                 RobotSpecification(
                     semantic_annotation_type=self.used_robot,
-                    world_T_odom=self.robot_start_pose.to_homogeneous_matrix(),
+                    # The PR2's root is its base_footprint, so a height of zero puts it on
+                    # the floor, on the free space between the fridge and the island.
+                    world_T_odom=HomogeneousTransformationMatrix(),
                 )
             ],
         ).to_domain_object()
@@ -296,20 +160,32 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             self.shelf_layer_name,
             BodySpecification.box(
                 self.shelf_layer_name,
-                self.shelf_layer_scale,
-                color=self.shelf_layer_color,
+                # Fits into the fridge cavity, which is about 0.03 meters narrower than
+                # the shell on every side.
+                Scale(0.45, 0.5, 0.02),
+                color=Color(0.9, 0.93, 0.95),
             ),
         ).spawn(
             world,
             parent=fridge_annotation.root,
-            parent_T_self=self.fridge_T_shelf_layer,
+            # The kitchen places its fridge turned by half a turn against the room, so
+            # the layer turns back: everything spawned on it is then aligned with the
+            # room, and grasped from the front like any other object standing in it.
+            parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                0.0, 0.02, 0.0, yaw=np.pi
+            ),
         )
         with world.modify_world():
             fridge_annotation.add(shelf_layer)
 
+        # The URDF describes the hinge with 10 rad/s, a speed a door does not turn at. The
+        # controller keeps a braking margin from a joint's own position limit that grows
+        # with that limit, and at 10 rad/s the door can neither be swung fully open nor
+        # shut.
+        door_speed_limit = 1.0
         hinge = self.fridge_door(world).root.parent_connection
-        hinge.raw_dof.limits.upper.velocity = self.door_speed_limit
-        hinge.raw_dof.limits.lower.velocity = -self.door_speed_limit
+        hinge.raw_dof.limits.upper.velocity = door_speed_limit
+        hinge.raw_dof.limits.lower.velocity = -door_speed_limit
 
         self._rest_table_on_the_floor(world)
 
@@ -350,9 +226,9 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         layer unless another pose was given.
         """
         specification = Milk.get_annotation_specification(
-            self.milk_name,
+            "milk",
             Milk.get_default_root_kinematic_structure_entity_specification(
-                scale=self.milk_scale
+                scale=Scale(0.065, 0.065, 0.2)
             ),
         )
         if self.milk_start_pose is not None:
@@ -384,44 +260,43 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         door = variable(Door, domain=world.semantic_annotations)
         return the(entity(door).where(contains(fridge.doors, door))).first()
 
-    def milk_pose_on_surface(
-        self, world: World, surface_name: str, x: float, y: float, yaw: float = 0.0
-    ) -> Pose:
+    @staticmethod
+    def island_counter_top(world: World) -> CounterTop:
         """
         :param world: The world holding the kitchen.
-        :param surface_name: Name of the body to stand the milk on.
-        :param x: Where on the surface it stands, in world x.
-        :param y: Where on the surface it stands, in world y.
-        :param yaw: How the carton is turned.
-        :return: The pose the milk stands at, resting on top of that surface.
+        :return: The counter top the milk is put down on, told apart from the sink's by
+            the body the kitchen names it after.
         """
-        surface = variable(Body, domain=world.bodies)
-        surface_height = (
-            the(entity(surface).where(surface.name.name == surface_name))
-            .first()
-            .collision.as_bounding_box_collection_in_frame(world.root)
-            .bounding_box()
-            .max_z
-        )
-        return Pose.from_xyz_rpy(
-            x,
-            y,
-            surface_height + self.milk_scale.z / 2,
-            yaw=yaw,
-            reference_frame=world.root,
-        )
+        counter_top = variable(CounterTop, domain=world.semantic_annotations)
+        return the(
+            entity(counter_top).where(
+                counter_top.root.name.name == "kitchen_island_surface"
+            )
+        ).first()
 
-    def place_pose_on_island(self, world: World) -> Pose:
+    def place_pose_on_island(self, world: World, milk: Milk) -> Pose:
         """
+        Pick a spot on the kitchen island to put the milk down on.
+
+        The counter top works out where its own surface is and how high the milk has to
+        stand to rest on it, so the spot is drawn from the surface rather than measured
+        off a bounding box. It comes out somewhere different on every run.
+
         :param world: The world holding the kitchen.
-        :return: The pose the milk is placed at, standing on the kitchen island surface.
+        :param milk: The carton the spot has to be big enough for.
+        :return: The pose the milk is placed at.
         """
-        return self.milk_pose_on_surface(
-            world,
-            self.island_surface_name,
-            self.place_x_on_island,
-            self.place_y_on_island,
-            self.island_approach_yaw,
+        point = self.island_counter_top(world).sample_points_from_surface(
+            body_to_sample_for=milk, amount=1
+        )[0]
+        world_P_milk = world.transform(point, world.root)
+        return Pose.from_xyz_rpy(
+            world_P_milk.x,
+            world_P_milk.y,
+            world_P_milk.z,
+            # The robot reaches the island from positive x, so the carton faces it.
+            yaw=np.pi,
+            reference_frame=world.root,
         )
 
     def build_context(self, world: World) -> Context:
@@ -469,8 +344,9 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             candidate
             for candidate in world.bodies_with_collision
             if candidate is not body
-            and InsideOf(body, candidate).compute_containment_ratio()
-            > self.containment_ratio
+            # How much of the body's volume has to lie inside the candidate for it
+            # to count as standing in it.
+            and InsideOf(body, candidate).compute_containment_ratio() > 0.9
         ]
         openable = variable(HasMechanicalJoint, domain=world.semantic_annotations)
         return next(
@@ -501,10 +377,17 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         if handle is None:
             return actions
 
+        # The robot stands to the left of the fridge opening, out of the swing of the
+        # open door, which puts the handle on its left.
+        door_arm = Arms.LEFT
+        # The fridge, and with it its handle, is turned by half a turn against the room,
+        # so the handle's own front points into the fridge and is reached from its back.
+        # The handle turns with the door, so this holds for opening and shutting alike.
+        handle_approach_direction = ApproachDirection.BACK
         handle_grasp = GraspDescription(
-            self.handle_approach_direction,
+            handle_approach_direction,
             VerticalAlignment.NoAlignment,
-            ViewManager.get_end_effector_view(self.door_arm, context.robot),
+            ViewManager.get_end_effector_view(door_arm, context.robot),
         )
 
         return [
@@ -513,7 +396,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     Pose,
                     domain=DeferredLocation(
                         lambda: giskard_reachability_location(
-                            handle, context, self.door_arm, handle_grasp
+                            handle, context, door_arm, handle_grasp
                         )
                     ),
                 ),
@@ -521,9 +404,11 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ),
             OpenAction(
                 handle,
-                self.door_arm,
-                self.handle_approach_direction,
-                self.door_opening_angle,
+                door_arm,
+                handle_approach_direction,
+                # Wide enough to reach past the door into the fridge, short of the
+                # hinge's 1.5708 limit so the swing is not timed against the door frame.
+                goal_joint_state=1.45,
             ),
             ParkArmsAction(Arms.BOTH),
             *actions,
@@ -532,7 +417,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     Pose,
                     domain=DeferredLocation(
                         lambda: giskard_reachability_location(
-                            handle, context, self.door_arm, handle_grasp
+                            handle, context, door_arm, handle_grasp
                         )
                     ),
                 ),
@@ -540,9 +425,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ),
             CloseAction(
                 handle,
-                self.door_arm,
-                self.handle_approach_direction,
-                self.door_closing_angle,
+                door_arm,
+                handle_approach_direction,
+                # Shut.
+                goal_joint_state=0.0,
             ),
             ParkArmsAction(Arms.BOTH),
         ]
@@ -587,9 +473,9 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         of the carton faces the robot.
         """
         world = context.world
-        milk = variable(Milk, domain=world.semantic_annotations)
-        milk_body = the(entity(milk)).first().root
-        place_pose = self.place_pose_on_island(world)
+        milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
+        milk_body = milk.root
+        place_pose = self.place_pose_on_island(world, milk)
         milk_grasps = self.grasps_for(milk_body, context)
 
         transport = [
@@ -651,18 +537,33 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
     )
     world = demonstration.run()
 
-    milk = variable(Milk, domain=world.semantic_annotations)
-    milk_position = the(entity(milk)).first().root.global_pose.to_position()
-    expected_position = demonstration.place_pose_on_island(world).to_position()
+    milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
+    milk_box = milk.root.collision.as_bounding_box_collection_in_frame(
+        world.root
+    ).bounding_box()
+    counter_top = demonstration.island_counter_top(world)
+    surface_box = (
+        counter_top.supporting_surface.area.as_bounding_box_collection_in_frame(
+            world.root
+        ).bounding_box()
+    )
     door_angle = demonstration.fridge_door(world).root.parent_connection.position
-    print(f"milk placed at {np.round(milk_position, 3)}")
-    print(f"Expected milk to be placed at {np.round(expected_position, 3)}")
+
+    print(f"milk placed at {np.round(milk.root.global_pose.to_position(), 3)}")
+    print(
+        f"it rests at {milk_box.min_z:.4f}, the island's top is {surface_box.max_z:.4f}"
+    )
     print(f"fridge door closed to {door_angle:.4f} rad")
 
-    assert np.allclose(
-        milk_position, expected_position, atol=demonstration.placement_tolerance
-    )
-    assert door_angle < demonstration.door_is_closed_angle
+    # Nothing here is subject to gravity or contact forces, so a placement that goes to
+    # plan lands on the surface rather than near it.
+    placement_tolerance = 0.02
+    assert abs(milk_box.min_z - surface_box.max_z) < placement_tolerance
+    assert surface_box.min_x <= milk_box.min_x and milk_box.max_x <= surface_box.max_x
+    assert surface_box.min_y <= milk_box.min_y and milk_box.max_y <= surface_box.max_y
+    # The closing motion parks the door within about a hundredth of a radian of the
+    # hinge's limit, so this is how exactly it shuts rather than how far ajar it may be.
+    assert door_angle < 0.02
     return world
 
 

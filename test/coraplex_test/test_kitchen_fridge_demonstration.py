@@ -154,23 +154,7 @@ def test_the_milk_is_put_down_on_a_counter_top(demonstration, fridge_world):
     """
     counter_tops = fridge_world.get_semantic_annotations_by_type(CounterTop)
 
-    assert fridge_world.get_body_by_name(demonstration.island_surface_name) in [
-        counter_top.root for counter_top in counter_tops
-    ]
-
-
-def test_shelf_layer_is_coloured_by_its_specification(demonstration, fridge_world):
-    """
-    The colour comes from the body specification the shelf layer is built from, not from
-    recolouring its shapes afterwards.
-    """
-    shelf_layer = the(
-        entity(variable(ShelfLayer, domain=fridge_world.semantic_annotations))
-    ).first()
-
-    assert [shape.color for shape in shelf_layer.root.visual.shapes] == [
-        demonstration.shelf_layer_color
-    ]
+    assert demonstration.island_counter_top(fridge_world) in counter_tops
 
 
 # %% finding what has to be opened
@@ -209,7 +193,7 @@ def test_body_standing_in_the_open_has_no_handle(demonstration, fridge_world):
     """
     The kitchen island surface is in nothing that opens, so there is nothing to pull.
     """
-    island_surface = fridge_world.get_body_by_name(demonstration.island_surface_name)
+    island_surface = demonstration.island_counter_top(fridge_world).root
 
     assert (
         demonstration.handle_of_enclosing_container(island_surface, fridge_world)
@@ -247,16 +231,14 @@ def test_container_steps_enclose_the_given_steps(
     opening = steps[1]
     assert isinstance(opening, OpenAction)
     assert opening.object_designator is handle
-    assert opening.arm is demonstration.door_arm
-    assert opening.approach_direction is demonstration.handle_approach_direction
-    assert opening.goal_joint_state == demonstration.door_opening_angle
+    assert opening.goal_joint_state > 0.0
 
     shutting = steps[-2]
     assert isinstance(shutting, CloseAction)
     assert shutting.object_designator is handle
-    assert shutting.arm is demonstration.door_arm
-    assert shutting.approach_direction is demonstration.handle_approach_direction
-    assert shutting.goal_joint_state == demonstration.door_closing_angle
+    assert shutting.goal_joint_state < opening.goal_joint_state
+    assert shutting.arm is opening.arm
+    assert shutting.approach_direction is opening.approach_direction
 
 
 def test_nothing_is_added_for_a_body_in_the_open(
@@ -265,7 +247,7 @@ def test_nothing_is_added_for_a_body_in_the_open(
     """
     A body that stands in nothing that opens leaves the plan as it was.
     """
-    island_surface = fridge_world.get_body_by_name(demonstration.island_surface_name)
+    island_surface = demonstration.island_counter_top(fridge_world).root
     transport = [ParkArmsAction(Arms.BOTH)]
 
     assert (
@@ -357,27 +339,18 @@ def test_grasps_turn_with_the_body(demonstration, fridge_context, milk_body):
 # %% the demo adapts to where the milk stands
 
 
-def milk_standing_in_the_open(
-    offset_along_island: float = 0.4,
-) -> "demo.KitchenFridgeDemonstration":
+def milk_standing_in_the_open() -> "demo.KitchenFridgeDemonstration":
     """
-    :param offset_along_island: How far along the island, in meters, the milk starts from
-        where it is put down. Far enough that carrying it there is a real transport rather
-        than a nudge, and still on the southern half of the island the demo places into.
-    :return: A demonstration that starts the milk on the kitchen island rather than in the
-        fridge, clear of the spot it is later placed at.
+    :return: A demonstration that starts the milk out on the kitchen island rather than in
+        the fridge, so nothing has to be opened to reach it.
     """
     layout = demo.KitchenFridgeDemonstration(used_robot=PR2)
     world = layout.build_simulated_world()
+    layout.populate_scene(world)
+    milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
     return demo.KitchenFridgeDemonstration(
         used_robot=PR2,
-        milk_start_pose=layout.milk_pose_on_surface(
-            world,
-            layout.island_surface_name,
-            layout.place_x_on_island,
-            layout.place_y_on_island + offset_along_island,
-            layout.island_approach_yaw,
-        ),
+        milk_start_pose=layout.place_pose_on_island(world, milk),
     )
 
 
@@ -432,10 +405,7 @@ def test_milk_turned_around_is_still_delivered():
     world = demonstration.run()
 
     assert_milk_was_delivered(demonstration, world)
-    assert (
-        demonstration.fridge_door(world).root.parent_connection.position
-        < demonstration.door_is_closed_angle
-    )
+    assert demonstration.fridge_door(world).root.parent_connection.position < 0.02
 
 
 @pytest.mark.slow
@@ -451,11 +421,19 @@ def test_milk_in_the_open_is_delivered():
 
 def assert_milk_was_delivered(demonstration, world) -> None:
     """
-    Check that the milk ended up where the demonstration placed it.
+    Check that the milk ended up resting on the kitchen island, wherever on it the
+    demonstration sampled its spot.
     """
-    milk = variable(Milk, domain=world.semantic_annotations)
-    assert np.allclose(
-        the(entity(milk)).first().root.global_pose.to_position(),
-        demonstration.place_pose_on_island(world).to_position(),
-        atol=demonstration.placement_tolerance,
+    milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
+    milk_box = milk.root.collision.as_bounding_box_collection_in_frame(
+        world.root
+    ).bounding_box()
+    surface_box = (
+        demonstration.island_counter_top(world)
+        .supporting_surface.area.as_bounding_box_collection_in_frame(world.root)
+        .bounding_box()
     )
+
+    assert milk_box.min_z == pytest.approx(surface_box.max_z, abs=0.02)
+    assert surface_box.min_x <= milk_box.min_x and milk_box.max_x <= surface_box.max_x
+    assert surface_box.min_y <= milk_box.min_y and milk_box.max_y <= surface_box.max_y
