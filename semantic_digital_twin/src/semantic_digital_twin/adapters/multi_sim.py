@@ -1801,21 +1801,49 @@ class MujocoBuilder(MultiSimBuilder):
         key_element = ET.SubElement(keyframe_element, "key")
         key_element.set("name", "home")
         key_element.set("time", "0")
-        qpos = []
-        for body in self.world.bodies:
-            parent_connection = body.parent_connection
-            if (
-                isinstance(parent_connection, self._ignore_connection_types)
-                or parent_connection is None
-            ):
-                continue
-            qpos += [
-                self.world.state[dof.id].position
-                for dof in parent_connection.active_dofs
-                + parent_connection.passive_dofs
-            ]
-        key_element.set("qpos", " ".join(map(str, qpos)))
+        key_element.set("qpos", " ".join(map(str, self._keyframe_qpos())))
         tree.write(file_path, encoding="utf-8", xml_declaration=True)
+
+    def _keyframe_qpos(self) -> List[float]:
+        """
+        The world's current state, laid out the way the compiled model orders ``qpos``.
+
+        The order is read off the spec's own joints rather than off the world, so it
+        stays in step with whatever order the bodies were emitted in.
+        """
+        connection_by_joint_name = {
+            connection.name.name: connection for connection in self.world.connections
+        }
+        qpos = []
+        for body_spec in self.spec.bodies:
+            for joint_spec in body_spec.joints:
+                qpos += self._joint_qpos(connection_by_joint_name[joint_spec.name])
+        return qpos
+
+    def _joint_qpos(self, connection: Connection) -> List[float]:
+        """
+        The ``qpos`` values ``connection``'s joint holds at the world's current state.
+
+        A :class:`Connection6DoF` is built as a free joint, whose ``qpos`` orders the
+        quaternion scalar-first, while the connection's own degrees of freedom order it
+        scalar-last.
+        """
+        state = self.world.state
+        if isinstance(connection, Connection6DoF):
+            free_joint_dofs = [
+                connection.x,
+                connection.y,
+                connection.z,
+                connection.qw,
+                connection.qx,
+                connection.qy,
+                connection.qz,
+            ]
+            return [state[dof.id].position for dof in free_joint_dofs]
+        return [
+            state[dof.id].position
+            for dof in connection.active_dofs + connection.passive_dofs
+        ]
 
     def _build_body(self, body: Body):
         self._build_mujoco_body(body=body)
