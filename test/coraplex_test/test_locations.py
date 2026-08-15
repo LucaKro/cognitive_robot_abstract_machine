@@ -504,7 +504,7 @@ def test_giskard_backend_reaches_for_a_pose_with_what_the_gripper_holds(
     target = Pose.from_xyz_rpy(1.0, 0.5, 0.8, reference_frame=world.root)
     backend = _backend_reaching_for(target, robot, world)
 
-    sequence = backend.reach_sequence()
+    sequence = backend.reach_sequence(backend.grasp_description)
 
     transport, placing, _ = backend.grasp_description.place_pose_sequence(target)
     assert [pose.to_np().tolist() for pose in sequence] == [
@@ -568,6 +568,44 @@ def test_giskard_backend_follows_the_robot_when_it_stands_somewhere_else(
     assert headings == [pytest.approx(0.0), pytest.approx(1.2)]
 
 
+def test_giskard_backend_offers_every_side_when_it_is_given_no_grasp(
+    single_robot_world,
+):
+    """
+    Which side the gripper comes from depends on where the robot ends up standing, so a
+    backend given no grasp keeps all of them open rather than settling one up front.
+    """
+    world, robot, context = single_robot_world
+    backend = GiskardLocationBackend(
+        target=Pose.from_xyz_rpy(1.0, 0.5, 0.8, reference_frame=world.root),
+        arm=Arms.RIGHT,
+        grasp_description=None,
+        robot=robot,
+        world=world,
+    )
+
+    grasps = backend.grasps_to_try()
+
+    assert [grasp.approach_direction for grasp in grasps] == list(ApproachDirection)
+    assert {grasp.vertical_alignment for grasp in grasps} == {
+        VerticalAlignment.NoAlignment
+    }
+    assert {grasp.end_effector for grasp in grasps} == {
+        ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+    }
+
+
+def test_giskard_backend_keeps_to_the_grasp_it_was_given(single_robot_world):
+    """
+    A caller that knows which side it comes from is not second-guessed.
+    """
+    world, robot, context = single_robot_world
+    target = Pose.from_xyz_rpy(1.0, 0.5, 0.8, reference_frame=world.root)
+    backend = _backend_reaching_for(target, robot, world)
+
+    assert backend.grasps_to_try() == [backend.grasp_description]
+
+
 def test_giskard_backend_leaves_a_pose_target_alone(single_robot_world):
     """
     A pose already says which way it faces, so the robot's heading does not touch it.
@@ -587,7 +625,7 @@ def test_giskard_backend_reaches_for_a_pose_directly_with_an_empty_hand(
     target = Pose.from_xyz_rpy(1.0, 0.5, 0.8, reference_frame=world.root)
     backend = _backend_reaching_for(target, robot, world)
 
-    assert backend.reach_sequence() == [target]
+    assert backend.reach_sequence(backend.grasp_description) == [target]
 
 
 def test_giskard_backend_demands_the_accuracy_the_motions_demand(single_robot_world):

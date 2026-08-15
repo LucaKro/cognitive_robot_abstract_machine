@@ -20,11 +20,11 @@ the scene puts down the milk the plan is about, and nothing else.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import ClassVar, Iterator, List, Optional, Union
+from typing_extensions import ClassVar, List, Optional
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
@@ -38,7 +38,7 @@ from coraplex.demonstrations import RobotDemonstration
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import giskard_reachability_location
 from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import ActionLike, ActionNode, PlanNode
+from coraplex.plans.plan_node import ActionLike, PlanNode
 from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -64,7 +64,6 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Fridge,
     Milk,
     ShelfLayer,
-    Table,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
@@ -113,9 +112,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     def build_simulated_world(self) -> World:
         """
-        Load the kitchen from its URDF, put the robot in it, infer what its bodies mean
-        (which is what turns the fridge's parts into a fridge with a door and a handle),
-        stand a shelf layer in the fridge, and put right what the URDF got wrong.
+        Load the kitchen from its URDF, put the robot in it, infer what its bodies mean.
+
+        -- which is what turns the fridge's parts into a fridge with a door and a handle
+        -- and stand a shelf layer in the fridge.
         """
         world = WorldSpecification.from_urdf(
             str(
@@ -161,47 +161,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         with world.modify_world():
             fridge_annotation.add(shelf_layer)
 
-        # The URDF describes the hinge with 10 rad/s, a speed a door does not turn at. The
-        # controller keeps a braking margin from a joint's own position limit that grows
-        # with that limit, and at 10 rad/s the door can neither be swung fully open nor
-        # shut.
-        door_speed_limit = 1.0
-        hinge = self.fridge_door(world).root.parent_connection
-        hinge.raw_dof.limits.upper.velocity = door_speed_limit
-        hinge.raw_dof.limits.lower.velocity = -door_speed_limit
-
-        self._correct_where_the_table_stands(world)
-
         return world
-
-    @staticmethod
-    def _correct_where_the_table_stands(world: World) -> None:
-        """
-        Put the table on the floor and give the robot room to get past it.
-
-        The kitchen hangs the table's mesh off its own centre, so the URDF leaves two
-        thirds of a table standing and the rest buried. It also stands close enough to
-        the kitchen island that the robot's base clips it on the way round.
-
-        :param world: The world holding the kitchen.
-        """
-        table = the(entity(variable(Table, domain=world.semantic_annotations))).first()
-        sunk_by = (
-            table.root.collision.as_bounding_box_collection_in_frame(world.root)
-            .bounding_box()
-            .min_z
-        )
-        connection = table.root.parent_connection
-        with world.modify_world():
-            connection.parent_T_connection_expression = (
-                HomogeneousTransformationMatrix.from_xyz_rpy(
-                    # Away from the island, widening the gap the robot drives through.
-                    y=-0.5,
-                    z=-sunk_by,
-                    reference_frame=connection.parent,
-                )
-                @ connection.parent_T_connection_expression
-            )
 
     def is_scene_populated(self, world: World) -> bool:
         milk = variable(Milk, domain=world.semantic_annotations)
@@ -362,12 +322,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         if handle is None:
             return actions
 
-        # The robot stands to the left of the fridge opening, out of the swing of the
-        # open door, which puts the handle on its left.
         door_arm = Arms.LEFT
-        # The fridge, and with it its handle, is turned by half a turn against the room,
-        # so the handle's own front points into the fridge and is reached from its back.
-        # The handle turns with the door, so this holds for opening and shutting alike.
         handle_approach_direction = ApproachDirection.BACK
         handle_grasp = GraspDescription(
             handle_approach_direction,
@@ -391,8 +346,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 handle,
                 door_arm,
                 handle_approach_direction,
-                # Wide enough to reach past the door into the fridge, short of the
-                # hinge's 1.5708 limit so the swing is not timed against the door frame.
                 goal_joint_state=1.45,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -412,7 +365,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 handle,
                 door_arm,
                 handle_approach_direction,
-                # Shut.
                 goal_joint_state=0.0,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -439,74 +391,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ),
         )
 
-    def grasps_from_every_side(self, context: Context) -> List[GraspDescription]:
-        """
-        :param context: The context holding the robot that reaches.
-        :return: One grasp per side the gripper could come from, for a target whose
-            approach the plan has not settled yet.
-        """
-        end_effector = ViewManager.get_end_effector_view(self.milk_arm, context.robot)
-        return [
-            GraspDescription(
-                approach_direction, VerticalAlignment.NoAlignment, end_effector
-            )
-            for approach_direction in ApproachDirection
-        ]
-
-    def grasp_the_milk_is_held_with(self, context: Context) -> GraspDescription:
-        """
-        Find how the milk ended up in the gripper.
-
-        Putting it down is the pick-up run backwards, so the place has no say in the
-        grasp: it works with whichever side the pick-up settled on, and a standing pose
-        for the place has to be found for that one rather than for any of the others.
-
-        :param context: The context holding the plan the pick-up ran in.
-        :return: The grasp the milk is carried with, and a front grasp while nothing has
-            been picked up yet.
-        """
-        picked_up = [
-            node.designator
-            for node in context.plan.nodes
-            if isinstance(node, ActionNode)
-            and isinstance(node.designator, PickUpAction)
-        ]
-        if picked_up:
-            return picked_up[-1].grasp_description
-        return self.grasps_from_every_side(context)[0]
-
-    def standing_poses_to_reach(
-        self,
-        targets: List[Union[Point3, Pose, Body]],
-        grasps: List[GraspDescription],
-        context: Context,
-    ) -> Iterator[Pose]:
-        """
-        Look for poses to stand in to reach any of the targets with any of the grasps.
-
-        The searches are drawn from one pose at a time and in turn, so an awkward target
-        cannot use up the whole search on its own: when a target the robot cannot easily
-        stand at is offered next to one it can, the easy one is reached after a single
-        unlucky pose rather than after that target's every pose has been tried.
-
-        :param targets: The bodies or poses, any one of which has to be reachable.
-        :param grasps: The grasps, any one of which may be used to reach them.
-        :param context: The context the standing poses are chosen in.
-        :return: The standing poses, targets varying fastest.
-        """
-        searches = [
-            iter(giskard_reachability_location(target, context, self.milk_arm, grasp))
-            for grasp in grasps
-            for target in targets
-        ]
-        while searches:
-            for search in list(searches):
-                standing_pose = next(search, None)
-                if standing_pose is None:
-                    searches.remove(search)
-                    continue
-                yield standing_pose
-
     def build_plan(self, context: Context) -> PlanNode:
         """
         Carry the milk to the kitchen island, opening and shutting whatever it stands
@@ -532,8 +416,8 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: self.standing_poses_to_reach(
-                            [milk_body], self.grasps_from_every_side(context), context
+                        lambda: giskard_reachability_location(
+                            milk_body, context, self.milk_arm
                         )
                     ),
                 ),
@@ -549,10 +433,8 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: self.standing_poses_to_reach(
-                            [place_spot],
-                            [self.grasp_the_milk_is_held_with(context)],
-                            context,
+                        lambda: giskard_reachability_location(
+                            place_spot, context, self.milk_arm
                         )
                     ),
                 ),
@@ -560,8 +442,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ),
             a(PlaceAction)(
                 object_designator=milk_body,
-                # The heading is read off the robot once it has driven up to the spot,
-                # so the carton is put down the way the robot that carries it stands.
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(

@@ -21,7 +21,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
     Drawer,
 )
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -188,10 +188,10 @@ def visibility_location(target: Union[Pose, Body], context: Context) -> Location
 
 
 def giskard_reachability_location(
-    target: Union[Pose, Body],
+    target: Union[Point3, Pose, Body],
     context: Context,
     arm: Arms,
-    grasp_description: GraspDescription = None,
+    grasp_description: Optional[GraspDescription] = None,
 ) -> Location:
     """
     Factory method that creates a location with a Giskard backend, the giskard backend
@@ -201,20 +201,16 @@ def giskard_reachability_location(
     once the robot has driven there and reached the target from it, so the reach has
     already been performed by the time a candidate appears.
 
-    :param target: Target pose or body that should be reachable
+    :param target: Target point, pose or body that should be reachable. A point is
+        reached for turned the way the robot stands, a pose as it is given.
     :param context: Plan context in which to create the location
     :param arm: Arm to use for reachability estimation
-    :param grasp_description: Grap that should be used for reachability estimation
+    :param grasp_description: How the gripper comes at the target. Leaving it out leaves
+        the side open, and every side is tried at each pose the search considers.
     :returns: A location that is reachable from the target pose, using Giskard for
         reachability estimation.
     """
     target_pose = target.global_pose if isinstance(target, Body) else target
-
-    grasp_description = grasp_description or GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        ViewManager.get_end_effector_view(arm, context.robot),
-    )
 
     backend = GiskardLocationBackend(
         target, arm, grasp_description, context.robot, context.world

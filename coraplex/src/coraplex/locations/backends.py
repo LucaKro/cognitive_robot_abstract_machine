@@ -22,7 +22,7 @@ from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.datastructures.dataclasses import MotionToleranceConfig
 from coraplex.plans.failures import MOTION_DID_NOT_WORK_OUT
-from coraplex.datastructures.enums import Arms
+from coraplex.datastructures.enums import ApproachDirection, Arms, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription, GraspPose
 from coraplex.locations.base import Location, PoseGeneratorBackend
 from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostmap
@@ -85,9 +85,11 @@ class GiskardLocationBackend(PoseGeneratorBackend):
     Arm of the which should be used.
     """
 
-    grasp_description: GraspDescription
+    grasp_description: Optional[GraspDescription]
     """
-    Grasp description of how to approach the target
+    How the gripper comes at the target.
+
+    ``None`` leaves the side open; see :meth:`grasps_to_try`.
     """
 
     robot: AbstractRobot
@@ -128,9 +130,13 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                 else cast(Body, world.get_world_entity_with_id_by_id(self.target.id))
             ),
             arm=self.arm,
-            grasp_description=replace(
-                self.grasp_description,
-                end_effector=ViewManager.get_end_effector_view(self.arm, robot),
+            grasp_description=(
+                None
+                if self.grasp_description is None
+                else replace(
+                    self.grasp_description,
+                    end_effector=ViewManager.get_end_effector_view(self.arm, robot),
+                )
             ),
             robot=robot,
             world=world,
@@ -254,8 +260,30 @@ class GiskardLocationBackend(PoseGeneratorBackend):
             reference_frame=self.world.root,
         )
 
-    def reach_sequence(self) -> List[Pose]:
+    def grasps_to_try(self) -> List[GraspDescription]:
         """
+        Work out which grasps a standing pose has to allow.
+
+        A backend given no grasp offers one per side the gripper could come from, so which
+        side works is settled against the pose the robot is standing at rather than
+        before anywhere to stand was known. Which side that turns out to be depends on
+        where the robot ends up, so choosing it first is choosing it too early.
+
+        :return: The grasp this backend was given, or every side when it was given none.
+        """
+        if self.grasp_description is not None:
+            return [self.grasp_description]
+        end_effector = ViewManager.get_end_effector_view(self.arm, self.robot)
+        return [
+            GraspDescription(
+                approach_direction, VerticalAlignment.NoAlignment, end_effector
+            )
+            for approach_direction in ApproachDirection
+        ]
+
+    def reach_sequence(self, grasp: GraspDescription) -> List[Pose]:
+        """
+        :param grasp: How the gripper comes at the target.
         :return: The poses the gripper moves through to manipulate the target, which is
             the reach a standing pose has to allow. A body is approached from a stand-off
             pre-pose and closed in on, the way
@@ -267,14 +295,12 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         """
         target = self.target_facing_the_robot()
         if isinstance(target, Body):
-            pre_pose, grasp_pose, _ = self.grasp_description.grasp_pose_sequence(target)
+            pre_pose, grasp_pose, _ = grasp.grasp_pose_sequence(target)
             return [pre_pose, grasp_pose]
-        tool_frame = self.grasp_description.end_effector.tool_frame
+        tool_frame = grasp.end_effector.tool_frame
         if not tool_frame.child_kinematic_structure_entities:
             return [target]
-        transport_pose, placing_pose, _ = self.grasp_description.place_pose_sequence(
-            target
-        )
+        transport_pose, placing_pose, _ = grasp.place_pose_sequence(target)
         return [transport_pose, placing_pose]
 
     def can_reach_target(self) -> bool:
@@ -285,16 +311,21 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         The robot is free to drive while it reaches, exactly as it is when the
         manipulation itself runs, so what this answers is whether standing here is a
         workable place to start from -- not whether the arm alone spans the distance.
+
+        Every grasp still open is tried from this one pose, which is far cheaper than
+        looking for a pose per grasp: the poses are what cost a solve each.
         """
         end_effector = ViewManager.get_end_effector_view(self.arm, self.robot)
-        executor = self.setup_giskard_executor(
-            self.reach_sequence(), self.world, self.robot, end_effector
-        )
-        try:
-            executor.tick_until_end(CANDIDATE_TICK_BUDGET)
-        except UNREACHED_TARGET_OUTCOMES:
-            return False
-        return True
+        for grasp in self.grasps_to_try():
+            executor = self.setup_giskard_executor(
+                self.reach_sequence(grasp), self.world, self.robot, end_effector
+            )
+            try:
+                executor.tick_until_end(CANDIDATE_TICK_BUDGET)
+            except UNREACHED_TARGET_OUTCOMES:
+                continue
+            return True
+        return False
 
     def __iter__(self) -> Iterator[Pose]:
         resolved = self.target_facing_the_robot()
