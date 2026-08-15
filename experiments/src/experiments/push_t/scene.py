@@ -36,6 +36,7 @@ from semantic_digital_twin.world_description.geometry import (
     Shape,
     Sphere,
 )
+from semantic_digital_twin.world_description.inertial_properties import Inertial
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Actuator, Body
 
@@ -58,6 +59,38 @@ STEM_OFFSET = (CROSSBAR_SCALE.y + STEM_SCALE.y) / 2
 
 PUSHER_RADIUS = 0.02
 """Radius of the sphere standing in for the end effector."""
+
+PUSHING_HEIGHT = PUSHER_RADIUS
+"""
+Height of the pusher's centre above the ground when it rests on the plane, in metres.
+
+This is the height at which it meets the block.
+"""
+
+PUSHER_TRAVEL_HEIGHT = BLOCK_HEIGHT + 2 * PUSHER_RADIUS
+"""
+Height of the pusher's centre above the ground when it is raised clear of the block.
+
+At this height the sphere's underside clears the block's top face by a radius, which is
+what lets the pusher cross the block to reach another of its faces.
+"""
+
+PUSHER_LIFT_HEIGHT = PUSHER_TRAVEL_HEIGHT - PUSHING_HEIGHT
+"""
+How far the pusher's vertical joint may travel, in metres.
+
+Its zero is the pushing height, so this is the whole range between meeting the block and
+clearing it.
+"""
+
+PUSHER_LINK_MASS = 0.05
+"""
+Mass of each of the bodies the pusher's slide joints carry, in kilograms.
+
+They exist only to hang the next joint off, and their weight is a load the vertical servo
+has to hold against gravity: a full kilogram each would sag the pusher below its set point
+by more than the block is tall.
+"""
 
 PUSHER_TRAVEL = 1.0
 """How far the pusher may slide from the origin along either axis."""
@@ -169,11 +202,17 @@ class PushTScene:
     pusher_y_connection: PrismaticConnection
     """Slides the pusher along y."""
 
+    pusher_z_connection: PrismaticConnection
+    """Raises the pusher clear of the block, so it can cross to another of its faces."""
+
     pusher_x_actuator: Actuator
     """The servo driving :attr:`pusher_x_connection` towards a commanded position."""
 
     pusher_y_actuator: Actuator
     """The servo driving :attr:`pusher_y_connection` towards a commanded position."""
+
+    pusher_z_actuator: Actuator
+    """The servo driving :attr:`pusher_z_connection` towards a commanded position."""
 
     @classmethod
     def create(cls, block_pose: PlanarPose, pusher_position: PlanarPoint) -> PushTScene:
@@ -208,7 +247,14 @@ class PushTScene:
             name=PrefixedName("t_target"),
             visual=ShapeCollection(build_t_shapes(TARGET_COLOR)),
         )
-        pusher_slide = Body(name=PrefixedName("pusher_slide"))
+        pusher_x_slide = Body(
+            name=PrefixedName("pusher_x_slide"),
+            inertial=Inertial(mass=PUSHER_LINK_MASS),
+        )
+        pusher_y_slide = Body(
+            name=PrefixedName("pusher_y_slide"),
+            inertial=Inertial(mass=PUSHER_LINK_MASS),
+        )
         pusher = Body(
             name=PrefixedName("pusher"),
             visual=ShapeCollection(pusher_shapes),
@@ -239,27 +285,39 @@ class PushTScene:
             )
             world.add_connection(block_connection)
 
-            # The pusher hangs off two slide joints rather than a 6DoF connection: those
-            # are actively controllable, so a motion controller can command them.
+            # The pusher hangs off three slide joints rather than a 6DoF connection:
+            # those are actively controllable, so a motion controller can command them.
             pusher_x_connection = cls._add_pusher_slide(
                 world=world,
                 name="pusher_x",
                 parent=root,
-                child=pusher_slide,
+                child=pusher_x_slide,
                 axis=Vector3.X(reference_frame=root),
-                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                    z=PUSHER_RADIUS, reference_frame=root
-                ),
             )
             pusher_y_connection = cls._add_pusher_slide(
                 world=world,
                 name="pusher_y",
-                parent=pusher_slide,
+                parent=pusher_x_slide,
+                child=pusher_y_slide,
+                axis=Vector3.Y(reference_frame=pusher_x_slide),
+            )
+            # The vertical joint carries the offset that rests the sphere on the plane,
+            # so its zero is the height at which the pusher meets the block.
+            pusher_z_connection = cls._add_pusher_slide(
+                world=world,
+                name="pusher_z",
+                parent=pusher_y_slide,
                 child=pusher,
-                axis=Vector3.Y(reference_frame=pusher_slide),
+                axis=Vector3.Z(reference_frame=pusher_y_slide),
+                lower_limit=0.0,
+                upper_limit=PUSHER_LIFT_HEIGHT,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    z=PUSHER_RADIUS, reference_frame=pusher_y_slide
+                ),
             )
             pusher_x_actuator = cls._add_pusher_servo(world, pusher_x_connection)
             pusher_y_actuator = cls._add_pusher_servo(world, pusher_y_connection)
+            pusher_z_actuator = cls._add_pusher_servo(world, pusher_z_connection)
 
         scene = cls(
             world=world,
@@ -270,8 +328,10 @@ class PushTScene:
             block_connection=block_connection,
             pusher_x_connection=pusher_x_connection,
             pusher_y_connection=pusher_y_connection,
+            pusher_z_connection=pusher_z_connection,
             pusher_x_actuator=pusher_x_actuator,
             pusher_y_actuator=pusher_y_actuator,
+            pusher_z_actuator=pusher_z_actuator,
         )
         scene.block_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
             x=block_pose.x,
@@ -292,12 +352,14 @@ class PushTScene:
         parent: Body,
         child: Body,
         axis: Vector3,
+        lower_limit: float = -PUSHER_TRAVEL,
+        upper_limit: float = PUSHER_TRAVEL,
         parent_T_connection_expression: Optional[
             HomogeneousTransformationMatrix
         ] = None,
     ) -> PrismaticConnection:
         """
-        Add one of the two slide joints carrying the pusher.
+        Add one of the three slide joints carrying the pusher.
 
         The joint's degree of freedom is named after the joint, so that a servo can
         later be matched to it by name. Its position limits are spelled out because a
@@ -308,6 +370,8 @@ class PushTScene:
         :param parent: The entity the joint slides relative to.
         :param child: The entity the joint carries.
         :param axis: The direction the joint slides along.
+        :param lower_limit: How far the joint may travel along ``-axis``.
+        :param upper_limit: How far the joint may travel along ``axis``.
         :param parent_T_connection_expression: Constant pose of the joint relative to
             ``parent``.
         :return: The newly added connection.
@@ -315,12 +379,8 @@ class PushTScene:
         degree_of_freedom = DegreeOfFreedom(
             name=PrefixedName(name),
             limits=DegreeOfFreedomLimits(
-                lower=DerivativeMap(
-                    position=-PUSHER_TRAVEL, velocity=-PUSHER_SPEED_LIMIT
-                ),
-                upper=DerivativeMap(
-                    position=PUSHER_TRAVEL, velocity=PUSHER_SPEED_LIMIT
-                ),
+                lower=DerivativeMap(position=lower_limit, velocity=-PUSHER_SPEED_LIMIT),
+                upper=DerivativeMap(position=upper_limit, velocity=PUSHER_SPEED_LIMIT),
             ),
         )
         world.add_degree_of_freedom(degree_of_freedom)
@@ -342,12 +402,14 @@ class PushTScene:
 
         A slide joint left unactuated is knocked aside by the very contact it is meant
         to create, so the pusher pushes with a bounded force rather than being moved to
-        a pose outright.
+        a pose outright. The servo accepts set points across exactly the range its joint
+        can travel.
 
         :param world: The world to add the actuator to.
         :param connection: The joint the servo drives.
         :return: The newly added actuator.
         """
+        limits = connection.raw_dof.limits
         actuator = Actuator(name=PrefixedName(f"{connection.name.name}_servo"))
         actuator.add_dof(connection.raw_dof)
         actuator.simulator_additional_properties.append(
@@ -357,7 +419,7 @@ class PushTScene:
                 gain_parameters=[PUSHER_STIFFNESS] + [0.0] * 9,
                 bias_type=mujoco.mjtBias.mjBIAS_AFFINE,
                 bias_parameters=[0.0, -PUSHER_STIFFNESS, -PUSHER_DAMPING] + [0.0] * 7,
-                control_range=[-PUSHER_TRAVEL, PUSHER_TRAVEL],
+                control_range=[limits.lower.position, limits.upper.position],
                 force_range=[-PUSHER_FORCE_LIMIT, PUSHER_FORCE_LIMIT],
             )
         )
@@ -365,20 +427,26 @@ class PushTScene:
         return actuator
 
     def command_pusher(
-        self, simulation: RealTimeSimulation, position: PlanarPoint
+        self,
+        simulation: RealTimeSimulation,
+        position: PlanarPoint,
+        height: float = 0.0,
     ) -> None:
         """
-        Tell the pusher's servos which point on the plane to hold.
+        Tell the pusher's servos which point to hold.
 
         They keep driving towards the last point they were given, so this has to be
         called once before the simulation is first advanced, or the pusher rushes from
         wherever it was placed towards the origin.
 
         :param simulation: The simulation running this scene.
-        :param position: The point the pusher should hold.
+        :param position: The point on the plane the pusher should hold.
+        :param height: How far above its pushing height the pusher should hold, up to
+            :data:`PUSHER_LIFT_HEIGHT`.
         """
         simulation.command(self.pusher_x_actuator, position.x)
         simulation.command(self.pusher_y_actuator, position.y)
+        simulation.command(self.pusher_z_actuator, height)
 
     def pose_of(self, body: Body) -> NpMatrix4x4:
         """

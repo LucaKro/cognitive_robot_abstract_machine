@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Optional, Self
 
-from semantic_digital_twin.adapters.multi_sim import MujocoSim
+from semantic_digital_twin.adapters.multi_sim import MujocoSim, MujocoSynchronizer
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Actuator
 
@@ -59,6 +59,18 @@ class RealTimeSimulation:
     headless: bool = False
     """
     Whether to run without opening MuJoCo's viewer window.
+
+    A run nobody is watching is not paced to the wall clock either, so it finishes as
+    fast as the machine allows.
+    """
+
+    sync_rate_hz: float = MujocoSynchronizer.UNTHROTTLED_SYNC_RATE_HZ
+    """
+    How often the simulation's state is read back into :attr:`world`, in wall-clock
+    hertz.
+
+    The synchronizer's own default throttles this to 30 Hz, which leaves a controller
+    running faster than that reading a stale world every other cycle.
     """
 
     multi_sim: MujocoSim = field(init=False)
@@ -80,6 +92,7 @@ class RealTimeSimulation:
         self.multi_sim = MujocoSim(
             world=self.world, headless=self.headless, step_size=self.step_size
         )
+        self.multi_sim.synchronizer.sync_rate_hz = self.sync_rate_hz
 
     def __enter__(self) -> Self:
         self.start()
@@ -93,6 +106,7 @@ class RealTimeSimulation:
         Open the viewer and reset the simulation to the world's built pose.
         """
         self.multi_sim.simulator.start(simulate_in_thread=False, render_in_thread=False)
+        self.multi_sim.synchronizer.command_actuators_from_world_state()
         self._simulated_time = 0.0
         self._start_time = time.time()
 
@@ -128,7 +142,8 @@ class RealTimeSimulation:
         caught up.
 
         Call this in short slices - around a frame's worth - so the world can be driven
-        in between and the viewer stays smooth.
+        in between and the viewer stays smooth. A headless run neither refreshes nor
+        waits, since there is nothing to watch.
 
         :param duration: How many simulated seconds to advance.
         """
@@ -139,6 +154,8 @@ class RealTimeSimulation:
         for _ in range(round(duration / simulator.step_size)):
             simulator.step()
             self._simulated_time += simulator.step_size
+        if self.headless:
+            return
         simulator.renderer.sync()
 
         remaining = self._start_time + self._simulated_time - time.time()

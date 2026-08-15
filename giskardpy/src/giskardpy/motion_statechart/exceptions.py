@@ -526,8 +526,8 @@ class DuplicateContextExtensionError(MotionStatechartError):
 @dataclass
 class ActionClientTypeMismatchError(MotionStatechartError):
     """
-    Raised when an action topic is requested with a different message type than the
-    one its cached action client was created with.
+    Raised when an action topic is requested with a different message type than the one
+    its cached action client was created with.
     """
 
     action_topic: str
@@ -587,3 +587,35 @@ class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Call tick() at least once before plotting, or configure debug expressions to record."
+
+
+@dataclass
+class UncorrectableOrientationError(NodeInitializationError):
+    """
+    Raised when a pushing goal would stop correcting a body's orientation before it is
+    close enough to count as reached.
+    """
+
+    orientation_tolerance: float
+    """
+    The error above which the goal keeps turning the body, in radians.
+    """
+
+    orientation_threshold: float
+    """
+    The error at or below which the body counts as pointing the right way, in radians.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'"{self.node.unique_name}" stops turning the body once its orientation error '
+            f"is within {self.orientation_tolerance} rad, but only counts it as reached "
+            f"within {self.orientation_threshold} rad, so it can never finish."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give the push selector an orientation_tolerance smaller than the goal's "
+            "orientation_threshold, so that every orientation the goal keeps working on is "
+            "one it could still accept."
+        )
