@@ -3729,7 +3729,7 @@ class GiskardLocationBackendDAO(
         use_existing_column=True,
     )
 
-    grasp_description_id: Mapped[int] = mapped_column(
+    grasp_description_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,

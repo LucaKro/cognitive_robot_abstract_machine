@@ -60,7 +60,6 @@ from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.mixins import HasDoors, IsStorageSpace
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     CounterTop,
-    Door,
     Fridge,
     Milk,
     ShelfLayer,
@@ -127,8 +126,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             robots=[
                 RobotSpecification(
                     semantic_annotation_type=self.used_robot,
-                    # The PR2's root is its base_footprint, so a height of zero puts it on
-                    # the floor, on the free space between the fridge and the island.
                     world_T_odom=HomogeneousTransformationMatrix(),
                 )
             ],
@@ -143,17 +140,12 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             self.shelf_layer_name,
             BodySpecification.box(
                 self.shelf_layer_name,
-                # Fits into the fridge cavity, which is about 0.03 meters narrower than
-                # the shell on every side.
                 Scale(0.45, 0.5, 0.02),
                 color=Color(0.9, 0.93, 0.95),
             ),
         ).spawn(
             world,
             parent=fridge_annotation.root,
-            # The kitchen places its fridge turned by half a turn against the room, so
-            # the layer turns back: everything spawned on it is then aligned with the
-            # room, and grasped from the front like any other object standing in it.
             parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
                 0.0, 0.02, 0.0, yaw=np.pi
             ),
@@ -193,14 +185,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 -0.16, 0.0, 0.11
             ),
         )
-
-    def fridge_door(self, world: World) -> Door:
-        """
-        :param world: The world holding the kitchen.
-        :return: The fridge's door, the only one in this kitchen that opens.
-        """
-        fridge = variable(Fridge, domain=world.semantic_annotations)
-        return the(entity(fridge)).first().doors[0]
 
     @staticmethod
     def island_counter_top(world: World) -> CounterTop:
@@ -305,12 +289,37 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             None,
         )
 
+    @staticmethod
+    def get_grasp_for_handle(arm: Arms, context: Context) -> GraspDescription:
+        """
+        Describe taking hold of a handle.
+
+        The side is named rather than left open, unlike the grasp the milk is picked up
+        with: the container actions pull the handle from behind whatever else happens, so
+        a standing pose found for another side is one they could not use.
+
+        :param arm: The hand the standing pose is looked for with.
+        :param context: The context holding the robot the hand belongs to.
+        :return: The grasp, approaching from behind because the handle's own frame is
+            turned against the room it is pulled from.
+        """
+        return GraspDescription(
+            ApproachDirection.BACK,
+            VerticalAlignment.NoAlignment,
+            ViewManager.get_end_effector_view(arm, context.robot),
+        )
+
     def add_container_opening_and_closing(
         self, actions: List[ActionLike], body: Body, context: Context
     ) -> List[ActionLike]:
         """
         Open the container ``body`` stands in before the given steps, and shut it again
         after them.
+
+        Which hand does the pulling is left to the plan: a hand that cannot reach the
+        handle fails its precondition and the other one is tried. The standing pose is
+        still looked for with a named hand, since a grasp says which gripper comes at the
+        handle and one of the two has to be asked.
 
         :param actions: The steps that need the container open.
         :param body: The body those steps reach for.
@@ -323,12 +332,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             return actions
 
         door_arm = Arms.LEFT
-        handle_approach_direction = ApproachDirection.BACK
-        handle_grasp = GraspDescription(
-            handle_approach_direction,
-            VerticalAlignment.NoAlignment,
-            ViewManager.get_end_effector_view(door_arm, context.robot),
-        )
+        handle_grasp = self.get_grasp_for_handle(door_arm, context)
 
         return [
             a(NavigateAction)(
@@ -342,10 +346,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 ),
                 keep_joint_states=True,
             ),
-            OpenAction(
-                handle,
-                door_arm,
-                handle_approach_direction,
+            a(OpenAction)(
+                object_designator=handle,
+                arm=...,
+                approach_direction=handle_grasp.approach_direction,
                 goal_joint_state=1.45,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -361,10 +365,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 ),
                 keep_joint_states=True,
             ),
-            CloseAction(
-                handle,
-                door_arm,
-                handle_approach_direction,
+            a(CloseAction)(
+                object_designator=handle,
+                arm=...,
+                approach_direction=handle_grasp.approach_direction,
                 goal_joint_state=0.0,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -372,7 +376,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     # %% the plan
 
-    def grasp_from_any_side(self, context: Context) -> Match[GraspDescription]:
+    def get_grasp_for_milk(self, context: Context) -> Match[GraspDescription]:
         """
         Describe a grasp without saying which side of the object the gripper comes from.
 
@@ -425,7 +429,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ),
             a(PickUpAction)(
                 object_designator=milk_body,
-                grasp_description=self.grasp_from_any_side(context),
+                grasp_description=self.get_grasp_for_milk(context),
                 arm=self.milk_arm,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -489,7 +493,8 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
             world.root
         ).bounding_box()
     )
-    door_angle = demonstration.fridge_door(world).root.parent_connection.position
+    fridge = the(entity(variable(Fridge, domain=world.semantic_annotations))).first()
+    door_angle = fridge.doors[0].root.parent_connection.position
 
     print(f"milk placed at {np.round(milk.root.global_pose.to_position(), 3)}")
     print(

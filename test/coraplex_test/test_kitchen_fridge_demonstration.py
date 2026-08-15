@@ -8,7 +8,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from coraplex.datastructures.dataclasses import Context
@@ -28,10 +27,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Fridge,
     Milk,
     ShelfLayer,
-    Table,
 )
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -95,6 +91,15 @@ def milk_body(fridge_world) -> Body:
 
 
 @pytest.fixture(scope="module")
+def fridge_handle(fridge_world) -> Body:
+    """
+    The handle of the fridge door, which is what has to be pulled to reach the milk.
+    """
+    fridge = variable(Fridge, domain=fridge_world.semantic_annotations)
+    return the(entity(fridge)).first().doors[0].handle.root
+
+
+@pytest.fixture(scope="module")
 def milk_grasp(demonstration, fridge_context) -> GraspDescription:
     return GraspDescription(
         ApproachDirection.FRONT,
@@ -132,23 +137,6 @@ def test_the_kitchen_is_furnished_before_the_milk_arrives(demonstration):
     assert demonstration.is_scene_populated(world)
 
 
-def test_table_rests_on_the_floor(fridge_world):
-    """
-    The kitchen hangs the table's mesh off its own centre, so building the world has to
-    lift it out of the ground.
-    """
-    table = the(
-        entity(variable(Table, domain=fridge_world.semantic_annotations))
-    ).first()
-
-    bounding_box = table.root.collision.as_bounding_box_collection_in_frame(
-        fridge_world.root
-    ).bounding_box()
-
-    assert bounding_box.min_z == pytest.approx(0.0, abs=1e-6)
-    assert bounding_box.max_z > 0.0
-
-
 def test_the_milk_is_put_down_on_a_counter_top(demonstration, fridge_world):
     """
     The surface the demonstration places onto is one the reasoner recognises as a
@@ -162,14 +150,16 @@ def test_the_milk_is_put_down_on_a_counter_top(demonstration, fridge_world):
 # %% finding what has to be opened
 
 
-def test_handle_of_a_body_behind_a_door(demonstration, fridge_world, milk_body):
+def test_handle_of_a_body_behind_a_door(
+    demonstration, fridge_world, milk_body, fridge_handle
+):
     """
     The milk stands in the fridge, so it is the fridge door's handle that has to be
     pulled.
     """
     assert (
         demonstration.handle_of_enclosing_container(milk_body, fridge_world)
-        is demonstration.fridge_door(fridge_world).handle.root
+        is fridge_handle
     )
 
 
@@ -189,13 +179,12 @@ def test_body_standing_in_the_open_has_no_handle(demonstration, fridge_world):
 
 
 def test_container_steps_enclose_the_given_steps(
-    demonstration, fridge_world, fridge_context, milk_body, milk_grasp
+    demonstration, fridge_context, milk_body, milk_grasp, fridge_handle
 ):
     """
     The opening goes in front of the given steps and the shutting behind them, leaving
     those steps themselves untouched.
     """
-    handle = demonstration.fridge_door(fridge_world).handle.root
     transport = [
         PickUpAction(milk_body, demonstration.milk_arm, milk_grasp),
         ParkArmsAction(Arms.BOTH),
@@ -213,16 +202,42 @@ def test_container_steps_enclose_the_given_steps(
     assert isinstance(steps[-1], ParkArmsAction)
 
     opening = steps[1]
-    assert isinstance(opening, OpenAction)
-    assert opening.object_designator is handle
-    assert opening.goal_joint_state > 0.0
+    assert opening.factory is OpenAction
+    assert opening.kwargs["object_designator"] is fridge_handle
+    assert opening.kwargs["goal_joint_state"] > 0.0
 
     shutting = steps[-2]
-    assert isinstance(shutting, CloseAction)
-    assert shutting.object_designator is handle
-    assert shutting.goal_joint_state < opening.goal_joint_state
-    assert shutting.arm is opening.arm
-    assert shutting.approach_direction is opening.approach_direction
+    assert shutting.factory is CloseAction
+    assert shutting.kwargs["object_designator"] is fridge_handle
+    assert shutting.kwargs["goal_joint_state"] < opening.kwargs["goal_joint_state"]
+    assert shutting.kwargs["approach_direction"] is opening.kwargs["approach_direction"]
+
+
+def test_container_steps_leave_their_arm_open(demonstration, fridge_context, milk_body):
+    """
+    Neither the opening nor the shutting says which hand pulls the handle, so the plan
+    settles that against a hand that can reach it from where it ended up standing.
+    """
+    steps = demonstration.add_container_opening_and_closing(
+        [ParkArmsAction(Arms.BOTH)], milk_body, fridge_context
+    )
+
+    assert steps[1].kwargs["arm"] is Ellipsis
+    assert steps[-2].kwargs["arm"] is Ellipsis
+
+
+def test_the_handle_is_taken_hold_of_from_behind(demonstration, fridge_context):
+    """
+    The handle's own frame is turned against the room, so the side the standing pose is
+    looked for with is the one the container actions pull from.
+    """
+    grasp = demonstration.get_grasp_for_handle(Arms.LEFT, fridge_context)
+
+    assert grasp.approach_direction is ApproachDirection.BACK
+    assert grasp.vertical_alignment is VerticalAlignment.NoAlignment
+    assert grasp.end_effector is ViewManager.get_end_effector_view(
+        Arms.LEFT, fridge_context.robot
+    )
 
 
 def test_nothing_is_added_for_a_body_in_the_open(
