@@ -31,7 +31,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -68,12 +68,16 @@ class GiskardLocationBackend(PoseGeneratorBackend):
     that has been performed rather than one that looks plausible.
 
     ..note:: Passing a body reaches for it the way a grasp does, from a stand-off
-        pre-pose; passing a pose reaches for that pose directly.
+        pre-pose; passing a pose reaches for that pose directly; passing a point reaches
+        for it turned the way the robot stands.
     """
 
-    target: Union[Pose, Body]
+    target: Union[Point3, Pose, Body]
     """
-    The target pose or body which should be reachable by the end effector 
+    The target point, pose or body which should be reachable by the end effector.
+
+    A point says where something has to end up but not which way it ends up turned; see
+    :meth:`target_facing_the_robot`.
     """
 
     arm: Arms
@@ -120,7 +124,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         return GiskardLocationBackend(
             target=(
                 self.target
-                if isinstance(self.target, Pose)
+                if isinstance(self.target, (Point3, Pose))
                 else cast(Body, world.get_world_entity_with_id_by_id(self.target.id))
             ),
             arm=self.arm,
@@ -226,6 +230,30 @@ class GiskardLocationBackend(PoseGeneratorBackend):
 
         return executor
 
+    def target_facing_the_robot(self) -> Union[Pose, Body]:
+        """
+        Work out what to reach for, given where the robot is standing.
+
+        A point says where something has to end up but not which way it ends up turned,
+        so it takes the robot's own heading. That is what lets a standing pose be looked
+        for without fixing the heading first: every candidate is judged against the
+        heading it would put the object down at, rather than against one chosen before
+        anywhere to stand was known.
+
+        :return: The target to reach for, which is the target itself unless it is a
+            point.
+        """
+        if not isinstance(self.target, Point3):
+            return self.target
+        target_point = self.world.transform(self.target, self.world.root)
+        return Pose.from_xyz_rpy(
+            target_point.x,
+            target_point.y,
+            target_point.z,
+            yaw=self.robot.root.global_pose.yaw,
+            reference_frame=self.world.root,
+        )
+
     def reach_sequence(self) -> List[Pose]:
         """
         :return: The poses the gripper moves through to manipulate the target, which is
@@ -237,16 +265,15 @@ class GiskardLocationBackend(PoseGeneratorBackend):
             :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction` does; an
             empty hand goes there itself.
         """
-        if isinstance(self.target, Body):
-            pre_pose, grasp_pose, _ = self.grasp_description.grasp_pose_sequence(
-                self.target
-            )
+        target = self.target_facing_the_robot()
+        if isinstance(target, Body):
+            pre_pose, grasp_pose, _ = self.grasp_description.grasp_pose_sequence(target)
             return [pre_pose, grasp_pose]
         tool_frame = self.grasp_description.end_effector.tool_frame
         if not tool_frame.child_kinematic_structure_entities:
-            return [self.target]
+            return [target]
         transport_pose, placing_pose, _ = self.grasp_description.place_pose_sequence(
-            self.target
+            target
         )
         return [transport_pose, placing_pose]
 
@@ -270,9 +297,8 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         return True
 
     def __iter__(self) -> Iterator[Pose]:
-        target_pose = (
-            self.target if isinstance(self.target, Pose) else self.target.global_pose
-        )
+        resolved = self.target_facing_the_robot()
+        target_pose = resolved.global_pose if isinstance(resolved, Body) else resolved
 
         for pose_candidate in self.setup_costmap(target_pose):
             with self.world.reset_state_context():

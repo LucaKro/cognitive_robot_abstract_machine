@@ -38,7 +38,7 @@ from coraplex.demonstrations import RobotDemonstration
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import giskard_reachability_location
 from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import ActionLike, PlanNode
+from coraplex.plans.plan_node import ActionLike, ActionNode, PlanNode
 from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -67,7 +67,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Table,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
 from semantic_digital_twin.world_description.world_entity import (
@@ -256,42 +256,42 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             )
         ).first()
 
-    def place_poses_on_island(self, world: World, milk: Milk) -> List[Pose]:
+    def place_spot_on_island(self, world: World, milk: Milk) -> Point3:
         """
-        Pick a target_pose on the kitchen island to put the milk down on.
+        Pick a spot on the kitchen island to put the milk down on.
 
         The counter top works out where its own surface is and how high the milk has to
-        stand to rest on it, so the target_pose is drawn from the surface rather than
-        measured off a bounding box. It comes out somewhere different on every run.
+        stand to rest on it, so the spot is drawn from the surface rather than measured
+        off a bounding box. It comes out somewhere different on every run.
 
-        The surface hands out target_poses right up to its edge, where a carton would
-        end up half over the side, so a target_pose is only taken once the whole carton
-        fits on the counter. Which way the carton then faces is left to the plan: the
-        robot walks round the island to wherever the target_pose is, and only there is
-        it clear which headings its arm can reach.
+        A spot, not a pose: which way the carton ends up turned is nobody's business
+        here. The robot walks round the island to wherever the spot is, and the heading
+        follows from where it ends up standing.
 
         :param world: The world holding the kitchen.
-        :param milk: The carton the target_pose has to be big enough for.
-        :return: The same target_pose at every quarter turn, shuffled, so no heading is
-            favoured over the others.
+        :param milk: The carton the spot has to be big enough for.
+        :return: The spot, in the world frame.
         """
         counter_top = self.island_counter_top(world)
         points = counter_top.sample_points_from_surface(
             body_to_sample_for=milk, amount=100
         )
+        return world.transform(next(iter(points)), world.root)
 
-        target_pose = next(iter(points))
-        world_T_target_pose = world.transform(target_pose, world.root)
-        return [
-            Pose.from_xyz_rpy(
-                world_T_target_pose.x,
-                world_T_target_pose.y,
-                world_T_target_pose.z,
-                yaw=quarter_turn * np.pi / 2,
-                reference_frame=world.root,
-            )
-            for quarter_turn in np.random.permutation(4)
-        ]
+    @staticmethod
+    def pose_the_robot_faces(spot: Point3, context: Context) -> Pose:
+        """
+        :param spot: Where the object has to end up.
+        :param context: The context holding the robot.
+        :return: That spot, turned the way the robot is standing.
+        """
+        return Pose.from_xyz_rpy(
+            spot.x,
+            spot.y,
+            spot.z,
+            yaw=context.robot.root.global_pose.yaw,
+            reference_frame=context.world.root,
+        )
 
     def build_context(self, world: World) -> Context:
         """
@@ -439,31 +439,73 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             ),
         )
 
-    def standing_poses_to_reach(
-        self, target: Union[Pose, Body], context: Context
-    ) -> Iterator[Pose]:
+    def grasps_from_every_side(self, context: Context) -> List[GraspDescription]:
         """
-        Look for poses to stand in to reach the target, offering every side of it in
-        turn.
-
-        Which side works depends on how the target is turned and on what stands around it,
-        and neither is settled while the plan is being written, so no single approach is
-        picked here: the first that yields a standing pose wins.
-
-        :param target: The body or pose that has to be reachable.
-        :param context: The context the standing pose is chosen in.
-        :return: The standing poses, those approaching from the target's front first.
+        :param context: The context holding the robot that reaches.
+        :return: One grasp per side the gripper could come from, for a target whose
+            approach the plan has not settled yet.
         """
         end_effector = ViewManager.get_end_effector_view(self.milk_arm, context.robot)
-        for approach_direction in ApproachDirection:
-            yield from giskard_reachability_location(
-                target,
-                context,
-                self.milk_arm,
-                GraspDescription(
-                    approach_direction, VerticalAlignment.NoAlignment, end_effector
-                ),
+        return [
+            GraspDescription(
+                approach_direction, VerticalAlignment.NoAlignment, end_effector
             )
+            for approach_direction in ApproachDirection
+        ]
+
+    def grasp_the_milk_is_held_with(self, context: Context) -> GraspDescription:
+        """
+        Find how the milk ended up in the gripper.
+
+        Putting it down is the pick-up run backwards, so the place has no say in the
+        grasp: it works with whichever side the pick-up settled on, and a standing pose
+        for the place has to be found for that one rather than for any of the others.
+
+        :param context: The context holding the plan the pick-up ran in.
+        :return: The grasp the milk is carried with, and a front grasp while nothing has
+            been picked up yet.
+        """
+        picked_up = [
+            node.designator
+            for node in context.plan.nodes
+            if isinstance(node, ActionNode)
+            and isinstance(node.designator, PickUpAction)
+        ]
+        if picked_up:
+            return picked_up[-1].grasp_description
+        return self.grasps_from_every_side(context)[0]
+
+    def standing_poses_to_reach(
+        self,
+        targets: List[Union[Point3, Pose, Body]],
+        grasps: List[GraspDescription],
+        context: Context,
+    ) -> Iterator[Pose]:
+        """
+        Look for poses to stand in to reach any of the targets with any of the grasps.
+
+        The searches are drawn from one pose at a time and in turn, so an awkward target
+        cannot use up the whole search on its own: when a target the robot cannot easily
+        stand at is offered next to one it can, the easy one is reached after a single
+        unlucky pose rather than after that target's every pose has been tried.
+
+        :param targets: The bodies or poses, any one of which has to be reachable.
+        :param grasps: The grasps, any one of which may be used to reach them.
+        :param context: The context the standing poses are chosen in.
+        :return: The standing poses, targets varying fastest.
+        """
+        searches = [
+            iter(giskard_reachability_location(target, context, self.milk_arm, grasp))
+            for grasp in grasps
+            for target in targets
+        ]
+        while searches:
+            for search in list(searches):
+                standing_pose = next(search, None)
+                if standing_pose is None:
+                    searches.remove(search)
+                    continue
+                yield standing_pose
 
     def build_plan(self, context: Context) -> PlanNode:
         """
@@ -483,14 +525,16 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         world = context.world
         milk = the(entity(variable(Milk, domain=world.semantic_annotations))).first()
         milk_body = milk.root
-        place_poses = self.place_poses_on_island(world, milk)
+        place_spot = self.place_spot_on_island(world, milk)
 
         transport = [
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: self.standing_poses_to_reach(milk_body, context)
+                        lambda: self.standing_poses_to_reach(
+                            [milk_body], self.grasps_from_every_side(context), context
+                        )
                     ),
                 ),
                 keep_joint_states=True,
@@ -505,14 +549,25 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                 target_location=variable(
                     Pose,
                     domain=DeferredLocation(
-                        lambda: self.standing_poses_to_reach(place_poses[0], context)
+                        lambda: self.standing_poses_to_reach(
+                            [place_spot],
+                            [self.grasp_the_milk_is_held_with(context)],
+                            context,
+                        )
                     ),
                 ),
                 keep_joint_states=True,
             ),
             a(PlaceAction)(
                 object_designator=milk_body,
-                target_location=variable(Pose, domain=place_poses),
+                # The heading is read off the robot once it has driven up to the spot,
+                # so the carton is put down the way the robot that carries it stands.
+                target_location=variable(
+                    Pose,
+                    domain=DeferredLocation(
+                        lambda: [self.pose_the_robot_faces(place_spot, context)]
+                    ),
+                ),
                 arm=self.milk_arm,
             ),
             ParkArmsAction(Arms.BOTH),

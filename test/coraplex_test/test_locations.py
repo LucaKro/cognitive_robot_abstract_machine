@@ -513,6 +513,73 @@ def test_giskard_backend_reaches_for_a_pose_with_what_the_gripper_holds(
     ]
 
 
+def test_giskard_backend_turns_a_point_target_the_way_the_robot_stands(
+    single_robot_world,
+):
+    """
+    A point says where something has to end up but not which way it ends up turned, so
+    the reach takes the robot's own heading -- which is the heading it would put the
+    object down at from where it stands.
+    """
+    world, robot, context = single_robot_world
+    standing_yaw = 0.7
+    with world.modify_world():
+        robot.set_root_pose(
+            Pose.from_xyz_rpy(
+                0.3, -0.2, 0.0, yaw=standing_yaw, reference_frame=world.root
+            )
+        )
+    point = Point3(1.0, 0.5, 0.8, reference_frame=world.root)
+    backend = _backend_reaching_for(point, robot, world)
+
+    reached_for = backend.target_facing_the_robot()
+
+    assert isinstance(reached_for, Pose)
+    assert [float(reached_for.x), float(reached_for.y), float(reached_for.z)] == [
+        pytest.approx(float(point.x)),
+        pytest.approx(float(point.y)),
+        pytest.approx(float(point.z)),
+    ]
+    assert float(reached_for.yaw) == pytest.approx(float(robot.root.global_pose.yaw))
+
+
+def test_giskard_backend_follows_the_robot_when_it_stands_somewhere_else(
+    single_robot_world,
+):
+    """
+    The heading is read off the robot every time it is asked for, so a point target
+    moves with it rather than keeping the heading of wherever it was first asked.
+    """
+    world, robot, context = single_robot_world
+    backend = _backend_reaching_for(
+        Point3(1.0, 0.5, 0.8, reference_frame=world.root), robot, world
+    )
+
+    headings = []
+    for standing_yaw in (0.0, 1.2):
+        with world.modify_world():
+            robot.set_root_pose(
+                Pose.from_xyz_rpy(
+                    0.0, 0.0, 0.0, yaw=standing_yaw, reference_frame=world.root
+                )
+            )
+        headings.append(float(backend.target_facing_the_robot().yaw))
+
+    assert headings == [pytest.approx(0.0), pytest.approx(1.2)]
+
+
+def test_giskard_backend_leaves_a_pose_target_alone(single_robot_world):
+    """
+    A pose already says which way it faces, so the robot's heading does not touch it.
+    """
+    world, robot, context = single_robot_world
+    target = Pose.from_xyz_rpy(1.0, 0.5, 0.8, yaw=2.0, reference_frame=world.root)
+
+    assert (
+        _backend_reaching_for(target, robot, world).target_facing_the_robot() is target
+    )
+
+
 def test_giskard_backend_reaches_for_a_pose_directly_with_an_empty_hand(
     single_robot_world,
 ):
@@ -642,8 +709,8 @@ def test_giskard_backend_skips_a_candidate_that_cannot_see_the_target(
 ):
     """
     A body has to be seen to be worked with, and looking costs a ray where trying costs
-    hundreds of control ticks, so a candidate the target is hidden from is dropped before
-    a reach is simulated from it.
+    hundreds of control ticks, so a candidate the target is hidden from is dropped
+    before a reach is simulated from it.
     """
     world, robot, context = single_robot_world
     target = _box_at(
