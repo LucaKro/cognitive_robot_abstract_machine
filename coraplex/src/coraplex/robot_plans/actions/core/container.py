@@ -169,7 +169,7 @@ class CloseAction(ActionDescription):
     Arm that should be used for closing.
     """
 
-    approach_direction: ApproachDirection = ApproachDirection.FRONT
+    approach_direction: ApproachDirection = ApproachDirection.BACK
     """
     The side of the handle the gripper approaches from.
 

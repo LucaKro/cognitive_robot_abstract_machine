@@ -28,7 +28,6 @@ from typing_extensions import ClassVar, List, Optional
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    ApproachDirection,
     Arms,
     ExecutionType,
     VerticalAlignment,
@@ -161,8 +160,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
     def populate_scene(self, world: World) -> None:
         """
-        Stand the milk where the demonstration starts it, which is the fridge's shelf
-        layer unless another pose was given.
+        Stand the milk on the fridge's shelf layer.
         """
         specification = Milk.get_annotation_specification(
             "milk",
@@ -289,26 +287,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             None,
         )
 
-    @staticmethod
-    def get_grasp_for_handle(arm: Arms, context: Context) -> GraspDescription:
-        """
-        Describe taking hold of a handle.
-
-        The side is named rather than left open, unlike the grasp the milk is picked up
-        with: the container actions pull the handle from behind whatever else happens, so
-        a standing pose found for another side is one they could not use.
-
-        :param arm: The hand the standing pose is looked for with.
-        :param context: The context holding the robot the hand belongs to.
-        :return: The grasp, approaching from behind because the handle's own frame is
-            turned against the room it is pulled from.
-        """
-        return GraspDescription(
-            ApproachDirection.BACK,
-            VerticalAlignment.NoAlignment,
-            ViewManager.get_end_effector_view(arm, context.robot),
-        )
-
     def add_container_opening_and_closing(
         self, actions: List[ActionLike], body: Body, context: Context
     ) -> List[ActionLike]:
@@ -316,10 +294,8 @@ class KitchenFridgeDemonstration(RobotDemonstration):
         Open the container ``body`` stands in before the given steps, and shut it again
         after them.
 
-        Which hand does the pulling is left to the plan: a hand that cannot reach the
-        handle fails its precondition and the other one is tried. The standing pose is
-        still looked for with a named hand, since a grasp says which gripper comes at the
-        handle and one of the two has to be asked.
+        Which hand does the pulling is left to the plan, and so is the side the gripper
+        comes at the handle from; the standing pose is looked for with a named hand.
 
         :param actions: The steps that need the container open.
         :param body: The body those steps reach for.
@@ -332,7 +308,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             return actions
 
         door_arm = Arms.LEFT
-        handle_grasp = self.get_grasp_for_handle(door_arm, context)
 
         return [
             a(NavigateAction)(
@@ -340,16 +315,14 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     Pose,
                     domain=DeferredLocation(
                         lambda: giskard_reachability_location(
-                            handle, context, door_arm, handle_grasp
+                            handle, context, door_arm
                         )
                     ),
                 ),
-                keep_joint_states=True,
             ),
             a(OpenAction)(
                 object_designator=handle,
                 arm=...,
-                approach_direction=handle_grasp.approach_direction,
                 goal_joint_state=1.45,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -359,16 +332,14 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                     Pose,
                     domain=DeferredLocation(
                         lambda: giskard_reachability_location(
-                            handle, context, door_arm, handle_grasp
+                            handle, context, door_arm
                         )
                     ),
                 ),
-                keep_joint_states=True,
             ),
             a(CloseAction)(
                 object_designator=handle,
                 arm=...,
-                approach_direction=handle_grasp.approach_direction,
                 goal_joint_state=0.0,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -425,7 +396,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                         )
                     ),
                 ),
-                keep_joint_states=True,
             ),
             a(PickUpAction)(
                 object_designator=milk_body,
@@ -442,7 +412,6 @@ class KitchenFridgeDemonstration(RobotDemonstration):
                         )
                     ),
                 ),
-                keep_joint_states=True,
             ),
             a(PlaceAction)(
                 object_designator=milk_body,
@@ -502,14 +471,10 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
     )
     print(f"fridge door closed to {door_angle:.4f} rad")
 
-    # Nothing here is subject to gravity or contact forces, so a placement that goes to
-    # plan lands on the surface rather than near it.
     placement_tolerance = 0.02
     assert abs(milk_box.min_z - surface_box.max_z) < placement_tolerance
     assert surface_box.min_x <= milk_box.min_x and milk_box.max_x <= surface_box.max_x
     assert surface_box.min_y <= milk_box.min_y and milk_box.max_y <= surface_box.max_y
-    # The closing motion parks the door within about a hundredth of a radian of the
-    # hinge's limit, so this is how exactly it shuts rather than how far ajar it may be.
     assert door_angle < 0.02
     return world
 

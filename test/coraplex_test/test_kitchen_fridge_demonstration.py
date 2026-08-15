@@ -210,7 +210,6 @@ def test_container_steps_enclose_the_given_steps(
     assert shutting.factory is CloseAction
     assert shutting.kwargs["object_designator"] is fridge_handle
     assert shutting.kwargs["goal_joint_state"] < opening.kwargs["goal_joint_state"]
-    assert shutting.kwargs["approach_direction"] is opening.kwargs["approach_direction"]
 
 
 def test_container_steps_leave_their_arm_open(demonstration, fridge_context, milk_body):
@@ -226,18 +225,12 @@ def test_container_steps_leave_their_arm_open(demonstration, fridge_context, mil
     assert steps[-2].kwargs["arm"] is Ellipsis
 
 
-def test_the_handle_is_taken_hold_of_from_behind(demonstration, fridge_context):
+def test_the_opening_and_the_shutting_pull_from_the_same_side():
     """
-    The handle's own frame is turned against the room, so the side the standing pose is
-    looked for with is the one the container actions pull from.
+    The demonstration names no approach direction, so the opening and the shutting come at
+    the handle from the same side only through their own defaults.
     """
-    grasp = demonstration.get_grasp_for_handle(Arms.LEFT, fridge_context)
-
-    assert grasp.approach_direction is ApproachDirection.BACK
-    assert grasp.vertical_alignment is VerticalAlignment.NoAlignment
-    assert grasp.end_effector is ViewManager.get_end_effector_view(
-        Arms.LEFT, fridge_context.robot
-    )
+    assert CloseAction.approach_direction is OpenAction.approach_direction
 
 
 def test_nothing_is_added_for_a_body_in_the_open(
