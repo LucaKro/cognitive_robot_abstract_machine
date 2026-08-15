@@ -484,6 +484,48 @@ class TestMujocoSimulator:
         )
         assert numpy.allclose(result.result, new_friction)
 
+    def test_set_actuator_control_drives_its_joint_towards_the_set_point(
+        self, simulator
+    ):
+        """
+        set_actuator_control must hand the value to the actuator rather than write the
+        joint, so the joint approaches the set point through the actuator's own dynamics
+        instead of jumping to it.
+        """
+        set_point = 0.5
+        simulator.start(simulate_in_thread=False, render_in_thread=False)
+        start_value = simulator.callbacks["get_joint_value"](joint_name="joint1").result
+
+        result = simulator.callbacks["set_actuator_control"](
+            actuator_name="actuator1", value=set_point
+        )
+        assert (
+            result.type
+            is SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA
+        )
+        assert simulator.callbacks["get_joint_value"](
+            joint_name="joint1"
+        ).result == pytest.approx(start_value)
+
+        for _ in range(1000):
+            simulator.step()
+
+        assert simulator.callbacks["get_joint_value"](
+            joint_name="joint1"
+        ).result == pytest.approx(set_point, abs=1e-2)
+
+    def test_set_actuator_control_fails_for_unknown_actuator(self, simulator):
+        """
+        set_actuator_control must report failure rather than raising or silently doing
+        nothing when the requested actuator does not exist in the model.
+        """
+        result = simulator.callbacks["set_actuator_control"](
+            actuator_name="this_actuator_does_not_exist", value=0.0
+        )
+        assert (
+            result.type is SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION
+        )
+
     def test_set_geom_friction_fails_for_unknown_geom(self, simulator):
         """
         set_geom_friction must report failure rather than raising or silently doing

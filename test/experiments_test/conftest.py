@@ -20,6 +20,24 @@ from experiments.real_stretch_apartment_demo.demo import (
 from semantic_digital_twin.semantic_annotations.semantic_annotations import CheezeIt
 
 from coraplex.testing import StandaloneProcess
+from semantic_digital_twin.adapters.multi_sim import MujocoSim
+
+# %% mujoco scenes
+
+
+@pytest.fixture()
+def mujoco_scene_file(tmp_path):
+    """
+    Point MuJoCo scene building at a file of this test's own.
+
+    Every world built for MuJoCo is written to one path shared by the whole class, so
+    tests running in parallel would otherwise overwrite each other's scene.
+    """
+    previous_path = MujocoSim.default_file_path
+    MujocoSim.default_file_path = str(tmp_path / "scene.xml")
+    yield
+    MujocoSim.default_file_path = previous_path
+
 
 # %% standalone controller process
 
