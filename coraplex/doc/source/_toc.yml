@@ -52,8 +52,7 @@ parts:
   - caption: Self-Assessment
     chapters:
     - file: self_assessment/exercises_intro
-      sections:
-      - file: self_assessment/exercises/0_writing_a_robot_plan
+    - file: self_assessment/exercises/0_writing_a_robot_plan
 
   - caption: API
     chapters:
