@@ -14,6 +14,8 @@ kernelspec:
 (writing-a-robot-plan-exercise)=
 # Writing a Robot Plan
 
+Author: **Luca Krohm** ([LucaKro](https://github.com/LucaKro), krohm@uni-bremen.de)
+
 In this exercise you write, step by step, the plan behind
 `coraplex/demos/coraplex_kitchen_fridge_demo/demo.py`: a PR2 takes a milk out of a closed
 fridge and puts it down on the kitchen island.
