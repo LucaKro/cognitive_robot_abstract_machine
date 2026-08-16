@@ -434,7 +434,7 @@ plan = ...
 ```{code-cell} ipython3
 :tags: [example-solution]
 handle_standing_pose = giskard_reachability_location(
-    handle, context, DOOR_ARM
+    handle_body, context, DOOR_ARM
 ).ground()
 
 plan = sequential(
