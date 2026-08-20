@@ -408,6 +408,18 @@ class PlanNode(PlanEntity):
         """
         return [node for motion in motions for node in motion.motion_nodes]
 
+    def __node_info__(self):
+        return [
+            f"status: {self.status.name}",
+            f"start: {self.start_time}",
+            f"end: {self.end_time}",
+            f"result: {self.result}",
+            f"reason: {self.reason}",
+        ]
+
+    def __node_label__(self):
+        return f"{self.__class__.__name__}"
+
 
 @dataclass(eq=False, repr=False)
 class ExecutionBoundaryNode(PlanNode, ABC):
@@ -561,6 +573,16 @@ class DesignatorNode(PlanNode, ABC):
 
     def __hash__(self):
         return id(self)
+
+    def __node_info__(self):
+        parent_infos = super().__node_info__()
+        designator_field = [f"{field.name}: {getattr(self.designator, field.name)}" for field in self.designator.fields]
+        parent_infos.append("---------------- Designator Parameter --------------------")
+        parent_infos.extend([f"Designator Type: {self.designator.__class__.__name__}", *designator_field])
+        return parent_infos
+
+    def __node_label__(self):
+        return f"{self.designator.__class__.__name__}"
 
 
 @dataclass(eq=False, repr=False)

@@ -1101,6 +1101,10 @@ class World(HasSimulatorProperties):
 
         Might create disconnected entities, so make sure to add a new connection or delete the child kinematic_structure_entity.
 
+        Removing a connection this world does not own does nothing and is not
+        recorded, so a history can never open with the removal of a connection
+        nothing added.
+
         :param connection: The connection to be removed
 
         .. warning::
@@ -1110,8 +1114,11 @@ class World(HasSimulatorProperties):
             if we want to remove the parent or child from the world, before removing the connection from the world.
             In that case, rustworkx automatically removes the edge representing the connection, which results in
             self.is_connection_in_world returning False, even though we have not cleaned up the connection properly on
-            our side.
+            our side. The ownership the connection itself records survives that,
+            which is what makes it usable as the check here.
         """
+        if connection._world is not self:
+            return
         self._remove_connection(connection)
 
     @atomic_world_modification(modification=RemoveConnectionModification)
@@ -1131,10 +1138,15 @@ class World(HasSimulatorProperties):
         """
         Removes a kinematic_structure_entity from the world.
 
+        Removing a kinematic_structure_entity this world does not own does nothing
+        and is not recorded, so a history can never open with the removal of a
+        kinematic_structure_entity nothing added.
+
         :param kinematic_structure_entity: The kinematic_structure_entity to remove.
         """
-        if self.is_kinematic_structure_entity_in_world(kinematic_structure_entity):
-            self._remove_kinematic_structure_entity(kinematic_structure_entity)
+        if kinematic_structure_entity._world is not self:
+            return
+        self._remove_kinematic_structure_entity(kinematic_structure_entity)
 
     @atomic_world_modification(modification=RemoveKinematicStructureEntityModification)
     def _remove_kinematic_structure_entity(
@@ -1152,9 +1164,19 @@ class World(HasSimulatorProperties):
         kinematic_structure_entity.remove_from_world()
 
     def remove_degree_of_freedom(self, dof: DegreeOfFreedom) -> None:
-        if self.is_degree_of_freedom_in_world(dof):
-            self._remove_degree_of_freedom(dof)
-            clear_memoization_cache(self)
+        """
+        Removes a degree of freedom from the world.
+
+        Removing a degree of freedom this world does not own does nothing and is
+        not recorded, so a history can never open with the removal of a degree of
+        freedom nothing added.
+
+        :param dof: The degree of freedom to remove.
+        """
+        if dof._world is not self:
+            return
+        self._remove_degree_of_freedom(dof)
+        clear_memoization_cache(self)
 
     @atomic_world_modification(modification=RemoveDegreeOfFreedomModification)
     def _remove_degree_of_freedom(self, dof: DegreeOfFreedom) -> None:
@@ -1169,10 +1191,15 @@ class World(HasSimulatorProperties):
         Removes a semantic annotation from the current list of semantic annotations if
         it exists.
 
+        Removing a semantic annotation this world does not own does nothing and is
+        not recorded, so a history can never open with the removal of a semantic
+        annotation nothing added.
+
         :param semantic_annotation: The semantic annotation instance to be removed.
         """
-        if self.is_semantic_annotation_in_world(semantic_annotation):
-            self._remove_semantic_annotation(semantic_annotation)
+        if semantic_annotation._world is not self:
+            return
+        self._remove_semantic_annotation(semantic_annotation)
 
     @atomic_world_modification(modification=RemoveSemanticAnnotationModification)
     def _remove_semantic_annotation(self, semantic_annotation: SemanticAnnotation):
@@ -1187,10 +1214,15 @@ class World(HasSimulatorProperties):
         """
         Removes an actuator from the current list of actuators if it exists.
 
+        Removing an actuator this world does not own does nothing and is not
+        recorded, so a history can never open with the removal of an actuator
+        nothing added.
+
         :param actuator: The actuator instance to be removed.
         """
-        if self.is_actuator_in_world(actuator):
-            self._remove_actuator(actuator)
+        if actuator._world is not self:
+            return
+        self._remove_actuator(actuator)
 
     @atomic_world_modification(modification=RemoveActuatorModification)
     def _remove_actuator(self, actuator: Actuator) -> None:
@@ -1773,10 +1805,12 @@ class World(HasSimulatorProperties):
         and the branch keeps its world pose. No-op if ``branch_root`` is already a child
         of ``new_parent``.
 
-        A :class:`Connection6DoF` carries its pose in its degrees of freedom, so it is recreated with
-        fresh DOFs whose origin is set to the world-preserving pose. Every other connection keeps its
-        degree of freedom and only its parent offset is recomputed
-        (see :meth:`~...world_entity.Connection.copy_with_new_parent`).
+        Every connection keeps its degrees of freedom
+        (see :meth:`~...world_entity.Connection.copy_with_new_parent`), so the world state
+        layout is unchanged and memory views bound to it stay valid. A
+        :class:`Connection6DoF` carries its pose in those degrees of freedom, so instead of
+        recomputing a parent offset its origin is set to the world-preserving pose and its
+        derivatives are cleared.
 
         :param branch_root: The root of the branch to be moved.
         :param new_parent: The new parent of the branch.
@@ -1802,8 +1836,10 @@ class World(HasSimulatorProperties):
             new_parent_T_branch_root = self.compute_forward_kinematics(
                 new_parent, branch_root, enable_unsafe_inside_world_block
             )
-            new_connection = Connection6DoF.create_with_dofs(
-                parent=new_parent, child=branch_root, world=self
+            # The pose lives entirely in the degrees of freedom, so the connection sits
+            # right on the new parent and the offset below is set from it afterwards.
+            new_connection = old_connection.copy_with_new_parent(
+                new_parent, HomogeneousTransformationMatrix()
             )
         else:
             # Relocate the connection frame so the branch keeps its world pose, then let the connection
@@ -1827,6 +1863,13 @@ class World(HasSimulatorProperties):
 
         if isinstance(old_connection, Connection6DoF):
             new_connection.origin = new_parent_T_branch_root
+            # The re-used degrees of freedom describe the pose relative to the old parent,
+            # so any motion they still carry is meaningless under the new one.
+            for degree_of_freedom in new_connection.passive_dofs:
+                self.state[degree_of_freedom.id].velocity = 0
+                self.state[degree_of_freedom.id].acceleration = 0
+                self.state[degree_of_freedom.id].jerk = 0
+            self.notify_state_change()
 
     def move_branch_to_new_world(self, new_root: KinematicStructureEntity) -> World:
         """
@@ -1863,12 +1906,21 @@ class World(HasSimulatorProperties):
             for dof in child_body_dofs:
                 self.remove_degree_of_freedom(dof)
                 new_world.add_degree_of_freedom(dof)
-            for connection in child_body_parent_connections:
-                self.remove_kinematic_structure_entity(connection.parent)
-                self.remove_kinematic_structure_entity(connection.child)
-                new_world.remove_connection(connection)
-                new_world.add_connection(connection)
+
+            # connections must be removed before the kinematic structure entities:
+            # removing a node makes rustworkx silently drop its edges, so a
+            # connection removed afterwards is recorded against entities its own
+            # history has already dropped, and can no longer be replayed
             self.remove_connection(root_connection)
+            for connection in child_body_parent_connections:
+                self.remove_connection(connection)
+
+            self.remove_kinematic_structure_entity(new_root)
+            for child_body in child_bodies:
+                self.remove_kinematic_structure_entity(child_body)
+
+            for connection in child_body_parent_connections:
+                new_world.add_connection(connection)
 
         return new_world
 
