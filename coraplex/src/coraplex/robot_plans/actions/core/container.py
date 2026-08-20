@@ -27,7 +27,6 @@ from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction
 from coraplex.robot_plans.motions.container import (
-    CLOSED_ENOUGH_MARGIN,
     ClosingMotion,
     OpeningMotion,
 )
@@ -56,13 +55,9 @@ class OpenAction(ActionDescription):
     Arm that should be used for opening the container.
     """
 
-    approach_direction: ApproachDirection = ApproachDirection.BACK
+    approach_direction: ApproachDirection = ApproachDirection.FRONT
     """
     The side of the handle the gripper approaches from.
-
-    Since the direction is taken in the handle's own frame, a handle whose frame is
-    turned against the room it is reached from is approached from
-    :attr:`~coraplex.datastructures.enums.ApproachDirection.BACK`.
     """
 
     goal_joint_state: Optional[float] = None
@@ -169,13 +164,9 @@ class CloseAction(ActionDescription):
     Arm that should be used for closing.
     """
 
-    approach_direction: ApproachDirection = ApproachDirection.BACK
+    approach_direction: ApproachDirection = ApproachDirection.FRONT
     """
     The side of the handle the gripper approaches from.
-
-    Since the direction is taken in the handle's own frame, a handle whose frame is
-    turned against the room it is reached from is approached from
-    :attr:`~coraplex.datastructures.enums.ApproachDirection.BACK`.
     """
 
     goal_joint_state: float = 0.01
@@ -187,6 +178,15 @@ class CloseAction(ActionDescription):
     """
     The distance in meters between the gripper and the handle before approaching to
     grasp.
+    """
+
+    goal_joint_state_tolerance: float = 0.09
+    """
+    How far short of its goal, in the unit of its own degree of freedom, the container
+    may stop and still count as closed.
+
+    The last stretch onto a mechanism's own limit is only approached asymptotically, so
+    a container that has to arrive exactly never reports that it got there.
     """
 
     @property
@@ -223,5 +223,5 @@ class CloseAction(ActionDescription):
 
         return (
             variable_from(close_connection).position
-            < kwargs["goal_joint_state"] + CLOSED_ENOUGH_MARGIN
+            < kwargs["goal_joint_state"] + kwargs["goal_joint_state_tolerance"]
         )

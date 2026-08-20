@@ -561,6 +561,28 @@ def test_container_motions_tolerate_the_last_stretch_onto_the_limit(
     ]
 
 
+def test_container_motions_wait_out_the_stall_time_they_were_given(
+    immutable_model_world,
+):
+    """
+    How long a standstill has to last before it counts as as far as the container goes
+    is the caller's to say, since it depends on how slowly the mechanism creeps onto its
+    own limit.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab10_m")
+
+    closing = ClosingMotion(handle, Arms.LEFT, stall_time=2.5)
+    execute_single(closing, context=context)
+
+    stall_monitor = next(
+        node
+        for node in _nodes_of(closing.motion_chart)
+        if isinstance(node, LocalMinimumReached)
+    )
+    assert stall_monitor.minimum_time == closing.stall_time
+
+
 def test_move_gripper_motion_finger_velocity_adds_real_limit(immutable_model_world):
     """
     An explicit ``finger_velocity`` must add a real

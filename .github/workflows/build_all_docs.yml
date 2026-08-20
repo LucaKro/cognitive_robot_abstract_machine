@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - ijcai_planning_tutorials
   workflow_dispatch: {}
 
 # Serialize Pages deployments so concurrent runs do not race. Never cancel a run in

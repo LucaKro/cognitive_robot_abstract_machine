@@ -227,27 +227,8 @@ class AreReachableBy(PoseValidator):
                 for pose in sequence
             ]
 
-        for arm in Arms:
-            if (
-                self.tip_link
-                == ViewManager.get_end_effector_view(arm, self.robot).tool_frame
-            ):
-                correct_arm = arm
-        end_effector = ViewManager.get_end_effector_view(correct_arm, self.robot)
-        allowed_bodies = end_effector.bodies_with_collision
-
         msc = MotionStatechart()
         msc.add_node(sequence_node := Sequence(sequence))
-        # msc.add_node(ExternalCollisionAvoidance())
-        # msc.add_node(
-        #     UpdateTemporaryCollisionRules(
-        #         temporary_rules=[
-        #             AllowCollisionForBodies(
-        #                 allowed_collision_bodies=set(allowed_bodies)
-        #             )
-        #         ]
-        #     )
-        # )
         msc.add_node(EndMotion.when_true(sequence_node))
 
         return msc

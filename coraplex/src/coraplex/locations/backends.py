@@ -37,25 +37,6 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 logger = logging.getLogger("coraplex")
 
-CANDIDATE_SEEDS = 20
-"""
-How many starting poses full-body control is offered before a location gives up.
-"""
-
-CANDIDATE_TICK_BUDGET = 1_500
-"""
-How many control ticks one candidate may take to bring the target within reach.
-
-A candidate that works takes well under half of this, so the budget mostly decides how
-long a hopeless one is allowed to hold up the search.
-"""
-
-UNREACHED_TARGET_OUTCOMES = MOTION_DID_NOT_WORK_OUT
-"""
-How a full-body solve ends when the target stays out of reach, which is every way a
-motion fails to be carried out.
-"""
-
 
 @dataclass
 class GiskardLocationBackend(PoseGeneratorBackend):
@@ -99,7 +80,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
 
     world: World
     """
-    The world in which to sample 
+    The world in which to sample.
     """
 
     distance_to_obstacle: Optional[float] = None
@@ -108,6 +89,19 @@ class GiskardLocationBackend(PoseGeneratorBackend):
 
     Defaults to the clearance the robot's base needs, see
     :meth:`~coraplex.locations.costmaps.OccupancyCostmap.default_distance_to_obstacle`.
+    """
+
+    candidate_seeds: int = 50
+    """
+    How many starting poses full-body control is offered before this backend gives up.
+    """
+
+    candidate_tick_budget: int = 1_500
+    """
+    How many control ticks one candidate may take to bring the target within reach.
+
+    A candidate that works takes well under half of this, so the budget mostly decides
+    how long a hopeless one is allowed to hold up the search.
     """
 
     def __post_init__(self):
@@ -141,6 +135,8 @@ class GiskardLocationBackend(PoseGeneratorBackend):
             robot=robot,
             world=world,
             distance_to_obstacle=self.distance_to_obstacle,
+            candidate_seeds=self.candidate_seeds,
+            candidate_tick_budget=self.candidate_tick_budget,
         )
 
     def setup_costmap(self, pose: Pose) -> Costmap:
@@ -172,7 +168,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
 
         reachability_map = occupancy_map + gaussian_map
-        reachability_map.number_of_samples = CANDIDATE_SEEDS * 5
+        reachability_map.number_of_samples = self.candidate_seeds
         reachability_map.sample_randomly = True
 
         return reachability_map
@@ -264,10 +260,10 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         """
         Work out which grasps a standing pose has to allow.
 
-        A backend given no grasp offers one per side the gripper could come from, so which
-        side works is settled against the pose the robot is standing at rather than
-        before anywhere to stand was known. Which side that turns out to be depends on
-        where the robot ends up, so choosing it first is choosing it too early.
+        A backend given no grasp offers one per side the gripper could come from, so
+        which side works is settled against the pose the robot is standing at rather
+        than before anywhere to stand was known. Which side that turns out to be depends
+        on where the robot ends up, so choosing it first is choosing it too early.
 
         :return: The grasp this backend was given, or every side when it was given none.
         """
@@ -321,8 +317,8 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                 self.reach_sequence(grasp), self.world, self.robot, end_effector
             )
             try:
-                executor.tick_until_end(CANDIDATE_TICK_BUDGET)
-            except UNREACHED_TARGET_OUTCOMES:
+                executor.tick_until_end(self.candidate_tick_budget)
+            except MOTION_DID_NOT_WORK_OUT:
                 continue
             return True
         return False

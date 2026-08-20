@@ -80,18 +80,9 @@ class TransportAction(ActionDescription):
             ).where(drawer.root == container)
         )
         drawer_annotation = list(drawer_annotation.evaluate())
-
-        door_annotation = an(
-            entity(
-                door := variable(Door, domain=self.world.semantic_annotations)
-            ).where(door.root.parent_kinematic_structure_entity == container)
-        )
-        door_annotation = list(door_annotation.evaluate())
-
-        selected_annotations = drawer_annotation + door_annotation
-        if len(selected_annotations) == 0:
+        if len(drawer_annotation) == 0:
             return []
-        handle = selected_annotations[0].handle.root
+        handle = drawer_annotation[0].handle.root
 
         return [
             a(NavigateAction)(

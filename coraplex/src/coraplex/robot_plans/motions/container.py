@@ -14,21 +14,6 @@ from coraplex.robot_plans.motions.base import StandaloneMotion
 from coraplex.datastructures.enums import Arms
 from coraplex.view_manager import ViewManager
 
-CLOSED_ENOUGH_MARGIN = 0.09
-"""
-How far short of its goal a container may stop and still count as open or shut.
-
-The last stretch onto a mechanism's own limit is only approached asymptotically, so a
-container that has to arrive exactly never reports that it got there.
-"""
-
-CONTAINER_STALL_TIME = 1.0
-"""
-How long, in seconds, a container has to stop moving before it counts as stuck.
-
-Long enough that the slow approach onto a limit is not mistaken for having stopped.
-"""
-
 
 @dataclass
 class ContainerMotion(StandaloneMotion):
@@ -54,6 +39,13 @@ class ContainerMotion(StandaloneMotion):
     ``None`` drives it as far as that degree of freedom goes.
     """
 
+    stall_time: float = 1.0
+    """
+    How long, in seconds, the container has to stop moving before it counts as stuck.
+
+    Long enough that the slow approach onto a limit is not mistaken for having stopped.
+    """
+
     def perform(self):
         return
 
@@ -62,8 +54,8 @@ class ContainerMotion(StandaloneMotion):
         Wrap a container goal in what every container motion needs around it.
 
         :param goal: The goal driving the container's degree of freedom.
-        :return: That goal, done as soon as the container arrives *or* stops moving, with
-            the hand free to touch the handle it is holding.
+        :return: That goal, done as soon as the container arrives *or* stops moving,
+            with the hand free to touch the handle it is holding.
         """
         return Parallel(
             [
@@ -87,7 +79,7 @@ class ContainerMotion(StandaloneMotion):
         )
         return LocalMinimumReached(
             degrees_of_freedom=[connection.raw_dof],
-            minimum_time=CONTAINER_STALL_TIME,
+            minimum_time=self.stall_time,
             measure_from_own_start=True,
         )
 

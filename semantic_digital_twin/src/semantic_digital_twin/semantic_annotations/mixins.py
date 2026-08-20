@@ -948,7 +948,7 @@ class HasSupportingSurface(IsStorageSpace):
         surface = self.supporting_surface.area
         half_depth = body_to_sample_for.root.collision.scale.x / 2
 
-        # %% filter out samples too close to the
+        # %% filter out samples too close to the edge of the surface
         samples = [
             sample
             for sample in samples

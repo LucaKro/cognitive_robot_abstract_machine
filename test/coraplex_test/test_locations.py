@@ -1,5 +1,5 @@
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pytest
@@ -93,6 +93,21 @@ class UnsolvableMotionExecutor:
 
     def tick_until_end(self, *args, **kwargs) -> None:
         raise self.outcome
+
+
+@dataclass
+class RecordsTickBudget:
+    """
+    Stands in for a Giskard executor and records how many ticks it was allowed.
+    """
+
+    granted_budgets: List[int] = field(default_factory=list)
+    """
+    The tick budget each solve was started with, in solve order.
+    """
+
+    def tick_until_end(self, tick_budget: int) -> None:
+        self.granted_budgets.append(tick_budget)
 
 
 # %% specification-built worlds whose odom is displaced
@@ -466,6 +481,42 @@ def test_giskard_backend_solves_the_reach_the_grasp_performs(
     ]
 
 
+# %% the backend searches within the budget it was given
+
+
+def test_giskard_backend_solves_a_candidate_within_the_tick_budget_it_was_given(
+    single_robot_world, monkeypatch
+):
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    backend = replace(
+        _backend_reaching_for(candidate, robot, world), candidate_tick_budget=7
+    )
+    executor = RecordsTickBudget()
+    monkeypatch.setattr(
+        GiskardLocationBackend, "setup_costmap", lambda self, pose: [candidate]
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_giskard_executor",
+        lambda self, *args, **kwargs: executor,
+    )
+
+    list(backend)
+
+    assert executor.granted_budgets == [backend.candidate_tick_budget]
+
+
+def test_giskard_backend_draws_a_seed_per_candidate_it_may_try(single_robot_world):
+    world, robot, context = single_robot_world
+    target = _candidate(world)
+    backend = replace(_backend_reaching_for(target, robot, world), candidate_seeds=3)
+
+    costmap = backend.setup_costmap(target)
+
+    assert costmap.number_of_samples == backend.candidate_seeds
+
+
 # %% the backend solves the reach the action will perform, in the world it was given
 
 
@@ -481,6 +532,23 @@ def test_giskard_backend_moves_into_the_world_it_is_given(single_robot_world):
     assert moved.robot is other_world.get_semantic_annotation_by_id(robot.id)
     assert moved.target is other_world.get_world_entity_with_id_by_id(target.id)
     assert moved.grasp_description.end_effector.tool_frame._world is other_world
+
+
+def test_giskard_backend_keeps_its_search_budget_when_it_moves_world(
+    single_robot_world,
+):
+    world, robot, context = single_robot_world
+    target = _box_in_front_of(world, robot, gap=0.5)
+    backend = replace(
+        _backend_reaching_for(target, robot, world),
+        candidate_seeds=3,
+        candidate_tick_budget=11,
+    )
+
+    moved = backend.copy_for_world(deepcopy(world))
+
+    assert moved.candidate_seeds == backend.candidate_seeds
+    assert moved.candidate_tick_budget == backend.candidate_tick_budget
 
 
 def test_giskard_backend_reaches_for_a_pose_with_what_the_gripper_holds(
