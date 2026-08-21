@@ -294,6 +294,34 @@ def test_move_tool_center_point_motion_allows_the_gripper_to_touch_what_it_grasp
     assert set(rules_node.temporary_rules[0].body_group_b) == allowed_bodies
 
 
+def test_move_tool_center_point_motion_frees_what_the_gripper_carries(
+    mutable_model_world,
+):
+    """
+    What the gripper carries is not one of the end effector's own bodies, it only hangs
+    below its tool frame, so freeing the manipulator has to free it too -- otherwise
+    external collision avoidance keeps the carried object a buffer zone away from the
+    surface it is being put down on and the placing aborts on the contact it was asked
+    to make.
+    """
+    world, view, context = mutable_model_world
+    end_effector = ViewManager().get_end_effector_view(Arms.LEFT, view)
+    carried = world.get_body_by_name("milk.stl")
+    with world.modify_world():
+        world.move_branch(carried, end_effector.tool_frame)
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(target, Arms.LEFT, allow_gripper_collision=True)
+    execute_single(motion, context=context)
+
+    rules_node = next(
+        node
+        for node in motion.motion_chart.nodes
+        if isinstance(node, UpdateTemporaryCollisionRules)
+    )
+    assert carried in rules_node.temporary_rules[0].body_group_b
+
+
 def test_move_tool_center_point_motion_keeps_the_gripper_clear_by_default(
     immutable_model_world,
 ):
@@ -889,6 +917,35 @@ def test_stretch_tool_center_point_accepts_a_local_minimum(
         node for node in reaching_stage.nodes if isinstance(node, LocalMinimumReached)
     )
     assert local_minimum.joint_convergence_threshold == 0.025
+
+
+@pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
+def test_stretch_tool_center_point_allows_the_gripper_to_touch_what_it_grasps(
+    immutable_stretch_apartment_world,
+):
+    """
+    A robot with a mapping of its own runs the same plan as one without, so the mapping
+    has to honour ``allow_gripper_collision`` too: dropping the rule leaves external
+    collision avoidance to abort the very contact the motion was allowed to make.
+    """
+    world, robot, context = immutable_stretch_apartment_world
+    context.alternative_motion_mappings = [StretchMoveToolCenterPoint]
+    motion = MoveToolCenterPointMotion(
+        target=Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
+        arm=Arms.LEFT,
+        allow_gripper_collision=True,
+    )
+    execute_single(motion, context=context)
+
+    with real_robot:
+        chart = motion.motion_chart
+
+    rules_node = next(
+        node for node in chart.nodes if isinstance(node, UpdateTemporaryCollisionRules)
+    )
+    assert set(rules_node.temporary_rules[0].body_group_b) == set(
+        ViewManager().get_end_effector_view(Arms.LEFT, robot).bodies_with_collision
+    )
 
 
 # %% stretch base motion

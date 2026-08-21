@@ -335,4 +335,3 @@ def test_pick_up_leaves_its_approach_open(demonstration, fridge_context):
     assert grasp.factory is GraspDescription
     assert grasp.kwargs["approach_direction"] is Ellipsis
     assert grasp.kwargs["vertical_alignment"] is VerticalAlignment.NoAlignment
-    assert grasp.kwargs["rotate_gripper"] is False

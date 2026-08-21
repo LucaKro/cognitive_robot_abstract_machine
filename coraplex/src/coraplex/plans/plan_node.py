@@ -576,9 +576,19 @@ class DesignatorNode(PlanNode, ABC):
 
     def __node_info__(self):
         parent_infos = super().__node_info__()
-        designator_field = [f"{field.name}: {getattr(self.designator, field.name)}" for field in self.designator.fields]
-        parent_infos.append("---------------- Designator Parameter --------------------")
-        parent_infos.extend([f"Designator Type: {self.designator.__class__.__name__}", *designator_field])
+        designator_field = [
+            f"{field.name}: {getattr(self.designator, field.name)}"
+            for field in self.designator.fields
+        ]
+        parent_infos.append(
+            "---------------- Designator Parameter --------------------"
+        )
+        parent_infos.extend(
+            [
+                f"Designator Type: {self.designator.__class__.__name__}",
+                *designator_field,
+            ]
+        )
         return parent_infos
 
     def __node_label__(self):
@@ -679,11 +689,7 @@ class ActionNode(DesignatorNode):
             motion_exec.post_condition_node = post_condition_node
             return motion_exec
 
-        giskard_child_execs = [
-            executable
-            for executable in child_execs[0].execution_list
-            if isinstance(executable, GiskardExecutable)
-        ]
+        giskard_child_execs = child_execs[0].giskard_executables
         giskard_child_execs[0].pre_condition_node = pre_condition_node
         giskard_child_execs[-1].post_condition_node = post_condition_node
         return child_execs[0]

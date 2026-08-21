@@ -75,6 +75,21 @@ class Executable:
         for executable in self.execution_list:
             executable.execute()
 
+    @property
+    def giskard_executables(self) -> List[GiskardExecutable]:
+        """
+        The motion state charts run under this executable, in execution order.
+
+        An action body that ends up in more than one chart is held as a composite of
+        composites, so the charts it starts and finishes in are not all at the top
+        level.
+        """
+        return [
+            giskard_executable
+            for executable in self.execution_list
+            for giskard_executable in executable.giskard_executables
+        ]
+
 
 @dataclass
 class GiskardExecutable(Executable):
@@ -126,6 +141,10 @@ class GiskardExecutable(Executable):
     """
     The tasks built from :attr:`motion_nodes`, once they have been.
     """
+
+    @property
+    def giskard_executables(self) -> List[GiskardExecutable]:
+        return [self]
 
     @property
     def motion_mappings(self) -> Dict[MotionNode, Task]:

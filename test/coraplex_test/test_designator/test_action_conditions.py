@@ -72,10 +72,19 @@ def test_get_bound_variables(immutable_model_world):
 
 
 def test_pick_up_pre_conditions(mutable_model_world):
+    """
+    The pre condition reports whether the object can be reached, and says which of its
+    statements is the one that fails.
+
+    The robot drives while it reaches, so an object it cannot get to is one out of the
+    height its arm rises to rather than one merely standing far away.
+    """
     world, view, context = mutable_model_world
+    milk = world.get_body_by_name("milk.stl")
+    milk_origin_within_reach = milk.parent_connection.origin
 
     pick_action = PickUpAction(
-        world.get_body_by_name("milk.stl"),
+        milk,
         Arms.LEFT,
         GraspDescription(
             ApproachDirection.FRONT,
@@ -85,6 +94,10 @@ def test_pick_up_pre_conditions(mutable_model_world):
     )
 
     plan = sequential([pick_action], context)
+
+    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        2, 1.5, 3, reference_frame=milk.parent_connection.parent
+    )
 
     with pytest.raises(ConditionNotSatisfied):
         _construct_and_evaluate_condition(
@@ -104,6 +117,7 @@ def test_pick_up_pre_conditions(mutable_model_world):
     with pytest.raises(ConditionNotSatisfied):
         _construct_and_evaluate_condition(pick_action, pick_action.pre_condition)
 
+    milk.parent_connection.origin = milk_origin_within_reach
     view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1.9, 1.4, 0
     )
