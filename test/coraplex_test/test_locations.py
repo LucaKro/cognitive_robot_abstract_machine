@@ -15,6 +15,7 @@ from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
+    UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
@@ -753,6 +754,101 @@ def test_giskard_backend_judges_a_reach_the_way_execution_runs_it(single_robot_w
     ]
     assert len(avoidance) == 1
     assert avoidance[0].cancel_if_collision_violated
+
+
+# %% the reach is allowed to close on what it reaches for
+
+
+def _bodies_allowed_to_touch(executor, target: Body) -> set:
+    """
+    :param executor: The executor whose chart carries the temporary collision rules.
+    :param target: The body whose permitted contacts are collected.
+    :return: Every body the chart lets ``target`` touch.
+    """
+    return {
+        pair.body_a if pair.body_b is target else pair.body_b
+        for node in executor.motion_statechart.nodes
+        if isinstance(node, UpdateTemporaryCollisionRules)
+        for rule in node.temporary_rules
+        for pair in rule.allowed_collision_pairs
+        if target in pair.bodies()
+    }
+
+
+def test_giskard_backend_lets_the_whole_robot_touch_the_body_it_reaches_for(
+    single_robot_world,
+):
+    """
+    Closing on a body brings more of the robot than the gripper inside the buffer zone
+    kept around it -- on a short arm the wrist reaches the body before the fingers do.
+
+    Held to that buffer, the reach stops short and a candidate that would have worked is
+    rejected.
+    """
+    world, robot, context = single_robot_world
+    target = _box_at(
+        world, Point3.from_iterable([1.0, 0.5, 0.8]), Scale(0.05, 0.05, 0.2)
+    )
+    backend = _backend_reaching_for(target, robot, world)
+    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+
+    executor = backend.setup_giskard_executor(
+        [target.global_pose], world, robot, end_effector
+    )
+
+    assert set(robot.bodies_with_collision) <= _bodies_allowed_to_touch(
+        executor, target
+    )
+
+
+def test_giskard_backend_keeps_the_robot_clear_of_what_it_does_not_reach_for(
+    single_robot_world,
+):
+    """
+    Only the body being reached for is opened up to the whole robot; an obstacle that
+    merely stands nearby is still something the arm has to keep clear of.
+    """
+    world, robot, context = single_robot_world
+    target = _box_at(
+        world, Point3.from_iterable([1.0, 0.5, 0.8]), Scale(0.05, 0.05, 0.2)
+    )
+    obstacle = _box_at(
+        world, Point3.from_iterable([1.0, -0.5, 0.8]), Scale(0.05, 0.05, 0.2)
+    )
+    backend = _backend_reaching_for(target, robot, world)
+    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+
+    executor = backend.setup_giskard_executor(
+        [target.global_pose], world, robot, end_effector
+    )
+
+    allowed_arm_contacts = _bodies_allowed_to_touch(executor, obstacle) & set(
+        robot.bodies_with_collision
+    )
+    assert allowed_arm_contacts == set(end_effector.bodies_with_collision)
+
+
+def test_giskard_backend_reaching_for_a_pose_allows_only_the_gripper(
+    single_robot_world,
+):
+    """
+    A pose is not a body, so there is nothing for the robot to be allowed to touch
+    beyond what the gripper is always allowed to touch.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    backend = _backend_reaching_for(candidate, robot, world)
+    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
+
+    executor = backend.setup_giskard_executor([candidate], world, robot, end_effector)
+
+    rules = [
+        rule
+        for node in executor.motion_statechart.nodes
+        if isinstance(node, UpdateTemporaryCollisionRules)
+        for rule in node.temporary_rules
+    ]
+    assert len(rules) == 1
 
 
 # %% a search that finds nothing draws again

@@ -27,6 +27,7 @@ from coraplex.datastructures.grasp import GraspDescription, GraspPose
 from coraplex.locations.base import Location, PoseGeneratorBackend
 from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostmap
 from coraplex.view_manager import ViewManager
+from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
@@ -208,12 +209,9 @@ class GiskardLocationBackend(PoseGeneratorBackend):
             [
                 pose_seq,
                 UpdateTemporaryCollisionRules(
-                    temporary_rules=[
-                        AllowCollisionBetweenGroups(
-                            body_group_a=world.bodies_with_collision,
-                            body_group_b=end_effector.bodies_with_collision,
-                        )
-                    ]
+                    temporary_rules=self.contacts_the_reach_may_make(
+                        world, robot, end_effector
+                    )
                 ),
                 ExternalCollisionAvoidance(robot=robot),
             ]
@@ -231,6 +229,38 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         executor.compile(msc)
 
         return executor
+
+    def contacts_the_reach_may_make(
+        self, world: World, robot: AbstractRobot, end_effector: EndEffector
+    ) -> List[CollisionRule]:
+        """
+        Work out what the reach is allowed to touch.
+
+        The gripper may touch anything, because manipulating something means closing on
+        it. Reaching for a body opens that body up to the whole robot as well: closing
+        on it brings more than the gripper inside the buffer zone kept around it, and on
+        a short arm the wrist arrives before the fingers do. Held to that buffer, the
+        reach stops short of what it was asked to take hold of.
+
+        :param world: The world the reach is simulated in.
+        :param robot: The robot performing the reach.
+        :param end_effector: The end effector doing the manipulating.
+        :return: The rules that apply for the duration of the reach.
+        """
+        rules: List[CollisionRule] = [
+            AllowCollisionBetweenGroups(
+                body_group_a=world.bodies_with_collision,
+                body_group_b=end_effector.bodies_with_collision,
+            )
+        ]
+        if isinstance(self.target, Body):
+            rules.append(
+                AllowCollisionBetweenGroups(
+                    body_group_a=[self.target],
+                    body_group_b=robot.bodies_with_collision,
+                )
+            )
+        return rules
 
     def target_facing_the_robot(self) -> Union[Pose, Body]:
         """

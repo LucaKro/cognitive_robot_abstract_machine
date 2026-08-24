@@ -103,7 +103,7 @@ class Location(Iterable[Pose]):
         if self.context.debug:
             VizMarkerPublisher(
                 _world=test_world, node=self.context.ros_node
-            ).with_tf_publisher()
+            ).with_tf_and_collision_visualization()
 
         for pose_candidate in self.generator.copy_for_world(test_world):
 
