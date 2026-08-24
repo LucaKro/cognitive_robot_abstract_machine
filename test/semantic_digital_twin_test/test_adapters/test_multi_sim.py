@@ -1,6 +1,8 @@
 import logging
 import os
+import threading
 import time
+from dataclasses import dataclass
 
 import mujoco
 import pytest
@@ -44,6 +46,7 @@ from semantic_digital_twin.adapters.multi_sim import (
     MujocoActuator,
     MujocoBuilder,
     MujocoLight,
+    MujocoSynchronizer,
 )
 
 urdf_dir = os.path.join(
@@ -848,6 +851,245 @@ def test_world_sim_state_sync():
         )
     finally:
         stop_multisim_if_running(multi_sim)
+
+
+@dataclass
+class BoxOnPlaneWorld:
+    """
+    A world holding a ground plane and one free-floating box, together with the
+    pieces of it a test needs to address afterwards.
+    """
+
+    world: World
+    """
+    The world itself, ready for a simulator to be built from it.
+    """
+
+    box: Body
+    """
+    The free-floating box, used as the reference frame for poses written to it.
+    """
+
+    box_connection: Connection6DoF
+    """
+    The box's 6DoF connection to the world root, whose origin the tests set.
+    """
+
+
+def _build_box_on_plane_world() -> BoxOnPlaneWorld:
+    """
+    Build a ground plane plus a single free-floating box, authored directly
+    into a :class:`World` so a simulator can be built from it without spawning.
+
+    :return: The world and the box handles the caller needs.
+    """
+    world = World()
+    root = Body(name=PrefixedName("world"))
+    with world.modify_world():
+        world.add_body(root)
+
+        ground_plane = Body(name=PrefixedName("ground_plane"))
+        ground_plane.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=ground_plane
+                    ),
+                    scale=Scale(2.0, 2.0, 0.1),
+                    color=Color(1.0, 1.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=ground_plane,
+        )
+        world.add_connection(FixedConnection(parent=root, child=ground_plane))
+
+        box = Body(name=PrefixedName("free_box"))
+        box.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=box
+                    ),
+                    scale=Scale(0.2, 0.2, 0.2),
+                    color=Color(1.0, 0.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=box,
+        )
+        box_connection = Connection6DoF.create_with_dofs(
+            world=world, parent=root, child=box
+        )
+        world.add_connection(box_connection)
+    return BoxOnPlaneWorld(world=world, box=box, box_connection=box_connection)
+
+
+def test_pose_written_during_sim_to_world_pull_reaches_the_simulator():
+    """
+    A pose written from another thread while the physics thread is inside its
+    *sim → world* pull must still reach MuJoCo.
+
+    The pull overwrites ``world.state`` from ``qpos`` and pauses the sibling
+    state-change callback while it does so. A write that lands inside that
+    window is therefore overwritten with the pre-write pose *and* has its
+    notification swallowed by the pause, so it never reaches ``qpos`` and no
+    error is raised anywhere -- the pose is simply lost. Under load this is
+    what made ``test_world_sim_state_sync`` fail, with the box settling at the
+    origin instead of the pose it was teleported to.
+
+    Rather than wait for that interleaving to happen by chance, this drives it:
+    the pull is held open inside ``_read_6dof_from_qpos`` while a second thread
+    writes a new pose.
+    """
+    target_xyz = numpy.array([0.4, -0.3, 1.25])
+
+    scene = _build_box_on_plane_world()
+    box, box_connection = scene.box, scene.box_connection
+    multi_sim = MujocoSim(world=scene.world, headless=headless, step_size=STEP_SIZE)
+    synchronizer = multi_sim.synchronizer
+    # The pull is wall-clock throttled; this test calls it explicitly and must
+    # not have the call skipped.
+    synchronizer.sync_rate_hz = MujocoSynchronizer.UNTHROTTLED_SYNC_RATE_HZ
+
+    pull_is_inside = threading.Event()
+    let_pull_finish = threading.Event()
+    original_read = synchronizer._read_6dof_from_qpos
+
+    def blocking_read(connection, qpos_address):
+        pull_is_inside.set()
+        assert let_pull_finish.wait(
+            timeout=10
+        ), "test did not release the sim → world pull"
+        return original_read(connection, qpos_address)
+
+    write_failed = []
+
+    def write_new_pose():
+        try:
+            box_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=float(target_xyz[0]),
+                y=float(target_xyz[1]),
+                z=float(target_xyz[2]),
+                reference_frame=box,
+            )
+        except BaseException as error:  # surfaced on the main thread below
+            write_failed.append(error)
+
+    try:
+        synchronizer._read_6dof_from_qpos = blocking_read
+
+        # The physics thread is never started: _sim_to_world is what the
+        # physics thread would call after each mj_step, and calling it directly
+        # keeps the interleaving deterministic.
+        puller = threading.Thread(target=synchronizer._sim_to_world, daemon=True)
+        puller.start()
+        assert pull_is_inside.wait(timeout=10), "sim → world pull never started"
+
+        writer = threading.Thread(target=write_new_pose, daemon=True)
+        writer.start()
+        # Give the writer every chance to slip into the middle of the pull.
+        time.sleep(0.2)
+
+        let_pull_finish.set()
+        puller.join(timeout=10)
+        writer.join(timeout=10)
+        assert not puller.is_alive(), "sim → world pull did not finish"
+        assert not writer.is_alive(), "pose write did not finish"
+        assert not write_failed, f"pose write raised: {write_failed[0]!r}"
+
+        qpos_address = synchronizer._resolve_qpos_address(box_connection)
+        assert qpos_address is not None, "free joint is missing from the MuJoCo model"
+        written_xyz = numpy.asarray(
+            multi_sim.simulator._mj_data.qpos[qpos_address : qpos_address + 3], dtype=float
+        )
+        assert numpy.allclose(written_xyz, target_xyz, atol=1e-6), (
+            "pose written during the sim → world pull never reached MuJoCo: "
+            f"qpos={written_xyz}, expected={target_xyz}"
+        )
+    finally:
+        synchronizer._read_6dof_from_qpos = original_read
+        let_pull_finish.set()
+        synchronizer.stop()
+
+
+def test_pose_write_waits_for_the_running_physics_step():
+    """
+    The *world → sim* push must write ``qpos`` under the simulator's model
+    lock, the same lock :meth:`MujocoSimulator.step_callback` holds across
+    ``mj_step``.
+
+    The scene integrates with RK4, which saves the state at the top of the step
+    and writes the integrated ``qpos`` back at the end. A pose written into
+    ``qpos`` while a step is in flight is therefore overwritten by that final
+    write and disappears -- the body carries on from its old pose and nothing
+    reports an error. Under CI load the physics thread spends most of its wall
+    time inside ``mj_step``, which is what made ``test_world_sim_state_sync``
+    fail there while passing on an idle machine.
+
+    Holding the model lock from another thread stands in for a step in flight:
+    the push must block until it is released, and must land afterwards.
+    """
+    target_xyz = numpy.array([-0.25, 0.45, 1.75])
+
+    scene = _build_box_on_plane_world()
+    box, box_connection = scene.box, scene.box_connection
+    multi_sim = MujocoSim(world=scene.world, headless=headless, step_size=STEP_SIZE)
+    synchronizer = multi_sim.synchronizer
+
+    model_lock_held = threading.Event()
+    release_model_lock = threading.Event()
+    write_returned = threading.Event()
+    write_failed = []
+
+    def hold_model_lock():
+        with multi_sim.simulator._model_lock:
+            model_lock_held.set()
+            release_model_lock.wait(timeout=10)
+
+    def write_new_pose():
+        try:
+            box_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=float(target_xyz[0]),
+                y=float(target_xyz[1]),
+                z=float(target_xyz[2]),
+                reference_frame=box,
+            )
+        except BaseException as error:  # surfaced on the main thread below
+            write_failed.append(error)
+        finally:
+            write_returned.set()
+
+    try:
+        holder = threading.Thread(target=hold_model_lock, daemon=True)
+        holder.start()
+        assert model_lock_held.wait(timeout=10), "could not take the model lock"
+
+        writer = threading.Thread(target=write_new_pose, daemon=True)
+        writer.start()
+
+        assert not write_returned.wait(timeout=1.0), (
+            "the world → sim push completed while another thread held the "
+            "model lock, so it can also run in the middle of an mj_step, "
+            "where RK4 overwrites the pose it just wrote"
+        )
+
+        release_model_lock.set()
+        writer.join(timeout=10)
+        holder.join(timeout=10)
+        assert write_returned.is_set(), "pose write never finished"
+        assert not write_failed, f"pose write raised: {write_failed[0]!r}"
+
+        qpos_address = synchronizer._resolve_qpos_address(box_connection)
+        assert qpos_address is not None, "free joint is missing from the MuJoCo model"
+        written_xyz = numpy.asarray(
+            multi_sim.simulator._mj_data.qpos[qpos_address : qpos_address + 3], dtype=float
+        )
+        assert numpy.allclose(written_xyz, target_xyz, atol=1e-6), (
+            "pose never reached MuJoCo once the model lock was free: "
+            f"qpos={written_xyz}, expected={target_xyz}"
+        )
+    finally:
+        release_model_lock.set()
+        synchronizer.stop()
 
 
 def test_prebuilt_world_multiple_free_bodies_start_at_authored_poses():
