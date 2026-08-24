@@ -65,20 +65,8 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 logger = logging.getLogger(__name__)
 
-try:
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
-except ImportError:
-    logger.warning(
-        "usd-core is required for USD parsing. Please install it using "
-        "'pip install usd-core'"
-    )
-
-try:
-    from pxr import UsdSemantics
-except ImportError:
-    # UsdSemantics (UsdSemantics.LabelsAPI) is only available from usd-core 24.11
-    # onward; an older install simply never yields UsdSemanticLabels annotations.
-    UsdSemantics = NoneType
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import UsdSemantics
 
 
 def _usd_pose_to_transform(

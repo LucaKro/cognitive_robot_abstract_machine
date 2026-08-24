@@ -100,12 +100,10 @@ def test_motion_state_chart_real_execution_wraps_tasks_in_sequence(
         assert task not in chart.nodes
 
 
-def test_motion_state_chart_simulated_execution_adds_condition_and_pause_interrupt_monitors(
+def test_motion_state_chart_simulated_execution_adds_pause_interrupt_monitors(
     reach_action_executable,
 ):
     task_count = len(reach_action_executable.motion_mappings)
-    assert reach_action_executable.pre_condition_node
-    assert reach_action_executable.post_condition_node
 
     with simulated_robot:
         chart = reach_action_executable.motion_state_chart

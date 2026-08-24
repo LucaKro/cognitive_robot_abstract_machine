@@ -495,7 +495,7 @@ def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> World:
         ).bounding_box()
     )
     fridge = the(entity(variable(Fridge, domain=world.semantic_annotations))).first()
-    door_angle = fridge.doors[0].root.parent_connection.position
+    door_angle = fridge.doors[0].mechanical_joint.root.parent_connection.position
 
     print(f"milk placed at {np.round(milk.root.global_pose.to_position(), 3)}")
     print(

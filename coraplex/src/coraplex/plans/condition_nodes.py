@@ -6,10 +6,7 @@ from typing_extensions import TYPE_CHECKING, Callable
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    ThreadedPredicateMonitor,
-)
-from krrood.entity_query_language.factories import ConditionType, evaluate_condition
+from krrood.entity_query_language.factories import ConditionType
 from coraplex.plans.plan_node import PlanNode, ActionNode
 
 
@@ -44,26 +41,6 @@ class ConditionNode(PlanNode):
     ) -> None:
         if self.action_node is replaced_node:
             self.action_node = replacement_node
-
-
-def condition_monitor(condition_node: ConditionNode) -> ThreadedPredicateMonitor:
-    """
-    Build a giskard monitor that evaluates a PyCRAM condition inside a motion state
-    chart.
-
-    The EQL condition is wrapped in a plain callable, so giskard never sees any
-    PyCRAM/EQL types. The condition is evaluated in a background thread (see
-    :class:`~giskardpy.motion_statechart.monitors.payload_monitors.ThreadedPredicateMonitor`),
-    its observation state becoming TRUE/FALSE once evaluation finishes.
-
-    :param condition_node: The pre- or post-condition node to evaluate.
-    :return: A monitor whose observation reflects the condition's truth value.
-    """
-    name = "pre_condition" if condition_node.pre_condition else "post_condition"
-    return ThreadedPredicateMonitor(
-        predicate=lambda: bool(evaluate_condition(condition_node.condition)),
-        name=name,
-    )
 
 
 @dataclass(eq=False, repr=False)

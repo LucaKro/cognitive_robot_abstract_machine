@@ -50,18 +50,11 @@ class ActionDescription(Designator):
 
     def perform(self) -> Any:
         """
-        Perform the entire action including precondition and postcondition validation.
+        Perform the action.
         """
         logger.info(f"Performing action {self.__class__.__name__}")
 
-        if self.plan.context.evaluate_conditions:
-            self.evaluate_pre_condition()
-
-        result = None
-
-        result = self.execute()
-
-        return result
+        return self.execute()
 
     @property
     def action_plan(self) -> PlanNode:

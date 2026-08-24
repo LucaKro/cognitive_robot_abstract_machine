@@ -511,7 +511,7 @@ with simulated_robot(collision_avoidance=True):
 ```{code-cell} ipython3
 :tags: [verify-solution, remove-input]
 if plan is ...: raise ExerciseVerificationFailed("Build the opening plan.")
-door_angle = fridge.doors[0].root.parent_connection.position
+door_angle = fridge.doors[0].mechanical_joint.root.parent_connection.position
 if door_angle < DOOR_OPENING_ANGLE - 0.1: raise ExerciseVerificationFailed(f"The fridge door should stand open at about {DOOR_OPENING_ANGLE} rad, but it is at {door_angle:.3f}.")
 ```
 
@@ -772,7 +772,7 @@ with simulated_robot(collision_avoidance=True):
 :tags: [verify-solution, remove-input]
 if plan is ...: raise ExerciseVerificationFailed("Build the closing plan.")
 DOOR_IS_CLOSED_ANGLE = 0.02
-door_angle = fridge.doors[0].root.parent_connection.position
+door_angle = fridge.doors[0].mechanical_joint.root.parent_connection.position
 if door_angle >= DOOR_IS_CLOSED_ANGLE: raise ExerciseVerificationFailed(f"The fridge door should be shut, but it stands at {door_angle:.3f} rad.")
 ```
 

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 from typing_extensions import List, Dict, ClassVar, Optional, TYPE_CHECKING
 
+from coraplex.datastructures.enums import ExecutionType
+from coraplex.exceptions import (
+    MotionDidNotFinish,
+    UnknownExecutionType,
+)
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
@@ -21,32 +25,18 @@ from giskardpy.motion_statechart.graph_node import EndMotion, Task
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
-from krrood.entity_query_language.factories import evaluate_condition
-from coraplex.datastructures.enums import ExecutionType
-from coraplex.exceptions import (
-    MotionDidNotFinish,
-    ConditionNotSatisfied,
-    UnknownExecutionType,
-)
-from semantic_digital_twin.world_description.connections import (
-    Connection6DoF,
-    FixedConnection,
-)
-from semantic_digital_twin.world_description.world_entity import Body
-
-from giskardpy.motion_statechart.graph_node import CancelMotion
 from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     trinary_logic_not,
     trinary_logic_or,
 )
+from semantic_digital_twin.world_description.connections import (
+    FixedConnection,
+)
+from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
-    from giskardpy.middleware.ros2.python_interface import GiskardWrapper
-    from coraplex.robot_plans.actions.base import ActionDescription
-
-    from coraplex.plans.condition_nodes import ConditionNode
-    from coraplex.plans.plan_node import MotionNode, UnderspecifiedNode, ActionNode
+    from coraplex.plans.plan_node import MotionNode, UnderspecifiedNode
     from coraplex.datastructures.dataclasses import Context
 
 logger = logging.getLogger(__name__)
@@ -103,22 +93,6 @@ class GiskardExecutable(Executable):
     The motions this executable runs, in execution order.
     """
 
-    pre_condition_node: Optional[ConditionNode] = field(default=None, kw_only=True)
-    """
-    Optional pre-condition of the action this executable belongs to.
-
-    If set, the motion only starts once the condition is observed to hold and the motion
-    is aborted (with :class:`ConditionNotSatisfied`) if it does not.
-    """
-
-    post_condition_node: Optional[ConditionNode] = field(default=None, kw_only=True)
-    """
-    Optional post-condition of the action this executable belongs to.
-
-    If set, it is evaluated after the motion finished; the motion only ends successfully
-    if the condition is observed to hold, otherwise it is aborted.
-    """
-
     execution_type: ClassVar[Optional[ExecutionType]] = None
     """
     The execution type used for all giskard executables, managed by
@@ -166,15 +140,6 @@ class GiskardExecutable(Executable):
     def motion_state_chart(self) -> MotionStatechart:
         """
         Giskard's motion state chart constructed from the motions of this executable.
-
-        If a pre- and/or post-condition is set, it is added as a
-        :class:`~giskardpy.motion_statechart.monitors.payload_monitors.ThreadedPredicateMonitor`
-        and wired into the chart:
-
-        - the pre-condition gates the start of the motion sequence,
-        - the post-condition gates the successful end of the motion,
-        - a :class:`~giskardpy.motion_statechart.graph_node.CancelMotion` aborts
-          the motion if either condition is observed to be false.
         """
         self._current_motion_state_chart = MotionStatechart()
         if self.execution_type == ExecutionType.REAL:
@@ -187,8 +152,6 @@ class GiskardExecutable(Executable):
         tasks = list(self.motion_mappings.values())
         for task in tasks:
             self._current_motion_state_chart.add_node(task)
-        first_task = tasks[0]
-
         end_trigger = tasks[-1].observation_variable
 
         if self.execution_type == ExecutionType.SIMULATED:
@@ -206,52 +169,6 @@ class GiskardExecutable(Executable):
         end_motion.start_condition = end_trigger
         self._current_motion_state_chart.add_node(end_motion)
         return self._current_motion_state_chart
-
-    def _add_condition_monitors(
-        self, first_task: Task, end_trigger: ObservationStateValues
-    ):
-        """
-        Adds the pre -and postcondition nodes to the Motion state chart and wires them
-        to the first task and the end trigger of the motion state chart.
-
-        :param end_trigger: The trigger which ends the motion state chart.
-        """
-        from coraplex.plans.condition_nodes import condition_monitor
-
-        if self.pre_condition_node is not None and self.context.evaluate_conditions:
-            pre_monitor = condition_monitor(self.pre_condition_node)
-            self._current_motion_state_chart.add_node(pre_monitor)
-            # only start the motion once the pre-condition holds
-            first_task.start_condition = pre_monitor.observation_variable
-            # abort if the pre-condition is observed to be false
-            pre_cancel = CancelMotion(
-                exception=self._condition_not_satisfied(
-                    self.pre_condition_node,
-                    action_node=self.pre_condition_node.action_node.action,
-                )
-            )
-            pre_cancel.start_condition = trinary_logic_not(
-                pre_monitor.observation_variable
-            )
-            self._current_motion_state_chart.add_node(pre_cancel)
-
-        if self.post_condition_node is not None and self.context.evaluate_conditions:
-            post_monitor = condition_monitor(self.post_condition_node)
-            # only evaluate the post-condition once the motion is done
-            post_monitor.start_condition = end_trigger
-            self._current_motion_state_chart.add_node(post_monitor)
-            end_trigger = post_monitor.observation_variable
-            # abort if the post-condition is observed to be false
-            post_cancel = CancelMotion(
-                exception=self._condition_not_satisfied(
-                    self.post_condition_node,
-                    action_node=self.post_condition_node.action_node.action,
-                )
-            )
-            post_cancel.start_condition = trinary_logic_not(
-                post_monitor.observation_variable
-            )
-            self._current_motion_state_chart.add_node(post_cancel)
 
     def _add_pause_interrupt(self, tasks: List[Task]) -> List[ObservationStateValues]:
         """
@@ -312,17 +229,6 @@ class GiskardExecutable(Executable):
                     )
                 )
         return skip_end_conditions
-
-    @staticmethod
-    def _condition_not_satisfied(
-        condition_node: ConditionNode,
-        action_node: ActionDescription,
-    ) -> ConditionNotSatisfied:
-        return ConditionNotSatisfied(
-            pre_condition=condition_node.pre_condition,
-            action=action_node.__class__,
-            condition=condition_node.condition,
-        )
 
     @property
     def is_interrupted(self) -> bool:
@@ -403,30 +309,6 @@ class GiskardExecutable(Executable):
         for interrupts.
         """
         self.context.giskard_wrapper.execute(self.motion_state_chart)
-
-
-@dataclass
-class ConditionExecutable(Executable):
-    """
-    An executable unit for a condition node.
-    """
-
-    condition_node: ConditionNode = field(kw_only=True)
-    """
-    The condition node to execute.
-    """
-
-    def execute(self) -> None:
-        """
-        Executes the condition node.
-        """
-        if evaluate_condition(self.condition_node.condition):
-            return True
-        raise ConditionNotSatisfied(
-            pre_condition=self.condition_node.pre_condition,
-            action=self.condition_node.__class__,
-            condition=self.condition_node.condition,
-        )
 
 
 @dataclass

@@ -670,8 +670,10 @@ class ActionNode(DesignatorNode):
 
     def parse(self) -> Executable:
         children = self.children
-        pre_condition_node = children.pop(0)
-        post_condition_node = children.pop(-1)
+        # The action's own pre- and post-condition nodes; they carry the conditions in
+        # the plan graph and are not steps to execute.
+        children.pop(0)
+        children.pop(-1)
 
         child_execs = [child.parse() for child in children]
         merged = self.merge_motion_executables(child_execs)
@@ -682,16 +684,8 @@ class ActionNode(DesignatorNode):
             if isinstance(executable, GiskardExecutable)
         ]
         if len(motion_execs) == 1:
-            # The action body is a single motion state chart, so the conditions
-            # can be evaluated inside it (gating start/end, aborting on failure).
-            motion_exec = motion_execs[0]
-            motion_exec.pre_condition_node = pre_condition_node
-            motion_exec.post_condition_node = post_condition_node
-            return motion_exec
+            return motion_execs[0]
 
-        giskard_child_execs = child_execs[0].giskard_executables
-        giskard_child_execs[0].pre_condition_node = pre_condition_node
-        giskard_child_execs[-1].post_condition_node = post_condition_node
         return child_execs[0]
 
     def execute(self):

@@ -57,8 +57,6 @@ def test_parse_simple_action(immutable_model_world):
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert executable.pre_condition_node
-    assert executable.post_condition_node
     assert len(executable.motion_mappings) == 1
     assert type(list(executable.motion_mappings.values())[0]) == JointPositionList
 
@@ -91,8 +89,6 @@ def test_merge_motions(immutable_model_world, rclpy_node):
 
     assert type(executable) == GiskardExecutable
     assert len(executable.motion_mappings) == 2
-    assert executable.pre_condition_node
-    assert executable.post_condition_node
 
     with simulated_robot:
         executable.execute()
@@ -478,8 +474,6 @@ def test_detect_action_parses_to_a_single_motion_chart(immutable_model_world):
     assert [type(task) for task in executable.motion_mappings.values()] == [
         PerceptionTask
     ]
-    assert executable.pre_condition_node
-    assert executable.post_condition_node
 
 
 # %% expansion-time pose capture
