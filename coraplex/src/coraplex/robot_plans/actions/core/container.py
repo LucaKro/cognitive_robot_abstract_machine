@@ -211,6 +211,31 @@ class CloseAction(ActionDescription):
         )
 
     @staticmethod
+    def pre_condition(
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+    ) -> ConditionType:
+        """
+        The gripper with which to close the container has to be free and the handle has
+        to be reachable.
+        """
+        end_effector = ViewManager.get_end_effector_view(
+            variables["arm"], context.robot
+        )
+        return and_(
+            GripperIsFree(end_effector),
+            IsObjectReachableBy(
+                context=Context(
+                    robot=context.robot,
+                    world=context.world,
+                    alternative_motion_mappings=context.alternative_motion_mappings,
+                ),
+                arm=kwargs["arm"],
+                object_designator=kwargs["object_designator"],
+                as_single_grasp=True,
+            ),
+        )
+
+    @staticmethod
     def post_condition(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression | bool:

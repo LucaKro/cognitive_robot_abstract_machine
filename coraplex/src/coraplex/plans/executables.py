@@ -496,6 +496,11 @@ class UnderspecifiedExecutable(Executable):
     gripper). Candidates are tried in order until one executes without raising a
     :class:`~pycram.plans.failures.PlanFailure`; if the generator is exhausted,
     :class:`~pycram.plans.failures.EmptyUnderspecified` is raised.
+
+    A candidate that fails may already have moved the robot part of the way, so the world it
+    stopped in is put back before the next one is tried. Judged from where a cancelled
+    motion left the arm -- inside a buffer zone it never chose to enter -- a candidate
+    that would have worked is rejected.
     """
 
     node: UnderspecifiedNode = field(kw_only=True)
@@ -511,10 +516,12 @@ class UnderspecifiedExecutable(Executable):
         )
 
         while self.node.advance():
-            try:
-                self.node.current_candidate.parse().execute()
+            with self.context.world.reset_state_context() as attempt:
+                try:
+                    self.node.current_candidate.parse().execute()
+                except (PlanFailure, *MOTION_DID_NOT_WORK_OUT):
+                    continue
+                attempt.keep()
                 self.node.stop_grounding()
                 return
-            except (PlanFailure, *MOTION_DID_NOT_WORK_OUT):
-                continue
         raise EmptyUnderspecified()

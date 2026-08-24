@@ -167,6 +167,45 @@ def test_pick_up_post_condition(mutable_model_world):
     assert _construct_and_evaluate_condition(pick_action, pick_action.post_condition)
 
 
+# %% shutting a container the hand cannot get to
+
+
+def test_close_action_refuses_a_handle_it_cannot_reach(mutable_model_world):
+    """
+    Shutting a container starts by taking hold of its handle, so a handle the arm cannot
+    reach is a container this hand cannot shut.
+
+    The robot drives while it reaches, so a handle it cannot get to is one above the
+    height its arm rises to rather than one merely standing far away. Judged before
+    anything moves, a candidate that cannot work costs a query rather than a grasp, a
+    drive and a gripper release.
+    """
+    world, view, context = mutable_model_world
+    handle = world.get_body_by_name("handle_cab10_m")
+    kitchen = world.get_body_by_name("apartment_root")
+    kitchen_origin_within_reach = kitchen.parent_connection.origin
+    close_action = CloseAction(handle, Arms.LEFT)
+    sequential([close_action], context)
+
+    kitchen.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        0, 0, 3, reference_frame=kitchen.parent_connection.parent
+    )
+    world.notify_state_change()
+    out_of_reach = close_action.pre_condition(
+        close_action.bound_variables, context, close_action.designator_parameter
+    )
+    refused_out_of_reach = evaluate_condition(out_of_reach)
+
+    kitchen.parent_connection.origin = kitchen_origin_within_reach
+    world.notify_state_change()
+    within_reach = close_action.pre_condition(
+        close_action.bound_variables, context, close_action.designator_parameter
+    )
+
+    assert not refused_out_of_reach
+    assert evaluate_condition(within_reach)
+
+
 # %% how far short of shut still counts as closed
 
 

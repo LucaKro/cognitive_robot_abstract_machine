@@ -356,6 +356,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             a(OpenAction)(
                 object_designator=handle,
                 arm=...,
+                approach_direction=...,
                 goal_joint_state=1.45,
             ),
             ParkArmsAction(Arms.BOTH),
@@ -371,6 +372,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
             a(CloseAction)(
                 object_designator=handle,
                 arm=...,
+                approach_direction=...,
                 goal_joint_state=0.0,
             ),
             ParkArmsAction(Arms.BOTH),

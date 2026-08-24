@@ -1791,6 +1791,23 @@ def test_reset_state_context(pr2_world_state_reset):
     assert np.allclose(state_copy, pr2_world_state_reset.state._data)
 
 
+def test_reset_state_context_keeps_what_a_kept_block_did(pr2_world_state_reset):
+    """
+    A block whose outcome is the point of running it says so, and the world is then left
+    where it put things rather than being wound back.
+    """
+    moved_pose = HomogeneousTransformationMatrix.from_xyz_rpy(10, 10, 0)
+
+    with pr2_world_state_reset.reset_state_context() as block:
+        pr2_world_state_reset.get_body_by_name(
+            "base_footprint"
+        ).parent_connection.origin = moved_pose
+        state_before_leaving = pr2_world_state_reset.state._data.copy()
+        block.keep()
+
+    assert np.allclose(state_before_leaving, pr2_world_state_reset.state._data)
+
+
 def test_copy_for_world():
 
     w1 = World()

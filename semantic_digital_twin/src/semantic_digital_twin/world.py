@@ -140,13 +140,25 @@ class ResetStateContextManager:
     ensuring that its state can be safely returned to its previous condition upon
     leaving the context. The original state of the `World` instance is restored even if
     an exception occurs within the context, and the state change is notified.
+
+    Call :meth:`keep` for a block whose outcome is to be kept, which leaves the world
+    where the block put it instead of putting it back.
     """
 
     def __init__(self, world: World):
         self.world = world
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> ResetStateContextManager:
         self.state = self.world.state._data.copy()
+        self.keeps_what_the_block_did = False
+        return self
+
+    def keep(self) -> None:
+        """
+        Leave the world where this block put it, rather than restoring it on the way
+        out.
+        """
+        self.keeps_what_the_block_did = True
 
     def __exit__(
         self,
@@ -154,6 +166,8 @@ class ResetStateContextManager:
         exc_val: Optional[Exception],
         exc_tb: Optional[type],
     ) -> None:
+        if self.keeps_what_the_block_did:
+            return
         self.world.state._data[:] = self.state
         self.world.notify_state_change()
 
@@ -1138,8 +1152,8 @@ class World(HasSimulatorProperties):
         """
         Removes a kinematic_structure_entity from the world.
 
-        Removing a kinematic_structure_entity this world does not own does nothing
-        and is not recorded, so a history can never open with the removal of a
+        Removing a kinematic_structure_entity this world does not own does nothing and
+        is not recorded, so a history can never open with the removal of a
         kinematic_structure_entity nothing added.
 
         :param kinematic_structure_entity: The kinematic_structure_entity to remove.
@@ -1167,9 +1181,9 @@ class World(HasSimulatorProperties):
         """
         Removes a degree of freedom from the world.
 
-        Removing a degree of freedom this world does not own does nothing and is
-        not recorded, so a history can never open with the removal of a degree of
-        freedom nothing added.
+        Removing a degree of freedom this world does not own does nothing and is not
+        recorded, so a history can never open with the removal of a degree of freedom
+        nothing added.
 
         :param dof: The degree of freedom to remove.
         """
@@ -1191,9 +1205,9 @@ class World(HasSimulatorProperties):
         Removes a semantic annotation from the current list of semantic annotations if
         it exists.
 
-        Removing a semantic annotation this world does not own does nothing and is
-        not recorded, so a history can never open with the removal of a semantic
-        annotation nothing added.
+        Removing a semantic annotation this world does not own does nothing and is not
+        recorded, so a history can never open with the removal of a semantic annotation
+        nothing added.
 
         :param semantic_annotation: The semantic annotation instance to be removed.
         """
@@ -1214,9 +1228,8 @@ class World(HasSimulatorProperties):
         """
         Removes an actuator from the current list of actuators if it exists.
 
-        Removing an actuator this world does not own does nothing and is not
-        recorded, so a history can never open with the removal of an actuator
-        nothing added.
+        Removing an actuator this world does not own does nothing and is not recorded,
+        so a history can never open with the removal of an actuator nothing added.
 
         :param actuator: The actuator instance to be removed.
         """

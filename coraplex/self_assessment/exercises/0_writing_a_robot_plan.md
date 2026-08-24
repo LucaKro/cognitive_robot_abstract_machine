@@ -463,18 +463,24 @@ handle. (radians for a hinge, meters for a drawer slider)
 The hinge's own limit is about 1.5708 rad, but for noise and safety reasons, lets a be a bit
 more cautious and only allow the door to open to about 1.45 rad.
 
+Which side the gripper comes at the handle from is `approach_direction`. Rather than looking up
+which side works in this kitchen and writing that down, leave it open with `...`, the same way
+`get_grasp_for_milk` leaves the milk's approach open. Each side is then tried as the plan runs
+until one gets the door open, which is what makes the plan work in a kitchen you have not seen.
+
 Park the arms afterwards, with
 [`ParkArmsAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/robot_body/index.html#coraplex.robot_plans.actions.core.robot_body.ParkArmsAction).
 
 Your goal:
-- Swing the fridge door open to `DOOR_OPENING_ANGLE` with `DOOR_ARM`, then park both arms
+- Swing the fridge door open to `DOOR_OPENING_ANGLE` with `DOOR_ARM`, leaving
+  `approach_direction` open, then park both arms
 
 ```{code-cell} ipython3
 :tags: [exercise]
 DOOR_OPENING_ANGLE = 1.45
 
-# TODO: open the fridge door, then park the arms
-# plan = sequential([...], context)
+# TODO: open the fridge door with the approach direction left open, then park the arms
+# plan = sequential([a(OpenAction)(...), ...], context)
 # with simulated_robot(collision_avoidance=True):
 #     plan.perform()
 
@@ -487,7 +493,12 @@ DOOR_OPENING_ANGLE = 1.45
 
 plan = sequential(
     [
-        OpenAction(handle_body, DOOR_ARM, goal_joint_state=DOOR_OPENING_ANGLE),
+        a(OpenAction)(
+            object_designator=handle_body,
+            arm=DOOR_ARM,
+            approach_direction=...,
+            goal_joint_state=DOOR_OPENING_ANGLE,
+        ),
         ParkArmsAction(Arms.BOTH),
     ],
     context,
@@ -709,18 +720,19 @@ if not (surface_box.min_y <= placed_box.min_y and placed_box.max_y <= surface_bo
 
 [`CloseAction`](https://cram2.github.io/cognitive_robot_abstract_machine/coraplex/autoapi/coraplex/robot_plans/actions/core/container/index.html#coraplex.robot_plans.actions.core.container.CloseAction) takes the same arguments as
 the opening. The handle is attached the swinging door, so it is somewhere else now than it was when
-you stood in front of it.
+you stood in front of it. Leave the approach direction open here too: the handle is standing at a
+different angle than it was when you opened it, so the side that works need not be the same one.
 
 Your goal:
 - Navigate to a deferred reachability location for the handle, shut the door to
-  `DOOR_CLOSING_ANGLE`, park both arms, and perform it
+  `DOOR_CLOSING_ANGLE` with the approach direction left open, park both arms, and perform it
 
 ```{code-cell} ipython3
 :tags: [exercise]
 DOOR_CLOSING_ANGLE = 0.0
 
-# TODO: drive back to the handle and shut the door
-# plan = sequential([...], context)
+# TODO: drive back to the handle and shut the door, with the approach direction left open
+# plan = sequential([a(NavigateAction)(...), a(CloseAction)(...), ...], context)
 # with simulated_robot(collision_avoidance=True):
 #     plan.perform()
 
@@ -741,7 +753,12 @@ plan = sequential(
                 ),
             ),
         ),
-        CloseAction(handle_body, DOOR_ARM, goal_joint_state=DOOR_CLOSING_ANGLE),
+        a(CloseAction)(
+            object_designator=handle_body,
+            arm=DOOR_ARM,
+            approach_direction=...,
+            goal_joint_state=DOOR_CLOSING_ANGLE,
+        ),
         ParkArmsAction(Arms.BOTH),
     ],
     context,
@@ -890,6 +907,7 @@ def add_container_opening_and_closing(
         a(OpenAction)(
             object_designator=handle,
             arm=...,
+            approach_direction=...,
             goal_joint_state=DOOR_OPENING_ANGLE,
         ),
         ParkArmsAction(Arms.BOTH),
@@ -905,6 +923,7 @@ def add_container_opening_and_closing(
         a(CloseAction)(
             object_designator=handle,
             arm=...,
+            approach_direction=...,
             goal_joint_state=DOOR_CLOSING_ANGLE,
         ),
         ParkArmsAction(Arms.BOTH),
@@ -923,6 +942,7 @@ if wrapped[1].factory is not OpenAction or wrapped[1].kwargs["object_designator"
 if wrapped[1].kwargs["goal_joint_state"] != DOOR_OPENING_ANGLE: raise ExerciseVerificationFailed("The door should be opened to DOOR_OPENING_ANGLE.")
 if wrapped[-2].factory is not CloseAction or wrapped[-2].kwargs["goal_joint_state"] != DOOR_CLOSING_ANGLE: raise ExerciseVerificationFailed("The door should be shut again to DOOR_CLOSING_ANGLE.")
 if wrapped[1].kwargs["arm"] is not Ellipsis or wrapped[-2].kwargs["arm"] is not Ellipsis: raise ExerciseVerificationFailed("Both container actions should leave their arm open.")
+if wrapped[1].kwargs["approach_direction"] is not Ellipsis or wrapped[-2].kwargs["approach_direction"] is not Ellipsis: raise ExerciseVerificationFailed("Both container actions should leave the side the gripper comes from open.")
 if add_container_opening_and_closing(transport, island_counter_top(fresh_world).root, fresh_context) is not transport: raise ExerciseVerificationFailed("A body standing in the open should leave the steps exactly as they were.")
 ```
 
@@ -976,7 +996,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
 
 demonstration = KitchenFridgeDemonstration(used_robot=PR2)
-demonstration.run()
+# demonstration.run()
 ```
 
 ```{code-cell} ipython3
@@ -1066,7 +1086,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
 
 
 demonstration = KitchenFridgeDemonstration(used_robot=PR2)
-demonstration.run()
+transported_world = demonstration.run()
 ```
 
 ```{code-cell} ipython3
