@@ -11,6 +11,7 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.view_manager import ViewManager
+from giskardpy.data_types.exceptions import MotionTimeout
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
@@ -406,7 +407,10 @@ def test_location_leaves_the_context_world_untouched(single_robot_world, monkeyp
 
 @pytest.mark.parametrize(
     "outcome",
-    [TimeoutError(), CollisionViolatedError(violated_collisions=[], thresholds=[])],
+    [
+        MotionTimeout(tick_budget=1),
+        CollisionViolatedError(violated_collisions=[], thresholds=[]),
+    ],
     ids=["timeout", "collision"],
 )
 def test_giskard_backend_skips_a_candidate_whose_motion_does_not_reach_the_target(
@@ -872,7 +876,7 @@ def test_giskard_backend_gives_up_when_no_candidate_works(
 
     def build(self, *args, **kwargs):
         attempted_reaches.append(candidate)
-        return UnsolvableMotionExecutor(TimeoutError())
+        return UnsolvableMotionExecutor(MotionTimeout(tick_budget=1))
 
     monkeypatch.setattr(GiskardLocationBackend, "setup_giskard_executor", build)
 

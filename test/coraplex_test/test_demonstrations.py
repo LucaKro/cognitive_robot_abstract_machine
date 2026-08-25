@@ -118,6 +118,24 @@ def test_simulated_run_still_builds_its_own_world(cylinder_bot_world):
     demonstration.tear_down()
 
 
+def test_a_demonstration_registers_its_node_under_its_own_name(cylinder_bot_world):
+    """
+    Which name a run registers under is a property of the run, not of its class, so two
+    demonstrations of the same kind can be told apart on the ROS graph.
+    """
+    demonstration = RecordingDemonstration(
+        world=cylinder_bot_world,
+        used_robot=MinimalRobot,
+        ros_node_name="named_by_its_own_run",
+    )
+
+    demonstration.acquire_world()
+
+    assert demonstration.ros_node.get_name() == "named_by_its_own_run"
+
+    demonstration.tear_down()
+
+
 # %% scene population
 
 

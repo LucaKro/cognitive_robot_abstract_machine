@@ -4,7 +4,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from giskardpy.data_types.exceptions import NonPositiveRealTimeFactorError
+from giskardpy.data_types.exceptions import (
+    MotionTimeout,
+    NonPositiveRealTimeFactorError,
+)
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.exceptions import (
     PlotterNotConfiguredError,
@@ -244,7 +247,7 @@ class Executor:
                 self.pacer.sleep()
                 if self.motion_statechart.is_end_motion():
                     return
-            raise TimeoutError("Timeout reached while waiting for end of motion.")
+            raise MotionTimeout(tick_budget=timeout)
         finally:
             self.set_velocity_acceleration_jerk_to_zero()
             self.motion_statechart.cleanup_nodes(context=self.context)

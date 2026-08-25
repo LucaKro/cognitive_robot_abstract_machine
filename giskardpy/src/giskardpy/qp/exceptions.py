@@ -8,7 +8,11 @@ from dataclasses import dataclass
 
 from typing_extensions import TYPE_CHECKING, Type
 
-from giskardpy.data_types.exceptions import GiskardException, DontPrintStackTrace
+from giskardpy.data_types.exceptions import (
+    DontPrintStackTrace,
+    GiskardException,
+    MotionFailure,
+)
 
 if TYPE_CHECKING:
     from giskardpy.qp.constraint import GiskardConstraint
@@ -41,7 +45,7 @@ class SolverReturnedFailureError(QPSolverException):
 
 
 @dataclass
-class InfeasibleException(QPSolverException):
+class InfeasibleException(QPSolverException, MotionFailure):
     """
     Raised when the QP has no feasible solution.
     """

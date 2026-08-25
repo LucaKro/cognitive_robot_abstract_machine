@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing_extensions import TYPE_CHECKING, Type, List
+from datetime import timedelta
+from typing_extensions import TYPE_CHECKING, Any, Type, List
 
+from giskardpy.data_types.exceptions import MotionFailure
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
@@ -12,6 +14,7 @@ from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
     from coraplex.plans.designator import Designator
+    from coraplex.validation.goal_validator import GoalValidator
     from coraplex.robot_plans.actions.base import ActionDescription
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
     from semantic_digital_twin.world_description.world_entity import (
@@ -152,6 +155,42 @@ class MotionDidNotFinish(PlanFailure):
 
     def error_message(self) -> str:
         return f"Motion did not finish, following motions failed: {self.failed_motions}"
+
+    def suggest_correction(self) -> str:
+        return ""
+
+
+@dataclass
+class GoalNotAchievedInTime(MotionFailure, TimeoutError):
+    """
+    Raised when a tracked goal was not reached within the time it was given.
+    """
+
+    goal_validator: GoalValidator
+    """
+    The validator that tracked the goal.
+    """
+
+    max_wait_time: timedelta
+    """
+    How long the goal was given to be reached.
+    """
+
+    current_value: Any
+    """
+    The value the tracked quantity had when the wait ran out.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Failed to achieve goal from initial error"
+            f" {self.goal_validator.initial_error} with goal"
+            f" {self.goal_validator.goal_value} within"
+            f" {self.max_wait_time.total_seconds()} seconds, the current value is"
+            f" {self.current_value}, error is {self.goal_validator.current_error},"
+            f" percentage of goal achieved is"
+            f" {self.goal_validator.percentage_of_goal_achieved}"
+        )
 
     def suggest_correction(self) -> str:
         return ""

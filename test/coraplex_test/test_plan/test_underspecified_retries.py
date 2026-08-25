@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
+from giskardpy.data_types.exceptions import MotionTimeout
 from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.qp.exceptions import InfeasibleException
 from typing_extensions import List, Optional, Type
@@ -203,7 +204,7 @@ def _context_of_a_still_world() -> ContextOf:
         PlanFailure(),
         CollisionViolatedError(violated_collisions=[], thresholds=[]),
         InfeasibleException(),
-        TimeoutError(),
+        MotionTimeout(tick_budget=1),
     ],
     ids=["plan_failure", "collision", "infeasible", "timeout"],
 )

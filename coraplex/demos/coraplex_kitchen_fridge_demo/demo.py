@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import ClassVar, List, Optional
+from typing_extensions import List, Optional
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
@@ -97,7 +97,10 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     A robot fetches a milk out of the kitchen fridge and puts it on the kitchen island.
     """
 
-    ros_node_name: ClassVar[str] = "kitchen_fridge_demo_node"
+    ros_node_name: str = "kitchen_fridge_demo_node"
+    """
+    Name this demonstration registers its node under.
+    """
 
     shelf_layer_name: str = "fridge_shelf"
     """

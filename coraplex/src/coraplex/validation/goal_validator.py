@@ -15,6 +15,7 @@ from typing_extensions import (
     Tuple,
 )
 
+from coraplex.exceptions import GoalNotAchievedInTime
 from coraplex.validation.error_checkers import (
     ErrorChecker,
     PoseErrorChecker,
@@ -117,18 +118,16 @@ class GoalValidator:
         while not self.goal_achieved:
             self.total_wait_time = timedelta(seconds=time() - start_time)
             if self.total_wait_time > max_wait_time:
-                msg = (
-                    f"Failed to achieve goal from initial error {self.initial_error} with"
-                    f" goal {self.goal_value} within {max_wait_time.total_seconds()}"
-                    f" seconds, the current value is {current}, error is {self.current_error}, percentage"
-                    f" of goal achieved is {self.percentage_of_goal_achieved}"
+                not_achieved = GoalNotAchievedInTime(
+                    goal_validator=self,
+                    max_wait_time=max_wait_time,
+                    current_value=current,
                 )
                 if self.raise_error:
-                    logger.error(msg)
-                    raise TimeoutError(msg)
-                else:
-                    logger.warning(msg)
-                    break
+                    logger.error(str(not_achieved))
+                    raise not_achieved
+                logger.warning(str(not_achieved))
+                break
             sleep(time_per_read.total_seconds())
             current = self.current_value
 

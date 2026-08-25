@@ -5,7 +5,6 @@ import random
 from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,18 +22,11 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3, Vector3
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from coraplex.datastructures.dataclasses import Context
 
 logger = logging.getLogger("coraplex")
-
-BASE_CLEARANCE = 0.1
-"""
-How much room, in meters, a robot base is given beyond its own radius when obstacles are
-inflated, so that standing on a free cell leaves it clear of what is next to it.
-"""
 
 
 class OrientationGenerator:
@@ -83,18 +75,18 @@ class OrientationGenerator:
 
     @staticmethod
     def generate_random_orientation(
-        *_, rng: random.Random = random.Random(42)
+        *_, random_number_generator: random.Random = random.Random(42)
     ) -> Quaternion:
         """
         Generates a random orientation rotated around the z-axis (yaw).
         A random angle is sampled using a provided RNG instance to ensure reproducibility.
 
         :param _: Ignored parameters to maintain compatibility with other orientation generators.
-        :param rng: Random number generator instance for reproducible sampling.
+        :param random_number_generator: Random number generator instance for reproducible sampling.
 
         :return: A quaternion of the randomly generated orientation.
         """
-        return Quaternion.from_rpy(0, 0, rng.uniform(0, 2 * np.pi))
+        return Quaternion.from_rpy(0, 0, random_number_generator.uniform(0, 2 * np.pi))
 
 
 @dataclass
@@ -173,7 +165,6 @@ class Costmap(PoseGeneratorBackend):
     """
     The world from which this locations was created.
     """
-    vis_ids: List[int] = field(default_factory=list, init=False)
 
     number_of_samples: int = field(kw_only=True, default=200)
     """
@@ -196,45 +187,28 @@ class Costmap(PoseGeneratorBackend):
     An optional orientatoin generator to use to generate the orientation for a sampled pose
     """
 
-    def _chunks(self, lst: List, n: int) -> Iterator[List]:
-        """
-        Yield successive n-sized chunks from lst.
-
-        :param lst: The list from which chunks should be yielded
-        :param n: Size of the chunks
-        :return: A list of size n from lst
-        """
-        for i in range(0, len(lst), n):
-            yield lst[i : i + n]
-
-    def close_visualization(self) -> None:
-        """
-        Removes the visualization from the World.
-        """
-        for v_id in self.vis_ids:
-            self.world.remove_visual_object(v_id)
-        self.vis_ids = []
-
-    def _find_consectuive_line(self, start: Tuple[int, int], map: np.ndarray) -> int:
+    def _find_consecutive_line_length(
+        self, start: Tuple[int, int], occupancy_map: np.ndarray
+    ) -> int:
         """
         Finds the number of consecutive entries in the locations which are greater
         than zero.
 
         :param start: The indices in the locations from which the consecutive line should be found.
-        :param map: The locations in which the line should be found.
+        :param occupancy_map: The locations in which the line should be found.
         :return: The length of the consecutive line of entries greater than zero.
         """
-        width = map.shape[1]
+        width = occupancy_map.shape[1]
         length = 0
-        for i in range(start[1], width):
-            if map[start[0]][i] > 0:
+        for column in range(start[1], width):
+            if occupancy_map[start[0]][column] > 0:
                 length += 1
             else:
                 return length
         return length
 
-    def _find_max_box_height(
-        self, start: Tuple[int, int], length: int, map: np.ndarray
+    def _find_maximal_box_height(
+        self, start: Tuple[int, int], length: int, occupancy_map: np.ndarray
     ) -> int:
         """
         Finds the maximal height for a rectangle with a given width in a locations.
@@ -244,19 +218,19 @@ class Costmap(PoseGeneratorBackend):
 
         :param start: The indices in the locations from which the method should start.
         :param length: The given width for the rectangle
-        :param map: The locations in which should be searched.
+        :param occupancy_map: The locations in which should be searched.
         :return: The height of the rectangle.
         """
-        height, width = map.shape
-        curr_height = 1
-        for i in range(start[0], height):
-            for j in range(start[1], start[1] + length):
-                if map[i][j] <= 0:
-                    return curr_height
-            curr_height += 1
-        return curr_height
+        height, width = occupancy_map.shape
+        box_height = 1
+        for row in range(start[0], height):
+            for column in range(start[1], start[1] + length):
+                if occupancy_map[row][column] <= 0:
+                    return box_height
+            box_height += 1
+        return box_height
 
-    def merge(self, other_cm: Costmap) -> Costmap:
+    def merge(self, other: Costmap) -> Costmap:
         """
         Merges the values of two locations and returns a new locations that has for
         every cell the merged values of both inputs. To merge two locations they
@@ -268,33 +242,33 @@ class Costmap(PoseGeneratorBackend):
 
         If any of these constrains is not fulfilled a ValueError will be raised.
 
-        :param other_cm: The other locations with which this locations should be merged.
+        :param other: The other locations with which this locations should be merged.
         :return: A new locations that contains the merged values
         """
-        if self.width != other_cm.width or self.height != other_cm.height:
+        if self.width != other.width or self.height != other.height:
             raise ValueError("You can only merge locations of the same size.")
         elif (
-            not np.allclose(self.origin.x, other_cm.origin.x)
-            or not np.allclose(self.origin.y, other_cm.origin.y)
+            not np.allclose(self.origin.x, other.origin.x)
+            or not np.allclose(self.origin.y, other.origin.y)
             or not np.allclose(
-                self.origin.to_rotation_matrix(), other_cm.origin.to_rotation_matrix()
+                self.origin.to_rotation_matrix(), other.origin.to_rotation_matrix()
             )
         ):
             raise ValueError(
                 "To merge locations, the x and y coordinate as well as the orientation must be equal."
             )
-        elif self.resolution != other_cm.resolution:
+        elif self.resolution != other.resolution:
             raise ValueError("To merge two locations their resolution must be equal.")
-        elif self.world != other_cm.world:
+        elif self.world != other.world:
             raise ValueError(
                 "To merge two locations they must belong to the same world."
             )
         new_map = np.zeros((self.height, self.width))
         # A numpy array of the positions where both locations are greater than 0
-        merge = np.logical_and(self.map > 0, other_cm.map > 0)
-        new_map[merge] = self.map[merge] * other_cm.map[merge]
-        max_val = np.max(new_map)
-        if max_val != 0:
+        overlap = np.logical_and(self.map > 0, other.map > 0)
+        new_map[overlap] = self.map[overlap] * other.map[overlap]
+        maximum_value = np.max(new_map)
+        if maximum_value != 0:
             new_map = (new_map / np.max(new_map)).reshape((self.height, self.width))
         else:
             new_map = new_map.reshape((self.height, self.width))
@@ -333,28 +307,34 @@ class Costmap(PoseGeneratorBackend):
 
         :return: A list containing the partitioning rectangles
         """
-        ocm_map = np.copy(self.map)
+        unassigned_map = np.copy(self.map)
         origin = np.array([self.height / 2, self.width / 2]) * -1
         rectangles = []
 
-        # for every index pair (i, j) in the occupancy locations
-        for i in range(0, self.map.shape[0]):
-            for j in range(0, self.map.shape[1]):
+        # for every index pair (row, column) in the occupancy locations
+        for row in range(0, self.map.shape[0]):
+            for column in range(0, self.map.shape[1]):
 
                 # if this index has not been used yet
-                if ocm_map[i][j] > 0:
-                    curr_width = self._find_consectuive_line((i, j), ocm_map)
-                    curr_pose = (i, j)
-                    curr_height = self._find_max_box_height((i, j), curr_width, ocm_map)
+                if unassigned_map[row][column] > 0:
+                    line_width = self._find_consecutive_line_length(
+                        (row, column), unassigned_map
+                    )
+                    start_index = (row, column)
+                    box_height = self._find_maximal_box_height(
+                        (row, column), line_width, unassigned_map
+                    )
 
                     # calculate the rectangle in the locations
-                    x_lower = curr_pose[0]
-                    x_upper = curr_pose[0] + curr_height
-                    y_lower = curr_pose[1]
-                    y_upper = curr_pose[1] + curr_width
+                    x_lower = start_index[0]
+                    x_upper = start_index[0] + box_height
+                    y_lower = start_index[1]
+                    y_upper = start_index[1] + line_width
 
                     # mark the found rectangle as occupied
-                    ocm_map[i : i + curr_height, j : j + curr_width] = 0
+                    unassigned_map[
+                        row : row + box_height, column : column + line_width
+                    ] = 0
 
                     # transform rectangle to map space
                     rectangle = Rectangle(x_lower, x_upper, y_lower, y_upper)
@@ -373,7 +353,7 @@ class Costmap(PoseGeneratorBackend):
         :Yield: A tuple of position and orientation
         """
 
-        ori_gen = (
+        orientation_generator = (
             self.orientation_generator
             or OrientationGenerator.generate_origin_orientation
         )
@@ -385,8 +365,8 @@ class Costmap(PoseGeneratorBackend):
         ):
             self.number_of_samples = self.map.flatten().shape[0]
 
-        for seg_map in self.segment_map():
-            weights = seg_map.flatten()
+        for segment in self.segment_map():
+            weights = segment.flatten()
             sample_count = min(self.number_of_samples, np.count_nonzero(weights))
             if sample_count == 0:
                 continue
@@ -396,7 +376,7 @@ class Costmap(PoseGeneratorBackend):
                 # even draw over the whole segment would spend most samples on the cells
                 # the map rates worst, and on the zeroed ones it rates unusable.
                 indices = np.random.choice(
-                    seg_map.size,
+                    segment.size,
                     sample_count,
                     replace=False,
                     p=weights / weights.sum(),
@@ -411,18 +391,18 @@ class Costmap(PoseGeneratorBackend):
                 -1, 2
             )
 
-            height = seg_map.shape[0]
-            width = seg_map.shape[1]
+            height = segment.shape[0]
+            width = segment.shape[1]
             center = np.array([height // 2, width // 2])
-            for ind in indices:
-                if seg_map[ind[0]][ind[1]] == 0:
+            for index in indices:
+                if segment[index[0]][index[1]] == 0:
                     continue
                 # Compute world position independent of origin orientation:
                 # map indices increase with world axes; origin is at the center.
-                offset = (ind - center) * self.resolution
+                offset = (index - center) * self.resolution
                 position = self.origin.to_position() + Vector3(offset[0], offset[1], 0)
 
-                orientation: Quaternion = ori_gen(position, self.origin)
+                orientation: Quaternion = orientation_generator(position, self.origin)
                 yield Pose(
                     position,
                     orientation,
@@ -444,16 +424,18 @@ class Costmap(PoseGeneratorBackend):
         # Label only works on integer arrays
         discrete_map[discrete_map != 0] = 1
 
-        labeled_map, num_labels = label(discrete_map, return_num=True, connectivity=2)
-        result_maps = []
+        labeled_map, number_of_labels = label(
+            discrete_map, return_num=True, connectivity=2
+        )
+        segments = []
         # We don't want the maps for value 0
-        for i in range(1, num_labels + 1):
-            copy_map = deepcopy(self.map)
-            copy_map[labeled_map != i] = 0
-            result_maps.append(copy_map)
+        for label_value in range(1, number_of_labels + 1):
+            isolated_segment = deepcopy(self.map)
+            isolated_segment[labeled_map != label_value] = 0
+            segments.append(isolated_segment)
         # Maps with the highest values go first
-        result_maps.sort(key=lambda m: np.max(m), reverse=True)
-        return result_maps
+        segments.sort(key=lambda segment: np.max(segment), reverse=True)
+        return segments
 
 
 @dataclass
@@ -471,6 +453,12 @@ class OccupancyCostmap(Costmap):
     robot_view: AbstractRobot
     """
     Robot semantic annotation which is used to create the map
+    """
+
+    base_clearance: float = field(kw_only=True, default=0.1)
+    """
+    How much room, in meters, a robot base is given beyond its own radius when obstacles
+    are inflated, so that standing on a free cell leaves it clear of what is next to it.
     """
 
     _distance_to_obstacle_index: int = field(init=False, default=None)
@@ -506,56 +494,63 @@ class OccupancyCostmap(Costmap):
         # base height of the robot plus a safty offset
         base_height = self.robot_view.mobile_base.bounding_box.height + 0.1
         # Add the z-coordinate to the grid, which is either 0 or 10
-        indices_0 = np.pad(
+        ray_starts = np.pad(
             indices, (0, 1), mode="constant", constant_values=base_height
         )[:-1]
-        indices_10 = np.pad(indices, (0, 1), mode="constant", constant_values=0)[:-1]
+        ray_ends = np.pad(indices, (0, 1), mode="constant", constant_values=0)[:-1]
         # Zips both arrays such that there are tuples for every coordinate that
         # only differ in the z-coordinate
-        rays = np.dstack(np.dstack((indices_0, indices_10))).T
+        rays = np.dstack(np.dstack((ray_starts, ray_ends))).T
 
-        res = np.ones(len(rays))
+        free_cells = np.ones(len(rays))
 
         ray_tracer = RayTracer(self.world)
-        r_t = ray_tracer.ray_test(rays[:, 0], rays[:, 1])
+        ray_hits = ray_tracer.ray_test(rays[:, 0], rays[:, 1])
         if self.robot_view:
-            res[r_t[1]] = [
+            free_cells[ray_hits[1]] = [
                 (
                     1
-                    if r_t[2][i]
+                    if ray_hits[2][hit_index]
                     in self.world.get_kinematic_structure_entities_of_branch(
                         self.robot_view.root
                     )
                     else 0
                 )
-                for i in range(len(r_t[1]))
+                for hit_index in range(len(ray_hits[1]))
             ]
         else:
-            res[r_t[1]] = 0
+            free_cells[ray_hits[1]] = 0
 
-        res = np.flip(np.reshape(np.array(res), (self.width, self.width)))
-        return res
+        free_cells = np.flip(np.reshape(np.array(free_cells), (self.width, self.width)))
+        return free_cells
 
-    def inflate_obstacles(self, map: np.ndarray):
+    def inflate_obstacles(self, occupancy_map: np.ndarray):
         """
         Inflates found obstacles in the environment by the distance_to_obstacle factor.
 
-        :param map: Map of obstacles to inflate.
+        :param occupancy_map: Map of obstacles to inflate.
         :return: The map with inflated obstacles.
         """
-        sub_shape = (
+        neighbourhood_shape = (
             self._distance_to_obstacle_index * 2,
             self._distance_to_obstacle_index * 2,
         )
-        view_shape = tuple(np.subtract(map.shape, sub_shape) + 1) + sub_shape
-        strides = map.strides + map.strides
+        view_shape = (
+            tuple(np.subtract(occupancy_map.shape, neighbourhood_shape) + 1)
+            + neighbourhood_shape
+        )
+        strides = occupancy_map.strides + occupancy_map.strides
 
-        sub_matrices = np.lib.stride_tricks.as_strided(map, view_shape, strides)
-        sub_matrices = sub_matrices.reshape(sub_matrices.shape[:-2] + (-1,))
+        neighbourhoods = np.lib.stride_tricks.as_strided(
+            occupancy_map, view_shape, strides
+        )
+        neighbourhoods = neighbourhoods.reshape(neighbourhoods.shape[:-2] + (-1,))
 
-        sum = np.sum(sub_matrices, axis=2)
-        map = (sum == (self._distance_to_obstacle_index * 2) ** 2).astype("int16")
-        return map
+        neighbourhood_sum = np.sum(neighbourhoods, axis=2)
+        occupancy_map = (
+            neighbourhood_sum == (self._distance_to_obstacle_index * 2) ** 2
+        ).astype("int16")
+        return occupancy_map
 
     def _create_from_world(self) -> np.ndarray:
         """
@@ -564,34 +559,36 @@ class OccupancyCostmap(Costmap):
         creating the locations the distance to obstacle parameter is applied.
         """
 
-        res = self.create_ray_mask_around_origin()
+        ray_mask = self.create_ray_mask_around_origin()
 
-        map = np.pad(
-            res,
+        occupancy_map = np.pad(
+            ray_mask,
             (
                 int(self._distance_to_obstacle_index / 2),
                 int(self._distance_to_obstacle_index / 2),
             ),
         )
 
-        map = self.inflate_obstacles(map)
+        occupancy_map = self.inflate_obstacles(occupancy_map)
         # The map loses some size due to the strides and because I dont want to
         # deal with indices outside of the index range
-        offset = self.width - map.shape[0]
+        offset = self.width - occupancy_map.shape[0]
         odd = 0 if offset % 2 == 0 else 1
-        map = np.pad(map, (offset // 2, offset // 2 + odd))
+        occupancy_map = np.pad(occupancy_map, (offset // 2, offset // 2 + odd))
 
-        return np.flip(map)
+        return np.flip(occupancy_map)
 
-    @staticmethod
-    def default_distance_to_obstacle(robot: AbstractRobot) -> float:
+    @classmethod
+    def default_distance_to_obstacle(cls, robot: AbstractRobot) -> float:
         """
         :param robot: The robot that has to stand on the free cells.
         :return: How far obstacles are inflated for that robot: the radius of its base
-            plus :data:`BASE_CLEARANCE`.
+            plus :attr:`base_clearance`.
         """
-        base_bb = robot.mobile_base.bounding_box
-        return (base_bb.depth / 2 + base_bb.width / 2) / 2 + BASE_CLEARANCE
+        base_bounding_box = robot.mobile_base.bounding_box
+        return (
+            base_bounding_box.depth / 2 + base_bounding_box.width / 2
+        ) / 2 + cls.base_clearance
 
     @classmethod
     def default_map(cls, context: Context, target: Pose) -> OccupancyCostmap:
@@ -625,11 +622,15 @@ class VisibilityCostmap(Costmap):
     please look here: `PhD Thesis (page 173) <https://mediatum.ub.tum.de/doc/1239461/1239461.pdf>`_
     """
 
-    min_height: float
+    minimal_height: float
+    """
+    The lower bound of the height range the target has to be visible in.
+    """
 
-    max_height: float
-
-    target_object: Optional[Union[Body, Pose]] = None
+    maximal_height: float
+    """
+    The upper bound of the height range the target has to be visible in.
+    """
 
     def __post_init__(self):
         self.origin: Pose = (
@@ -648,7 +649,7 @@ class VisibilityCostmap(Costmap):
         """
         images = []
 
-        r_t = RayTracer(self.world)
+        ray_tracer = RayTracer(self.world)
 
         origin_copy = deepcopy(self.origin).to_homogeneous_matrix()
 
@@ -657,7 +658,7 @@ class VisibilityCostmap(Costmap):
                 yaw=np.pi / 2
             )
             images.append(
-                r_t.create_depth_map(
+                ray_tracer.create_depth_map(
                     origin_copy, resolution=self.width, min_distance=0.1
                 )
             )
@@ -670,11 +671,11 @@ class VisibilityCostmap(Costmap):
         in Lorenz Mösenlechners `PhD Thesis (page 178) <https://mediatum.ub.tum.de/doc/1239461/1239461.pdf>`_
         The resulting map is then saved to :py:attr:`self.map`
         """
-        depth_imgs = self._create_images()
+        depth_images = self._create_images()
         # A 2D array where every cell contains the arctan2 value with respect to
         # the middle of the array. Additionally, the interval is shifted such that
         # it is between 0 and 2pi
-        tan = (
+        angles = (
             np.arctan2(
                 np.mgrid[
                     -int(self.width / 2) : int(self.width / 2),
@@ -687,38 +688,53 @@ class VisibilityCostmap(Costmap):
             )
             + np.pi
         )
-        res = np.zeros(tan.shape)
+        depth_image_index = np.zeros(angles.shape)
 
-        # Just for completion, since the res array has zeros in every position this
-        # operation is not necessary.
-        # res[np.logical_and(tan <= np.pi * 0.25, tan >= np.pi * 1.75)] = 0
+        # Just for completion, since the depth image index array has zeros in every
+        # position this operation is not necessary.
 
         # Creates a 2D array which contains the index of the depth image for every
         # coordinate
-        res[np.logical_and(tan >= np.pi * 1.25, tan <= np.pi * 1.75)] = 3
-        res[np.logical_and(tan >= np.pi * 0.75, tan < np.pi * 1.25)] = 2
-        res[np.logical_and(tan >= np.pi * 0.25, tan < np.pi * 0.75)] = 1
+        depth_image_index[
+            np.logical_and(angles >= np.pi * 1.25, angles <= np.pi * 1.75)
+        ] = 3
+        depth_image_index[
+            np.logical_and(angles >= np.pi * 0.75, angles < np.pi * 1.25)
+        ] = 2
+        depth_image_index[
+            np.logical_and(angles >= np.pi * 0.25, angles < np.pi * 0.75)
+        ] = 1
 
         indices = np.dstack(np.mgrid[0 : self.width, 0 : self.width])
         depth_indices = np.zeros(indices.shape)
-        # x-value of index: res == n, :1
-        # y-value of index: res == n, 1:2
+        # x-value of index: depth_image_index == n, :1
+        # y-value of index: depth_image_index == n, 1:2
 
         # (y, size-x-1) for index between 1.25 pi and 1.75 pi
-        depth_indices[res == 3, :1] = indices[res == 3, 1:2]
-        depth_indices[res == 3, 1:2] = self.width - indices[res == 3, :1] - 1
+        depth_indices[depth_image_index == 3, :1] = indices[depth_image_index == 3, 1:2]
+        depth_indices[depth_image_index == 3, 1:2] = (
+            self.width - indices[depth_image_index == 3, :1] - 1
+        )
 
         # (size-x-1, y) for index between 0.75 pi and 1.25 pi
-        depth_indices[res == 2, :1] = self.width - indices[res == 2, :1] - 1
-        depth_indices[res == 2, 1:2] = indices[res == 2, 1:2]
+        depth_indices[depth_image_index == 2, :1] = (
+            self.width - indices[depth_image_index == 2, :1] - 1
+        )
+        depth_indices[depth_image_index == 2, 1:2] = indices[
+            depth_image_index == 2, 1:2
+        ]
 
         # (size-y-1, x) for index between 0.25 pi and 0.75 pi
-        depth_indices[res == 1, :1] = self.width - indices[res == 1, 1:2] - 1
-        depth_indices[res == 1, 1:2] = indices[res == 1, :1]
+        depth_indices[depth_image_index == 1, :1] = (
+            self.width - indices[depth_image_index == 1, 1:2] - 1
+        )
+        depth_indices[depth_image_index == 1, 1:2] = indices[depth_image_index == 1, :1]
 
         # (x, y) for index between 0.25 pi and 1.75 pi
-        depth_indices[res == 0, :1] = indices[res == 0, :1]
-        depth_indices[res == 0, 1:2] = indices[res == 0, 1:2]
+        depth_indices[depth_image_index == 0, :1] = indices[depth_image_index == 0, :1]
+        depth_indices[depth_image_index == 0, 1:2] = indices[
+            depth_image_index == 0, 1:2
+        ]
 
         # Convert back to origin in the middle of the locations
         depth_indices[:, :, :1] -= self.width / 2
@@ -762,64 +778,71 @@ class VisibilityCostmap(Costmap):
         # Row ranges
         # Calculation of the ranges of coordinates in the row which have to be
         # taken into account. The range is from r_min to r_max.
-        # These are two arrays with shape: size*size, the r_min constrains the beginning
-        # of the range for every coordinate and r_max contains the end for each
-        # coordinate
-        r_min = (
-            np.arctan((self.min_height - self.origin.z) / distances) * self.width
+        # These are two arrays with shape: size*size, the row minimum constrains the
+        # beginning of the range for every coordinate and the row maximum contains the
+        # end for each coordinate
+        row_minimum = (
+            np.arctan((self.minimal_height - self.origin.z) / distances) * self.width
         ) + self.width / 2
-        r_max = (
-            np.arctan((self.max_height - self.origin.z) / distances) * self.width
+        row_maximum = (
+            np.arctan((self.maximal_height - self.origin.z) / distances) * self.width
         ) + self.width / 2
 
-        r_min = np.minimum(np.around(r_min), self.width - 1).astype("int16")
-        r_max = np.minimum(np.around(r_max), self.width - 1).astype("int16")
+        row_minimum = np.minimum(np.around(row_minimum), self.width - 1).astype("int16")
+        row_maximum = np.minimum(np.around(row_maximum), self.width - 1).astype("int16")
 
-        rs = np.dstack((r_min, r_max + 1)).reshape((self.width**2, 2))
-        r = np.arange(self.width)
-        # Calculates a mask from the r_min and r_max values. This mask is for every
-        # coordinate respectively and determines which values from the computed column
+        row_ranges = np.dstack((row_minimum, row_maximum + 1)).reshape(
+            (self.width**2, 2)
+        )
+        rows = np.arange(self.width)
+        # Calculates a mask from the row minimum and row maximum values. This mask is
+        # for every coordinate respectively and determines which values from the column
         # of the depth image should be taken into account for the locations.
         # A Mask of a single coordinate has the length of the column of the depth image
         # and together with the computed column at this coordinate determines which
         # values of the depth image make up the value of the visibility locations at this
         # point.
-        mask = ((rs[:, 0, None] <= r) & (rs[:, 1, None] > r)).reshape(
-            (self.width, self.width, self.width)
-        )
+        mask = (
+            (row_ranges[:, 0, None] <= rows) & (row_ranges[:, 1, None] > rows)
+        ).reshape((self.width, self.width, self.width))
 
         values = np.zeros((self.width, self.width))
-        map = np.zeros((self.width, self.width))
+        visibility_map = np.zeros((self.width, self.width))
         # This is done to iterate over the depth images one at a time
-        for i in range(4):
-            row_masks = mask[res == i].T
+        for image_index in range(4):
+            row_masks = mask[depth_image_index == image_index].T
             # This statement does several things, first it takes the values from
             # the depth image for this quarter of the locations. The values taken are
             # the complete columns of the depth image (which where computed beforehand)
             # and checks if the values in them are greater than the distance to the
             # respective coordinates. This does not take the row ranges into account.
             values = (
-                depth_imgs[i][:, columns[res == i].flatten()]
-                < np.tile(distances[res == i][:, None], (1, self.width)).T
+                depth_images[image_index][
+                    :, columns[depth_image_index == image_index].flatten()
+                ]
+                < np.tile(
+                    distances[depth_image_index == image_index][:, None],
+                    (1, self.width),
+                ).T
                 * self.resolution
             )
             # This applies the created mask of the row ranges to the values of
             # the columns which are compared in the previous statement
             masked = np.ma.masked_array(values, mask=~row_masks)
             # The calculated values are added to the locations
-            map[res == i] = np.sum(masked, axis=0)
-        map /= np.max(map)
+            visibility_map[depth_image_index == image_index] = np.sum(masked, axis=0)
+        visibility_map /= np.max(visibility_map)
         # Weird flipping shit so that the map fits the orientation of the visualization.
         # the locations in itself is consistent and just needs to be flipped to fit the world coordinate system
-        map = np.flip(map, axis=0)
-        map = np.flip(map)
+        visibility_map = np.flip(visibility_map, axis=0)
+        visibility_map = np.flip(visibility_map)
 
         # Invert the map
-        inv_map = np.zeros(map.shape)
-        inv_map[map == 0] = 1
-        inv_map[map != 0] = 0
+        inverted_map = np.zeros(visibility_map.shape)
+        inverted_map[visibility_map == 0] = 1
+        inverted_map[visibility_map != 0] = 0
 
-        self.map = inv_map
+        self.map = inverted_map
 
 
 @dataclass
@@ -846,29 +869,30 @@ class GaussianCostmap(Costmap):
     """
 
     def __post_init__(self):
-        self.gau: np.ndarray = self._gaussian_window(self.mean, self.sigma)
-        self.map: np.ndarray = np.outer(self.gau, self.gau)
-        cut_dist = int(0.05 * self.mean)
+        gaussian_window = self._gaussian_window(self.mean, self.sigma)
+        self.map: np.ndarray = np.outer(gaussian_window, gaussian_window)
+        cut_distance = int(0.05 * self.mean)
         center = int(self.mean / 2)
         # Cuts out the middle 5% of the gaussian to avoid the robot being too close to the target since this is usually
         # bad for reaching the target with a end_effector. 15% is a magic number that might need some tuning in the future
         self.map[
-            center - cut_dist : center + cut_dist, center - cut_dist : center + cut_dist
+            center - cut_distance : center + cut_distance,
+            center - cut_distance : center + cut_distance,
         ] = 0
         self.size: float = self.mean
         self.width = int(self.size)
         self.height = int(self.size)
 
-    def _gaussian_window(self, mean: int, std: float) -> np.ndarray:
+    def _gaussian_window(self, mean: int, standard_deviation: float) -> np.ndarray:
         """
-        This method creates a window of values with a gaussian distribution of
-        size "mean" and standart deviation "std".
+        This method creates a window of values with a gaussian distribution of the
+        given size and standard deviation.
         Code from `Scipy <https://github.com/scipy/scipy/blob/v0.14.0/scipy/signal/windows.py#L976>`_
         """
-        n = np.arange(0, mean) - (mean - 1.0) / 2.0
-        sig2 = 2 * std * std
-        w = np.exp(-(n**2) / sig2)
-        return w
+        offsets = np.arange(0, mean) - (mean - 1.0) / 2.0
+        doubled_variance = 2 * standard_deviation * standard_deviation
+        window = np.exp(-(offsets**2) / doubled_variance)
+        return window
 
 
 @dataclass
@@ -878,7 +902,7 @@ class RingCostmap(Costmap):
     for reaching a point for the robot.
     """
 
-    std: int
+    standard_deviation: int
     """
     Standard deviation of the gaussian distribution that makes up the ring.
     """
@@ -901,12 +925,10 @@ class RingCostmap(Costmap):
         distance_from_center = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
 
         ring_costmap = np.exp(
-            -((distance_from_center - radius_in_pixels) ** 2) / (2 * self.std**2)
+            -((distance_from_center - radius_in_pixels) ** 2)
+            / (2 * self.standard_deviation**2)
         )
         return ring_costmap
-
-
-cmap = colors.ListedColormap(["white", "black", "green", "red", "blue"])
 
 
 # Mainly used for debugging
@@ -915,14 +937,15 @@ def plot_grid(data: np.ndarray) -> None:
     """
     An auxiliary method only used for debugging, it will plot a 2D numpy array using MatplotLib.
     """
+    grid_colors = colors.ListedColormap(["white", "black", "green", "red", "blue"])
     rows = data.shape[0]
-    cols = data.shape[1]
-    fig, ax = plt.subplots()
-    ax.imshow(data, cmap=cmap)
+    columns = data.shape[1]
+    figure, axes = plt.subplots()
+    axes.imshow(data, cmap=grid_colors)
     # draw gridlines
     # ax.grid(which='major', axis='both', linestyle='-', rgba_color='k', linewidth=1)
-    ax.set_xticks(np.arange(0.5, rows, 1))
-    ax.set_yticks(np.arange(0.5, cols, 1))
+    axes.set_xticks(np.arange(0.5, rows, 1))
+    axes.set_yticks(np.arange(0.5, columns, 1))
     plt.tick_params(axis="both", labelsize=0, length=0)
     # fig.set_size_inches((8.5, 11), forward=False)
     # plt.savefig(saveImageName + ".png", dpi=500)

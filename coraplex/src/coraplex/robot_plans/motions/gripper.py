@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional, List
+from typing import Optional, List
 
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
@@ -133,7 +133,7 @@ class MoveGripperMotion(BaseMotion, GripperStallToleranceParameters):
     If the gripper is allowed to collide with something
     """
 
-    holds_its_goal_until_the_motion_ends: ClassVar[bool] = True
+    holds_its_goal_until_the_motion_ends: bool = field(default=True, kw_only=True)
     """
     Whatever the fingers were closed or opened around stays where the hand left it, so
     the arm may not be freed while the world settles around it.

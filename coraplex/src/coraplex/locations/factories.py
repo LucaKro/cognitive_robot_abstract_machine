@@ -94,7 +94,7 @@ def reachability_location(
         resolution=0.02,
         width=200,
         height=200,
-        std=15,
+        standard_deviation=15,
         distance=ViewManager.get_arm_view(arm, context.robot).approximate_length()
         * 0.66,  # That needs to be replaced with an estimate of the reachability space of the robot arms
         world=context.world,
@@ -161,8 +161,8 @@ def visibility_location(target: Union[Pose, Body], context: Context) -> Location
 
     camera = context.robot.get_default_camera()
     costmap = OccupancyCostmap.default_map(context, target_pose) & VisibilityCostmap(
-        min_height=camera.minimal_height,
-        max_height=camera.maximal_height,
+        minimal_height=camera.minimal_height,
+        maximal_height=camera.maximal_height,
         world=context.world,
         width=200,
         height=200,

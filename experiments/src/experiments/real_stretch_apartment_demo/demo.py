@@ -30,7 +30,6 @@ classifying annotator to that engine removes both without changing this demo.
 from dataclasses import dataclass
 
 import numpy as np
-from typing_extensions import ClassVar
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
@@ -91,7 +90,10 @@ class StretchApartmentDemonstration(RobotDemonstration):
     Stretch transports a cereal box from a shelf to a bedside table in the apartment.
     """
 
-    ros_node_name: ClassVar[str] = "stretch_demo_node"
+    ros_node_name: str = "stretch_demo_node"
+    """
+    Name this demonstration registers its node under.
+    """
 
     def build_simulated_world(self) -> World:
         """

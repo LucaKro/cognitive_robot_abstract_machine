@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from inspect import signature
-from typing_extensions import ClassVar, TypeVar, Type, Optional
+from typing_extensions import TypeVar, Type, Optional
 
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
@@ -35,7 +35,7 @@ class BaseMotion(Designator):
     motions or actions. Motions create exactly one goal.
     """
 
-    holds_its_goal_until_the_motion_ends: ClassVar[bool] = False
+    holds_its_goal_until_the_motion_ends: bool = field(default=False, kw_only=True)
     """
     Whether this motion keeps its goal in force after reaching it.
 

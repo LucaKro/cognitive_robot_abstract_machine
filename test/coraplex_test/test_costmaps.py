@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from coraplex.locations.costmaps import (
-    BASE_CLEARANCE,
     OccupancyCostmap,
     GaussianCostmap,
     OrientationGenerator,
@@ -12,7 +11,6 @@ from coraplex.locations.costmaps import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
-
 
 # ---- Occupancy locations tests ----
 
@@ -490,7 +488,11 @@ def test_default_distance_to_obstacle_clears_the_base(immutable_model_world):
 
     distance = OccupancyCostmap.default_distance_to_obstacle(robot_view)
 
-    assert distance == (base_box.depth / 2 + base_box.width / 2) / 2 + BASE_CLEARANCE
+    assert (
+        distance
+        == (base_box.depth / 2 + base_box.width / 2) / 2
+        + OccupancyCostmap.base_clearance
+    )
 
 
 def test_every_region_gets_its_own_sample_budget(immutable_model_world):
@@ -519,8 +521,10 @@ def test_every_region_gets_its_own_sample_budget(immutable_model_world):
 
 def test_random_samples_come_from_cells_the_map_rates(immutable_model_world):
     """
-    A costmap is a distribution, so drawing at random has to follow its values. Drawing
-    evenly across the map instead spends the budget on the cells it rates unusable.
+    A costmap is a distribution, so drawing at random has to follow its values.
+
+    Drawing evenly across the map instead spends the budget on the cells it rates
+    unusable.
     """
     world, robot_view, context = immutable_model_world
     np_map = np.zeros((200, 200))

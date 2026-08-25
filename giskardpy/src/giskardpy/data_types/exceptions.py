@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 from krrood.exceptions import DataclassException
@@ -16,6 +17,35 @@ class GiskardException(DataclassException):
     """
     Base class for all errors raised by Giskard.
     """
+
+
+@dataclass
+class MotionFailure(GiskardException, ABC):
+    """
+    Raised when a motion cannot be carried out: it runs out of ticks, the controller
+    cannot satisfy its constraints, or moving there would hit something.
+
+    None of these say the plan is wrong, only that this way of carrying it out is, so a
+    step with other candidates on offer is free to try the next one.
+    """
+
+
+@dataclass
+class MotionTimeout(MotionFailure, TimeoutError):
+    """
+    Raised when a motion has not ended within the ticks it was given.
+    """
+
+    tick_budget: int
+    """
+    How many ticks the motion was allowed to take.
+    """
+
+    def error_message(self) -> str:
+        return f"Motion did not end within {self.tick_budget} ticks."
+
+    def suggest_correction(self) -> str:
+        return ""
 
 
 @dataclass

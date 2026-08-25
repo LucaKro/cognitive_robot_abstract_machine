@@ -7,9 +7,9 @@ from typing import cast
 
 from typing_extensions import List, Optional, Union, Iterable, Iterator
 
+from giskardpy.data_types.exceptions import MotionFailure
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     UpdateTemporaryCollisionRules,
@@ -18,10 +18,8 @@ from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
-from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.datastructures.dataclasses import MotionToleranceConfig
-from coraplex.plans.failures import MOTION_DID_NOT_WORK_OUT
 from coraplex.datastructures.enums import ApproachDirection, Arms, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription, GraspPose
 from coraplex.locations.base import Location, PoseGeneratorBackend
@@ -348,7 +346,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
             )
             try:
                 executor.tick_until_end(self.candidate_tick_budget)
-            except MOTION_DID_NOT_WORK_OUT:
+            except MotionFailure:
                 continue
             return True
         return False

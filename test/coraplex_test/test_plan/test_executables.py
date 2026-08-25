@@ -8,6 +8,7 @@ condition monitors wired in.
 """
 
 from copy import deepcopy
+from dataclasses import dataclass, field, replace
 
 import pytest
 
@@ -16,11 +17,13 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     UpdateTemporaryCollisionRules,
 )
+from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
 )
+from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.connections import FixedConnection
@@ -29,6 +32,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
+from coraplex.exceptions import MotionDidNotFinish
 from coraplex.execution_environment import real_robot, simulated_robot
 from coraplex.plans.condition_nodes import PlanNodeStatusMonitor
 from coraplex.plans.executables import GiskardExecutable
@@ -36,6 +40,50 @@ from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction, ReachAction
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 from coraplex.view_manager import ViewManager
+
+
+@dataclass
+class UnfinishedMotionChart:
+    """
+    Stands in for a motion state chart that never reaches its end motion.
+    """
+
+    def is_end_motion(self) -> bool:
+        return False
+
+    def cleanup_nodes(self, context: MotionStatechartContext) -> None:
+        pass
+
+
+@dataclass
+class NeverEndingMotionExecutor:
+    """
+    Stands in for a Giskard executor whose motion never reports itself finished.
+    """
+
+    context: MotionStatechartContext
+    """
+    The motion statechart context the executable built for this run.
+    """
+
+    ticks: int = field(default=0, init=False)
+    """
+    How often the motion was ticked.
+    """
+
+    motion_statechart: UnfinishedMotionChart = field(default=None, init=False)
+    """
+    The chart this executor reports on, replaced on :meth:`compile`.
+    """
+
+    def compile(self, motion_statechart: MotionStatechart) -> None:
+        self.motion_statechart = UnfinishedMotionChart()
+
+    def tick(self) -> None:
+        self.ticks += 1
+
+    def set_velocity_acceleration_jerk_to_zero(self) -> None:
+        pass
 
 
 @pytest.fixture
@@ -215,3 +263,52 @@ def test_a_chart_is_built_from_the_world_the_motion_will_run_in(immutable_model_
     )
 
     assert milk in rules_node.temporary_rules[0].body_group_b
+
+
+# %% what a motion is allowed to spend
+
+
+def test_a_motion_that_never_ends_is_stopped_once_its_budget_is_spent(
+    reach_action_executable, monkeypatch
+):
+    """
+    Every motion of an executable is allowed the same number of ticks, and a run that
+    spends them all without finishing is reported rather than ticked for ever.
+    """
+    executors = []
+    tick_budget = 3
+
+    def build(context: MotionStatechartContext, ros_node) -> NeverEndingMotionExecutor:
+        executors.append(NeverEndingMotionExecutor(context=context))
+        return executors[-1]
+
+    monkeypatch.setattr("coraplex.plans.executables.Ros2Executor", build)
+    budgeted = replace(reach_action_executable, tick_budget_per_motion=tick_budget)
+
+    with simulated_robot:
+        with pytest.raises(MotionDidNotFinish):
+            budgeted.execute()
+
+    assert executors[0].ticks == tick_budget * len(budgeted.motion_nodes)
+
+
+def test_a_motion_may_be_asked_not_to_keep_its_goal(immutable_model_world):
+    """
+    Whether a motion holds its goal until the chart ends is a property of the motion at
+    hand, so an instance told to let go hands the robot over like any other motion.
+    """
+    world, view, context = immutable_model_world
+    plan = execute_single(
+        MoveGripperMotion(
+            GripperState.OPEN, Arms.RIGHT, holds_its_goal_until_the_motion_ends=False
+        ),
+        context=context,
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    with simulated_robot:
+        executable.motion_state_chart
+
+    task = list(executable.motion_mappings.values())[-1]
+    assert str(task.end_condition) == str(task.observation_variable)

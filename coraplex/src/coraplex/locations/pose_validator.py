@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from typing_extensions import List
 
+from giskardpy.data_types.exceptions import MotionFailure
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.collision_avoidance import (
@@ -253,13 +254,12 @@ class AreReachableBy(PoseValidator):
             executor.compile(msc)
 
             try:
-                # TimeoutError from tick_until_end is an expected outcome (planner
-                # cannot find a path), not an illegal state — no non-raising API exists.
+                # A motion that cannot be carried out is an expected outcome (the
+                # planner cannot find a path), not an illegal state — no non-raising
+                # API exists.
                 executor.tick_until_end(timeout=1500)
-            except TimeoutError:
-                logger.debug(
-                    f"Timeout while executing pose sequence: {self.pose_sequence}"
-                )
+            except MotionFailure:
+                logger.debug(f"Could not execute pose sequence: {self.pose_sequence}")
                 return False
             return True
 

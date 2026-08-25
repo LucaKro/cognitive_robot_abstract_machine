@@ -55,7 +55,7 @@ from pathlib import Path
 
 import numpy as np
 import rclpy
-from typing_extensions import ClassVar, List, Optional
+from typing_extensions import List, Optional
 
 from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
@@ -968,7 +968,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     A robot fetches a milk out of the kitchen fridge and puts it on the kitchen island.
     """
 
-    ros_node_name: ClassVar[str] = "kitchen_fridge_demo_node"
+    ros_node_name: str = "kitchen_fridge_demo_node"
 
     def build_simulated_world(self) -> World:
         return build_kitchen_world()
@@ -1007,7 +1007,7 @@ class KitchenFridgeDemonstration(RobotDemonstration):
     A robot fetches a milk out of the kitchen fridge and puts it on the kitchen island.
     """
 
-    ros_node_name: ClassVar[str] = "kitchen_fridge_demo_node"
+    ros_node_name: str = "kitchen_fridge_demo_node"
 
     def build_simulated_world(self) -> World:
         return build_kitchen_world()

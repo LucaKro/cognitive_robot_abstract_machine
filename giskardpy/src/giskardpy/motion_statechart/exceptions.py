@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from typing_extensions import TYPE_CHECKING, Type
 
+from giskardpy.data_types.exceptions import MotionFailure
 from krrood.exceptions import DataclassException
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class CollisionViolatedError(DataclassException):
+class CollisionViolatedError(MotionFailure):
     """
     Raised when bodies came closer to each other than their collision threshold allows.
     """

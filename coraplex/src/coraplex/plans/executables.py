@@ -12,6 +12,7 @@ from coraplex.exceptions import (
     MotionDidNotFinish,
     UnknownExecutionType,
 )
+from giskardpy.data_types.exceptions import MotionFailure
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
@@ -91,6 +92,12 @@ class GiskardExecutable(Executable):
     motion_nodes: List[MotionNode] = field(kw_only=True)
     """
     The motions this executable runs, in execution order.
+    """
+
+    tick_budget_per_motion: int = field(kw_only=True, default=2000)
+    """
+    How many control ticks each of this executable's motions may spend before the run is
+    reported as unfinished.
     """
 
     execution_type: ClassVar[Optional[ExecutionType]] = None
@@ -274,7 +281,7 @@ class GiskardExecutable(Executable):
         executor.compile(motion_state_chart)
 
         counter = 0
-        while counter < len(self.motion_nodes) * 2000:
+        while counter < len(self.motion_nodes) * self.tick_budget_per_motion:
             # Interrupting and pausing are handled inside the motion state chart by
             # per-task monitors (see motion_state_chart): an interrupt ends the
             # motion via EndMotion, a pause holds the active task via its
@@ -392,7 +399,6 @@ class UnderspecifiedExecutable(Executable):
 
     def execute(self) -> None:
         from coraplex.plans.failures import (
-            MOTION_DID_NOT_WORK_OUT,
             PlanFailure,
             EmptyUnderspecified,
         )
@@ -401,7 +407,7 @@ class UnderspecifiedExecutable(Executable):
             with self.context.world.reset_state_context() as attempt:
                 try:
                     self.node.current_candidate.parse().execute()
-                except (PlanFailure, *MOTION_DID_NOT_WORK_OUT):
+                except (PlanFailure, MotionFailure):
                     continue
                 attempt.keep()
                 self.node.stop_grounding()
