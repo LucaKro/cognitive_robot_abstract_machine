@@ -230,7 +230,7 @@ class RobotInterfaceConfig(ABC):
         connections: List[str],
         minimum_valid_velocity: float = 0.0,
         minimum_velocity_overrides: Dict[str, float] | None = None,
-        command_format: GroupCommandFormat = Float64MultiArrayFormat(),
+        command_format: GroupCommandFormat | None = None,
     ):
         """
         For closed loop mode.
@@ -240,7 +240,8 @@ class RobotInterfaceConfig(ABC):
             raised to so the hardware moves. ``0.0`` disables raising.
         :param minimum_velocity_overrides: minimum magnitude per joint name, overriding
             ``minimum_valid_velocity``; ``0.0`` exempts a joint.
-        :param command_format: message format the controller consumes.
+        :param command_format: message format the controller consumes; defaults to
+            :class:`~giskardpy.middleware.ros2.command_publishing.Float64MultiArrayFormat`.
         """
         controlled_connections: List[ActiveConnection1DOF] = [
             self.world.get_connection_by_name(connection_name)
@@ -254,7 +255,7 @@ class RobotInterfaceConfig(ABC):
                 minimum_velocities=JointMinimumVelocities.from_magnitudes(
                     minimum_valid_velocity, minimum_velocity_overrides
                 ),
-                command_format=command_format,
+                command_format=command_format or Float64MultiArrayFormat(),
             )
         )
 

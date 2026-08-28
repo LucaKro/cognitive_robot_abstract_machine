@@ -14,12 +14,6 @@ from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
-from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Table,
-    Bowl,
-    Spoon,
-)
-
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.mjcf import MJCFParser
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
@@ -39,8 +33,6 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 
-SAMPLE_PLACE_POSES = False  # False → use hardcoded fallback poses instead
-
 GARMI_ENV_XML = os.path.join(
     get_package_share_directory("iai_garmi_apartment"), "mjcf", "scene-bodies.xml"
 )
@@ -56,8 +48,8 @@ BOWL_STL = os.path.join(
 )
 
 BOWL_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(0.0, 7.2, 1.0)
-BOWL_TARGET_POINT_FALLBACK = Point3.from_iterable([1.6, 5.2, 0.8])
-SPOON_TARGET_POINT_FALLBACK = Point3.from_iterable([1.6, 5.3, 0.8])
+BOWL_TARGET_POINT = Point3.from_iterable([1.6, 5.2, 0.8])
+SPOON_TARGET_POINT = Point3.from_iterable([1.6, 5.3, 0.8])
 
 SPOON_STL = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
@@ -70,7 +62,7 @@ SPOON_IN_DRAWER_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(-0.12, 0.0, 
 
 
 def build_world() -> tuple[World, Garmi]:
-    apartment_world = MJCFParser(GARMI_ENV_XML, use_visual_as_collision=True).parse()
+    apartment_world = MJCFParser(GARMI_ENV_XML, every_geom_collides=True).parse()
     garmi_world = URDFParser.from_file(GARMI_URDF).parse()
 
     # Annotate the GARMI robot bodies before restructuring the kinematic tree.
@@ -126,36 +118,9 @@ def setup_semantics(world: World) -> None:
 
 world, garmi_robot = build_world()
 setup_semantics(world)
-assert isinstance(garmi_robot, Garmi)
 
-if SAMPLE_PLACE_POSES:
-    dining_table = Table(root=world.get_body_by_name("DiningTable"))
-    with world.modify_world():
-        world.add_semantic_annotation(dining_table)
-        dining_table.calculate_supporting_surface()
-    bowl = Bowl(root=world.get_body_by_name("bowl.stl"))
-    spoon = Spoon(root=world.get_body_by_name("spoon.stl"))
-    [bowl_place_point] = dining_table.sample_points_from_surface(
-        body_to_sample_for=bowl,
-        amount=1,
-    )
-    [spoon_place_point] = dining_table.sample_points_from_surface(
-        body_to_sample_for=spoon,
-        amount=1,
-    )
-    bowl_target_pose = Pose(
-        position=bowl_place_point, reference_frame=bowl_place_point.reference_frame
-    )
-    spoon_target_pose = Pose(
-        position=spoon_place_point, reference_frame=spoon_place_point.reference_frame
-    )
-else:
-    bowl_target_pose = Pose(
-        position=BOWL_TARGET_POINT_FALLBACK, reference_frame=world.root
-    )
-    spoon_target_pose = Pose(
-        position=SPOON_TARGET_POINT_FALLBACK, reference_frame=world.root
-    )
+bowl_target_pose = Pose(position=BOWL_TARGET_POINT, reference_frame=world.root)
+spoon_target_pose = Pose(position=SPOON_TARGET_POINT, reference_frame=world.root)
 
 rclpy.init()
 node = rclpy.create_node("garmi_apartment_viz")
@@ -202,11 +167,3 @@ with simulated_robot:
         ],
         context,
     ).perform()
-print("done")
-
-# Keep publishing markers only when run directly; an importing test run exits instead.
-# if __name__ == "__main__":
-#     try:
-#         ros_thread.join()
-#     except KeyboardInterrupt:
-#         ros_executor.shutdown()

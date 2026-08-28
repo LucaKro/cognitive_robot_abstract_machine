@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass
@@ -299,7 +300,7 @@ class GarmiLeftGripper(
             tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_fr3_hand_tcp"
             ),
-            front_facing_orientation=Quaternion(0, -0.70711, 0, -0.70711),
+            front_facing_orientation=Quaternion.from_rpy(0, math.pi / 2, 0),
         )
 
 
@@ -353,7 +354,7 @@ class GarmiRightGripper(
             tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_fr3_hand_tcp"
             ),
-            front_facing_orientation=Quaternion(0, -0.70711, 0, -0.70711),
+            front_facing_orientation=Quaternion.from_rpy(0, math.pi / 2, 0),
         )
 
 

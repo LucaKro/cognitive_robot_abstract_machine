@@ -4,13 +4,13 @@ from dataclasses import dataclass, field
 
 from giskardpy.middleware.ros2.command_publishing import MultiDOFCommandFormat
 from giskardpy.middleware.ros2.robot_interface_config import RobotInterfaceConfig
+from giskardpy.middleware.ros2.scripts.tools.interactive_marker import (
+    ChainEndpoints,
+)
 from giskardpy.model.world_config import WorldWithOmniDriveRobot
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.garmi import Garmi
-from semantic_digital_twin.world_description.connections import (
-    Connection6DoF,
-    OmniDrive,
-)
+from semantic_digital_twin.world_description.connections import OmniDrive
 
 GARMI_LEFT_ARM_JOINTS = [
     "left_fr3_joint1",
@@ -68,14 +68,12 @@ GARMI_LIFT_JOINTS = ["lift_0_lower_joint", "lift_0_upper_joint"]
 Names of the two prismatic torso lift joints.
 """
 
-GARMI_INTERACTIVE_MARKER_ROOT_LINKS = ["arm_mount_left_link", "map"]
+GARMI_INTERACTIVE_MARKER_CHAINS = [
+    ChainEndpoints(root_link="arm_mount_left_link", tip_link="left_fr3_hand_tcp"),
+    ChainEndpoints(root_link="map", tip_link="right_fr3_hand_tcp"),
+]
 """
-Root links of the kinematic chains controllable via interactive markers.
-"""
-
-GARMI_INTERACTIVE_MARKER_TIP_LINKS = ["left_fr3_hand_tcp", "right_fr3_hand_tcp"]
-"""
-Tip links (arm TCPs) corresponding to :data:`GARMI_INTERACTIVE_MARKER_ROOT_LINKS`.
+The kinematic chains controllable via interactive markers.
 """
 
 
@@ -119,28 +117,12 @@ class GarmiVelocityInterface(RobotInterfaceConfig):
     """
     Closed-loop velocity interface for the real GARMI robot.
 
-    Synchronizes the world state from joint-state and odometry topics and sends joint
-    velocities to per-subsystem group controllers as well as base twists to the drive.
-
-    .. warning::
-        The ROS topic and TF frame names below are placeholders for the online
-        integration meeting and must be replaced with the names published by the
-        GARMI hardware bring-up.
+    Synchronizes the world state from the arm joint-state topic and sends joint
+    velocities to the two arm group controllers. The base, head and lift are not wired
+    up yet.
     """
 
     def setup(self) -> None:
-        # self.sync_6dof_joint_with_tf_frame(
-        #    joint=self.world.get_connections_by_type(Connection6DoF)[0],
-        #    tf_parent_frame="placeholder_map_frame",
-        #    tf_child_frame="placeholder_odom_frame",
-        # )
-
-        # omni_drive = self.world.get_connections_by_type(OmniDrive)[0]
-        # self.sync_odometry_topic("/placeholder/base/odom", omni_drive)
-        # self.add_base_cmd_velocity(
-        #    cmd_vel_topic="/placeholder/base/cmd_vel", joint=omni_drive
-        # )
-
         self.sync_joint_state_topic("/garmi/arms/joint_states")
 
         self.add_joint_velocity_group_controller(
@@ -153,12 +135,3 @@ class GarmiVelocityInterface(RobotInterfaceConfig):
             connections=GARMI_RIGHT_ARM_JOINTS,
             command_format=MultiDOFCommandFormat(),
         )
-
-        # self.add_joint_velocity_group_controller(
-        #    cmd_topic="/placeholder/head/velocity_controller/commands",
-        #    connections=GARMI_HEAD_JOINTS,
-        # )
-        # self.add_joint_velocity_group_controller(
-        #    cmd_topic="/placeholder/lift/velocity_controller/commands",
-        #    connections=GARMI_LIFT_JOINTS,
-        # )

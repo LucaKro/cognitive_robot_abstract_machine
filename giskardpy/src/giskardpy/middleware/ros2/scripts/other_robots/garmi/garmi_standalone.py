@@ -4,8 +4,7 @@ import argparse
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.giskard import Giskard
 from giskardpy.middleware.ros2.scripts.other_robots.garmi.configs import (
-    GARMI_INTERACTIVE_MARKER_ROOT_LINKS,
-    GARMI_INTERACTIVE_MARKER_TIP_LINKS,
+    GARMI_INTERACTIVE_MARKER_CHAINS,
     GarmiStandaloneInterface,
     WorldWithGarmiConfig,
 )
@@ -41,8 +40,7 @@ def main() -> None:
 
     if args.interactive_marker:
         InteractiveMarkerNode.start_in_background_thread(
-            root_links=GARMI_INTERACTIVE_MARKER_ROOT_LINKS,
-            tip_links=GARMI_INTERACTIVE_MARKER_TIP_LINKS,
+            chains=GARMI_INTERACTIVE_MARKER_CHAINS
         )
 
     giskard.live()

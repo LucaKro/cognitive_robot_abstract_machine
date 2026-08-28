@@ -13,14 +13,15 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Union
+from typing import Dict, Generic, List, Union
 
 from control_msgs.msg import MultiDOFCommand
 from geometry_msgs.msg import Twist
 from rclpy.publisher import Publisher
 from std_msgs.msg import Float64, Float64MultiArray
-from typing_extensions import Self
+from typing_extensions import Self, TypeVar
 
+from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.exceptions import UnknownMinimumVelocityJointError
 from giskardpy.middleware.ros2.ros2_interface import get_parameters
@@ -259,23 +260,33 @@ class JointVelocityCommand:
 
 # %% message formats of group controllers
 
+CommandMessage = TypeVar("CommandMessage")
+"""
+The ROS message type a group controller consumes.
+"""
 
-@dataclass(frozen=True)
-class GroupCommandFormat(ABC):
+
+@dataclass
+class GroupCommandFormat(Generic[CommandMessage], SubClassSafeGeneric, ABC):
     """
     Builds the message a joint group velocity controller consumes from the velocities of
     the joints it commands.
+
+    Each subclass binds the message type it builds, so the type a format publishes and
+    the type it packs are the same declaration.
     """
 
-    message_type: ClassVar[type]
-    """
-    The ROS message type published on the command topic.
-    """
+    @classmethod
+    def message_type(cls) -> type[CommandMessage]:
+        """
+        The ROS message type published on the command topic.
+        """
+        return cls.get_generic_type_parameters()[0]
 
     @abstractmethod
-    def create_message(self, velocities: List[float]) -> Any:
+    def create_message(self, velocities: List[float]) -> CommandMessage:
         """
-        Pack the velocities into a fresh message of :attr:`message_type`.
+        Pack the velocities into a fresh message of :meth:`message_type`.
 
         :param velocities: The velocity of every commanded joint, in the order the
             controller expects them.
@@ -283,13 +294,11 @@ class GroupCommandFormat(ABC):
         """
 
 
-@dataclass(frozen=True)
-class Float64MultiArrayFormat(GroupCommandFormat):
+@dataclass
+class Float64MultiArrayFormat(GroupCommandFormat[Float64MultiArray]):
     """
     Commands a controller that consumes :class:`std_msgs.msg.Float64MultiArray`.
     """
-
-    message_type: ClassVar[type] = Float64MultiArray
 
     def create_message(self, velocities: List[float]) -> Float64MultiArray:
         message = Float64MultiArray()
@@ -297,16 +306,14 @@ class Float64MultiArrayFormat(GroupCommandFormat):
         return message
 
 
-@dataclass(frozen=True)
-class MultiDOFCommandFormat(GroupCommandFormat):
+@dataclass
+class MultiDOFCommandFormat(GroupCommandFormat[MultiDOFCommand]):
     """
     Commands a controller that consumes :class:`control_msgs.msg.MultiDOFCommand`.
 
     ..note:: ``dof_names`` is left empty, so the controller applies the values in its own
         joint order.
     """
-
-    message_type: ClassVar[type] = MultiDOFCommand
 
     def create_message(self, velocities: List[float]) -> MultiDOFCommand:
         message = MultiDOFCommand()
@@ -472,7 +479,7 @@ class JointGroupVelocityCommandPublisher(CommandPublisher):
 
     def __post_init__(self):
         self.command_publisher = rospy.node.create_publisher(
-            self.command_format.message_type, self.command_topic, 10
+            self.command_format.message_type(), self.command_topic, 10
         )
         for connection in self.connections:
             connection.has_hardware_interface = True

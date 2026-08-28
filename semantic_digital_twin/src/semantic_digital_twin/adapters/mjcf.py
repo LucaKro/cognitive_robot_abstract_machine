@@ -63,6 +63,15 @@ from semantic_digital_twin.world_description.world_entity import Actuator
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_JOINT_VELOCITY_LIMIT = 1.0
+"""
+Velocity magnitude a joint is limited to, in radian or meter per second.
+
+MJCF describes no velocity limit on a joint, so every limited joint is parsed with
+this one, symmetric about zero the way :mod:`semantic_digital_twin.adapters.urdf`
+reads the URDF limit.
+"""
+
 
 @dataclass
 class MJCFParser(WorldModelParser):
@@ -85,14 +94,13 @@ class MJCFParser(WorldModelParser):
     The prefix for every name used in this world.
     """
 
-    use_visual_as_collision: bool = False
+    every_geom_collides: bool = False
     """
-    When True, geoms with ``contype=0`` and ``conaffinity=0`` (visual-only in MuJoCo)
-    are also registered as collision shapes in the SDT world.
+    When True, every geom becomes a collision shape, including the ones MuJoCo excludes
+    from contact through ``contype=0`` and ``conaffinity=0``.
 
-    Use this when the MJCF scene separates visual meshes from collision geometry into
-    different files and you need the visual meshes to participate in SDT collision
-    checking.
+    Use this when the scene keeps its collision geometry in a file that is not loaded,
+    so the geoms that are present have to stand in for it.
     """
 
     def __post_init__(self):
@@ -107,6 +115,7 @@ class MJCFParser(WorldModelParser):
         file_path: str,
         prefix: Optional[str] = None,
         mimic_joints: Optional[Dict[str, str]] = None,
+        every_geom_collides: bool = False,
     ) -> Self:
         """
         Creates a parser for a scene file.
@@ -115,16 +124,31 @@ class MJCFParser(WorldModelParser):
         :param prefix: The prefix for every name used in this world.
         :param mimic_joints: A mapping of joint names to the names of the joints they
             mimic.
+        :param every_geom_collides: Whether every geom becomes a collision shape.
         :return: A parser for the world described by that file.
         """
-        return cls(file_path=file_path, mimic_joints=mimic_joints or {}, prefix=prefix)
+        return cls(
+            file_path=file_path,
+            mimic_joints=mimic_joints or {},
+            prefix=prefix,
+            every_geom_collides=every_geom_collides,
+        )
 
     @classmethod
-    def from_xml_string(cls, xml_string: str) -> Self:
+    def from_xml_string(
+        cls, xml_string: str, every_geom_collides: bool = False
+    ) -> Self:
+        """
+        Creates a parser for a scene held in memory, by way of a temporary file.
+
+        :param xml_string: The MJCF document to parse.
+        :param every_geom_collides: Whether every geom becomes a collision shape.
+        :return: A parser for the world described by that document.
+        """
         file_path = "/tmp/scene.xml"
         with open(file_path, "w") as f:
             f.write(xml_string)
-        return cls(file_path)
+        return cls(file_path, every_geom_collides=every_geom_collides)
 
     def parse(self) -> World:
         """
@@ -176,6 +200,10 @@ class MJCFParser(WorldModelParser):
         ``None``), and ``geom.pos`` / ``body.pos`` are expressed relative to that
         frame. The returned matrix is therefore ``body_T_leafFrame`` (identity if
         the entity is not inside any frame).
+
+        MuJoCo folds frames into their children while compiling, so this composition is
+        only needed because the parser reads the editable ``MjSpec`` rather than the
+        compiled ``MjModel``.
         """
         chain = []
         frame = entity.frame
@@ -218,7 +246,7 @@ class MJCFParser(WorldModelParser):
                 )
             )
             is_collision_geom = mujoco_geom.contype != 0 or mujoco_geom.conaffinity != 0
-            if is_collision_geom or self.use_visual_as_collision:
+            if is_collision_geom or self.every_geom_collides:
                 collisions.append(shape)
             if mujoco_geom.group in [
                 GeomVisibilityAndCollisionType.VISIBLE_AND_COLLIDABLE_1,
@@ -626,9 +654,9 @@ class MJCFParser(WorldModelParser):
                 upper_limits = DerivativeMap()
                 upper_limits.position = float(mujoco_joint.range[1])
 
-                # Mujocos MJCF does not support velocity limits on joints. Set default values here.
-                lower_limits.velocity = 0.0
-                upper_limits.velocity = 1.0
+                # MJCF has no velocity limit on a joint, so fall back to a default.
+                lower_limits.velocity = -DEFAULT_JOINT_VELOCITY_LIMIT
+                upper_limits.velocity = DEFAULT_JOINT_VELOCITY_LIMIT
 
                 dof = DegreeOfFreedom(
                     name=PrefixedName(dof_name),

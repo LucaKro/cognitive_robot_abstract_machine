@@ -3,7 +3,10 @@ import os.path
 import numpy
 import pytest
 
-from semantic_digital_twin.adapters.mjcf import MJCFParser
+from semantic_digital_twin.adapters.mjcf import (
+    DEFAULT_JOINT_VELOCITY_LIMIT,
+    MJCFParser,
+)
 from semantic_digital_twin.adapters.multi_sim import MujocoLight
 from semantic_digital_twin.world_description.connections import FixedConnection
 
@@ -173,19 +176,14 @@ def test_light_is_parsed_and_attached_to_its_parent_body():
     assert light.cast_shadow is False
 
 
-VISUAL_ONLY_GEOM_MJCF = """
-<mujoco>
-  <worldbody>
-    <body name="shelf">
-      <geom type="box" size="0.1 0.1 0.1" contype="0" conaffinity="0"/>
-    </body>
-  </worldbody>
-</mujoco>
+VISUAL_ONLY_GEOM_SCENE = os.path.join(DATASET_DIR, "visual_only_geom_scene.xml")
+"""
+Scene whose only geom is excluded from contact by ``contype=0`` and ``conaffinity=0``.
 """
 
 
 def test_visual_only_geom_is_not_a_collision_shape_by_default():
-    world = MJCFParser.from_xml_string(VISUAL_ONLY_GEOM_MJCF).parse()
+    world = MJCFParser.from_file(VISUAL_ONLY_GEOM_SCENE).parse()
 
     [shelf] = [
         body for body in world.kinematic_structure_entities if body.name.name == "shelf"
@@ -194,11 +192,10 @@ def test_visual_only_geom_is_not_a_collision_shape_by_default():
     assert len(shelf.collision.shapes) == 0
 
 
-def test_visual_only_geom_becomes_collision_shape_when_visuals_are_used_as_collision():
-    parser = MJCFParser.from_xml_string(VISUAL_ONLY_GEOM_MJCF)
-    parser.use_visual_as_collision = True
-
-    world = parser.parse()
+def test_visual_only_geom_becomes_a_collision_shape_when_every_geom_collides():
+    world = MJCFParser.from_file(
+        VISUAL_ONLY_GEOM_SCENE, every_geom_collides=True
+    ).parse()
 
     [shelf] = [
         body for body in world.kinematic_structure_entities if body.name.name == "shelf"
@@ -271,6 +268,17 @@ def test_frame_transform_is_applied_to_a_fixed_child_body(frame_wrapped_world):
 
     assert root_transform[:3, 3] == pytest.approx([1.0, 2.5, 3.0])
     assert root_transform[:3, :3] == pytest.approx(FRAME_ROTATION_ABOUT_Z)
+
+
+def test_joint_velocity_limit_is_symmetric_about_zero(frame_wrapped_world):
+    """
+    A one-sided velocity limit would stop the hinge moving towards its own range, which
+    runs from a negative angle to zero.
+    """
+    hinge = frame_wrapped_world.get_degree_of_freedom_by_name("door_hinge")
+
+    assert hinge.limits.lower.velocity == -DEFAULT_JOINT_VELOCITY_LIMIT
+    assert hinge.limits.upper.velocity == DEFAULT_JOINT_VELOCITY_LIMIT
 
 
 def test_frame_transform_is_applied_to_a_jointed_child_body(frame_wrapped_world):

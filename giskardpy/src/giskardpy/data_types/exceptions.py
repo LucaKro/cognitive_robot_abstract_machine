@@ -26,30 +26,31 @@ class SetupException(GiskardException):
 
 
 @dataclass
-class IncompleteKinematicChainParametersError(SetupException):
+class UnpairedChainEndpointParametersError(SetupException):
     """
-    Raised when only one of ``root_links`` and ``tip_links`` is provided.
+    Raised when the ``root_links`` and ``tip_links`` parameters differ in length, so
+    their entries cannot be paired into kinematic chains.
     """
 
-    root_links: list[str] | None
-    """The root link names that were provided, or ``None``."""
-
-    tip_links: list[str] | None
+    root_links: list[str]
     """
-    The tip link names that were provided, or ``None``.
+    The root link names that were declared.
+    """
+
+    tip_links: list[str]
+    """
+    The tip link names that were declared.
     """
 
     def error_message(self) -> str:
         return (
-            "root_links and tip_links must be provided together; "
-            f"got root_links={self.root_links} and tip_links={self.tip_links}."
+            "root_links and tip_links must have the same length; "
+            f"got {len(self.root_links)} root links {self.root_links} and "
+            f"{len(self.tip_links)} tip links {self.tip_links}."
         )
 
     def suggest_correction(self) -> str:
-        return (
-            "Pass both link lists as constructor arguments, or omit both to read "
-            "them from the ROS 2 node parameters."
-        )
+        return "Declare one tip link for every root link, in the same order."
 
 
 @dataclass

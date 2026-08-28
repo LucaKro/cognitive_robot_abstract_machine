@@ -52,8 +52,6 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.world import World
 
-from .robot_annotation_lookup import get_or_create_robot_annotation
-
 # The alternative motion mappings that should be available to the plans in this test module.
 # Resolution filters by robot type and execution type, so passing the full set is always safe.
 ALTERNATIVE_MOTION_MAPPINGS = [
@@ -76,7 +74,6 @@ def setup_multi_robot_simple_apartment(
     _stretch_world_setup,
     _tiago_world_setup,
     _pr2_world_setup,
-    _garmi_world_setup,
     _simple_apartment_setup,
 ):
     apartment_copy = deepcopy(_simple_apartment_setup)
@@ -127,15 +124,11 @@ def setup_multi_robot_simple_apartment(
         return apartment_copy, view
 
     elif request.param == "garmi":
-        garmi_copy = deepcopy(_garmi_world_setup)
+        garmi_copy = deepcopy(request.getfixturevalue("_garmi_world_setup"))
         apartment_copy.merge_world(
             garmi_copy,
         )
-        view = apartment_copy.get_semantic_annotations_by_type(Garmi)
-        if not view:
-            view = get_or_create_robot_annotation(apartment_copy, Garmi)
-        else:
-            view = view[0]
+        view = apartment_copy.get_semantic_annotations_by_type(Garmi)[0]
         view.root.parent_connection.origin = (
             HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0)
         )
@@ -341,9 +334,6 @@ def test_visibility_reachability_merge(
         context,
     )
 
-    context.ros_node = rclpy_node
-    context.debug = True
-
     with simulated_robot:
         plan.perform()
 
@@ -393,7 +383,7 @@ def test_accessing_location_pose(immutable_model_world):
     assert len(pose.to_quaternion().to_list()) == 4
 
 
-def test_giskard_location_pose(immutable_multiple_robot_simple_apartment, rclpy_node):
+def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
     plan = sequential(
         [
@@ -402,9 +392,6 @@ def test_giskard_location_pose(immutable_multiple_robot_simple_apartment, rclpy_
         ],
         context,
     )
-
-    context.ros_node = rclpy_node
-    context.debug = True
 
     with simulated_robot:
         plan.perform()

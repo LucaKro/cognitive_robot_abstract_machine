@@ -205,7 +205,7 @@ def build_group_publisher(
     specs: List[ConnectionSpec],
     minimum_valid_velocity: float = 0.0,
     minimum_velocity_overrides: Optional[Dict[str, float]] = None,
-    command_format: GroupCommandFormat = Float64MultiArrayFormat(),
+    command_format: GroupCommandFormat | None = None,
 ) -> JointGroupVelocityCommandPublisher:
     """
     Build a group publisher over a chain of freshly created connections.
@@ -224,7 +224,7 @@ def group_publisher_for(
     specs: List[ConnectionSpec],
     minimum_valid_velocity: float = 0.0,
     minimum_velocity_overrides: Optional[Dict[str, float]] = None,
-    command_format: GroupCommandFormat = Float64MultiArrayFormat(),
+    command_format: GroupCommandFormat | None = None,
 ) -> JointGroupVelocityCommandPublisher:
     """
     Build a group publisher over connections that already exist in a world.
@@ -236,7 +236,7 @@ def group_publisher_for(
         minimum_velocities=JointMinimumVelocities.from_magnitudes(
             minimum_valid_velocity, minimum_velocity_overrides
         ),
-        command_format=command_format,
+        command_format=command_format or Float64MultiArrayFormat(),
     )
 
 
