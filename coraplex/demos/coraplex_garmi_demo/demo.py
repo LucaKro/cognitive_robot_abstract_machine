@@ -160,7 +160,6 @@ else:
 rclpy.init()
 node = rclpy.create_node("garmi_apartment_viz")
 publisher = VizMarkerPublisher(_world=world, node=node)
-publisher.with_tf_publisher()
 
 ros_executor = SingleThreadedExecutor()
 ros_executor.add_node(node)
