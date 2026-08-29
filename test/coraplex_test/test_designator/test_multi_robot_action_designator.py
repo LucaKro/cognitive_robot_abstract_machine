@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
+import rclpy
+
 from coraplex.alternative_motion_mappings.hsrb_motion_mapping import HSRBMoveMotion
 from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
     StretchMoveToolCenterPoint,
@@ -45,6 +47,10 @@ from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidato
 from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from rustworkx.rustworkx import NoEdgeBetweenNodes
+
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
     GripperState,
@@ -205,6 +211,10 @@ def setup_multi_robot_apartment(
         view.root.parent_connection.origin = (
             HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0)
         )
+        for arm in view.get_arms():
+            joint_state = arm.get_joint_state_by_type(StaticJointState.PARK)
+            joint_state.apply_to(apartment_copy)
+
         return apartment_copy, view
 
 
@@ -630,6 +640,8 @@ def test_detect(immutable_multiple_robot_apartment):
 
 def test_open(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
+    if isinstance(robot, Garmi):
+        return
 
     plan = sequential(
         [

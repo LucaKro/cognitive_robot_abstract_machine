@@ -25,7 +25,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
-STANDING_DISTANCE_ARM_LENGTH_FRACTION = 0.80
+STANDING_DISTANCE_ARM_LENGTH_FRACTION = 0.66
 """
 Fraction of an arm's length at which the robot stands from the target it reaches for.
 

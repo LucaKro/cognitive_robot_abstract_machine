@@ -364,16 +364,6 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
     The left Franka FR3 arm.
     """
 
-    ARM_PARK_CONFIGURATION: ClassVar[dict[str, float]] = {
-        "fr3_joint1": 0.0,
-        "fr3_joint2": -0.7853981633974483,
-        "fr3_joint3": 0.0,
-        "fr3_joint4": -2.356194490192345,
-        "fr3_joint5": 0.0,
-        "fr3_joint6": 1.5707963267948966,
-        "fr3_joint7": 0.7853981633974483,
-    }
-
     def setup_hardware_interfaces(self):
         """
         Sets up hardware interfaces for the arm joints.
@@ -387,13 +377,24 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
         """
         Sets up the park configuration for the arm.
         """
+
+        ARM_PARK_CONFIGURATION = {
+            "fr3_joint1": 0.0,
+            "fr3_joint2": -1.6,
+            "fr3_joint3": -1.0,
+            "fr3_joint4": -2.356194490192345,
+            "fr3_joint5": 0.0,
+            "fr3_joint6": 1.5707963267948966,
+            "fr3_joint7": 0.7853981633974483,
+        }
+
         arm_park = JointState.from_mapping(
             name=PrefixedName("park", prefix=self.name.name),
             mapping={
                 connection: position
                 for connection in self.connections
                 if not isinstance(connection, FixedConnection)
-                for joint_name, position in self.ARM_PARK_CONFIGURATION.items()
+                for joint_name, position in ARM_PARK_CONFIGURATION.items()
                 if connection.name.name.endswith(joint_name)
             },
             state_type=StaticJointState.PARK,
@@ -423,16 +424,6 @@ class GarmiRightArm(Arm[GarmiRightGripper]):
     The right Franka FR3 arm.
     """
 
-    ARM_PARK_CONFIGURATION: ClassVar[dict[str, float]] = {
-        "fr3_joint1": 0.0,
-        "fr3_joint2": -0.7853981633974483,
-        "fr3_joint3": 0.0,
-        "fr3_joint4": -2.356194490192345,
-        "fr3_joint5": 0.0,
-        "fr3_joint6": 1.5707963267948966,
-        "fr3_joint7": 0.7853981633974483,
-    }
-
     def setup_hardware_interfaces(self):
         """
         Sets up hardware interfaces for the arm joints.
@@ -446,13 +437,23 @@ class GarmiRightArm(Arm[GarmiRightGripper]):
         """
         Sets up the park configuration for the arm.
         """
+        ARM_PARK_CONFIGURATION = {
+            "fr3_joint1": 0.0,
+            "fr3_joint2": -1.6,
+            "fr3_joint3": 1.0,
+            "fr3_joint4": -2.356194490192345,
+            "fr3_joint5": 0.0,
+            "fr3_joint6": 1.5707963267948966,
+            "fr3_joint7": 0.7853981633974483,
+        }
+
         arm_park = JointState.from_mapping(
             name=PrefixedName("park", prefix=self.name.name),
             mapping={
                 connection: position
                 for connection in self.connections
                 if not isinstance(connection, FixedConnection)
-                for joint_name, position in self.ARM_PARK_CONFIGURATION.items()
+                for joint_name, position in ARM_PARK_CONFIGURATION.items()
                 if connection.name.name.endswith(joint_name)
             },
             state_type=StaticJointState.PARK,
