@@ -63,15 +63,6 @@ from semantic_digital_twin.world_description.world_entity import Actuator
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_JOINT_VELOCITY_LIMIT = 1.0
-"""
-Velocity magnitude a joint is limited to, in radian or meter per second.
-
-MJCF describes no velocity limit on a joint, so every limited joint is parsed with
-this one, symmetric about zero the way :mod:`semantic_digital_twin.adapters.urdf`
-reads the URDF limit.
-"""
-
 
 @dataclass
 class MJCFParser(WorldModelParser):
@@ -92,6 +83,16 @@ class MJCFParser(WorldModelParser):
     prefix: Optional[str] = None
     """
     The prefix for every name used in this world.
+    """
+
+    default_joint_velocity_limit: float = 1.0
+    """
+    Velocity magnitude every limited joint is parsed with, in radian or meter per
+    second.
+
+    MJCF describes no velocity limit on a joint, so one is supplied here, applied
+    symmetrically about zero the way :mod:`semantic_digital_twin.adapters.urdf` reads
+    the URDF limit.
     """
 
     every_geom_collides: bool = False
@@ -655,8 +656,8 @@ class MJCFParser(WorldModelParser):
                 upper_limits.position = float(mujoco_joint.range[1])
 
                 # MJCF has no velocity limit on a joint, so fall back to a default.
-                lower_limits.velocity = -DEFAULT_JOINT_VELOCITY_LIMIT
-                upper_limits.velocity = DEFAULT_JOINT_VELOCITY_LIMIT
+                lower_limits.velocity = -self.default_joint_velocity_limit
+                upper_limits.velocity = self.default_joint_velocity_limit
 
                 dof = DegreeOfFreedom(
                     name=PrefixedName(dof_name),

@@ -3,10 +3,7 @@ import os.path
 import numpy
 import pytest
 
-from semantic_digital_twin.adapters.mjcf import (
-    DEFAULT_JOINT_VELOCITY_LIMIT,
-    MJCFParser,
-)
+from semantic_digital_twin.adapters.mjcf import MJCFParser
 from semantic_digital_twin.adapters.multi_sim import MujocoLight
 from semantic_digital_twin.world_description.connections import FixedConnection
 
@@ -233,12 +230,20 @@ Rotation matrix of the fixture frame's 90 degree rotation about the z axis.
 
 
 @pytest.fixture
-def frame_wrapped_world():
+def frame_wrapped_parser():
     """
-    World parsed from a scene whose geom and child bodies are wrapped in an MJCF
+    Parser for a scene whose geom and child bodies are wrapped in an MJCF
     ``<frame pos="1 2 3" quat="0.7071068 0 0 0.7071068">`` element.
     """
-    return MJCFParser(os.path.join(DATASET_DIR, "frame_wrapped_scene.xml")).parse()
+    return MJCFParser(os.path.join(DATASET_DIR, "frame_wrapped_scene.xml"))
+
+
+@pytest.fixture
+def frame_wrapped_world(frame_wrapped_parser):
+    """
+    World parsed from the frame wrapped scene.
+    """
+    return frame_wrapped_parser.parse()
 
 
 def test_frame_transform_is_applied_to_the_geoms_it_wraps(frame_wrapped_world):
@@ -270,15 +275,22 @@ def test_frame_transform_is_applied_to_a_fixed_child_body(frame_wrapped_world):
     assert root_transform[:3, :3] == pytest.approx(FRAME_ROTATION_ABOUT_Z)
 
 
-def test_joint_velocity_limit_is_symmetric_about_zero(frame_wrapped_world):
+def test_joint_velocity_limit_is_symmetric_about_zero(frame_wrapped_parser):
     """
     A one-sided velocity limit would stop the hinge moving towards its own range, which
     runs from a negative angle to zero.
     """
-    hinge = frame_wrapped_world.get_degree_of_freedom_by_name("door_hinge")
+    world = frame_wrapped_parser.parse()
 
-    assert hinge.limits.lower.velocity == -DEFAULT_JOINT_VELOCITY_LIMIT
-    assert hinge.limits.upper.velocity == DEFAULT_JOINT_VELOCITY_LIMIT
+    hinge = world.get_degree_of_freedom_by_name("door_hinge")
+
+    assert (
+        hinge.limits.lower.velocity
+        == -frame_wrapped_parser.default_joint_velocity_limit
+    )
+    assert (
+        hinge.limits.upper.velocity == frame_wrapped_parser.default_joint_velocity_limit
+    )
 
 
 def test_frame_transform_is_applied_to_a_jointed_child_body(frame_wrapped_world):

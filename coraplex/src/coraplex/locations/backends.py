@@ -22,7 +22,6 @@ from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostm
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
-    AllowCollisionRule,
     AllowCollisionBetweenGroups,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
