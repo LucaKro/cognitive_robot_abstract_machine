@@ -9,6 +9,7 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
+    TransitionKind,
 )
 from giskardpy.motion_statechart.exceptions import (
     NodeNotFoundError,
@@ -90,6 +91,25 @@ def test_trinary_transition():
     assert condition_copy == condition
 
 
+def test_stop_condition_round_trip():
+    """
+    A stop condition survives serialization, including the predicate it reads.
+    """
+    msc = MotionStatechart()
+    msc.add_nodes([first := ConstTrueNode(), second := ConstTrueNode()])
+    second.stop_condition = trinary_logic_and(
+        first.is_succeeded, second.observation_variable
+    )
+    condition = second._stop_condition
+
+    condition_copy = TrinaryCondition.from_json(
+        json.loads(json.dumps(condition.to_json())), motion_statechart=msc
+    )
+
+    assert condition_copy == condition
+    assert condition_copy.kind is TransitionKind.STOP
+
+
 def test_to_json_joint_position_list(mini_world):
     connection = mini_world.connections[0]
     node = JointPositionList(
@@ -117,7 +137,7 @@ def test_start_condition(mini_world):
     end = ConstTrueNode()
     msc.add_node(end)
 
-    node1.success_condition = node1.observation_variable
+    node1.stop_condition = node1.observation_variable
     node2.start_condition = node1.observation_variable
     node2.pause_condition = node3.observation_variable
     end.start_condition = trinary_logic_and(

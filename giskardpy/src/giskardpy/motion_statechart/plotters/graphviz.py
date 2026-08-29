@@ -206,8 +206,7 @@ class MotionStatechartGraphviz:
         """
         start_condition = format_condition(str(node._start_condition))
         pause_condition = format_condition(str(node._pause_condition))
-        success_condition = format_condition(str(node._success_condition))
-        failure_condition = format_condition(str(node._failure_condition))
+        stop_condition = format_condition(str(node._stop_condition))
         reset_condition = format_condition(str(node._reset_condition))
         label = (
             f'<TR><TD WIDTH="100%" BGCOLOR="{line_color}" HEIGHT="{LineWidth}"></TD></TR>'
@@ -220,11 +219,7 @@ class MotionStatechartGraphviz:
             )
             label += (
                 f'<TR><TD WIDTH="100%" BGCOLOR="{line_color}" HEIGHT="{LineWidth}"></TD></TR>'
-                f'<TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="{LineWidth}"><FONT FACE="{ConditionFont}">success:{success_condition}</FONT></TD></TR>'
-            )
-            label += (
-                f'<TR><TD WIDTH="100%" BGCOLOR="{line_color}" HEIGHT="{LineWidth}"></TD></TR>'
-                f'<TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="{LineWidth}"><FONT FACE="{ConditionFont}">failure:{failure_condition}</FONT></TD></TR>'
+                f'<TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="{LineWidth}"><FONT FACE="{ConditionFont}">stop   :{stop_condition}</FONT></TD></TR>'
             )
             label += (
                 f'<TR><TD WIDTH="100%" BGCOLOR="{line_color}" HEIGHT="{LineWidth}"></TD></TR>'

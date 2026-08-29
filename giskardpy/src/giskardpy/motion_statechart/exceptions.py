@@ -261,31 +261,6 @@ class MissingErrorSignalError(NodeInitializationError):
 
 
 @dataclass
-class NoConvergingTaskError(NodeInitializationError):
-    """
-    Raised when a node is asked to watch the goal error of a node that contains no
-    converging task.
-    """
-
-    monitored_node: MotionStatechartNode
-    """
-    The node that was supposed to be watched.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f'"{self.monitored_node.unique_name}" contains no ConvergingTask, so it has '
-            f"no goal error whose progress could be watched."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Watch a task that converges towards a goal. Tasks that enforce an invariant, "
-            "such as a velocity limit or a collision predicate, never converge."
-        )
-
-
-@dataclass
 class CyclicNodeDependencyError(NodeInitializationError):
     """
     Raised when nodes depend on each other in a cycle, so no build order exists.

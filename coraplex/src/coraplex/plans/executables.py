@@ -232,7 +232,7 @@ class GiskardExecutable(Executable):
         plan_nodes = list(self.motion_mappings.keys())
         for index, (plan_node, task) in enumerate(zip(plan_nodes, tasks)):
             # a task is done once its own goal is observed (as giskard's Sequence does)
-            task.success_condition = task.observation_variable
+            task.stop_condition = task.observation_variable
 
             pause_monitor = PlanNodeStatusMonitor(
                 predicate=lambda node=plan_node: node.is_paused,

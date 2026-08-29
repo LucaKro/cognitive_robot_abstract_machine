@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum, Enum
-from typing import Union, FrozenSet, List
+from typing import Union, FrozenSet
 
 import numpy as np
 from krrood.symbolic_math.symbolic_math import Scalar
@@ -43,18 +43,18 @@ class LifeCycleValues(IntEnum):
 
     SUCCEEDED = 3
     """
-    The node ended because its own success condition became true.
+    The node was stopped while its success criterion held.
     """
 
     FAILED = 4
     """
-    The node ended because its own failure condition became true.
+    The node was stopped while its success criterion did not hold.
     """
 
     INTERRUPTED = 5
     """
-    The node was cut off by an ancestor ending, so it neither succeeded nor failed on
-    its own terms.
+    The node stopped without being judged, either because an ancestor stopped and took
+    it down with it, or because it has no success criterion to judge it by.
     """
 
     @classmethod
@@ -70,6 +70,26 @@ class LifeCycleValues(IntEnum):
         :return: Whether a node in this state has ended.
         """
         return self in self.terminal_states()
+
+    @classmethod
+    def verdict_for(cls, success_criterion: ObservationStateValues) -> LifeCycleValues:
+        """
+        The verdict a node receives when it is stopped by its own stop condition.
+
+        A criterion that has no answer yet is no basis for a judgement, so it is treated
+        the same as having none at all.
+
+        :param success_criterion: The value of the node's success criterion at the
+            moment it is stopped.
+        :return: The terminal state the node reaches.
+        """
+        match success_criterion:
+            case ObservationStateValues.TRUE:
+                return cls.SUCCEEDED
+            case ObservationStateValues.FALSE:
+                return cls.FAILED
+            case _:
+                return cls.INTERRUPTED
 
 
 class FloatEnum(float, Enum):
@@ -204,26 +224,16 @@ class TransitionKind(Enum):
     Transitions nodes from RUNNING to PAUSED if True, or back if False.
     """
 
-    SUCCESS = 3
+    STOP = 3
     """
-    Transitions nodes from RUNNING or PAUSED to SUCCEEDED, and their descendants to
-    INTERRUPTED.
+    Transitions nodes from RUNNING or PAUSED to a terminal state, and their descendants
+    to INTERRUPTED.
+
+    Which terminal state the node itself reaches follows from its success criterion at
+    that moment, see :meth:`LifeCycleValues.verdict_for`.
     """
 
     RESET = 4
     """
     Transitions nodes from any state to NOT_STARTED.
     """
-
-    FAILURE = 5
-    """
-    Transitions nodes from RUNNING or PAUSED to FAILED, and their descendants to
-    INTERRUPTED.
-    """
-
-    @classmethod
-    def verdict_kinds(cls) -> List[TransitionKind]:
-        """
-        :return: The transitions that end a node, in the order they take priority.
-        """
-        return [cls.FAILURE, cls.SUCCESS]

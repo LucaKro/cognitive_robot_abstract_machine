@@ -526,6 +526,14 @@ class NodeArtifacts:
     How far this node is from its goal. Set by :class:`ConvergingTask`, which derives
     :attr:`observation` from it, and used to watch whether the node is still converging.
     """
+    success_criterion: Optional[Scalar] = field(default=None)
+    """
+    What it means for this node to have succeeded, read at the moment something stops it.
+
+    ``None`` means the node has no notion of succeeding, so stopping it never judges it.
+    That is the right answer for a monitor: asking whether a heartbeat succeeded is a
+    category error.
+    """
     debug_expressions: List[DebugExpression] = field(default_factory=list)
     """
     A list of symbolic expressions used for debugging only.
@@ -627,6 +635,8 @@ class MotionStatechartNode:
     """The parameter is set after build() using its NodeArtifacts."""
     _observation_expression: Scalar = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
+    _success_criterion: Optional[Scalar] = field(init=False, repr=False, default=None)
+    """The parameter is set after build() using its NodeArtifacts."""
     _error_signal: Optional[ErrorSignal] = field(init=False, repr=False, default=None)
     """The parameter is set after build() using its NodeArtifacts."""
     _debug_expressions: List[DebugExpression] = field(default_factory=list, init=False)
@@ -640,13 +650,9 @@ class MotionStatechartNode:
     """
     Decides when this node transitions from RUNNING to PAUSED or back.
     """
-    _success_condition: TrinaryCondition = field(init=False, default=None)
+    _stop_condition: TrinaryCondition = field(init=False, default=None)
     """
-    Decides when this node transitions from RUNNING or PAUSED to SUCCEEDED.
-    """
-    _failure_condition: TrinaryCondition = field(init=False, default=None)
-    """
-    Decides when this node transitions from RUNNING or PAUSED to FAILED.
+    Decides when this node transitions from RUNNING or PAUSED to a terminal state.
     """
     _reset_condition: TrinaryCondition = field(init=False, default=None)
     """
@@ -677,11 +683,8 @@ class MotionStatechartNode:
         self._pause_condition = TrinaryCondition.create_false(
             kind=TransitionKind.PAUSE, owner=self
         )
-        self._success_condition = TrinaryCondition.create_false(
-            kind=TransitionKind.SUCCESS, owner=self
-        )
-        self._failure_condition = TrinaryCondition.create_false(
-            kind=TransitionKind.FAILURE, owner=self
+        self._stop_condition = TrinaryCondition.create_false(
+            kind=TransitionKind.STOP, owner=self
         )
         self._reset_condition = TrinaryCondition.create_false(
             kind=TransitionKind.RESET, owner=self
@@ -767,10 +770,8 @@ class MotionStatechartNode:
                 self._start_condition = transition
             case TransitionKind.PAUSE:
                 self._pause_condition = transition
-            case TransitionKind.SUCCESS:
-                self._success_condition = transition
-            case TransitionKind.FAILURE:
-                self._failure_condition = transition
+            case TransitionKind.STOP:
+                self._stop_condition = transition
             case TransitionKind.RESET:
                 self._reset_condition = transition
             case _:
@@ -785,16 +786,16 @@ class MotionStatechartNode:
         any_reset_condition_true = self._create_any_ancestor_condition_true(
             TransitionKind.RESET
         )
-        ancestor_ended = self._create_ancestor_ended()
+        ancestor_stopping = self._create_ancestor_stopping()
 
         return LifeCycleTransitions(
             not_started=self._create_not_started_transitions(),
             running=self._create_running_transitions(
-                ancestor_ended=ancestor_ended,
+                ancestor_stopping=ancestor_stopping,
                 any_reset_condition_true=any_reset_condition_true,
             ),
             paused=self._create_pause_transitions(
-                ancestor_ended=ancestor_ended,
+                ancestor_stopping=ancestor_stopping,
                 any_reset_condition_true=any_reset_condition_true,
             ),
             terminal=self._create_terminal_transitions(
@@ -812,48 +813,56 @@ class MotionStatechartNode:
         """
         return sm.Scalar(self.get_condition(transition_kind) == sm.Scalar.const_true())
 
-    def _create_ancestor_ended(self) -> sm.Scalar:
+    def _create_ancestor_stopping(self) -> sm.Scalar:
         """
-        An ancestor that succeeds or fails cuts this node off before it reached a verdict
-        of its own.
+        An ancestor that stops takes this node down with it, before anything asked this
+        node specifically to stop.
 
-        :return: 1 while any strict ancestor's success or failure condition is true, 0 otherwise.
+        :return: 1 while any strict ancestor's stop condition is true, 0 otherwise.
         """
-        ancestor_conditions = []
-        current_node = self
-        while current_node.parent_node is not None:
-            current_node = current_node.parent_node
-            ancestor_conditions.extend(
-                current_node._create_condition_holds(kind)
-                for kind in TransitionKind.verdict_kinds()
-            )
-        if not ancestor_conditions:
+        if self.parent_node is None:
             return sm.Scalar.const_false()
-        if len(ancestor_conditions) == 1:
-            return ancestor_conditions[0]
-        return sm.trinary_logic_or(*ancestor_conditions)
+        return self.parent_node._create_any_ancestor_condition_true(TransitionKind.STOP)
 
-    def _create_verdict_cases(
-        self, ancestor_ended: sm.Scalar
+    def _create_verdict(self) -> sm.Scalar:
+        """
+        The terminal state this node reaches when its own stop condition ends it, read
+        off its success criterion at that moment.
+
+        A node without a success criterion has nothing to be judged by, so stopping it
+        can only interrupt it.
+
+        :return: The life cycle state to transition to.
+        """
+        if self._success_criterion is None:
+            return sm.Scalar(LifeCycleValues.INTERRUPTED)
+        return sm.if_cases(
+            cases=[
+                (
+                    sm.Scalar(self._success_criterion == float(criterion_value)),
+                    sm.Scalar(LifeCycleValues.verdict_for(criterion_value)),
+                )
+                for criterion_value in ObservationStateValues
+            ],
+            else_result=sm.Scalar(LifeCycleValues.INTERRUPTED),
+        )
+
+    def _create_stop_cases(
+        self, ancestor_stopping: sm.Scalar
     ) -> List[Tuple[sm.Scalar, sm.Scalar]]:
         """
-        A node's own verdict outranks an ancestor cutting it off, because a node that
-        finished on its own terms was not interrupted. Failure outranks success so a
-        failure signal is never masked by one arriving on the same tick.
+        Being asked to stop specifically is what earns a node a verdict. An ancestor
+        stopping is collateral, and never a judgement of this node.
 
-        :param ancestor_ended: Whether any strict ancestor succeeded or failed.
+        :param ancestor_stopping: Whether any strict ancestor is stopping.
         :return: (condition, resulting life cycle state) pairs, in priority order.
         """
         return [
             (
-                self._create_condition_holds(TransitionKind.FAILURE),
-                sm.Scalar(LifeCycleValues.FAILED),
+                self._create_condition_holds(TransitionKind.STOP),
+                self._create_verdict(),
             ),
-            (
-                self._create_condition_holds(TransitionKind.SUCCESS),
-                sm.Scalar(LifeCycleValues.SUCCEEDED),
-            ),
-            (ancestor_ended, sm.Scalar(LifeCycleValues.INTERRUPTED)),
+            (ancestor_stopping, sm.Scalar(LifeCycleValues.INTERRUPTED)),
         ]
 
     def _create_any_ancestor_condition_true(
@@ -887,10 +896,8 @@ class MotionStatechartNode:
                 return self.start_condition
             case TransitionKind.PAUSE:
                 return self.pause_condition
-            case TransitionKind.SUCCESS:
-                return self.success_condition
-            case TransitionKind.FAILURE:
-                return self.failure_condition
+            case TransitionKind.STOP:
+                return self.stop_condition
             case TransitionKind.RESET:
                 return self.reset_condition
             case _:
@@ -914,12 +921,12 @@ class MotionStatechartNode:
 
     def _create_pause_transitions(
         self,
-        ancestor_ended: sm.Scalar,
+        ancestor_stopping: sm.Scalar,
         any_reset_condition_true: sm.Scalar,
     ) -> sm.Scalar:
         """
         Create the pause transitions of the LifeCycleState for this node.
-        :param ancestor_ended: Whether any strict ancestor succeeded or failed.
+        :param ancestor_stopping: Whether any strict ancestor is stopping.
         :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using trinary_logic_or.
         :return: The LifeCycleState transitions for the PAUSED state.
         """
@@ -939,7 +946,7 @@ class MotionStatechartNode:
                     any_reset_condition_true,
                     sm.Scalar(LifeCycleValues.NOT_STARTED),
                 ),
-                *self._create_verdict_cases(ancestor_ended),
+                *self._create_stop_cases(ancestor_stopping),
                 (
                     unpause_condition,
                     sm.Scalar(LifeCycleValues.RUNNING),
@@ -950,12 +957,12 @@ class MotionStatechartNode:
 
     def _create_running_transitions(
         self,
-        ancestor_ended: sm.Scalar,
+        ancestor_stopping: sm.Scalar,
         any_reset_condition_true: sm.Scalar,
     ) -> sm.Scalar:
         """
         Create the running transitions of the LifeCycleState for this node.
-        :param ancestor_ended: Whether any strict ancestor succeeded or failed.
+        :param ancestor_stopping: Whether any strict ancestor is stopping.
         :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using trinary_logic_or.
         :return: The LifeCycleState transitions for the RUNNING state.
         """
@@ -968,7 +975,7 @@ class MotionStatechartNode:
                     any_reset_condition_true,
                     sm.Scalar(LifeCycleValues.NOT_STARTED),
                 ),
-                *self._create_verdict_cases(ancestor_ended),
+                *self._create_stop_cases(ancestor_stopping),
                 (any_pause_condition, sm.Scalar(LifeCycleValues.PAUSED)),
             ],
             else_result=sm.Scalar(LifeCycleValues.RUNNING),
@@ -985,8 +992,7 @@ class MotionStatechartNode:
             parent = current.parent_node
             start_condition = sm.trinary_logic_and(
                 start_condition,
-                sm.trinary_logic_not(parent.success_condition),
-                sm.trinary_logic_not(parent.failure_condition),
+                sm.trinary_logic_not(parent.stop_condition),
                 parent._create_condition_holds(TransitionKind.START),
             )
             current = parent
@@ -1158,36 +1164,39 @@ class MotionStatechartNode:
         self._pause_condition.update_expression(expression, self)
 
     @property
-    def success_condition(self) -> Scalar:
+    def stop_condition(self) -> Scalar:
         """
-        :return: The expression deciding when this node transitions from RUNNING or PAUSED to SUCCEEDED.
+        :return: The expression deciding when this node transitions from RUNNING or PAUSED to a terminal state.
         """
-        return self._success_condition.expression
+        return self._stop_condition.expression
 
-    @success_condition.setter
-    def success_condition(self, expression: Scalar) -> None:
+    @stop_condition.setter
+    def stop_condition(self, expression: Scalar) -> None:
         """
-        :param expression: The expression deciding when this node transitions from RUNNING or PAUSED to SUCCEEDED.
+        :param expression: The expression deciding when this node transitions from RUNNING or PAUSED to a terminal state.
         """
-        if self._success_condition is None:
+        if self._stop_condition is None:
             raise NotInMotionStatechartError(self.name)
-        self._success_condition.update_expression(expression, self)
+        self._stop_condition.update_expression(expression, self)
 
     @property
-    def failure_condition(self) -> Scalar:
+    def goal_reached(self) -> Scalar:
         """
-        :return: The expression deciding when this node transitions from RUNNING or PAUSED to FAILED.
-        """
-        return self._failure_condition.expression
+        The strongest available evidence that this node reached its goal: its verdict if
+        something stops it, otherwise its live observation.
 
-    @failure_condition.setter
-    def failure_condition(self, expression: Scalar) -> None:
+        A node nothing ever stops is only cut off when an ancestor ends, which leaves it
+        :attr:`~giskardpy.motion_statechart.data_types.LifeCycleValues.INTERRUPTED`, so
+        its verdict would never answer the question.
+
+        .. note:: Only meaningful once every goal has expanded, since expansion is what
+            wires the stop conditions.
+
+        :return: The verdict predicate or the observation variable of this node.
         """
-        :param expression: The expression deciding when this node transitions from RUNNING or PAUSED to FAILED.
-        """
-        if self._failure_condition is None:
-            raise NotInMotionStatechartError(self.name)
-        self._failure_condition.update_expression(expression, self)
+        if self._stop_condition.expression.is_const_false():
+            return self.observation_variable
+        return self.is_succeeded
 
     @property
     def reset_condition(self) -> Scalar:
@@ -1237,8 +1246,7 @@ class MotionStatechartNode:
         return [
             self._start_condition,
             self._pause_condition,
-            self._success_condition,
-            self._failure_condition,
+            self._stop_condition,
             self._reset_condition,
         ]
 
@@ -1317,10 +1325,8 @@ class MotionStatechartNode:
             f"{str(self._start_condition)}\n"
             f"----pause_condition----\n"
             f"{str(self._pause_condition)}\n"
-            f"----success_condition----\n"
-            f"{str(self._success_condition)}\n"
-            f"----failure_condition----\n"
-            f"{str(self._failure_condition)}\n"
+            f"----stop_condition----\n"
+            f"{str(self._stop_condition)}\n"
             f"----reset_condition----\n"
             f"{str(self._reset_condition)}"
         )
@@ -1428,13 +1434,17 @@ class Task(MotionStatechartNode):
 @dataclass(eq=False, repr=False)
 class ConvergingTask(ABC, Task):
     """
-    A task that drives a single scalar error towards zero and succeeds once that error is
-    within :attr:`threshold`.
+    A task that drives a single scalar error towards zero and counts as having reached
+    its goal once that error is within :attr:`threshold`.
 
-    Subclasses declare the error rather than the success condition, so that "reached the
-    goal" is defined in one place, and so that how fast the goal is being approached can
-    be measured. Tasks that enforce an invariant instead of converging, such as a
-    velocity limit or a collision predicate, are plain :class:`Task` and write their own
+    Reaching the goal is not by itself a reason to stop: the same task is a milestone in
+    a sequence and an invariant to hold inside a goal that grasps something. Whatever
+    stops it reads the criterion below to decide whether it succeeded.
+
+    Subclasses declare the error rather than the criterion, so that "reached the goal" is
+    defined in one place, and so that how fast the goal is being approached can be
+    measured. Tasks that enforce an invariant instead of converging, such as a velocity
+    limit or a collision predicate, are plain :class:`Task` and write their own
     observation.
     """
 
@@ -1443,12 +1453,16 @@ class ConvergingTask(ABC, Task):
 
     def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Build the task and derive its observation from its error.
+        Build the task and derive its observation and success criterion from its error.
+
+        Being within :attr:`threshold` is both what this task observes about the world
+        and what it means for it to have succeeded, so the two share one expression.
         """
         artifacts = super().build(context)
         if artifacts.error is None:
             raise MissingErrorSignalError(node=self)
         artifacts.observation = artifacts.error.expression <= self.threshold
+        artifacts.success_criterion = self.observation_variable
         return artifacts
 
     @abstractmethod

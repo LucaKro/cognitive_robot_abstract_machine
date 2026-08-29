@@ -8,6 +8,8 @@ ticking the executor, asserting the resulting observation and life cycle states.
 succeed / fail.
 """
 
+from math import ceil
+
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
@@ -16,6 +18,7 @@ from giskardpy.motion_statechart.data_types import (
 )
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from giskardpy.motion_statechart.monitors.payload_monitors import CountControlCycles
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
@@ -26,19 +29,36 @@ from coraplex.language import TryAllNode, TryInOrderNode
 from coraplex.language_giskard_templates import TryAll, TryInOrder
 
 # Number of ticks after which the templates below have settled into their final observation.
-SETTLE_TICKS = 4
+SETTLE_TICKS = 6
+
+# Simulated seconds an alternative is given before it is abandoned. Short so that a test
+# that has to wait out the give-up budget stays fast.
+GIVE_UP_AFTER = 0.2
 
 
-def _compile_and_tick(goal: MotionStatechartNode, ticks: int = SETTLE_TICKS) -> None:
+def _compile_and_tick(
+    goal: MotionStatechartNode,
+    ticks: int = SETTLE_TICKS,
+    alternatives_to_abandon: int = 0,
+) -> None:
     """
-    Add the goal to a fresh statechart, compile it and tick the executor ``ticks``
-    times.
+    Add the goal to a fresh statechart, compile it and tick the executor.
+
+    :param goal: The template under test.
+    :param ticks: Control cycles to run on top of the give-up budget.
+    :param alternatives_to_abandon: How many alternatives have to exhaust
+        :data:`GIVE_UP_AFTER` before the assertion holds. Turned into control cycles
+        using the control rate the executor actually runs at.
     """
     msc = MotionStatechart()
     msc.add_node(goal)
-    executor = Executor(MotionStatechartContext(world=World()))
+    context = MotionStatechartContext(world=World())
+    executor = Executor(context)
     executor.compile(motion_statechart=msc)
-    for _ in range(ticks):
+    cycles_per_alternative = ceil(
+        GIVE_UP_AFTER / context.qp_controller_config.control_dt
+    )
+    for _ in range(ticks + alternatives_to_abandon * cycles_per_alternative):
         executor.tick()
 
 
@@ -91,7 +111,7 @@ def test_try_all_single_child():
 def test_try_in_order_short_circuits_on_first_success():
     first = ConstTrueNode(name="first")
     second = ConstFalseNode(name="second")
-    goal = TryInOrder(nodes=[first, second])
+    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
     _compile_and_tick(goal)
 
     assert goal.observation_state == ObservationStateValues.TRUE
@@ -104,8 +124,8 @@ def test_try_in_order_short_circuits_on_first_success():
 def test_try_in_order_advances_after_failure():
     first = ConstFalseNode(name="first")
     second = ConstTrueNode(name="second")
-    goal = TryInOrder(nodes=[first, second])
-    _compile_and_tick(goal)
+    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+    _compile_and_tick(goal, alternatives_to_abandon=1)
 
     assert goal.observation_state == ObservationStateValues.TRUE
     # Both children ran: the first failed, the second was started and succeeded.
@@ -114,15 +134,40 @@ def test_try_in_order_advances_after_failure():
 
 
 def test_try_in_order_fails_only_if_all_children_fail():
-    goal = TryInOrder(nodes=[ConstFalseNode(name="a"), ConstFalseNode(name="b")])
-    _compile_and_tick(goal)
+    first = ConstFalseNode(name="first")
+    second = ConstFalseNode(name="second")
+    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+    _compile_and_tick(goal, alternatives_to_abandon=2)
 
     assert goal.observation_state == ObservationStateValues.FALSE
-    assert all(n.life_cycle_state == LifeCycleValues.FAILED for n in goal.nodes)
+    assert first.life_cycle_state == LifeCycleValues.FAILED
+    assert second.life_cycle_state == LifeCycleValues.FAILED
 
 
 def test_try_in_order_single_child():
-    goal = TryInOrder(nodes=[ConstTrueNode(name="only")])
+    goal = TryInOrder(
+        alternatives=[ConstTrueNode(name="only")], give_up_after=GIVE_UP_AFTER
+    )
     _compile_and_tick(goal)
 
     assert goal.observation_state == ObservationStateValues.TRUE
+
+
+# %% alternatives that need more than one tick to reach their goal
+
+#: Control cycles a slow alternative needs before its observation turns True.
+SLOW_ALTERNATIVE_CYCLES = 5
+
+
+def test_slow_alternative_is_not_abandoned_while_still_working():
+    """
+    An alternative whose observation is still False because it has not reached its goal
+    yet must not be mistaken for one that failed.
+    """
+    slow = CountControlCycles(name="slow", control_cycles=SLOW_ALTERNATIVE_CYCLES)
+    fallback = ConstTrueNode(name="fallback")
+    goal = TryInOrder(alternatives=[slow, fallback], give_up_after=GIVE_UP_AFTER)
+    _compile_and_tick(goal, ticks=2)
+
+    assert slow.life_cycle_state == LifeCycleValues.RUNNING
+    assert fallback.life_cycle_state == LifeCycleValues.NOT_STARTED

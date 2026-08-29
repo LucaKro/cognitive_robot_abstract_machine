@@ -580,9 +580,10 @@ class MotionStatechart(SubclassJSONSerializer):
         - NOT_STARTED: the node has not started yet.
         - RUNNING: the node is running.
         - PAUSED: the node is paused.
-        - SUCCEEDED: the node ended because its own success condition became true.
-        - FAILED: the node ended because its own failure condition became true.
-        - INTERRUPTED: the node was cut off by an ancestor ending.
+        - SUCCEEDED: the node was stopped while its success criterion held.
+        - FAILED: the node was stopped while its success criterion did not hold.
+        - INTERRUPTED: the node stopped without being judged, either because an ancestor
+                       stopped and took it down, or because it has no success criterion.
     Out of these 6 states, nodes are only "active" if they are in the RUNNING state, and
     the last 3 are terminal: they are only left by a reset.
     Observation states indicate the current observation of the node:
@@ -595,22 +596,24 @@ class MotionStatechart(SubclassJSONSerializer):
     `node.is_failed`. Reading a life cycle state lags one tick behind reading an
     observation, because the predicates are refreshed after the life cycle update.
     Nodes are connected with edges, or transitions.
-    There are 5 types of transitions:
+    There are 4 types of transitions:
         - start condition: If True, the node transitions from NOT_STARTED to RUNNING.
         - pause condition: If True, the node transitions from RUNNING to PAUSED.
                            If False, the node transitions from PAUSED to RUNNING.
-        - success condition: If True, the node transitions from RUNNING or PAUSED to
-                             SUCCEEDED, and its descendants to INTERRUPTED.
-        - failure condition: If True, the node transitions from RUNNING or PAUSED to
-                             FAILED, and its descendants to INTERRUPTED.
+        - stop condition: If True, the node transitions from RUNNING or PAUSED to a
+                          terminal state, and its descendants to INTERRUPTED.
         - reset condition: If True, the node transitions from any state to NOT_STARTED.
+    Which terminal state a stopped node reaches is decided by the success criterion it
+    declared about itself in
+    :attr:`~giskardpy.motion_statechart.graph_node.NodeArtifacts.success_criterion`, not
+    by whatever stopped it. Other nodes can therefore only decide *when* a node stops,
+    never whether stopping counts as success.
     If multiple conditions are met, the following order is used:
         1. reset condition
-        2. own failure condition
-        3. own success condition
-        4. an ancestor's success or failure condition
-        5. pause condition
-        6. start condition
+        2. own stop condition
+        3. an ancestor's stop condition
+        4. pause condition
+        5. start condition
     How to use this class:
         1. initialized with a world
         2. add nodes.
@@ -725,8 +728,7 @@ class MotionStatechart(SubclassJSONSerializer):
             node_copy.plot_specifications = deepcopy(node.plot_specifications)
             node_copy.start_condition = node.start_condition
             node_copy.pause_condition = node.pause_condition
-            node_copy.success_condition = node.success_condition
-            node_copy.failure_condition = node.failure_condition
+            node_copy.stop_condition = node.stop_condition
             node_copy.reset_condition = node.reset_condition
         return motion_statechart_copy
 
@@ -933,6 +935,7 @@ class MotionStatechart(SubclassJSONSerializer):
             node._observation_expression = node.observation_variable
         else:
             node._observation_expression = artifacts.observation
+        node._success_criterion = artifacts.success_criterion
         node._error_signal = artifacts.error
         node._debug_expressions = artifacts.debug_expressions
 

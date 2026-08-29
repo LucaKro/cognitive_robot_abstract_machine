@@ -11,10 +11,7 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
-from giskardpy.motion_statechart.exceptions import (
-    NoConvergingTaskError,
-    NoProgressError,
-)
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.error_signals import ErrorSignal
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
@@ -53,8 +50,8 @@ class NotApproachingGoal(MotionStatechartNode):
     """
     Rate below which the task counts as not approaching its goal, as a fraction of the
     task's own threshold per second.
-    
-    0.05 means the error must be changing by at least 5% of that task's own success threshold every 
+
+    0.05 means the error must be changing by at least 5% of that task's own success threshold every
     second, or the task counts as not approaching its goal
     """
 
@@ -177,6 +174,11 @@ class AnyMonitoredTaskRunning(MotionStatechartNode):
 
 # %% watching a whole goal
 
+DEFAULT_STALL_TIMEOUT = 5.0
+"""
+Seconds of simulated time without progress after which a watched node counts as stalled.
+"""
+
 
 @dataclass(eq=False, repr=False)
 class ProgressStalled(Goal):
@@ -197,7 +199,7 @@ class ProgressStalled(Goal):
     The task or goal whose progress is watched.
     """
 
-    timeout: float = field(default=5.0, kw_only=True)
+    timeout: float = field(default=DEFAULT_STALL_TIMEOUT, kw_only=True)
     """
     Seconds of simulated time without progress after which this turns ``True``.
     """
@@ -263,9 +265,28 @@ class ProgressStalled(Goal):
 
     def expand(self, context: MotionStatechartContext) -> None:
         self._monitored_tasks = self._find_converging_tasks(self.monitored_node)
+        self._timer = CountSimulationTimeSeconds(
+            name=f"{self.name}/timer", seconds=self.timeout
+        )
+        self.add_node(self._timer)
+        stalled_now = self._expand_stall_detection()
+        self._timer.start_condition = stalled_now
+        self._timer.reset_condition = sm.trinary_logic_not(stalled_now)
+
+    def _expand_stall_detection(self) -> Scalar:
+        """
+        Adds one monitor per converging task and combines them into a single signal.
+
+        A node with nothing converging beneath it has nothing that could approach a
+        goal, so it counts as stalled for as long as it runs and :attr:`timeout` alone
+        decides when it is given up on. That makes this node safe to point at anything,
+        including a node built entirely from monitors.
+
+        :return: True while nothing beneath the monitored node is approaching its goal.
+        """
         if not self._monitored_tasks:
-            raise NoConvergingTaskError(node=self, monitored_node=self.monitored_node)
-        not_approaching_monitors = [
+            return Scalar.const_true()
+        self._not_approaching_monitors = [
             NotApproachingGoal(
                 name=f"{self.name}/{task.name}",
                 monitored_task=task,
@@ -276,18 +297,14 @@ class ProgressStalled(Goal):
         any_running = AnyMonitoredTaskRunning(
             name=f"{self.name}/any_running", monitored_tasks=self._monitored_tasks
         )
-        self._timer = CountSimulationTimeSeconds(
-            name=f"{self.name}/timer", seconds=self.timeout
-        )
-        self._not_approaching_monitors = not_approaching_monitors
-        self.add_nodes(not_approaching_monitors + [any_running, self._timer])
-
-        stalled_now = sm.trinary_logic_and(
+        self.add_nodes(self._not_approaching_monitors + [any_running])
+        return sm.trinary_logic_and(
             any_running.observation_variable,
-            *[monitor.observation_variable for monitor in not_approaching_monitors],
+            *[
+                monitor.observation_variable
+                for monitor in self._not_approaching_monitors
+            ],
         )
-        self._timer.start_condition = stalled_now
-        self._timer.reset_condition = sm.trinary_logic_not(stalled_now)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=self._timer.observation_variable)

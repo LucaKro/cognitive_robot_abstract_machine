@@ -82,6 +82,16 @@ class TickCounter(MotionStatechartNode, ABC):
     Number of ticks counted since the last start/reset.
     """
 
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        """
+        Reaching the counted target is what a counter is for, so its own observation is
+        what it is judged by.
+
+        :meth:`on_tick` writes that observation, so the criterion reads it back rather
+        than restating it.
+        """
+        return NodeArtifacts(success_criterion=self.observation_variable)
+
     def on_start(self, context: MotionStatechartContext):
         self._counter = 0
 

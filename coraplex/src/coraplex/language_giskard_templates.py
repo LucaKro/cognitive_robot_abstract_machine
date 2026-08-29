@@ -5,12 +5,16 @@ from typing import List
 
 from typing_extensions import Optional
 
-from krrood.symbolic_math.symbolic_math import trinary_logic_or, trinary_logic_not
+from krrood.symbolic_math.symbolic_math import Scalar, trinary_logic_or
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import (
     Goal,
     MotionStatechartNode,
     NodeArtifacts,
+)
+from giskardpy.motion_statechart.monitors.progress_monitors import (
+    DEFAULT_STALL_TIMEOUT,
+    ProgressStalled,
 )
 
 
@@ -38,14 +42,14 @@ class TryAll(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
         Build an observation that is True as soon as any child node is True.
+
+        Children keep running until this goal ends, so their live observations are what
+        they can be judged by, not their verdicts.
         """
-        observations = [node.observation_variable for node in self.nodes]
-        observation = (
-            observations[0]
-            if len(observations) == 1
-            else trinary_logic_or(*observations)
+        return NodeArtifacts(
+            observation=_any_of([node.observation_variable for node in self.nodes]),
+            success_criterion=self.observation_variable,
         )
-        return NodeArtifacts(observation=observation)
 
 
 @dataclass(repr=False, eq=False)
@@ -54,41 +58,72 @@ class TryInOrder(Goal):
     Takes a list of nodes and tries them one after another, short-circuiting on the
     first success.
 
-    The next node only starts once the previous node failed; as soon as a node succeeds
-    the remaining nodes are skipped. Its observation turns True if any node is True and
-    turns False only when all nodes are False, i.e. it only fails if every node fails.
+    The next alternative only starts once the previous one has actually failed, not
+    merely while it is still short of its goal. Its observation turns True as soon as an
+    alternative succeeds and False only once every one of them has failed, so it stays
+    unknown while any of them is still being tried.
     """
 
-    nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
+    alternatives: List[MotionStatechartNode] = field(default_factory=list, init=True)
     """
     The child nodes tried one after another, in order.
+
+    Kept apart from :attr:`~giskardpy.motion_statechart.graph_node.Goal.nodes`, which
+    also holds the stall monitor :meth:`expand` adds for each of them.
+    """
+
+    give_up_after: float = field(default=DEFAULT_STALL_TIMEOUT, kw_only=True)
+    """
+    Seconds of simulated time an alternative may make no progress before it is abandoned
+    and the next one is tried.
     """
 
     def expand(self, context: MotionStatechartContext) -> None:
         """
         Add the child nodes and wire them so each one starts only after the previous one
         failed, short-circuiting on the first success.
+
+        An alternative is stopped once it reaches its goal or once it stops making
+        progress; which of the two happened is decided by the alternative's own success
+        criterion, not here. An observation that is merely still false means the
+        alternative has not arrived yet, and is no reason to abandon it.
         """
-        last_node: Optional[MotionStatechartNode] = None
-        for node in self.nodes:
+        previous_node: Optional[MotionStatechartNode] = None
+        for node in self.alternatives:
             self.add_node(node)
-            if last_node is not None:
-                # Start the next node only if the previous one failed (short-circuit on success).
-                node.start_condition = trinary_logic_not(last_node.observation_variable)
-            # End this node as soon as it is decided, with the verdict its observation
-            # decided, so the chain can advance or finish.
-            node.success_condition = node.observation_variable
-            node.failure_condition = trinary_logic_not(node.observation_variable)
-            last_node = node
+            if previous_node is not None:
+                node.start_condition = previous_node.is_failed
+            gave_up = ProgressStalled(
+                name=f"{self.name}/gave_up_on_{node.name}",
+                monitored_node=node,
+                timeout=self.give_up_after,
+            )
+            self.add_node(gave_up)
+            gave_up.start_condition = node.is_running
+            node.stop_condition = trinary_logic_or(
+                node.observation_variable, gave_up.observation_variable
+            )
+            previous_node = node
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Build an observation that is True as soon as any child node is True.
+        Build an observation that is True as soon as any alternative succeeded, and
+        False only once every one of them failed.
         """
-        observations = [node.observation_variable for node in self.nodes]
-        observation = (
-            observations[0]
-            if len(observations) == 1
-            else trinary_logic_or(*observations)
+        return NodeArtifacts(
+            observation=_any_of([node.goal_reached for node in self.alternatives]),
+            success_criterion=self.observation_variable,
         )
-        return NodeArtifacts(observation=observation)
+
+
+# %% combining a variable number of children
+
+
+def _any_of(expressions: List[Scalar]) -> Scalar:
+    """
+    :param expressions: The trinary expressions to combine, at least one.
+    :return: The disjunction of the expressions, or the single expression itself.
+    """
+    if len(expressions) == 1:
+        return expressions[0]
+    return trinary_logic_or(*expressions)

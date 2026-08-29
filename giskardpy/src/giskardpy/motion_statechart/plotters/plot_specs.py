@@ -138,15 +138,8 @@ TRANSITION_SPECS: Dict[TransitionKind, EdgeSpec] = {
         state_selector="child",
         extra_edge_kwargs={"minlen": 0},
     ),
-    TransitionKind.SUCCESS: EdgeSpec(
-        color=ConditionColors.SuccessCondColor,
-        src_selector="child",
-        dst_selector="parent",
-        state_selector="child",
-        extra_edge_kwargs={},
-    ),
-    TransitionKind.FAILURE: EdgeSpec(
-        color=ConditionColors.FailureCondColor,
+    TransitionKind.STOP: EdgeSpec(
+        color=ConditionColors.StopCondColor,
         src_selector="child",
         dst_selector="parent",
         state_selector="child",

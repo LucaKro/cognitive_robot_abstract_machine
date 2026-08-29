@@ -190,7 +190,7 @@ def test_wiggle_insert(hsr_world_state_reset):
             ]
         )
     )
-    barrier.success_condition = barrier.observation_variable
+    barrier.stop_condition = barrier.observation_variable
     msc.add_node(EndMotion.when_true(motion))
 
     kin_sim = Executor(

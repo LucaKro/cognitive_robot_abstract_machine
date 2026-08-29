@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import ceil
 
 import numpy as np
 import pytest
@@ -16,7 +17,6 @@ from giskardpy.motion_statechart.error_signals import (
 )
 from giskardpy.motion_statechart.exceptions import (
     CyclicNodeDependencyError,
-    NoConvergingTaskError,
     NoProgressError,
 )
 from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveBaseGoal
@@ -48,6 +48,10 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
 # %% helpers
+
+# Simulated seconds without progress before a watched node counts as stalled. Short so
+# that a test waiting it out stays fast.
+STALL_TIMEOUT = 0.2
 
 
 def unreachable_arm_goal(world: World) -> CartesianPosition:
@@ -414,30 +418,41 @@ class TestErrorDrivesObservation:
         )
 
 
-# %% misuse is reported
+# %% nodes with nothing converging beneath them
 
 
-class TestMisuse:
+class TestNothingToConverge:
 
-    def test_watching_a_task_that_never_converges_is_rejected(
+    def test_a_node_that_never_converges_stalls_after_the_timeout(
         self, cylinder_bot_world: World
     ):
         """
-        A velocity limit enforces an invariant rather than closing on a goal, so it has
-        no progress to watch.
+        A velocity limit enforces an invariant rather than closing on a goal, so nothing
+        beneath it can approach one and the timeout alone decides when to give up on it.
         """
         bot = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
         limit = CartesianPositionVelocityLimit(
             root_link=cylinder_bot_world.root, tip_link=bot
         )
+        stalled = ProgressStalled(monitored_node=limit, timeout=STALL_TIMEOUT)
         motion_statechart = MotionStatechart()
         motion_statechart.add_node(limit)
-        motion_statechart.add_node(ProgressStalled(monitored_node=limit))
+        motion_statechart.add_node(stalled)
         motion_statechart.add_node(EndMotion())
 
-        executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        with pytest.raises(NoConvergingTaskError):
-            executor.compile(motion_statechart=motion_statechart)
+        context = MotionStatechartContext(world=cylinder_bot_world)
+        executor = Executor(context)
+        executor.compile(motion_statechart=motion_statechart)
+
+        # The first tick starts the stall timer, so the observation only becomes
+        # measurable on the tick after it.
+        executor.tick()
+        executor.tick()
+        assert stalled.observation_state == ObservationStateValues.FALSE
+
+        for _ in range(ceil(STALL_TIMEOUT / context.qp_controller_config.control_dt)):
+            executor.tick()
+        assert stalled.observation_state == ObservationStateValues.TRUE
 
 
 # %% dependency ordering
