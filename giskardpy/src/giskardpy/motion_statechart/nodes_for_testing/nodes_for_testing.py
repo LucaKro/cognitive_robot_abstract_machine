@@ -45,7 +45,6 @@ class ConstTrueNode(MotionStatechartNode):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -58,7 +57,6 @@ class ConstFalseNode(MotionStatechartNode):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar.const_false(),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -98,7 +96,6 @@ class TestGoal(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=self.sub_node2.observation_variable,
-            success_criterion=self.observation_variable,
         )
 
 
@@ -115,7 +112,6 @@ class TestNestedGoal(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar(self.inner.observation_variable),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -154,7 +150,6 @@ class TestRunAfterStop(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar(self.ticking2.observation_variable),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -186,7 +181,6 @@ class TestEndBeforeStart(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar(self.node3.observation_variable),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -229,7 +223,6 @@ class TestRunAfterStopFromPause(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar(self.ticking1.observation_variable),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -264,7 +257,6 @@ class TestUnpauseUnknownFromParentPause(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar(self.count_ticks1.observation_variable),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -272,22 +264,26 @@ class TestUnpauseUnknownFromParentPause(Goal):
 
 
 @dataclass(eq=False, repr=False)
-class NodeWithoutSuccessCriterion(MotionStatechartNode):
+class NodeObservingNothingYet(MotionStatechartNode):
     """
-    A node that has no notion of succeeding, so stopping it can only interrupt it.
+    A node that runs without ever deciding what it observes.
 
-    Its observation is true, so that a test asserting on the verdict is asserting on the
-    absent criterion rather than on the observation.
+    It declares no criterion, so stopping it reads an observation that is unknown at run
+    time rather than a criterion that is already unknown when the verdict is compiled.
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(observation=sm.Scalar.const_true())
+        return NodeArtifacts(observation=sm.Scalar.const_trinary_unknown())
 
 
 @dataclass(eq=False, repr=False)
 class NodeWithUndecidedSuccessCriterion(MotionStatechartNode):
     """
-    A node whose success criterion has no answer yet, which is no basis for a verdict.
+    A node that declares it has no notion of succeeding, so stopping it can only
+    interrupt it.
+
+    Its observation is true, so that a test asserting on the verdict is asserting on the
+    declared criterion rather than on the observation.
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -319,7 +315,6 @@ class GoalCuttingOffItsChildAtItsGoal(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -342,7 +337,6 @@ class GoalCuttingOffItsChild(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -373,5 +367,4 @@ class GoalWithChildFailingOnItsOwn(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
-            success_criterion=self.observation_variable,
         )

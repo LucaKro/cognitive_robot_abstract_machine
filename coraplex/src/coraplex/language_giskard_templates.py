@@ -5,7 +5,11 @@ from typing import List
 
 from typing_extensions import Optional
 
-from krrood.symbolic_math.symbolic_math import Scalar, trinary_logic_or
+from krrood.symbolic_math.symbolic_math import (
+    Scalar,
+    trinary_logic_not,
+    trinary_logic_or,
+)
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import (
     Goal,
@@ -14,7 +18,7 @@ from giskardpy.motion_statechart.graph_node import (
 )
 from giskardpy.motion_statechart.monitors.progress_monitors import (
     DEFAULT_STALL_TIMEOUT,
-    ProgressStalled,
+    StillProgressing,
 )
 
 
@@ -48,7 +52,6 @@ class TryAll(Goal):
         """
         return NodeArtifacts(
             observation=_any_of([node.observation_variable for node in self.nodes]),
-            success_criterion=self.observation_variable,
         )
 
 
@@ -69,7 +72,7 @@ class TryInOrder(Goal):
     The child nodes tried one after another, in order.
 
     Kept apart from :attr:`~giskardpy.motion_statechart.graph_node.Goal.nodes`, which
-    also holds the stall monitor :meth:`expand` adds for each of them.
+    also holds the progress monitor :meth:`expand` adds for each of them.
     """
 
     give_up_after: float = field(default=DEFAULT_STALL_TIMEOUT, kw_only=True)
@@ -93,15 +96,16 @@ class TryInOrder(Goal):
             self.add_node(node)
             if previous_node is not None:
                 node.start_condition = previous_node.is_failed
-            gave_up = ProgressStalled(
-                name=f"{self.name}/gave_up_on_{node.name}",
+            still_progressing = StillProgressing(
+                name=f"{self.name}/progress_of_{node.name}",
                 monitored_node=node,
                 timeout=self.give_up_after,
             )
-            self.add_node(gave_up)
-            gave_up.start_condition = node.is_running
+            self.add_node(still_progressing)
+            still_progressing.start_condition = node.is_running
             node.stop_condition = trinary_logic_or(
-                node.observation_variable, gave_up.observation_variable
+                node.observation_variable,
+                trinary_logic_not(still_progressing.observation_variable),
             )
             previous_node = node
 
@@ -112,7 +116,6 @@ class TryInOrder(Goal):
         """
         return NodeArtifacts(
             observation=_any_of([node.goal_reached for node in self.alternatives]),
-            success_criterion=self.observation_variable,
         )
 
 

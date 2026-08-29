@@ -603,11 +603,12 @@ class MotionStatechart(SubclassJSONSerializer):
         - stop condition: If True, the node transitions from RUNNING or PAUSED to a
                           terminal state, and its descendants to INTERRUPTED.
         - reset condition: If True, the node transitions from any state to NOT_STARTED.
-    Which terminal state a stopped node reaches is decided by the success criterion it
-    declared about itself in
-    :attr:`~giskardpy.motion_statechart.graph_node.NodeArtifacts.success_criterion`, not
-    by whatever stopped it. Other nodes can therefore only decide *when* a node stops,
-    never whether stopping counts as success.
+    Which terminal state a stopped node reaches is decided by the node itself, not by
+    whatever stopped it: reaching what it observes means it succeeded, unless it declares
+    otherwise in
+    :attr:`~giskardpy.motion_statechart.graph_node.NodeArtifacts.success_criterion`.
+    Other nodes can therefore only decide *when* a node stops, never whether stopping
+    counts as success.
     If multiple conditions are met, the following order is used:
         1. reset condition
         2. own stop condition
@@ -935,7 +936,12 @@ class MotionStatechart(SubclassJSONSerializer):
             node._observation_expression = node.observation_variable
         else:
             node._observation_expression = artifacts.observation
-        node._success_criterion = artifacts.success_criterion
+        # if no success criterion is set, reaching what the node observes is what
+        # succeeding means for it.
+        if artifacts.success_criterion is None:
+            node._success_criterion = node.observation_variable
+        else:
+            node._success_criterion = artifacts.success_criterion
         node._error_signal = artifacts.error
         node._debug_expressions = artifacts.debug_expressions
 

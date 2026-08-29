@@ -61,7 +61,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     GoalCuttingOffItsChild,
     GoalCuttingOffItsChildAtItsGoal,
     GoalWithChildFailingOnItsOwn,
-    NodeWithoutSuccessCriterion,
+    NodeObservingNothingYet,
     NodeWithUndecidedSuccessCriterion,
     ConstTrueNode,
     TestGoal,
@@ -95,6 +95,32 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.robots.pr2 import PR2Joint
+
+# %% a clock the test advances instead of waiting
+
+
+@dataclass
+class FakeClock:
+    """
+    Stands in for :func:`time.monotonic` so tests can advance time without sleeping.
+    """
+
+    seconds: float = 0.0
+    """
+    The current time, in seconds.
+    """
+
+    def time(self) -> float:
+        """
+        :return: The current time, in the shape a node's clock is called in.
+        """
+        return self.seconds
+
+    def advance(self, seconds: float) -> None:
+        """
+        :param seconds: How far to move the clock forward.
+        """
+        self.seconds += seconds
 
 
 def test_condition_to_str():
@@ -1425,16 +1451,6 @@ def test_long_goal(pr2_world_state_reset: World):
 
 
 def test_counting():
-    class FakeClock:
-        def __init__(self):
-            self.t = 0.0
-
-        def time(self):
-            return self.t
-
-        def advance(self, dt):
-            self.t += dt
-
     clock = FakeClock()
 
     msc = MotionStatechart()
@@ -2181,38 +2197,44 @@ class TestLifeCycleTransitions:
         ]
 
         # %% pulse_node1 history
-        # A pulse has no notion of succeeding, so stopping it cannot judge it.
+        # A pulse is judged on whether it was still pulsing when it was stopped.
+        pulse_node1_observations = msc.history.get_observation_history_of_node(
+            pulse_node1
+        )
+        assert pulse_node1_observations == [
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.TRUE,
+            ObservationStateValues.FALSE,
+            ObservationStateValues.FALSE,
+            ObservationStateValues.FALSE,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.TRUE,
+            ObservationStateValues.FALSE,
+            ObservationStateValues.FALSE,
+            ObservationStateValues.FALSE,
+            ObservationStateValues.FALSE,
+        ]
+        # The two control cycles it is stopped on. Each verdict comes from the
+        # observation of that same cycle and is then latched.
+        first_stop, second_stop = 5, 11
         assert msc.history.get_life_cycle_history_of_node(pulse_node1) == [
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.INTERRUPTED,
+            LifeCycleValues.verdict_for(pulse_node1_observations[first_stop]),
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.INTERRUPTED,
-            LifeCycleValues.INTERRUPTED,
-            LifeCycleValues.INTERRUPTED,
-        ]
-        assert msc.history.get_observation_history_of_node(pulse_node1) == [
-            ObservationStateValues.UNKNOWN,
-            ObservationStateValues.UNKNOWN,
-            ObservationStateValues.UNKNOWN,
-            ObservationStateValues.TRUE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.UNKNOWN,
-            ObservationStateValues.UNKNOWN,
-            ObservationStateValues.TRUE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
+            LifeCycleValues.verdict_for(pulse_node1_observations[second_stop]),
+            LifeCycleValues.verdict_for(pulse_node1_observations[second_stop]),
+            LifeCycleValues.verdict_for(pulse_node1_observations[second_stop]),
         ]
 
         # %% pulse_node2 history
@@ -2330,22 +2352,67 @@ class TestLifeCycleVerdicts:
 
         assert node.life_cycle_state == LifeCycleValues.FAILED
 
-    def test_stopping_a_node_with_no_success_criterion_interrupts_it(self):
+    def test_a_node_that_declares_no_criterion_is_judged_by_its_observation(self):
         """
-        Nothing about a node that cannot succeed makes stopping it a judgement, however
-        its observation reads.
+        Reaching what it counts is what succeeding means for a counter, without it
+        having to say so.
+        """
+        clock = FakeClock()
+        counted_seconds = 1.0
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                node := CountSeconds(seconds=counted_seconds, _now=clock.time),
+            ]
+        )
+        node.stop_condition = trigger.observation_variable
+
+        executor = self._compile(msc)
+        clock.advance(counted_seconds)
+        executor.tick()
+
+        assert node.observation_state == ObservationStateValues.TRUE
+        assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+    def test_a_node_that_declares_no_criterion_and_missed_its_goal_fails(self):
+        """
+        The same default reads the other way: a counter stopped before it counted far
+        enough did not reach what it counts.
         """
         msc = MotionStatechart()
         msc.add_nodes(
-            [trigger := ConstTrueNode(), node := NodeWithoutSuccessCriterion()]
+            [
+                trigger := ConstTrueNode(),
+                node := CountControlCycles(control_cycles=100),
+            ]
         )
         node.stop_condition = trigger.observation_variable
 
         self._compile(msc).tick()
 
+        assert node.observation_state == ObservationStateValues.FALSE
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_stopping_a_node_that_has_observed_nothing_interrupts_it(self):
+        """
+        An observation that is unknown while the node runs is no basis for a verdict,
+        the same as a criterion that is unknown when the verdict is compiled.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := NodeObservingNothingYet()])
+        node.stop_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert node.observation_state == ObservationStateValues.UNKNOWN
         assert node.life_cycle_state == LifeCycleValues.INTERRUPTED
 
     def test_stopping_a_node_with_an_undecided_criterion_interrupts_it(self):
+        """
+        Nothing about a node that declares it cannot succeed makes stopping it a
+        judgement, however its observation reads.
+        """
         msc = MotionStatechart()
         msc.add_nodes(
             [trigger := ConstTrueNode(), node := NodeWithUndecidedSuccessCriterion()]

@@ -40,7 +40,6 @@ class Sequence(Goal):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=self.nodes[-1].goal_reached,
-            success_criterion=self.observation_variable,
         )
 
 
@@ -76,5 +75,4 @@ class Parallel(Goal):
         )
         return NodeArtifacts(
             observation=minimum_success <= sum(*true_observation_variables),
-            success_criterion=self.observation_variable,
         )

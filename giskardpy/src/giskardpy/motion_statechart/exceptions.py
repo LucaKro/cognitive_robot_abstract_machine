@@ -14,7 +14,7 @@ if TYPE_CHECKING:
         MotionStatechartNode,
         TrinaryCondition,
     )
-    from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
+    from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
     )
@@ -285,7 +285,7 @@ class NoProgressError(MotionStatechartError):
     Raised when the watched tasks stopped approaching their goal for too long.
     """
 
-    progress_monitor: ProgressStalled
+    progress_monitor: StillProgressing
     """
     The monitor that detected the stall and knows which tasks are affected.
     """

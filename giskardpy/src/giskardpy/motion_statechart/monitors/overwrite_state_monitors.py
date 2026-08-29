@@ -36,7 +36,6 @@ class SetSeedConfiguration(MotionStatechartNode):
         """
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
-            success_criterion=self.observation_variable,
         )
 
     def on_start(self, context: MotionStatechartContext):
@@ -84,7 +83,6 @@ class SetOdometry(MotionStatechartNode):
                 )
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
-            success_criterion=self.observation_variable,
         )
 
     def on_start(self, context: MotionStatechartContext):

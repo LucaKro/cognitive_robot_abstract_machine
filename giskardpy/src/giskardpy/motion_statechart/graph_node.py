@@ -530,9 +530,14 @@ class NodeArtifacts:
     """
     What it means for this node to have succeeded, read at the moment something stops it.
 
-    ``None`` means the node has no notion of succeeding, so stopping it never judges it.
-    That is the right answer for a monitor: asking whether a heartbeat succeeded is a
-    category error.
+    ``None`` means reaching what the node observes is what succeeding means for it, which
+    is the case for almost every node. A node with no notion of succeeding says so with
+    :meth:`~krrood.symbolic_math.symbolic_math.Scalar.const_trinary_unknown`, since it has
+    no answer to whether it succeeded.
+
+    .. note:: This is read while the life cycle state is updated, which sees only the
+        observation, life cycle and predicate states, so it may not refer to world
+        variables.
     """
     debug_expressions: List[DebugExpression] = field(default_factory=list)
     """
@@ -635,7 +640,7 @@ class MotionStatechartNode:
     """The parameter is set after build() using its NodeArtifacts."""
     _observation_expression: Scalar = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
-    _success_criterion: Optional[Scalar] = field(init=False, repr=False, default=None)
+    _success_criterion: Scalar = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
     _error_signal: Optional[ErrorSignal] = field(init=False, repr=False, default=None)
     """The parameter is set after build() using its NodeArtifacts."""
@@ -829,13 +834,11 @@ class MotionStatechartNode:
         The terminal state this node reaches when its own stop condition ends it, read
         off its success criterion at that moment.
 
-        A node without a success criterion has nothing to be judged by, so stopping it
-        can only interrupt it.
+        A criterion with no answer is no basis for a judgement, so it interrupts the node
+        instead.
 
         :return: The life cycle state to transition to.
         """
-        if self._success_criterion is None:
-            return sm.Scalar(LifeCycleValues.INTERRUPTED)
         return sm.if_cases(
             cases=[
                 (
@@ -1453,16 +1456,16 @@ class ConvergingTask(ABC, Task):
 
     def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Build the task and derive its observation and success criterion from its error.
+        Build the task and derive its observation from its error.
 
-        Being within :attr:`threshold` is both what this task observes about the world
-        and what it means for it to have succeeded, so the two share one expression.
+        Being within :attr:`threshold` is what this task observes about the world, and
+        succeeding means reaching it, which is what any node is judged by unless it
+        declares otherwise.
         """
         artifacts = super().build(context)
         if artifacts.error is None:
             raise MissingErrorSignalError(node=self)
         artifacts.observation = artifacts.error.expression <= self.threshold
-        artifacts.success_criterion = self.observation_variable
         return artifacts
 
     @abstractmethod
