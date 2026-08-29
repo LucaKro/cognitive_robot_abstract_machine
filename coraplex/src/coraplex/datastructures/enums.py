@@ -2,8 +2,12 @@
 Module holding all enums of CoraPlex.
 """
 
+from __future__ import annotations
+
 from enum import Enum, auto, IntEnum
 from functools import cached_property
+
+from giskardpy.motion_statechart.data_types import LifeCycleValues
 
 
 class VisualizationLayout(Enum):
@@ -129,6 +133,21 @@ class TaskStatus(int, Enum):
             TaskStatus.INTERRUPTED: "orange",
             TaskStatus.PAUSE: "yellow",
         }[self]
+
+    @classmethod
+    def from_life_cycle_state(cls, life_cycle_state: LifeCycleValues) -> TaskStatus:
+        """
+        :param life_cycle_state: The life cycle state of a motion statechart node.
+        :return: The status that state stands for.
+        """
+        return {
+            LifeCycleValues.NOT_STARTED: cls.CREATED,
+            LifeCycleValues.RUNNING: cls.RUNNING,
+            LifeCycleValues.PAUSED: cls.PAUSE,
+            LifeCycleValues.SUCCEEDED: cls.SUCCEEDED,
+            LifeCycleValues.FAILED: cls.FAILED,
+            LifeCycleValues.INTERRUPTED: cls.INTERRUPTED,
+        }[life_cycle_state]
 
 
 class JointType(Enum):

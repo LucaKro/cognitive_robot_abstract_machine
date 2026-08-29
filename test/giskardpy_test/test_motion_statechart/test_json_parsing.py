@@ -117,7 +117,7 @@ def test_start_condition(mini_world):
     end = ConstTrueNode()
     msc.add_node(end)
 
-    node1.end_condition = node1.observation_variable
+    node1.success_condition = node1.observation_variable
     node2.start_condition = node1.observation_variable
     node2.pause_condition = node3.observation_variable
     end.start_condition = trinary_logic_and(

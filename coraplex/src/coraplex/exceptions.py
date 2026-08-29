@@ -7,7 +7,7 @@ from typing_extensions import TYPE_CHECKING, Type, List
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
-from coraplex.datastructures.enums import Arms, ExecutionType
+from coraplex.datastructures.enums import Arms, ExecutionType, TaskStatus
 from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
@@ -167,9 +167,18 @@ class ConditionNotSatisfied(PlanFailure):
 class MotionDidNotFinish(PlanFailure):
 
     failed_motions: List[MotionStatechartNode]
+    """
+    The nodes that did not succeed, whether they failed, were interrupted or never
+    ended.
+    """
 
     def error_message(self) -> str:
-        return f"Motion did not finish, following motions failed: {self.failed_motions}"
+        reports = ", ".join(
+            f"{motion.unique_name} "
+            f"({TaskStatus.from_life_cycle_state(motion.life_cycle_state).name})"
+            for motion in self.failed_motions
+        )
+        return f"Motion did not finish, following motions failed: {reports}"
 
     def suggest_correction(self) -> str:
         return ""

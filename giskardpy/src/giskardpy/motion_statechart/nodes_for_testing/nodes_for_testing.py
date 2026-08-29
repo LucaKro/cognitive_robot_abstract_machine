@@ -78,7 +78,7 @@ class TestGoal(Goal):
         self.add_node(self.sub_node1)
         self.sub_node2 = ConstTrueNode(name="sub muh2")
         self.add_node(self.sub_node2)
-        self.sub_node1.end_condition = self.sub_node1.observation_variable
+        self.sub_node1.success_condition = self.sub_node1.observation_variable
         self.sub_node2.start_condition = self.sub_node1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -140,9 +140,9 @@ class TestEndBeforeStart(Goal):
     """
     Test if a child node can end before it was started.
 
-    node1 waits 1 tick, then starts node 3. node2 fulfills the end condition of node 3
-    immediately. node3 should start when node1 is True and transition to RUNNING with
-    Observationstate UNKNOWN. On the next tick, node3 should end because its end
+    node1 waits 1 tick, then starts node 3. node2 fulfills the success condition of node
+    3 immediately. node3 should start when node1 is True and transition to RUNNING with
+    Observationstate UNKNOWN. On the next tick, node3 should succeed because its success
     condition is already fulfilled by node2.
     """
 
@@ -158,7 +158,7 @@ class TestEndBeforeStart(Goal):
         self.add_nodes(nodes=[self.node1, self.node2, self.node3])
 
         self.node3.start_condition = self.node1.observation_variable
-        self.node3.end_condition = self.node2.observation_variable
+        self.node3.success_condition = self.node2.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.node3.observation_variable))
@@ -230,9 +230,60 @@ class TestUnpauseUnknownFromParentPause(Goal):
         self.add_node(Sequence(nodes=[self.count_ticks2, self.cancel]))
 
         self.count_ticks1.pause_condition = sm.Scalar.const_trinary_unknown()
-        self.count_ticks1.end_condition = self.count_ticks1.observation_variable
+        self.count_ticks1.success_condition = self.count_ticks1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=sm.Scalar(self.count_ticks1.observation_variable)
         )
+
+
+# %% goals that decide the verdict of their child
+
+
+@dataclass(repr=False, eq=False)
+class GoalCuttingOffItsChild(Goal):
+    """
+    Goal whose child never reaches a verdict of its own, so the child is only ever ended
+    by this goal ending.
+    """
+
+    child: ConstFalseNode = field(init=False)
+    """
+    The child that keeps running until it is cut off.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        self.child = ConstFalseNode()
+        self.add_node(self.child)
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar.const_true())
+
+
+@dataclass(repr=False, eq=False)
+class GoalWithChildFailingOnItsOwn(Goal):
+    """
+    Goal whose child fails on its own terms on the first tick, so that a caller ending
+    this goal on that same tick makes the child's own verdict compete with being cut
+    off.
+    """
+
+    trigger: ConstTrueNode = field(init=False)
+    """
+    Turns true on the first tick, which is what fails the child.
+    """
+
+    child: ConstFalseNode = field(init=False)
+    """
+    The child that fails on its own terms.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        self.trigger = ConstTrueNode()
+        self.child = ConstFalseNode()
+        self.add_nodes(nodes=[self.trigger, self.child])
+        self.child.failure_condition = self.trigger.observation_variable
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar.const_true())

@@ -75,10 +75,10 @@ class TryInOrder(Goal):
             if last_node is not None:
                 # Start the next node only if the previous one failed (short-circuit on success).
                 node.start_condition = trinary_logic_not(last_node.observation_variable)
-            # End this node as soon as it is decided (True or False) so the chain can advance/finish.
-            node.end_condition = trinary_logic_or(
-                node.observation_variable, trinary_logic_not(node.observation_variable)
-            )
+            # End this node as soon as it is decided, with the verdict its observation
+            # decided, so the chain can advance or finish.
+            node.success_condition = node.observation_variable
+            node.failure_condition = trinary_logic_not(node.observation_variable)
             last_node = node
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:

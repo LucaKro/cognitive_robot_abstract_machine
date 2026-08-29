@@ -1,7 +1,13 @@
 import pydot
+import pytest
 from typing_extensions import Optional, Set, Union
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import (
+    LifeCycleValues,
+    ObservationStateValues,
+    TransitionKind,
+)
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
@@ -17,6 +23,14 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     TestNestedGoal,
 )
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
+from giskardpy.motion_statechart.plotters.plot_specs import TRANSITION_SPECS
+from giskardpy.motion_statechart.plotters.styles import (
+    LiftCycleStateToColor,
+    LiftCycleStateToSymbol,
+    ObservationStateToColor,
+    ObservationStateToEdgeStyle,
+    ObservationStateToSymbol,
+)
 
 # %% helpers
 
@@ -185,3 +199,30 @@ def test_structure_copy_keeps_plot_specs():
 
     assert goal_copy.plot_specifications.collapse_children
     assert goal_copy.plot_specifications is not goal.plot_specifications
+
+
+# %% every state and transition has to be drawable
+
+
+@pytest.mark.parametrize("life_cycle_state", list(LifeCycleValues))
+def test_every_life_cycle_state_has_a_color_and_a_symbol(life_cycle_state):
+    """
+    Both lookups are total, so a state missing from either only shows up as a KeyError
+    while drawing.
+    """
+    assert life_cycle_state in LiftCycleStateToColor
+    assert life_cycle_state in LiftCycleStateToSymbol
+
+
+@pytest.mark.parametrize("observation_state", list(ObservationStateValues))
+def test_every_observation_state_has_a_color_a_symbol_and_an_edge_style(
+    observation_state,
+):
+    assert observation_state in ObservationStateToColor
+    assert observation_state in ObservationStateToSymbol
+    assert observation_state in ObservationStateToEdgeStyle
+
+
+@pytest.mark.parametrize("transition_kind", list(TransitionKind))
+def test_every_transition_kind_has_an_edge_specification(transition_kind):
+    assert transition_kind in TRANSITION_SPECS

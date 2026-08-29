@@ -15,6 +15,7 @@ from giskardpy.motion_statechart.constraint_builders import GeometricConstraintB
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
+    LifeCyclePredicate,
     ObservationStateValues,
     DefaultWeights,
     TransitionKind,
@@ -24,7 +25,7 @@ from giskardpy.motion_statechart.exceptions import (
     EndMotionInGoalError,
     InputNotExpressionError,
     SelfInStartConditionError,
-    NonObservationVariableError,
+    UnsupportedConditionVariableError,
     NodeAlreadyBelongsToDifferentNodeError,
     ConditionScopeError,
     TerminalNodeInConditionError,
@@ -57,6 +58,8 @@ from giskardpy.motion_statechart.motion_statechart import (
 )
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ChangeStateOnEvents,
+    GoalCuttingOffItsChild,
+    GoalWithChildFailingOnItsOwn,
     ConstTrueNode,
     TestGoal,
     TestNestedGoal,
@@ -121,7 +124,7 @@ def test_motion_statechart_to_dot(tmp_path):
     msc.add_node(node2)
     end = EndMotion()
     msc.add_node(end)
-    node1.end_condition = node2.observation_variable
+    node1.success_condition = node2.observation_variable
     end.start_condition = trinary_logic_and(
         node1.observation_variable, node2.observation_variable
     )
@@ -248,7 +251,7 @@ class TestConditions:
     def test_InvalidConditionError(self):
         node = ConstTrueNode()
         with pytest.raises(InputNotExpressionError):
-            node.end_condition = node
+            node.success_condition = node
 
     def test_nodes_cannot_have_themselves_as_start_condition(self):
         msc = MotionStatechart()
@@ -257,10 +260,10 @@ class TestConditions:
         with pytest.raises(SelfInStartConditionError):
             node1.start_condition = node1.observation_variable
 
-    def test_non_observation_variable_in_condition(self):
+    def test_unsupported_variable_in_condition(self):
         msc = MotionStatechart()
         msc.add_node(node := ConstTrueNode())
-        with pytest.raises(NonObservationVariableError):
+        with pytest.raises(UnsupportedConditionVariableError):
             node.start_condition = FloatVariable(name="muh")
 
     def test_end_motion_cannot_gate_another_node(self):
@@ -295,7 +298,7 @@ class TestConditions:
         with pytest.raises(TerminalNodeInConditionError):
             node.pause_condition = end.observation_variable
         with pytest.raises(TerminalNodeInConditionError):
-            node.end_condition = end.observation_variable
+            node.success_condition = end.observation_variable
         with pytest.raises(TerminalNodeInConditionError):
             node.reset_condition = end.observation_variable
 
@@ -318,7 +321,7 @@ class TestConditions:
         msc = MotionStatechart()
         msc.add_node(end := EndMotion())
         with pytest.raises(TerminalNodeInConditionError):
-            end.end_condition = end.observation_variable
+            end.success_condition = end.observation_variable
 
     def test_add_node_to_multiple_goals(self):
         msc = MotionStatechart()
@@ -871,7 +874,7 @@ class TestMotionStatechartLogic:
 
         changer.start_condition = node1.observation_variable
         changer.pause_condition = node2.observation_variable
-        changer.end_condition = node3.observation_variable
+        changer.success_condition = node3.observation_variable
         changer.reset_condition = node4.observation_variable
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
@@ -896,7 +899,7 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         msc.draw(str(tmp_path / "muh.pdf"))
-        assert changer.life_cycle_state == LifeCycleValues.DONE
+        assert changer.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert changer.state == "on_end"
 
         kin_sim.tick()
@@ -910,7 +913,7 @@ class TestMotionStatechartLogic:
         assert node.observation_variable is not None
         assert node.life_cycle_variable is not None
         node.pause_condition = node.observation_variable
-        node.end_condition = node.observation_variable
+        node.success_condition = node.observation_variable
         node.reset_condition = node.observation_variable
         # Reading the live state still requires membership in a motion statechart.
         with pytest.raises(NotInMotionStatechartError):
@@ -1085,10 +1088,10 @@ class TestMotionStatechartLogic:
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
         ]
         assert msc.history.get_observation_history_of_node(goal.sub_node1) == [
             ObservationStateValues.UNKNOWN,
@@ -1152,7 +1155,7 @@ class TestMotionStatechartLogic:
         node1.reset_condition = node2.observation_variable
         node2.start_condition = node1.observation_variable
         node3.start_condition = node2.observation_variable
-        node2.end_condition = node2.observation_variable
+        node2.success_condition = node2.observation_variable
         end.start_condition = trinary_logic_and(
             node1.observation_variable,
             node2.observation_variable,
@@ -1177,7 +1180,7 @@ class TestMotionStatechartLogic:
         assert node2.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.UNKNOWN
         assert node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-        assert node2.life_cycle_state == LifeCycleValues.DONE
+        assert node2.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node3.life_cycle_state == LifeCycleValues.RUNNING
         assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
         assert not msc.is_end_motion()
@@ -1188,7 +1191,7 @@ class TestMotionStatechartLogic:
         assert node3.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.UNKNOWN
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert node2.life_cycle_state == LifeCycleValues.DONE
+        assert node2.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node3.life_cycle_state == LifeCycleValues.RUNNING
         assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
         assert not msc.is_end_motion()
@@ -1199,7 +1202,7 @@ class TestMotionStatechartLogic:
         assert node3.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.UNKNOWN
         assert node1.life_cycle_state == LifeCycleValues.NOT_STARTED
-        assert node2.life_cycle_state == LifeCycleValues.DONE
+        assert node2.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node3.life_cycle_state == LifeCycleValues.RUNNING
         assert end.life_cycle_state == LifeCycleValues.RUNNING
         assert not msc.is_end_motion()
@@ -1210,7 +1213,7 @@ class TestMotionStatechartLogic:
         assert node3.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.TRUE
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert node2.life_cycle_state == LifeCycleValues.DONE
+        assert node2.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node3.life_cycle_state == LifeCycleValues.RUNNING
         assert end.life_cycle_state == LifeCycleValues.RUNNING
         assert msc.is_end_motion()
@@ -1290,7 +1293,7 @@ class TestMotionStatechartLogic:
         assert end.observation_state == ObservationStateValues.UNKNOWN
 
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.life_cycle_state == LifeCycleValues.RUNNING
@@ -1306,7 +1309,7 @@ class TestMotionStatechartLogic:
         assert end.observation_state == ObservationStateValues.UNKNOWN
 
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.life_cycle_state == LifeCycleValues.RUNNING
@@ -1322,7 +1325,7 @@ class TestMotionStatechartLogic:
         assert end.observation_state == ObservationStateValues.UNKNOWN
 
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.life_cycle_state == LifeCycleValues.RUNNING
@@ -1338,7 +1341,7 @@ class TestMotionStatechartLogic:
         assert end.observation_state == ObservationStateValues.UNKNOWN
 
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.life_cycle_state == LifeCycleValues.RUNNING
@@ -1354,7 +1357,7 @@ class TestMotionStatechartLogic:
         assert end.observation_state == ObservationStateValues.TRUE
 
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.DONE
+        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
         assert outer.life_cycle_state == LifeCycleValues.RUNNING
@@ -1643,12 +1646,12 @@ class TestTemplates:
         msc.draw(str(tmp_path / "muh.pdf"))
         assert kin_sim.control_cycles == 6
         assert msc.nodes[1].life_cycle_state == LifeCycleValues.RUNNING
-        assert msc.nodes[2].life_cycle_state == LifeCycleValues.DONE
-        assert msc.nodes[3].life_cycle_state == LifeCycleValues.DONE
-        assert msc.nodes[4].life_cycle_state == LifeCycleValues.DONE
-        assert msc.nodes[5].life_cycle_state == LifeCycleValues.DONE
+        assert msc.nodes[2].life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert msc.nodes[3].life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert msc.nodes[4].life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert msc.nodes[5].life_cycle_state == LifeCycleValues.SUCCEEDED
 
-    def test_sequence_gives_a_terminal_step_no_end_condition(self):
+    def test_sequence_gives_a_terminal_step_no_success_condition(self):
         """
         A sequence ends each step by its own observation, but a step that ends the whole
         motion has nothing left to transition to.
@@ -1663,7 +1666,7 @@ class TestTemplates:
         kin_sim = Executor(MotionStatechartContext(world=World()))
         kin_sim.compile(motion_statechart=msc)
 
-        assert cancel.end_condition.free_variables() == []
+        assert cancel.success_condition.free_variables() == []
 
     def test_parallel(self):
         msc = MotionStatechart()
@@ -1900,9 +1903,13 @@ class TestLifeCycleTransitions:
         kin_sim.tick_until_end()
 
         assert sequence.nodes[1].cancel.life_cycle_state == LifeCycleValues.NOT_STARTED
-        assert sequence.nodes[1].ticking1.life_cycle_state == LifeCycleValues.DONE
-        assert sequence.nodes[1].ticking2.life_cycle_state == LifeCycleValues.DONE
-        assert sequence.nodes[1].life_cycle_state == LifeCycleValues.DONE
+        assert (
+            sequence.nodes[1].ticking1.life_cycle_state == LifeCycleValues.INTERRUPTED
+        )
+        assert (
+            sequence.nodes[1].ticking2.life_cycle_state == LifeCycleValues.INTERRUPTED
+        )
+        assert sequence.nodes[1].life_cycle_state == LifeCycleValues.SUCCEEDED
 
     def test_run_after_stop_from_pause(self):
         """
@@ -1926,15 +1933,22 @@ class TestLifeCycleTransitions:
         kin_sim.tick_until_end()
 
         assert sequence.nodes[1].cancel.life_cycle_state == LifeCycleValues.NOT_STARTED
-        assert sequence.nodes[1].ticking1.life_cycle_state == LifeCycleValues.DONE
-        assert sequence.nodes[1].ticking2.life_cycle_state == LifeCycleValues.DONE
-        assert sequence.nodes[1].ticking3.life_cycle_state == LifeCycleValues.DONE
-        assert sequence.nodes[1].pulse.life_cycle_state == LifeCycleValues.DONE
-        assert sequence.nodes[1].life_cycle_state == LifeCycleValues.DONE
+        assert (
+            sequence.nodes[1].ticking1.life_cycle_state == LifeCycleValues.INTERRUPTED
+        )
+        assert (
+            sequence.nodes[1].ticking2.life_cycle_state == LifeCycleValues.INTERRUPTED
+        )
+        assert (
+            sequence.nodes[1].ticking3.life_cycle_state == LifeCycleValues.INTERRUPTED
+        )
+        assert sequence.nodes[1].pulse.life_cycle_state == LifeCycleValues.INTERRUPTED
+        assert sequence.nodes[1].life_cycle_state == LifeCycleValues.SUCCEEDED
 
     def test_end_before_start(self):
         """
-        Test for node to start even if it's end condition is met before start condition.
+        Test for node to start even if its success condition is met before its start
+        condition.
 
         Node3 should start and run for 1 tick before ending, instead of never starting.
         """
@@ -1948,7 +1962,7 @@ class TestLifeCycleTransitions:
         msc.add_node(EndMotion.when_true(node3))
 
         node3.start_condition = node1.observation_variable
-        node3.end_condition = node2.observation_variable
+        node3.success_condition = node2.observation_variable
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
         kin_sim.compile(motion_statechart=msc)
@@ -1959,13 +1973,13 @@ class TestLifeCycleTransitions:
 
         kin_sim.tick()
 
-        assert node3.life_cycle_state == LifeCycleValues.DONE
+        assert node3.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node3.observation_state == ObservationStateValues.TRUE
 
     def test_end_before_start_in_template(self):
         """
-        Test for node to start even if it's end condition is met before start condition,
-        when the nodes are inside a template.
+        Test for node to start even if its success condition is met before its start
+        condition, when the nodes are inside a template.
         """
         msc = MotionStatechart()
 
@@ -1981,7 +1995,7 @@ class TestLifeCycleTransitions:
 
         kin_sim.tick()
 
-        assert node.node3.life_cycle_state == LifeCycleValues.DONE
+        assert node.node3.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node.node3.observation_state == ObservationStateValues.TRUE
 
     def test_intended_transitions(self):
@@ -2013,8 +2027,8 @@ class TestLifeCycleTransitions:
 
         count_node1.pause_condition = pulse_node1.observation_variable
 
-        count_node1.end_condition = count_node2.observation_variable
-        pulse_node1.end_condition = count_node2.observation_variable
+        count_node1.success_condition = count_node2.observation_variable
+        pulse_node1.success_condition = count_node2.observation_variable
 
         count_node1.reset_condition = pulse_node2.observation_variable
         count_node2.reset_condition = pulse_node2.observation_variable
@@ -2032,15 +2046,15 @@ class TestLifeCycleTransitions:
             LifeCycleValues.RUNNING,
             LifeCycleValues.PAUSED,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.DONE,
+            LifeCycleValues.SUCCEEDED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.PAUSED,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
         ]
         assert msc.history.get_observation_history_of_node(count_node1) == [
             ObservationStateValues.UNKNOWN,
@@ -2168,15 +2182,15 @@ class TestLifeCycleTransitions:
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.DONE,
+            LifeCycleValues.SUCCEEDED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
-            LifeCycleValues.DONE,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
+            LifeCycleValues.SUCCEEDED,
         ]
         assert msc.history.get_observation_history_of_node(pulse_node1) == [
             ObservationStateValues.UNKNOWN,
@@ -2249,7 +2263,7 @@ class TestLifeCycleTransitions:
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
 
-        assert unpause.count_ticks1.life_cycle_state == LifeCycleValues.DONE
+        assert unpause.count_ticks1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert unpause.cancel.life_cycle_state == LifeCycleValues.NOT_STARTED
 
         assert unpause.count_ticks1.observation_state == ObservationStateValues.TRUE
@@ -2274,6 +2288,360 @@ class TestLifeCycleTransitions:
         assert len(msc.history) == 5
 
 
+# %% life cycle verdicts
+
+
+class TestLifeCycleVerdicts:
+    """
+    Tests which terminal state a node ends in, depending on the condition that ended it.
+    """
+
+    @staticmethod
+    def _compile(msc: MotionStatechart) -> Executor:
+        """
+        :param msc: The motion statechart to compile.
+        :return: An executor ready to tick `msc`.
+        """
+        executor = Executor(MotionStatechartContext(world=World()))
+        executor.compile(motion_statechart=msc)
+        return executor
+
+    def test_success_condition_yields_succeeded(self):
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.success_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+    def test_failure_condition_yields_failed(self):
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.failure_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_failure_outranks_success_on_the_same_tick(self):
+        """
+        A failure signal must not be masked by a success arriving at the same time.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.success_condition = trigger.observation_variable
+        node.failure_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_succeeding_ancestor_interrupts_its_child(self):
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), goal := GoalCuttingOffItsChild()])
+        goal.success_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert goal.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert goal.child.life_cycle_state == LifeCycleValues.INTERRUPTED
+
+    def test_failing_ancestor_interrupts_its_child(self):
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), goal := GoalCuttingOffItsChild()])
+        goal.failure_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert goal.life_cycle_state == LifeCycleValues.FAILED
+        assert goal.child.life_cycle_state == LifeCycleValues.INTERRUPTED
+
+    def test_own_verdict_outranks_being_cut_off(self):
+        """
+        A node that finished on its own terms was not interrupted, even if its parent
+        ends on the same tick.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [trigger := ConstTrueNode(), goal := GoalWithChildFailingOnItsOwn()]
+        )
+        goal.success_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert goal.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert goal.child.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_reset_leaves_succeeded(self):
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                reset := CountControlCycles(control_cycles=2),
+                node := ConstFalseNode(),
+            ]
+        )
+        node.success_condition = trigger.observation_variable
+        node.reset_condition = reset.observation_variable
+
+        executor = self._compile(msc)
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+    def test_reset_leaves_failed(self):
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                reset := CountControlCycles(control_cycles=2),
+                node := ConstFalseNode(),
+            ]
+        )
+        node.failure_condition = trigger.observation_variable
+        node.reset_condition = reset.observation_variable
+
+        executor = self._compile(msc)
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+    def test_reset_leaves_interrupted(self):
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                reset := CountControlCycles(control_cycles=2),
+                goal := GoalCuttingOffItsChild(),
+            ]
+        )
+        goal.success_condition = trigger.observation_variable
+        goal.reset_condition = reset.observation_variable
+
+        executor = self._compile(msc)
+        executor.tick()
+        assert goal.child.life_cycle_state == LifeCycleValues.INTERRUPTED
+
+        executor.tick()
+        assert goal.child.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+    def test_a_verdict_freezes_the_observation(self):
+        """
+        A terminal state stops the observation expression from being evaluated, so the
+        last observation the node made is kept.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.failure_condition = trigger.observation_variable
+
+        executor = self._compile(msc)
+        executor.tick()
+        assert node.observation_state == ObservationStateValues.FALSE
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+        assert node.observation_state == ObservationStateValues.FALSE
+
+
+# %% life cycle predicates
+
+
+class TestLifeCyclePredicates:
+    """
+    Tests the truth tables of the life cycle predicates and their use in conditions.
+    """
+
+    @pytest.mark.parametrize(
+        "predicate",
+        [
+            LifeCyclePredicate.IS_SUCCEEDED,
+            LifeCyclePredicate.IS_FAILED,
+            LifeCyclePredicate.IS_INTERRUPTED,
+        ],
+    )
+    @pytest.mark.parametrize(
+        "life_cycle_state",
+        sorted(set(LifeCycleValues) - LifeCycleValues.terminal_states()),
+    )
+    def test_verdict_predicate_is_unknown_before_a_node_ends(
+        self, predicate, life_cycle_state
+    ):
+        """
+        How a node ended has no answer until it ends.
+        """
+        assert (
+            predicate.value.truth_value(life_cycle_state)
+            == ObservationStateValues.UNKNOWN
+        )
+
+    @pytest.mark.parametrize(
+        "predicate, verdict",
+        [
+            (LifeCyclePredicate.IS_SUCCEEDED, LifeCycleValues.SUCCEEDED),
+            (LifeCyclePredicate.IS_FAILED, LifeCycleValues.FAILED),
+            (LifeCyclePredicate.IS_INTERRUPTED, LifeCycleValues.INTERRUPTED),
+        ],
+    )
+    def test_verdict_predicate_is_definite_once_a_node_ends(self, predicate, verdict):
+        for life_cycle_state in LifeCycleValues.terminal_states():
+            expected = (
+                ObservationStateValues.TRUE
+                if life_cycle_state is verdict
+                else ObservationStateValues.FALSE
+            )
+            assert predicate.value.truth_value(life_cycle_state) == expected
+
+    @pytest.mark.parametrize(
+        "predicate, phase",
+        [
+            (LifeCyclePredicate.IS_NOT_STARTED, LifeCycleValues.NOT_STARTED),
+            (LifeCyclePredicate.IS_RUNNING, LifeCycleValues.RUNNING),
+            (LifeCyclePredicate.IS_PAUSED, LifeCycleValues.PAUSED),
+        ],
+    )
+    def test_phase_predicate_is_binary_in_every_state(self, predicate, phase):
+        """
+        Where a node is right now always has an answer, so a phase predicate is never
+        unknown.
+        """
+        for life_cycle_state in LifeCycleValues:
+            expected = (
+                ObservationStateValues.TRUE
+                if life_cycle_state is phase
+                else ObservationStateValues.FALSE
+            )
+            assert predicate.value.truth_value(life_cycle_state) == expected
+
+    @pytest.mark.parametrize("life_cycle_state", list(LifeCycleValues))
+    def test_is_terminated_matches_the_terminal_states(self, life_cycle_state):
+        expected = (
+            ObservationStateValues.TRUE
+            if life_cycle_state.is_terminal
+            else ObservationStateValues.FALSE
+        )
+        assert (
+            LifeCyclePredicate.IS_TERMINATED.value.truth_value(life_cycle_state)
+            == expected
+        )
+
+    def test_a_condition_can_start_a_node_on_another_verdict(self):
+        """
+        Predicates are refreshed after the life cycle update, so a node reacting to a
+        verdict starts one tick after it was reached.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                first := ConstFalseNode(),
+                second := ConstFalseNode(),
+            ]
+        )
+        first.success_condition = trigger.observation_variable
+        second.start_condition = first.is_succeeded
+
+        executor = Executor(MotionStatechartContext(world=World()))
+        executor.compile(motion_statechart=msc)
+        assert second.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+        executor.tick()
+        assert first.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert second.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+        executor.tick()
+        assert second.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_predicate_state_follows_the_life_cycle_state(self):
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.failure_condition = trigger.observation_variable
+        other_node = ConstFalseNode()
+        msc.add_node(other_node)
+        other_node.start_condition = node.is_failed
+
+        executor = Executor(MotionStatechartContext(world=World()))
+        executor.compile(motion_statechart=msc)
+        assert (
+            msc.life_cycle_predicate_state[node.is_failed]
+            == ObservationStateValues.UNKNOWN
+        )
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+        assert (
+            msc.life_cycle_predicate_state[node.is_failed]
+            == ObservationStateValues.TRUE
+        )
+
+    def test_a_predicate_variable_is_created_once_per_node(self):
+        node = ConstTrueNode()
+        assert node.is_failed is node.is_failed
+        assert node.is_failed is not node.is_succeeded
+
+    def test_a_predicate_is_only_created_when_it_is_asked_for(self):
+        node = ConstTrueNode()
+        assert node.life_cycle_predicate_variables == []
+
+        node.is_running
+        assert [
+            variable.predicate for variable in node.life_cycle_predicate_variables
+        ] == [LifeCyclePredicate.IS_RUNNING]
+
+    def test_a_condition_renders_a_predicate_by_name(self):
+        msc = MotionStatechart()
+        msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
+        second.start_condition = first.is_failed
+
+        assert (
+            str(second._start_condition)
+            == f'"{first.unique_name}.{LifeCyclePredicate.IS_FAILED.attribute_name}"'
+        )
+
+    def test_a_condition_with_a_predicate_survives_a_json_round_trip(self):
+        msc = MotionStatechart()
+        msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
+        second.start_condition = sm.trinary_logic_and(
+            first.is_failed, first.observation_variable
+        )
+
+        condition_copy = TrinaryCondition.from_json(
+            json.loads(json.dumps(second._start_condition.to_json())),
+            motion_statechart=msc,
+        )
+
+        assert condition_copy == second._start_condition
+
+    def test_a_predicate_makes_its_node_a_dependency_of_the_condition(self):
+        msc = MotionStatechart()
+        msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
+        second.start_condition = first.is_failed
+
+        assert second._start_condition.node_dependencies == [first]
+
+    def test_a_raw_life_cycle_variable_is_rejected_in_a_condition(self):
+        """
+        The raw life cycle value cannot be rendered back into a condition string, so
+        only the predicates may be read.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
+
+        with pytest.raises(UnsupportedConditionVariableError):
+            second.start_condition = first.life_cycle_variable
+
+    def test_a_start_condition_may_not_read_its_own_verdict(self):
+        msc = MotionStatechart()
+        msc.add_node(node := ConstTrueNode())
+
+        with pytest.raises(SelfInStartConditionError):
+            node.start_condition = node.is_failed
+
+
 class TestMaxManipulability:
     def test_MaxManipulability(self, pr2_world_state_reset: World):
         root = pr2_world_state_reset.get_body_by_name("base_footprint")
@@ -2288,8 +2656,13 @@ class TestMaxManipulability:
             tip_link=tip,
             goal_pose=goal_pose,
         )
-        msc.add_nodes([cart_goal, manipulability := MaxManipulability(root_link=root, tip_link=tip)])
-        manipulability.end_condition = cart_goal.observation_variable
+        msc.add_nodes(
+            [
+                cart_goal,
+                manipulability := MaxManipulability(root_link=root, tip_link=tip),
+            ]
+        )
+        manipulability.success_condition = cart_goal.observation_variable
         msc.add_node(EndMotion.when_true(cart_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
@@ -2314,7 +2687,7 @@ class TestEagerStateVariables:
         assert node.observation_variable is node.observation_variable
         assert node.life_cycle_variable is node.life_cycle_variable
 
-    def test_nested_self_referential_end_condition_before_compile(self):
+    def test_nested_self_referential_success_condition_before_compile(self):
         msc = MotionStatechart()
         msc.add_node(
             Sequence(
@@ -2326,12 +2699,12 @@ class TestEagerStateVariables:
                 ]
             )
         )
-        barrier.end_condition = barrier.observation_variable
+        barrier.success_condition = barrier.observation_variable
         msc._expand_goals(MotionStatechartContext.empty())
         msc._add_transitions()
-        assert barrier in barrier._end_condition.node_dependencies
+        assert barrier in barrier._success_condition.node_dependencies
 
-    def test_nested_end_condition_survives_json_round_trip(self):
+    def test_nested_success_condition_survives_json_round_trip(self):
         msc = MotionStatechart()
         msc.add_node(
             sequence := Sequence(
@@ -2343,7 +2716,7 @@ class TestEagerStateVariables:
                 ]
             )
         )
-        barrier.end_condition = barrier.observation_variable
+        barrier.success_condition = barrier.observation_variable
         msc.add_node(EndMotion.when_true(sequence))
 
         msc._expand_goals(MotionStatechartContext.empty())
@@ -2353,8 +2726,8 @@ class TestEagerStateVariables:
         msc_copy._add_transitions()
 
         barrier_copy = msc_copy.get_node_by_index(barrier.index)
-        assert barrier_copy in barrier_copy._end_condition.node_dependencies
-        assert barrier_copy.unique_name in str(barrier_copy._end_condition)
+        assert barrier_copy in barrier_copy._success_condition.node_dependencies
+        assert barrier_copy.unique_name in str(barrier_copy._success_condition)
 
     def test_nodes_with_same_name_have_distinct_variable_names(self):
         first = ConstTrueNode(name="same")
@@ -2414,7 +2787,7 @@ class TestConditionScoping:
         msc = MotionStatechart()
         child = ConstTrueNode()
         parallel = Parallel([child])
-        parallel.end_condition = child.observation_variable
+        parallel.success_condition = child.observation_variable
         msc.add_node(parallel)
         msc.add_node(EndMotion.when_true(parallel))
 
@@ -2446,7 +2819,7 @@ class TestConditionScoping:
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
 
-    def test_self_referential_end_condition_inside_template_compiles(self):
+    def test_self_referential_success_condition_inside_template_compiles(self):
         msc = MotionStatechart()
         msc.add_node(
             sequence := Sequence(
@@ -2458,7 +2831,7 @@ class TestConditionScoping:
                 ]
             )
         )
-        barrier.end_condition = barrier.observation_variable
+        barrier.success_condition = barrier.observation_variable
         msc.add_node(EndMotion.when_true(sequence))
 
         kin_sim = Executor(MotionStatechartContext(world=World()))

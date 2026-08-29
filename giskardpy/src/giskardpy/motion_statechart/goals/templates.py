@@ -18,8 +18,8 @@ from giskardpy.motion_statechart.graph_node import (
 @dataclass(repr=False, eq=False)
 class Sequence(Goal):
     """
-    Takes a list of nodes and wires their start/end conditions such that they are
-    executed in order.
+    Takes a list of nodes and wires their start and success conditions such that they
+    are executed in order.
 
     Its observation is the observation of the last node in the sequence.
     """
@@ -34,7 +34,7 @@ class Sequence(Goal):
                 node.start_condition = last_node.observation_variable
             # A node that ends the motion has nothing left to transition to.
             if not isinstance(node, TerminalNode):
-                node.end_condition = node.observation_variable
+                node.success_condition = node.observation_variable
             last_node = node
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:

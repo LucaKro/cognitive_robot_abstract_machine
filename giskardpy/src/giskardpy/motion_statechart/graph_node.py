@@ -44,6 +44,7 @@ from semantic_digital_twin.world_description.geometry import Color
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
+    LifeCyclePredicate,
     ObservationStateValues,
     TransitionKind,
     DefaultWeights,
@@ -53,7 +54,7 @@ from giskardpy.motion_statechart.exceptions import (
     EndMotionInGoalError,
     InputNotExpressionError,
     SelfInStartConditionError,
-    NonObservationVariableError,
+    UnsupportedConditionVariableError,
     NodeAlreadyBelongsToDifferentNodeError,
     NodeNotBuiltError,
     TerminalNodeInConditionError,
@@ -170,8 +171,8 @@ class TrinaryCondition(SubclassJSONSerializer):
         :param new_expression: The expression to validate.
         """
         self._check_condition_is_variable_or_expression(new_expression)
+        self._check_only_condition_variables(new_expression)
         self._check_owner_not_in_start_condition(new_expression)
-        self._check_only_observation_variables(new_expression)
         self._check_no_terminal_node(new_expression)
 
     def _check_condition_is_variable_or_expression(self, new_expression: Scalar):
@@ -183,18 +184,19 @@ class TrinaryCondition(SubclassJSONSerializer):
         if not isinstance(new_expression, Scalar):
             raise InputNotExpressionError(condition=self, new_expression=new_expression)
 
-    def _check_only_observation_variables(self, new_expression: Scalar):
+    def _check_only_condition_variables(self, new_expression: Scalar):
         """
-        Rejects expressions that reference anything but observation variables.
+        Rejects expressions that reference state a transition may not read.
 
         :param new_expression: The expression to validate.
         """
-        free_variables = new_expression.free_variables()
-        for variable in free_variables:
-            if not isinstance(variable, ObservationVariable):
-                raise NonObservationVariableError(
+        for variable in new_expression.free_variables():
+            if not isinstance(
+                variable, (ObservationVariable, LifeCyclePredicateVariable)
+            ):
+                raise UnsupportedConditionVariableError(
                     condition=self,
-                    non_observation_variable=variable,
+                    unsupported_variable=variable,
                     new_expression=new_expression,
                 )
 
@@ -202,8 +204,8 @@ class TrinaryCondition(SubclassJSONSerializer):
         """
         Rejects references to nodes that end the motion.
 
-        .. note:: Runs after :meth:`_check_only_observation_variables`, so every free
-            variable is known to be an :class:`ObservationVariable`.
+        .. note:: Runs after :meth:`_check_only_condition_variables`, so every free
+            variable is known to refer to a node.
 
         :param new_expression: The expression to validate.
         """
@@ -217,17 +219,20 @@ class TrinaryCondition(SubclassJSONSerializer):
 
     def _check_owner_not_in_start_condition(self, new_expression: Scalar):
         """
-        Rejects start conditions that reference the observation state of their own node.
+        Rejects start conditions that reference the state of their own node.
+
+        .. note:: Runs after :meth:`_check_only_condition_variables`, so every free
+            variable is known to refer to a node.
 
         :param new_expression: The expression to validate.
         """
-        if (
-            self.kind == TransitionKind.START
-            and self.owner.observation_variable in new_expression.free_variables()
-        ):
-            raise SelfInStartConditionError(
-                condition=self, new_expression=new_expression
-            )
+        if self.kind != TransitionKind.START:
+            return
+        for variable in new_expression.free_variables():
+            if variable.motion_statechart_node is self.owner:
+                raise SelfInStartConditionError(
+                    condition=self, new_expression=new_expression
+                )
 
     @property
     def node_dependencies(self) -> List[MotionStatechartNode]:
@@ -237,13 +242,13 @@ class TrinaryCondition(SubclassJSONSerializer):
         return [
             x.motion_statechart_node
             for x in self.expression.free_variables()
-            if isinstance(x, ObservationVariable)
+            if isinstance(x, NodeStateVariable)
         ]
 
     def __str__(self):
         """
-        Renders the condition, replacing each observation variable with its node's
-        :attr:`~MotionStatechartNode.unique_name` so the result is readable and reproducible
+        Renders the condition, replacing each variable with its
+        :attr:`~NodeStateVariable.display_name` so the result is readable and reproducible
         across processes (the variable's own name uses a process-local id).
 
         :return: The rendered condition.
@@ -253,10 +258,9 @@ class TrinaryCondition(SubclassJSONSerializer):
             return str(self.expression.is_const_true())
         str_representation = sm.trinary_logic_to_str(self.expression)
         for variable in free_symbols:
-            if isinstance(variable, ObservationVariable):
-                str_representation = str_representation.replace(
-                    variable.name, variable.motion_statechart_node.unique_name
-                )
+            str_representation = str_representation.replace(
+                variable.name, variable.display_name
+            )
         return str_representation
 
     def __repr__(self):
@@ -274,7 +278,7 @@ class TrinaryCondition(SubclassJSONSerializer):
         cls,
         kind: TransitionKind,
         trinary_logic_str: str,
-        observation_variables: List[ObservationVariable],
+        state_variables: List[NodeStateVariable],
         owner: Optional[MotionStatechartNode] = None,
     ):
         """
@@ -282,40 +286,40 @@ class TrinaryCondition(SubclassJSONSerializer):
 
         :param kind: The type of transition this condition controls.
         :param trinary_logic_str: The condition, with nodes referenced by their unique name.
-        :param observation_variables: The variables the referenced unique names are resolved against.
+        :param state_variables: The variables the referenced display names are resolved against.
         :param owner: The node this condition belongs to.
         :return: The new condition.
         """
         tree = ast.parse(trinary_logic_str, mode="eval")
         return cls(
             kind=kind,
-            expression=cls._parse_ast_expression(tree.body, observation_variables),
+            expression=cls._parse_ast_expression(tree.body, state_variables),
             owner=owner,
         )
 
     @staticmethod
     def _parse_ast_expression(
-        node: ast.expr, observation_variables: List[ObservationVariable]
+        node: ast.expr, state_variables: List[NodeStateVariable]
     ) -> Scalar:
         """
         Translates a parsed trinary logic expression into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param observation_variables: The variables the referenced unique names are resolved against.
+        :param state_variables: The variables the referenced display names are resolved against.
         :return: The symbolic expression.
         """
         match node:
             case ast.BoolOp(op=ast.And()):
-                return TrinaryCondition._parse_ast_and(node, observation_variables)
+                return TrinaryCondition._parse_ast_and(node, state_variables)
             case ast.BoolOp(op=ast.Or()):
-                return TrinaryCondition._parse_ast_or(node, observation_variables)
+                return TrinaryCondition._parse_ast_or(node, state_variables)
             case ast.UnaryOp():
-                return TrinaryCondition._parse_ast_not(node, observation_variables)
+                return TrinaryCondition._parse_ast_not(node, state_variables)
             case ast.Constant(value=str(val)):
-                for observation_variable in observation_variables:
-                    if val == observation_variable.motion_statechart_node.unique_name:
-                        return observation_variable
-                raise KeyError(f"unknown observation variable: {val!r}")
+                for state_variable in state_variables:
+                    if val == state_variable.display_name:
+                        return state_variable
+                raise KeyError(f"unknown state variable: {val!r}")
             case ast.Constant(value=True):
                 return Scalar.const_true()
             case ast.Constant(value=False):
@@ -324,51 +328,49 @@ class TrinaryCondition(SubclassJSONSerializer):
                 raise TypeError(f"failed to parse {type(node).__name__}")
 
     @staticmethod
-    def _parse_ast_and(node, observation_variables: List[ObservationVariable]):
+    def _parse_ast_and(node, state_variables: List[NodeStateVariable]):
         """
         Translates a parsed conjunction into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param observation_variables: The variables the referenced unique names are resolved against.
+        :param state_variables: The variables the referenced display names are resolved against.
         :return: The symbolic expression.
         """
         return sm.trinary_logic_and(
             *[
-                TrinaryCondition._parse_ast_expression(x, observation_variables)
+                TrinaryCondition._parse_ast_expression(x, state_variables)
                 for x in node.values
             ]
         )
 
     @staticmethod
-    def _parse_ast_or(node, observation_variables: List[ObservationVariable]):
+    def _parse_ast_or(node, state_variables: List[NodeStateVariable]):
         """
         Translates a parsed disjunction into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param observation_variables: The variables the referenced unique names are resolved against.
+        :param state_variables: The variables the referenced display names are resolved against.
         :return: The symbolic expression.
         """
         return sm.trinary_logic_or(
             *[
-                TrinaryCondition._parse_ast_expression(x, observation_variables)
+                TrinaryCondition._parse_ast_expression(x, state_variables)
                 for x in node.values
             ]
         )
 
     @staticmethod
-    def _parse_ast_not(node, observation_variables: List[ObservationVariable]):
+    def _parse_ast_not(node, state_variables: List[NodeStateVariable]):
         """
         Translates a parsed negation into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param observation_variables: The variables the referenced unique names are resolved against.
+        :param state_variables: The variables the referenced display names are resolved against.
         :return: The symbolic expression, or None if the unary operator is not a negation.
         """
         if isinstance(node.op, ast.Not):
             return sm.trinary_logic_not(
-                TrinaryCondition._parse_ast_expression(
-                    node.operand, observation_variables
-                )
+                TrinaryCondition._parse_ast_expression(node.operand, state_variables)
             )
 
     @classmethod
@@ -378,47 +380,88 @@ class TrinaryCondition(SubclassJSONSerializer):
         return cls.create_from_trinary_logic_str(
             kind=TransitionKind[data["kind"]],
             trinary_logic_str=data["expression"],
-            observation_variables=motion_statechart.observation_state.observation_symbols(),
+            state_variables=motion_statechart.condition_variables(),
             owner=motion_statechart.get_node_by_index(data["owner"]),
         )
 
 
 @dataclass(repr=False, eq=False, init=False)
-class ObservationVariable(FloatVariable):
+class NodeStateVariable(FloatVariable):
     """
-    A symbol representing the observation state of a node.
+    A symbol standing for part of the state of one node.
     """
 
     motion_statechart_node: MotionStatechartNode = field(kw_only=True)
     """
-    The node this variable is the observation state of.
+    The node this variable refers to.
     """
 
     def __init__(self, name: str, motion_statechart_node: MotionStatechartNode):
         super().__init__(name)
         self.motion_statechart_node = motion_statechart_node
+
+    @property
+    def display_name(self) -> str:
+        """
+        :return: How this variable is written in a rendered condition, using the node's
+            :attr:`~MotionStatechartNode.unique_name` so it reproduces across processes.
+        """
+        return self.motion_statechart_node.unique_name
+
+
+@dataclass(repr=False, eq=False, init=False)
+class ObservationVariable(NodeStateVariable):
+    """
+    A symbol representing the observation state of a node.
+    """
 
     def resolve(self) -> float:
         return self.motion_statechart_node.observation_state
 
 
 @dataclass(repr=False, eq=False, init=False)
-class LifeCycleVariable(FloatVariable):
+class LifeCycleVariable(NodeStateVariable):
     """
     A symbol representing the life cycle state of a node.
-    """
 
-    motion_statechart_node: MotionStatechartNode = field(kw_only=True)
+    .. warning:: Legal in observation expressions, but not in transition conditions.
+        Use a :class:`LifeCyclePredicateVariable` there, so the condition stays renderable.
     """
-    The node this variable is the life cycle state of.
-    """
-
-    def __init__(self, name: str, motion_statechart_node: MotionStatechartNode):
-        super().__init__(name)
-        self.motion_statechart_node = motion_statechart_node
 
     def resolve(self) -> LifeCycleValues:
         return self.motion_statechart_node.life_cycle_state
+
+
+@dataclass(repr=False, eq=False, init=False)
+class LifeCyclePredicateVariable(NodeStateVariable):
+    """
+    A symbol representing a trinary test on the life cycle state of a node.
+    """
+
+    predicate: LifeCyclePredicate = field(kw_only=True)
+    """
+    The test this variable holds the value of.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        motion_statechart_node: MotionStatechartNode,
+        predicate: LifeCyclePredicate,
+    ):
+        super().__init__(name, motion_statechart_node)
+        self.predicate = predicate
+
+    @property
+    def display_name(self) -> str:
+        return (
+            f"{self.motion_statechart_node.unique_name}.{self.predicate.attribute_name}"
+        )
+
+    def resolve(self) -> ObservationStateValues:
+        return self.predicate.value.truth_value(
+            self.motion_statechart_node.life_cycle_state
+        )
 
 
 @dataclass
@@ -500,6 +543,45 @@ class NodeArtifacts:
         return GeometricConstraintBuilder(self.constraints)
 
 
+@dataclass
+class LifeCycleTransitions:
+    """
+    The next life cycle state of one node, as an expression per state it can be in.
+    """
+
+    not_started: sm.Scalar
+    """
+    Where the node goes while it has not started.
+    """
+    running: sm.Scalar
+    """
+    Where the node goes while it is running.
+    """
+    paused: sm.Scalar
+    """
+    Where the node goes while it is paused.
+    """
+    terminal: sm.Scalar
+    """
+    Where the node goes while it has ended. Shared by every terminal state, because a
+    verdict is only left by a reset.
+    """
+
+    def as_cases(self) -> List[Tuple[LifeCycleValues, sm.Scalar]]:
+        """
+        :return: (current state, next state) pairs covering every life cycle state.
+        """
+        return [
+            (LifeCycleValues.NOT_STARTED, self.not_started),
+            (LifeCycleValues.RUNNING, self.running),
+            (LifeCycleValues.PAUSED, self.paused),
+            *(
+                (state, self.terminal)
+                for state in sorted(LifeCycleValues.terminal_states())
+            ),
+        ]
+
+
 @dataclass(repr=False, eq=False)
 class MotionStatechartNode:
     name: str = field(default=None, kw_only=True)
@@ -558,13 +640,23 @@ class MotionStatechartNode:
     """
     Decides when this node transitions from RUNNING to PAUSED or back.
     """
-    _end_condition: TrinaryCondition = field(init=False, default=None)
+    _success_condition: TrinaryCondition = field(init=False, default=None)
     """
-    Decides when this node transitions from RUNNING or PAUSED to DONE.
+    Decides when this node transitions from RUNNING or PAUSED to SUCCEEDED.
+    """
+    _failure_condition: TrinaryCondition = field(init=False, default=None)
+    """
+    Decides when this node transitions from RUNNING or PAUSED to FAILED.
     """
     _reset_condition: TrinaryCondition = field(init=False, default=None)
     """
     Decides when this transitions to NOT_STARTED.
+    """
+    _life_cycle_predicate_variables: Dict[
+        LifeCyclePredicate, LifeCyclePredicateVariable
+    ] = field(init=False, default_factory=dict, repr=False)
+    """
+    The predicate variables handed out so far, so each one is created only once.
     """
 
     plot_specifications: NodePlotSpec = plot_specification_field(
@@ -585,8 +677,11 @@ class MotionStatechartNode:
         self._pause_condition = TrinaryCondition.create_false(
             kind=TransitionKind.PAUSE, owner=self
         )
-        self._end_condition = TrinaryCondition.create_false(
-            kind=TransitionKind.END, owner=self
+        self._success_condition = TrinaryCondition.create_false(
+            kind=TransitionKind.SUCCESS, owner=self
+        )
+        self._failure_condition = TrinaryCondition.create_false(
+            kind=TransitionKind.FAILURE, owner=self
         )
         self._reset_condition = TrinaryCondition.create_false(
             kind=TransitionKind.RESET, owner=self
@@ -672,51 +767,94 @@ class MotionStatechartNode:
                 self._start_condition = transition
             case TransitionKind.PAUSE:
                 self._pause_condition = transition
-            case TransitionKind.END:
-                self._end_condition = transition
+            case TransitionKind.SUCCESS:
+                self._success_condition = transition
+            case TransitionKind.FAILURE:
+                self._failure_condition = transition
             case TransitionKind.RESET:
                 self._reset_condition = transition
             case _:
                 raise ValueError(f"Unknown transition kind: {transition.kind}")
 
-    def create_lifecycle_transitions(
-        self,
-    ) -> Tuple[
-        sm.Scalar,
-        sm.Scalar,
-        sm.Scalar,
-        sm.Scalar,
-    ]:
+    def create_lifecycle_transitions(self) -> LifeCycleTransitions:
         """
-        Create the life cycle transitions for this node.
-        :return: A tuple of (not_started_transitions, running_transitions, pause_transitions, ended_transitions)
+        Builds the state machine of this node.
+
+        :return: The next life cycle state of this node, per state it can currently be in.
         """
-        any_end_condition_true = self._create_any_ancestor_condition_true(
-            TransitionKind.END
-        )
         any_reset_condition_true = self._create_any_ancestor_condition_true(
             TransitionKind.RESET
         )
+        ancestor_ended = self._create_ancestor_ended()
 
-        not_started_transitions = self._create_not_started_transitions()
-        running_transitions = self._create_running_transitions(
-            any_end_condition_true=any_end_condition_true,
-            any_reset_condition_true=any_reset_condition_true,
-        )
-        pause_transitions = self._create_pause_transitions(
-            any_end_condition_true=any_end_condition_true,
-            any_reset_condition_true=any_reset_condition_true,
-        )
-        ended_transitions = self._create_ended_transitions(
-            any_reset_condition_true=any_reset_condition_true
+        return LifeCycleTransitions(
+            not_started=self._create_not_started_transitions(),
+            running=self._create_running_transitions(
+                ancestor_ended=ancestor_ended,
+                any_reset_condition_true=any_reset_condition_true,
+            ),
+            paused=self._create_pause_transitions(
+                ancestor_ended=ancestor_ended,
+                any_reset_condition_true=any_reset_condition_true,
+            ),
+            terminal=self._create_terminal_transitions(
+                any_reset_condition_true=any_reset_condition_true
+            ),
         )
 
-        return (
-            not_started_transitions,
-            running_transitions,
-            pause_transitions,
-            ended_transitions,
-        )
+    def _create_condition_holds(self, transition_kind: TransitionKind) -> sm.Scalar:
+        """
+        Coerces a trinary condition into a binary one, because the ``if`` builders treat
+        the trinary unknown value as true.
+
+        :param transition_kind: The transition whose condition to read.
+        :return: 1 while this node's own condition of that kind is true, 0 otherwise.
+        """
+        return sm.Scalar(self.get_condition(transition_kind) == sm.Scalar.const_true())
+
+    def _create_ancestor_ended(self) -> sm.Scalar:
+        """
+        An ancestor that succeeds or fails cuts this node off before it reached a verdict
+        of its own.
+
+        :return: 1 while any strict ancestor's success or failure condition is true, 0 otherwise.
+        """
+        ancestor_conditions = []
+        current_node = self
+        while current_node.parent_node is not None:
+            current_node = current_node.parent_node
+            ancestor_conditions.extend(
+                current_node._create_condition_holds(kind)
+                for kind in TransitionKind.verdict_kinds()
+            )
+        if not ancestor_conditions:
+            return sm.Scalar.const_false()
+        if len(ancestor_conditions) == 1:
+            return ancestor_conditions[0]
+        return sm.trinary_logic_or(*ancestor_conditions)
+
+    def _create_verdict_cases(
+        self, ancestor_ended: sm.Scalar
+    ) -> List[Tuple[sm.Scalar, sm.Scalar]]:
+        """
+        A node's own verdict outranks an ancestor cutting it off, because a node that
+        finished on its own terms was not interrupted. Failure outranks success so a
+        failure signal is never masked by one arriving on the same tick.
+
+        :param ancestor_ended: Whether any strict ancestor succeeded or failed.
+        :return: (condition, resulting life cycle state) pairs, in priority order.
+        """
+        return [
+            (
+                self._create_condition_holds(TransitionKind.FAILURE),
+                sm.Scalar(LifeCycleValues.FAILED),
+            ),
+            (
+                self._create_condition_holds(TransitionKind.SUCCESS),
+                sm.Scalar(LifeCycleValues.SUCCEEDED),
+            ),
+            (ancestor_ended, sm.Scalar(LifeCycleValues.INTERRUPTED)),
+        ]
 
     def _create_any_ancestor_condition_true(
         self,
@@ -730,15 +868,12 @@ class MotionStatechartNode:
         :return: Combined condition where True = any ancestor condition is Scalar.const_true()
         """
         current_node = self
-        condition = sm.Scalar(
-            current_node.get_condition(transition_kind) == sm.Scalar.const_true()
-        )
+        condition = current_node._create_condition_holds(transition_kind)
         while current_node.parent_node is not None:
             current_node = current_node.parent_node
-            cond_expr = sm.Scalar(
-                current_node.get_condition(transition_kind) == sm.Scalar.const_true()
+            condition = sm.trinary_logic_or(
+                condition, current_node._create_condition_holds(transition_kind)
             )
-            condition = sm.trinary_logic_or(condition, cond_expr)
         return condition
 
     def get_condition(self, transition_kind: TransitionKind) -> Scalar:
@@ -752,35 +887,39 @@ class MotionStatechartNode:
                 return self.start_condition
             case TransitionKind.PAUSE:
                 return self.pause_condition
-            case TransitionKind.END:
-                return self.end_condition
+            case TransitionKind.SUCCESS:
+                return self.success_condition
+            case TransitionKind.FAILURE:
+                return self.failure_condition
             case TransitionKind.RESET:
                 return self.reset_condition
             case _:
                 raise ValueError(f"Unknown transition kind: {transition_kind}")
 
-    def _create_ended_transitions(
+    def _create_terminal_transitions(
         self, any_reset_condition_true: sm.Scalar
     ) -> sm.Scalar:
         """
-        Create the ended transitions of the LifeCycleState for this node.
+        Create the transitions out of a terminal state for this node. A terminal state is
+        only left by a reset, which is why the verdict is kept as it is otherwise.
+
         :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using trinary_logic_or.
-        :return: The LifeCycleState transitions for the DONE state.
+        :return: The LifeCycleState transitions for every terminal state.
         """
         return sm.if_else(
             condition=any_reset_condition_true,
             if_result=sm.Scalar(LifeCycleValues.NOT_STARTED),
-            else_result=sm.Scalar(LifeCycleValues.DONE),
+            else_result=sm.Scalar(self.life_cycle_variable),
         )
 
     def _create_pause_transitions(
         self,
-        any_end_condition_true: sm.Scalar,
+        ancestor_ended: sm.Scalar,
         any_reset_condition_true: sm.Scalar,
     ) -> sm.Scalar:
         """
         Create the pause transitions of the LifeCycleState for this node.
-        :param any_end_condition_true: The combined end condition for this node and its parents. Combined using trinary_logic_or.
+        :param ancestor_ended: Whether any strict ancestor succeeded or failed.
         :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using trinary_logic_or.
         :return: The LifeCycleState transitions for the PAUSED state.
         """
@@ -800,7 +939,7 @@ class MotionStatechartNode:
                     any_reset_condition_true,
                     sm.Scalar(LifeCycleValues.NOT_STARTED),
                 ),
-                (any_end_condition_true, sm.Scalar(LifeCycleValues.DONE)),
+                *self._create_verdict_cases(ancestor_ended),
                 (
                     unpause_condition,
                     sm.Scalar(LifeCycleValues.RUNNING),
@@ -811,12 +950,12 @@ class MotionStatechartNode:
 
     def _create_running_transitions(
         self,
-        any_end_condition_true: sm.Scalar,
+        ancestor_ended: sm.Scalar,
         any_reset_condition_true: sm.Scalar,
     ) -> sm.Scalar:
         """
         Create the running transitions of the LifeCycleState for this node.
-        :param any_end_condition_true: The combined end condition for this node and its parents. Combined using trinary_logic_or.
+        :param ancestor_ended: Whether any strict ancestor succeeded or failed.
         :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using trinary_logic_or.
         :return: The LifeCycleState transitions for the RUNNING state.
         """
@@ -829,7 +968,7 @@ class MotionStatechartNode:
                     any_reset_condition_true,
                     sm.Scalar(LifeCycleValues.NOT_STARTED),
                 ),
-                (any_end_condition_true, sm.Scalar(LifeCycleValues.DONE)),
+                *self._create_verdict_cases(ancestor_ended),
                 (any_pause_condition, sm.Scalar(LifeCycleValues.PAUSED)),
             ],
             else_result=sm.Scalar(LifeCycleValues.RUNNING),
@@ -840,14 +979,15 @@ class MotionStatechartNode:
         Create the not started transitions of the LifeCycleState for this node.
         :return: The LifeCycleState transitions for the NOT_STARTED state.
         """
-        start_condition = sm.Scalar(self.start_condition == sm.Scalar.const_true())
+        start_condition = self._create_condition_holds(TransitionKind.START)
         current = self
         while current.parent_node is not None:
             parent = current.parent_node
             start_condition = sm.trinary_logic_and(
                 start_condition,
-                sm.trinary_logic_not(parent.end_condition),
-                sm.Scalar(parent.start_condition == sm.Scalar.const_true()),
+                sm.trinary_logic_not(parent.success_condition),
+                sm.trinary_logic_not(parent.failure_condition),
+                parent._create_condition_holds(TransitionKind.START),
             )
             current = parent
 
@@ -948,7 +1088,8 @@ class MotionStatechartNode:
 
     def on_end(self, context: MotionStatechartContext):
         """
-        Triggered when the node transitions from RUNNING to DONE.
+        Triggered when the node transitions from RUNNING or PAUSED into any terminal
+        state. Read :attr:`life_cycle_state` for the verdict.
         .. warning:: This method is called inside a control loop, make sure it is fast.
         :param context: The context that contains data that can be used by this node.
         """
@@ -1017,20 +1158,36 @@ class MotionStatechartNode:
         self._pause_condition.update_expression(expression, self)
 
     @property
-    def end_condition(self) -> Scalar:
+    def success_condition(self) -> Scalar:
         """
-        :return: The expression deciding when this node transitions from RUNNING or PAUSED to DONE.
+        :return: The expression deciding when this node transitions from RUNNING or PAUSED to SUCCEEDED.
         """
-        return self._end_condition.expression
+        return self._success_condition.expression
 
-    @end_condition.setter
-    def end_condition(self, expression: Scalar) -> None:
+    @success_condition.setter
+    def success_condition(self, expression: Scalar) -> None:
         """
-        :param expression: The expression deciding when this node transitions from RUNNING or PAUSED to DONE.
+        :param expression: The expression deciding when this node transitions from RUNNING or PAUSED to SUCCEEDED.
         """
-        if self._end_condition is None:
+        if self._success_condition is None:
             raise NotInMotionStatechartError(self.name)
-        self._end_condition.update_expression(expression, self)
+        self._success_condition.update_expression(expression, self)
+
+    @property
+    def failure_condition(self) -> Scalar:
+        """
+        :return: The expression deciding when this node transitions from RUNNING or PAUSED to FAILED.
+        """
+        return self._failure_condition.expression
+
+    @failure_condition.setter
+    def failure_condition(self, expression: Scalar) -> None:
+        """
+        :param expression: The expression deciding when this node transitions from RUNNING or PAUSED to FAILED.
+        """
+        if self._failure_condition is None:
+            raise NotInMotionStatechartError(self.name)
+        self._failure_condition.update_expression(expression, self)
 
     @property
     def reset_condition(self) -> Scalar:
@@ -1048,6 +1205,102 @@ class MotionStatechartNode:
             raise NotInMotionStatechartError(self.name)
         self._reset_condition.update_expression(expression, self)
 
+    def _life_cycle_predicate(
+        self, predicate: LifeCyclePredicate
+    ) -> LifeCyclePredicateVariable:
+        """
+        Hands out the variable for one test on this node's life cycle state, creating it
+        on first use so an unused predicate costs nothing.
+
+        :param predicate: The test to read.
+        :return: The variable holding that test's value for this node.
+        """
+        if predicate not in self._life_cycle_predicate_variables:
+            self._life_cycle_predicate_variables[predicate] = (
+                LifeCyclePredicateVariable(
+                    name=str(
+                        PrefixedName(
+                            predicate.attribute_name, f"{self.name}#{self._node_id}"
+                        )
+                    ),
+                    motion_statechart_node=self,
+                    predicate=predicate,
+                )
+            )
+        return self._life_cycle_predicate_variables[predicate]
+
+    @property
+    def conditions(self) -> List[TrinaryCondition]:
+        """
+        :return: Every transition condition of this node.
+        """
+        return [
+            self._start_condition,
+            self._pause_condition,
+            self._success_condition,
+            self._failure_condition,
+            self._reset_condition,
+        ]
+
+    @property
+    def life_cycle_predicate_variables(self) -> List[LifeCyclePredicateVariable]:
+        """
+        :return: The predicate variables handed out for this node so far.
+        """
+        return list(self._life_cycle_predicate_variables.values())
+
+    @property
+    def is_not_started(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True while this node has not started, false otherwise.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_NOT_STARTED)
+
+    @property
+    def is_running(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True while this node is running, false otherwise.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_RUNNING)
+
+    @property
+    def is_paused(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True while this node is paused, false otherwise.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_PAUSED)
+
+    @property
+    def is_terminated(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True once this node has ended, whatever its verdict, false before that.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_TERMINATED)
+
+    @property
+    def is_succeeded(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True if this node ended by succeeding, false if it ended any other way,
+            and unknown until it ends.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_SUCCEEDED)
+
+    @property
+    def is_failed(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True if this node ended by failing, false if it ended any other way, and
+            unknown until it ends.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_FAILED)
+
+    @property
+    def is_interrupted(self) -> LifeCyclePredicateVariable:
+        """
+        :return: True if this node was cut off by an ancestor ending, false if it ended
+            any other way, and unknown until it ends.
+        """
+        return self._life_cycle_predicate(LifeCyclePredicate.IS_INTERRUPTED)
+
     def formatted_name(self, quoted: bool = False) -> str:
         """
         Renders the name of this node together with all of its transition conditions.
@@ -1064,8 +1317,10 @@ class MotionStatechartNode:
             f"{str(self._start_condition)}\n"
             f"----pause_condition----\n"
             f"{str(self._pause_condition)}\n"
-            f"----end_condition----\n"
-            f"{str(self._end_condition)}\n"
+            f"----success_condition----\n"
+            f"{str(self._success_condition)}\n"
+            f"----failure_condition----\n"
+            f"{str(self._failure_condition)}\n"
             f"----reset_condition----\n"
             f"{str(self._reset_condition)}"
         )

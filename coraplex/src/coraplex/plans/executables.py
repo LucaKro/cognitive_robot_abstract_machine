@@ -232,7 +232,7 @@ class GiskardExecutable(Executable):
         plan_nodes = list(self.motion_mappings.keys())
         for index, (plan_node, task) in enumerate(zip(plan_nodes, tasks)):
             # a task is done once its own goal is observed (as giskard's Sequence does)
-            task.end_condition = task.observation_variable
+            task.success_condition = task.observation_variable
 
             pause_monitor = PlanNodeStatusMonitor(
                 predicate=lambda node=plan_node: node.is_paused,
@@ -341,10 +341,11 @@ class GiskardExecutable(Executable):
                 node
                 for node in motion_state_chart.nodes
                 if node.life_cycle_state
-                not in [LifeCycleValues.DONE, LifeCycleValues.NOT_STARTED]
+                not in [LifeCycleValues.SUCCEEDED, LifeCycleValues.NOT_STARTED]
             ]
-            logger.error(f"Failed Nodes: {failed_nodes}")
-            raise MotionDidNotFinish(failed_nodes)
+            motion_did_not_finish = MotionDidNotFinish(failed_nodes)
+            logger.error(motion_did_not_finish.error_message())
+            raise motion_did_not_finish
 
     def _execute_real(self) -> None:
         """

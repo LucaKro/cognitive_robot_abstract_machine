@@ -439,22 +439,27 @@ class SelfInStartConditionError(InvalidConditionError):
 
 
 @dataclass
-class NonObservationVariableError(InvalidConditionError):
+class UnsupportedConditionVariableError(InvalidConditionError):
     """
-    Raised when a condition contains a variable that is not the observation variable of
-    a node.
+    Raised when a condition contains a variable that is neither the observation state
+    nor a life cycle predicate of a node.
     """
 
-    non_observation_variable: FloatVariable
+    unsupported_variable: FloatVariable
     """
-    The variable in the condition that does not observe a node.
+    The variable in the condition that a transition may not read.
     """
 
     def reason(self) -> str:
-        return f'Contains "{self.non_observation_variable}", which is not an observation variable.'
+        return (
+            f'Contains "{self.unsupported_variable}", which a transition may not read.'
+        )
 
     def suggest_correction(self) -> str:
-        return "Use an observation variable from a node instead, e.g. 'node.observation_variable'."
+        return (
+            "Use the observation state of a node, e.g. 'node.observation_variable', or one "
+            "of its life cycle predicates, e.g. 'node.is_failed'."
+        )
 
 
 @dataclass

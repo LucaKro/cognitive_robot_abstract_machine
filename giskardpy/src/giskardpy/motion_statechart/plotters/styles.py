@@ -33,7 +33,8 @@ ChatGPTGray = "#8F959E"
 class ConditionColors:
     StartCondColor = ChatGPTGreen
     PauseCondColor = ChatGPTOrange
-    EndCondColor = ChatGPTRed
+    SuccessCondColor = ChatGPTRed
+    FailureCondColor = MyRED
     ResetCondColor = ChatGPTGray
 
 
@@ -82,8 +83,9 @@ LiftCycleStateToColor: Dict[LifeCycleValues, str] = {
     LifeCycleValues.NOT_STARTED: ConditionColors.ResetCondColor,
     LifeCycleValues.RUNNING: ConditionColors.StartCondColor,
     LifeCycleValues.PAUSED: ConditionColors.PauseCondColor,
-    LifeCycleValues.DONE: ConditionColors.EndCondColor,
-    LifeCycleValues.FAILED: "red",
+    LifeCycleValues.SUCCEEDED: MonitorTrueGreen,
+    LifeCycleValues.FAILED: MonitorFalseRed,
+    LifeCycleValues.INTERRUPTED: MyORANGE,
 }
 
 LiftCycleStateToSymbol: Dict[LifeCycleValues, str] = {
@@ -92,6 +94,7 @@ LiftCycleStateToSymbol: Dict[LifeCycleValues, str] = {
     LifeCycleValues.RUNNING: "▶",
     # LifeCycleState.paused: '⏸',
     LifeCycleValues.PAUSED: "<B>||</B>",
-    LifeCycleValues.DONE: "■",
-    LifeCycleValues.FAILED: "red",
+    LifeCycleValues.SUCCEEDED: "■",
+    LifeCycleValues.FAILED: "✖",
+    LifeCycleValues.INTERRUPTED: "⊘",
 }

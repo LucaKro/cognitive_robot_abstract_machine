@@ -96,7 +96,7 @@ def test_try_in_order_short_circuits_on_first_success():
 
     assert goal.observation_state == ObservationStateValues.TRUE
     # First child succeeded and finished...
-    assert first.life_cycle_state == LifeCycleValues.DONE
+    assert first.life_cycle_state == LifeCycleValues.SUCCEEDED
     # ...so the second child is never started (short-circuit).
     assert second.life_cycle_state == LifeCycleValues.NOT_STARTED
 
@@ -109,8 +109,8 @@ def test_try_in_order_advances_after_failure():
 
     assert goal.observation_state == ObservationStateValues.TRUE
     # Both children ran: the first failed, the second was started and succeeded.
-    assert first.life_cycle_state == LifeCycleValues.DONE
-    assert second.life_cycle_state == LifeCycleValues.DONE
+    assert first.life_cycle_state == LifeCycleValues.FAILED
+    assert second.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_try_in_order_fails_only_if_all_children_fail():
@@ -118,7 +118,7 @@ def test_try_in_order_fails_only_if_all_children_fail():
     _compile_and_tick(goal)
 
     assert goal.observation_state == ObservationStateValues.FALSE
-    assert all(n.life_cycle_state == LifeCycleValues.DONE for n in goal.nodes)
+    assert all(n.life_cycle_state == LifeCycleValues.FAILED for n in goal.nodes)
 
 
 def test_try_in_order_single_child():
