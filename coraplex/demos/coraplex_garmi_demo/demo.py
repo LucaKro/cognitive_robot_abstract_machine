@@ -126,13 +126,6 @@ rclpy.init()
 node = rclpy.create_node("garmi_apartment_viz")
 publisher = VizMarkerPublisher(_world=world, node=node)
 
-ros_executor = SingleThreadedExecutor()
-ros_executor.add_node(node)
-ros_thread = threading.Thread(
-    target=ros_executor.spin, daemon=True, name="rclpy-executor"
-)
-ros_thread.start()
-
 # Execute plan with the simulated robot.
 context = Context.from_world(world)
 with simulated_robot:
