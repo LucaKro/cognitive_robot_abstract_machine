@@ -23,6 +23,8 @@ from giskardpy.motion_statechart.exceptions import (
     EmptyMotionStatechartError,
     ConditionScopeError,
     CyclicNodeDependencyError,
+    CyclicPredicateDependencyError,
+    UnsupportedObservationVariableError,
 )
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
@@ -217,26 +219,18 @@ class LifeCycleState(State):
         """
         Compiles updater for life cycle states.
 
-        1. Define state transitions based on current life cycle state and conditions.
+        1. Build the next life cycle state of every node, see :class:`NextLifeCycle`.
         2. Combine all node state transitions into a single expression and compile it.
         3. Bind compiled function arguments to memory views of observation and life cycle state data.
         4. Store the compiled updater for later use in updating life cycle states.
         """
-        state_updater = []
-        for node in self.motion_statechart.nodes:
-            state_symbol = node.life_cycle_variable
-            state_machine = sm.if_eq_cases(
-                a=state_symbol,
-                b_result_cases=node.create_lifecycle_transitions().as_cases(),
-                else_result=sm.Scalar(state_symbol),
-            )
-            state_updater.append(state_machine)
-        state_updater = sm.Vector(state_updater)
+        state_updater = NextLifeCycle(
+            motion_statechart=self.motion_statechart
+        ).as_vector()
         self._compiled_updater = state_updater.compile(
             parameters=VariableParameters.from_lists(
                 self.observation_symbols(),
                 self.life_cycle_symbols(),
-                self.motion_statechart.life_cycle_predicate_state.symbols(),
                 self.goal_reached_symbols(),
             ),
             sparse=False,
@@ -248,11 +242,7 @@ class LifeCycleState(State):
             arg_idx=1, numpy_array=self.data
         )
         self._compiled_updater.bind_args_to_memory_view(
-            arg_idx=2,
-            numpy_array=self.motion_statechart.life_cycle_predicate_state.data,
-        )
-        self._compiled_updater.bind_args_to_memory_view(
-            arg_idx=3, numpy_array=self.motion_statechart.goal_reached_state.data
+            arg_idx=2, numpy_array=self.motion_statechart.goal_reached_state.data
         )
 
     def __getitem__(self, node: MotionStatechartNode) -> LifeCycleValues:
@@ -310,10 +300,14 @@ class ObservationState(State):
         its reading: it resumes and observes again, whereas a node in a terminal state
         never does and has its verdict carry what it reached instead.
 
+        Runs before the life cycle update, so the life cycle state it reads is the one
+        every node entered the control cycle with.
+
         :param context: The build context whose world and float-variable data the compiled updater reads from.
         """
         observation_state_updater = []
         for node in self.motion_statechart.nodes:
+            self._check_reads_no_predicate(node)
             state_f = sm.if_eq_cases(
                 a=node.life_cycle_variable,
                 b_result_cases=[
@@ -335,7 +329,6 @@ class ObservationState(State):
                 self.life_cycle_symbols(),
                 context.world.state.get_variables(),
                 context.float_variable_data.variables,
-                self.motion_statechart.life_cycle_predicate_state.symbols(),
                 self.goal_reached_symbols(),
             ),
             sparse=False,
@@ -353,12 +346,21 @@ class ObservationState(State):
             arg_idx=3, numpy_array=context.float_variable_data.data
         )
         self._compiled_updater.bind_args_to_memory_view(
-            arg_idx=4,
-            numpy_array=self.motion_statechart.life_cycle_predicate_state.data,
+            arg_idx=4, numpy_array=self.motion_statechart.goal_reached_state.data
         )
-        self._compiled_updater.bind_args_to_memory_view(
-            arg_idx=5, numpy_array=self.motion_statechart.goal_reached_state.data
-        )
+
+    @staticmethod
+    def _check_reads_no_predicate(node: MotionStatechartNode) -> None:
+        """
+        :param node: The node whose observation expression to check.
+        :raises UnsupportedObservationVariableError: If the expression reads a life cycle
+            predicate, whose value this update runs too early to know.
+        """
+        for variable in node._observation_expression.free_variables():
+            if isinstance(variable, LifeCyclePredicateVariable):
+                raise UnsupportedObservationVariableError(
+                    node=node, unsupported_variable=variable
+                )
 
     def update_state(self):
         """
@@ -391,8 +393,8 @@ class GoalReachedState(State):
     Whether a node that ended in each life cycle state reached its goal.
     """
 
-    _terminated_per_life_cycle_state: ClassVar[np.ndarray] = (
-        LifeCyclePredicate.IS_TERMINATED.value.lookup_table()
+    _has_ended_per_life_cycle_state: ClassVar[np.ndarray] = (
+        LifeCycleValues.terminal_lookup_table()
     )
     """
     Whether each life cycle state is one a node has ended in.
@@ -407,8 +409,7 @@ class GoalReachedState(State):
         np.copyto(
             self.data,
             np.where(
-                self._terminated_per_life_cycle_state[life_cycle_states]
-                == float(ObservationStateValues.TRUE),
+                self._has_ended_per_life_cycle_state[life_cycle_states],
                 self._succeeded_per_life_cycle_state[life_cycle_states],
                 self.motion_statechart.observation_state.data,
             ),
@@ -423,122 +424,89 @@ class GoalReachedState(State):
         return ObservationStateValues(super().__getitem__(node))
 
 
-@dataclass(repr=False, eq=False)
-class LifeCyclePredicateState:
+@dataclass
+class NextLifeCycle:
     """
-    The value of every life cycle predicate handed out by a motion statechart's nodes.
+    The life cycle state every node of a motion statechart reaches at the end of the
+    current control cycle, as one expression per node.
 
-    Derived from :class:`LifeCycleState` rather than stored: a predicate is a lookup
-    from a life cycle state to a trinary value, so the whole vector is refreshed with a
-    single indexing operation and never has to be serialized.
+    A life cycle predicate inside a transition condition reads the state its node
+    reaches in this same cycle, so a node waiting on another node's verdict starts on
+    the cycle that verdict is reached. A node reading a predicate about itself reads the
+    state it entered the cycle with, because the expression being built is what decides
+    the other one.
     """
 
     motion_statechart: MotionStatechart
     """
-    The motion statechart whose nodes hand out the predicates.
+    The motion statechart whose nodes the expressions are built for.
     """
 
-    data: np.ndarray = field(
-        default_factory=lambda: np.array([], dtype=np.float64), init=False
-    )
+    _expressions: Dict[int, sm.Scalar] = field(default_factory=dict, init=False)
     """
-    One entry per predicate, ordered as :meth:`symbols`.
+    The expression already built per node index.
     """
 
-    _variables: List[LifeCyclePredicateVariable] = field(
+    _nodes_being_built: List[MotionStatechartNode] = field(
         default_factory=list, init=False
     )
     """
-    The predicates this state holds a value for.
+    The nodes whose expressions are currently being built, innermost last, used to
+    report a cycle by the path that closed it.
     """
 
-    _truth_tables: np.ndarray = field(
-        default_factory=lambda: np.zeros((0, len(LifeCycleValues))), init=False
-    )
-    """
-    The truth value of every predicate per life cycle state, one row per predicate.
-    """
-
-    _node_indices: np.ndarray = field(
-        default_factory=lambda: np.array([], dtype=np.intp), init=False
-    )
-    """
-    The index of the node each predicate reads, one entry per predicate.
-    """
-
-    _indices_by_variable_name: Dict[str, int] = field(default_factory=dict, init=False)
-    """
-    Where each predicate sits in :attr:`data`, looked up by the variable's name because
-    comparing two variables builds a symbolic expression rather than a boolean.
-    """
-
-    def compile(self) -> None:
+    def as_vector(self) -> sm.Vector:
         """
-        Sizes this state to the predicates handed out so far and fills in their current
-        values.
-
-        .. warning:: Must run before the compiled updaters bind to :attr:`data`, because
-            it replaces the array.
+        :return: The next life cycle state of every node, in node order.
         """
-        self._variables = [
+        return sm.Vector([self.of(node) for node in self.motion_statechart.nodes])
+
+    def of(self, node: MotionStatechartNode) -> sm.Scalar:
+        """
+        :param node: The node to build the expression for.
+        :return: The life cycle state `node` reaches at the end of the control cycle.
+        :raises CyclicPredicateDependencyError: If `node` and another node read each
+            other's predicates, leaving no order in which both could be evaluated.
+        """
+        if node.index in self._expressions:
+            return self._expressions[node.index]
+        if node in self._nodes_being_built:
+            cycle_start = self._nodes_being_built.index(node)
+            raise CyclicPredicateDependencyError(
+                cycle=self._nodes_being_built[cycle_start:] + [node]
+            )
+        self._nodes_being_built.append(node)
+        transitions = sm.if_eq_cases(
+            a=node.life_cycle_variable,
+            b_result_cases=node.create_lifecycle_transitions().as_cases(),
+            else_result=sm.Scalar(node.life_cycle_variable),
+        )
+        predicates = [
             variable
-            for node in self.motion_statechart.nodes
-            for variable in node.life_cycle_predicate_variables
+            for variable in transitions.free_variables()
+            if isinstance(variable, LifeCyclePredicateVariable)
         ]
-        self.data = np.full(len(self._variables), float(ObservationStateValues.UNKNOWN))
-        self._truth_tables = np.array(
-            [variable.predicate.value.lookup_table() for variable in self._variables]
-        ).reshape(len(self._variables), len(LifeCycleValues))
-        self._node_indices = np.array(
-            [variable.motion_statechart_node.index for variable in self._variables],
-            dtype=np.intp,
+        expression = transitions.substitute(
+            predicates, [self._resolve(node, variable) for variable in predicates]
         )
-        self._indices_by_variable_name = {
-            variable.name: index for index, variable in enumerate(self._variables)
-        }
-        self.update_state()
+        self._nodes_being_built.pop()
+        self._expressions[node.index] = expression
+        return expression
 
-    def update_state(self) -> None:
+    def _resolve(
+        self, reader: MotionStatechartNode, variable: LifeCyclePredicateVariable
+    ) -> sm.Scalar:
         """
-        Reads the current life cycle state of every node and writes the resulting
-        predicate values into :attr:`data`.
+        :param reader: The node whose expression reads the predicate.
+        :param variable: The predicate to replace by an expression.
+        :return: The predicate evaluated in the life cycle state its node reaches this
+            control cycle, or the one `reader` entered with if it reads about itself.
         """
-        if not self._variables:
-            return
-        life_cycle_values = self.motion_statechart.life_cycle_state.data[
-            self._node_indices
-        ].astype(np.intp)
-        np.copyto(
-            self.data,
-            self._truth_tables[np.arange(len(self._variables)), life_cycle_values],
+        if variable.motion_statechart_node is reader:
+            return variable.predicate.value.expression(reader.life_cycle_variable)
+        return variable.predicate.value.expression(
+            self.of(variable.motion_statechart_node)
         )
-
-    def symbols(self) -> List[LifeCyclePredicateVariable]:
-        """
-        :return: The predicate variable of every entry, in :attr:`data` order.
-        """
-        return list(self._variables)
-
-    def __getitem__(self, variable: LifeCyclePredicateVariable) -> float:
-        """
-        :param variable: The predicate to look up.
-        :return: Its current trinary value.
-        """
-        return float(self.data[self._indices_by_variable_name[variable.name]])
-
-    def __len__(self) -> int:
-        return self.data.shape[0]
-
-    def __str__(self) -> str:
-        return str(
-            {
-                variable.display_name: ObservationStateValues(self.data[index]).name
-                for index, variable in enumerate(self._variables)
-            }
-        )
-
-    def __repr__(self) -> str:
-        return str(self)
 
 
 @dataclass(repr=False, eq=False)
@@ -674,9 +642,9 @@ class MotionStatechart(SubclassJSONSerializer):
     `node.is_failed`. A condition that outlives the node it reads has to read the verdict,
     since the observation behind it is gone once that node ends; `node.goal_reached`
     answers that in one variable, holding what a node observes while it runs and the
-    verdict it earned once it has ended. Reading a life cycle state lags one tick behind
-    reading an observation, because the predicates are refreshed after the life cycle
-    update.
+    verdict it earned once it has ended. A predicate reads the life cycle state its node
+    reaches at the end of the current tick, so a node waiting on another node's verdict
+    starts on the tick that verdict is reached.
     Nodes are connected with edges, or transitions.
     There are 4 types of transitions:
         - start condition: If True, the node transitions from NOT_STARTED to RUNNING.
@@ -723,12 +691,6 @@ class MotionStatechart(SubclassJSONSerializer):
     an efficient tick().
     """
 
-    life_cycle_predicate_state: LifeCyclePredicateState = field(init=False)
-    """
-    The life cycle predicates the conditions of this motion statechart read, derived
-    from :attr:`life_cycle_state` after every update.
-    """
-
     goal_reached_state: GoalReachedState = field(init=False)
     """
     Whether every node reached its goal, derived from :attr:`observation_state` and
@@ -767,12 +729,11 @@ class MotionStatechart(SubclassJSONSerializer):
 
     def __post_init__(self):
         """
-        Creates the (initially empty) life cycle, observation and predicate states for
-        this motion statechart.
+        Creates the (initially empty) life cycle, observation and goal reached states
+        for this motion statechart.
         """
         self.life_cycle_state = LifeCycleState(self)
         self.observation_state = ObservationState(self)
-        self.life_cycle_predicate_state = LifeCyclePredicateState(self)
         self.goal_reached_state = GoalReachedState(self)
 
     def create_structure_copy(self) -> MotionStatechart:
@@ -1058,7 +1019,6 @@ class MotionStatechart(SubclassJSONSerializer):
         self._expand_goals(context=context)
         self._build_nodes(context=context)
         self._add_transitions()
-        self.life_cycle_predicate_state.compile()
         self.observation_state.compile(context=context)
         self.life_cycle_state.compile()
         self.goal_reached_state.update_state()
@@ -1151,7 +1111,6 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         previous = self.life_cycle_state.data.copy()
         self.life_cycle_state.update_state()
-        self.life_cycle_predicate_state.update_state()
         self._trigger_life_cycle_callbacks(
             previous, self.life_cycle_state.data, context
         )

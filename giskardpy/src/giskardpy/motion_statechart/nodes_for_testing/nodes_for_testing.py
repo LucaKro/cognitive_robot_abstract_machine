@@ -278,6 +278,22 @@ class NodeObservingNothingYet(MotionStatechartNode):
         return NodeArtifacts(observation=sm.Scalar.const_trinary_unknown())
 
 
+@dataclass(eq=False, repr=False)
+class NodeObservingAPredicate(MotionStatechartNode):
+    """
+    A node whose observation reads a life cycle predicate, which only a transition
+    condition may do.
+    """
+
+    watched_node: MotionStatechartNode = field(default=None, kw_only=True)
+    """
+    The node whose verdict this node tries to observe.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar(self.watched_node.is_succeeded))
+
+
 # %% goals that end their child
 
 

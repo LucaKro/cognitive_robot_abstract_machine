@@ -5,7 +5,7 @@ from enum import IntEnum, Enum
 from typing import Union, FrozenSet
 
 import numpy as np
-from krrood.symbolic_math.symbolic_math import Scalar
+from krrood.symbolic_math.symbolic_math import Scalar, if_eq_cases
 
 goal_parameter = Union[str, float, bool, dict, list, IntEnum, None]
 
@@ -70,6 +70,15 @@ class LifeCycleValues(IntEnum):
         :return: Whether a node in this state has ended.
         """
         return self in self.terminal_states()
+
+    @classmethod
+    def terminal_lookup_table(cls) -> np.ndarray:
+        """
+        :return: Whether a node has ended in each state, indexed by that state's value.
+        """
+        table = np.array([state.is_terminal for state in sorted(cls)])
+        table.flags.writeable = False
+        return table
 
     @classmethod
     def verdict_for(cls, observation: ObservationStateValues) -> LifeCycleValues:
@@ -144,9 +153,29 @@ class LifeCyclePredicateDefinition:
         """
         :return: The truth value per life cycle state, indexed by that state's value.
         """
-        return np.array(
+        table = np.array(
             [float(self.truth_value(state)) for state in sorted(LifeCycleValues)],
             dtype=np.float64,
+        )
+        table.flags.writeable = False
+        return table
+
+    def expression(self, life_cycle: Scalar) -> Scalar:
+        """
+        The same truth table as :meth:`lookup_table`, but read off an expression rather
+        than a value, so a predicate can be resolved while the life cycle state it reads
+        is still being computed.
+
+        :param life_cycle: The life cycle state to evaluate the predicate in.
+        :return: The trinary value the predicate takes in that state.
+        """
+        return if_eq_cases(
+            a=life_cycle,
+            b_result_cases=[
+                (int(state), Scalar(float(self.truth_value(state))))
+                for state in sorted(LifeCycleValues)
+            ],
+            else_result=Scalar.const_trinary_unknown(),
         )
 
 

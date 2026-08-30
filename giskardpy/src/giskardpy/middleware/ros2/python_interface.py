@@ -122,9 +122,6 @@ class GiskardWrapper:
         )
         motion_statechart.life_cycle_state.data = parsed_life_cycle_state.data
         motion_statechart.observation_state.data = parsed_observation_state.data
-        # The predicates are derived from the life cycle state, so they are recomputed
-        # here rather than sent over the wire.
-        motion_statechart.life_cycle_predicate_state.compile()
         assert motion_statechart.is_end_motion()
 
     def _create_goal_message(

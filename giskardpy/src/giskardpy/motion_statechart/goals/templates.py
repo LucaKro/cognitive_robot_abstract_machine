@@ -22,9 +22,6 @@ class Sequence(Goal):
     executed in order.
 
     Its observation is whether the last node in the sequence reached its goal.
-
-    .. note:: A step starts one control cycle after its predecessor ends, because a
-        verdict is only readable on the cycle after the one that reached it.
     """
 
     nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
@@ -32,9 +29,8 @@ class Sequence(Goal):
     def expand(self, context: MotionStatechartContext) -> None:
         """
         A step ends itself once it observes its goal, which succeeds it, and the next
-        step waits for that verdict rather than for the observation behind it.
-
-        Only the verdict outlasts the step that reached it.
+        step reads that verdict rather than the observation behind it, because only the
+        verdict outlasts the step that reached it.
         """
         last_node: Optional[MotionStatechartNode] = None
         for i, node in enumerate(self.nodes):

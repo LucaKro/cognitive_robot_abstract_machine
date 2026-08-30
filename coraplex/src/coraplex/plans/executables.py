@@ -248,8 +248,8 @@ class GiskardExecutable(Executable):
             )
             self._current_motion_state_chart.add_node(interrupt_monitor)
             if index > 0:
-                # the verdict, not the observation behind it: this start is deliberately
-                # deferred past the cycle the previous task ended on.
+                # the verdict, not the observation behind it, which is gone once the
+                # previous task ends.
                 previous_done = tasks[index - 1].is_succeeded
                 # start only once the previous motion finished and this one is not
                 # interrupted ...

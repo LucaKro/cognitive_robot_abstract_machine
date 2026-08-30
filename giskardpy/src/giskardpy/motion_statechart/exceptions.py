@@ -280,6 +280,56 @@ class CyclicNodeDependencyError(NodeInitializationError):
 
 
 @dataclass
+class CyclicPredicateDependencyError(MotionStatechartError):
+    """
+    Raised when nodes read each other's life cycle predicates in a cycle, so no order
+    exists in which one control cycle could be evaluated.
+    """
+
+    cycle: list[MotionStatechartNode]
+    """
+    The nodes forming the cycle, in the order in which they read each other.
+    """
+
+    def error_message(self) -> str:
+        cycle_str = " -> ".join(node.unique_name for node in self.cycle)
+        return f"Nodes read each other's life cycle predicates in a cycle: {cycle_str}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Break the cycle, for example by reading the observation state of one of "
+            "the nodes instead of its verdict."
+        )
+
+
+@dataclass
+class UnsupportedObservationVariableError(NodeInitializationError):
+    """
+    Raised when the observation expression of a node reads a life cycle predicate.
+
+    Observations are computed before the life cycle state, so the state a predicate
+    reads does not exist yet at that point.
+    """
+
+    unsupported_variable: FloatVariable
+    """
+    The variable in the observation expression that a node may not read.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'Observation of "{self.node.unique_name}" contains '
+            f'"{self.unsupported_variable}", which an observation may not read.'
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Read the life cycle state itself, e.g. 'node.life_cycle_variable', or move "
+            "the test into a transition condition."
+        )
+
+
+@dataclass
 class NoProgressError(MotionStatechartError):
     """
     Raised when the watched tasks stopped approaching their goal for too long.

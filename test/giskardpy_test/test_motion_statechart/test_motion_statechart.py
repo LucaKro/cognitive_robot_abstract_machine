@@ -31,6 +31,8 @@ from giskardpy.motion_statechart.exceptions import (
     TerminalNodeInConditionError,
     EmptyDegreesOfFreedomError,
     MissingErrorSignalError,
+    CyclicPredicateDependencyError,
+    UnsupportedObservationVariableError,
 )
 from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import (
@@ -61,6 +63,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     GoalCuttingOffItsChild,
     GoalCuttingOffItsChildAtItsGoal,
     GoalWithChildFailingOnItsOwn,
+    NodeObservingAPredicate,
     NodeObservingNothingYet,
     ConstTrueNode,
     TestGoal,
@@ -1657,8 +1660,7 @@ class TestTemplates:
 
     def test_sequence_goal(self, tmp_path):
         """
-        Every step but the first waits for its predecessor's verdict, which is only
-        readable on the cycle after the one that reached it.
+        Every step but the first starts on the cycle its predecessor succeeds.
         """
         msc = MotionStatechart()
         node = Sequence(
@@ -1677,11 +1679,7 @@ class TestTemplates:
         kin_sim.tick_until_end()
         msc.draw(str(tmp_path / "muh.pdf"))
         cycles_to_run_the_steps = 6
-        cycles_spent_waiting_for_a_verdict = len(node.nodes) - 1
-        assert (
-            kin_sim.control_cycles
-            == cycles_to_run_the_steps + cycles_spent_waiting_for_a_verdict
-        )
+        assert kin_sim.control_cycles == cycles_to_run_the_steps
         assert msc.nodes[1].life_cycle_state == LifeCycleValues.RUNNING
         assert msc.nodes[2].life_cycle_state == LifeCycleValues.SUCCEEDED
         assert msc.nodes[3].life_cycle_state == LifeCycleValues.SUCCEEDED
@@ -2682,6 +2680,54 @@ class TestGoalReached:
         assert node.observation_state == ObservationStateValues.UNKNOWN
         assert node.goal_reached_state == ObservationStateValues.FALSE
 
+    def test_every_node_is_read_against_its_own_life_cycle_state(self):
+        """
+        One node per life cycle state, so a node reading another node's row would show
+        up here.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                blocker := ConstFalseNode(),
+                not_started := ConstTrueNode(),
+                running := ConstTrueNode(),
+                succeeded := ConstTrueNode(),
+                failed := ConstFalseNode(),
+                interrupted := NodeObservingNothingYet(),
+            ]
+        )
+        not_started.start_condition = blocker.observation_variable
+        for node in (succeeded, failed, interrupted):
+            node.end_condition = trigger.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(3):
+            executor.tick()
+
+        assert {
+            node: node.life_cycle_state
+            for node in (not_started, running, succeeded, failed, interrupted)
+        } == {
+            not_started: LifeCycleValues.NOT_STARTED,
+            running: LifeCycleValues.RUNNING,
+            succeeded: LifeCycleValues.SUCCEEDED,
+            failed: LifeCycleValues.FAILED,
+            interrupted: LifeCycleValues.INTERRUPTED,
+        }
+        assert {
+            node: msc.goal_reached_state[node]
+            for node in (not_started, running, succeeded, failed, interrupted)
+        } == {
+            not_started: ObservationStateValues.UNKNOWN,
+            running: ObservationStateValues.TRUE,
+            succeeded: ObservationStateValues.TRUE,
+            failed: ObservationStateValues.FALSE,
+            interrupted: LifeCyclePredicate.IS_SUCCEEDED.value.truth_value(
+                LifeCycleValues.INTERRUPTED
+            ),
+        }
+
     def test_it_renders_as_one_variable(self):
         msc = MotionStatechart()
         msc.add_nodes([finished := ConstTrueNode(), later := ConstTrueNode()])
@@ -2861,10 +2907,10 @@ class TestLifeCyclePredicates:
             == expected
         )
 
-    def test_a_condition_can_start_a_node_on_another_verdict(self):
+    def test_a_condition_starts_a_node_on_the_cycle_a_verdict_is_reached(self):
         """
-        Predicates are refreshed after the life cycle update, so a node reacting to a
-        verdict starts one tick after it was reached.
+        A predicate reads the life cycle its node reaches in the same step, so a node
+        reacting to a verdict starts on the cycle that verdict is reached.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -2883,46 +2929,74 @@ class TestLifeCyclePredicates:
 
         executor.tick()
         assert first.life_cycle_state == LifeCycleValues.SUCCEEDED
-        assert second.life_cycle_state == LifeCycleValues.NOT_STARTED
-
-        executor.tick()
         assert second.life_cycle_state == LifeCycleValues.RUNNING
 
-    def test_predicate_state_follows_the_life_cycle_state(self):
+    def test_a_predicate_follows_the_life_cycle_state_of_its_node(self):
         msc = MotionStatechart()
         msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
         node.end_condition = trigger.observation_variable
-        other_node = ConstFalseNode()
-        msc.add_node(other_node)
-        other_node.start_condition = node.is_failed
 
         executor = Executor(MotionStatechartContext(world=World()))
         executor.compile(motion_statechart=msc)
-        assert (
-            msc.life_cycle_predicate_state[node.is_failed]
-            == ObservationStateValues.UNKNOWN
-        )
+        assert node.is_failed.resolve() == ObservationStateValues.UNKNOWN
 
         executor.tick()
         assert node.life_cycle_state == LifeCycleValues.FAILED
-        assert (
-            msc.life_cycle_predicate_state[node.is_failed]
-            == ObservationStateValues.TRUE
+        assert node.is_failed.resolve() == ObservationStateValues.TRUE
+
+    def test_nodes_reading_each_others_verdicts_in_a_cycle_are_rejected(self):
+        """
+        Neither next state can be computed before the other, so there is no order in
+        which the step could be evaluated.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
+        first.start_condition = second.is_failed
+        second.start_condition = first.is_failed
+
+        with pytest.raises(CyclicPredicateDependencyError) as exception_info:
+            _compile_msc(msc)
+
+        assert set(exception_info.value.cycle) == {first, second}
+
+    def test_a_node_reading_its_own_verdict_reads_the_state_it_entered_with(self):
+        """
+        A node cannot react to the state the current step gives it, so a predicate it
+        reads about itself is the one it started the step in.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.end_condition = trigger.observation_variable
+        node.reset_condition = node.is_failed
+
+        executor = _compile_msc(msc)
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+    def test_a_predicate_in_an_observation_expression_is_rejected(self):
+        """
+        Observations are computed before the life cycle update, so there is no next
+        state for them to read.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [watched := ConstTrueNode(), watcher := NodeObservingAPredicate()]
         )
+        watcher.watched_node = watched
+
+        with pytest.raises(UnsupportedObservationVariableError) as exception_info:
+            _compile_msc(msc)
+
+        assert exception_info.value.unsupported_variable is watched.is_succeeded
 
     def test_a_predicate_variable_is_created_once_per_node(self):
         node = ConstTrueNode()
         assert node.is_failed is node.is_failed
         assert node.is_failed is not node.is_succeeded
-
-    def test_a_predicate_is_only_created_when_it_is_asked_for(self):
-        node = ConstTrueNode()
-        assert node.life_cycle_predicate_variables == []
-
-        node.is_running
-        assert [
-            variable.predicate for variable in node.life_cycle_predicate_variables
-        ] == [LifeCyclePredicate.IS_RUNNING]
 
     def test_a_condition_renders_a_predicate_by_name(self):
         msc = MotionStatechart()

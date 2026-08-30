@@ -1267,13 +1267,6 @@ class MotionStatechartNode:
         ]
 
     @property
-    def life_cycle_predicate_variables(self) -> List[LifeCyclePredicateVariable]:
-        """
-        :return: The predicate variables handed out for this node so far.
-        """
-        return list(self._life_cycle_predicate_variables.values())
-
-    @property
     def is_not_started(self) -> LifeCyclePredicateVariable:
         """
         :return: True while this node has not started, false otherwise.

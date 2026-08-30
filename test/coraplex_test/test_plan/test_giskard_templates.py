@@ -171,3 +171,33 @@ def test_slow_alternative_is_not_abandoned_while_still_working():
 
     assert slow.life_cycle_state == LifeCycleValues.RUNNING
     assert fallback.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+
+# %% when the next alternative takes over
+
+
+def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
+    """
+    An alternative waits for its predecessor's verdict, which it reads on the cycle that
+    verdict is reached, so no control cycle passes with neither of them running.
+    """
+    first = ConstFalseNode(name="first")
+    second = ConstTrueNode(name="second")
+    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+
+    msc = MotionStatechart()
+    msc.add_node(goal)
+    context = MotionStatechartContext(world=World())
+    executor = Executor(context)
+    executor.compile(motion_statechart=msc)
+
+    cycles_to_abandon_an_alternative = ceil(
+        GIVE_UP_AFTER / context.qp_controller_config.control_dt
+    )
+    for _ in range(cycles_to_abandon_an_alternative + SETTLE_TICKS):
+        executor.tick()
+        if first.life_cycle_state == LifeCycleValues.FAILED:
+            break
+
+    assert first.life_cycle_state == LifeCycleValues.FAILED
+    assert second.life_cycle_state == LifeCycleValues.RUNNING
