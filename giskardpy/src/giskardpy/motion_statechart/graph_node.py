@@ -53,6 +53,7 @@ from giskardpy.motion_statechart.data_types import (
 from giskardpy.motion_statechart.exceptions import (
     NotInMotionStatechartError,
     EndMotionInGoalError,
+    GoalWithoutChildrenError,
     InputNotExpressionError,
     SelfInStartConditionError,
     UnsupportedConditionVariableError,
@@ -1547,6 +1548,18 @@ class Goal(MotionStatechartNode):
         self._check_node_has_no_end_motion(node)
         self._check_node_doesnt_belong_to_different_parent(node)
 
+    def _check_has_children(self) -> None:
+        """
+        Rejects a goal that was built without the child nodes it exists to run.
+
+        Call this at the start of :meth:`expand`, while :attr:`nodes` still holds only
+        what the caller passed.
+
+        :raises GoalWithoutChildrenError: If this goal has no child nodes.
+        """
+        if not self.nodes:
+            raise GoalWithoutChildrenError(node=self)
+
     def _check_node_has_no_end_motion(self, node: MotionStatechartNode) -> None:
         """
         Rejects nodes that end the whole motion.
@@ -1811,8 +1824,6 @@ class CancelMotion(TerminalNode):
         :param exception: The exception raised on activation.
         :return: The new CancelMotion node.
         """
-        if len(nodes) == 1:
-            return cls.when_true(node=nodes[0], exception=exception)
         end = cls(exception=exception)
         end.start_condition = sm.trinary_logic_and(
             *[node.observation_variable for node in nodes]
@@ -1830,8 +1841,6 @@ class CancelMotion(TerminalNode):
         :param exception: The exception raised on activation.
         :return: The new CancelMotion node.
         """
-        if len(nodes) == 1:
-            return cls.when_true(node=nodes[0], exception=exception)
         end = cls(exception=exception)
         end.start_condition = sm.trinary_logic_or(
             *[node.observation_variable for node in nodes]

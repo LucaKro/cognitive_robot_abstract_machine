@@ -114,17 +114,25 @@ class TestLogic3:
                     actual
                 ), f"a={i}, b={j}, expected {expected}, actual {actual}"
 
-    def test_and3_with_too_few_arguments(self):
-        with pytest.raises(NotEnoughArgumentsError) as error:
-            sm.trinary_logic_and(sm.Scalar(TrinaryTrue))
-        assert error.value.minimum_number_of_arguments == 2
-        assert error.value.actual_number_of_arguments == 1
+    def test_and3_of_one_argument_is_that_argument(self):
+        for i in self.values:
+            assert i == sm.trinary_logic_and(sm.Scalar(i)), f"a={i}"
 
-    def test_or3_with_too_few_arguments(self):
+    def test_or3_of_one_argument_is_that_argument(self):
+        for i in self.values:
+            assert i == sm.trinary_logic_or(sm.Scalar(i)), f"a={i}"
+
+    def test_and3_without_arguments(self):
         with pytest.raises(NotEnoughArgumentsError) as error:
-            sm.trinary_logic_or(sm.Scalar(TrinaryTrue))
-        assert error.value.minimum_number_of_arguments == 2
-        assert error.value.actual_number_of_arguments == 1
+            sm.trinary_logic_and()
+        assert error.value.minimum_number_of_arguments == 1
+        assert error.value.actual_number_of_arguments == 0
+
+    def test_or3_without_arguments(self):
+        with pytest.raises(NotEnoughArgumentsError) as error:
+            sm.trinary_logic_or()
+        assert error.value.minimum_number_of_arguments == 1
+        assert error.value.actual_number_of_arguments == 0
 
     def test_not3(self):
         for i in self.values:

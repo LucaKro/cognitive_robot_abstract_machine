@@ -6,7 +6,6 @@ from typing import List
 from typing_extensions import Optional
 
 from krrood.symbolic_math.symbolic_math import (
-    Scalar,
     trinary_logic_not,
     trinary_logic_or,
 )
@@ -40,6 +39,7 @@ class TryAll(Goal):
         """
         Add all child nodes to this goal so they run in parallel.
         """
+        self._check_has_children()
         for node in self.nodes:
             self.add_node(node)
 
@@ -51,7 +51,7 @@ class TryAll(Goal):
         what it observes now rather than by a verdict it never reaches.
         """
         return NodeArtifacts(
-            observation=_any_of([node.goal_reached for node in self.nodes]),
+            observation=trinary_logic_or(*[node.goal_reached for node in self.nodes]),
         )
 
 
@@ -67,12 +67,15 @@ class TryInOrder(Goal):
     unknown while any of them is still being tried.
     """
 
-    alternatives: List[MotionStatechartNode] = field(default_factory=list, init=True)
+    nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
     """
     The child nodes tried one after another, in order.
+    """
 
-    Kept apart from :attr:`~giskardpy.motion_statechart.graph_node.Goal.nodes`, which
-    also holds the progress monitor :meth:`expand` adds for each of them.
+    _alternatives: List[MotionStatechartNode] = field(default_factory=list, init=False)
+    """
+    The nodes that were passed in, captured before :meth:`expand` adds a progress
+    monitor per alternative to :attr:`nodes` alongside them.
     """
 
     give_up_after: float = field(default=DEFAULT_STALL_TIMEOUT, kw_only=True)
@@ -91,8 +94,10 @@ class TryInOrder(Goal):
         as it ends, not here. An observation that is merely still false means the
         alternative has not arrived yet, and is no reason to abandon it.
         """
+        self._check_has_children()
+        self._alternatives = list(self.nodes)
         previous_node: Optional[MotionStatechartNode] = None
-        for node in self.alternatives:
+        for node in self._alternatives:
             self.add_node(node)
             if previous_node is not None:
                 node.start_condition = previous_node.is_failed
@@ -115,18 +120,7 @@ class TryInOrder(Goal):
         False only once every one of them failed.
         """
         return NodeArtifacts(
-            observation=_any_of([node.goal_reached for node in self.alternatives]),
+            observation=trinary_logic_or(
+                *[node.goal_reached for node in self._alternatives]
+            ),
         )
-
-
-# %% combining a variable number of children
-
-
-def _any_of(expressions: List[Scalar]) -> Scalar:
-    """
-    :param expressions: The trinary expressions to combine, at least one.
-    :return: The disjunction of the expressions, or the single expression itself.
-    """
-    if len(expressions) == 1:
-        return Scalar(expressions[0])
-    return trinary_logic_or(*expressions)

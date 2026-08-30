@@ -32,6 +32,7 @@ class Sequence(Goal):
         step reads that verdict rather than the observation behind it, because only the
         verdict outlasts the step that reached it.
         """
+        self._check_has_children()
         last_node: Optional[MotionStatechartNode] = None
         for i, node in enumerate(self.nodes):
             self.add_node(node)
@@ -53,19 +54,20 @@ class Parallel(Goal):
     """
     Takes a list of nodes and executes them in parallel.
 
-    This nodes' observation state turns True when up to `minimum_success` nodes are
-    True.
+    Its observation turns True once at least :attr:`minimum_success` of them reached
+    their goals.
     """
 
     nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
     minimum_success: Optional[int] = field(default=None, kw_only=True)
     """
-    Defines the minimum number of nodes that must be True for the goal to be achieved.
+    How many nodes must have reached their goals for this goal to be achieved.
 
-    Defaults to None, which means that all nodes must be True.
+    Defaults to None, which means all of them.
     """
 
     def expand(self, context: MotionStatechartContext) -> None:
+        self._check_has_children()
         for node in self.nodes:
             self.add_node(node)
 
@@ -75,8 +77,8 @@ class Parallel(Goal):
         :attr:`minimum_success`.
 
         This goal ends none of its nodes, so a node that keeps running is counted by
-        what it observes now. Counting the current reading is also what makes this goal
-        ask whether enough nodes are at their goals *at the same time*.
+        what it observes now and stops counting once it drifts away from its goal again.
+        A node something *else* ended keeps counting, because its verdict outlasts it.
         """
         nodes_at_their_goal = [node.goal_reached == True for node in self.nodes]
         minimum_success = (

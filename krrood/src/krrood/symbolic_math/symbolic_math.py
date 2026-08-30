@@ -2071,9 +2071,9 @@ def trinary_logic_and(*args: FloatVariable | Scalar) -> Scalar:
         Unknown | Unknown | Unknown | False
         False   | False   | False   | False
     """
-    if len(args) < 2:
+    if len(args) < 1:
         raise NotEnoughArgumentsError(
-            minimum_number_of_arguments=2, actual_number_of_arguments=len(args)
+            minimum_number_of_arguments=1, actual_number_of_arguments=len(args)
         )
     # if there is any False, return False
     if any(x for x in args if x.is_const_false()):
@@ -2100,15 +2100,15 @@ def trinary_logic_or(*args: FloatVariable | Scalar) -> Scalar:
         Unknown | True    | Unknown | Unknown
         False   | True    | Unknown | False
     """
-    if len(args) < 2:
+    if len(args) < 1:
         raise NotEnoughArgumentsError(
-            minimum_number_of_arguments=2, actual_number_of_arguments=len(args)
+            minimum_number_of_arguments=1, actual_number_of_arguments=len(args)
         )
-    # if there is any False, return False
+    # if there is any True, return True
     if any(x for x in args if x.is_const_true()):
         return Scalar.const_true()
-    # filter all True
-    args = [x for x in args if not x.is_const_true()]
+    # filter all False
+    args = [x for x in args if not x.is_const_false()]
     if len(args) == 0:
         return Scalar.const_false()
     if len(args) == 1:

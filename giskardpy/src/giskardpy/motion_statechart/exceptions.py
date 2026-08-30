@@ -149,6 +149,19 @@ class EndMotionInGoalError(NodeInitializationError):
 
 
 @dataclass
+class GoalWithoutChildrenError(NodeInitializationError):
+    """
+    Raised when a goal that runs a list of child nodes is built without any.
+    """
+
+    def error_message(self) -> str:
+        return f'Goal "{self.node.unique_name}" was given no child nodes.'
+
+    def suggest_correction(self) -> str:
+        return "Pass at least one node to the goal, or leave the goal out entirely."
+
+
+@dataclass
 class UnexpectedWorldEntityCountError(NodeInitializationError):
     """
     Raised when a node searches the world for entities and finds a different number than

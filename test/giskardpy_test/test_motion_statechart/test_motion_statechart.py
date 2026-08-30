@@ -23,6 +23,7 @@ from giskardpy.motion_statechart.data_types import (
 from giskardpy.motion_statechart.exceptions import (
     NotInMotionStatechartError,
     EndMotionInGoalError,
+    GoalWithoutChildrenError,
     InputNotExpressionError,
     SelfInStartConditionError,
     UnsupportedConditionVariableError,
@@ -1645,6 +1646,58 @@ class TestEndMotion:
         msc.draw(str(tmp_path / "muh.pdf"))
         assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
 
+    def test_end_motion_when_all_true_accepts_a_single_node(self):
+        """
+        A list of one is valid input, so combining it must not depend on there being
+        something to combine it with.
+        """
+        msc = MotionStatechart()
+        msc.add_node(ConstTrueNode())
+        msc.add_node(end := EndMotion.when_all_true(msc.nodes))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
+
+        assert end.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_end_motion_when_any_true_accepts_a_single_node(self):
+        msc = MotionStatechart()
+        msc.add_node(ConstTrueNode())
+        msc.add_node(end := EndMotion.when_any_true(msc.nodes))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end()
+
+        assert end.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_cancel_motion_when_all_true_accepts_a_single_node(self):
+        msc = MotionStatechart()
+        msc.add_node(ConstTrueNode())
+        cancelled = Exception("cancelled")
+        msc.add_node(CancelMotion.when_all_true(msc.nodes, exception=cancelled))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        with pytest.raises(type(cancelled)) as error:
+            kin_sim.tick_until_end()
+
+        assert error.value is cancelled
+
+    def test_cancel_motion_when_any_true_accepts_a_single_node(self):
+        msc = MotionStatechart()
+        msc.add_node(ConstTrueNode())
+        cancelled = Exception("cancelled")
+        msc.add_node(CancelMotion.when_any_true(msc.nodes, exception=cancelled))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        with pytest.raises(type(cancelled)) as error:
+            kin_sim.tick_until_end()
+
+        assert error.value is cancelled
+
     def test_goals_cannot_have_end_motion(self):
         msc = MotionStatechart()
         msc.add_node(Sequence([ConstTrueNode(), EndMotion()]))
@@ -1686,6 +1739,22 @@ class TestTemplates:
         assert msc.nodes[3].life_cycle_state == LifeCycleValues.SUCCEEDED
         assert msc.nodes[4].life_cycle_state == LifeCycleValues.SUCCEEDED
         assert msc.nodes[5].life_cycle_state == LifeCycleValues.SUCCEEDED
+
+    def test_a_sequence_without_steps_is_rejected(self):
+        msc = MotionStatechart()
+        msc.add_node(Sequence(nodes=[]))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        with pytest.raises(GoalWithoutChildrenError):
+            kin_sim.compile(motion_statechart=msc)
+
+    def test_a_parallel_without_nodes_is_rejected(self):
+        msc = MotionStatechart()
+        msc.add_node(Parallel(nodes=[]))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        with pytest.raises(GoalWithoutChildrenError):
+            kin_sim.compile(motion_statechart=msc)
 
     def test_sequence_gives_a_terminal_step_no_end_condition(self):
         """

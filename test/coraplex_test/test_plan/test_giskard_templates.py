@@ -10,12 +10,14 @@ succeed / fail.
 
 from math import ceil
 
+import pytest
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
+from giskardpy.motion_statechart.exceptions import GoalWithoutChildrenError
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.monitors.payload_monitors import CountControlCycles
@@ -111,7 +113,7 @@ def test_try_all_single_child():
 def test_try_in_order_short_circuits_on_first_success():
     first = ConstTrueNode(name="first")
     second = ConstFalseNode(name="second")
-    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+    goal = TryInOrder(nodes=[first, second], give_up_after=GIVE_UP_AFTER)
     _compile_and_tick(goal)
 
     assert goal.observation_state == ObservationStateValues.TRUE
@@ -124,7 +126,7 @@ def test_try_in_order_short_circuits_on_first_success():
 def test_try_in_order_advances_after_failure():
     first = ConstFalseNode(name="first")
     second = ConstTrueNode(name="second")
-    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+    goal = TryInOrder(nodes=[first, second], give_up_after=GIVE_UP_AFTER)
     _compile_and_tick(goal, alternatives_to_abandon=1)
 
     assert goal.observation_state == ObservationStateValues.TRUE
@@ -136,7 +138,7 @@ def test_try_in_order_advances_after_failure():
 def test_try_in_order_fails_only_if_all_children_fail():
     first = ConstFalseNode(name="first")
     second = ConstFalseNode(name="second")
-    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+    goal = TryInOrder(nodes=[first, second], give_up_after=GIVE_UP_AFTER)
     _compile_and_tick(goal, alternatives_to_abandon=2)
 
     assert goal.observation_state == ObservationStateValues.FALSE
@@ -145,9 +147,7 @@ def test_try_in_order_fails_only_if_all_children_fail():
 
 
 def test_try_in_order_single_child():
-    goal = TryInOrder(
-        alternatives=[ConstTrueNode(name="only")], give_up_after=GIVE_UP_AFTER
-    )
+    goal = TryInOrder(nodes=[ConstTrueNode(name="only")], give_up_after=GIVE_UP_AFTER)
     _compile_and_tick(goal)
 
     assert goal.observation_state == ObservationStateValues.TRUE
@@ -166,7 +166,7 @@ def test_slow_alternative_is_not_abandoned_while_still_working():
     """
     slow = CountControlCycles(name="slow", control_cycles=SLOW_ALTERNATIVE_CYCLES)
     fallback = ConstTrueNode(name="fallback")
-    goal = TryInOrder(alternatives=[slow, fallback], give_up_after=GIVE_UP_AFTER)
+    goal = TryInOrder(nodes=[slow, fallback], give_up_after=GIVE_UP_AFTER)
     _compile_and_tick(goal, ticks=2)
 
     assert slow.life_cycle_state == LifeCycleValues.RUNNING
@@ -183,7 +183,7 @@ def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
     """
     first = ConstFalseNode(name="first")
     second = ConstTrueNode(name="second")
-    goal = TryInOrder(alternatives=[first, second], give_up_after=GIVE_UP_AFTER)
+    goal = TryInOrder(nodes=[first, second], give_up_after=GIVE_UP_AFTER)
 
     msc = MotionStatechart()
     msc.add_node(goal)
@@ -201,3 +201,24 @@ def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
 
     assert first.life_cycle_state == LifeCycleValues.FAILED
     assert second.life_cycle_state == LifeCycleValues.RUNNING
+
+
+# %% goals built without children
+
+
+def test_a_try_all_without_nodes_is_rejected():
+    msc = MotionStatechart()
+    msc.add_node(TryAll(nodes=[]))
+
+    executor = Executor(MotionStatechartContext(world=World()))
+    with pytest.raises(GoalWithoutChildrenError):
+        executor.compile(motion_statechart=msc)
+
+
+def test_a_try_in_order_without_nodes_is_rejected():
+    msc = MotionStatechart()
+    msc.add_node(TryInOrder(nodes=[], give_up_after=GIVE_UP_AFTER))
+
+    executor = Executor(MotionStatechartContext(world=World()))
+    with pytest.raises(GoalWithoutChildrenError):
+        executor.compile(motion_statechart=msc)

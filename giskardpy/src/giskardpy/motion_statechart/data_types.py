@@ -221,14 +221,6 @@ class LifeCyclePredicate(Enum):
         """
         return self.name.lower()
 
-    @classmethod
-    def from_attribute_name(cls, attribute_name: str) -> LifeCyclePredicate:
-        """
-        :param attribute_name: The name produced by :attr:`attribute_name`.
-        :return: The matching predicate.
-        """
-        return cls[attribute_name.upper()]
-
 
 # %% weights and transitions
 
