@@ -43,18 +43,18 @@ class LifeCycleValues(IntEnum):
 
     SUCCEEDED = 3
     """
-    The node was stopped while its success criterion held.
+    The node was ended while its success criterion held.
     """
 
     FAILED = 4
     """
-    The node was stopped while its success criterion did not hold.
+    The node was ended while its success criterion did not hold.
     """
 
     INTERRUPTED = 5
     """
-    The node stopped without being judged, either because an ancestor stopped and took
-    it down with it, or because it has no success criterion to judge it by.
+    The node ended without being judged, either because an ancestor ended and took it
+    down with it, or because it has no success criterion to judge it by.
     """
 
     @classmethod
@@ -74,13 +74,13 @@ class LifeCycleValues(IntEnum):
     @classmethod
     def verdict_for(cls, success_criterion: ObservationStateValues) -> LifeCycleValues:
         """
-        The verdict a node receives when it is stopped by its own stop condition.
+        The verdict a node receives when it is ended by its own end condition.
 
         A criterion that has no answer yet is no basis for a judgement, so it is treated
         the same as having none at all.
 
         :param success_criterion: The value of the node's success criterion at the
-            moment it is stopped.
+            moment it is ended.
         :return: The terminal state the node reaches.
         """
         match success_criterion:
@@ -224,7 +224,7 @@ class TransitionKind(Enum):
     Transitions nodes from RUNNING to PAUSED if True, or back if False.
     """
 
-    STOP = 3
+    END = 3
     """
     Transitions nodes from RUNNING or PAUSED to a terminal state, and their descendants
     to INTERRUPTED.

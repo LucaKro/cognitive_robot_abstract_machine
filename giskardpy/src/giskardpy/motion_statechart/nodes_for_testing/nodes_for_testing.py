@@ -39,7 +39,7 @@ class TestNodeAssertionError(GiskardException):
 @dataclass(eq=False, repr=False)
 class ConstTrueNode(MotionStatechartNode):
     """
-    A node that has always reached its goal, so stopping it always succeeds it.
+    A node that has always reached its goal, so ending it always succeeds it.
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -51,7 +51,7 @@ class ConstTrueNode(MotionStatechartNode):
 @dataclass(eq=False, repr=False)
 class ConstFalseNode(MotionStatechartNode):
     """
-    A node that never reaches its goal, so stopping it always fails it.
+    A node that never reaches its goal, so ending it always fails it.
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -90,7 +90,7 @@ class TestGoal(Goal):
         self.add_node(self.sub_node1)
         self.sub_node2 = ConstTrueNode(name="sub muh2")
         self.add_node(self.sub_node2)
-        self.sub_node1.stop_condition = self.sub_node1.observation_variable
+        self.sub_node1.end_condition = self.sub_node1.observation_variable
         self.sub_node2.start_condition = self.sub_node1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -158,9 +158,9 @@ class TestEndBeforeStart(Goal):
     """
     Test if a child node can end before it was started.
 
-    node1 waits 1 tick, then starts node 3. node2 fulfills the stop condition of node 3
+    node1 waits 1 tick, then starts node 3. node2 fulfills the end condition of node 3
     immediately. node3 should start when node1 is True and transition to RUNNING with
-    Observationstate UNKNOWN. On the next tick, node3 should be stopped because its stop
+    Observationstate UNKNOWN. On the next tick, node3 should be ended because its end
     condition is already fulfilled by node2.
     """
 
@@ -176,7 +176,7 @@ class TestEndBeforeStart(Goal):
         self.add_nodes(nodes=[self.node1, self.node2, self.node3])
 
         self.node3.start_condition = self.node1.observation_variable
-        self.node3.stop_condition = self.node2.observation_variable
+        self.node3.end_condition = self.node2.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
@@ -252,7 +252,7 @@ class TestUnpauseUnknownFromParentPause(Goal):
         self.add_node(Sequence(nodes=[self.count_ticks2, self.cancel]))
 
         self.count_ticks1.pause_condition = sm.Scalar.const_trinary_unknown()
-        self.count_ticks1.stop_condition = self.count_ticks1.observation_variable
+        self.count_ticks1.end_condition = self.count_ticks1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
@@ -272,7 +272,7 @@ class NodeObservingNothingYet(MotionStatechartNode):
     """
     A node that runs without ever deciding what it observes.
 
-    It declares no criterion, so stopping it reads an observation that is unknown at run
+    It declares no criterion, so ending it reads an observation that is unknown at run
     time rather than a criterion that is already unknown when the verdict is compiled.
     """
 
@@ -283,8 +283,8 @@ class NodeObservingNothingYet(MotionStatechartNode):
 @dataclass(eq=False, repr=False)
 class NodeWithUndecidedSuccessCriterion(MotionStatechartNode):
     """
-    A node that declares it has no notion of succeeding, so stopping it can only
-    interrupt it.
+    A node that declares it has no notion of succeeding, so ending it can only interrupt
+    it.
 
     Its observation is true, so that a test asserting on the verdict is asserting on the
     declared criterion rather than on the observation.
@@ -297,13 +297,13 @@ class NodeWithUndecidedSuccessCriterion(MotionStatechartNode):
         )
 
 
-# %% goals that stop their child
+# %% goals that end their child
 
 
 @dataclass(repr=False, eq=False)
 class GoalCuttingOffItsChildAtItsGoal(Goal):
     """
-    Goal whose child has reached its goal but is never stopped on its own terms, so the
+    Goal whose child has reached its goal but is never ended on its own terms, so the
     child is only ever taken down by this goal ending.
     """
 
@@ -325,7 +325,7 @@ class GoalCuttingOffItsChildAtItsGoal(Goal):
 @dataclass(repr=False, eq=False)
 class GoalCuttingOffItsChild(Goal):
     """
-    Goal whose child is short of its goal and is never stopped on its own terms, so the
+    Goal whose child is short of its goal and is never ended on its own terms, so the
     child is only ever taken down by this goal ending.
     """
 
@@ -347,26 +347,26 @@ class GoalCuttingOffItsChild(Goal):
 @dataclass(repr=False, eq=False)
 class GoalWithChildFailingOnItsOwn(Goal):
     """
-    Goal whose child is stopped on its own terms on the first tick, so that a caller
+    Goal whose child is ended on its own terms on the first tick, so that a caller
     ending this goal on that same tick makes the child's own verdict compete with being
     cut off.
     """
 
     trigger: ConstTrueNode = field(init=False)
     """
-    Turns true on the first tick, which is what stops the child.
+    Turns true on the first tick, which is what ends the child.
     """
 
     child: ConstFalseNode = field(init=False)
     """
-    The child that is stopped while its success criterion is false.
+    The child that is ended while its success criterion is false.
     """
 
     def expand(self, context: MotionStatechartContext) -> None:
         self.trigger = ConstTrueNode()
         self.child = ConstFalseNode()
         self.add_nodes(nodes=[self.trigger, self.child])
-        self.child.stop_condition = self.trigger.observation_variable
+        self.child.end_condition = self.trigger.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(

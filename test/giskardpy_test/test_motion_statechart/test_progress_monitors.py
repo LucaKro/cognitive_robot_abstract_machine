@@ -156,7 +156,7 @@ class TestStallDetection:
         """
         A goal the robot converges on reads as progressing for the whole motion.
 
-        Every cycle must be true rather than merely not false: a node stopped while it
+        Every cycle must be true rather than merely not false: a node ended while it
         is still getting somewhere has to be judged, and an undecided monitor could only
         interrupt it.
         """

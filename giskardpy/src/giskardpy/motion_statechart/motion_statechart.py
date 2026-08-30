@@ -653,10 +653,10 @@ class MotionStatechart(SubclassJSONSerializer):
         - NOT_STARTED: the node has not started yet.
         - RUNNING: the node is running.
         - PAUSED: the node is paused.
-        - SUCCEEDED: the node was stopped while its success criterion held.
-        - FAILED: the node was stopped while its success criterion did not hold.
-        - INTERRUPTED: the node stopped without being judged, either because an ancestor
-                       stopped and took it down, or because it has no success criterion.
+        - SUCCEEDED: the node was ended while its success criterion held.
+        - FAILED: the node was ended while its success criterion did not hold.
+        - INTERRUPTED: the node ended without being judged, either because an ancestor
+                       ended and took it down, or because it has no success criterion.
     Out of these 6 states, nodes are only "active" if they are in the RUNNING state, and
     the last 3 are terminal: they are only left by a reset.
     Observation states indicate the current observation of the node:
@@ -671,7 +671,7 @@ class MotionStatechart(SubclassJSONSerializer):
     verdict is latched. A condition may read either: the observation state of a node
     through its observation variable, or its life cycle state through a predicate such as
     `node.is_failed`. A condition that outlives the node it reads has to read the verdict,
-    since the observation behind it is gone once that node stops; `node.goal_reached`
+    since the observation behind it is gone once that node ends; `node.goal_reached`
     answers that in one variable, holding what a node observes while it runs and the
     verdict it earned once it has ended. Reading a life cycle state lags one tick behind
     reading an observation, because the predicates are refreshed after the life cycle
@@ -681,19 +681,19 @@ class MotionStatechart(SubclassJSONSerializer):
         - start condition: If True, the node transitions from NOT_STARTED to RUNNING.
         - pause condition: If True, the node transitions from RUNNING to PAUSED.
                            If False, the node transitions from PAUSED to RUNNING.
-        - stop condition: If True, the node transitions from RUNNING or PAUSED to a
-                          terminal state, and its descendants to INTERRUPTED.
+        - end condition: If True, the node transitions from RUNNING or PAUSED to a
+                         terminal state, and its descendants to INTERRUPTED.
         - reset condition: If True, the node transitions from any state to NOT_STARTED.
-    Which terminal state a stopped node reaches is decided by the node itself, not by
-    whatever stopped it: reaching what it observes means it succeeded, unless it declares
+    Which terminal state an ended node reaches is decided by the node itself, not by
+    whatever ended it: reaching what it observes means it succeeded, unless it declares
     otherwise in
     :attr:`~giskardpy.motion_statechart.graph_node.NodeArtifacts.success_criterion`.
-    Other nodes can therefore only decide *when* a node stops, never whether stopping
+    Other nodes can therefore only decide *when* a node ends, never whether ending
     counts as success.
     If multiple conditions are met, the following order is used:
         1. reset condition
-        2. own stop condition
-        3. an ancestor's stop condition
+        2. own end condition
+        3. an ancestor's end condition
         4. pause condition
         5. start condition
     How to use this class:
@@ -817,7 +817,7 @@ class MotionStatechart(SubclassJSONSerializer):
             node_copy.plot_specifications = deepcopy(node.plot_specifications)
             node_copy.start_condition = node.start_condition
             node_copy.pause_condition = node.pause_condition
-            node_copy.stop_condition = node.stop_condition
+            node_copy.end_condition = node.end_condition
             node_copy.reset_condition = node.reset_condition
         return motion_statechart_copy
 
@@ -1214,7 +1214,7 @@ class MotionStatechart(SubclassJSONSerializer):
         Reaching a goal is derived in between the two because it reads what a node
         observes on this cycle, which is only settled once every running node has had
         its :meth:`~MotionStatechartNode.on_tick`, and the life cycle as it stood
-        entering the cycle, so that a node stopping on this cycle is still judged by the
+        entering the cycle, so that a node ending on this cycle is still judged by the
         observation it is taking rather than by a verdict it has yet to earn.
 
         :param context: The context required to execute the tick.

@@ -675,7 +675,7 @@ class TestCartesianTasks:
         )
         motion_statechart.add_node(cart_goal2)
 
-        cart_goal1.stop_condition = cart_goal1.observation_variable
+        cart_goal1.end_condition = cart_goal1.observation_variable
         cart_goal2.start_condition = cart_goal1.is_succeeded
 
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
@@ -725,7 +725,7 @@ class TestCartesianTasks:
         )
         motion_statechart.add_node(cart_goal2)
 
-        cart_goal1.stop_condition = cart_goal1.observation_variable
+        cart_goal1.end_condition = cart_goal1.observation_variable
         cart_goal2.start_condition = cart_goal1.is_succeeded
 
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
@@ -816,7 +816,7 @@ class TestCartesianTasks:
         )
         motion_statechart.add_node(cart_goal2)
 
-        cart_goal1.stop_condition = cart_goal1.observation_variable
+        cart_goal1.end_condition = cart_goal1.observation_variable
         cart_goal2.start_condition = cart_goal1.is_succeeded
 
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
@@ -867,7 +867,7 @@ class TestCartesianTasks:
         )
         motion_statechart.add_node(cart_goal2)
 
-        cart_goal1.stop_condition = cart_goal1.observation_variable
+        cart_goal1.end_condition = cart_goal1.observation_variable
         cart_goal2.start_condition = cart_goal1.is_succeeded
 
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
@@ -967,7 +967,7 @@ class TestCartesianTasks:
         )
         motion_statechart.add_node(cart_goal2)
 
-        cart_goal1.stop_condition = cart_goal1.observation_variable
+        cart_goal1.end_condition = cart_goal1.observation_variable
         cart_goal2.start_condition = cart_goal1.is_succeeded
 
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
@@ -1021,7 +1021,7 @@ class TestCartesianTasks:
         )
         motion_statechart.add_node(cart_goal2)
 
-        cart_goal1.stop_condition = cart_goal1.observation_variable
+        cart_goal1.end_condition = cart_goal1.observation_variable
         cart_goal2.start_condition = cart_goal1.is_succeeded
 
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
@@ -1182,7 +1182,7 @@ class TestCartesianTasks:
             goal_point=goal_point,
         )
         motion_statechart.add_nodes([wrist_goal, straight])
-        wrist_goal.stop_condition = wrist_goal.observation_variable
+        wrist_goal.end_condition = wrist_goal.observation_variable
         straight.start_condition = wrist_goal.observation_variable
         motion_statechart.add_node(EndMotion.when_true(straight))
 

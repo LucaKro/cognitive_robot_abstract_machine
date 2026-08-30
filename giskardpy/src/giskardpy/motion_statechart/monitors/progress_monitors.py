@@ -191,7 +191,7 @@ class StillProgressing(Goal):
     whose steps run one after another, and names the task that is actually stuck.
 
     Wire :meth:`cancel_motion` to abort a motion that is no longer making progress, or
-    the negation of its observation to a node's stop condition to give up on that node.
+    the negation of its observation to a node's end condition to give up on that node.
     """
 
     monitored_node: MotionStatechartNode = field(kw_only=True)

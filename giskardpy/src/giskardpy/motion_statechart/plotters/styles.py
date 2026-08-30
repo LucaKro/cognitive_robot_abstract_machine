@@ -33,7 +33,7 @@ ChatGPTGray = "#8F959E"
 class ConditionColors:
     StartCondColor = ChatGPTGreen
     PauseCondColor = ChatGPTOrange
-    StopCondColor = ChatGPTRed
+    EndCondColor = ChatGPTRed
     ResetCondColor = ChatGPTGray
 
 

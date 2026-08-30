@@ -18,7 +18,7 @@ from giskardpy.motion_statechart.graph_node import (
 @dataclass(repr=False, eq=False)
 class Sequence(Goal):
     """
-    Takes a list of nodes and wires their start and stop conditions such that they are
+    Takes a list of nodes and wires their start and end conditions such that they are
     executed in order.
 
     Its observation is whether the last node in the sequence reached its goal.
@@ -43,7 +43,7 @@ class Sequence(Goal):
                 node.start_condition = last_node.is_succeeded
             # A node that ends the motion has nothing left to transition to.
             if not isinstance(node, TerminalNode):
-                node.stop_condition = node.observation_variable
+                node.end_condition = node.observation_variable
             last_node = node
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -78,7 +78,7 @@ class Parallel(Goal):
         Count the nodes that reached their goals, and compare that against
         :attr:`minimum_success`.
 
-        This goal stops none of its nodes, so a node that keeps running is counted by
+        This goal ends none of its nodes, so a node that keeps running is counted by
         what it observes now. Counting the current reading is also what makes this goal
         ask whether enough nodes are at their goals *at the same time*.
         """

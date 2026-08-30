@@ -91,23 +91,23 @@ def test_trinary_transition():
     assert condition_copy == condition
 
 
-def test_stop_condition_round_trip():
+def test_end_condition_round_trip():
     """
-    A stop condition survives serialization, including the predicate it reads.
+    An end condition survives serialization, including the predicate it reads.
     """
     msc = MotionStatechart()
     msc.add_nodes([first := ConstTrueNode(), second := ConstTrueNode()])
-    second.stop_condition = trinary_logic_and(
+    second.end_condition = trinary_logic_and(
         first.is_succeeded, second.observation_variable
     )
-    condition = second._stop_condition
+    condition = second._end_condition
 
     condition_copy = TrinaryCondition.from_json(
         json.loads(json.dumps(condition.to_json())), motion_statechart=msc
     )
 
     assert condition_copy == condition
-    assert condition_copy.kind is TransitionKind.STOP
+    assert condition_copy.kind is TransitionKind.END
 
 
 def test_to_json_joint_position_list(mini_world):
@@ -137,7 +137,7 @@ def test_start_condition(mini_world):
     end = ConstTrueNode()
     msc.add_node(end)
 
-    node1.stop_condition = node1.observation_variable
+    node1.end_condition = node1.observation_variable
     node2.start_condition = node1.observation_variable
     node2.pause_condition = node3.observation_variable
     end.start_condition = trinary_logic_and(
