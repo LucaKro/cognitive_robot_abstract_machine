@@ -5,7 +5,7 @@ from typing import List
 
 from typing_extensions import Optional
 
-from krrood.symbolic_math.symbolic_math import sum
+from krrood.symbolic_math.symbolic_math import Scalar, sum
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import (
     Goal,
@@ -22,16 +22,25 @@ class Sequence(Goal):
     executed in order.
 
     Its observation is whether the last node in the sequence reached its goal.
+
+    .. note:: A step starts one control cycle after its predecessor ends, because a
+        verdict is only readable on the cycle after the one that reached it.
     """
 
     nodes: List[MotionStatechartNode] = field(default_factory=list, init=True)
 
     def expand(self, context: MotionStatechartContext) -> None:
+        """
+        A step ends itself once it observes its goal, which succeeds it, and the next
+        step waits for that verdict rather than for the observation behind it.
+
+        Only the verdict outlasts the step that reached it.
+        """
         last_node: Optional[MotionStatechartNode] = None
         for i, node in enumerate(self.nodes):
             self.add_node(node)
             if last_node is not None:
-                node.start_condition = last_node.observation_variable
+                node.start_condition = last_node.is_succeeded
             # A node that ends the motion has nothing left to transition to.
             if not isinstance(node, TerminalNode):
                 node.stop_condition = node.observation_variable
@@ -39,7 +48,7 @@ class Sequence(Goal):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
-            observation=self.nodes[-1].goal_reached,
+            observation=Scalar(self.nodes[-1].goal_reached),
         )
 
 
@@ -65,14 +74,20 @@ class Parallel(Goal):
             self.add_node(node)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        true_observation_variables = [
-            x.observation_variable == True for x in self.nodes
-        ]
+        """
+        Count the nodes that reached their goals, and compare that against
+        :attr:`minimum_success`.
+
+        This goal stops none of its nodes, so a node that keeps running is counted by
+        what it observes now. Counting the current reading is also what makes this goal
+        ask whether enough nodes are at their goals *at the same time*.
+        """
+        nodes_at_their_goal = [node.goal_reached == True for node in self.nodes]
         minimum_success = (
             self.minimum_success
             if self.minimum_success is not None
             else len(self.nodes)
         )
         return NodeArtifacts(
-            observation=minimum_success <= sum(*true_observation_variables),
+            observation=minimum_success <= sum(*nodes_at_their_goal),
         )

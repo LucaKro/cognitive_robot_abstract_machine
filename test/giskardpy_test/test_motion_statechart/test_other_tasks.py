@@ -5,6 +5,7 @@ import numpy as np
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    LifeCycleValues,
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.goals.open_close import Open, Close
@@ -809,28 +810,28 @@ class TestOpenClose:
                                 yaw=np.pi, reference_frame=handle
                             ),
                         ),
-                        Parallel(
+                        opening := Parallel(
                             [
                                 Open(
                                     tip_link=r_tip,
                                     environment_link=handle,
                                     goal_joint_state=open_goal,
                                 ),
-                                opened := JointPositionReached(
+                                JointPositionReached(
                                     connection=root_C_hinge,
                                     position=open_goal,
                                     name="opened",
                                 ),
                             ]
                         ),
-                        Parallel(
+                        closing := Parallel(
                             [
                                 Close(
                                     tip_link=r_tip,
                                     environment_link=handle,
                                     goal_joint_state=close_goal,
                                 ),
-                                closed := JointPositionReached(
+                                JointPositionReached(
                                     connection=root_C_hinge,
                                     position=close_goal,
                                     name="closed",
@@ -852,8 +853,8 @@ class TestOpenClose:
         kin_sim.tick_until_end()
         msc.draw(str(tmp_path / "muh.pdf"))
 
-        assert opened.observation_state == ObservationStateValues.TRUE
-        assert closed.observation_state == ObservationStateValues.TRUE
+        assert opening.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert closing.life_cycle_state == LifeCycleValues.SUCCEEDED
 
     def test_unscrew_and_tighten_bottle_cap(self, pr2_world_copy):
         screw_pitch = 0.03
@@ -945,7 +946,7 @@ class TestOpenClose:
         kin_sim.compile(motion_statechart=unscrew_statechart)
         kin_sim.tick_until_end()
 
-        assert open.observation_state == ObservationStateValues.TRUE
+        assert open.life_cycle_state == LifeCycleValues.SUCCEEDED
 
         # One full turn must have moved the cap one screw pitch along the screw axis,
         # away from the bottle (towards the robot, -x).

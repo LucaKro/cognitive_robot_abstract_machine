@@ -146,15 +146,16 @@ class GiskardExecutable(Executable):
             self._current_motion_state_chart.add_node(task)
         first_task = tasks[0]
 
-        end_trigger = tasks[-1].observation_variable
-
+        skip_end_conditions = []
         if self.execution_type == ExecutionType.SIMULATED:
             skip_end_conditions = self._add_pause_interrupt(tasks)
 
-            # The motion is done when the last task finished or the first skipped
-            # (interrupted) task is reached.
-            if skip_end_conditions:
-                end_trigger = trinary_logic_or(end_trigger, *skip_end_conditions)
+        end_trigger = tasks[-1].goal_reached
+
+        # The motion is done when the last task finished or the first skipped
+        # (interrupted) task is reached.
+        if skip_end_conditions:
+            end_trigger = trinary_logic_or(end_trigger, *skip_end_conditions)
 
         if GiskardExecutable.collision_avoidance:
             self._current_motion_state_chart.add_node(ExternalCollisionAvoidance())
@@ -247,7 +248,9 @@ class GiskardExecutable(Executable):
             )
             self._current_motion_state_chart.add_node(interrupt_monitor)
             if index > 0:
-                previous_done = tasks[index - 1].observation_variable
+                # the verdict, not the observation behind it: this start is deliberately
+                # deferred past the cycle the previous task ended on.
+                previous_done = tasks[index - 1].is_succeeded
                 # start only once the previous motion finished and this one is not
                 # interrupted ...
                 task.start_condition = trinary_logic_and(

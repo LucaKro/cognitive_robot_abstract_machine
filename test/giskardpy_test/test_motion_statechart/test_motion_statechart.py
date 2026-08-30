@@ -1129,9 +1129,9 @@ class TestMotionStatechartLogic:
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.TRUE,
-            ObservationStateValues.TRUE,
-            ObservationStateValues.TRUE,
-            ObservationStateValues.TRUE,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
         ]
         # %% sub_node2
         assert msc.history.get_life_cycle_history_of_node(goal.sub_node2) == [
@@ -1174,6 +1174,12 @@ class TestMotionStatechartLogic:
         msc.draw(str(tmp_path / "muh.pdf"))
 
     def test_reset(self, tmp_path):
+        """
+        A reset returns a node to NOT_STARTED, from where it starts and observes again.
+
+        The node that triggers the reset is stopped by its own goal, so what outlives it
+        is its verdict, and both the reset trigger and the end of the motion read that.
+        """
         msc = MotionStatechart()
         node1 = ConstTrueNode()
         msc.add_node(node1)
@@ -1185,11 +1191,11 @@ class TestMotionStatechartLogic:
         msc.add_node(end)
         node1.reset_condition = node2.observation_variable
         node2.start_condition = node1.observation_variable
-        node3.start_condition = node2.observation_variable
         node2.stop_condition = node2.observation_variable
+        node3.start_condition = node2.goal_reached
         end.start_condition = trinary_logic_and(
             node1.observation_variable,
-            node2.observation_variable,
+            node2.goal_reached,
             node3.observation_variable,
         )
 
@@ -1206,6 +1212,7 @@ class TestMotionStatechartLogic:
         assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
         assert not msc.is_end_motion()
 
+        # node2 reaches its goal, which both ends it and resets node1.
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.TRUE
         assert node2.observation_state == ObservationStateValues.TRUE
@@ -1216,9 +1223,10 @@ class TestMotionStatechartLogic:
         assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
         assert not msc.is_end_motion()
 
+        # node1 starts over with nothing observed yet, and node2 stops observing.
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.UNKNOWN
-        assert node2.observation_state == ObservationStateValues.TRUE
+        assert node2.observation_state == ObservationStateValues.UNKNOWN
         assert node3.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.UNKNOWN
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
@@ -1229,18 +1237,18 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.TRUE
-        assert node2.observation_state == ObservationStateValues.TRUE
+        assert node2.observation_state == ObservationStateValues.UNKNOWN
         assert node3.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.UNKNOWN
-        assert node1.life_cycle_state == LifeCycleValues.NOT_STARTED
+        assert node1.life_cycle_state == LifeCycleValues.RUNNING
         assert node2.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert node3.life_cycle_state == LifeCycleValues.RUNNING
         assert end.life_cycle_state == LifeCycleValues.RUNNING
         assert not msc.is_end_motion()
 
         kin_sim.tick()
-        assert node1.observation_state == ObservationStateValues.UNKNOWN
-        assert node2.observation_state == ObservationStateValues.TRUE
+        assert node1.observation_state == ObservationStateValues.TRUE
+        assert node2.observation_state == ObservationStateValues.UNKNOWN
         assert node3.observation_state == ObservationStateValues.TRUE
         assert end.observation_state == ObservationStateValues.TRUE
         assert node1.life_cycle_state == LifeCycleValues.RUNNING
@@ -1333,7 +1341,7 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+        assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
         assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
         assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
         assert outer.observation_state == ObservationStateValues.UNKNOWN
@@ -1349,7 +1357,7 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+        assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
         assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
         assert outer.inner.observation_state == ObservationStateValues.TRUE
         assert outer.observation_state == ObservationStateValues.UNKNOWN
@@ -1365,7 +1373,7 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+        assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
         assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
         assert outer.inner.observation_state == ObservationStateValues.TRUE
         assert outer.observation_state == ObservationStateValues.TRUE
@@ -1381,7 +1389,7 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         assert node1.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
+        assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
         assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
         assert outer.inner.observation_state == ObservationStateValues.TRUE
         assert outer.observation_state == ObservationStateValues.TRUE
@@ -1649,6 +1657,10 @@ class TestEndMotion:
 class TestTemplates:
 
     def test_sequence_goal(self, tmp_path):
+        """
+        Every step but the first waits for its predecessor's verdict, which is only
+        readable on the cycle after the one that reached it.
+        """
         msc = MotionStatechart()
         node = Sequence(
             nodes=[
@@ -1665,7 +1677,12 @@ class TestTemplates:
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
         msc.draw(str(tmp_path / "muh.pdf"))
-        assert kin_sim.control_cycles == 6
+        cycles_to_run_the_steps = 6
+        cycles_spent_waiting_for_a_verdict = len(node.nodes) - 1
+        assert (
+            kin_sim.control_cycles
+            == cycles_to_run_the_steps + cycles_spent_waiting_for_a_verdict
+        )
         assert msc.nodes[1].life_cycle_state == LifeCycleValues.RUNNING
         assert msc.nodes[2].life_cycle_state == LifeCycleValues.SUCCEEDED
         assert msc.nodes[3].life_cycle_state == LifeCycleValues.SUCCEEDED
@@ -2084,14 +2101,14 @@ class TestLifeCycleTransitions:
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
-            ObservationStateValues.TRUE,
+            ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
-            ObservationStateValues.TRUE,
-            ObservationStateValues.TRUE,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
         ]
 
         # %% count_node2 history
@@ -2208,14 +2225,14 @@ class TestLifeCycleTransitions:
             ObservationStateValues.TRUE,
             ObservationStateValues.FALSE,
             ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
+            ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.TRUE,
             ObservationStateValues.FALSE,
             ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
-            ObservationStateValues.FALSE,
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.UNKNOWN,
         ]
         # The two control cycles it is stopped on. Each verdict comes from the
         # observation of that same cycle and is then latched.
@@ -2294,7 +2311,6 @@ class TestLifeCycleTransitions:
         assert unpause.count_ticks1.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert unpause.cancel.life_cycle_state == LifeCycleValues.NOT_STARTED
 
-        assert unpause.count_ticks1.observation_state == ObservationStateValues.TRUE
         assert unpause.observation_state == ObservationStateValues.TRUE
 
     def test_long_pause(self):
@@ -2522,10 +2538,10 @@ class TestLifeCycleVerdicts:
         executor.tick()
         assert goal.child.life_cycle_state == LifeCycleValues.NOT_STARTED
 
-    def test_a_verdict_freezes_the_observation(self):
+    def test_a_stopped_node_observes_nothing_and_keeps_its_verdict(self):
         """
-        A terminal state stops the observation expression from being evaluated, so the
-        last observation the node made is kept.
+        A node that is no longer running is no longer observing, so its observation says
+        so and only its verdict still answers for it.
         """
         msc = MotionStatechart()
         msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
@@ -2537,7 +2553,56 @@ class TestLifeCycleVerdicts:
 
         executor.tick()
         assert node.life_cycle_state == LifeCycleValues.FAILED
-        assert node.observation_state == ObservationStateValues.FALSE
+        assert node.observation_state == ObservationStateValues.UNKNOWN
+
+    def test_a_paused_node_keeps_the_observation_it_made(self):
+        """
+        A paused node resumes and observes again, so the reading it was interrupted on
+        is kept rather than discarded.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([pause_trigger := ConstTrueNode(), node := ConstTrueNode()])
+        node.pause_condition = pause_trigger.observation_variable
+
+        executor = self._compile(msc)
+        executor.tick()
+        assert node.observation_state == ObservationStateValues.TRUE
+
+        executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.PAUSED
+        assert node.observation_state == ObservationStateValues.TRUE
+
+    def test_only_the_verdict_of_a_stopped_node_still_starts_a_later_node(self):
+        """
+        A condition that outlives the node it reads has to read the verdict, since the
+        observation behind it is gone by the time the condition is asked again.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                finished := ConstTrueNode(),
+                later := CountControlCycles(control_cycles=3),
+                on_verdict := ConstTrueNode(),
+                on_observation := ConstTrueNode(),
+            ]
+        )
+        finished.stop_condition = trigger.observation_variable
+        on_verdict.start_condition = sm.trinary_logic_and(
+            finished.is_succeeded, later.observation_variable
+        )
+        on_observation.start_condition = sm.trinary_logic_and(
+            finished.observation_variable, later.observation_variable
+        )
+
+        executor = self._compile(msc)
+        for _ in range(5):
+            executor.tick()
+
+        assert finished.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert later.observation_state == ObservationStateValues.TRUE
+        assert on_verdict.life_cycle_state == LifeCycleValues.RUNNING
+        assert on_observation.life_cycle_state == LifeCycleValues.NOT_STARTED
 
 
 # %% the verdict rule itself
@@ -2567,24 +2632,96 @@ def test_every_verdict_is_terminal(success_criterion: ObservationStateValues):
 
 class TestGoalReached:
     """
-    Tests which of a node's two signals a composite goal should read, and that reading
-    the verdict does not depend on the terminated child's observation being kept.
+    Tests what a node reports about reaching its goal: the observation it is taking
+    while it runs, and the verdict it earned once it has ended.
     """
 
-    def test_a_node_nothing_stops_reports_its_observation(self):
+    def test_a_node_that_has_not_started_reads_unknown(self):
         """
-        A node only an ancestor can end never reaches a verdict of its own, so its
-        observation is all it can report.
+        A node that has not begun has reached nothing and observed nothing.
         """
-        node = ConstTrueNode()
-        assert node.goal_reached is node.observation_variable
+        msc = MotionStatechart()
+        msc.add_nodes([blocker := ConstFalseNode(), node := ConstTrueNode()])
+        node.start_condition = blocker.observation_variable
 
-    def test_a_node_that_can_be_stopped_reports_its_verdict(self):
+        executor = _compile_msc(msc)
+        executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
+        assert node.goal_reached_state == ObservationStateValues.UNKNOWN
+
+    @pytest.mark.parametrize(
+        "node_type, expected",
+        [
+            (ConstTrueNode, ObservationStateValues.TRUE),
+            (ConstFalseNode, ObservationStateValues.FALSE),
+        ],
+    )
+    def test_a_running_node_reads_what_it_observes(self, node_type, expected):
+        """
+        Nothing has ended, so the live observation is the only answer there is.
+        """
+        msc = MotionStatechart()
+        msc.add_node(node := node_type())
+
+        executor = _compile_msc(msc)
+        executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.RUNNING
+        assert node.goal_reached_state == expected
+
+    def test_a_node_that_ended_well_reads_true(self):
         msc = MotionStatechart()
         msc.add_nodes([trigger := ConstTrueNode(), node := ConstTrueNode()])
         node.stop_condition = trigger.observation_variable
 
-        assert node.goal_reached is node.is_succeeded
+        executor = _compile_msc(msc)
+        for _ in range(3):
+            executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert node.observation_state == ObservationStateValues.UNKNOWN
+        assert node.goal_reached_state == ObservationStateValues.TRUE
+
+    def test_a_node_that_ended_badly_reads_false(self):
+        """
+        A node that ended without reaching its goal says so, rather than falling back on
+        the observation it no longer takes.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
+        node.stop_condition = trigger.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(3):
+            executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+        assert node.observation_state == ObservationStateValues.UNKNOWN
+        assert node.goal_reached_state == ObservationStateValues.FALSE
+
+    def test_it_renders_as_one_variable(self):
+        msc = MotionStatechart()
+        msc.add_nodes([finished := ConstTrueNode(), later := ConstTrueNode()])
+        later.start_condition = finished.goal_reached
+
+        assert str(later._start_condition) == f'"{finished.goal_reached.display_name}"'
+
+    def test_it_survives_a_json_round_trip(self):
+        msc = MotionStatechart()
+        msc.add_nodes([finished := ConstTrueNode(), later := ConstTrueNode()])
+        later.start_condition = finished.goal_reached
+
+        msc_copy = MotionStatechart.from_json(
+            json.loads(json.dumps(msc.create_structure_copy().to_json()))
+        )
+        msc_copy._add_transitions()
+
+        later_copy = msc_copy.get_node_by_index(later.index)
+        finished_copy = msc_copy.get_node_by_index(finished.index)
+        assert later_copy._start_condition.expression.free_variables() == [
+            finished_copy.goal_reached
+        ]
 
     def test_a_sequence_survives_losing_its_last_step_observation(self):
         """
@@ -2606,6 +2743,59 @@ class TestGoalReached:
         executor.tick()
 
         assert sequence.observation_state == ObservationStateValues.TRUE
+
+    def test_a_parallel_counts_a_stopped_child_and_a_running_one(self):
+        """
+        A parallel stops none of its children, so a child that keeps running is judged
+        by what it observes now and a child something else stopped by its verdict.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            parallel := Parallel(
+                nodes=[stopped := Pulse(), still_running := ConstTrueNode()]
+            )
+        )
+        stopped.stop_condition = stopped.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(4):
+            executor.tick()
+
+        assert stopped.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert still_running.life_cycle_state == LifeCycleValues.RUNNING
+        assert parallel.observation_state == ObservationStateValues.TRUE
+
+    def test_a_parallel_is_not_satisfied_by_children_true_at_different_times(self):
+        """
+        A parallel asks whether its children reached their goals at the same time, so a
+        child that reached its goal and drifted away again stops counting towards it.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            parallel := Parallel(
+                nodes=[
+                    drifting := Pulse(),
+                    late := CountControlCycles(control_cycles=3),
+                ]
+            )
+        )
+
+        executor = _compile_msc(msc)
+        for _ in range(6):
+            executor.tick()
+
+        assert (
+            ObservationStateValues.TRUE
+            in msc.history.get_observation_history_of_node(drifting)
+        )
+        assert (
+            ObservationStateValues.TRUE
+            in msc.history.get_observation_history_of_node(late)
+        )
+        assert set(msc.history.get_observation_history_of_node(parallel)) == {
+            ObservationStateValues.UNKNOWN,
+            ObservationStateValues.FALSE,
+        }
 
 
 # %% life cycle predicates

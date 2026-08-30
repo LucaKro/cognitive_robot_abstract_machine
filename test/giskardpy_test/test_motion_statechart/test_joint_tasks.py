@@ -72,7 +72,6 @@ def test_set_seed_configuration(pr2_world_state_reset):
     kin_sim.compile(motion_statechart=msc)
 
     kin_sim.tick_until_end()
-    assert node1.observation_state == ObservationStateValues.TRUE
     assert node1.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert end.observation_state == ObservationStateValues.TRUE
     assert end.life_cycle_state == LifeCycleValues.RUNNING
@@ -109,7 +108,6 @@ def test_set_seed_odometry(pr2_world_state_reset):
     kin_sim.compile(motion_statechart=msc)
 
     kin_sim.tick_until_end()
-    assert node1.observation_state == ObservationStateValues.TRUE
     assert node1.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert end.observation_state == ObservationStateValues.TRUE
     assert end.life_cycle_state == LifeCycleValues.RUNNING

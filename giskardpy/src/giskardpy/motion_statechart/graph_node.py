@@ -10,6 +10,7 @@ from functools import cached_property
 
 import numpy as np
 from typing_extensions import (
+    ClassVar,
     Dict,
     Any,
     Self,
@@ -192,7 +193,8 @@ class TrinaryCondition(SubclassJSONSerializer):
         """
         for variable in new_expression.free_variables():
             if not isinstance(
-                variable, (ObservationVariable, LifeCyclePredicateVariable)
+                variable,
+                (ObservationVariable, LifeCyclePredicateVariable, GoalReachedVariable),
             ):
                 raise UnsupportedConditionVariableError(
                     condition=self,
@@ -464,6 +466,27 @@ class LifeCyclePredicateVariable(NodeStateVariable):
         )
 
 
+@dataclass(repr=False, eq=False, init=False)
+class GoalReachedVariable(NodeStateVariable):
+    """
+    A symbol representing whether a node reached its goal, whether it is still running
+    or has already ended.
+    """
+
+    attribute_name: ClassVar[str] = "goal_reached"
+    """
+    The name this variable is reached under on a node, also used to render it inside a
+    condition.
+    """
+
+    @property
+    def display_name(self) -> str:
+        return f"{self.motion_statechart_node.unique_name}.{self.attribute_name}"
+
+    def resolve(self) -> ObservationStateValues:
+        return self.motion_statechart_node.goal_reached_state
+
+
 @dataclass
 class DebugExpression:
     """
@@ -635,6 +658,10 @@ class MotionStatechartNode:
     """
     A variable referring to the observation state of this node.
     """
+    _goal_reached_variable: GoalReachedVariable = field(init=False, default=None)
+    """
+    A variable referring to whether this node reached its goal.
+    """
 
     _constraint_collection: ConstraintCollection = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
@@ -697,8 +724,9 @@ class MotionStatechartNode:
 
     def _create_state_variables(self):
         """
-        Creates the observation and life cycle variables for this node, named from
-        :attr:`_node_id` so they are available before the node is added to a motion statechart.
+        Creates the observation, life cycle and goal reached variables for this node,
+        named from :attr:`_node_id` so they are available before the node is added to a
+        motion statechart.
         """
         name = f"{self.name}#{self._node_id}"
         self._observation_variable = ObservationVariable(
@@ -707,6 +735,10 @@ class MotionStatechartNode:
         )
         self._life_cycle_variable = LifeCycleVariable(
             name=str(PrefixedName("life_cycle", name)),
+            motion_statechart_node=self,
+        )
+        self._goal_reached_variable = GoalReachedVariable(
+            name=str(PrefixedName(GoalReachedVariable.attribute_name, name)),
             motion_statechart_node=self,
         )
 
@@ -1183,23 +1215,19 @@ class MotionStatechartNode:
         self._stop_condition.update_expression(expression, self)
 
     @property
-    def goal_reached(self) -> Scalar:
+    def goal_reached(self) -> GoalReachedVariable:
         """
-        The strongest available evidence that this node reached its goal: its verdict if
-        something stops it, otherwise its live observation.
-
-        A node nothing ever stops is only cut off when an ancestor ends, which leaves it
-        :attr:`~giskardpy.motion_statechart.data_types.LifeCycleValues.INTERRUPTED`, so
-        its verdict would never answer the question.
-
-        .. note:: Only meaningful once every goal has expanded, since expansion is what
-            wires the stop conditions.
-
-        :return: The verdict predicate or the observation variable of this node.
+        :return: A variable holding whether this node reached its goal.
         """
-        if self._stop_condition.expression.is_const_false():
-            return self.observation_variable
-        return self.is_succeeded
+        return self._goal_reached_variable
+
+    @property
+    def goal_reached_state(self) -> ObservationStateValues:
+        """
+        :return: Whether this node has reached its goal: what it observes while it runs,
+            and the verdict it earned once it has ended.
+        """
+        return ObservationStateValues(self.motion_statechart.goal_reached_state[self])
 
     @property
     def reset_condition(self) -> Scalar:
@@ -1691,19 +1719,24 @@ class EndMotion(TerminalNode):
     @classmethod
     def when_true(cls, node: MotionStatechartNode) -> Self:
         """
-        Factory method for creating an EndMotion node that activates when the given node has a true observation state.
+        Factory method for creating an EndMotion node that activates once the given node
+        reached its goal.
 
-        :param node: The node whose observation state activates the created node.
+        :param node: The node whose goal ends the motion.
         :return: The new EndMotion node.
         """
         end = cls()
-        end.start_condition = node.observation_variable
+        end.start_condition = node.goal_reached
         return end
 
     @classmethod
     def when_false(cls, node: MotionStatechartNode) -> Self:
         """
-        Factory method for creating an EndMotion node that activates when the given node has a false observation state.
+        Factory method for creating an EndMotion node that activates while the given node
+        has a false observation state.
+
+        Unlike its counterparts this asks only what the node observes now, so it stops
+        mattering once that node ends rather than latching onto the verdict it earned.
 
         :param node: The node whose observation state activates the created node.
         :return: The new EndMotion node.
@@ -1715,34 +1748,44 @@ class EndMotion(TerminalNode):
     @classmethod
     def when_all_true(cls, nodes: List[MotionStatechartNode]) -> Self:
         """
-        Factory method for creating an EndMotion node that activates when *all* of the given nodes have a true observation state.
+        Factory method for creating an EndMotion node that activates once *all* of the
+        given nodes reached their goals.
 
-        :param nodes: The nodes whose observation states activate the created node.
+        :param nodes: The nodes whose goals end the motion.
         :return: The new EndMotion node.
         """
         end = cls()
         end.start_condition = sm.trinary_logic_and(
-            *[node.observation_variable for node in nodes]
+            *[node.goal_reached for node in nodes]
         )
         return end
 
     @classmethod
     def when_any_true(cls, nodes: List[MotionStatechartNode]) -> Self:
         """
-        Factory method for creating an EndMotion node that activates when *any* of the given nodes have a true observation state.
+        Factory method for creating an EndMotion node that activates once *any* of the
+        given nodes reached its goal.
 
-        :param nodes: The nodes whose observation states activate the created node.
+        :param nodes: The nodes whose goals end the motion.
         :return: The new EndMotion node.
         """
         end = cls()
         end.start_condition = sm.trinary_logic_or(
-            *[node.observation_variable for node in nodes]
+            *[node.goal_reached for node in nodes]
         )
         return end
 
 
 @dataclass(eq=False, repr=False)
 class CancelMotion(TerminalNode):
+    """
+    Ends the motion by raising :attr:`exception`.
+
+    Its factory methods read what the given nodes observe now, unlike
+    :class:`EndMotion`'s, because they ask whether something is going wrong at this
+    moment rather than whether a goal was ever reached.
+    """
+
     exception: DataclassException = field(kw_only=True)
     observation_expression: Scalar = field(
         default_factory=Scalar.const_true, init=False

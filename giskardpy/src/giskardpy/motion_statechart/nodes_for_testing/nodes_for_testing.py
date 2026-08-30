@@ -255,8 +255,12 @@ class TestUnpauseUnknownFromParentPause(Goal):
         self.count_ticks1.stop_condition = self.count_ticks1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        """
+        :attr:`count_ticks1` ends itself once it has counted, so its verdict is what
+        still answers for it afterwards.
+        """
         return NodeArtifacts(
-            observation=sm.Scalar(self.count_ticks1.observation_variable),
+            observation=sm.Scalar(self.count_ticks1.goal_reached),
         )
 
 

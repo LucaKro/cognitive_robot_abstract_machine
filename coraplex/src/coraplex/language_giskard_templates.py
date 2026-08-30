@@ -45,13 +45,13 @@ class TryAll(Goal):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Build an observation that is True as soon as any child node is True.
+        Build an observation that is True as soon as any child node reached its goal.
 
-        Children keep running until this goal ends, so their live observations are what
-        they can be judged by, not their verdicts.
+        This goal stops none of its children, so a child that keeps running is judged by
+        what it observes now rather than by a verdict it never reaches.
         """
         return NodeArtifacts(
-            observation=_any_of([node.observation_variable for node in self.nodes]),
+            observation=_any_of([node.goal_reached for node in self.nodes]),
         )
 
 
@@ -128,5 +128,5 @@ def _any_of(expressions: List[Scalar]) -> Scalar:
     :return: The disjunction of the expressions, or the single expression itself.
     """
     if len(expressions) == 1:
-        return expressions[0]
+        return Scalar(expressions[0])
     return trinary_logic_or(*expressions)
