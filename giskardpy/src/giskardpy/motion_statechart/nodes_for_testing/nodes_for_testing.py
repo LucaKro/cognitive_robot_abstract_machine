@@ -369,3 +369,32 @@ class GoalWithChildFailingOnItsOwn(Goal):
         return NodeArtifacts(
             observation=sm.Scalar.const_true(),
         )
+
+
+@dataclass(repr=False, eq=False)
+class GoalWithChildStartingLate(Goal):
+    """
+    Goal whose child waits for a delay before it starts, so the child's start is decided
+    while this goal is already running and its end condition has a settled value.
+    """
+
+    delay_in_control_cycles: int = field(default=2, kw_only=True)
+    """
+    How many control cycles pass before the child's start condition turns true.
+    """
+
+    child: ConstFalseNode = field(init=False)
+    """
+    The child whose start is being observed.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        delay = CountControlCycles(control_cycles=self.delay_in_control_cycles)
+        self.child = ConstFalseNode()
+        self.add_nodes(nodes=[delay, self.child])
+        self.child.start_condition = delay.observation_variable
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(
+            observation=sm.Scalar.const_false(),
+        )

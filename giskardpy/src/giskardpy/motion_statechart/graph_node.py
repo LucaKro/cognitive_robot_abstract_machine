@@ -1003,8 +1003,10 @@ class MotionStatechartNode:
 
     def _create_not_started_transitions(self) -> sm.Scalar:
         """
-        Create the not started transitions of the LifeCycleState for this node.
-        :return: The LifeCycleState transitions for the NOT_STARTED state.
+        A node starts once it is asked to and every ancestor is being started too, but
+        never underneath an ancestor that is ending on the same cycle.
+
+        :return: The life cycle state this node reaches while it has not started.
         """
         start_condition = self._create_condition_holds(TransitionKind.START)
         current = self
@@ -1012,7 +1014,9 @@ class MotionStatechartNode:
             parent = current.parent_node
             start_condition = sm.trinary_logic_and(
                 start_condition,
-                sm.trinary_logic_not(parent.end_condition),
+                sm.trinary_logic_not(
+                    parent._create_condition_holds(TransitionKind.END)
+                ),
                 parent._create_condition_holds(TransitionKind.START),
             )
             current = parent

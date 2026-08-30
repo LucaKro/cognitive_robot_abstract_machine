@@ -63,6 +63,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     GoalCuttingOffItsChild,
     GoalCuttingOffItsChildAtItsGoal,
     GoalWithChildFailingOnItsOwn,
+    GoalWithChildStartingLate,
     NodeObservingAPredicate,
     NodeObservingNothingYet,
     ConstTrueNode,
@@ -2327,6 +2328,29 @@ class TestLifeCycleTransitions:
         msc.plot_gantt_chart()
 
         assert len(msc.history) == 5
+
+    def test_a_child_starts_while_its_parent_end_condition_has_no_answer(self):
+        """
+        Only an end condition that is true ends a node, so a parent whose end condition
+        is still undecided is not ending and does not hold its child back.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                undecided := NodeObservingNothingYet(),
+                goal := GoalWithChildStartingLate(delay_in_control_cycles=2),
+            ]
+        )
+        goal.end_condition = undecided.observation_variable
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        for _ in range(3):
+            kin_sim.tick()
+
+        assert undecided.observation_state == ObservationStateValues.UNKNOWN
+        assert goal.life_cycle_state == LifeCycleValues.RUNNING
+        assert goal.child.life_cycle_state == LifeCycleValues.RUNNING
 
 
 # %% life cycle verdicts
