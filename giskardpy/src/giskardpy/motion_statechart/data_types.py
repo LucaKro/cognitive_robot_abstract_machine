@@ -43,18 +43,18 @@ class LifeCycleValues(IntEnum):
 
     SUCCEEDED = 3
     """
-    The node was ended while its success criterion held.
+    The node was ended while it was observing its goal as reached.
     """
 
     FAILED = 4
     """
-    The node was ended while its success criterion did not hold.
+    The node was ended while it was not.
     """
 
     INTERRUPTED = 5
     """
     The node ended without being judged, either because an ancestor ended and took it
-    down with it, or because it has no success criterion to judge it by.
+    down with it, or because it was not observing anything decisive at the time.
     """
 
     @classmethod
@@ -72,18 +72,17 @@ class LifeCycleValues(IntEnum):
         return self in self.terminal_states()
 
     @classmethod
-    def verdict_for(cls, success_criterion: ObservationStateValues) -> LifeCycleValues:
+    def verdict_for(cls, observation: ObservationStateValues) -> LifeCycleValues:
         """
         The verdict a node receives when it is ended by its own end condition.
 
-        A criterion that has no answer yet is no basis for a judgement, so it is treated
-        the same as having none at all.
+        An observation that has no answer yet is no basis for a judgement, so it leaves
+        the node unjudged.
 
-        :param success_criterion: The value of the node's success criterion at the
-            moment it is ended.
+        :param observation: What the node observes at the moment it is ended.
         :return: The terminal state the node reaches.
         """
-        match success_criterion:
+        match observation:
             case ObservationStateValues.TRUE:
                 return cls.SUCCEEDED
             case ObservationStateValues.FALSE:
@@ -229,8 +228,8 @@ class TransitionKind(Enum):
     Transitions nodes from RUNNING or PAUSED to a terminal state, and their descendants
     to INTERRUPTED.
 
-    Which terminal state the node itself reaches follows from its success criterion at
-    that moment, see :meth:`LifeCycleValues.verdict_for`.
+    Which terminal state the node itself reaches follows from what it observes at that
+    moment, see :meth:`LifeCycleValues.verdict_for`.
     """
 
     RESET = 4

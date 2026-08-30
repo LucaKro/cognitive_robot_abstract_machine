@@ -87,8 +87,8 @@ class TryInOrder(Goal):
         failed, short-circuiting on the first success.
 
         An alternative is ended once it reaches its goal or once it stops making
-        progress; which of the two happened is decided by the alternative's own success
-        criterion, not here. An observation that is merely still false means the
+        progress; which of the two happened is decided by what the alternative observes
+        as it ends, not here. An observation that is merely still false means the
         alternative has not arrived yet, and is no reason to abandon it.
         """
         previous_node: Optional[MotionStatechartNode] = None

@@ -270,31 +270,12 @@ class TestUnpauseUnknownFromParentPause(Goal):
 @dataclass(eq=False, repr=False)
 class NodeObservingNothingYet(MotionStatechartNode):
     """
-    A node that runs without ever deciding what it observes.
-
-    It declares no criterion, so ending it reads an observation that is unknown at run
-    time rather than a criterion that is already unknown when the verdict is compiled.
+    A node that runs without ever deciding what it observes, so ending it can only
+    interrupt it.
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_trinary_unknown())
-
-
-@dataclass(eq=False, repr=False)
-class NodeWithUndecidedSuccessCriterion(MotionStatechartNode):
-    """
-    A node that declares it has no notion of succeeding, so ending it can only interrupt
-    it.
-
-    Its observation is true, so that a test asserting on the verdict is asserting on the
-    declared criterion rather than on the observation.
-    """
-
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-            success_criterion=sm.Scalar.const_trinary_unknown(),
-        )
 
 
 # %% goals that end their child
@@ -359,7 +340,7 @@ class GoalWithChildFailingOnItsOwn(Goal):
 
     child: ConstFalseNode = field(init=False)
     """
-    The child that is ended while its success criterion is false.
+    The child that is ended while its observation is false.
     """
 
     def expand(self, context: MotionStatechartContext) -> None:

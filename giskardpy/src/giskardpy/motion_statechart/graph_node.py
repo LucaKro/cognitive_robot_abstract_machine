@@ -549,19 +549,6 @@ class NodeArtifacts:
     How far this node is from its goal. Set by :class:`ConvergingTask`, which derives
     :attr:`observation` from it, and used to watch whether the node is still converging.
     """
-    success_criterion: Optional[Scalar] = field(default=None)
-    """
-    What it means for this node to have succeeded, read at the moment something ends it.
-
-    ``None`` means reaching what the node observes is what succeeding means for it, which
-    is the case for almost every node. A node with no notion of succeeding says so with
-    :meth:`~krrood.symbolic_math.symbolic_math.Scalar.const_trinary_unknown`, since it has
-    no answer to whether it succeeded.
-
-    .. note:: This is read while the life cycle state is updated, which sees only the
-        observation, life cycle and predicate states, so it may not refer to world
-        variables.
-    """
     debug_expressions: List[DebugExpression] = field(default_factory=list)
     """
     A list of symbolic expressions used for debugging only.
@@ -666,8 +653,6 @@ class MotionStatechartNode:
     _constraint_collection: ConstraintCollection = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
     _observation_expression: Scalar = field(init=False, repr=False)
-    """The parameter is set after build() using its NodeArtifacts."""
-    _success_criterion: Scalar = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
     _error_signal: Optional[ErrorSignal] = field(init=False, repr=False, default=None)
     """The parameter is set after build() using its NodeArtifacts."""
@@ -864,20 +849,20 @@ class MotionStatechartNode:
     def _create_verdict(self) -> sm.Scalar:
         """
         The terminal state this node reaches when its own end condition ends it, read
-        off its success criterion at that moment.
+        off what it observes at that moment.
 
-        A criterion with no answer is no basis for a judgement, so it interrupts the node
-        instead.
+        An observation with no answer is no basis for a judgement, so it interrupts the
+        node instead.
 
         :return: The life cycle state to transition to.
         """
         return sm.if_cases(
             cases=[
                 (
-                    sm.Scalar(self._success_criterion == float(criterion_value)),
-                    sm.Scalar(LifeCycleValues.verdict_for(criterion_value)),
+                    sm.Scalar(self.observation_variable == float(observation)),
+                    sm.Scalar(LifeCycleValues.verdict_for(observation)),
                 )
-                for criterion_value in ObservationStateValues
+                for observation in ObservationStateValues
             ],
             else_result=sm.Scalar(LifeCycleValues.INTERRUPTED),
         )
@@ -1470,10 +1455,10 @@ class ConvergingTask(ABC, Task):
 
     Reaching the goal is not by itself a reason to end: the same task is a milestone in
     a sequence and an invariant to hold inside a goal that grasps something. Whatever
-    ends it reads the criterion below to decide whether it succeeded.
+    ends it reads what the task observes to decide whether it succeeded.
 
-    Subclasses declare the error rather than the criterion, so that "reached the goal" is
-    defined in one place, and so that how fast the goal is being approached can be
+    Subclasses declare the error rather than the observation, so that "reached the goal"
+    is defined in one place, and so that how fast the goal is being approached can be
     measured. Tasks that enforce an invariant instead of converging, such as a velocity
     limit or a collision predicate, are plain :class:`Task` and write their own
     observation.
@@ -1487,8 +1472,7 @@ class ConvergingTask(ABC, Task):
         Build the task and derive its observation from its error.
 
         Being within :attr:`threshold` is what this task observes about the world, and
-        succeeding means reaching it, which is what any node is judged by unless it
-        declares otherwise.
+        succeeding means reaching it, which is what any node is judged by.
         """
         artifacts = super().build(context)
         if artifacts.error is None:

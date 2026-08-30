@@ -653,10 +653,11 @@ class MotionStatechart(SubclassJSONSerializer):
         - NOT_STARTED: the node has not started yet.
         - RUNNING: the node is running.
         - PAUSED: the node is paused.
-        - SUCCEEDED: the node was ended while its success criterion held.
-        - FAILED: the node was ended while its success criterion did not hold.
+        - SUCCEEDED: the node was ended while it was observing its goal as reached.
+        - FAILED: the node was ended while it was not.
         - INTERRUPTED: the node ended without being judged, either because an ancestor
-                       ended and took it down, or because it has no success criterion.
+                       ended and took it down, or because it was not observing anything
+                       decisive at the time.
     Out of these 6 states, nodes are only "active" if they are in the RUNNING state, and
     the last 3 are terminal: they are only left by a reset.
     Observation states indicate the current observation of the node:
@@ -685,11 +686,8 @@ class MotionStatechart(SubclassJSONSerializer):
                          terminal state, and its descendants to INTERRUPTED.
         - reset condition: If True, the node transitions from any state to NOT_STARTED.
     Which terminal state an ended node reaches is decided by the node itself, not by
-    whatever ended it: reaching what it observes means it succeeded, unless it declares
-    otherwise in
-    :attr:`~giskardpy.motion_statechart.graph_node.NodeArtifacts.success_criterion`.
-    Other nodes can therefore only decide *when* a node ends, never whether ending
-    counts as success.
+    whatever ended it: reaching what it observes means it succeeded. Other nodes can
+    therefore only decide *when* a node ends, never whether ending counts as success.
     If multiple conditions are met, the following order is used:
         1. reset condition
         2. own end condition
@@ -1027,12 +1025,6 @@ class MotionStatechart(SubclassJSONSerializer):
             node._observation_expression = node.observation_variable
         else:
             node._observation_expression = artifacts.observation
-        # if no success criterion is set, reaching what the node observes is what
-        # succeeding means for it.
-        if artifacts.success_criterion is None:
-            node._success_criterion = node.observation_variable
-        else:
-            node._success_criterion = artifacts.success_criterion
         node._error_signal = artifacts.error
         node._debug_expressions = artifacts.debug_expressions
 

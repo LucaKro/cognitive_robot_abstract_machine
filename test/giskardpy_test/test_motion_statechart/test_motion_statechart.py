@@ -62,7 +62,6 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     GoalCuttingOffItsChildAtItsGoal,
     GoalWithChildFailingOnItsOwn,
     NodeObservingNothingYet,
-    NodeWithUndecidedSuccessCriterion,
     ConstTrueNode,
     TestGoal,
     TestNestedGoal,
@@ -928,8 +927,8 @@ class TestMotionStatechartLogic:
 
         kin_sim.tick()
         msc.draw(str(tmp_path / "muh.pdf"))
-        # A node that only records callbacks has no success criterion, so ending it
-        # cannot judge it.
+        # A node that only records callbacks never decides what it observes, so ending
+        # it cannot judge it.
         assert changer.life_cycle_state == LifeCycleValues.INTERRUPTED
         assert changer.state == "on_end"
 
@@ -2368,10 +2367,9 @@ class TestLifeCycleVerdicts:
 
         assert node.life_cycle_state == LifeCycleValues.FAILED
 
-    def test_a_node_that_declares_no_criterion_is_judged_by_its_observation(self):
+    def test_ending_a_counter_at_what_it_counts_succeeds_it(self):
         """
-        Reaching what it counts is what succeeding means for a counter, without it
-        having to say so.
+        Reaching what it counts is what succeeding means for a counter.
         """
         clock = FakeClock()
         counted_seconds = 1.0
@@ -2391,10 +2389,10 @@ class TestLifeCycleVerdicts:
         assert node.observation_state == ObservationStateValues.TRUE
         assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
 
-    def test_a_node_that_declares_no_criterion_and_missed_its_goal_fails(self):
+    def test_ending_a_counter_short_of_what_it_counts_fails_it(self):
         """
-        The same default reads the other way: a counter ended before it counted far
-        enough did not reach what it counts.
+        The same rule reads the other way: a counter ended before it counted far enough
+        did not reach what it counts.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -2412,8 +2410,7 @@ class TestLifeCycleVerdicts:
 
     def test_ending_a_node_that_has_observed_nothing_interrupts_it(self):
         """
-        An observation that is unknown while the node runs is no basis for a verdict,
-        the same as a criterion that is unknown when the verdict is compiled.
+        An observation that is unknown while the node runs is no basis for a verdict.
         """
         msc = MotionStatechart()
         msc.add_nodes([trigger := ConstTrueNode(), node := NodeObservingNothingYet()])
@@ -2422,21 +2419,6 @@ class TestLifeCycleVerdicts:
         self._compile(msc).tick()
 
         assert node.observation_state == ObservationStateValues.UNKNOWN
-        assert node.life_cycle_state == LifeCycleValues.INTERRUPTED
-
-    def test_ending_a_node_with_an_undecided_criterion_interrupts_it(self):
-        """
-        Nothing about a node that declares it cannot succeed makes ending it a
-        judgement, however its observation reads.
-        """
-        msc = MotionStatechart()
-        msc.add_nodes(
-            [trigger := ConstTrueNode(), node := NodeWithUndecidedSuccessCriterion()]
-        )
-        node.end_condition = trigger.observation_variable
-
-        self._compile(msc).tick()
-
         assert node.life_cycle_state == LifeCycleValues.INTERRUPTED
 
     def test_an_ending_ancestor_interrupts_its_child(self):
@@ -2609,22 +2591,22 @@ class TestLifeCycleVerdicts:
 
 
 @pytest.mark.parametrize(
-    "success_criterion, expected_verdict",
+    "observation, expected_verdict",
     [
         (ObservationStateValues.TRUE, LifeCycleValues.SUCCEEDED),
         (ObservationStateValues.FALSE, LifeCycleValues.FAILED),
         (ObservationStateValues.UNKNOWN, LifeCycleValues.INTERRUPTED),
     ],
 )
-def test_verdict_for_covers_every_criterion_value(
-    success_criterion: ObservationStateValues, expected_verdict: LifeCycleValues
+def test_verdict_for_covers_every_observation_value(
+    observation: ObservationStateValues, expected_verdict: LifeCycleValues
 ):
-    assert LifeCycleValues.verdict_for(success_criterion) is expected_verdict
+    assert LifeCycleValues.verdict_for(observation) is expected_verdict
 
 
-@pytest.mark.parametrize("success_criterion", list(ObservationStateValues))
-def test_every_verdict_is_terminal(success_criterion: ObservationStateValues):
-    assert LifeCycleValues.verdict_for(success_criterion).is_terminal
+@pytest.mark.parametrize("observation", list(ObservationStateValues))
+def test_every_verdict_is_terminal(observation: ObservationStateValues):
+    assert LifeCycleValues.verdict_for(observation).is_terminal
 
 
 # %% what a composite goal reads from its children
