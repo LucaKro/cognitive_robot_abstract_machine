@@ -252,6 +252,7 @@ class PickUpAction(
                 MoveGripperMotion(
                     motion=GripperState.CLOSE,
                     gripper=self.arm,
+                    allow_gripper_collision=True,
                     finger_velocity=self.grasp_closing_velocity,
                     stall_minimum_time=self.grasp_stall_minimum_time,
                     tolerate_stall=self.tolerate_grasp_stall,

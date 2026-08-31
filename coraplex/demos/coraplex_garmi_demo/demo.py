@@ -118,9 +118,13 @@ SPOON_DRAWER_NAME = "drawer_1"
 Name of the drawer the spoon starts in.
 """
 
-SPOON_IN_DRAWER_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(-0.12, 0.0, 0.0)
+SPOON_IN_DRAWER_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(-0.09, 0.0, -0.069)
 """
-Where the spoon starts, relative to its drawer.
+Where the spoon starts, relative to its drawer: lying on the drawer's bottom plate,
+clear of its walls.
+
+The spoon only becomes a body collisions are checked against once it is grasped, so a
+placement that reaches through a wall goes unnoticed until the pick-up aborts on it.
 """
 
 SPOON_TARGET_POINT = Point3.from_iterable([1.6, 5.3, 0.8])

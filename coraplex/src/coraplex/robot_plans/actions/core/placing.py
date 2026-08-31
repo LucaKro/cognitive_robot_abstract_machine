@@ -108,18 +108,19 @@ class PlaceAction(ActionDescription, PlaceTuningParameters, HasGraspDetectionThr
                 MoveToolCenterPointMotion(
                     transport_pose,
                     self.arm,
-                    allow_gripper_collision=False,
+                    allow_gripper_collision=True,
                     max_linear_velocity=self.transport_linear_velocity,
                 ),
                 MoveToolCenterPointMotion(
                     placing_pose,
                     self.arm,
-                    allow_gripper_collision=False,
+                    allow_gripper_collision=True,
                     max_linear_velocity=self.placing_linear_velocity,
                 ),
                 MoveGripperMotion(
                     GripperState.OPEN,
                     self.arm,
+                    allow_gripper_collision=True,
                     finger_velocity=self.release_opening_velocity,
                 ),
                 self._retract_plan(retract_pose),

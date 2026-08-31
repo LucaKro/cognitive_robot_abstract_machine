@@ -17,13 +17,21 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot, real_robot
+from coraplex.plans.executables import ModelChangeExecutable
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import MotionNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from coraplex.robot_plans.motions.gripper import MoveGripperMotion
+from coraplex.robot_plans.motions.gripper import (
+    MoveGripperMotion,
+    MoveToolCenterPointMotion,
+)
+from coraplex.view_manager import ViewManager
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    UpdateTemporaryCollisionRules,
+)
 from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveBaseGoal
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.goals.cartesian_goals import CartesianPoseStraight
@@ -54,6 +62,16 @@ try:
     skip_tests = False
 except (ImportError, ModuleNotFoundError, AttributeError):
     skip_tests = True
+
+
+def _chart_nodes(motion_chart):
+    """
+    :return: The nodes of ``motion_chart``: the tasks a :class:`Parallel` groups, or the
+        single task a motion that needs no accompanying node builds on its own.
+    """
+    if isinstance(motion_chart, Parallel):
+        return list(motion_chart.nodes)
+    return [motion_chart]
 
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
@@ -100,10 +118,13 @@ def test_pick_up_motion(immutable_model_world):
 
     assert len(motion_nodes) == 5
 
-    motion_charts = [type(m.designator.motion_chart) for m in motion_nodes]
-    assert all(mc is not None for mc in motion_charts)
-    assert CartesianPose in motion_charts
-    assert JointPositionList in motion_charts
+    motion_chart_task_types = {
+        type(node)
+        for motion_node in motion_nodes
+        for node in _chart_nodes(motion_node.designator.motion_chart)
+    }
+    assert CartesianPose in motion_chart_task_types
+    assert JointPositionList in motion_chart_task_types
 
 
 def test_move_motion_chart(immutable_model_world):
@@ -425,6 +446,177 @@ def test_place_action_velocity_fields_default_to_none(immutable_model_world):
     assert place.transport_linear_velocity is None
     assert place.release_opening_velocity is None
     assert place.retract_linear_velocity is None
+
+
+# %% allowing the gripper to touch what it manipulates
+
+
+def _collision_rule_nodes(motion_chart):
+    """
+    :return: The nodes of ``motion_chart`` that hand temporary collision rules to the
+        collision manager.
+    """
+    return [
+        node
+        for node in _chart_nodes(motion_chart)
+        if isinstance(node, UpdateTemporaryCollisionRules)
+    ]
+
+
+def test_move_tool_center_point_motion_frees_the_manipulator_it_reaches_with(
+    immutable_model_world,
+):
+    """
+    ``allow_gripper_collision`` must reach the collision manager: without a rule that
+    frees the manipulator, collision avoidance holds the fingers a buffer zone away from
+    whatever they reach for and the reach never converges on its goal.
+    """
+    world, view, context = immutable_model_world
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target,
+        Arms.LEFT,
+        movement_type=MovementType.CARTESIAN,
+        allow_gripper_collision=True,
+    )
+    execute_single(motion, context=context)
+
+    rule_nodes = _collision_rule_nodes(motion.motion_chart)
+    assert len(rule_nodes) == 1
+    (rule,) = rule_nodes[0].temporary_rules
+    assert rule.end_effector is ViewManager().get_end_effector_view(Arms.LEFT, view)
+
+
+def test_move_tool_center_point_motion_frees_what_the_manipulator_grasps_later(
+    mutable_model_world,
+):
+    """
+    The lift that carries a grasped body away is built before the grasp attaches it, so
+    the rule must free whatever the manipulator holds when it runs rather than what it
+    held when the chart was built.
+    """
+    world, view, context = mutable_model_world
+    end_effector = ViewManager().get_end_effector_view(Arms.LEFT, view)
+    held_body = world.get_body_by_name("milk.stl")
+
+    motion = MoveToolCenterPointMotion(
+        Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
+        Arms.LEFT,
+        movement_type=MovementType.CARTESIAN,
+        allow_gripper_collision=True,
+    )
+    execute_single(motion, context=context)
+    (rule,) = _collision_rule_nodes(motion.motion_chart)[0].temporary_rules
+
+    ModelChangeExecutable(
+        context=context, body=held_body, new_parent=end_effector.tool_frame
+    ).execute()
+    rule.update(world)
+
+    assert held_body in rule.allowed_collision_bodies
+
+
+def test_move_tool_center_point_motion_keeps_the_manipulator_clear_by_default(
+    immutable_model_world,
+):
+    """
+    Without ``allow_gripper_collision`` the motion adds no collision rule of its own, so
+    the robot's own rules keep deciding how close the gripper may come.
+    """
+    world, view, context = immutable_model_world
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+    )
+    execute_single(motion, context=context)
+
+    assert _collision_rule_nodes(motion.motion_chart) == []
+
+
+def test_move_gripper_motion_frees_the_fingers_it_closes(immutable_model_world):
+    """
+    Fingers closing on an object touch it, so ``allow_gripper_collision`` must reach the
+    collision manager here too: otherwise the buffer zone kept around the object stops
+    the fingers before they hold it.
+    """
+    world, view, context = immutable_model_world
+
+    close_motion = MoveGripperMotion(
+        motion=GripperState.CLOSE, gripper=Arms.LEFT, allow_gripper_collision=True
+    )
+    execute_single(close_motion, context=context)
+
+    rule_nodes = _collision_rule_nodes(close_motion.motion_chart)
+    assert len(rule_nodes) == 1
+    (rule,) = rule_nodes[0].temporary_rules
+    assert rule.end_effector is ViewManager().get_end_effector_view(Arms.LEFT, view)
+
+
+def test_move_gripper_motion_keeps_the_fingers_clear_by_default(immutable_model_world):
+    """
+    Without ``allow_gripper_collision`` the gripper motion adds no collision rule of its
+    own.
+    """
+    world, view, context = immutable_model_world
+
+    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, gripper=Arms.LEFT)
+    execute_single(close_motion, context=context)
+
+    assert _collision_rule_nodes(close_motion.motion_chart) == []
+
+
+def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_world):
+    """
+    PickUpAction's grasp-closing motion must allow the gripper collision it is about to
+    make: the fingers meeting the object are the grasp, not a collision to give up on.
+    """
+    world, view, context = immutable_model_world
+    grasp_description = GraspDescription(
+        ApproachDirection.FRONT,
+        VerticalAlignment.NoAlignment,
+        view.left_arm.end_effector,
+    )
+    pick_up = PickUpAction(
+        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
+    )
+    sequential([pick_up], context=context)
+
+    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
+        MoveGripperMotion
+    )
+    assert len(close_motion_nodes) == 1
+    assert close_motion_nodes[0].designator.allow_gripper_collision is True
+
+
+def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
+    immutable_model_world,
+):
+    """
+    A carried body hangs below the tool frame and is therefore freed together with the
+    manipulator, so the motions that carry it and the one that releases it must allow
+    the gripper collision.
+
+    The retract afterwards holds nothing and keeps the default.
+    """
+    world, view, context = immutable_model_world
+    target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    place = PlaceAction(world.get_body_by_name("milk.stl"), target_location, Arms.LEFT)
+    sequential([place], context=context)
+    plan = place._action_plan.plan
+
+    tool_center_point_allowances = [
+        node.designator.allow_gripper_collision
+        for node in plan.get_nodes_by_designator_type(MoveToolCenterPointMotion)
+    ]
+    assert tool_center_point_allowances.count(True) == 2
+    assert tool_center_point_allowances.count(None) == 1
+
+    release_nodes = plan.get_nodes_by_designator_type(MoveGripperMotion)
+    assert len(release_nodes) == 1
+    assert release_nodes[0].designator.allow_gripper_collision is True
 
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
