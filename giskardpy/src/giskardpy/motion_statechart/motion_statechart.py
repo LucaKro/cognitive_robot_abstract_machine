@@ -646,8 +646,8 @@ class MotionStatechart(SubclassJSONSerializer):
 
     def __post_init__(self):
         """
-        Creates the (initially empty) life cycle, observation and goal reached states
-        for this motion statechart.
+        Creates the (initially empty) life cycle and observation states for this motion
+        statechart.
         """
         self.life_cycle_state = LifeCycleState(self)
         self.observation_state = ObservationState(self)

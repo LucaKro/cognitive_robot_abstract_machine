@@ -82,7 +82,7 @@ class Open(Goal):
         return NodeArtifacts(
             observation=trinary_logic_and(
                 *[node.observation_variable for node in self.nodes]
-            ),
+            )
         )
 
 
@@ -152,5 +152,5 @@ class Close(Open):
         return NodeArtifacts(
             observation=trinary_logic_and(
                 *[node.observation_variable for node in self.nodes]
-            ),
+            )
         )

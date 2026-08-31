@@ -31,8 +31,8 @@ from giskardpy.motion_statechart.plotters.styles import (
     NodeSep,
     ObservationStateToColor,
     ObservationStateToSymbol,
-    LiftCycleStateToColor,
-    LiftCycleStateToSymbol,
+    LifeCycleStateToColor,
+    LifeCycleStateToSymbol,
     LineWidth,
     ConditionFont,
     FONT,
@@ -134,8 +134,8 @@ class MotionStatechartGraphviz:
         life_cycle_state = self.motion_statechart.life_cycle_state[node]
         obs_color = ObservationStateToColor[obs_state]
         obs_text = ObservationStateToSymbol[obs_state]
-        life_color = LiftCycleStateToColor[life_cycle_state]
-        life_symbol = LiftCycleStateToSymbol[life_cycle_state]
+        life_color = LifeCycleStateToColor[life_cycle_state]
+        life_symbol = LifeCycleStateToSymbol[life_cycle_state]
         label = (
             f'<<TABLE  BORDER="0" CELLBORDER="0" CELLSPACING="0">'
             f"<TR>"

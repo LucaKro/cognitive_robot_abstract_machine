@@ -1699,6 +1699,65 @@ class TestEndMotion:
 
         assert error.value is cancelled
 
+    def test_end_motion_when_failed_waits_for_the_node_to_end(self):
+        """
+        Being short of its goal is not yet a failure: the node has to have been ended
+        while it was.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := CountControlCycles(control_cycles=2),
+                falling_short := ConstFalseNode(),
+                end := EndMotion.when_failed(falling_short),
+            ]
+        )
+        falling_short.end_condition = trigger.observation_variable
+
+        executor = Executor(MotionStatechartContext(world=World()))
+        executor.compile(motion_statechart=msc)
+        executor.tick()
+
+        assert falling_short.life_cycle_state == LifeCycleValues.RUNNING
+        assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
+
+        executor.tick()
+
+        assert falling_short.life_cycle_state == LifeCycleValues.FAILED
+        assert end.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_cancel_motion_when_failed_raises_once_the_node_fails(self):
+        msc = MotionStatechart()
+        msc.add_nodes([trigger := ConstTrueNode(), falling_short := ConstFalseNode()])
+        falling_short.end_condition = trigger.observation_variable
+        cancelled = Exception("cancelled")
+        msc.add_node(CancelMotion.when_failed(falling_short, exception=cancelled))
+
+        executor = Executor(MotionStatechartContext(world=World()))
+        executor.compile(motion_statechart=msc)
+        with pytest.raises(type(cancelled)) as error:
+            executor.tick_until_end()
+
+        assert error.value is cancelled
+
+    @pytest.mark.parametrize(
+        "factory",
+        [CancelMotion.when_true, EndMotion.when_true],
+    )
+    def test_when_true_reads_the_goal_rather_than_the_observation(self, factory):
+        """
+        The observation behind a verdict is gone once the node ends, so a terminal node
+        built from one would stop arming exactly when the verdict it waits for arrives.
+        """
+        msc = MotionStatechart()
+        msc.add_node(watched := ConstTrueNode())
+
+        terminal_node = factory(watched)
+
+        assert terminal_node._start_condition.expression.free_variables() == [
+            watched.goal_reached
+        ]
+
     def test_goals_cannot_have_end_motion(self):
         msc = MotionStatechart()
         msc.add_node(Sequence([ConstTrueNode(), EndMotion()]))
@@ -2539,6 +2598,21 @@ class TestLifeCycleVerdicts:
         assert goal.child.observation_state == ObservationStateValues.TRUE
         assert goal.child.life_cycle_state == LifeCycleValues.INTERRUPTED
 
+    def test_being_cut_off_leaves_the_goal_of_a_child_unanswered(self):
+        """
+        A child that was never judged cannot report that it missed its goal, even though
+        the reading it was at is gone.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [trigger := ConstTrueNode(), goal := GoalCuttingOffItsChildAtItsGoal()]
+        )
+        goal.end_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
+        assert goal.child.goal_reached_state == ObservationStateValues.UNKNOWN
+
     def test_being_ended_outranks_being_cut_off(self):
         """
         A node something asked to end is judged on its own terms, even if its parent
@@ -2817,9 +2891,7 @@ class TestGoalReached:
             running: ObservationStateValues.TRUE,
             succeeded: ObservationStateValues.TRUE,
             failed: ObservationStateValues.FALSE,
-            interrupted: LifeCyclePredicate.IS_SUCCEEDED.value.truth_value(
-                LifeCycleValues.INTERRUPTED
-            ),
+            interrupted: ObservationStateValues.UNKNOWN,
         }
 
     def test_it_renders_as_one_variable(self):
@@ -3001,17 +3073,50 @@ class TestLifeCyclePredicates:
         [
             (LifeCyclePredicate.IS_SUCCEEDED, LifeCycleValues.SUCCEEDED),
             (LifeCyclePredicate.IS_FAILED, LifeCycleValues.FAILED),
-            (LifeCyclePredicate.IS_INTERRUPTED, LifeCycleValues.INTERRUPTED),
         ],
     )
-    def test_verdict_predicate_is_definite_once_a_node_ends(self, predicate, verdict):
-        for life_cycle_state in LifeCycleValues.terminal_states():
+    def test_a_judged_node_answers_whether_it_succeeded(self, predicate, verdict):
+        """
+        Succeeding and failing are the two ways of being judged, so each answers the
+        other.
+        """
+        for life_cycle_state in LifeCycleValues.judged_states():
             expected = (
                 ObservationStateValues.TRUE
                 if life_cycle_state is verdict
                 else ObservationStateValues.FALSE
             )
             assert predicate.value.truth_value(life_cycle_state) == expected
+
+    @pytest.mark.parametrize(
+        "predicate",
+        [LifeCyclePredicate.IS_SUCCEEDED, LifeCyclePredicate.IS_FAILED],
+    )
+    def test_an_interrupted_node_was_never_judged(self, predicate):
+        """
+        Being cut off is no verdict, so how the node would have been judged stays as
+        open as it was while the node was running.
+        """
+        assert (
+            predicate.value.truth_value(LifeCycleValues.INTERRUPTED)
+            == ObservationStateValues.UNKNOWN
+        )
+
+    def test_being_interrupted_is_definite_once_a_node_ends(self):
+        """
+        Unlike the two verdicts, whether a node was cut off is answered by every way of
+        ending.
+        """
+        for life_cycle_state in LifeCycleValues.terminal_states():
+            expected = (
+                ObservationStateValues.TRUE
+                if life_cycle_state is LifeCycleValues.INTERRUPTED
+                else ObservationStateValues.FALSE
+            )
+            assert (
+                LifeCyclePredicate.IS_INTERRUPTED.value.truth_value(life_cycle_state)
+                == expected
+            )
 
     @pytest.mark.parametrize(
         "predicate, phase",

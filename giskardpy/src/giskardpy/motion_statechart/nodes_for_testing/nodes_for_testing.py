@@ -43,9 +43,7 @@ class ConstTrueNode(MotionStatechartNode):
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
 
 @dataclass(eq=False, repr=False)
@@ -55,9 +53,7 @@ class ConstFalseNode(MotionStatechartNode):
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_false(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_false())
 
 
 @dataclass(repr=False, eq=False)
@@ -94,9 +90,7 @@ class TestGoal(Goal):
         self.sub_node2.start_condition = self.sub_node1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=self.sub_node2.observation_variable,
-        )
+        return NodeArtifacts(observation=self.sub_node2.observation_variable)
 
 
 @dataclass(repr=False, eq=False)
@@ -110,9 +104,7 @@ class TestNestedGoal(Goal):
         self.add_node(self.inner)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar(self.inner.observation_variable),
-        )
+        return NodeArtifacts(observation=sm.Scalar(self.inner.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
@@ -148,9 +140,7 @@ class TestRunAfterStop(Goal):
         self.cancel.start_condition = self.ticking1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar(self.ticking2.observation_variable),
-        )
+        return NodeArtifacts(observation=sm.Scalar(self.ticking2.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
@@ -179,9 +169,7 @@ class TestEndBeforeStart(Goal):
         self.node3.end_condition = self.node2.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar(self.node3.observation_variable),
-        )
+        return NodeArtifacts(observation=sm.Scalar(self.node3.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
@@ -221,9 +209,7 @@ class TestRunAfterStopFromPause(Goal):
         self.cancel.start_condition = self.ticking2.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar(self.ticking1.observation_variable),
-        )
+        return NodeArtifacts(observation=sm.Scalar(self.ticking1.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
@@ -259,9 +245,7 @@ class TestUnpauseUnknownFromParentPause(Goal):
         :attr:`count_ticks1` ends itself once it has counted, so its verdict is what
         still answers for it afterwards.
         """
-        return NodeArtifacts(
-            observation=sm.Scalar(self.count_ticks1.goal_reached),
-        )
+        return NodeArtifacts(observation=sm.Scalar(self.count_ticks1.goal_reached))
 
 
 # %% nodes that differ in what they can be judged by
@@ -329,9 +313,7 @@ class GoalCuttingOffItsChildAtItsGoal(Goal):
         self.add_node(self.child)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
 
 @dataclass(repr=False, eq=False)
@@ -351,9 +333,7 @@ class GoalCuttingOffItsChild(Goal):
         self.add_node(self.child)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
 
 @dataclass(repr=False, eq=False)
@@ -381,9 +361,7 @@ class GoalWithChildFailingOnItsOwn(Goal):
         self.child.end_condition = self.trigger.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
 
 @dataclass(repr=False, eq=False)
@@ -410,6 +388,4 @@ class GoalWithChildStartingLate(Goal):
         self.child.start_condition = delay.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=sm.Scalar.const_false(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_false())

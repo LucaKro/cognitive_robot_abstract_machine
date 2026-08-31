@@ -1802,6 +1802,19 @@ class EndMotion(TerminalNode):
         return end
 
     @classmethod
+    def when_failed(cls, node: MotionStatechartNode) -> Self:
+        """
+        Factory method for creating an EndMotion node that activates once the given node
+        ended by failing.
+
+        :param node: The node whose failure ends the motion.
+        :return: The new EndMotion node.
+        """
+        end = cls()
+        end.start_condition = node.is_failed
+        return end
+
+    @classmethod
     def when_false(cls, node: MotionStatechartNode) -> Self:
         """
         Factory method for creating an EndMotion node that activates while the given node
@@ -1809,6 +1822,8 @@ class EndMotion(TerminalNode):
 
         Unlike its counterparts this asks only what the node observes now, so it stops
         mattering once that node ends rather than latching onto the verdict it earned.
+
+        .. note:: Use :meth:`when_failed` to wait for a node to end short of its goal.
 
         :param node: The node whose observation state activates the created node.
         :return: The new EndMotion node.
@@ -1853,9 +1868,9 @@ class CancelMotion(TerminalNode):
     """
     Ends the motion by raising :attr:`exception`.
 
-    Its factory methods read what the given nodes observe now, unlike
-    :class:`EndMotion`'s, because they ask whether something is going wrong at this
-    moment rather than whether a goal was ever reached.
+    Its factory methods mirror :class:`EndMotion`'s: they read whether a node reached its
+    goal, which keeps answering once that node has ended, rather than the observation
+    behind it, which is gone by then.
     """
 
     exception: DataclassException = field(kw_only=True)
@@ -1878,17 +1893,37 @@ class CancelMotion(TerminalNode):
         cls, node: MotionStatechartNode, exception: Optional[Exception] = None
     ) -> Self:
         """
-        Factory method for creating a CancelMotion node that activates when the given node has a true observation state.
+        Factory method for creating a CancelMotion node that activates once the given
+        node reached its goal.
 
-        :param node: The node whose observation state activates the created node.
+        :param node: The node whose goal activates the created node.
         :param exception: The exception raised on activation, defaults to one naming the given node.
         :return: The new CancelMotion node.
         """
         exception = exception or Exception(
-            f"Cancelled because {node.unique_name} is true"
+            f"Cancelled because {node.unique_name} reached its goal"
         )
         end = cls(exception=exception)
-        end.start_condition = node.observation_variable
+        end.start_condition = node.goal_reached
+        return end
+
+    @classmethod
+    def when_failed(
+        cls, node: MotionStatechartNode, exception: Optional[Exception] = None
+    ) -> Self:
+        """
+        Factory method for creating a CancelMotion node that activates once the given
+        node ended by failing.
+
+        :param node: The node whose failure activates the created node.
+        :param exception: The exception raised on activation, defaults to one naming the given node.
+        :return: The new CancelMotion node.
+        """
+        exception = exception or Exception(
+            f"Cancelled because {node.unique_name} failed"
+        )
+        end = cls(exception=exception)
+        end.start_condition = node.is_failed
         return end
 
     @classmethod
@@ -1896,15 +1931,16 @@ class CancelMotion(TerminalNode):
         cls, nodes: List[MotionStatechartNode], exception: Exception
     ) -> Self:
         """
-        Factory method for creating a CancelMotion node that activates when *all* of the given nodes have a true observation state.
+        Factory method for creating a CancelMotion node that activates once *all* of the
+        given nodes reached their goals.
 
-        :param nodes: The nodes whose observation states activate the created node.
+        :param nodes: The nodes whose goals activate the created node.
         :param exception: The exception raised on activation.
         :return: The new CancelMotion node.
         """
         end = cls(exception=exception)
         end.start_condition = sm.trinary_logic_and(
-            *[node.observation_variable for node in nodes]
+            *[node.goal_reached for node in nodes]
         )
         return end
 
@@ -1913,14 +1949,15 @@ class CancelMotion(TerminalNode):
         cls, nodes: List[MotionStatechartNode], exception: Exception
     ) -> Self:
         """
-        Factory method for creating a CancelMotion node that activates when *any* of the given nodes have a true observation state.
+        Factory method for creating a CancelMotion node that activates once *any* of the
+        given nodes reached its goal.
 
-        :param nodes: The nodes whose observation states activate the created node.
+        :param nodes: The nodes whose goals activate the created node.
         :param exception: The exception raised on activation.
         :return: The new CancelMotion node.
         """
         end = cls(exception=exception)
         end.start_condition = sm.trinary_logic_or(
-            *[node.observation_variable for node in nodes]
+            *[node.goal_reached for node in nodes]
         )
         return end

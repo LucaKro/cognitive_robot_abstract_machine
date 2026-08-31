@@ -78,7 +78,7 @@ ObservationStateToEdgeStyle: Dict[ObservationStateValues, Dict[str, str]] = {
     ObservationStateValues.FALSE: {"style": "dashed", "penwidth": LineWidth * 1.5},
 }
 
-LiftCycleStateToColor: Dict[LifeCycleValues, str] = {
+LifeCycleStateToColor: Dict[LifeCycleValues, str] = {
     LifeCycleValues.NOT_STARTED: ConditionColors.ResetCondColor,
     LifeCycleValues.RUNNING: ConditionColors.StartCondColor,
     LifeCycleValues.PAUSED: ConditionColors.PauseCondColor,
@@ -87,7 +87,7 @@ LiftCycleStateToColor: Dict[LifeCycleValues, str] = {
     LifeCycleValues.INTERRUPTED: MyORANGE,
 }
 
-LiftCycleStateToSymbol: Dict[LifeCycleValues, str] = {
+LifeCycleStateToSymbol: Dict[LifeCycleValues, str] = {
     # LifeCycleState.not_started: '○',
     LifeCycleValues.NOT_STARTED: "—",
     LifeCycleValues.RUNNING: "▶",

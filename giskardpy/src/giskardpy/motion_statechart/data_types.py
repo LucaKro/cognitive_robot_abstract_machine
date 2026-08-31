@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from enum import IntEnum, Enum
 from typing import Union, FrozenSet
 
-import numpy as np
 from krrood.symbolic_math.symbolic_math import Scalar, if_eq_cases
 
 goal_parameter = Union[str, float, bool, dict, list, IntEnum, None]
@@ -64,21 +63,20 @@ class LifeCycleValues(IntEnum):
         """
         return frozenset({cls.SUCCEEDED, cls.FAILED, cls.INTERRUPTED})
 
+    @classmethod
+    def judged_states(cls) -> FrozenSet[LifeCycleValues]:
+        """
+        :return: The states a node reaches by being judged on its own terms, as opposed
+            to :attr:`INTERRUPTED`.
+        """
+        return frozenset({cls.SUCCEEDED, cls.FAILED})
+
     @property
     def is_terminal(self) -> bool:
         """
         :return: Whether a node in this state has ended.
         """
         return self in self.terminal_states()
-
-    @classmethod
-    def terminal_lookup_table(cls) -> np.ndarray:
-        """
-        :return: Whether a node has ended in each state, indexed by that state's value.
-        """
-        table = np.array([state.is_terminal for state in sorted(cls)])
-        table.flags.writeable = False
-        return table
 
     @classmethod
     def verdict_for(cls, observation: ObservationStateValues) -> LifeCycleValues:
@@ -149,20 +147,9 @@ class LifeCyclePredicateDefinition:
             return ObservationStateValues.UNKNOWN
         return ObservationStateValues.FALSE
 
-    def lookup_table(self) -> np.ndarray:
-        """
-        :return: The truth value per life cycle state, indexed by that state's value.
-        """
-        table = np.array(
-            [float(self.truth_value(state)) for state in sorted(LifeCycleValues)],
-            dtype=np.float64,
-        )
-        table.flags.writeable = False
-        return table
-
     def expression(self, life_cycle: Scalar) -> Scalar:
         """
-        The same truth table as :meth:`lookup_table`, but read off an expression rather
+        The same truth table as :meth:`truth_value`, but read off an expression rather
         than a value, so a predicate can be resolved while the life cycle state it reads
         is still being computed.
 
@@ -183,9 +170,12 @@ class LifeCyclePredicate(Enum):
     """
     A test on a node's life cycle state that may be used in transition conditions.
 
-    Verdict predicates are trinary: they stay unknown until the node terminates, because
-    *how* a node ended has no answer before it ends. Phase predicates are binary, because
-    *where* a node is right now always has one.
+    Verdict predicates are trinary, because *how* a node ended has no answer before it
+    ends. :attr:`IS_SUCCEEDED` and :attr:`IS_FAILED` stay unknown until the node is
+    judged, which leaves an interrupted node as open as a running one;
+    :attr:`IS_TERMINATED` and :attr:`IS_INTERRUPTED` are answered by every way of
+    ending. Phase predicates are binary, because *where* a node is right now always has
+    an answer.
     """
 
     IS_NOT_STARTED = LifeCyclePredicateDefinition(
@@ -202,11 +192,11 @@ class LifeCyclePredicate(Enum):
     )
     IS_SUCCEEDED = LifeCyclePredicateDefinition(
         true_states=frozenset({LifeCycleValues.SUCCEEDED}),
-        unknown_states=frozenset(LifeCycleValues) - LifeCycleValues.terminal_states(),
+        unknown_states=frozenset(LifeCycleValues) - LifeCycleValues.judged_states(),
     )
     IS_FAILED = LifeCyclePredicateDefinition(
         true_states=frozenset({LifeCycleValues.FAILED}),
-        unknown_states=frozenset(LifeCycleValues) - LifeCycleValues.terminal_states(),
+        unknown_states=frozenset(LifeCycleValues) - LifeCycleValues.judged_states(),
     )
     IS_INTERRUPTED = LifeCyclePredicateDefinition(
         true_states=frozenset({LifeCycleValues.INTERRUPTED}),

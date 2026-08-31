@@ -44,9 +44,7 @@ class Sequence(Goal):
             last_node = node
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(
-            observation=Scalar(self.nodes[-1].goal_reached),
-        )
+        return NodeArtifacts(observation=Scalar(self.nodes[-1].goal_reached))
 
 
 @dataclass(repr=False, eq=False)
@@ -86,6 +84,4 @@ class Parallel(Goal):
             if self.minimum_success is not None
             else len(self.nodes)
         )
-        return NodeArtifacts(
-            observation=minimum_success <= sum(*nodes_at_their_goal),
-        )
+        return NodeArtifacts(observation=minimum_success <= sum(*nodes_at_their_goal))

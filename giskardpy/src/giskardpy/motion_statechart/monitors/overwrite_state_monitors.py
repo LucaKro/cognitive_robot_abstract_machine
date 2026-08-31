@@ -34,9 +34,7 @@ class SetSeedConfiguration(MotionStatechartNode):
         Applying the configuration is what this node is for and it cannot fail, so it
         counts as succeeded from the moment it runs.
         """
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
     def on_start(self, context: MotionStatechartContext):
         self.seed_configuration.apply_to(context.world)
@@ -81,9 +79,7 @@ class SetOdometry(MotionStatechartNode):
                     actual_count=len(drive_connections),
                     entity_type=self._odom_joints,
                 )
-        return NodeArtifacts(
-            observation=sm.Scalar.const_true(),
-        )
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
     def on_start(self, context: MotionStatechartContext):
         parent_T_pose_ref = HomogeneousTransformationMatrix(

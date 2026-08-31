@@ -25,8 +25,8 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
 from giskardpy.motion_statechart.plotters.plot_specs import TRANSITION_SPECS
 from giskardpy.motion_statechart.plotters.styles import (
-    LiftCycleStateToColor,
-    LiftCycleStateToSymbol,
+    LifeCycleStateToColor,
+    LifeCycleStateToSymbol,
     ObservationStateToColor,
     ObservationStateToEdgeStyle,
     ObservationStateToSymbol,
@@ -210,8 +210,8 @@ def test_every_life_cycle_state_has_a_color_and_a_symbol(life_cycle_state):
     Both lookups are total, so a state missing from either only shows up as a KeyError
     while drawing.
     """
-    assert life_cycle_state in LiftCycleStateToColor
-    assert life_cycle_state in LiftCycleStateToSymbol
+    assert life_cycle_state in LifeCycleStateToColor
+    assert life_cycle_state in LifeCycleStateToSymbol
 
 
 @pytest.mark.parametrize("observation_state", list(ObservationStateValues))

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from giskardpy.motion_statechart.plotters.styles import (
-    LiftCycleStateToColor,
+    LifeCycleStateToColor,
     ObservationStateToColor,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -277,7 +277,7 @@ class HistoryGanttChartPlotter:
             node_idx=node_idx,
             history=life_cycle_history,
             control_cycle_indices=control_cycle_indices,
-            color_map=LiftCycleStateToColor,
+            color_map=LifeCycleStateToColor,
             top=True,
         )
 
@@ -353,7 +353,7 @@ class HistoryGanttChartPlotter:
             node_idx=node_idx,
             block_start=start,
             block_width=width,
-            color=LiftCycleStateToColor[last_lifecycle],
+            color=LifeCycleStateToColor[last_lifecycle],
             top=True,
         )
         self._draw_block(
