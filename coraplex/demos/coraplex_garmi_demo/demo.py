@@ -1,162 +1,268 @@
-import os
-import threading
-import math
+"""
+GARMI transports a bowl and a spoon across the apartment.
 
-import rclpy
+The bowl starts on the kitchen counter and the spoon inside a drawer, and both are carried
+to the table. Running with :attr:`~coraplex.datastructures.enums.ExecutionType.REAL` drives
+the actual robot and takes the world from the running world server. The default runs the
+whole plan in simulation against a world built from the apartment's MuJoCo scene and
+GARMI's URDF, so nothing on the network is needed.
+
+Needs the ``iai_garmi_apartment`` and ``garmi_description`` packages built in the
+workspace, since the scene and the robot description are read from their share
+directories.
+"""
+
+from __future__ import annotations
+
+import math
+import os
+from dataclasses import dataclass
+
 from ament_index_python.packages import get_package_share_directory
-from rclpy.executors import SingleThreadedExecutor
+from typing_extensions import ClassVar
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
+from coraplex.datastructures.enums import (
+    ApproachDirection,
+    Arms,
+    ExecutionType,
+    VerticalAlignment,
+)
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.execution_environment import simulated_robot
+from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
+from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
-from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
-from semantic_digital_twin.adapters.mesh import STLParser
-from semantic_digital_twin.adapters.mjcf import MJCFParser
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-    VizMarkerPublisher,
+from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from semantic_digital_twin.api import (
+    BodySpecification,
+    Connection6DoFSpecification,
+    RobotSpecification,
+    WorldSpecification,
 )
-from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.garmi import Garmi
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl, Spoon
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.connections import (
-    Connection6DoF,
-    FixedConnection,
-    OmniDrive,
-)
-from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
+from semantic_digital_twin.world import World
+
+# %% the apartment and the robot in it
 
 GARMI_ENV_XML = os.path.join(
     get_package_share_directory("iai_garmi_apartment"), "mjcf", "scene-bodies.xml"
 )
-GARMI_URDF = os.path.join("package://garmi_description/urdf/garmi.urdf")
-GARMI_BASE_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(0, 6, 0, yaw=math.pi / 2)
+"""
+The apartment scene GARMI acts in.
+"""
 
-BOWL_STL = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../",
-    "resources",
-    "objects",
-    "bowl.stl",
+ODOM_T_GARMI_START = HomogeneousTransformationMatrix.from_xyz_rpy(
+    0, 6, 0, yaw=math.pi / 2
 )
+"""
+Where GARMI starts, in its ``odom`` frame.
+"""
+
+DRIVE_TRANSLATION_VELOCITY_LIMITS = 0.1
+"""
+How fast the base drives, in meter per second.
+"""
+
+DRIVE_ROTATION_VELOCITY_LIMITS = 0.1
+"""
+How fast the base turns, in radian per second.
+"""
+
+# %% the transported objects
+
+OBJECT_RESOURCES = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "../../", "resources", "objects"
+)
+"""
+Where the meshes of the transported objects are kept.
+"""
+
+BOWL_NAME = "bowl"
+"""
+Name of the transported bowl, which also marks whether the scene was already populated.
+"""
+
+BOWL_STL = os.path.join(OBJECT_RESOURCES, "bowl.stl")
+"""
+The bowl's mesh.
+"""
 
 BOWL_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(0.0, 7.2, 1.0)
+"""
+Where the bowl starts, on the kitchen counter.
+"""
+
 BOWL_TARGET_POINT = Point3.from_iterable([1.6, 5.2, 0.8])
-SPOON_TARGET_POINT = Point3.from_iterable([1.6, 5.3, 0.8])
+"""
+Where the bowl is carried to.
+"""
 
-SPOON_STL = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "../../",
-    "resources",
-    "objects",
-    "spoon.stl",
-)
+SPOON_NAME = "spoon"
+"""
+Name of the transported spoon.
+"""
+
+SPOON_STL = os.path.join(OBJECT_RESOURCES, "spoon.stl")
+"""
+The spoon's mesh.
+"""
+
+SPOON_DRAWER_NAME = "drawer_1"
+"""
+Name of the drawer the spoon starts in.
+"""
+
 SPOON_IN_DRAWER_POSE = HomogeneousTransformationMatrix.from_xyz_rpy(-0.12, 0.0, 0.0)
+"""
+Where the spoon starts, relative to its drawer.
+"""
+
+SPOON_TARGET_POINT = Point3.from_iterable([1.6, 5.3, 0.8])
+"""
+Where the spoon is carried to.
+"""
+
+# %% the demonstration
 
 
-def build_world() -> tuple[World, Garmi]:
-    apartment_world = MJCFParser(GARMI_ENV_XML, every_geom_collides=True).parse()
-    garmi_world = URDFParser.from_file(GARMI_URDF).parse()
+@dataclass
+class GarmiApartmentDemonstration(RobotDemonstration):
+    """
+    GARMI carries a bowl off the kitchen counter and a spoon out of a drawer, and places
+    both on the table.
+    """
 
-    # Annotate the GARMI robot bodies before restructuring the kinematic tree.
-    garmi_robot = Garmi.from_world(garmi_world)
+    ros_node_name: ClassVar[str] = "garmi_demo_node"
 
-    with garmi_world.modify_world():
-        garmi_root = garmi_world.root
-        map_body = Body(name=PrefixedName("map"))
-        odom_combined = Body(name=PrefixedName("odom_combined"))
+    def build_simulated_world(self) -> World:
+        """
+        Put GARMI into the apartment's MuJoCo scene.
 
-        map_C_odom = Connection6DoF.create_with_dofs(
-            garmi_world, map_body, odom_combined
-        )
-        garmi_world.add_connection(map_C_odom)
+        The scene keeps its collision geometry in a file that is not loaded, so every
+        geom has to stand in for it.
+        """
+        return WorldSpecification.from_mjcf(
+            GARMI_ENV_XML,
+            every_geom_collides=True,
+            robots=[
+                RobotSpecification(
+                    semantic_annotation_type=self.used_robot,
+                    odom_T_robot_start=ODOM_T_GARMI_START,
+                    drive_translation_velocity_limits=DRIVE_TRANSLATION_VELOCITY_LIMITS,
+                    drive_rotation_velocity_limits=DRIVE_ROTATION_VELOCITY_LIMITS,
+                )
+            ],
+        ).to_domain_object()
 
-        omni_drive = OmniDrive.create_with_dofs(
-            parent=odom_combined,
-            child=garmi_root,
-            world=garmi_world,
-            translation_velocity_limits=0.1,
-            rotation_velocity_limits=0.1,
-        )
-        garmi_world.add_connection(omni_drive)
-        omni_drive.has_hardware_interface = True
+    def is_scene_populated(self, world: World) -> bool:
+        return world.is_kinematic_structure_entity_in_world_by_name(BOWL_NAME)
 
-    omni_drive.origin = GARMI_BASE_POSE
-    garmi_world.merge_world(apartment_world)
+    def populate_scene(self, world: World) -> None:
+        """
+        Annotate the apartment's furniture, then add the bowl and the spoon.
 
-    # Add spoon inside drawer_1 (fixed to the drawer so it moves with it when opened).
-    drawer_1 = garmi_world.get_body_by_name("drawer_1")
-    spoon = STLParser(SPOON_STL).parse()
-    spoon_in_drawer = FixedConnection(
-        parent=drawer_1,
-        child=spoon.root,
-        parent_T_connection_expression=SPOON_IN_DRAWER_POSE,
-    )
-    garmi_world.merge_world(spoon, spoon_in_drawer)
+        The furniture is annotated first, so the reasoner describes the apartment the
+        plan navigates rather than the two objects the plan already knows.
+        """
+        world_reasoner = WorldReasoner(world)
+        inferred = world_reasoner.infer_semantic_annotations()
+        with world.modify_world():
+            world.add_semantic_annotations(inferred)
 
-    # Add bowl on the kitchen counter area.
-    bowl = STLParser(BOWL_STL).parse()
-    with garmi_world.modify_world():
-        garmi_world.merge_world_at_pose(bowl, BOWL_POSE)
+        # %% bowl
 
-    return garmi_world, garmi_robot
+        # Both objects are picked up and carried, and a pose can only be written to a
+        # connection that has the degrees of freedom to carry it, so they hang off 6DoF
+        # connections rather than the default fixed one.
+        Bowl.get_annotation_specification(
+            BOWL_NAME,
+            BodySpecification.mesh(BOWL_NAME, BOWL_STL, parent_T_self=BOWL_POSE),
+            parent_connection_specification=Connection6DoFSpecification(),
+        ).spawn(world)
 
+        # %% spoon
 
-def setup_semantics(world: World) -> None:
-    world_reasoner = WorldReasoner(world)
-    inferred = world_reasoner.infer_semantic_annotations()
-    with world.modify_world():
-        world.add_semantic_annotations(inferred)
-
-
-world, garmi_robot = build_world()
-setup_semantics(world)
-
-bowl_target_pose = Pose(position=BOWL_TARGET_POINT, reference_frame=world.root)
-spoon_target_pose = Pose(position=SPOON_TARGET_POINT, reference_frame=world.root)
-
-rclpy.init()
-node = rclpy.create_node("garmi_apartment_viz")
-publisher = VizMarkerPublisher(_world=world, node=node)
-
-# Execute plan with the simulated robot.
-context = Context.from_world(world)
-with simulated_robot:
-    sequential(
-        [
-            ParkArmsAction(arm=Arms.BOTH),
-            # Note: always need TorsoState.HIGH or next(iter(self)) of CostmapLocation fails
-            MoveTorsoAction(TorsoState.HIGH),
-            # Transport is not working yet on the garmi
-            TransportAction(
-                object_designator=world.get_body_by_name("bowl.stl"),
-                arm=Arms.RIGHT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.RIGHT,
-                    VerticalAlignment.TOP,
-                    garmi_robot.get_right_arm_if_specified().end_effector,
-                ),
-                target_location=bowl_target_pose,
+        # Hanging off the drawer rather than the world root, so it travels with the drawer
+        # when the plan opens it.
+        Spoon.get_annotation_specification(
+            SPOON_NAME,
+            BodySpecification.mesh(
+                SPOON_NAME, SPOON_STL, parent_T_self=SPOON_IN_DRAWER_POSE
             ),
-            MoveTorsoAction(TorsoState.HIGH),
-            TransportAction(
-                object_designator=world.get_body_by_name("spoon.stl"),
-                arm=Arms.RIGHT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.RIGHT,
-                    VerticalAlignment.TOP,
-                    rotate_gripper=True,
-                    end_effector=garmi_robot.get_right_arm_if_specified().end_effector,
+            parent_connection_specification=Connection6DoFSpecification(),
+        ).spawn(world, parent=world.get_body_by_name(SPOON_DRAWER_NAME))
+
+    def build_context(self, world: World) -> Context:
+        """
+        Build the plan context around the GARMI in ``world``.
+
+        ..note:: The ROS node has to be in the context for a real robot.
+        """
+        return Context(
+            world=world,
+            robot=world.get_semantic_annotations_by_type(self.used_robot)[0],
+            ros_node=self.ros_node,
+            evaluate_conditions=True,
+            alternative_motion_mappings=self.alternative_motion_mappings,
+        )
+
+    def build_plan(self, context: Context) -> PlanNode:
+        """
+        Carry the bowl and then the spoon to the table.
+        """
+        world = context.world
+        end_effector = context.robot.get_right_arm_if_specified().end_effector
+
+        return sequential(
+            [
+                ParkArmsAction(arm=Arms.BOTH),
+                # Note: always need TorsoState.HIGH or next(iter(self)) of CostmapLocation fails
+                TransportAction(
+                    object_designator=world.get_semantic_annotations_by_type(Bowl)[0],
+                    arm=Arms.RIGHT,
+                    grasp_description=GraspDescription(
+                        ApproachDirection.RIGHT,
+                        VerticalAlignment.TOP,
+                        end_effector,
+                    ),
+                    target_location=Pose(
+                        position=BOWL_TARGET_POINT, reference_frame=world.root
+                    ),
                 ),
-                target_location=spoon_target_pose,
-            ),
-        ],
-        context,
-    ).perform()
+                TransportAction(
+                    object_designator=world.get_semantic_annotations_by_type(Spoon)[0],
+                    arm=Arms.RIGHT,
+                    grasp_description=GraspDescription(
+                        ApproachDirection.RIGHT,
+                        VerticalAlignment.TOP,
+                        rotate_gripper=True,
+                        end_effector=end_effector,
+                    ),
+                    target_location=Pose(
+                        position=SPOON_TARGET_POINT, reference_frame=world.root
+                    ),
+                ),
+            ],
+            context,
+        )
+
+
+def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> None:
+    """
+    Run the demonstration.
+
+    :param execution_type: Whether to drive the real robot or simulate it.
+    """
+    GarmiApartmentDemonstration(
+        used_robot=Garmi, execution_type=execution_type, collision_avoidance=True
+    ).run()
+
+
+if __name__ == "__main__":
+    main()

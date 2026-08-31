@@ -31,6 +31,7 @@ from semantic_digital_twin.exceptions import (
     PartWholeFieldInAnnotationKwargs,
     UnknownPartWholeRelationshipField,
     MissingConnectionParentError,
+    DriveVelocityLimitsOnUndrivenRobot,
 )
 from semantic_digital_twin.semantic_annotations.part_whole import (
     IsPartWholeRelationship,
@@ -45,6 +46,7 @@ from semantic_digital_twin.world_description.connections import (
     ActiveConnection,
     FixedConnection,
     Connection6DoF,
+    WheeledDrive,
     PrismaticConnection,
     RevoluteConnection,
     ScrewConnection,
@@ -1091,6 +1093,20 @@ class RobotSpecification:
     If None, identity is used.
     """
 
+    drive_translation_velocity_limits: float | None = None
+    """
+    Velocity limit of the drive's translational degrees of freedom, in meter per second.
+
+    If None, the drive connection's own default is kept.
+    """
+
+    drive_rotation_velocity_limits: float | None = None
+    """
+    Velocity limit of the drive's rotational degrees of freedom, in radian per second.
+
+    If None, the drive connection's own default is kept.
+    """
+
     def spawn(self, world: World) -> AbstractRobot:
         """
         Parse the robot from its own description and merge it into ``world`` as
@@ -1107,9 +1123,12 @@ class RobotSpecification:
 
         :param world: The world the robot is merged into.
         :return: The semantic annotation of the merged robot.
+        :raises DriveVelocityLimitsOnUndrivenRobot: If a drive velocity limit is given
+            for a robot that has no drive.
         """
         connection_type = self.semantic_annotation_type.get_drive_connection_type()
         is_active = issubclass(connection_type, ActiveConnection)
+        drive_velocity_limits = self._drive_velocity_limits(connection_type)
 
         robot_world = URDFParser.from_file(
             self.semantic_annotation_type.get_ros_file_path()
@@ -1132,6 +1151,7 @@ class RobotSpecification:
                 parent_T_connection_expression=(
                     None if is_active else self.odom_T_robot_start
                 ),
+                **drive_velocity_limits,
             )
             world.merge_world(robot_world, root_connection=odom_C_robot)
             if is_active:
@@ -1146,6 +1166,32 @@ class RobotSpecification:
             odom_C_robot.origin = self.odom_T_robot_start
 
         return cast("AbstractRobot", world.get_semantic_annotation_by_id(robot_id))
+
+    def _drive_velocity_limits(
+        self, connection_type: Type[Connection]
+    ) -> dict[str, float]:
+        """
+        Collect the velocity limits to create the drive connection with.
+
+        :param connection_type: The connection the robot attaches to its ``odom`` with.
+        :return: The limits that were set, keyed by the keyword ``create_with_dofs``
+            takes them under.
+        :raises DriveVelocityLimitsOnUndrivenRobot: If a limit is set but the connection
+            carries no velocity limits.
+        """
+        limits = {
+            "translation_velocity_limits": self.drive_translation_velocity_limits,
+            "rotation_velocity_limits": self.drive_rotation_velocity_limits,
+        }
+        given_limits = {
+            keyword: limit for keyword, limit in limits.items() if limit is not None
+        }
+        if given_limits and not issubclass(connection_type, WheeledDrive):
+            raise DriveVelocityLimitsOnUndrivenRobot(
+                robot_type_name=self.semantic_annotation_type.__name__,
+                connection_type_name=connection_type.__name__,
+            )
+        return given_limits
 
     @staticmethod
     def _create_odom_body() -> Body:
@@ -1234,6 +1280,7 @@ class WorldSpecification:
         *,
         prefix: str | None = None,
         mimic_joints: dict[str, str] | None = None,
+        every_geom_collides: bool = False,
         robots: list[RobotSpecification] | None = None,
         objects: list[SpawnSpecification] | None = None,
     ) -> Self:
@@ -1245,6 +1292,8 @@ class WorldSpecification:
             description; robots are supplied through ``robots``.
         :param prefix: Optional name prefix for the parsed environment.
         :param mimic_joints: Mapping of joint names to the joints they mimic.
+        :param every_geom_collides: Whether every geom becomes a collision shape,
+            including the ones MuJoCo excludes from contact.
         :param robots: The robots merged into the environment.
         :param objects: Specifications spawned once the robots are in place.
         :return: The created specification.
@@ -1255,6 +1304,7 @@ class WorldSpecification:
             file_path=file_path,
             mimic_joints=mimic_joints or {},
             prefix=prefix,
+            every_geom_collides=every_geom_collides,
         )
         return cls(
             world_parser=world_parser,
