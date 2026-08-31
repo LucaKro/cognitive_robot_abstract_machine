@@ -1073,6 +1073,16 @@ class FloatVariable(Scalar):
         self._registry[casadi_sx] = self
         super().__init__(casadi_sx)
 
+    def __copy__(self) -> Scalar:
+        """
+        A variable cannot be copied as a variable: a copy that is then changed is no
+        longer that variable. Copying yields a plain expression over the same symbol,
+        which is what every other operation on a variable returns.
+
+        :return: An expression over the same symbol.
+        """
+        return Scalar.from_casadi_sx(copy.copy(self.casadi_sx))
+
     @classmethod
     def create_with_resolver(cls, name: str, resolver: Callable[[], float]) -> Self:
         """

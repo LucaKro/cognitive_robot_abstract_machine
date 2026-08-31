@@ -303,7 +303,10 @@ class ObservationState(State):
                 b_result_cases=[
                     (
                         int(LifeCycleValues.RUNNING),
-                        GoalReachedVariable.replace_in(node._observation_expression),
+                        GoalReachedVariable.replace_in(
+                            node._observation_expression,
+                            lambda variable: variable.as_expression(),
+                        ),
                     ),
                     (
                         int(LifeCycleValues.PAUSED),
@@ -413,21 +416,17 @@ class NextLifeCycle:
                 a=node.life_cycle_variable,
                 b_result_cases=node.create_lifecycle_transitions().as_cases(),
                 else_result=sm.Scalar(node.life_cycle_variable),
-            )
+            ),
+            lambda variable: variable.as_expression(),
         )
-        predicates = [
-            variable
-            for variable in transitions.free_variables()
-            if isinstance(variable, LifeCyclePredicateVariable)
-        ]
-        expression = transitions.substitute(
-            predicates, [self._resolve(node, variable) for variable in predicates]
+        expression = LifeCyclePredicateVariable.replace_in(
+            transitions, lambda variable: self._replacement_for(node, variable)
         )
         self._nodes_being_built.pop()
         self._expressions[node.index] = expression
         return expression
 
-    def _resolve(
+    def _replacement_for(
         self, reader: MotionStatechartNode, variable: LifeCyclePredicateVariable
     ) -> sm.Scalar:
         """

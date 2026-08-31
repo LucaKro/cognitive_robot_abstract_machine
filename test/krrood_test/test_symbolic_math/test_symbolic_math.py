@@ -1,3 +1,4 @@
+import copy
 import operator
 
 import casadi as ca
@@ -445,6 +446,30 @@ class TestFloatVariable:
         s = sm.FloatVariable(name="muh")
         d = {s: 1}
         assert d[s] == 1
+
+    def test_copying_yields_an_expression_over_the_same_symbol(self):
+        """
+        Every other operation on a variable yields a plain expression, and copying is no
+        different: a copy that is then changed is no longer that variable.
+        """
+        v = sm.FloatVariable(name="v")
+
+        copied = copy.copy(v)
+
+        assert type(copied) is sm.Scalar
+        assert copied.free_variables() == [v]
+
+    def test_substituting_a_variable_that_is_the_whole_expression(self):
+        """
+        A bare variable is an expression like any other, so substituting it replaces the
+        whole thing and leaves the variable itself untouched.
+        """
+        v = sm.FloatVariable(name="v")
+
+        substituted = v.substitute([v], [sm.Scalar(42)])
+
+        assert substituted.to_np() == 42
+        assert v.free_variables() == [v]
 
 
 class TestExpression:

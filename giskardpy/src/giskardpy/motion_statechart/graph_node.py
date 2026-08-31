@@ -10,6 +10,7 @@ from functools import cached_property
 
 import numpy as np
 from typing_extensions import (
+    Callable,
     ClassVar,
     Dict,
     Any,
@@ -411,6 +412,26 @@ class NodeStateVariable(FloatVariable):
         """
         return self.motion_statechart_node.unique_name
 
+    @classmethod
+    def replace_in(
+        cls, expression: Scalar, replacement: Callable[[Self], Scalar]
+    ) -> Scalar:
+        """
+        Replaces every variable of this type in `expression` by what it stands for.
+
+        :param expression: The expression to replace them in.
+        :param replacement: Builds the expression that replaces one variable.
+        :return: `expression` with every variable of this type replaced.
+        """
+        variables = [
+            variable
+            for variable in expression.free_variables()
+            if isinstance(variable, cls)
+        ]
+        return expression.substitute(
+            variables, [replacement(variable) for variable in variables]
+        )
+
 
 @dataclass(repr=False, eq=False, init=False)
 class ObservationVariable(NodeStateVariable):
@@ -487,32 +508,12 @@ class GoalReachedVariable(NodeStateVariable):
     def resolve(self) -> ObservationStateValues:
         return self.motion_statechart_node.goal_reached_state
 
-    @classmethod
-    def replace_in(cls, expression: Scalar) -> Scalar:
+    def as_expression(self) -> Scalar:
         """
-        Replaces every goal reached variable in `expression` by what it stands for, so
-        the value is read off the life cycle and observation states the expression is
-        compiled against.
-
-        :param expression: The expression to replace them in.
-        :return: `expression` with every goal reached variable replaced.
+        :return: The same value as :meth:`resolve`, read off the life cycle and
+            observation variables of the node rather than off their current states.
         """
-        if isinstance(expression, cls):
-            return expression.motion_statechart_node._create_goal_reached()
-        variables = [
-            variable
-            for variable in expression.free_variables()
-            if isinstance(variable, cls)
-        ]
-        if not variables:
-            return expression
-        return expression.substitute(
-            variables,
-            [
-                variable.motion_statechart_node._create_goal_reached()
-                for variable in variables
-            ],
-        )
+        return self.motion_statechart_node._create_goal_reached()
 
 
 @dataclass
