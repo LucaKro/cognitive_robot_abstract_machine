@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import ClassVar, List, Self
+from typing import List, Self
 
 from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -569,7 +569,7 @@ class GarmiMobileBase(MobileBase[OmniDrive], HasTorso[GarmiTorso]):
             root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "chassis_link"
             ),
-            full_body_controlled=True,
+            full_body_controlled=False,
         )
 
 
@@ -579,6 +579,15 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
     Semantic annotation for GARMI, a mobile service robot with a mecanum base, lift, two
     Franka FR3 arms, parallel grippers, and a pan/tilt head.
     """
+
+    @classproperty
+    def uses_visual_as_collision_backup(cls) -> bool:
+        """
+        :return: True, since GARMI's shell -- the side, front and rear covers -- is
+            drawn but never described for contact, so without this the parts that bound
+            its real width do not collide.
+        """
+        return True
 
     @classmethod
     def get_ros_file_path(cls) -> str:

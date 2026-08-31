@@ -158,7 +158,6 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 RobotSpecification(
                     semantic_annotation_type=self.used_robot,
                     odom_T_robot_start=ODOM_T_GARMI_START,
-                    use_visual_as_collision_backup=True,
                     drive_translation_velocity_limits=DRIVE_TRANSLATION_VELOCITY_LIMITS,
                     drive_rotation_velocity_limits=DRIVE_ROTATION_VELOCITY_LIMITS,
                 )

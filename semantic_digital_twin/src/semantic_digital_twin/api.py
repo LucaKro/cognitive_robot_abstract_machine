@@ -1107,12 +1107,6 @@ class RobotSpecification:
     If None, the drive connection's own default is kept.
     """
 
-    use_visual_as_collision_backup: bool = False
-    """
-    Whether a link of the robot description that describes no collision geometry
-    collides with its visual geometry instead.
-    """
-
     def spawn(self, world: World) -> AbstractRobot:
         """
         Parse the robot from its own description and merge it into ``world`` as
@@ -1138,7 +1132,9 @@ class RobotSpecification:
 
         robot_world = URDFParser.from_file(
             self.semantic_annotation_type.get_ros_file_path(),
-            use_visual_as_collision_backup=self.use_visual_as_collision_backup,
+            use_visual_as_collision_backup=(
+                self.semantic_annotation_type.uses_visual_as_collision_backup
+            ),
         ).parse()
         robot_id = self.semantic_annotation_type.from_world(robot_world).id
 
