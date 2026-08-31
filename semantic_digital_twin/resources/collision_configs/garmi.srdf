@@ -9,90 +9,72 @@
   <disable_all_collisions link="rear_left_wheel_link"/>
   <disable_all_collisions link="rear_right_wheel_link"/>
   <disable_all_collisions link="riser_link"/>
-  <disable_self_collision link1="body_link" link2="chassis_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="front_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="head" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="left_fr3_hand" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="left_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="left_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="left_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="left_fr3_rightfinger" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="lift_0_base_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="lift_0_lower_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="lift_0_plate_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="lift_0_upper_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="mounting_plate_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="neck_2" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="body_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="left_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="chassis_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="chassis_link" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="neck_2" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="chassis_link" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="chassis_link" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="chassis_link" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="left_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="lift_0_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="cover_link" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="cover_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="cover_link" link2="neck_1" reason="Unknown"/>
   <disable_self_collision link1="cover_link" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="cover_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="cover_link" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="chassis_link" reason="Unknown"/>
-  <disable_self_collision link1="front_left_wheel_link" link2="left_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="left_fr3_link0" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="left_fr3_link2" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="front_left_wheel_link" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link2" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link6" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="front_left_wheel_link" link2="right_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="front_left_wheel_link" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="front_right_wheel_link" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="front_left_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_link6" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_link7" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="left_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="lift_0_base_link" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="lift_0_lower_link" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="neck_1" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="right_fr3_link2" reason="Unknown"/>
-  <disable_self_collision link1="front_right_wheel_link" link2="right_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="front_right_wheel_link" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="front_right_wheel_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="head" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="head" link2="chassis_link" reason="Unknown"/>
   <disable_self_collision link1="head" link2="cover_link" reason="Unknown"/>
   <disable_self_collision link1="head" link2="front_left_wheel_link" reason="Unknown"/>
@@ -109,55 +91,60 @@
   <disable_self_collision link1="head" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="head" link2="rear_left_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="head" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="head" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="head" link2="right_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="head" link2="right_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="head" link2="right_fr3_link2" reason="Unknown"/>
   <disable_self_collision link1="head" link2="right_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="head" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_hand" link2="left_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_hand" link2="left_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_hand" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_hand" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_hand" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_hand" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_leftfinger" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_leftfinger" link2="left_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_leftfinger" link2="left_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_leftfinger" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_leftfinger" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_leftfinger" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link0" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="left_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link0" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link0" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link0" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link0" link2="right_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link0" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link0" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="front_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="left_fr3_link0" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="left_fr3_link2" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="left_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="rear_left_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="right_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="right_fr3_link2" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link1" link2="right_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link1" link2="riser_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="chassis_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link2" link2="front_left_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="left_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link2" link2="left_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="left_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="lift_0_base_link" reason="Unknown"/>
@@ -166,229 +153,271 @@
   <disable_self_collision link1="left_fr3_link2" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link2" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link2" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link2" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="right_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="right_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="right_fr3_link2" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link2" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link3" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link3" link2="left_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link3" link2="mounting_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link4" link2="left_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link4" link2="left_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link4" link2="left_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link4" link2="left_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link4" link2="mounting_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link4" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link4" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="left_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="left_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link5" link2="left_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link5" link2="left_fr3_link6" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="left_fr3_link7" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="left_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link5" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link5" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link5" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link6" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link6" link2="left_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link6" link2="left_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link6" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link6" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link6" link2="left_fr3_link5" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link6" link2="left_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link6" link2="left_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link6" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link6" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_link6" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link7" link2="left_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link7" link2="left_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link7" link2="left_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link7" link2="left_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_link7" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_link7" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_rightfinger" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_rightfinger" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_rightfinger" link2="left_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_rightfinger" link2="left_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_rightfinger" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_rightfinger" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_rightfinger" link2="left_fr3_link6" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_rightfinger" link2="left_fr3_link7" reason="Unknown"/>
   <disable_self_collision link1="left_fr3_rightfinger" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="left_fr3_rightfinger" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="left_fr3_rightfinger" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_base_link" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_base_link" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="left_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="left_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="lift_0_lower_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_base_link" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_base_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_base_link" link2="neck_1" reason="Unknown"/>
   <disable_self_collision link1="lift_0_base_link" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_base_link" link2="right_fr3_link2" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_base_link" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="lift_0_base_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_lower_link" link2="left_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_lower_link" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_lower_link" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_lower_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_lower_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_lower_link" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="neck_2" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_lower_link" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="lift_0_lower_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_plate_link" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="lift_0_plate_link" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="lift_0_base_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_plate_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_plate_link" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="neck_2" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="right_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_plate_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_upper_link" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_upper_link" link2="left_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_upper_link" link2="lift_0_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_upper_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="lift_0_upper_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="lift_0_upper_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="chassis_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="left_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="left_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="lift_0_lower_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="lift_0_plate_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="lift_0_upper_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="right_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="mounting_plate_link" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_upper_link" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="lift_0_upper_link" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="mounting_plate_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="neck_1" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="neck_1" link2="left_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="neck_1" link2="mounting_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="neck_2" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="front_left_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="front_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="left_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="left_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="left_fr3_link2" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="left_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="lift_0_base_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="lift_0_lower_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="neck_1" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="right_fr3_link2" reason="Unknown"/>
-  <disable_self_collision link1="neck_2" link2="right_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="neck_2" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="neck_2" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_left_wheel_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_left_wheel_link" link2="left_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="rear_left_wheel_link" link2="left_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="rear_left_wheel_link" link2="left_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="lift_0_lower_link" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="lift_0_plate_link" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_left_wheel_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="rear_left_wheel_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="rear_left_wheel_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_left_wheel_link" link2="right_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="rear_left_wheel_link" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="front_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link0" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link2" reason="Unknown"/>
   <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link6" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="left_fr3_rightfinger" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="lift_0_base_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="lift_0_lower_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="lift_0_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="rear_right_wheel_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_hand" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_hand" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_hand" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_hand" link2="right_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_hand" link2="right_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_hand" link2="right_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="neck_2" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link0" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link2" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link6" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="right_fr3_rightfinger" reason="Unknown"/>
+  <disable_self_collision link1="rear_right_wheel_link" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_hand" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="left_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="left_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="left_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="left_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="mounting_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="neck_1" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_leftfinger" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_leftfinger" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="right_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_leftfinger" link2="right_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_leftfinger" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="body_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="left_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="left_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link0" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link0" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link0" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link0" link2="riser_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="chassis_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="cover_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="left_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link1" link2="left_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="lift_0_base_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link1" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link1" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link1" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link1" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="neck_2" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="right_fr3_link0" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="right_fr3_link2" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="right_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="right_fr3_link4" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="right_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link1" link2="riser_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="chassis_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="cover_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link2" link2="front_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link2" link2="front_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="left_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link2" link2="left_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link2" link2="lift_0_base_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link2" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link2" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link2" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link2" link2="right_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="right_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link2" link2="riser_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="chassis_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link3" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link3" link2="left_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link3" link2="front_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link3" link2="left_fr3_link0" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="lift_0_lower_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="lift_0_upper_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="neck_1" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link3" link2="neck_2" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link3" link2="rear_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="right_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="right_fr3_link0" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link3" link2="right_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="right_fr3_link5" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link3" link2="right_fr3_link6" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link3" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link3" link2="right_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link3" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link4" link2="chassis_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link4" link2="lift_0_plate_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link4" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link4" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link4" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link4" link2="right_fr3_link1" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link4" link2="riser_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link5" link2="front_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link4" link2="right_fr3_hand" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link4" link2="right_fr3_link7" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link5" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link5" link2="rear_right_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link5" link2="right_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link5" link2="right_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link5" link2="right_fr3_link1" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link5" link2="right_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link6" link2="front_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link5" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link5" link2="right_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link6" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link6" link2="rear_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link6" link2="right_fr3_hand" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link6" link2="right_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link6" link2="right_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link6" link2="right_fr3_link4" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_link6" link2="right_fr3_link5" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="front_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_hand" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_leftfinger" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_link3" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_link5" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_link6" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_link7" link2="right_fr3_rightfinger" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_rightfinger" link2="front_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link6" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_link6" link2="right_fr3_rightfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_rightfinger" link2="rear_left_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_rightfinger" link2="rear_right_wheel_link" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_hand" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_link3" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_leftfinger" reason="Unknown"/>
   <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_link5" reason="Unknown"/>
-  <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_link6" reason="Unknown"/>
+  <disable_self_collision link1="right_fr3_rightfinger" link2="right_fr3_link7" reason="Unknown"/>
+  <disable_self_collision link1="riser_link" link2="body_link" reason="Unknown"/>
+  <disable_self_collision link1="riser_link" link2="cover_link" reason="Unknown"/>
   <disable_self_collision link1="riser_link" link2="left_fr3_link3" reason="Unknown"/>
   <disable_self_collision link1="riser_link" link2="left_fr3_link4" reason="Unknown"/>
-  <disable_self_collision link1="riser_link" link2="lift_0_plate_link" reason="Unknown"/>
   <disable_self_collision link1="riser_link" link2="lift_0_upper_link" reason="Unknown"/>
+  <disable_self_collision link1="riser_link" link2="mounting_plate_link" reason="Unknown"/>
   <disable_self_collision link1="riser_link" link2="neck_1" reason="Unknown"/>
-  <disable_self_collision link1="riser_link" link2="rear_right_wheel_link" reason="Unknown"/>
-  <disable_self_collision link1="riser_link" link2="right_fr3_link1" reason="Unknown"/>
+  <disable_self_collision link1="riser_link" link2="rear_left_wheel_link" reason="Unknown"/>
+  <disable_self_collision link1="riser_link" link2="right_fr3_leftfinger" reason="Unknown"/>
+  <disable_self_collision link1="riser_link" link2="right_fr3_link4" reason="Unknown"/>
 </robot>

@@ -1107,6 +1107,12 @@ class RobotSpecification:
     If None, the drive connection's own default is kept.
     """
 
+    use_visual_as_collision_backup: bool = False
+    """
+    Whether a link of the robot description that describes no collision geometry
+    collides with its visual geometry instead.
+    """
+
     def spawn(self, world: World) -> AbstractRobot:
         """
         Parse the robot from its own description and merge it into ``world`` as
@@ -1131,7 +1137,8 @@ class RobotSpecification:
         drive_velocity_limits = self._drive_velocity_limits(connection_type)
 
         robot_world = URDFParser.from_file(
-            self.semantic_annotation_type.get_ros_file_path()
+            self.semantic_annotation_type.get_ros_file_path(),
+            use_visual_as_collision_backup=self.use_visual_as_collision_backup,
         ).parse()
         robot_id = self.semantic_annotation_type.from_world(robot_world).id
 
@@ -1280,7 +1287,7 @@ class WorldSpecification:
         *,
         prefix: str | None = None,
         mimic_joints: dict[str, str] | None = None,
-        every_geom_collides: bool = False,
+        use_visual_as_collision_backup: bool = False,
         robots: list[RobotSpecification] | None = None,
         objects: list[SpawnSpecification] | None = None,
     ) -> Self:
@@ -1292,8 +1299,8 @@ class WorldSpecification:
             description; robots are supplied through ``robots``.
         :param prefix: Optional name prefix for the parsed environment.
         :param mimic_joints: Mapping of joint names to the joints they mimic.
-        :param every_geom_collides: Whether every geom becomes a collision shape,
-            including the ones MuJoCo excludes from contact.
+        :param use_visual_as_collision_backup: Whether a body with no geom that takes
+            part in contact collides with the geoms it does have.
         :param robots: The robots merged into the environment.
         :param objects: Specifications spawned once the robots are in place.
         :return: The created specification.
@@ -1304,7 +1311,7 @@ class WorldSpecification:
             file_path=file_path,
             mimic_joints=mimic_joints or {},
             prefix=prefix,
-            every_geom_collides=every_geom_collides,
+            use_visual_as_collision_backup=use_visual_as_collision_backup,
         )
         return cls(
             world_parser=world_parser,

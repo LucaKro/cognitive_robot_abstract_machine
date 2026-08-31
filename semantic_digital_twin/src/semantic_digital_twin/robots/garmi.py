@@ -377,7 +377,6 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
         """
         Sets up the park configuration for the arm.
         """
-
         ARM_PARK_CONFIGURATION = {
             "fr3_joint1": 0.0,
             "fr3_joint2": -1.6,
@@ -570,7 +569,7 @@ class GarmiMobileBase(MobileBase[OmniDrive], HasTorso[GarmiTorso]):
             root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "chassis_link"
             ),
-            full_body_controlled=False,
+            full_body_controlled=True,
         )
 
 
@@ -636,5 +635,25 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
                 buffer_zone_distance=0.03,
                 violated_distance=0.0,
                 robot=self,
+            )
+        )
+
+        # The base's shell is what bumps into furniture first, so it keeps a wider berth
+        # than the rest of the robot.
+        self._world.collision_manager.add_default_rule(
+            AvoidExternalCollisions(
+                buffer_zone_distance=0.2,
+                violated_distance=0.05,
+                robot=self,
+                body_subset={
+                    self._world.get_body_in_branch_by_name(self.root, body_name)
+                    for body_name in (
+                        "right_side_cover_link",
+                        "left_side_cover_link",
+                        "front_cover_link",
+                        "rear_cover_link",
+                        "cover_link",
+                    )
+                },
             )
         )

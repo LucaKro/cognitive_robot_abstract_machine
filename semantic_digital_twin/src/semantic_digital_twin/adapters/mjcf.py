@@ -95,13 +95,14 @@ class MJCFParser(WorldModelParser):
     the URDF limit.
     """
 
-    every_geom_collides: bool = False
+    use_visual_as_collision_backup: bool = False
     """
-    When True, every geom becomes a collision shape, including the ones MuJoCo excludes
-    from contact through ``contype=0`` and ``conaffinity=0``.
+    Whether a body whose geoms are all excluded from contact through ``contype=0`` and
+    ``conaffinity=0`` collides with those geoms instead.
 
     Use this when the scene keeps its collision geometry in a file that is not loaded,
-    so the geoms that are present have to stand in for it.
+    so the geoms that are present have to stand in for it. A body that already takes
+    part in contact is left alone.
     """
 
     def __post_init__(self):
@@ -116,7 +117,7 @@ class MJCFParser(WorldModelParser):
         file_path: str,
         prefix: Optional[str] = None,
         mimic_joints: Optional[Dict[str, str]] = None,
-        every_geom_collides: bool = False,
+        use_visual_as_collision_backup: bool = False,
     ) -> Self:
         """
         Creates a parser for a scene file.
@@ -125,31 +126,35 @@ class MJCFParser(WorldModelParser):
         :param prefix: The prefix for every name used in this world.
         :param mimic_joints: A mapping of joint names to the names of the joints they
             mimic.
-        :param every_geom_collides: Whether every geom becomes a collision shape.
+        :param use_visual_as_collision_backup: Whether a body with no geom that takes
+            part in contact collides with the geoms it does have.
         :return: A parser for the world described by that file.
         """
         return cls(
             file_path=file_path,
             mimic_joints=mimic_joints or {},
             prefix=prefix,
-            every_geom_collides=every_geom_collides,
+            use_visual_as_collision_backup=use_visual_as_collision_backup,
         )
 
     @classmethod
     def from_xml_string(
-        cls, xml_string: str, every_geom_collides: bool = False
+        cls, xml_string: str, use_visual_as_collision_backup: bool = False
     ) -> Self:
         """
         Creates a parser for a scene held in memory, by way of a temporary file.
 
         :param xml_string: The MJCF document to parse.
-        :param every_geom_collides: Whether every geom becomes a collision shape.
+        :param use_visual_as_collision_backup: Whether a body with no geom that takes
+            part in contact collides with the geoms it does have.
         :return: A parser for the world described by that document.
         """
         file_path = "/tmp/scene.xml"
         with open(file_path, "w") as f:
             f.write(xml_string)
-        return cls(file_path, every_geom_collides=every_geom_collides)
+        return cls(
+            file_path, use_visual_as_collision_backup=use_visual_as_collision_backup
+        )
 
     def parse(self) -> World:
         """
@@ -236,7 +241,8 @@ class MJCFParser(WorldModelParser):
         :param body: The semdt Body to attach the shapes to.
         """
         visuals = []
-        collisions = []
+        contact_shapes = []
+        contact_excluded_shapes = []
         for mujoco_geom in mujoco_body.geoms:
             shape = self.parse_geom(mujoco_geom=mujoco_geom)
             shape.origin.reference_frame = body
@@ -246,15 +252,22 @@ class MJCFParser(WorldModelParser):
                     solver_reference=mujoco_geom.solref.tolist(),
                 )
             )
-            is_collision_geom = mujoco_geom.contype != 0 or mujoco_geom.conaffinity != 0
-            if is_collision_geom or self.every_geom_collides:
-                collisions.append(shape)
+            takes_part_in_contact = (
+                mujoco_geom.contype != 0 or mujoco_geom.conaffinity != 0
+            )
+            if takes_part_in_contact:
+                contact_shapes.append(shape)
+            else:
+                contact_excluded_shapes.append(shape)
             if mujoco_geom.group in [
                 GeomVisibilityAndCollisionType.VISIBLE_AND_COLLIDABLE_1,
                 GeomVisibilityAndCollisionType.VISIBLE_AND_COLLIDABLE_2,
                 GeomVisibilityAndCollisionType.ONLY_VISIBLE,
             ]:
                 visuals.append(shape)
+        collisions = contact_shapes
+        if not collisions and self.use_visual_as_collision_backup:
+            collisions = contact_excluded_shapes
         body.visual = ShapeCollection(shapes=visuals, reference_frame=body)
         body.collision = ShapeCollection(shapes=collisions, reference_frame=body)
 

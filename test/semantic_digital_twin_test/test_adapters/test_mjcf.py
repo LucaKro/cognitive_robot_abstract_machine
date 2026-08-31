@@ -178,6 +178,12 @@ VISUAL_ONLY_GEOM_SCENE = os.path.join(DATASET_DIR, "visual_only_geom_scene.xml")
 Scene whose only geom is excluded from contact by ``contype=0`` and ``conaffinity=0``.
 """
 
+MIXED_GEOM_SCENE = os.path.join(DATASET_DIR, "mixed_geom_scene.xml")
+"""
+Scene whose single body carries one geom that takes part in contact and one that is
+excluded from it.
+"""
+
 
 def test_visual_only_geom_is_not_a_collision_shape_by_default():
     world = MJCFParser.from_file(VISUAL_ONLY_GEOM_SCENE).parse()
@@ -189,15 +195,43 @@ def test_visual_only_geom_is_not_a_collision_shape_by_default():
     assert len(shelf.collision.shapes) == 0
 
 
-def test_visual_only_geom_becomes_a_collision_shape_when_every_geom_collides():
+def test_visual_geometry_stands_in_when_a_body_has_no_collision_geometry():
     world = MJCFParser.from_file(
-        VISUAL_ONLY_GEOM_SCENE, every_geom_collides=True
+        VISUAL_ONLY_GEOM_SCENE, use_visual_as_collision_backup=True
     ).parse()
 
     [shelf] = [
         body for body in world.kinematic_structure_entities if body.name.name == "shelf"
     ]
     assert len(shelf.collision.shapes) == 1
+
+
+def test_visual_geometry_is_left_out_where_the_body_already_collides():
+    """
+    The visual geometry is a stand-in, not an addition: a body that takes part in
+    contact keeps exactly the geometry the scene gave it to collide with, so the geoms
+    the scene deliberately excluded from contact stay out of it.
+    """
+    without_backup = MJCFParser.from_file(MIXED_GEOM_SCENE).parse()
+    with_backup = MJCFParser.from_file(
+        MIXED_GEOM_SCENE, use_visual_as_collision_backup=True
+    ).parse()
+
+    [contact_only] = [
+        body
+        for body in without_backup.kinematic_structure_entities
+        if body.name.name == "shelf"
+    ]
+    [backed_up] = [
+        body
+        for body in with_backup.kinematic_structure_entities
+        if body.name.name == "shelf"
+    ]
+    assert len(backed_up.visual.shapes) == 2
+    assert len(contact_only.collision.shapes) == 1
+    assert [shape.scale for shape in backed_up.collision.shapes] == [
+        shape.scale for shape in contact_only.collision.shapes
+    ]
 
 
 TEXTURED_BOX_MJCF_TEMPLATE = """

@@ -17,6 +17,10 @@ from coraplex.locations.factories import (
 )
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowSelfCollisions,
+    CollisionRule,
+)
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -61,6 +65,25 @@ class RecordsEvaluatedRobot(PoseValidator):
     def __call__(self, *args, **kwargs) -> bool:
         self.evaluated_robots.append(self.robot)
         self.evaluated_root_poses.append(self.robot.root.global_pose)
+        return True
+
+
+@dataclass
+class RecordsCollisionRules(PoseValidator):
+    """
+    Accepts every candidate and records the temporary collision rules in force while it
+    was evaluated.
+    """
+
+    temporary_rules_seen: List[List[CollisionRule]] = field(default_factory=list)
+    """
+    The world's temporary collision rules at each evaluation, in evaluation order.
+    """
+
+    def __call__(self, *args, **kwargs) -> bool:
+        self.temporary_rules_seen.append(
+            list(self.world.collision_manager.temporary_rules)
+        )
         return True
 
 
@@ -270,3 +293,24 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
 
     assert len(yielded_poses) == 1
     np.testing.assert_allclose(yielded_poses[0].to_np(), candidate.to_np(), atol=1e-9)
+
+
+def test_location_validates_against_the_rules_the_plan_runs_with(single_robot_world):
+    """
+    Deciding whether a standing pose is already in collision needs collision rules of
+    its own, but they are the wrong ones for the reachability simulation that follows:
+
+    left in place they override the distances the robot actually has to keep, and a pose
+    validates against clearances the executed motion is never given.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    recorder = RecordsCollisionRules()
+
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+
+    assert recorder.temporary_rules_seen
+    assert not any(
+        isinstance(rule, AllowSelfCollisions)
+        for rule in recorder.temporary_rules_seen[0]
+    )

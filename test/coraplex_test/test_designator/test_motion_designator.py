@@ -21,9 +21,10 @@ from coraplex.plans.executables import ModelChangeExecutable
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import MotionNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import GraspingAction, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
+from coraplex.robot_plans.motions.container import ClosingMotion, OpeningMotion
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
@@ -32,6 +33,7 @@ from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveBaseGoal
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.goals.cartesian_goals import CartesianPoseStraight
@@ -742,3 +744,61 @@ def test_stretch_base_motion_follows_the_execution_environment(
 
     with simulated_robot:
         assert motion.get_alternative_motion() is StretchMoveSim
+
+
+# %% driving a container's own degree of freedom
+
+
+def test_opening_motion_yields_to_collision_avoidance(immutable_model_world):
+    """
+    Pulling a drawer contorts the arm against the robot's own body, so the goal driving
+    the container must not outrank collision avoidance: at a higher weight the solver
+    buys the drawer trajectory by pushing the arm through whatever is in its way.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab3_door_top")
+
+    motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
+    execute_single(motion, context=context)
+
+    assert motion.motion_chart.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+
+
+def test_closing_motion_yields_to_collision_avoidance(immutable_model_world):
+    """
+    Pushing a drawer shut is the same motion run backwards and needs the same weight.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab3_door_top")
+
+    motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
+    execute_single(motion, context=context)
+
+    assert motion.motion_chart.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+
+
+def test_grasping_action_frees_the_gripper_for_its_whole_approach(
+    immutable_model_world,
+):
+    """
+    Both halves of a grasp end up inside the buffer zone kept around what is grasped:
+    the pre-pose is placed off the body's own geometry, so holding the gripper clear
+    there stalls the approach before it ever reaches the object, the same way it would
+    at the grasp itself.
+    """
+    world, view, context = immutable_model_world
+    grasp_description = GraspDescription(
+        ApproachDirection.FRONT,
+        VerticalAlignment.NoAlignment,
+        view.left_arm.end_effector,
+    )
+    grasping = GraspingAction(
+        world.get_body_by_name("milk.stl"), Arms.LEFT, grasp_description
+    )
+    sequential([grasping], context=context)
+
+    reach_nodes = grasping._action_plan.plan.get_nodes_by_designator_type(
+        MoveToolCenterPointMotion
+    )
+    assert len(reach_nodes) == 2
+    assert all(node.designator.allow_gripper_collision is True for node in reach_nodes)

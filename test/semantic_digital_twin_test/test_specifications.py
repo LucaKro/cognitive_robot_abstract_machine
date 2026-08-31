@@ -312,7 +312,7 @@ def test_world_specification_from_mjcf_keeps_visual_only_geoms_out_of_collision(
 def test_world_specification_from_mjcf_collides_every_geom_when_asked():
     pytest.importorskip("mujoco")
     world = WorldSpecification.from_mjcf(
-        VISUAL_ONLY_GEOM_SCENE, every_geom_collides=True
+        VISUAL_ONLY_GEOM_SCENE, use_visual_as_collision_backup=True
     ).to_domain_object()
 
     shelf = world.get_body_by_name("shelf")
