@@ -1,252 +1,512 @@
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Self
+from __future__ import annotations
 
-from .abstract_robot import (
+import os
+from collections import defaultdict
+from dataclasses import dataclass, field
+from enum import StrEnum
+from importlib.resources import files
+from pathlib import Path
+from typing import Self, List
+
+from krrood.ormatic.utils import classproperty
+from semantic_digital_twin.collision_checking.collision_matrix import (
+    MaxAvoidedCollisionsOverride,
+)
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AvoidExternalCollisions,
+    AvoidSelfCollisions,
+    SelfCollisionMatrixRule,
+)
+from semantic_digital_twin.datastructures.definitions import (
+    GripperState,
+    StaticJointState,
+    TorsoState,
+)
+from semantic_digital_twin.datastructures.field_of_view import FieldOfView
+from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.robot_part_mixins import (
+    HasNeck,
+    HasOneArm,
+    HasTorso,
+    HasMobileBase,
+    HasTwoFingers,
+    HasSensors,
+)
+from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
     Arm,
-    Neck,
-    Finger,
-    ParallelGripper,
     Camera,
+    Finger,
+    Neck,
     Torso,
-    FieldOfView,
-    Base,
+    MobileBase,
+    EndEffector,
 )
-from .robot_mixins import HasNeck, HasArms
-from ..datastructures.definitions import StaticJointState, GripperState, TorsoState
-from ..datastructures.joint_state import JointState
-from ..datastructures.prefixed_name import PrefixedName
-from ..spatial_types import Quaternion
-from ..spatial_types.spatial_types import Vector3
-from ..world import World
-from ..world_description.connections import FixedConnection
+from semantic_digital_twin.spatial_types import Quaternion, Vector3
+from semantic_digital_twin.world_description.connections import (
+    OmniDrive,
+)
+from semantic_digital_twin.world_description.world_entity import (
+    KinematicStructureEntity,
+)
+
+
+class HSRBJoint(StrEnum):
+    """
+    Names of the HSRB's commandable connections, as spelled in its URDF.
+
+    Members are usable wherever a connection name is expected, so a configuration keyed by
+    them stays a plain mapping of names to positions.
+
+    ..note:: Connections that no controller commands, such as the drive and passive base
+        wheels and the hand's spring and distal joints, are left out.
+    """
+
+    TORSO_LIFT = "torso_lift_joint"
+    HEAD_PAN = "head_pan_joint"
+    HEAD_TILT = "head_tilt_joint"
+
+    ARM_LIFT = "arm_lift_joint"
+    ARM_FLEX = "arm_flex_joint"
+    ARM_ROLL = "arm_roll_joint"
+    WRIST_FLEX = "wrist_flex_joint"
+    WRIST_ROLL = "wrist_roll_joint"
+
+    HAND_MOTOR = "hand_motor_joint"
+    HAND_LEFT_PROXIMAL = "hand_l_proximal_joint"
+    HAND_RIGHT_PROXIMAL = "hand_r_proximal_joint"
 
 
 @dataclass(eq=False)
-class HSRB(AbstractRobot, HasArms, HasNeck):
-    """
-    Class that describes the Human Support Robot variant B (https://upmroboticclub.wordpress.com/robot/).
-    """
+class HSRBLeftFinger(Finger):
 
-    def load_srdf(self):
-        """
-        Loads the SRDF file for the PR2 robot, if it exists.
-        """
-        ...
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
-    def from_world(cls, world: World) -> Self:
-        """
-        Creates an HSRB (Human Support Robot B) semantic annotation from a World that was parsed from
-        resources/urdf/robots/hsrb.urdf. Assumes all URDF link names exist in the world.
-        """
-        with world.modify_world():
-            hsrb = cls(
-                name=PrefixedName("hsrb", prefix=world.name),
-                root=world.get_body_by_name("base_footprint"),
-                _world=world,
-            )
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_l_proximal_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_l_distal_link"
+            ),
+        )
 
-            gripper_thumb = Finger(
-                name=PrefixedName("thumb", prefix=hsrb.name.name),
-                root=world.get_body_by_name("hand_l_proximal_link"),
-                tip=world.get_body_by_name("hand_l_finger_tip_frame"),
-                _world=world,
-            )
 
-            gripper_finger = Finger(
-                name=PrefixedName("finger", prefix=hsrb.name.name),
-                root=world.get_body_by_name("hand_r_proximal_link"),
-                tip=world.get_body_by_name("hand_r_finger_tip_frame"),
-                _world=world,
-            )
+@dataclass(eq=False)
+class HSRBRightFinger(Finger):
 
-            gripper = ParallelGripper(
-                name=PrefixedName("gripper", prefix=hsrb.name.name),
-                root=world.get_body_by_name("hand_palm_link"),
-                tool_frame=world.get_body_by_name("hand_gripper_tool_frame"),
-                thumb=gripper_thumb,
-                finger=gripper_finger,
-                front_facing_axis=Vector3(0, 0, 1),
-                front_facing_orientation=Quaternion(
-                    -0.70710678,
-                    0.0,
-                    -0.70710678,
-                    0.0,
-                ),
-                _world=world,
-            )
+    def setup_hardware_interfaces(self):
+        pass
 
-            # the min and max height are incorrect, same with the FoV. needs to be corrected using the real robot
-            hand_camera = Camera(
-                name=PrefixedName("hand_camera", prefix=hsrb.name.name),
-                root=world.get_body_by_name("hand_camera_frame"),
-                forward_facing_axis=Vector3(0, 0, 1),
-                field_of_view=FieldOfView(
-                    horizontal_angle=0.99483, vertical_angle=0.75049
-                ),
-                minimal_height=0.75049,
-                maximal_height=0.99483,
-                _world=world,
-            )
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
-            arm = Arm(
-                name=PrefixedName("arm", prefix=hsrb.name.name),
-                root=world.get_body_by_name("arm_lift_link"),
-                tip=world.get_body_by_name("hand_palm_link"),
-                manipulator=gripper,
-                sensors={hand_camera},
-                _world=world,
-            )
-            hsrb.add_arm(arm)
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_r_proximal_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_r_distal_link"
+            ),
+        )
 
-            # Create camera and neck
-            head_center_camera = Camera(
-                name=PrefixedName("head_center_camera", prefix=hsrb.name.name),
-                root=world.get_body_by_name("head_center_camera_frame"),
-                forward_facing_axis=Vector3(0, 0, 1),
-                field_of_view=FieldOfView(
-                    horizontal_angle=0.99483, vertical_angle=0.75049
-                ),
-                minimal_height=0.75049,
-                maximal_height=0.99483,
-                _world=world,
-                default_camera=True,
-            )
 
-            head_r_camera = Camera(
-                name=PrefixedName("head_right_camera", prefix=hsrb.name.name),
-                root=world.get_body_by_name("head_r_stereo_camera_link"),
-                forward_facing_axis=Vector3(0, 0, 1),
-                field_of_view=FieldOfView(
-                    horizontal_angle=0.99483, vertical_angle=0.75049
-                ),
-                minimal_height=0.75049,
-                maximal_height=0.99483,
-                _world=world,
-            )
+@dataclass(eq=False)
+class HSRBGripper(EndEffector, HasTwoFingers[HSRBLeftFinger, HSRBRightFinger]):
 
-            head_l_camera = Camera(
-                name=PrefixedName("head_left_camera", prefix=hsrb.name.name),
-                root=world.get_body_by_name("head_l_stereo_camera_link"),
-                forward_facing_axis=Vector3(0, 0, 1),
-                field_of_view=FieldOfView(
-                    horizontal_angle=0.99483, vertical_angle=0.75049
-                ),
-                minimal_height=0.75049,
-                maximal_height=0.99483,
-                _world=world,
-            )
+    def setup_hardware_interfaces(self):
+        return
 
-            head_rgbd_camera = Camera(
-                name=PrefixedName("head_rgbd_camera", prefix=hsrb.name.name),
-                root=world.get_body_by_name("head_rgbd_sensor_link"),
-                forward_facing_axis=Vector3(0, 0, 1),
-                field_of_view=FieldOfView(
-                    horizontal_angle=0.99483, vertical_angle=0.75049
-                ),
-                minimal_height=0.75049,
-                maximal_height=0.99483,
-                _world=world,
-            )
+    def setup_joint_states(self) -> List[JointState]:
+        world = self._world
+        gripper_joints = [
+            world.get_connection_by_name(HSRBJoint.HAND_LEFT_PROXIMAL),
+            world.get_connection_by_name(HSRBJoint.HAND_RIGHT_PROXIMAL),
+            world.get_connection_by_name(HSRBJoint.HAND_MOTOR),
+        ]
 
-            neck = Neck(
-                name=PrefixedName("neck", prefix=hsrb.name.name),
-                sensors=[
-                    head_center_camera,
-                    head_r_camera,
-                    head_l_camera,
-                    head_rgbd_camera,
-                ],
-                root=world.get_body_by_name("head_pan_link"),
-                tip=world.get_body_by_name("head_tilt_link"),
-                _world=world,
-            )
-            hsrb.add_neck(neck)
+        gripper_open = JointState.from_mapping(
+            name=PrefixedName("gripper_open", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.3, 0.3, 0.3])),
+            state_type=GripperState.OPEN,
+        )
 
-            # Create torso
-            torso = Torso(
-                name=PrefixedName("torso", prefix=hsrb.name.name),
-                root=world.get_body_by_name("base_link"),
-                tip=world.get_body_by_name("torso_lift_link"),
-                _world=world,
-            )
-            hsrb.add_torso(torso)
+        gripper_close = JointState.from_mapping(
+            name=PrefixedName("gripper_close", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.0, 0.0, 0.0])),
+            state_type=GripperState.CLOSE,
+        )
 
-            # Create states
-            arm_park = JointState.from_mapping(
-                name=PrefixedName("arm_park", prefix=hsrb.name.name),
-                mapping=dict(
-                    zip(
-                        [c for c in arm.connections if type(c) != FixedConnection],
-                        [0.0, 1.5, -1.85, 0.0],
+        return [gripper_open, gripper_close]
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_palm_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_gripper_tool_frame"
+            ),
+            front_facing_orientation=Quaternion(
+                -0.70710678,
+                0.0,
+                -0.70710678,
+                0.0,
+            ),
+        )
+
+
+@dataclass(eq=False)
+class HSRBHandCamera(Camera):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_camera_frame"
+            ),
+            forward_facing_axis=Vector3.Z(),
+            field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
+            minimal_height=0.75049,
+            maximal_height=0.99483,
+        )
+
+
+@dataclass(eq=False)
+class HSRBArm(Arm[HSRBGripper], HasSensors[HSRBHandCamera]):
+
+    def setup_hardware_interfaces(self):
+        controlled_joints = [
+            HSRBJoint.ARM_FLEX,
+            HSRBJoint.ARM_LIFT,
+            HSRBJoint.ARM_ROLL,
+            HSRBJoint.WRIST_FLEX,
+            HSRBJoint.WRIST_ROLL,
+        ]
+        for joint_name in controlled_joints:
+            connection = self._world.get_connection_by_name(joint_name)
+            connection.has_hardware_interface = True
+
+    def setup_joint_states(self) -> List[JointState]:
+        arm_park = JointState.from_mapping(
+            name=PrefixedName("arm_park", prefix=self.name.name),
+            mapping=dict(
+                zip(
+                    self.active_connections,
+                    [0.0, 1.5, -1.85, 0.0],
+                )
+            ),
+            state_type=StaticJointState.PARK,
+        )
+
+        return [arm_park]
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_palm_link"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class HSRBHeadCenterCamera(Camera):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_center_camera_frame"
+            ),
+            forward_facing_axis=Vector3.Z(),
+            field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
+            minimal_height=0.75049,
+            maximal_height=0.99483,
+            default_camera=True,
+        )
+
+
+@dataclass(eq=False)
+class HSRBHeadLeftCamera(Camera):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_l_stereo_camera_link"
+            ),
+            forward_facing_axis=Vector3.Z(),
+            field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
+            minimal_height=0.75049,
+            maximal_height=0.99483,
+        )
+
+
+@dataclass(eq=False)
+class HSRBHeadRightCamera(Camera):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_r_stereo_camera_link"
+            ),
+            forward_facing_axis=Vector3.Z(),
+            field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
+            minimal_height=0.75049,
+            maximal_height=0.99483,
+        )
+
+
+@dataclass(eq=False)
+class HSRBHeadRGBDCamera(Camera):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_rgbd_sensor_link"
+            ),
+            forward_facing_axis=Vector3.Z(),
+            field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
+            minimal_height=0.75049,
+            maximal_height=0.99483,
+            default_camera=True,
+        )
+
+
+@dataclass(eq=False)
+class HSRBNeck(
+    Neck[
+        HSRBHeadCenterCamera,
+        HSRBHeadLeftCamera,
+        HSRBHeadRightCamera,
+        HSRBHeadRGBDCamera,
+    ],
+):
+
+    def setup_hardware_interfaces(self):
+        controlled_joints = [HSRBJoint.HEAD_PAN, HSRBJoint.HEAD_TILT]
+        for joint_name in controlled_joints:
+            connection = self._world.get_connection_by_name(joint_name)
+            connection.has_hardware_interface = True
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_pan_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_tilt_link"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class HSRBTorso(Torso, HasOneArm[HSRBArm], HasNeck[HSRBNeck]):
+
+    def setup_hardware_interfaces(self):
+        return
+
+    def setup_joint_states(self) -> List[JointState]:
+        torso_joint = self.active_connections
+        torso_low = JointState.from_mapping(
+            name=PrefixedName("torso_low", prefix=self.name.name),
+            mapping=dict(zip(torso_joint, [0.0])),
+            state_type=TorsoState.LOW,
+        )
+
+        torso_mid = JointState.from_mapping(
+            name=PrefixedName("torso_mid", prefix=self.name.name),
+            mapping=dict(zip(torso_joint, [0.32 / 2])),
+            state_type=TorsoState.MID,
+        )
+
+        torso_high = JointState.from_mapping(
+            name=PrefixedName("torso_high", prefix=self.name.name),
+            mapping=dict(zip(torso_joint, [0.32])),
+            state_type=TorsoState.HIGH,
+        )
+
+        return [torso_low, torso_mid, torso_high]
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class HSRBMobileBase(MobileBase[OmniDrive], HasTorso[HSRBTorso]):
+
+    @classproperty
+    def forward_axis(cls) -> Vector3:
+        return Vector3.X()
+
+    full_body_controlled: bool = field(default=True, kw_only=True)
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+        )
+
+
+@dataclass(eq=False)
+class HSRB(AbstractRobot, HasMobileBase[HSRBMobileBase]):
+    """
+    The HSRB Robot built by Toyota.
+
+    https://robotsguide.com/robots/hsr
+    """
+
+    @classmethod
+    def get_ros_file_path(cls) -> str:
+        return "package://hsr_description/robots/hsrb4s.urdf.xacro"
+
+    @classmethod
+    def _get_root_body_name(cls) -> str:
+        return "base_footprint"
+
+    def _setup_collision_rules(self):
+        srdf_path = os.path.join(
+            Path(files("semantic_digital_twin")).parent.parent,
+            "resources",
+            "collision_configs",
+            "hsrb.srdf",
+        )
+        self._world.collision_manager.add_ignore_collision_rule(
+            SelfCollisionMatrixRule.from_collision_srdf(srdf_path, self._world)
+        )
+        self._world.collision_manager.add_default_rule(
+            AvoidExternalCollisions(
+                buffer_zone_distance=0.05, violated_distance=0.0, robot=self
+            )
+        )
+
+        self._world.collision_manager.add_default_rule(
+            AvoidExternalCollisions(
+                buffer_zone_distance=0.1,
+                violated_distance=0.03,
+                robot=self,
+                body_subset={
+                    self._world.get_body_in_branch_by_name(self.root, "base_link")
+                },
+            )
+        )
+        self._world.collision_manager.add_default_rule(
+            AvoidSelfCollisions(
+                buffer_zone_distance=0.03,
+                violated_distance=0.0,
+                robot=self,
+            )
+        )
+
+        self._world.collision_manager.max_avoided_bodies_rules.append(
+            MaxAvoidedCollisionsOverride(
+                2,
+                bodies={self._world.get_body_in_branch_by_name(self.root, "base_link")},
+            )
+        )
+        self._world.collision_manager.max_avoided_bodies_rules.append(
+            MaxAvoidedCollisionsOverride(
+                4,
+                bodies=set(
+                    self._world.get_direct_child_bodies_with_collision(
+                        self._world.get_body_in_branch_by_name(
+                            self.root, "wrist_roll_link"
+                        )
                     )
                 ),
-                state_type=StaticJointState.PARK,
             )
+        )
 
-            arm.add_joint_state(arm_park)
+    def _setup_velocity_limits(self):
+        vel_limits = defaultdict(lambda: 1.0)
+        self.tighten_dof_velocity_limits_of_1dof_connections(new_limits=vel_limits)
 
-            gripper_joints = [
-                world.get_connection_by_name("hand_l_proximal_joint"),
-                world.get_connection_by_name("hand_r_proximal_joint"),
-                world.get_connection_by_name("hand_motor_joint"),
-            ]
-
-            gripper_open = JointState.from_mapping(
-                name=PrefixedName("gripper_open", prefix=hsrb.name.name),
-                mapping=dict(zip(gripper_joints, [0.3, 0.3, 0.3])),
-                state_type=GripperState.OPEN,
-            )
-
-            gripper_close = JointState.from_mapping(
-                name=PrefixedName("gripper_close", prefix=hsrb.name.name),
-                mapping=dict(zip(gripper_joints, [0.0, 0.0, 0.0])),
-                state_type=GripperState.CLOSE,
-            )
-
-            gripper.add_joint_state(gripper_close)
-            gripper.add_joint_state(gripper_open)
-
-            torso_joint = [world.get_connection_by_name("torso_lift_joint")]
-
-            torso_low = JointState.from_mapping(
-                name=PrefixedName("torso_low", prefix=hsrb.name.name),
-                mapping=dict(zip(torso_joint, [0.0])),
-                state_type=TorsoState.LOW,
-            )
-
-            torso_mid = JointState.from_mapping(
-                name=PrefixedName("torso_mid", prefix=hsrb.name.name),
-                mapping=dict(zip(torso_joint, [0.17])),
-                state_type=TorsoState.MID,
-            )
-
-            torso_high = JointState.from_mapping(
-                name=PrefixedName("torso_high", prefix=hsrb.name.name),
-                mapping=dict(zip(torso_joint, [0.32])),
-                state_type=TorsoState.HIGH,
-            )
-
-            torso.add_joint_state(torso_low)
-            torso.add_joint_state(torso_mid)
-            torso.add_joint_state(torso_high)
-
-            # Create the robot base
-            base = Base(
-                name=PrefixedName("base", prefix=hsrb.name.name),
-                root=world.get_body_by_name("base_link"),
-                tip=world.get_body_by_name("base_link"),
-                _world=world,
-            )
-
-            hsrb.add_base(base)
-            hsrb.full_body_controlled = True
-
-            world.add_semantic_annotation(hsrb)
-
-            vel_limits = defaultdict(lambda: 1)
-            hsrb.tighten_dof_velocity_limits_of_1dof_connections(new_limits=vel_limits)
-
-        return hsrb
+    @property
+    def end_effector(self) -> HSRBGripper:
+        return self.mobile_base.torso.arm.end_effector

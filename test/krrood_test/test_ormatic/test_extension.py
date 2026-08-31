@@ -1,16 +1,17 @@
 import importlib
 import importlib.util
 import sys
-from krrood.class_diagrams import ClassDiagram
+from krrood.class_diagrams.class_diagram import ClassDiagram
 from krrood.ormatic.ormatic import ORMatic
-from krrood.ormatic.utils import get_classes_of_ormatic_interface
+from krrood.ormatic.type_dict import TypeDict
+from krrood.ormatic.helper import get_classes_of_ormatic_interface
 from ..dataset.dataset_extension import AggregatorOfExternalInstances, CustomPosition
 from ..dataset import ormatic_interface
 
 
 def test_extension(tmp_path):
     """
-    Test that existing ormatic interfaces can be extended
+    Test that existing ormatic interfaces can be extended.
     """
     # import classes from the existing interface
     classes, alternative_mappings, type_mappings = get_classes_of_ormatic_interface(
@@ -26,7 +27,7 @@ def test_extension(tmp_path):
     )
     instance = ORMatic(
         class_diagram,
-        type_mappings=type_mappings,
+        type_mappings=TypeDict(type_mappings),
         alternative_mappings=alternative_mappings,
     )
     instance.make_all_tables()

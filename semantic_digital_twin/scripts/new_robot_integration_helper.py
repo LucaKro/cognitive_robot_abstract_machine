@@ -1,0 +1,35 @@
+from time import sleep
+
+import rclpy
+
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
+from semantic_digital_twin.adapters.urdf import URDFParser
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.robots.unitree_g1 import UnitreeG1
+from semantic_digital_twin.world import World
+
+# This script is part of the "How to add robots" example
+
+your_ros2_package_name = "iai_offis_g1_description"
+your_path_from_package_root_to_urdf = "urdf/offis_unitree_g1.urdf"
+robot_world = URDFParser.from_file(
+    f"package://{your_ros2_package_name}/{your_path_from_package_root_to_urdf}"
+).parse()
+robot_world.visualize_world_structure().show()
+
+world = World.create_with_root_body("map")
+world.merge_world(robot_world)
+
+rclpy.init()
+VizMarkerPublisher(
+    _world=world, node=rclpy.create_node("urdf_visualization_node")
+)
+sleep(2)
+
+your_robot_class: AbstractRobot = UnitreeG1
+
+robot = your_robot_class.from_world(world)
+
+sleep(2)

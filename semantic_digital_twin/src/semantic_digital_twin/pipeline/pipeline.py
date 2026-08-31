@@ -1,26 +1,36 @@
+from __future__ import annotations
+
 import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Callable
+from typing import List, Callable, TYPE_CHECKING
 
 import numpy as np
 import trimesh
 
-from ..semantic_annotations.mixins import HasRootKinematicStructureEntity
-from ..spatial_types import Point3
-from ..spatial_types.spatial_types import HomogeneousTransformationMatrix
-from ..world import World
-from ..world_description.geometry import TriangleMesh, FileMesh
-from ..world_description.shape_collection import ShapeCollection
-from ..world_description.world_entity import Body
+from semantic_digital_twin.spatial_types import Point3
+from semantic_digital_twin.spatial_types.spatial_types import (
+    HomogeneousTransformationMatrix,
+)
+from semantic_digital_twin.world_description.geometry import Mesh
+from semantic_digital_twin.world_description.world_entity import Body
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.semantic_annotations.mixins import (
+        HasRootKinematicStructureEntity,
+    )
+    from semantic_digital_twin.world import World
 
 
 @dataclass
 class Step(ABC):
     """
-    A Step is a transformation that takes a World as input and produces a modified World as output.
-    Steps are intended to be used in a Pipeline, where the output World of one Step is passed as the input World to the next Step.
+    A Step is a transformation that takes a World as input and produces a modified World
+    as output.
+
+    Steps are intended to be used in a Pipeline, where the output World of one Step is
+    passed as the input World to the next Step.
     """
 
     @abstractmethod
@@ -35,8 +45,9 @@ class Step(ABC):
 class Pipeline:
     """
     A Pipeline is a sequence of Steps that are applied to a World in order.
-    Each Step takes the World as input and produces a modified World as output.
-    The output World of one Step is passed as the input World to the next Step.
+
+    Each Step takes the World as input and produces a modified World as output. The
+    output World of one Step is passed as the input World to the next Step.
     """
 
     steps: List[Step]
@@ -68,10 +79,13 @@ class BodyFilter(Step):
 @dataclass
 class CenterLocalGeometryAndPreserveWorldPose(Step):
     """
-    Adjusts the vertices of the collision meshes of each body in the world so that the origin is at the center of the
-    mesh, and then updates the parent connection of the body to preserve the original world pose.
-    An example where this is useful is when parsing FBX files where all bodies in the resulting world have an origin
-    at (0, 0, 0), even through the collision meshes are not centered around that point.
+    Adjusts the vertices of the collision meshes of each body in the world so that the
+    origin is at the center of the mesh, and then updates the parent connection of the
+    body to preserve the original world pose.
+
+    An example where this is useful is when parsing FBX files where all bodies in the
+    resulting world have an origin at (0, 0, 0), even through the collision meshes are
+    not centered around that point.
     """
 
     def _apply(self, world: World) -> World:
@@ -80,7 +94,7 @@ class CenterLocalGeometryAndPreserveWorldPose(Step):
             vertices = []
 
             for coll in body.collision:
-                if isinstance(coll, (FileMesh, TriangleMesh)):
+                if isinstance(coll, Mesh):
                     mesh = coll.mesh
                     if mesh.vertices.shape[0] > 0:
                         vertices.append(mesh.vertices.copy())
@@ -98,7 +112,7 @@ class CenterLocalGeometryAndPreserveWorldPose(Step):
             center = (mins + maxs) / 2.0
 
             for coll in body.collision:
-                if isinstance(coll, (FileMesh, TriangleMesh)):
+                if isinstance(coll, Mesh):
                     m = coll.mesh
                     if m.vertices.shape[0] > 0:
                         m.vertices -= center
@@ -131,19 +145,23 @@ class CenterLocalGeometryAndPreserveWorldPose(Step):
 @dataclass
 class BodyFactoryReplace(Step):
     """
-    Replace bodies in the world that match a given condition with new structures created by a factory.
+    Replace bodies in the world that match a given condition with new structures created
+    by a factory.
     """
 
     annotation_creator: Callable[[Body, World], HasRootKinematicStructureEntity]
     """
-    A callable that takes a Body, and creates a new semantic annotation (including a new body) for it, and adds them to the world.
+    A callable that takes a Body, and creates a new semantic annotation (including a new
+    body) for it, and adds them to the world.
     """
 
     body_condition: Callable[[Body], bool] = lambda x: bool(
         re.compile(r"^dresser_\d+.*$").fullmatch(x.name.name)
     )
     """
-    Condition to filter bodies that should be replaced. Defaults to matching bodies containing "dresser_" followed by digits in their name.
+    Condition to filter bodies that should be replaced.
+
+    Defaults to matching bodies containing "dresser_" followed by digits in their name.
     """
 
     def _apply(self, world: World) -> World:

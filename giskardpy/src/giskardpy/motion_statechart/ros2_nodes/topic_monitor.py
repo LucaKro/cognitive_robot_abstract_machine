@@ -10,10 +10,10 @@ from rclpy.subscription import Subscription
 from typing_extensions import Generic, Type
 
 import krrood.symbolic_math.symbolic_math as sm
-from ..context import ExecutionContext, BuildContext
-from ..data_types import ObservationStateValues
-from ..graph_node import MotionStatechartNode, NodeArtifacts
-from ..ros_context import RosContextExtension
+from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import ObservationStateValues
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode, NodeArtifacts
+from giskardpy.motion_statechart.ros_context import RosContextExtension
 
 
 @dataclass(eq=False, repr=False)
@@ -23,41 +23,57 @@ class TopicNode(MotionStatechartNode, Generic[MsgType]):
     """
 
     topic_name: str = field(kw_only=True)
-    """Name of the ROS topic to subscribe to."""
+    """
+    Name of the ROS topic to subscribe to.
+    """
+
     msg_type: Type[MsgType] = field(kw_only=True)
-    """Type of the ROS message."""
+    """
+    Type of the ROS message.
+    """
+
     qos_profile: QoSProfile = field(
         kw_only=True, default_factory=lambda: QoSProfile(depth=10)
     )
-    """QoS profile to use when subscribing to the topic."""
+    """
+    QoS profile to use when subscribing to the topic.
+    """
+
     ros2_node: Node = field(init=False)
 
-    def build(self, context: BuildContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         ros_context_extension = context.require_extension(RosContextExtension)
         self.ros2_node = ros_context_extension.ros_node
-        return NodeArtifacts()
+        return super().build(context)
 
 
 @dataclass(eq=False, repr=False)
 class TopicSubscriberNode(TopicNode[MsgType]):
     """
     Superclass for all nodes that subscribe to a ROS topic.
-    This node will automatically create a subscriber on build and cache the last message in `current_msg` on_tick.
+
+    This node will automatically create a subscriber on build and cache the last message
+    in `current_msg` on_tick.
     """
 
     _subscriber: Subscription = field(init=False)
-    """Internal ROS subscription object."""
+    """
+    Internal ROS subscription object.
+    """
+
     __last_msg: MsgType | None = field(init=False, default=None)
     """
     The callback updates this variable.
+
     Don't use it directly, use `current_msg` instead.
     """
+
     current_msg: MsgType | None = field(init=False, default=None)
     """
     __last_msg is copied to this variable on every tick while this node is RUNNING.
     """
 
-    def build(self, context: BuildContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         node_artifacts = super().build(context)
         self._subscriber = self.ros2_node.create_subscription(
             msg_type=self.msg_type,
@@ -76,13 +92,15 @@ class TopicSubscriberNode(TopicNode[MsgType]):
     def clear_msg(self):
         self.__last_msg = None
 
-    def on_tick(self, context: ExecutionContext) -> Optional[ObservationStateValues]:
+    def on_tick(
+        self, context: MotionStatechartContext
+    ) -> Optional[ObservationStateValues]:
         """
         .. warning:: If you override this method, make sure to call `super().on_tick(context)`.
         """
         self.current_msg = self.__last_msg
 
-    def on_reset(self, context: ExecutionContext):
+    def on_reset(self, context: MotionStatechartContext):
         self.clear_msg()
 
 
@@ -90,13 +108,16 @@ class TopicSubscriberNode(TopicNode[MsgType]):
 class TopicPublisherNode(TopicNode[MsgType]):
     """
     Superclass for all nodes that publish to a ROS topic.
+
     This node will automatically create a publisher on build.
     """
 
     _publisher: Publisher = field(init=False)
-    """Internal ROS publisher object."""
+    """
+    Internal ROS publisher object.
+    """
 
-    def build(self, context: BuildContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         node_artifacts = super().build(context)
         self._publisher = self.ros2_node.create_publisher(
             msg_type=self.msg_type,
@@ -112,7 +133,9 @@ class WaitForMessage(TopicSubscriberNode[MsgType]):
     This node will turn to True once a message was received on its topic.
     """
 
-    def on_tick(self, context: ExecutionContext) -> Optional[ObservationStateValues]:
+    def on_tick(
+        self, context: MotionStatechartContext
+    ) -> Optional[ObservationStateValues]:
         super().on_tick(context)
         if self.has_msg():
             return ObservationStateValues.TRUE
@@ -123,22 +146,29 @@ class WaitForMessage(TopicSubscriberNode[MsgType]):
 class PublishOnStart(TopicPublisherNode[MsgType]):
     """
     This node will publish its message when on_start is called.
-    This is not repeated on every tick, but will be repeated after a reset, if the node is started again.
+
+    This is not repeated on every tick, but will be repeated after a reset, if the node
+    is started again.
     """
 
     msg: MsgType = field(kw_only=True)
-    """Message to publish."""
+    """
+    Message to publish.
+    """
+
     msg_type: Type[MsgType] = field(init=False)
-    """init=False, because we can figure out the type from the msg parameter."""
+    """
+    Init=False, because we can figure out the type from the msg parameter.
+    """
 
     def __post_init__(self):
         super().__post_init__()
         self.msg_type = type(self.msg)
 
-    def build(self, context: BuildContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         node_artifacts = super().build(context)
         node_artifacts.observation = sm.Scalar.const_true()
         return node_artifacts
 
-    def on_start(self, context: ExecutionContext):
+    def on_start(self, context: MotionStatechartContext):
         self._publisher.publish(self.msg)

@@ -4,15 +4,16 @@ from typing import Optional
 import numpy as np
 from geometry_msgs.msg import WrenchStamped
 
-from .topic_monitor import TopicSubscriberNode
-from ..context import ExecutionContext
-from ..data_types import ObservationStateValues
+from giskardpy.motion_statechart.ros2_nodes.topic_monitor import TopicSubscriberNode
+from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import ObservationStateValues
 
 
 @dataclass(eq=False, repr=False)
 class ForceTorqueNode(TopicSubscriberNode[WrenchStamped]):
     """
-    Superclass for all nodes that subscribe to a ROS topic that contains force and torque data.
+    Superclass for all nodes that subscribe to a ROS topic that contains force and
+    torque data.
     """
 
     msg_type: WrenchStamped = field(init=False, default=WrenchStamped)
@@ -50,7 +51,9 @@ class ForceImpactMonitor(ForceTorqueNode):
 
     threshold: float = field(kw_only=True)
 
-    def on_tick(self, context: ExecutionContext) -> Optional[ObservationStateValues]:
+    def on_tick(
+        self, context: MotionStatechartContext
+    ) -> Optional[ObservationStateValues]:
         super().on_tick(context)
         if not self.has_msg():
             return ObservationStateValues.UNKNOWN

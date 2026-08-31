@@ -3,16 +3,18 @@ from __future__ import annotations
 import enum
 import inspect
 import logging
+import re
 import sys
 from collections.abc import Sequence
+from copy import copy
 from dataclasses import dataclass, Field, MISSING
 from datetime import datetime
 from functools import cached_property, lru_cache
-from types import NoneType
-from copy import copy
+from inspect import isclass
+from types import NoneType, UnionType
+from typing import Generic, Any
 
 from typing_extensions import (
-    get_type_hints,
     get_origin,
     get_args,
     ClassVar,
@@ -20,16 +22,23 @@ from typing_extensions import (
     Type,
     TYPE_CHECKING,
     Optional,
+    TypeVar,
     Union,
 )
 
-from .failures import MissingContainedTypeOfContainer
-from .utils import behaves_like_a_built_in_class
-from ..utils import module_and_class_name
+from krrood.class_diagrams.exceptions import MissingContainedTypeOfContainer
+from krrood.class_diagrams.utils import (
+    behaves_like_a_built_in_type,
+    common_base_class,
+    get_type_hints_of_object,
+)
+from krrood.utils import module_and_class_name, is_builtin_type
 
 if TYPE_CHECKING:
-    from .class_diagram import WrappedClass
-    from ..ontomatic.property_descriptor import PropertyDescriptor
+    from krrood.class_diagrams.class_diagram import WrappedClass
+    from krrood.ontomatic.property_descriptor.property_descriptor import (
+        PropertyDescriptor,
+    )
 
 
 @dataclass
@@ -62,7 +71,8 @@ class WrappedField:
 
     public_name: Optional[str] = None
     """
-    If the field is a relationship managed field, this is public name of the relationship that manages the field.
+    If the field is a relationship managed field, this is public name of the
+    relationship that manages the field.
     """
 
     property_descriptor: Optional[PropertyDescriptor] = None
@@ -86,6 +96,8 @@ class WrappedField:
         return hash((self.clazz.clazz, self.field))
 
     def __eq__(self, other):
+        if not isinstance(other, WrappedField):
+            return False
         return (self.clazz.clazz, self.field) == (
             other.clazz.clazz,
             other.field,
@@ -99,20 +111,21 @@ class WrappedField:
         """
         Resolve the type hint for this field.
 
-        Handles forward references by iteratively building a namespace with
-        classes from the class diagram and sys.modules until all references
-        are resolved.
+        :return: The resolved type hint.
+        :raises CouldNotResolveType: If the type cannot be resolved.
         """
+        # Fast path: already-resolved type (e.g., provided by specialized generic introspector)
+        if not isinstance(self.field.type, str):
+            return self.field.type
+
         local_namespace = self._build_initial_namespace()
 
-        while True:
-            try:
-                return get_type_hints(self.clazz.clazz, localns=local_namespace)[
-                    self.field.name
-                ]
-            except NameError as e:
-                found_class = self._find_class_by_name(e.name)
-                local_namespace[e.name] = found_class
+        # If it's a specialized generic, use its origin for get_type_hints
+        clazz = self.clazz.class_to_introspect
+
+        return get_type_hints_of_object(
+            clazz, namespace=tuple(local_namespace.items())
+        )[self.field.name]
 
     def _build_initial_namespace(self) -> dict:
         """
@@ -121,7 +134,14 @@ class WrappedField:
         class_diagram = self.clazz._class_diagram
         if class_diagram is None:
             return {}
-        return {cls.clazz.__name__: cls.clazz for cls in class_diagram.wrapped_classes}
+        namespace = {}
+        for cls in class_diagram.wrapped_classes:
+            # Only add to namespace if it's a real type.
+            # Specialized generics (which have _GenericAlias as clazz) are skipped
+            # to avoid shadowing the origin classes.
+            if isinstance(cls.clazz, type):
+                namespace[cls.name] = cls.clazz
+        return namespace
 
     def _find_class_by_name(self, class_name: str) -> Type:
         """
@@ -131,12 +151,14 @@ class WrappedField:
         if class_diagram is not None:
             for wrapped_class in class_diagram.wrapped_classes:
                 if wrapped_class.clazz.__name__ == class_name:
-                    return wrapped_class.clazz
+                    return wrapped_class.clazzs
         return manually_search_for_class_name(class_name)
 
     @cached_property
     def is_builtin_type(self) -> bool:
-        return self.type_endpoint in [int, float, str, bool, datetime, NoneType]
+        return is_builtin_type(self.type_endpoint) or (
+            self.type_endpoint in [datetime, NoneType]
+        )
 
     @cached_property
     def is_container(self) -> bool:
@@ -151,16 +173,22 @@ class WrappedField:
     @cached_property
     def is_collection_of_builtins(self):
         return self.is_container and all(
-            behaves_like_a_built_in_class(field_type)
+            behaves_like_a_built_in_type(field_type)
             for field_type in get_args(self.resolved_type)
         )
 
     @cached_property
     def is_optional(self):
+        """
+        :return: Whether the field holds an optional value.
+
+        ``Optional[X]`` and the PEP 604 spelling ``X | None`` denote the same type but
+        report different origins, so both are recognised here.
+        """
         origin = get_origin(self.resolved_type)
-        if origin not in [Union, Optional]:
+        if origin not in [Union, Optional, UnionType]:
             return False
-        if origin == Union:
+        if origin in [Union, UnionType]:
             args = get_args(self.resolved_type)
             return len(args) == 2 and NoneType in args
         return True
@@ -173,7 +201,20 @@ class WrappedField:
             return get_args(self.resolved_type)[0]
         else:
             try:
-                return get_args(self.resolved_type)[0]
+                args = get_args(self.resolved_type)
+                if len(args) > 1:
+                    # TypeVarTuple expansion produces list[A, B, ...] — use the LCA
+                    lowest_common_base_class = common_base_class(list(args))
+                    if lowest_common_base_class is not None:
+                        return lowest_common_base_class
+                arg = args[0]
+                # Explicit Union contained type e.g. list[Union[A, B]] — resolve to LCA
+                if get_origin(arg) is Union:
+                    non_none = [t for t in get_args(arg) if t is not NoneType]
+                    lowest_common_base_class = common_base_class(non_none)
+                    if lowest_common_base_class is not None:
+                        return lowest_common_base_class
+                return arg
             except IndexError:
                 if self.resolved_type is Type:
                     return self.resolved_type
@@ -184,60 +225,180 @@ class WrappedField:
 
     @cached_property
     def is_type_type(self) -> bool:
-        return get_origin(self.resolved_type) is type
+        """
+        ``True`` for both the parametrized form (``Type[X]``, whose origin is ``type``)
+        and the bare ``type`` / ``typing.Type`` annotation, which has no origin at all.
+        """
+        return (
+            self.resolved_type in (type, Type) or get_origin(self.resolved_type) is type
+        )
 
     @cached_property
     def is_enum(self) -> bool:
-        if self.is_container or not inspect.isclass(self.resolved_type):
-            return False
-        if self.is_optional:
-            return issubclass(self.contained_type, enum.Enum)
-
-        return issubclass(self.resolved_type, enum.Enum)
+        return issubclass(self.type_endpoint, enum.Enum)
 
     @cached_property
-    def is_one_to_one_relationship(self) -> bool:
+    def is_many_to_one_relationship(self) -> bool:
+        """
+        ..note:: One-to-one relationships are not possible as its not enforceable that nobody references to the other side.
+        See `one-to-one relationships <https://docs.sqlalchemy.org/en/21/orm/basic_relationships.html#one-to-one>`_
+        """
         return not self.is_container and not self.is_builtin_type
 
     @cached_property
-    def is_one_to_many_relationship(self) -> bool:
+    def is_many_to_many_relationship(self) -> bool:
+        """
+        ..note:: One-to-many relationships are not possible as its not enforceable that nobody references to the other side.
+        """
         return self.is_container and not self.is_builtin_type and not self.is_optional
 
     @cached_property
     def is_iterable(self):
-        return self.is_one_to_many_relationship and hasattr(
+        return self.is_many_to_many_relationship and hasattr(
             self.container_type, "__iter__"
         )
 
     @cached_property
     def type_endpoint(self) -> Type:
+        """
+        The concrete type this field ultimately points to, ready to be used directly.
+
+        A bounded ``TypeVar`` is reduced to its bound, since the field is specified to
+        that bound; an unbounded ``TypeVar`` is returned unchanged. Predicates that must
+        reason about the type variable itself use :attr:`_unresolved_type_endpoint`.
+        """
+        endpoint = self._unresolved_type_endpoint
+        if isinstance(endpoint, TypeVar) and endpoint.__bound__ is not None:
+            return endpoint.__bound__
+        return endpoint
+
+    @cached_property
+    def _unresolved_type_endpoint(self) -> Type:
+        """
+        The type this field points to before a bounded ``TypeVar`` is reduced to its
+        bound: the contained type for containers and optionals, the lowest common
+        ancestor for unions, otherwise the resolved type.
+
+        May be a ``TypeVar``.
+        """
         if self.is_container or self.is_optional:
             return self.contained_type
-        else:
-            return self.resolved_type
+        resolved = self.resolved_type
+        if get_origin(resolved) is Union:
+            non_none = [arg for arg in get_args(resolved) if arg is not NoneType]
+            lowest_common_ancestor = common_base_class(non_none)
+            if lowest_common_ancestor is not None:
+                return lowest_common_ancestor
+        return resolved
 
     @cached_property
     def is_role_taker(self) -> bool:
+        # Imported lazily: Role lives in patterns, and importing it at module level would close an
+        # import cycle through symbol_graph -> class_diagram -> wrapped_field.
+        from krrood.patterns.role import Role
+
+        owner = self.clazz.clazz
+        origin = get_origin(owner)
+        if origin is not None and not isinstance(owner, type):
+            owner = origin
+        # The base ``Role`` declares ``role_taker`` as an abstract, unbound-generic slot; only a
+        # concrete role subclass binds it to a real taker type.
+        if not (
+            isinstance(owner, type) and issubclass(owner, Role) and owner is not Role
+        ):
+            return False
+        return self.field.name == Role.role_taker_field_name()
+
+    @property
+    def type_name(self) -> str:
+        """
+        Return the string representation of the field's type.
+        """
+        if self.resolved_type is NoneType:
+            return "None"
+
+        # For generic types like List[Person], str() often includes the full path of the generic arguments.
+        # We use a regex to strip module paths and keep only the class names.
+        if get_origin(self.resolved_type) is not None:
+            res = str(self.resolved_type)
+            # Strip prefixes like 'typing.', 'test.pkg.', etc.
+            return re.sub(r"(\w+\.)+(\w+)", r"\2", res)
+
+        if hasattr(self.resolved_type, "__name__"):
+            return self.resolved_type.__name__
+        return re.sub(r"(\w+\.)+(\w+)", r"\2", str(self.resolved_type))
+
+    @property
+    def is_required(self) -> bool:
+        """
+        Check if the field is required (has no default or default_factory).
+        """
+        return self.field.default is MISSING and self.field.default_factory is MISSING
+
+    @cached_property
+    def is_instantiation_of_generic_class(self) -> bool:
+        """
+        Check if a type hint is a full parameterization of a generic class.
+
+        For example, `GenericClass[int]` is a full parameterization, but `GenericClass`
+        is not.
+
+        :return: True if the type hint is a full parameterization of a generic class.
+        """
+        origin = get_origin(self.type_endpoint)
+        if origin is None:
+            return False
+        if not isclass(origin) or not issubclass(origin, Generic):
+            return False
         return (
-            self.is_one_to_one_relationship
-            and not self.is_optional
-            and self.field.default == MISSING
-            and self.field.default_factory == MISSING
+            len(get_args(self.type_endpoint)) > 0
+            and len(self.type_endpoint.__parameters__) == 0
         )
+
+    @cached_property
+    def is_underspecified_generic(self) -> bool:
+        """
+        Check if a type hint is an underspecified generic class.
+
+        For example, `GenericClass` is underspecified, but `GenericClass[int]` is not.
+
+        :return: True if the type hint is an underspecified generic class.
+        """
+        # A bounded type variable is specified to its bound, so it is not underspecified even when
+        # that bound is a generic class with free parameters. An unbounded type variable specifies
+        # nothing and is therefore underspecified.
+        endpoint = self._unresolved_type_endpoint
+        if isinstance(endpoint, TypeVar):
+            return endpoint.__bound__ is None
+
+        # A class is underspecified only if it still has free TypeVar parameters.
+        # Concrete subclasses of generic parents (e.g. HSRBMobileBase(MobileBase, HasTorso[HSRBTorso]))
+        # are subclasses of Generic but have __parameters__ == (), so they must not be skipped.
+        if inspect.isclass(self.type_endpoint) and issubclass(
+            self.type_endpoint, Generic
+        ):
+            return len(getattr(self.type_endpoint, "__parameters__", ())) > 0
+
+        # Also check if it's a GenericAlias with empty args (though usually origin is used then)
+        origin = get_origin(self.type_endpoint)
+
+        if origin is None or not isclass(origin):
+            return False
+
+        return issubclass(origin, Generic) and len(get_args(self.type_endpoint)) == 0
 
 
 @lru_cache(maxsize=None)
 def manually_search_for_class_name(target_class_name: str) -> Type:
     """
-    Searches for a class with the specified name in the current module's `globals()` dictionary
-    and all loaded modules present in `sys.modules`. This function attempts to find and resolve
-    the first class that matches the given name. If multiple classes are found with the same
-    name, a warning is logged, and the first one is returned. If no matching class is found,
-    an exception is raised.
+    Searches for a class with the specified name in the current module's `globals()`
+    dictionary and all loaded modules present in `sys.modules`. This function attempts
+    to find and resolve the first class that matches the given name. If multiple classes
+    are found with the same name, a warning is logged, and the first one is returned. If
+    no matching class is found, an exception is raised.
 
     :param target_class_name: Name of the class to search for.
     :return: The resolved class with the matching name.
-
     :raises ValueError: Raised when no class with the specified name can be found.
     """
     found_classes = search_class_in_globals(target_class_name)

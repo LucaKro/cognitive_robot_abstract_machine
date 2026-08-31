@@ -1,7 +1,10 @@
+from copy import deepcopy
+
 import numpy as np
 import pytest
 
 import krrood.symbolic_math.symbolic_math as sm
+from krrood.entity_query_language.factories import a, an
 from krrood.symbolic_math.exceptions import (
     UnsupportedOperationError,
     WrongDimensionsError,
@@ -153,6 +156,33 @@ class TestRotationMatrix:
             RotationMatrix.from_vectors(x=x_unit, y=y_unit, z=z_unit), R_ref
         )
 
+    @pytest.mark.parametrize(
+        "direction",
+        [
+            np.array([1.0, 2, 3]),
+            np.array([1.0, 0, 0]),
+            np.array([0.0, 1, 0]),
+            np.array([0.0, 0, 1]),
+            np.array([1.0, 1, 0]),
+            np.array([0.0, 0, -5]),
+        ],
+    )
+    def test_from_x_axis(self, direction):
+        """
+        The x-axis of the result points along the given direction, whatever the
+        direction is, and the two axes completing the frame turn it into a proper
+        rotation matrix.
+        """
+        expected_x_axis = direction / np.linalg.norm(direction)
+
+        result = RotationMatrix.from_x_axis(Vector3.from_iterable(direction)).to_np()[
+            :3, :3
+        ]
+
+        assert np.allclose(result[:, 0], expected_x_axis)
+        assert np.allclose(result.T @ result, np.eye(3))
+        assert np.isclose(np.linalg.det(result), 1)
+
     @pytest.mark.parametrize("q", quaternions)
     def test_from_quaternion(self, q):
         actual = RotationMatrix.from_quaternion(Quaternion.from_iterable(q))
@@ -217,7 +247,9 @@ class TestRotationMatrix:
         assert np.allclose(r1, matrix, atol=1.0e-4)
 
     def test_initialization(self):
-        """Test various ways to initialize RotationMatrix"""
+        """
+        Test various ways to initialize RotationMatrix.
+        """
         # Default initialization (identity)
         r_identity = RotationMatrix()
         assert isinstance(r_identity, RotationMatrix)
@@ -246,7 +278,9 @@ class TestRotationMatrix:
         assert r_from_t[2, 3] == 0
 
     def test_sanity_check(self):
-        """Test that sanity check enforces proper rotation matrix structure"""
+        """
+        Test that sanity check enforces proper rotation matrix structure.
+        """
         # Valid 4x4 matrix should pass
         valid_matrix = np.eye(4)
         r = RotationMatrix(data=valid_matrix)
@@ -261,7 +295,9 @@ class TestRotationMatrix:
         assert r[3, 3] == 1
 
     def test_orthogonality_properties(self):
-        """Test orthogonality properties of rotation matrices"""
+        """
+        Test orthogonality properties of rotation matrices.
+        """
         # Create rotation from known values
         r = RotationMatrix.from_rpy(0.1, 0.2, 0.3)
 
@@ -274,7 +310,9 @@ class TestRotationMatrix:
         assert np.allclose(det, 1.0, atol=1e-10)
 
     def test_transpose(self):
-        """Test transpose operation and its properties"""
+        """
+        Test transpose operation and its properties.
+        """
         r = RotationMatrix.from_rpy(0.1, 0.2, 0.3)
         r_t = r.T
 
@@ -290,7 +328,9 @@ class TestRotationMatrix:
         assert np.allclose(r, r_tt)
 
     def test_inverse(self):
-        """Test matrix inversion for rotation matrices"""
+        """
+        Test matrix inversion for rotation matrices.
+        """
         r = RotationMatrix.from_rpy(0.5, -0.3, 1.2)
 
         # For rotation matrices, inverse should equal transpose
@@ -305,7 +345,9 @@ class TestRotationMatrix:
         assert np.allclose(identity_check, identity, atol=1e-10)
 
     def test_composition(self):
-        """Test composition of multiple rotations"""
+        """
+        Test composition of multiple rotations.
+        """
         r1 = RotationMatrix.from_rpy(0.1, 0, 0)  # Roll
         r2 = RotationMatrix.from_rpy(0, 0.2, 0)  # Pitch
         r3 = RotationMatrix.from_rpy(0, 0, 0.3)  # Yaw
@@ -320,7 +362,9 @@ class TestRotationMatrix:
         assert np.allclose(combined @ combined.T, np.eye(4), atol=1e-10)
 
     def test_vector_rotation(self):
-        """Test rotation of vectors and unit vectors"""
+        """
+        Test rotation of vectors and unit vectors.
+        """
         # 90-degree rotation around Z-axis
         r_z90 = RotationMatrix.from_axis_angle(Vector3.Z(), np.pi / 2)
 
@@ -340,7 +384,9 @@ class TestRotationMatrix:
         assert np.allclose(rotated_v[:3], np.array([0, 1, 0]), atol=1e-10)
 
     def test_frame_properties(self):
-        """Test reference frame and child frame properties"""
+        """
+        Test reference frame and child frame properties.
+        """
         r = RotationMatrix()
 
         # Initially should be None
@@ -355,7 +401,9 @@ class TestRotationMatrix:
         assert hasattr(result, "reference_frame")
 
     def test_to_conversions(self):
-        """Test conversion methods to other representations"""
+        """
+        Test conversion methods to other representations.
+        """
         r = RotationMatrix.from_rpy(0.1, 0.2, 0.3)
 
         # Test conversion to axis-angle
@@ -403,7 +451,9 @@ class TestRotationMatrix:
         assert np.allclose(dot_product, 1.0, atol=1e-10)
 
     def test_small_angle_approximation(self):
-        """Test behavior with very small rotation angles"""
+        """
+        Test behavior with very small rotation angles.
+        """
         small_angle = 1e-8
 
         # Small rotation around Z-axis
@@ -417,7 +467,9 @@ class TestRotationMatrix:
         assert np.allclose(rotation_part.det(), 1.0, atol=1e-12)
 
     def test_symbolic_operations(self):
-        """Test operations with symbolic expressions"""
+        """
+        Test operations with symbolic expressions.
+        """
         angle_sym = sm.FloatVariable(name="theta")
 
         # Create symbolic rotation
@@ -435,7 +487,9 @@ class TestRotationMatrix:
         assert "theta" in variable_names
 
     def test_compilation(self):
-        """Test compilation and execution of rotation matrices"""
+        """
+        Test compilation and execution of rotation matrices.
+        """
         # Test symbolic rotation compilation
         compiled_rotation = RotationMatrix.from_axis_angle(Vector3.Z(), np.pi / 4)
 
@@ -447,7 +501,9 @@ class TestRotationMatrix:
         )
 
     def test_edge_cases(self):
-        """Test edge cases and boundary conditions"""
+        """
+        Test edge cases and boundary conditions.
+        """
         # Zero rotation
         r_zero = RotationMatrix.from_axis_angle(Vector3.X(), 0)
         identity = RotationMatrix()
@@ -465,7 +521,9 @@ class TestRotationMatrix:
         assert np.allclose(rotation_part, expected_rotation, atol=1e-10)
 
     def test_quaternion_consistency(self):
-        """Test consistency between quaternion and rotation matrix representations"""
+        """
+        Test consistency between quaternion and rotation matrix representations.
+        """
         # Create rotation via different methods
         r_rpy = RotationMatrix.from_rpy(0.1, 0.2, 0.3)
         q = r_rpy.to_quaternion()
@@ -493,6 +551,17 @@ class TestRotationMatrix:
             assert np.allclose(
                 det, 1.0, atol=1e-10
             ), f"Determinant {det} != 1.0 for operation"
+
+    def test_deepcopy_of_default_constructed_matrix(self):
+        """
+        The identity shortcut in the constructor still yields a copyable matrix.
+        """
+        rotation = RotationMatrix()
+
+        rotation_copy = deepcopy(rotation)
+
+        assert isinstance(rotation_copy, RotationMatrix)
+        np.testing.assert_array_equal(rotation_copy.to_np(), rotation.to_np())
 
 
 class TestPoint3:
@@ -562,7 +631,9 @@ class TestPoint3:
         assert np.allclose(actual, expected)
 
     def test_arithmetic_operations(self):
-        """Test all allowed arithmetic operations on Point3"""
+        """
+        Test all allowed arithmetic operations on Point3.
+        """
         p1 = Point3(x=1, y=2, z=3)
         p2 = Point3(x=4, y=5, z=6)
         v = Vector3(x=1, y=1, z=1)
@@ -623,7 +694,9 @@ class TestPoint3:
         assert p_copy[3] == 1
 
     def test_properties(self):
-        """Test x, y, z property getters and setters"""
+        """
+        Test x, y, z property getters and setters.
+        """
         p = Point3(x=1, y=2, z=3)
 
         # Test getters
@@ -641,7 +714,9 @@ class TestPoint3:
         assert p[3] == 1  # Homogeneous coordinate unchanged
 
     def test_geometric_operations(self):
-        """Test geometric operations specific to points"""
+        """
+        Test geometric operations specific to points.
+        """
         p1 = Point3(x=0, y=0, z=0)  # Origin
         p2 = Point3(x=3, y=4, z=0)  # Point on XY plane
 
@@ -659,7 +734,9 @@ class TestPoint3:
         assert np.allclose(midpoint.z, 0.0)
 
     def test_reference_frame_preservation(self):
-        """Test that reference frames are properly preserved through operations"""
+        """
+        Test that reference frames are properly preserved through operations.
+        """
         p1 = Point3(x=1, y=2, z=3)  # reference_frame=some_frame
         v = Vector3(x=1, y=1, z=1)
 
@@ -768,7 +845,9 @@ class TestPoint3:
         assert np.allclose(actual, expected)
 
     def test_transformation_operations(self):
-        """Test transformation matrix operations with points"""
+        """
+        Test transformation matrix operations with points.
+        """
         p = Point3(x=1, y=2, z=3)
         t = HomogeneousTransformationMatrix()
 
@@ -813,7 +892,9 @@ class TestPoint3:
         assert np.allclose(distance, 1)
 
     def test_compilation_and_execution(self):
-        """Test that Point3 operations compile and execute correctly"""
+        """
+        Test that Point3 operations compile and execute correctly.
+        """
         # Test point arithmetic compilation
         compiled_add = Point3(x=1, y=2, z=3) + Vector3(x=1, y=1, z=1)
         expected = np.array([2, 3, 4, 1])
@@ -825,7 +906,9 @@ class TestPoint3:
         assert np.allclose(compiled_sub, expected_vector)
 
     def test_edge_cases(self):
-        """Test edge cases and boundary conditions"""
+        """
+        Test edge cases and boundary conditions.
+        """
         # Test with zero coordinates
         p_zero = Point3(x=0, y=0, z=0)
         assert p_zero[0] == 0 and p_zero[1] == 0 and p_zero[2] == 0
@@ -849,7 +932,9 @@ class TestPoint3:
         assert p_small[3] == 1
 
     def test_symbolic_operations(self):
-        """Test operations with symbolic expressions"""
+        """
+        Test operations with symbolic expressions.
+        """
         x, y, z = sm.create_float_variables(["x", "y", "z"])
         p_symbolic = Point3(x=x, y=y, z=z)
         p_numeric = Point3(x=1, y=2, z=3)
@@ -947,7 +1032,9 @@ class TestVector3:
         assert np.allclose(result, expected)
 
     def test_cross_product(self):
-        """Test cross product operations"""
+        """
+        Test cross product operations.
+        """
         v1 = Vector3(x=1, y=0, z=0)
         v2 = Vector3(x=0, y=1, z=0)
 
@@ -962,7 +1049,9 @@ class TestVector3:
         assert np.allclose(result2[:3], np.array([0, 0, -1]))
 
     def test_properties(self):
-        """Test x, y, z property getters and setters"""
+        """
+        Test x, y, z property getters and setters.
+        """
         v = Vector3(x=1, y=2, z=3)
 
         # Test getters
@@ -980,7 +1069,9 @@ class TestVector3:
         assert v[3] == 0  # Homogeneous coordinate unchanged
 
     def test_reference_frame_preservation(self):
-        """Test that reference frames are properly preserved through operations"""
+        """
+        Test that reference frames are properly preserved through operations.
+        """
         # This would require a mock reference frame object
         v1 = Vector3(x=1, y=2, z=3)  # reference_frame=some_frame
         v2 = Vector3(x=4, y=5, z=6)
@@ -996,7 +1087,9 @@ class TestVector3:
         assert result.reference_frame == v1.reference_frame
 
     def test_negation(self):
-        """Test unary negation operator"""
+        """
+        Test unary negation operator.
+        """
         v = Vector3(x=1, y=-2, z=3)
         result = -v
 
@@ -1013,7 +1106,9 @@ class TestVector3:
         assert np.allclose(angle, np.pi / 2)
 
     def test_scale_method(self):
-        """Test the scale method with safe and unsafe modes"""
+        """
+        Test the scale method with safe and unsafe modes.
+        """
         v = Vector3(x=3, y=4, z=0)  # Length = 5
 
         # Safe scaling (default)
@@ -1116,7 +1211,9 @@ class TestVector3:
         assert np.allclose(actual, expected)
 
     def test_from_iterable_edge_cases(self):
-        """Test edge cases for from_iterable class method"""
+        """
+        Test edge cases for from_iterable class method.
+        """
         # Test with different iterable types
         v1 = Vector3.from_iterable([1, 2, 3])
         assert v1[0] == 1 and v1[1] == 2 and v1[2] == 3 and v1[3] == 0
@@ -1133,7 +1230,9 @@ class TestVector3:
         assert new_vector.reference_frame == existing_vector.reference_frame
 
     def test_compilation_and_execution(self):
-        """Test that Vector3 operations compile and execute correctly"""
+        """
+        Test that Vector3 operations compile and execute correctly.
+        """
         v1 = Vector3(
             x=sm.FloatVariable(name="x"),
             y=sm.FloatVariable(name="y"),
@@ -1169,7 +1268,9 @@ class TestVector3:
 
 class TestTransformationMatrix:
     def test_json(self):
-        """Test that the JSON serialization works correctly"""
+        """
+        Test that the JSON serialization works correctly.
+        """
         t = HomogeneousTransformationMatrix()
         t_json = t.to_json()
         t_copy = HomogeneousTransformationMatrix.from_json(t_json)
@@ -1360,7 +1461,7 @@ class TestTransformationMatrix:
 
     def test_rot_of2(self):
         """
-        Test to make sure the function doesn't alter the original
+        Test to make sure the function doesn't alter the original.
         """
         f = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3)
         r = f.to_rotation_matrix()
@@ -1372,7 +1473,9 @@ class TestTransformationMatrix:
         assert r[2, 2] == 1
 
     def test_initialization(self):
-        """Test various ways to initialize TransformationMatrix"""
+        """
+        Test various ways to initialize TransformationMatrix.
+        """
         # Default initialization (identity)
         t_identity = HomogeneousTransformationMatrix()
         assert isinstance(t_identity, HomogeneousTransformationMatrix)
@@ -1401,7 +1504,9 @@ class TestTransformationMatrix:
         assert isinstance(t_from_np, HomogeneousTransformationMatrix)
 
     def test_sanity_check(self):
-        """Test that sanity check enforces proper transformation matrix structure"""
+        """
+        Test that sanity check enforces proper transformation matrix structure.
+        """
         # Valid 4x4 matrix should pass
         valid_matrix = np.eye(4)
         valid_matrix[:3, 3] = [1, 2, 3]
@@ -1421,7 +1526,9 @@ class TestTransformationMatrix:
             HomogeneousTransformationMatrix(data=np.ones((2, 5)))  # Wrong dimensions
 
     def test_properties(self):
-        """Test x, y, z property getters and setters"""
+        """
+        Test x, y, z property getters and setters.
+        """
         t = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0.1, 0.2, 0.3)
 
         # Test getters
@@ -1441,7 +1548,9 @@ class TestTransformationMatrix:
         assert t[3, 3] == 1
 
     def test_from_point_rotation(self):
-        """Test construction from point and rotation matrix"""
+        """
+        Test construction from point and rotation matrix.
+        """
         p = Point3(x=1, y=2, z=3)
         r = RotationMatrix.from_rpy(0.1, 0.2, 0.3)
 
@@ -1467,7 +1576,9 @@ class TestTransformationMatrix:
         assert np.allclose(t3.z, 0)
 
     def test_from_xyz_quat(self):
-        """Test construction from position and quaternion"""
+        """
+        Test construction from position and quaternion.
+        """
         t = HomogeneousTransformationMatrix.from_xyz_quaternion(
             pos_x=1,
             pos_y=2,
@@ -1488,7 +1599,9 @@ class TestTransformationMatrix:
         assert np.allclose(rotation_part, np.eye(3))
 
     def test_composition(self):
-        """Test composition of multiple transformations"""
+        """
+        Test composition of multiple transformations.
+        """
         # Translation only
         t1 = HomogeneousTransformationMatrix.from_xyz_rpy(1, 0, 0)  # Translate in X
         t2 = HomogeneousTransformationMatrix.from_xyz_rpy(0, 1, 0)  # Translate in Y
@@ -1507,7 +1620,9 @@ class TestTransformationMatrix:
         assert np.allclose(result.z, 0)
 
     def test_point_transformation(self):
-        """Test transformation of points"""
+        """
+        Test transformation of points.
+        """
         # Create a transformation: translate by (1,2,3) and rotate by 90° around Z
         t = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0, 0, np.pi / 2)
 
@@ -1528,7 +1643,9 @@ class TestTransformationMatrix:
         assert np.allclose(transformed.z, expected_z, atol=1e-10)
 
     def test_vector_transformation(self):
-        """Test transformation of vectors (no translation effect)"""
+        """
+        Test transformation of vectors (no translation effect)
+        """
         # Create transformation with both rotation and translation
         t = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0, 0, np.pi / 2)
 
@@ -1546,7 +1663,9 @@ class TestTransformationMatrix:
         assert np.allclose(transformed.z, 0, atol=1e-10)
 
     def test_inverse(self):
-        """Test matrix inversion"""
+        """
+        Test matrix inversion.
+        """
         t = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0.1, 0.2, 0.3)
         t_inv = t.inverse()
 
@@ -1567,7 +1686,9 @@ class TestTransformationMatrix:
             assert t_inv.child_frame == t.reference_frame
 
     def test_extraction_methods(self):
-        """Test methods for extracting components"""
+        """
+        Test methods for extracting components.
+        """
         t = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0.1, 0.2, 0.3)
 
         # Extract position
@@ -1602,7 +1723,9 @@ class TestTransformationMatrix:
         assert isinstance(quaternion, Quaternion)
 
     def test_frame_properties(self):
-        """Test reference frame and child frame properties"""
+        """
+        Test reference frame and child frame properties.
+        """
         t = HomogeneousTransformationMatrix()
 
         # Initially should be None
@@ -1638,7 +1761,9 @@ class TestTransformationMatrix:
         assert t[3, 3] == 1
 
     def test_symbolic_operations(self):
-        """Test operations with symbolic expressions"""
+        """
+        Test operations with symbolic expressions.
+        """
         x_sym = sm.FloatVariable(name="x")
         y_sym = sm.FloatVariable(name="y")
         angle_sym = sm.FloatVariable(name="theta")
@@ -1662,7 +1787,9 @@ class TestTransformationMatrix:
         assert "theta" in variable_names
 
     def test_compilation(self):
-        """Test compilation and execution of transformation matrices"""
+        """
+        Test compilation and execution of transformation matrices.
+        """
         # Test symbolic transformation compilation
         compiled_transform = HomogeneousTransformationMatrix.from_xyz_rpy(
             1, 2, 3, 0.1, 0.2, 0.3
@@ -1676,7 +1803,9 @@ class TestTransformationMatrix:
         assert np.allclose(compiled_transform[3, 2], 0)
 
     def test_deepcopy(self):
-        """Test deep copy functionality"""
+        """
+        Test deep copy functionality.
+        """
         t = HomogeneousTransformationMatrix.from_xyz_rpy(1, 2, 3, 0.1, 0.2, 0.3)
 
         from copy import deepcopy
@@ -1690,8 +1819,33 @@ class TestTransformationMatrix:
         assert t_copy.reference_frame == t.reference_frame
         assert t_copy.child_frame == t.child_frame
 
+    def test_deepcopy_of_default_constructed_matrix(self):
+        """
+        The identity shortcut in the constructor still yields a copyable matrix.
+        """
+        transform = HomogeneousTransformationMatrix()
+
+        transform_copy = deepcopy(transform)
+
+        assert isinstance(transform_copy, HomogeneousTransformationMatrix)
+        np.testing.assert_array_equal(transform_copy.to_np(), transform.to_np())
+
+    def test_deepcopy_of_symbolic_matrix_keeps_free_variables(self):
+        """
+        A copied symbolic matrix keeps reporting the variables of its original.
+        """
+        transform = HomogeneousTransformationMatrix.create_with_variables("joint")
+
+        transform_copy = deepcopy(transform)
+
+        assert [variable.name for variable in transform_copy.free_variables()] == [
+            variable.name for variable in transform.free_variables()
+        ]
+
     def test_robot_kinematics(self):
-        """Test transformation matrices in typical robotics scenarios"""
+        """
+        Test transformation matrices in typical robotics scenarios.
+        """
         # Forward kinematics chain: base -> link1 -> link2 -> end_effector
         base_T_link1 = HomogeneousTransformationMatrix.from_xyz_rpy(
             0, 0, 1, 0, 0, np.pi / 4
@@ -1714,7 +1868,9 @@ class TestTransformationMatrix:
         assert np.allclose(identity_check, identity, atol=1e-10)
 
     def test_coordinate_transformations(self):
-        """Test coordinate frame transformations"""
+        """
+        Test coordinate frame transformations.
+        """
         # Transform from world to robot base
         world_T_robot = HomogeneousTransformationMatrix.from_xyz_rpy(
             2, 3, 0, 0, 0, np.pi / 2
@@ -1735,7 +1891,9 @@ class TestTransformationMatrix:
         assert np.allclose(world_point, world_point_back, atol=1e-10)
 
     def test_edge_cases(self):
-        """Test edge cases and boundary conditions"""
+        """
+        Test edge cases and boundary conditions.
+        """
         # Identity transformation
         t_identity = HomogeneousTransformationMatrix()
         point = Point3(x=1, y=2, z=3)
@@ -1883,3 +2041,64 @@ class TestQuaternion:
         q2 = np.array(q2)
         expected = np.dot(q1.T, q2)
         assert np.allclose(result, expected)
+
+
+def test_underspecification_of_vector():
+    q = a(Vector3)(x=1, y=2, z=3)
+    q = q.where(q.variable.x > 0)
+    v1 = q.construct_instance()
+    assert v1.x == 1
+    assert v1.y == 2
+    assert v1.z == 3
+
+
+def test_underspecification_of_transformation():
+    q = a(HomogeneousTransformationMatrix.from_xyz_rpy)(x=1)
+    q = q.where(q.variable.x > 0)
+    t1 = q.construct_instance()
+    assert t1.x == 1
+
+
+# %% normalisation of the constant entries
+
+
+class TestConstantEntriesAreNormalised:
+    """
+    The types whose matrices carry fixed entries repair those entries on construction,
+    rather than trusting the data they are handed.
+    """
+
+    @staticmethod
+    def _matrix_with_wrong_constant_entries() -> np.ndarray:
+        data = np.eye(4)
+        data[3, :] = [7.0, 7.0, 7.0, 7.0]
+        data[:3, 3] = [5.0, 5.0, 5.0]
+        return data
+
+    def test_transformation_matrix_repairs_its_bottom_row(self):
+        matrix = HomogeneousTransformationMatrix(
+            data=self._matrix_with_wrong_constant_entries()
+        )
+        np.testing.assert_array_equal(matrix.to_np()[3, :], [0.0, 0.0, 0.0, 1.0])
+
+    def test_transformation_matrix_keeps_its_translation(self):
+        matrix = HomogeneousTransformationMatrix(
+            data=self._matrix_with_wrong_constant_entries()
+        )
+        np.testing.assert_array_equal(matrix.to_np()[:3, 3], [5.0, 5.0, 5.0])
+
+    def test_pose_repairs_its_bottom_row(self):
+        pose = Pose.from_casadi_sx(sm.to_sx(self._matrix_with_wrong_constant_entries()))
+        np.testing.assert_array_equal(pose.to_np()[3, :], [0.0, 0.0, 0.0, 1.0])
+
+    def test_rotation_matrix_repairs_its_bottom_row(self):
+        rotation = RotationMatrix.from_casadi_sx(
+            sm.to_sx(self._matrix_with_wrong_constant_entries())
+        )
+        np.testing.assert_array_equal(rotation.to_np()[3, :], [0.0, 0.0, 0.0, 1.0])
+
+    def test_rotation_matrix_drops_any_translation(self):
+        rotation = RotationMatrix.from_casadi_sx(
+            sm.to_sx(self._matrix_with_wrong_constant_entries())
+        )
+        np.testing.assert_array_equal(rotation.to_np()[:3, 3], [0.0, 0.0, 0.0])

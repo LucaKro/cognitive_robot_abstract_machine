@@ -1,0 +1,780 @@
+"""
+Pattern-matching helpers for the Entity Query Language.
+
+This module provides high-level match abstractions that build symbolic expressions for
+variables and attributes from concise, readable matching syntax.
+"""
+
+from __future__ import annotations
+
+import uuid
+from abc import ABC, abstractmethod
+from collections import deque
+from dataclasses import dataclass, field
+from functools import cached_property
+from inspect import ismethod, isfunction, isclass
+from typing import assert_never, Any
+
+import rustworkx as rx
+from typing_extensions import (
+    Optional,
+    Type,
+    List,
+    Union,
+    Generic,
+    TYPE_CHECKING,
+    Self,
+    Iterator,
+)
+
+from krrood.class_diagrams.utils import get_type_hints_of_object
+from krrood.entity_query_language.core.base_expressions import (
+    Selectable,
+    SymbolicExpression,
+)
+from krrood.entity_query_language.operators.causal import (
+    Cause,
+    CausesEffect,
+    Confounder,
+)
+from krrood.entity_query_language.core.helpers import _resolve_domain
+from krrood.entity_query_language.core.mapped_variable import (
+    Attribute,
+    FlatVariable,
+    CanBehaveLikeAVariable,
+    MappedVariable,
+    IndexByValue,
+)
+from krrood.entity_query_language.core.variable import Literal, DomainType, Variable
+from krrood.entity_query_language.evaluable import Evaluable
+from krrood.entity_query_language.exceptions import (
+    CalledMatchMultipleTimes,
+    MatchTypeCannotBeDetermined,
+    ReadOnlyMapping,
+)
+from krrood.entity_query_language.predicate import HasType
+from krrood.entity_query_language.query.quantifiers import An, ResultQuantifier
+from krrood.entity_query_language.utils import T
+from krrood.patterns.factory_and_kwargs import HasFactoryAndKwargs
+from krrood.rustworkx_utils.rxnode import RWXNode
+from krrood.symbol_graph.helpers import get_field_type_endpoint
+
+if TYPE_CHECKING:
+    from krrood.entity_query_language.factories import ConditionType
+    from krrood.entity_query_language.query.query import Entity, Query
+
+
+@dataclass
+class AbstractMatchExpression(Generic[T], ABC):
+    """
+    Abstract base class for constructing and handling a match expression.
+
+    This class is intended to provide a framework for defining and managing match
+    expressions, which are used to structural pattern matching in the form of nested
+    match expressions with keyword arguments.
+    """
+
+    type_: Optional[Type[T]] = field(default=None, kw_only=True)
+    """
+    The type of the variable.
+    """
+
+    variable: Optional[Variable[T]] = field(default=None, kw_only=True)
+    """
+    The created variable from the type and kwargs.
+    """
+
+    conditions: List[ConditionType] = field(init=False, default_factory=list)
+    """
+    The conditions that define the match.
+    """
+
+    parent: Optional[AbstractMatchExpression] = field(init=False, default=None)
+    """
+    The parent match if this is a nested match.
+    """
+
+    resolved: bool = field(init=False, default=False)
+    """
+    Whether the match is resolved or not.
+    """
+
+    id: uuid.UUID = field(init=False, default_factory=uuid.uuid4)
+    """
+    The unique identifier of the match expression.
+    """
+
+    children: List[AttributeMatch] = field(init=False, default_factory=list)
+    """
+    The child matches of this match expression.
+    """
+
+    @cached_property
+    @abstractmethod
+    def expression(self) -> Union[CanBehaveLikeAVariable[T], T]:
+        """
+        :return: the entity expression corresponding to the match query.
+        """
+        ...
+
+    def resolve(self, *args, **kwargs) -> Self:
+        """
+        Resolve the match by creating the variable and conditions expressions.
+        """
+        if self.resolved:
+            return self
+        self._resolve(*args, **kwargs)
+        self.resolved = True
+        return self
+
+    @abstractmethod
+    def _resolve(self, *args, **kwargs):
+        """
+        This method serves as an abstract definition to be implemented by subclasses,
+        aimed at handling specific resolution logic for the derived class.
+
+        The method is designed to be flexible in accepting any number and type of input
+        parameters through positional (*args) and keyword (**kwargs) arguments.
+        Subclasses must extend this method to provide concrete implementations tailored
+        to their unique behaviors and requirements.
+        """
+        ...
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
+
+    @property
+    def type(self) -> Optional[Type[T]]:
+        """
+        If type is predefined return it, else if the variable is available return its
+        type, else return None.
+        """
+        if self.type_ is not None:
+            return self.type_
+        if self.variable is None:
+            return None
+        return self.variable._type_
+
+    @property
+    def root(self) -> Match:
+        """
+        :return: The root match expression.
+        """
+        parent = self
+        while parent.parent is not None:
+            parent = parent.parent
+        return parent
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __hash__(self):
+        return hash(self.id)
+
+    @property
+    def descendants(self) -> Iterator[AbstractMatchExpression]:
+        """
+        :return: All descendants of this expression in breadth first order
+        """
+        queue = deque(self.children)
+        while queue:
+            node = queue.popleft()
+            yield node
+            queue.extend(node.children)
+
+    @property
+    def matches_with_variables(self) -> Iterator[AttributeMatch]:
+        """
+        :return: All attribute matches where the assigned variable is a variable.
+        These matches are typically the leaves of a match expression.
+        """
+        self.resolve()
+        for expression in self.descendants:
+            if isinstance(expression.assigned_variable, Variable):
+                yield expression
+
+
+@dataclass(eq=False)
+class Match(Evaluable, AbstractMatchExpression[T], HasFactoryAndKwargs[T]):
+    """
+    Construct a query that looks for the pattern provided by the type and the keyword arguments.
+    Example usage where we look for an object of type Drawer with body of type Body that has the name"drawer_1":
+        >>> @dataclass
+        >>> class Body:
+        >>>     name: str
+        >>> @dataclass
+        >>> class Drawer:
+        >>>     body: Body
+        >>> drawer = a(Drawer)(body=a(Body)(name="drawer_1")).from_(world.views)
+
+    .. warning::
+        Match can take a factory as a mean to construct `T`. If the keyword argument names of the match are not
+        available in the class itself, the variables reffered to in the `where` conditions will not align with the
+        variables from the factory. It is strongly recommended to have the names of the factory available in the class,
+        either as field or as property.
+        Dataclass-generated `__init__` never have this problem unless `InitVar` is used.
+    """
+
+    _expression: Query = field(init=False, default=None)
+    """
+    Cache for the expression (the actual EQL query) as soon as it has been calculated.
+
+    This is needed to apply where conditions directly to the match instance.
+    """
+
+    _where_conditions_: List[ConditionType] = field(init=False, default_factory=list)
+    """
+    A list of all conditions that have been applied to this instance using the
+    `where` method.
+    """
+
+    _has_been_called: bool = field(init=False, default=False)
+    """
+    Flag indicating whether the match instance has been called with keyword arguments.
+    """
+
+    _quantifier_type_: Type[ResultQuantifier] = field(init=False, default=An)
+    """
+    The result quantifier applied when this match is materialized into a runnable query.
+
+    Defaults to ``An`` (zero or more results); set to ``The`` when built via
+    ``the(...)``.
+    """
+
+    domain: Optional[DomainType] = field(default=None, init=False)
+    """
+    The instances the match ranges over.
+
+    ``None`` constructs from scratch (an underspecified, generative request); a domain
+    makes it a search over those existing instances.
+    """
+
+    def __post_init__(self):
+        if self.type_ is None:
+            self._initialize_type_()
+
+    def _initialize_type_(self):
+        """
+        Initialize the type of the match based on the provided information in- place.
+        """
+        if isclass(self.factory):
+            self.type_ = self.factory
+        elif ismethod(self.factory):
+            self.type_ = self.factory.__class__
+        elif isfunction(self.factory):
+            type_ = get_type_hints_of_object(self.factory).get("return")
+            if type_ is None or not isclass(type_):
+                raise MatchTypeCannotBeDetermined(self)
+            self.type_ = type_
+        else:
+            assert_never(self.factory)
+
+    def __call__(self, **kwargs) -> Union[T, Self, CanBehaveLikeAVariable[T]]:
+        """
+        Update the match with new keyword arguments to constrain the type we are
+        matching with.
+
+        Eagerly creates the match's subject variable so it can be referenced in
+        ``where`` conditions immediately (lowering the pattern into conditions stays
+        lazy, tracked by ``resolved``). If this match is later nested under a parent,
+        the parent overwrites the subject with its own attribute during resolution.
+
+        :param kwargs: The keyword arguments to match against.
+        :return: The current match instance after updating it with the new keyword
+            arguments.
+        """
+        if self._has_been_called:
+            raise CalledMatchMultipleTimes(self)
+        self.kwargs = kwargs
+        self._has_been_called = True
+        if self.variable is None:
+            self.create_or_update_variable()
+        return self
+
+    @property
+    def expression(self) -> Union[Entity[T], T]:
+        """
+        Return the entity expression corresponding to the match query.
+        """
+        from krrood.entity_query_language.factories import entity
+
+        if self._expression is not None:
+            return self._expression
+
+        if not self.resolved:
+            self.resolve()
+        entity_ = entity(self.variable)
+        if self.conditions:
+            entity_ = entity_.where(*self.conditions)
+        entity_._quantify_(self._quantifier_type_)
+        self._expression = entity_
+        return entity_
+
+    def _resolve(
+        self,
+        variable: Optional[Selectable] = None,
+        parent: Optional[Match] = None,
+    ):
+        """
+        Resolve the match by creating the variable and conditions expressions in-place.
+
+        :param variable: An optional pre-existing variable to use for the match; if not
+            provided, a new variable will be created.
+        :param parent: The parent match if this is a nested match.
+        """
+        parent = parent or self
+        self.update_fields(variable, parent)
+        for attr_name, attr_assigned_value in self.kwargs.items():
+            if isinstance(attr_assigned_value, (list, tuple)) and any(
+                isinstance(element, AbstractMatchExpression)
+                for element in attr_assigned_value
+            ):
+                self._resolve_list_like_value(attr_name, attr_assigned_value, parent)
+                continue
+            self._create_attribute_match_and_resolve(
+                parent=parent,
+                attribute_name=attr_name,
+                assigned_value=attr_assigned_value,
+            )
+
+    def _create_attribute_match_and_resolve(
+        self,
+        parent: Match,
+        attribute_name: str,
+        assigned_value: Any,
+        index_access: Optional[Any] = None,
+    ) -> AttributeMatch:
+        """
+        Create an attribute match and resolve it recursively.
+
+        :param parent: The parent match instance.
+        :param attribute_name: The name of the attribute to create.
+        :param assigned_value: The value assigned to the attribute.
+        :param index_access: The index access to the attribute.
+        :return: The created instance after every child has been resolved.
+        """
+        attr_match = AttributeMatch(
+            parent=parent,
+            attribute_name=attribute_name,
+            index_access=index_access,
+            assigned_value=assigned_value,
+        )
+        attr_match.resolve()
+        self.children.append(attr_match)
+        self.conditions.extend(attr_match.conditions)
+        return attr_match
+
+    def _resolve_list_like_value(
+        self, key: str, value: Union[list, tuple], parent: Match
+    ):
+        """
+        Resolves list-like values by iterating over their elements and creating
+        attribute matches for the parent match variable.
+
+        :param key: The attribute name being processed.
+        :param value: The list or tuple containing elements to be resolved.
+        :param parent: The parent match variable associated with the provided key.
+        """
+        # handle list like classes by wrapping the index access
+        for index, element in enumerate(value):
+            self._create_attribute_match_and_resolve(
+                parent=parent,
+                attribute_name=key,
+                assigned_value=element,
+                index_access=index,
+            )
+
+    def update_fields(
+        self,
+        variable: Optional[Selectable] = None,
+        parent: Optional[AbstractMatchExpression] = None,
+    ):
+        """
+        Update the match variable, and parent.
+
+        :param variable: The variable to use for the match. If None, a new variable will
+            be created.
+        :param parent: The parent match if this is a nested match.
+        """
+        if variable is not None:
+            self.variable = variable
+        elif self.variable is None:
+            self.create_or_update_variable()
+
+        self.parent = parent
+
+    def create_or_update_variable(self):
+        """
+        Create the subject variable from this match's current type and domain.
+
+        If a subject variable already exists (``from_`` re-scoping the domain after
+        ``__call__`` eagerly created one), its domain is updated in place instead of
+        replacing the variable outright: conditions built earlier against ``self.variable``
+        (for example from an already-recorded ``where``) reference that same object, so
+        replacing it would silently orphan them from the re-scoped domain.
+        """
+        if self.variable is None:
+            from krrood.entity_query_language.factories import variable
+
+            self.variable = variable(self.type, domain=self.domain)
+            return
+
+        self.variable._update_domain_(_resolve_domain(self.type, self.domain))
+
+    def _evaluate_natively_(self) -> Iterator:
+        """
+        Evaluate the match selectively in the current python process: select elements
+        from the match's domain (its variable's domain, or the ``SymbolGraph`` for
+        ``Symbol`` types when no domain was given) that satisfy the structural pattern
+        and ``where`` conditions.
+
+        .. note::
+            Constructing *new* instances from an underspecified match is the job of a
+            :class:`~krrood.entity_query_language.backends.GenerativeBackend` (for example
+            :class:`~krrood.entity_query_language.backends.EntityQueryLanguageGenerativeBackend`
+            or :class:`~krrood.entity_query_language.backends.ProbabilisticBackend`), not of the
+            default selective evaluation.
+
+        :return: An iterator over the matching elements.
+        """
+        return self.expression._evaluate_natively_()
+
+    @property
+    def has_ellipsis_attributes(self) -> bool:
+        """
+        :return: Whether any attribute anywhere in this match's pattern (including nested
+            matches, and ``...`` elements inside an otherwise-concrete list/tuple attribute)
+            is left fully unspecified via ``...``, requiring construction rather than search
+            to resolve.
+        """
+        return any(
+            self._is_or_contains_ellipsis(attribute_match.assigned_value)
+            for attribute_match in self.matches_with_variables
+        )
+
+    @staticmethod
+    def _is_or_contains_ellipsis(value: Any) -> bool:
+        """
+        :param value: An attribute match's assigned value.
+        :return: Whether ``value`` is ``...`` itself, or a list/tuple/set containing ``...`` as
+            one of its elements (such a collection with no nested :class:`Match` element is
+            resolved as a single literal attribute match, so its elements are never visited
+            individually). Deliberately not any ``Iterable``: a generator would be exhausted by
+            this check, and a plain iterable is not a container kind the rest of this class
+            resolves or is tested against.
+        """
+        if isinstance(value, (list, tuple, set)):
+            return any(isinstance(element, type(Ellipsis)) for element in value)
+        return isinstance(value, type(Ellipsis))
+
+    @property
+    def has_cause_attributes(self) -> bool:
+        """
+        :return: Whether any attribute anywhere in this match's pattern (including nested
+            matches) is marked with :func:`~krrood.entity_query_language.factories.cause` --
+            a ``do()``-intervention target only a causal backend can resolve.
+        """
+        return any(
+            isinstance(attribute_match.assigned_value, Cause)
+            for attribute_match in self.matches_with_variables
+        )
+
+    @property
+    def name(self) -> str:
+        type_name = self.type.__name__ if self.type is not None else "?"
+        return f"Match({type_name})"
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+    def where(self, *conditions: ConditionType) -> Match[T]:
+        _ = self.expression
+        self._where_conditions_.extend(conditions)
+        self.expression.where(*conditions)
+        self.expression.build()
+        return self
+
+    def causes_effect(self, *conditions: ConditionType) -> Match[T]:
+        """
+        Mark condition(s) as the effect side of a causal query, e.g.
+        ``a(Pick)(arm=cause).causes_effect(pick.variable.action.status == SUCCESS)``.
+
+        Sugar for ``self.where(CausesEffect(and_(*conditions), cause_attributes=...))``:
+        semantically identical to an ordinary ``.where()`` under every backend except
+        :class:`~krrood.entity_query_language.backends.ProbabilisticBackend`, which reads
+        the wrapped condition to find which variable(s) a
+        :data:`~krrood.entity_query_language.factories.cause` search should optimize for.
+        The ``cause``-marked attribute(s) are also attached to the built
+        :class:`~krrood.entity_query_language.operators.causal.CausesEffect` node, so its
+        verbalization can name them.
+
+        :param conditions: One literal comparator, or several combined with AND.
+        :return: This match, for chaining.
+        """
+        # `and_` stays a local import: factories.py imports this module, so a module-level
+        # import here would be circular.
+        from krrood.entity_query_language.factories import and_
+
+        cause_attributes = [
+            attribute_match.attribute
+            for attribute_match in self.matches_with_variables
+            if isinstance(attribute_match.assigned_value, Cause)
+        ]
+        return self.where(
+            CausesEffect(and_(*conditions), cause_attributes=cause_attributes)
+        )
+
+    def from_(self, domain: DomainType) -> Self:
+        """
+        Range the match over ``domain`` instead of over all instances of its type.
+
+        A domain does not commit the match to selection: the chosen backend decides what to do
+        with it (a selective backend finds the matching existing instances, a generative backend
+        constructs or completes them), so this stays a :class:`Match`. Use :attr:`expression` to
+        get the lowered selection query when you need symbolic attribute access (``.parent`` /
+        ``.child``), ``the(...)`` or ``set_of(...)``.
+
+        .. note::
+            ``__call__`` eagerly creates a subject variable before the domain is known (and with
+            no domain that is a SymbolGraph-wide variable for Symbol types). ``create_or_update_variable``
+            re-scopes that same variable's domain in place (see its docstring) rather than
+            replacing it, so a ``where`` recorded before this call keeps referencing the correct,
+            now domain-scoped, variable.
+
+        :param domain: The instances the match ranges over.
+        :return: This match, for chaining.
+        """
+        self.domain = domain
+        self.create_or_update_variable()
+        return self
+
+    def _update_kwargs_from_literal_values(self):
+        """
+        Update the kwargs dictionary with values from this statements leaves.
+        """
+        for attribute_match in self.matches_with_variables:
+            attribute_match._update_kwargs_from(self)
+
+    def _get_mapped_variable_by_name(self, name: str) -> Optional[MappedVariable]:
+        """
+        Get a mapped variable by its name in the path.
+
+        :param name: The name
+        :return: The mapped variable
+        """
+        result = [
+            attribute_match.assigned_variable
+            for attribute_match in self.matches_with_variables
+            if attribute_match.name_from_variable_access_path == name
+        ]
+        if len(result) == 0:
+            return None
+        elif len(result) == 1:
+            return result[0]
+        else:
+            raise KeyError(f"Multiple variables with name {name}")
+
+
+@dataclass(eq=False)
+class AttributeMatch(AbstractMatchExpression[T]):
+    """
+    A class representing an attribute assignment in a Match statement.
+    """
+
+    parent: AbstractMatchExpression = field(kw_only=True)
+    """
+    The parent match expression.
+    """
+
+    attribute_name: str = field(kw_only=True)
+    """
+    The name of the attribute to assign the value to.
+    """
+
+    index_access: Optional[Any] = None
+    """
+    The index  that is accessed.
+
+    Is not None if the attribute is an indexable object.
+    """
+
+    assigned_value: Optional[Union[Literal, Match]] = None
+    """
+    The value to assign to the attribute, which can be a Match instance or a Literal.
+    """
+
+    variable: Union[Attribute, FlatVariable] = field(default=None, kw_only=True)
+    """
+    The symbolic variable representing the attribute.
+    """
+
+    def __post_init__(self):
+        if isinstance(self.assigned_value, Match):
+            self.children = self.assigned_value.children
+
+    @cached_property
+    def expression(self) -> Union[CanBehaveLikeAVariable[T], T]:
+        """
+        Return the entity expression corresponding to the match query.
+        """
+        if not self.variable:
+            self.resolve()
+        return self.variable
+
+    def _resolve(self):
+        """
+        Resolve the attribute assignment by creating the conditions and applying the
+        necessary mappings to the attribute.
+        """
+        if (
+            not isinstance(self.assigned_value, AbstractMatchExpression)
+            or self.assigned_value.resolved
+        ):
+            self.conditions.append(self.attribute == self.assigned_variable)
+            return
+
+        self.assigned_value.resolve(self.attribute, self)
+
+        if self.is_type_filter_needed:
+            self.conditions.append(HasType(self.attribute, self.assigned_value.type))
+
+        self.conditions.extend(self.assigned_value.conditions)
+
+    @cached_property
+    def assigned_variable(self) -> Selectable:
+        """
+        :return: The symbolic variable representing the assigned value.
+        """
+        if isinstance(self.assigned_value, AbstractMatchExpression):
+            return self.assigned_value.variable
+        if (
+            isinstance(self.assigned_value, (Cause, Confounder))
+            and self.assigned_value._type_ is None
+        ):
+            # `cause`/`confounder` are shared instances written directly into every
+            # matching kwarg, so unlike a plain literal (whose `Literal` wrapper is
+            # created fresh right here, with `_type_=self.type`), an unresolved one has
+            # no declared type of its own yet, and mutating it in place would corrupt
+            # every other field also marked `cause`/`confounder`. Return a fresh,
+            # per-attribute copy with the type filled in instead, so code reading
+            # `assigned_variable._type_` (parametrization, generation) sees the
+            # attribute's declared type without touching the shared original.
+            return type(self.assigned_value)(_type_=self.type)
+        elif not isinstance(self.assigned_value, SymbolicExpression):
+            return Literal(
+                _name__=self.variable._name_,
+                _type_=self.type,
+                _value_=self.assigned_value,
+            )
+        else:
+            return self.assigned_value
+
+    @cached_property
+    def attribute(self) -> Attribute:
+        """
+        :return: the attribute of the variable.
+        :raises NoneWrappedFieldError: If the attribute does not have a WrappedField.
+        """
+        if self.variable is not None:
+            return self.variable
+
+        attr: Attribute = getattr(self.parent.variable, self.attribute_name)
+        if self.index_access is not None:
+            attr = attr[self.index_access]
+        self.variable = attr
+        return attr
+
+    @cached_property
+    def is_type_filter_needed(self):
+        """
+        :return: True if a type filter condition is needed for the attribute assignment, else False.
+        """
+        attr_type = self.type
+        return (not attr_type) or (
+            (self.assigned_value.type and self.assigned_value.type is not attr_type)
+            and issubclass(self.assigned_value.type, attr_type)
+        )
+
+    @property
+    def name(self) -> str:
+        return f"{self.parent.name}.{self.attribute_name}"
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+    def _update_kwargs_from(self, match: Match[T]):
+        """
+        Update the kwargs of the parent match with the values of the assigned variable.
+
+        Only works if this is a variable assignment.
+        """
+        current_value = match
+        for step in self.variable._access_path_[:-1]:
+            if isinstance(step, Attribute):
+                current_value = current_value.kwargs[step._attribute_name_]
+            elif isinstance(step, IndexByValue):
+                current_value = current_value[step._key_]
+            else:
+                raise ReadOnlyMapping(step)
+
+        final_step = self.variable._access_path_[-1]
+
+        if isinstance(final_step, Attribute):
+            current_value.kwargs[final_step._attribute_name_] = (
+                self.assigned_variable._value_
+            )
+        else:
+            final_step._set_child_instance_value_(
+                current_value, self.assigned_variable._value_
+            )
+
+    @property
+    def name_from_variable_access_path(self):
+        """
+        :return: The last name from the variables access path. This is similar to `self.name` but without `Match`
+        specific wrappings.
+        """
+        return self.variable._access_path_[-1]._name_
+
+    @property
+    def type(self) -> Optional[Type[T]]:
+        result = super().type
+        if result is not None:
+            return result
+
+        if not isinstance(self.parent, AttributeMatch):
+            return None
+
+        if isclass(self.parent.assigned_value.factory):
+            return get_field_type_endpoint(
+                self.parent.assigned_value.type, self.variable._attribute_name_
+            )
+        else:
+            return get_type_hints_of_object(self.parent.assigned_value.factory)[
+                self.variable._attribute_name_
+            ]
+
+
+def construct_graph_and_get_root(
+    node_data: AbstractMatchExpression, graph: Optional[rx.PyDAG] = None
+) -> RWXNode:
+    """
+    Construct a graph representation of the match expression and return the root node.
+
+    :param node_data: The root node of the match expression.
+    :param graph: The graph to construct the subgraph in.
+    :return: The root node of the constructed subgraph.
+    """
+    graph = graph or rx.PyDAG()
+    node = RWXNode(node_data.name, graph, data=node_data)
+    for child in node_data.children:
+        child_node = construct_graph_and_get_root(child, graph=graph)
+        child_node.parent = node
+    return node

@@ -148,6 +148,19 @@ class ClassThatNeedsKWARGS(SubclassJSONSerializer):
 
 
 @dataclass
+class ClassThatNeedsKWARGSInList(SubclassJSONSerializer):
+    a: int
+    b: list[ClassThatNeedsKWARGS] = field(default_factory=list)
+
+    def to_json(self) -> Dict[str, Any]:
+        return {**super().to_json(), "a": (self.a), "b": to_json(self.b)}
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        return cls(a=(data["a"]), b=from_json(data["b"], **kwargs))
+
+
+@dataclass
 class ClassWithDict(DataclassJSONSerializer):
     a: Dict[str, int]
 
@@ -226,6 +239,13 @@ def test_uuid_encoding():
 
 def test_with_kwargs():
     obj = ClassThatNeedsKWARGS(a=1, b=2.0)
+    data = obj.to_json()
+    result = from_json(data, b=2.0)
+    assert obj == result
+
+
+def test_with_kwargs_in_list():
+    obj = ClassThatNeedsKWARGSInList(a=1, b=[ClassThatNeedsKWARGS(a=1, b=2.0)])
     data = obj.to_json()
     result = from_json(data, b=2.0)
     assert obj == result
@@ -323,8 +343,9 @@ def test_shallow_diff_json_nested():
     diffs = shallow_diff_json(orig, new)
     assert len(diffs) == 1
     assert diffs[0].attribute_name == "pet"
-    assert isinstance(diffs[0].added_values[0], Dog)
-    assert diffs[0].added_values[0].name == "Max"
+    added_values = from_json(diffs[0].added_values)
+    assert isinstance(added_values[0], Dog)
+    assert added_values[0].name == "Max"
 
 
 def test_nparray():

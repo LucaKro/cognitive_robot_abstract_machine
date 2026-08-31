@@ -4,7 +4,8 @@ import unittest
 from dataclasses import asdict
 
 import numpy as np
-from pkg_resources import resource_filename
+from importlib.resources import files
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from krrood.ormatic.utils import create_engine
@@ -39,7 +40,7 @@ class ProcTHORTestCase(unittest.TestCase):
     def setUpClass(cls):
         super().setUpClass()
         json_dir = os.path.join(
-            resource_filename("semantic_digital_twin", "../../"),
+            Path(files("semantic_digital_twin")).parent.parent,
             "resources",
             "procthor_json",
         )
@@ -60,7 +61,9 @@ class ProcTHORTestCase(unittest.TestCase):
         np.testing.assert_allclose(result.to_np(), np.eye(4), rtol=1e-6, atol=1e-6)
 
     def test_unity_to_semantic_digital_twin_transform_translation_along_x(self):
-        """Unity +X should map to semantic –Y (because of reflection)."""
+        """
+        Unity +X should map to semantic –Y (because of reflection).
+        """
         m = np.eye(4)
         m[0, 3] = 1.0
         result = unity_to_semantic_digital_twin_transform(
@@ -72,19 +75,23 @@ class ProcTHORTestCase(unittest.TestCase):
         )
 
     def test_unity_to_semantic_digital_twin_transform_translation_along_z(self):
-        """Unity +Z should map to semantic +X."""
+        """
+        Unity +Z should map to semantic +X.
+        """
         m = np.eye(4)
         m[2, 3] = 2.0
         result = unity_to_semantic_digital_twin_transform(
             HomogeneousTransformationMatrix(data=m)
         )
-        self.assertAlmostEqual(result.to_position().to_np()[0], 2.0, places=6)
+        self.assertAlmostEqual(float(result.to_position().x), 2.0, places=6)
         np.testing.assert_allclose(
             result.to_rotation_matrix().to_np()[:3, :3], np.eye(3)
         )
 
     def test_unity_to_semantic_digital_twin_transform_rotation_y_90_degrees(self):
-        """Unity +90° about Y should become –90° about Z in semantic frame."""
+        """
+        Unity +90° about Y should become –90° about Z in semantic frame.
+        """
         theta = np.pi / 2
         m = np.eye(4)
         m[:3, :3] = np.array(
@@ -361,7 +368,7 @@ class ProcTHORTestCase(unittest.TestCase):
     def test_parse_full_world(self):
         world = ProcTHORParser.from_file(
             os.path.join(
-                resource_filename("semantic_digital_twin", "../../"),
+                Path(files("semantic_digital_twin")).parent.parent,
                 "resources",
                 "procthor_json",
                 "house_0.json",
@@ -372,7 +379,8 @@ class ProcTHORTestCase(unittest.TestCase):
 
     def test_procthor_views(self):
         """
-        Simple krrood_test case to check that the ProcthorResolver works correctly with the additional_names attribute.
+        Simple krrood_test case to check that the ProcthorResolver works correctly with
+        the additional_names attribute.
         """
         resolver = ProcthorResolver()
         resolver.classes = [Bread]

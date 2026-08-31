@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.pyrefly]
+project-includes = ["**/*"]
+project-excludes = ["**/*venv/**/*"]
+
+[project]
+name = "coraplex"
+authors = [
+    { name="Jonas Dech", email="jdech@uni-bremen.de" },
+
+]
+description = "A Python library for cognitive robot control."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+keywords=["robotics"]
+dynamic = ["version"]
+dependencies = [
+    "scipy",
+    "scikit-image",
+    "SQLAlchemy",
+    "sqlacodegen==3.0.0",
+    "tqdm==4.66.3",
+    "psutil~=5.9.0",
+    "typing_extensions>=4.10.0",
+    "probabilistic_model>=7.1.0",
+    "random_events>=4.1.18",
+    "numpy",
+    "objgraph",
+    "pint>=0.21.1",
+    "transforms3d",
+    "python-box",
+    "rustworkx",
+    "pillow",
+    "polytope",
+    "semantic_digital_twin",
+    "trimesh",
+    "cgal",
+    "giskardpy",
+    "krrood",
+]
+license = "LGPL-3.0-only"
+
+[project.urls]
+"Source" = 'https://github.com/cram2/coraplex'
+"Bug Tracker" = 'https://github.com/cram2/coraplex/issues'
+
+[tool.setuptools.packages.find]
+where = ["src"]  # list of folders that contain the packages (["."] by default)
+include = ["coraplex*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "coraplex._version.__version__"}
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0,<8.0.0",
+]

@@ -2,10 +2,11 @@ from typing import Tuple, Union, Dict, Type, Optional, List
 
 import numpy as np
 
+from giskardpy.qp.qp_data import QPDataExplicit
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
-from giskardpy.qp.qp_data import QPData
 from giskardpy.qp.solvers.qp_solver import QPSolver
 from giskardpy.utils.decorators import memoize
+import scipy.sparse as sp
 
 
 def quaternion_multiply(quaternion1: np.ndarray, quaternion0: np.ndarray) -> np.ndarray:
@@ -94,6 +95,7 @@ def rpy_from_quaternion(
 def rotation_matrix_from_rpy(roll: float, pitch: float, yaw: float) -> np.ndarray:
     """
     Conversion of roll, pitch, yaw to 4x4 rotation matrix according to:
+
     https://github.com/orocos/orocos_kinematics_dynamics/blob/master/orocos_kdl/src/frames.cpp#L167
     :return: 4x4 Matrix
     """
@@ -245,7 +247,7 @@ def max_velocity_from_horizon_and_jerk(
 
 
 @memoize
-def mpc(
+def model_predictive_control(
     upper_limits: Tuple[Tuple[float, ...], ...],
     lower_limits: Tuple[Tuple[float, ...], ...],
     current_values: Tuple[float, ...],
@@ -281,7 +283,6 @@ def mpc(
     g[:ph] = lin_weight[0]
     g[ph : ph * 2] = lin_weight[1]
     g[-ph:] = lin_weight[2]
-    empty = np.eye(0)
     lb = np.array(lb)
     ub = np.array(ub)
     if not link_to_current_vel:
@@ -289,22 +290,24 @@ def mpc(
         bE = np.delete(bE, [0])
         lb[ph] = 0
         ub[ph] = 0
-    qp_data = QPData(
+    qp_data = QPDataExplicit(
         quadratic_weights=w,
         linear_weights=g,
         box_lower_constraints=lb,
         box_upper_constraints=ub,
-        eq_matrix=model,
-        eq_bounds=bE,
-        neq_matrix=empty,
-        neq_lower_bounds=np.array([]),
-        neq_upper_bounds=np.array([]),
+        equality_matrix=sp.csc_matrix(model),
+        equality_bounds=bE,
+        inequality_matrix=sp.csc_matrix(np.zeros((0, model.shape[0]))),
+        inequality_lower_bounds=np.array([]),
+        inequality_upper_bounds=np.array([]),
+        num_equality_slack_variables=0,
+        num_inequality_slack_variables=0,
     )
     result = solver.solver_call_explicit_interface(qp_data)
     return result
 
 
-def simple_mpc(
+def simple_model_predictive_control(
     vel_limit,
     acc_limit,
     jerk_limit,
@@ -319,7 +322,7 @@ def simple_mpc(
 ):
     upper_limits = ((vel_limit,) * ph, (acc_limit,) * ph, (jerk_limit,) * ph)
     lower_limits = ((-vel_limit,) * ph, (-acc_limit,) * ph, (-jerk_limit,) * ph)
-    return mpc(
+    return model_predictive_control(
         upper_limits=upper_limits,
         lower_limits=lower_limits,
         current_values=(current_vel, current_acc),
@@ -340,7 +343,7 @@ def mpc_velocities(
     ph: int,
     solver_class=None,
 ):
-    return mpc(
+    return model_predictive_control(
         upper_limits,
         lower_limits,
         current_values,
@@ -455,18 +458,21 @@ def point_to_caster_angles(px, py):
 
 
 def shortest_angular_distance(from_angle, to_angle):
-    """Given 2 angles, this returns the shortest angular
-    difference.  The inputs and ouputs are of course radians.
+    """
+    Given 2 angles, this returns the shortest angular difference.
 
-    The result would always be -pi <= result <= pi. Adding the result
-    to "from" will always get you an equivelent angle to "to".
+    The inputs and ouputs are of course radians.
+
+    The result would always be -pi <= result <= pi. Adding the result to "from" will
+    always get you an equivelent angle to "to".
     """
     return normalize_angle(to_angle - from_angle)
 
 
 def normalize_angle(angle):
-    """Normalizes the angle to be -pi to +pi
-    It takes and returns radians."""
+    """
+    Normalizes the angle to be -pi to +pi It takes and returns radians.
+    """
     a = normalize_angle_positive(angle)
     if a > np.pi:
         a -= 2.0 * np.pi
@@ -474,18 +480,17 @@ def normalize_angle(angle):
 
 
 def normalize_angle_positive(angle):
-    """Normalizes the angle to be 0 to 2*pi
-    It takes and returns radians."""
+    """
+    Normalizes the angle to be 0 to 2*pi It takes and returns radians.
+    """
     return angle % (2.0 * np.pi)
 
 
 def quaternion_slerp(q1, q2, t):
     """
-    spherical linear interpolation that takes into account that q == -q
-    :param q1: 4x1 Matrix
-    :param q2: 4x1 Matrix
-    :param t: float, 0-1
-    :return: 4x1 Matrix; Return spherical linear interpolation between two quaternions.
+    Spherical linear interpolation that takes into account that q == -q :param q1: 4x1
+    Matrix :param q2: 4x1 Matrix :param t: float, 0-1 :return: 4x1 Matrix; Return
+    spherical linear interpolation between two quaternions.
     """
     cos_half_theta = q1.dot(q2)
 
@@ -509,3 +514,11 @@ def quaternion_slerp(q1, q2, t):
     if 0.001 > abs(sin_half_theta):
         return 0.5 * q1 + 0.5 * q2
     return ratio_a * q1 + ratio_b * q2
+
+
+def fast_sparse_diagonal(diagonal) -> sp.csc_matrix:
+    """
+    Faster than scipy.sparse.diags.
+    """
+    n = len(diagonal)
+    return sp.csc_matrix((diagonal, np.arange(n), np.arange(n + 1)), shape=(n, n))

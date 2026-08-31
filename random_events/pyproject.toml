@@ -1,14 +1,23 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "pybind11>=2.6.0"]
+requires = ["setuptools>=42", "wheel", "pybind11>=2.10.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "random_events"
-dynamic=["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    "numpy",
+    "plotly",
+    "typing_extensions",
+    "sortedcontainers",
+    "pybind11",
+    "setuptools-scm",
+    "krrood",
+]
 description = "Random random events for probabilistic reasoning"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT License"}
+license = {text = "LGPL-3.0-only"}
 authors = [
     {name = "Tom Schierenbeck", email = "tom_sch@uni-bremen.de"}
 ]
@@ -21,21 +30,30 @@ keywords = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
 [project.urls]
-"Source" = "https://github.com/tomsch420/random-events"
-"Bug Tracker" = "https://github.com/tomsch420/random-events/issues"
+"Source" = "https://github.com/cram2/cognitive_robot_abstract_machine"
+"Bug Tracker" = "https://github.com/cram2/cognitive_robot_abstract_machine/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["random_events*"]
 
 [tool.pybind11]
-include-dirs = ["src/random-events-lib/random_events_lib/include"]
+include-dirs = ["src/random_events_lib/random_events_lib/include"]
 
 [tool.setuptools.dynamic]
-version = {attr = "random_events.__version__"}
-dependencies = {file = "requirements.txt"}
+version = {attr = "random_events._version.__version__"}
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "jupyter",
+    "pillow",
+    "polytope",
+    "ortools",
+    "scipy",
+    "cvxopt",
+]

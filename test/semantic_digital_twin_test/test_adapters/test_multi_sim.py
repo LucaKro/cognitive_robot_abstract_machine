@@ -1,36 +1,55 @@
 import logging
 import os
+import threading
 import time
-import unittest
+from dataclasses import dataclass
 
 import mujoco
+import pytest
 import numpy
+import trimesh
+from PIL import Image
+from trimesh.visual.material import SimpleMaterial
 
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
+from semantic_digital_twin.robots.hsrb import HSRB
+from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
+    Vector3,
+    Pose,
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
     FixedConnection,
+    RevoluteConnection,
 )
-from semantic_digital_twin.world_description.geometry import Box, Scale, Color
+from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
+from semantic_digital_twin.world_description.geometry import (
+    Box,
+    Scale,
+    Color,
+    Cylinder,
+    Mesh,
+    Texture,
+)
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body, Region, Actuator
 
-try:
-    multi_sim_found = True
-    from mujoco_connector import MultiverseMujocoConnector
-    from multiverse_simulator import MultiverseSimulatorState, MultiverseViewer
-    from semantic_digital_twin.adapters.mjcf import MJCFParser
-    from semantic_digital_twin.adapters.multi_sim import MujocoSim, MujocoActuator
-except ImportError:
-    MultiverseMujocoConnector = None
-    multi_sim_found = False
+from physics_simulators.mujoco_simulator import MujocoSimulator
+from physics_simulators.base_simulator import SimulatorState
+from semantic_digital_twin.adapters.mjcf import MJCFParser
+from semantic_digital_twin.adapters.multi_sim import (
+    MujocoSim,
+    MujocoActuator,
+    MujocoBuilder,
+    MujocoLight,
+    MujocoSynchronizer,
+)
 
 urdf_dir = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
@@ -50,294 +69,154 @@ mjcf_dir = os.path.join(
     "resources",
     "mjcf",
 )
+
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
-logger.addHandler(handler)
+if not logger.handlers:
+    logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+
 headless = os.environ.get("CI", "false").lower() == "true"
-# headless = True
 only_run_test_in_CI = os.environ.get("CI", "false").lower() == "false"
 
-
-@unittest.skipIf(
-    only_run_test_in_CI or not multi_sim_found,
-    "Only run test in CI or multisim could not be imported.",
+pytestmark = pytest.mark.skipif(
+    only_run_test_in_CI,
+    reason="Only run test in CI or multisim could not be imported.",
 )
-class MujocoSimReadWriteTestCase(unittest.TestCase):
-    file_path = os.path.normpath(os.path.join(mjcf_dir, "mjx_single_cube_no_mesh.xml"))
-    Simulator = MultiverseMujocoConnector
-    step_size = 5e-4
 
-    def test_read_and_write_data_in_the_loop(self):
-        viewer = MultiverseViewer()
-        simulator = self.Simulator(
-            viewer=viewer,
-            file_path=self.file_path,
-            headless=headless,
-            step_size=self.step_size,
-        )
-        self.assertIs(simulator.state, MultiverseSimulatorState.STOPPED)
-        self.assertIs(simulator.headless, headless)
-        self.assertIsNone(simulator.stop_reason)
-        self.assertIsNone(simulator.simulation_thread)
-        simulator.start(simulate_in_thread=False)
-        for step in range(1000):
-            if step == 100:
-                read_objects = {
-                    "joint1": {
-                        "joint_angular_position": [0.0],
-                        "joint_angular_velocity": [0.0],
-                    },
-                    "joint2": {
-                        "joint_angular_position": [0.0],
-                        "joint_angular_velocity": [0.0],
-                    },
-                }
-                viewer.read_objects = read_objects
-            elif step == 101:
-                read_objects = {
-                    "joint1": {"joint_angular_velocity": [0.0]},
-                    "joint2": {"joint_angular_position": [0.0], "joint_torque": [0.0]},
-                }
-                viewer.read_objects = read_objects
-            elif step == 102:
-                write_objects = {
-                    "joint1": {"joint_angular_position": [1.0]},
-                    "actuator2": {"cmd_joint_angular_position": [2.0]},
-                    "box": {
-                        "position": [1.1, 2.2, 3.3],
-                        "quaternion": [0.707, 0.0, 0.707, 0.0],
-                    },
-                }
-                read_objects = {
-                    "joint1": {
-                        "joint_angular_position": [0.0],
-                        "joint_angular_velocity": [0.0],
-                    },
-                    "actuator2": {"cmd_joint_angular_position": [0.0]},
-                    "box": {
-                        "position": [0.0, 0.0, 0.0],
-                        "quaternion": [0.0, 0.0, 0.0, 0.0],
-                    },
-                }
-                viewer.write_objects = write_objects
-                viewer.read_objects = read_objects
-            else:
-                viewer.read_objects = {}
-            simulator.step()
-            if step == 100:
-                self.assertEqual(viewer.read_data.shape, (1, 4))
-                self.assertEqual(
-                    viewer.read_objects["joint1"][
-                        "joint_angular_position"
-                    ].values.shape,
-                    (1, 1),
-                )
-                self.assertEqual(
-                    viewer.read_objects["joint2"][
-                        "joint_angular_position"
-                    ].values.shape,
-                    (1, 1),
-                )
-                self.assertEqual(
-                    viewer.read_objects["joint1"][
-                        "joint_angular_velocity"
-                    ].values.shape,
-                    (1, 1),
-                )
-                self.assertEqual(
-                    viewer.read_objects["joint2"][
-                        "joint_angular_velocity"
-                    ].values.shape,
-                    (1, 1),
-                )
-            elif step == 101:
-                self.assertEqual(viewer.read_data.shape, (1, 3))
-                self.assertEqual(
-                    viewer.read_objects["joint1"][
-                        "joint_angular_velocity"
-                    ].values.shape,
-                    (1, 1),
-                )
-                self.assertEqual(
-                    viewer.read_objects["joint2"][
-                        "joint_angular_position"
-                    ].values.shape,
-                    (1, 1),
-                )
-                self.assertEqual(
-                    viewer.read_objects["joint2"]["joint_torque"].values.shape, (1, 1)
-                )
-            elif step == 102:
-                self.assertEqual(viewer.write_data.shape, (1, 9))
-                self.assertEqual(
-                    viewer.write_objects["joint1"]["joint_angular_position"].values[0],
-                    (1.0,),
-                )
-                self.assertEqual(
-                    viewer.write_objects["actuator2"][
-                        "cmd_joint_angular_position"
-                    ].values[0],
-                    (2.0,),
-                )
-                numpy.testing.assert_allclose(
-                    viewer.write_objects["box"]["position"].values[0],
-                    [1.1, 2.2, 3.3],
-                    rtol=1e-5,
-                    atol=1e-5,
-                )
-                numpy.testing.assert_allclose(
-                    viewer.write_objects["box"]["quaternion"].values[0],
-                    [0.707, 0.0, 0.707, 0.0],
-                    rtol=1e-5,
-                    atol=1e-5,
-                )
-                self.assertEqual(viewer.read_data.shape, (1, 10))
-                self.assertAlmostEqual(
-                    viewer.read_objects["joint1"]["joint_angular_position"].values[0][
-                        0
-                    ],
-                    1.0,
-                    places=3,
-                )
-                self.assertEqual(
-                    viewer.read_objects["actuator2"][
-                        "cmd_joint_angular_position"
-                    ].values[0][0],
-                    2.0,
-                )
-                numpy.testing.assert_allclose(
-                    viewer.read_objects["box"]["position"].values[0],
-                    [1.1, 2.2, 3.3],
-                    rtol=1e-5,
-                    atol=1e-5,
-                )
-                numpy.testing.assert_allclose(
-                    viewer.read_objects["box"]["quaternion"].values[0],
-                    [0.7071067811865475, 0.0, 0.7071067811865475, 0.0],
-                    rtol=1e-5,
-                    atol=1e-5,
-                )
-            else:
-                self.assertEqual(viewer.read_data.shape, (1, 0))
-        simulator.stop()
-        self.assertIs(simulator.state, MultiverseSimulatorState.STOPPED)
+TEST_URDF_1 = os.path.normpath(os.path.join(urdf_dir, "simple_two_arm_robot.urdf"))
+TEST_URDF_2 = HSRB.get_ros_file_path()
+TEST_URDF_TRACY = Tracy.get_ros_file_path()
+TEST_MJCF_1 = os.path.normpath(os.path.join(mjcf_dir, "mjx_single_cube_no_mesh.xml"))
+TEST_MJCF_2 = os.path.normpath(os.path.join(mjcf_dir, "jeroen_cups.xml"))
+STEP_SIZE = 1e-3
 
 
-@unittest.skipIf(
-    only_run_test_in_CI or not multi_sim_found,
-    "Only run test in CI or multisim could not be imported.",
-)
-class MujocoSimTestCase(unittest.TestCase):
-    test_urdf_1 = os.path.normpath(os.path.join(urdf_dir, "simple_two_arm_robot.urdf"))
-    test_urdf_2 = os.path.normpath(os.path.join(urdf_dir, "hsrb.urdf"))
-    test_urdf_tracy = os.path.normpath(os.path.join(urdf_dir, "tracy.urdf"))
-    test_mjcf_1 = os.path.normpath(
-        os.path.join(mjcf_dir, "mjx_single_cube_no_mesh.xml")
-    )
-    test_mjcf_2 = os.path.normpath(os.path.join(mjcf_dir, "jeroen_cups.xml"))
-    step_size = 1e-3
+def stop_multisim_if_running(multi_sim: MujocoSim) -> None:
+    simulator = getattr(multi_sim, "simulator", None)
+    if simulator is None:
+        return
+    if getattr(simulator, "state", None) is SimulatorState.STOPPED:
+        return
+    multi_sim.stop_simulation()
 
-    def setUp(self):
-        self.test_urdf_1_world = URDFParser.from_file(
-            file_path=self.test_urdf_1
-        ).parse()
-        self.test_mjcf_1_world = MJCFParser(self.test_mjcf_1).parse()
-        self.test_mjcf_2_world = MJCFParser(self.test_mjcf_2).parse()
 
-    def test_empty_multi_sim_in_5s(self):
-        world = World()
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(viewer=viewer, world=world, headless=headless)
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+@pytest.fixture
+def test_urdf_1_world():
+    return URDFParser.from_file(file_path=TEST_URDF_1).parse()
+
+
+@pytest.fixture
+def test_mjcf_1_world():
+    return MJCFParser(TEST_MJCF_1).parse()
+
+
+@pytest.fixture
+def test_mjcf_2_world():
+    return MJCFParser(TEST_MJCF_2).parse()
+
+
+def test_empty_multi_sim_in_5s():
+    world = World()
+    multi_sim = MujocoSim(world=world, headless=headless)
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.file_path == MujocoSim.default_file_path
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         start_time = time.time()
         time.sleep(5.0)
         multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_world_multi_sim_in_5s(self):
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            viewer=viewer, world=self.test_urdf_1_world, headless=headless
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_world_multi_sim_in_5s(test_urdf_1_world):
+    multi_sim = MujocoSim(world=test_urdf_1_world, headless=headless)
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.file_path == MujocoSim.default_file_path
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         start_time = time.time()
         time.sleep(5.0)
         multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_apartment_multi_sim_in_5s(self):
-        try:
-            self.test_urdf_2_world = URDFParser.from_file(
-                file_path=self.test_urdf_2
-            ).parse()
-        except ParsingError:
-            self.skipTest("Skipping HSRB krrood_test due to URDF parsing error.")
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            viewer=viewer, world=self.test_urdf_2_world, headless=headless
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_apartment_multi_sim_in_5s():
+    try:
+        test_urdf_2_world = URDFParser.from_file(file_path=TEST_URDF_2).parse()
+    except ParsingError:
+        pytest.skip("Skipping HSRB krrood_test due to URDF parsing error.")
+
+    multi_sim = MujocoSim(world=test_urdf_2_world, headless=headless)
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.file_path == MujocoSim.default_file_path
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         start_time = time.time()
         time.sleep(5.0)
         multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_world_multi_sim_with_change(self):
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            viewer=viewer, world=self.test_urdf_1_world, headless=headless
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_world_multi_sim_with_change(test_urdf_1_world):
+    multi_sim = MujocoSim(world=test_urdf_1_world, headless=headless)
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.file_path == MujocoSim.default_file_path
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         time.sleep(1.0)
 
         start_time = time.time()
+
         new_body = Body(name=PrefixedName("test_body"))
         box_origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=0.2, y=0.4, z=-0.3, roll=0, pitch=0.5, yaw=0, reference_frame=new_body
+            x=0.2, y=0.4, z=3.0, roll=0, pitch=0.5, yaw=0, reference_frame=new_body
         )
         box = Box(
             origin=box_origin,
             scale=Scale(1.0, 1.5, 0.5),
-            color=Color(
-                1.0,
-                0.0,
-                0.0,
-                1.0,
-            ),
+            color=Color(1.0, 0.0, 0.0, 1.0),
         )
         new_body.collision = ShapeCollection([box], reference_frame=new_body)
 
         logger.debug(f"Time before adding new body: {time.time() - start_time}s")
-        with self.test_urdf_1_world.modify_world():
-            self.test_urdf_1_world.add_connection(
+        with test_urdf_1_world.modify_world():
+            test_urdf_1_world.add_connection(
                 Connection6DoF.create_with_dofs(
-                    world=self.test_urdf_1_world,
-                    parent=self.test_urdf_1_world.root,
+                    world=test_urdf_1_world,
+                    parent=test_urdf_1_world.root,
                     child=new_body,
                 )
             )
         logger.debug(f"Time after adding new body: {time.time() - start_time}s")
-        self.assertIn(
-            new_body.name.name, multi_sim.simulator.get_all_body_names().result
-        )
+
+        assert new_body.name.name in multi_sim.simulator.get_all_body_names().result
 
         time.sleep(0.5)
 
@@ -345,20 +224,15 @@ class MujocoSimTestCase(unittest.TestCase):
         region_box = Box(
             scale=Scale(0.1, 0.5, 0.2),
             origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=region),
-            color=Color(
-                0.0,
-                1.0,
-                0.0,
-                0.8,
-            ),
+            color=Color(0.0, 1.0, 0.0, 0.8),
         )
         region.area = ShapeCollection([region_box], reference_frame=region)
 
         logger.debug(f"Time before add adding region: {time.time() - start_time}s")
-        with self.test_urdf_1_world.modify_world():
-            self.test_urdf_1_world.add_connection(
+        with test_urdf_1_world.modify_world():
+            test_urdf_1_world.add_connection(
                 FixedConnection(
-                    parent=self.test_urdf_1_world.root,
+                    parent=test_urdf_1_world.root,
                     child=region,
                     parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                         z=0.5
@@ -366,7 +240,8 @@ class MujocoSimTestCase(unittest.TestCase):
                 )
             )
         logger.debug(f"Time after add adding region: {time.time() - start_time}s")
-        self.assertIn(region.name.name, multi_sim.simulator.get_all_body_names().result)
+
+        assert region.name.name in multi_sim.simulator.get_all_body_names().result
 
         time.sleep(0.5)
 
@@ -374,7 +249,7 @@ class MujocoSimTestCase(unittest.TestCase):
         kp = 100
         kv = 10
         actuator = Actuator()
-        dof = self.test_urdf_1_world.get_degree_of_freedom_by_name(name="r_joint_1")
+        dof = test_urdf_1_world.get_degree_of_freedom_by_name(name="r_joint_1")
         actuator.add_dof(dof=dof)
         actuator.simulator_additional_properties.append(
             MujocoActuator(
@@ -388,260 +263,1136 @@ class MujocoSimTestCase(unittest.TestCase):
         )
 
         logger.debug(f"Time before adding new actuator: {time.time() - start_time}s")
-        with self.test_urdf_1_world.modify_world():
-            self.test_urdf_1_world.add_actuator(actuator=actuator)
+        with test_urdf_1_world.modify_world():
+            test_urdf_1_world.add_actuator(actuator=actuator)
         logger.debug(f"Time after adding new actuator: {time.time() - start_time}s")
-        self.assertIn(
-            actuator.name.name, multi_sim.simulator.get_all_actuator_names().result
-        )
+
+        assert actuator.name.name in multi_sim.simulator.get_all_actuator_names().result
 
         time.sleep(4.0)
-
         multi_sim.stop_simulation()
+    finally:
+        stop_multisim_if_running(multi_sim)
 
-    def test_multi_sim_in_5s(self):
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            world=self.test_mjcf_1_world,
-            viewer=viewer,
-            headless=headless,
-            step_size=self.step_size,
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+
+def test_multi_sim_in_5s(test_mjcf_1_world):
+    multi_sim = MujocoSim(
+        world=test_mjcf_1_world,
+        headless=headless,
+        step_size=STEP_SIZE,
+    )
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         start_time = time.time()
         time.sleep(5.0)
         multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_read_objects_from_multi_sim_in_5s(self):
-        read_objects = {
-            "joint1": {
-                "joint_angular_position": [0.0],
-                "joint_angular_velocity": [0.0],
-            },
-            "joint2": {
-                "joint_angular_position": [0.0],
-                "joint_angular_velocity": [0.0],
-            },
-            "actuator1": {"cmd_joint_angular_position": [0.0]},
-            "actuator2": {"cmd_joint_angular_position": [0.0]},
-            "world": {"energy": [0.0, 0.0]},
-            "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]},
-        }
-        viewer = MultiverseViewer(read_objects=read_objects)
-        multi_sim = MujocoSim(
-            world=self.test_mjcf_1_world,
-            viewer=viewer,
-            headless=headless,
-            step_size=self.step_size,
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_mesh_scale_and_equality(test_mjcf_2_world):
+    multi_sim = MujocoSim(
+        world=test_mjcf_2_world,
+        headless=headless,
+        step_size=STEP_SIZE,
+    )
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         start_time = time.time()
-        for _ in range(5):
-            logger.debug(
-                f"Time: {multi_sim.simulator.current_simulation_time} - Objects: {multi_sim.get_read_objects()}"
+        time.sleep(5.0)
+        multi_sim.stop_simulation()
+
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def _write_textured_tetrahedron(directory, texture_color) -> str:
+    """
+    Writes a minimal textured OBJ+MTL+PNG mesh (a tetrahedron, so its convex hull is
+    non-degenerate) into ``directory``, textured with a solid ``texture_color``, and
+    returns the OBJ file's path.
+
+    Always named "tetra.obj"/"tetra.mtl"/"wood.png", so callers writing into different
+    directories can reproduce a texture basename collision between them.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (4, 4), color=texture_color).save(directory / "wood.png")
+    (directory / "tetra.mtl").write_text("newmtl wood\nmap_Kd wood.png\n")
+    mesh_file = directory / "tetra.obj"
+    mesh_file.write_text(
+        "mtllib tetra.mtl\n"
+        "o tetra\n"
+        "v 0.0 0.0 0.0\n"
+        "v 1.0 0.0 0.0\n"
+        "v 0.0 1.0 0.0\n"
+        "v 0.0 0.0 1.0\n"
+        "vt 0.0 0.0\n"
+        "vt 1.0 0.0\n"
+        "vt 0.0 1.0\n"
+        "vt 0.5 0.5\n"
+        "usemtl wood\n"
+        "f 1/1 2/2 3/3\n"
+        "f 1/1 2/2 4/4\n"
+        "f 1/1 3/3 4/4\n"
+        "f 2/2 3/3 4/4\n"
+    )
+    return str(mesh_file)
+
+
+def _build_world_with_two_textured_bodies(
+    tmp_path, mesh_file_a: str, mesh_file_b: str
+) -> MujocoBuilder:
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        for name, mesh_file in [("quad_0", mesh_file_a), ("quad_1", mesh_file_b)]:
+            mesh_shape = Mesh(filename=mesh_file, scale=Scale(1, 1, 1))
+            body = Body(
+                name=PrefixedName(name),
+                visual=ShapeCollection([mesh_shape]),
+                collision=ShapeCollection([mesh_shape]),
             )
-            time.sleep(1)
-        multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
+            world.add_kinematic_structure_entity(body)
+            world.add_connection(FixedConnection(parent=root, child=body))
 
-    def test_write_objects_to_multi_sim_in_5s(self):
-        write_objects = {"box": {"position": [0.0, 0.0, 0.0]}}
-        viewer = MultiverseViewer(write_objects=write_objects)
-        multi_sim = MujocoSim(
-            world=self.test_mjcf_1_world,
-            viewer=viewer,
-            headless=headless,
-            step_size=self.step_size,
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+    return builder
+
+
+def test_builder_assigns_material_to_every_geom_sharing_a_texture(tmp_path):
+    """
+    Regression test: MujocoBuilder._parse_geom used to return early - without ever setting
+    geom_props["material"] - whenever a geom's texture was already registered by an earlier
+    geom. Since most textures in a scene are shared across many geoms (a real RoboCasa
+    kitchen reuses a handful of textures across ~90 meshes), this meant only the first geom
+    to use a given texture ever got a material; every later reuse silently rendered with
+    MuJoCo's default (untextured, gray) material instead.
+    """
+    mesh_file = _write_textured_tetrahedron(tmp_path, texture_color=(120, 60, 20))
+
+    builder = _build_world_with_two_textured_bodies(tmp_path, mesh_file, mesh_file)
+
+    materials = {
+        body.name: geom.material for body in builder.spec.bodies for geom in body.geoms
+    }
+    assert materials["quad_0"] == materials["quad_1"]
+    assert materials["quad_0"] != ""
+
+
+def test_builder_does_not_confuse_different_textures_sharing_a_basename(tmp_path):
+    """
+    Regression test: RoboCasa's asset pipeline reuses generic texture basenames (e.g.
+    "T_BC001.png") across many unrelated fixtures' own distinct texture files - a real
+    kitchen had 14 different fixtures (sink, stove, fridge, dishwasher, ...) all using a
+    texture file named exactly "T_BC001.png" in their own directories. Deduplicating by
+    basename alone collapsed all of them onto whichever fixture's texture was registered
+    first, so most fixtures rendered with the wrong (borrowed) texture image instead of
+    their own.
+    """
+    mesh_file_a = _write_textured_tetrahedron(
+        tmp_path / "fixture_a", texture_color=(200, 0, 0)
+    )
+    mesh_file_b = _write_textured_tetrahedron(
+        tmp_path / "fixture_b", texture_color=(0, 200, 0)
+    )
+
+    builder = _build_world_with_two_textured_bodies(tmp_path, mesh_file_a, mesh_file_b)
+
+    materials = {
+        body.name: geom.material for body in builder.spec.bodies for geom in body.geoms
+    }
+    assert materials["quad_0"] != materials["quad_1"]
+    texture_files = {texture.name: texture.file for texture in builder.spec.textures}
+    assert len(texture_files) == 2
+
+
+def test_builder_writes_a_light_attached_to_a_body(tmp_path):
+    """
+    Regression test: MujocoBuilder had no handling for MujocoLight additional properties at
+    all, so a world's lights were silently dropped when built into a MuJoCo scene - every
+    recorded/simulated world fell back to MuJoCo's minimal default camera headlight instead
+    of the scene's own intended lighting.
+    """
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        root.simulator_additional_properties.append(
+            MujocoLight(
+                name="overview_light",
+                body=root,
+                directional=True,
+                position=[2.0, -2.0, 2.0],
+                direction=[0.0, 0.0, -1.0],
+                ambient=[0.3, 0.3, 0.3],
+                diffuse=[0.5, 0.5, 0.5],
+                specular=[0.3, 0.3, 0.3],
+            )
         )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
-        multi_sim.start_simulation()
-        box_positions = [
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [1.0, 1.0, 1.0],
-            [0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ]
-        multi_sim.pause_simulation()
-        start_time = time.time()
-        for box_position in box_positions:
-            write_objects["box"]["position"] = box_position
-            multi_sim.set_write_objects(write_objects=write_objects)
-            time.sleep(1)
-        multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_write_objects_to_multi_sim_in_10s_with_pause_and_unpause(self):
-        write_objects = {
-            "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]}
-        }
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            world=self.test_mjcf_1_world,
-            viewer=viewer,
-            headless=headless,
-            step_size=self.step_size,
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+
+    [light] = [light for body in builder.spec.bodies for light in body.lights]
+    assert light.name == "overview_light"
+    assert list(light.pos) == pytest.approx([2.0, -2.0, 2.0])
+    assert list(light.ambient) == pytest.approx([0.3, 0.3, 0.3])
+    assert list(light.diffuse) == pytest.approx([0.5, 0.5, 0.5])
+
+
+def test_builder_assigns_material_to_a_textured_primitive_shape(tmp_path):
+    """
+    Regression test: Box/Sphere/Cylinder shapes never carried any texture reference, only a
+    flat Color - RoboCasa's countertops and cabinet doors are actual MJCF box geoms with a
+    material referencing a marble/wood texture, so this whole texture reference was silently
+    discarded on every round-trip and they rendered flat-colored instead of textured.
+    """
+    texture_directory = tmp_path / "textures"
+    texture_directory.mkdir()
+    texture_file = texture_directory / "marble.png"
+    Image.new("RGB", (4, 4), color=(200, 200, 200)).save(texture_file)
+
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        box_shape = Box(
+            scale=Scale(1, 1, 1),
+            texture=Texture(
+                file_path=str(texture_file), repeat=(3.0, 3.0), uniform=True
+            ),
         )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
-        multi_sim.start_simulation()
-        time.sleep(1)  # Ensure the simulation is running before setting objects
-        box_positions = [
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [1.0, 1.0, 1.0],
-            [0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ]
-        start_time = time.time()
-        for box_position in box_positions:
-            write_objects["box"]["position"] = box_position
-            multi_sim.pause_simulation()
-            multi_sim.set_write_objects(write_objects=write_objects)
-            time.sleep(1)
-            multi_sim.unpause_simulation()
-            multi_sim.set_write_objects(write_objects={})
-            time.sleep(1)
-        multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 10.0)
-
-    def test_stable(self):
-        write_objects = {
-            "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]}
-        }
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            world=self.test_mjcf_1_world,
-            viewer=viewer,
-            headless=headless,
-            step_size=self.step_size,
-            real_time_factor=-1.0,
+        counter = Body(
+            name=PrefixedName("counter"),
+            visual=ShapeCollection([box_shape]),
+            collision=ShapeCollection([box_shape]),
         )
-        multi_sim.start_simulation()
-        time.sleep(1)  # Ensure the simulation is running before setting objects
-        stable_box_poses = [
-            [[0.0, 0.0, 0.03], [1.0, 0.0, 0.0, 0.0]],
-            [[1.0, 0.0, 0.02], [0.707, 0.0, 0.707, 0.0]],
-            [[1.0, 1.0, 0.02], [0.5, 0.5, 0.5, 0.5]],
-            [[0.0, 1.0, 0.03], [0.0, 0.707, 0.707, 0.0]],
-        ]
-        stable_fail_count = 0
-        for _ in range(100):
-            for stable_box_pose in stable_box_poses:
-                write_objects["box"]["position"] = stable_box_pose[0]
-                write_objects["box"]["quaternion"] = stable_box_pose[1]
-                multi_sim.pause_simulation()
-                multi_sim.set_write_objects(write_objects=write_objects)
-                multi_sim.set_write_objects(write_objects={})
-                multi_sim.unpause_simulation()
+        world.add_kinematic_structure_entity(counter)
+        world.add_connection(FixedConnection(parent=root, child=counter))
 
-                stable_fail_count += not multi_sim.is_stable(
-                    body_names=["box"], max_simulation_steps=1000, atol=1e-3
-                )
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
 
-        unstable_box_poses = [
-            [[0.0, 0.0, 1.03], [1.0, 0.0, 0.0, 0.0]],
-            [[1.0, 0.0, 1.03], [0.707, 0.0, 0.707, 0.0]],
-            [[1.0, 1.0, 1.03], [0.5, 0.5, 0.5, 0.5]],
-            [[0.0, 1.0, 1.03], [0.0, 0.707, 0.707, 0.0]],
-            [[0.0, 0.0, 1.03], [1.0, 0.0, 0.0, 0.0]],
-        ]
-        unstable_fail_count = 0
-        for _ in range(100):
-            for unstable_box_pose in unstable_box_poses:
-                write_objects["box"]["position"] = unstable_box_pose[0]
-                write_objects["box"]["quaternion"] = unstable_box_pose[1]
-                multi_sim.pause_simulation()
-                multi_sim.set_write_objects(write_objects=write_objects)
-                multi_sim.set_write_objects(write_objects={})
-                multi_sim.unpause_simulation()
-                unstable_fail_count += multi_sim.is_stable(
-                    body_names=["box"], max_simulation_steps=1000, atol=1e-3
-                )
-        multi_sim.stop_simulation()
-        self.assertLess(stable_fail_count, 10)  # Allow less than 10% failure
-        self.assertLess(unstable_fail_count, 10)  # Allow less than 10% failure
+    [geom] = [
+        geom
+        for body in builder.spec.bodies
+        for geom in body.geoms
+        if body.name == "counter"
+    ]
+    assert geom.material != ""
+    [material] = [
+        material
+        for material in builder.spec.materials
+        if material.name == geom.material
+    ]
+    assert list(material.texrepeat) == pytest.approx([3.0, 3.0])
+    assert bool(material.texuniform) is True
+    texture_name = material.textures[0]
+    assert texture_name != ""
+    [texture] = [
+        texture for texture in builder.spec.textures if texture.name == texture_name
+    ]
+    assert texture.file == str(texture_file)
 
-    def test_mesh_scale_and_equality(self):
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(
-            world=self.test_mjcf_2_world,
-            viewer=viewer,
-            headless=headless,
-            step_size=self.step_size,
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+
+def test_mujoco_with_tracy_dae_files():
+    try:
+        dae_world = URDFParser.from_file(file_path=TEST_URDF_TRACY).parse()
+    except ParsingError:
+        pytest.skip("Skipping tracy test due to URDF parsing error.")
+
+    multi_sim = MujocoSim(world=dae_world, headless=headless)
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.file_path == MujocoSim.default_file_path
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
         multi_sim.start_simulation()
         start_time = time.time()
         time.sleep(5.0)
         multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_mujoco_with_tracy_dae_files(self):
-        # tracy used .dae files for the UR arms and the robotiq grippers
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
 
+
+def test_mujocosim_world_with_added_objects(test_urdf_1_world):
+    milk_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "..",
+        "semantic_digital_twin",
+        "resources",
+        "stl",
+        "milk.stl",
+    )
+    stl_parser = STLParser(milk_path)
+    mesh_world = stl_parser.parse()
+    transformation = HomogeneousTransformationMatrix.from_xyz_rpy(
+        x=0.5, reference_frame=test_urdf_1_world.root
+    )
+
+    with test_urdf_1_world.modify_world():
+        test_urdf_1_world.merge_world_at_pose(mesh_world, transformation)
+
+    multi_sim = MujocoSim(world=test_urdf_1_world, headless=headless)
+
+    try:
+        assert isinstance(multi_sim.simulator, MujocoSimulator)
+        assert multi_sim.simulator.file_path == MujocoSim.default_file_path
+        assert multi_sim.simulator.headless is headless
+        assert multi_sim.simulator.step_size == STEP_SIZE
+
+        multi_sim.start_simulation()
+        start_time = time.time()
+        time.sleep(5.0)
+        multi_sim.stop_simulation()
+
+        assert time.time() - start_time >= 5.0
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_spawn_body_with_connections():
+    def spawn_robot_body(spawn_world: World) -> Body:
+        spawn_body = Body(name=PrefixedName("robot"))
+        box_origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=0, y=0, z=0.5, roll=0, pitch=0, yaw=0, reference_frame=spawn_body
+        )
+        box = Box(
+            origin=box_origin,
+            scale=Scale(0.4, 0.4, 1.0),
+            color=Color(0.9, 0.9, 0.9, 1.0),
+        )
+        spawn_body.collision = ShapeCollection([box], reference_frame=spawn_body)
+
+        with spawn_world.modify_world():
+            spawn_world.add_connection(
+                FixedConnection(parent=spawn_world.root, child=spawn_body)
+            )
+
+        return spawn_body
+
+    def spawn_shoulder_bodies(spawn_world: World, root_body: Body) -> tuple[Body, Body]:
+        spawn_left_shoulder_body = Body(name=PrefixedName("left_shoulder"))
+        cylinder = Cylinder(
+            width=0.2,
+            height=0.1,
+            color=Color(0.9, 0.1, 0.1, 1.0),
+        )
+        spawn_left_shoulder_body.collision = ShapeCollection(
+            [cylinder], reference_frame=spawn_left_shoulder_body
+        )
+        dof = DegreeOfFreedom(name=PrefixedName("left_shoulder_joint"))
+        left_shoulder_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
+            pos_x=0,
+            pos_y=0.3,
+            pos_z=0.9,
+            quat_w=0.707,
+            quat_x=0.707,
+            quat_y=0,
+            quat_z=0,
+        )
+
+        with spawn_world.modify_world():
+            spawn_world.add_degree_of_freedom(dof)
+            spawn_world.add_connection(
+                RevoluteConnection(
+                    name=dof.name,
+                    parent=root_body,
+                    child=spawn_left_shoulder_body,
+                    axis=Vector3.Z(reference_frame=spawn_left_shoulder_body),
+                    raw_dof=dof,
+                    parent_T_connection_expression=left_shoulder_origin,
+                )
+            )
+
+        spawn_right_shoulder_body = Body(name=PrefixedName("right_shoulder"))
+        cylinder = Cylinder(
+            width=0.2,
+            height=0.1,
+            color=Color(0.9, 0.1, 0.1, 1.0),
+        )
+        spawn_right_shoulder_body.collision = ShapeCollection(
+            [cylinder], reference_frame=spawn_right_shoulder_body
+        )
+        dof = DegreeOfFreedom(name=PrefixedName("right_shoulder_joint"))
+        right_shoulder_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
+            pos_x=0,
+            pos_y=-0.3,
+            pos_z=0.9,
+            quat_w=0.707,
+            quat_x=0.707,
+            quat_y=0,
+            quat_z=0,
+        )
+
+        with spawn_world.modify_world():
+            spawn_world.add_degree_of_freedom(dof)
+            spawn_world.add_connection(
+                RevoluteConnection(
+                    name=dof.name,
+                    parent=root_body,
+                    child=spawn_right_shoulder_body,
+                    axis=Vector3.Z(reference_frame=spawn_right_shoulder_body),
+                    raw_dof=dof,
+                    parent_T_connection_expression=right_shoulder_origin,
+                )
+            )
+
+        return spawn_left_shoulder_body, spawn_right_shoulder_body
+
+    world = World()
+    multi_sim = MujocoSim(
+        world=world,
+        headless=headless,
+        step_size=0.001,
+    )
+
+    try:
+        multi_sim.start_simulation()
+        time.sleep(1)
+
+        robot_body = spawn_robot_body(spawn_world=world)
+        spawn_shoulder_bodies(spawn_world=world, root_body=robot_body)
+
+        time.sleep(1)
+
+        assert set(multi_sim.simulator.get_all_body_names().result) == {
+            "world",
+            "robot",
+            "left_shoulder",
+            "right_shoulder",
+        }
+
+        multi_sim.stop_simulation()
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_body_frame_excludes_joint_state_at_build_time():
+    """
+    A body's static frame must be built at the reference (zero-joint) pose.
+
+    The joint is non-zero while the simulator is built and is evaluated at a different
+    angle, so a frame that baked in the build-time angle would have it applied twice and
+    drift away from the world forward kinematics.
+    """
+    world = World()
+    base_body = Body(name=PrefixedName("base"))
+    rotated_link = Body(name=PrefixedName("rotated_link"))
+    # A tip offset from the joint axis, so a rotation actually moves its position
+    # (the joint child sits on the axis and would not reveal the bug).
+    tip_link = Body(name=PrefixedName("tip"))
+    rotated_origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
+        pos_x=0.3,
+        pos_y=0.0,
+        pos_z=0.9,
+        quat_w=0.707,
+        quat_x=0.707,
+        quat_y=0.0,
+        quat_z=0.0,
+    )
+    tip_offset = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5, y=0.2, z=0.0)
+    rotated_joint_dof = DegreeOfFreedom(name=PrefixedName("rotated_joint"))
+    with world.modify_world():
+        world.add_body(base_body)
+        world.add_degree_of_freedom(rotated_joint_dof)
+        world.add_connection(
+            RevoluteConnection(
+                name=rotated_joint_dof.name,
+                parent=base_body,
+                child=rotated_link,
+                axis=Vector3.Z(reference_frame=rotated_link),
+                raw_dof=rotated_joint_dof,
+                parent_T_connection_expression=rotated_origin,
+            )
+        )
+        world.add_connection(
+            FixedConnection(
+                parent=rotated_link,
+                child=tip_link,
+                parent_T_connection_expression=tip_offset,
+            )
+        )
+
+    build_time_angle = 0.7
+    with world.modify_world():
+        world.state[rotated_joint_dof.id].position = build_time_angle
+
+    multi_sim = MujocoSim(world=world, headless=headless, step_size=0.001)
+    try:
+        evaluation_angle = 0.3
+        with world.modify_world():
+            world.state[rotated_joint_dof.id].position = evaluation_angle
+
+        mujoco_model = multi_sim.simulator._mj_model
+        mujoco_data = multi_sim.simulator._mj_data
+        joint_id = mujoco.mj_name2id(
+            mujoco_model, mujoco.mjtObj.mjOBJ_JOINT, rotated_joint_dof.name.name
+        )
+        mujoco_data.qpos[mujoco_model.jnt_qposadr[joint_id]] = evaluation_angle
+        mujoco.mj_forward(mujoco_model, mujoco_data)
+
+        simulated_position = multi_sim.simulator.get_body_position(
+            tip_link.name.name
+        ).result[:3]
+        world_position = world.compute_forward_kinematics_np(world.root, tip_link)[
+            :3, 3
+        ]
+        numpy.testing.assert_allclose(simulated_position, world_position, atol=1e-4)
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def test_world_sim_state_sync():
+    plane_half_thickness = 0.05
+    box_half_size = 0.1
+    init_pos = numpy.array([0.3, 0.2, 5.0])
+    target_pos = numpy.array(
+        [init_pos[0], init_pos[1], plane_half_thickness + box_half_size]
+    )
+
+    def spawn_state_sync_scene(
+        spawn_world: World,
+    ) -> tuple[Body, Connection6DoF]:
+        plane_body = Body(name=PrefixedName("ground_plane"))
+        plane_body.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=plane_body
+                    ),
+                    scale=Scale(2.0, 2.0, plane_half_thickness * 2),
+                    color=Color(1.0, 1.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=plane_body,
+        )
+
+        falling_box = Body(name=PrefixedName("falling_box"))
+        falling_box.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=falling_box
+                    ),
+                    scale=Scale(
+                        box_half_size * 2, box_half_size * 2, box_half_size * 2
+                    ),
+                    color=Color(1.0, 0.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=falling_box,
+        )
+
+        with spawn_world.modify_world():
+            spawn_world.add_connection(
+                FixedConnection(parent=spawn_world.root, child=plane_body)
+            )
+            box_connection = Connection6DoF.create_with_dofs(
+                world=spawn_world,
+                parent=spawn_world.root,
+                child=falling_box,
+            )
+            spawn_world.add_connection(box_connection)
+        return falling_box, box_connection
+
+    world = World()
+    multi_sim = MujocoSim(
+        world=world,
+        headless=headless,
+        step_size=STEP_SIZE,
+    )
+
+    try:
+        multi_sim.start_simulation()
+        time.sleep(1)
+
+        falling_box, box_connection = spawn_state_sync_scene(world)
+
+        body_names = multi_sim.simulator.get_all_body_names().result
+        assert {"ground_plane", "falling_box"}.issubset(
+            body_names
+        ), f"scene bodies were not spawned in the simulator; bodies={body_names}"
+
+        box_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=float(init_pos[0]),
+            y=float(init_pos[1]),
+            z=float(init_pos[2]),
+            reference_frame=falling_box,
+        )
+        time.sleep(2.5)
+
+        final_pos = numpy.asarray(
+            multi_sim.simulator.get_body_position("falling_box").result[:3],
+            dtype=float,
+        )
+
+        multi_sim.stop_simulation()
+
+        assert numpy.allclose(final_pos, target_pos, atol=1e-1), (
+            f"Box did not settle at target: final_pos={final_pos}, "
+            f"expected≈{target_pos}"
+        )
+    finally:
+        stop_multisim_if_running(multi_sim)
+
+
+def _write_thin_slab_mesh(directory) -> str:
+    """
+    Writes a minimal OBJ mesh for a closed box thin enough (1e-5 units) that MuJoCo's
+    default ("legacy") volume-based inertia estimator used to reject it as "mesh volume
+    is too small" (fixed upstream as of MuJoCo 3.11) - the shape of real CAD furniture
+    panels (a door slab, a backing panel), reproduced with an actual ArtVIP dataset
+    object.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    mesh_file = directory / "slab.obj"
+    thickness = 1e-5
+    mesh_file.write_text(
+        "o slab\n"
+        "v 0.0 0.0 0.0\n"
+        "v 1.0 0.0 0.0\n"
+        "v 1.0 1.0 0.0\n"
+        "v 0.0 1.0 0.0\n"
+        f"v 0.0 0.0 {thickness}\n"
+        f"v 1.0 0.0 {thickness}\n"
+        f"v 1.0 1.0 {thickness}\n"
+        f"v 0.0 1.0 {thickness}\n"
+        "f 1 2 3\nf 1 3 4\n"
+        "f 5 6 7\nf 5 7 8\n"
+        "f 1 2 6\nf 1 6 5\n"
+        "f 2 3 7\nf 2 7 6\n"
+        "f 3 4 8\nf 3 8 7\n"
+        "f 4 1 5\nf 4 5 8\n"
+    )
+    return str(mesh_file)
+
+
+def test_builder_compiles_a_body_with_thin_panel_geometry(tmp_path):
+    # Before MuJoCo 3.11, the default inertia estimator rejected a mesh this thin with
+    # "ValueError: mesh volume is too small", so this raised instead of compiling.
+    mesh_file = _write_thin_slab_mesh(tmp_path)
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        mesh_shape = Mesh(filename=mesh_file, scale=Scale(1, 1, 1))
+        panel = Body(
+            name=PrefixedName("panel"),
+            visual=ShapeCollection([mesh_shape]),
+            collision=ShapeCollection([mesh_shape]),
+        )
+        world.add_kinematic_structure_entity(panel)
+        world.add_connection(FixedConnection(parent=root, child=panel))
+
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+
+    [mesh_spec] = builder.spec.meshes
+    assert mesh_spec.name.startswith("slab")
+
+
+def _write_flat_quad_mesh(directory) -> str:
+    """
+    Writes a minimal OBJ mesh for a single-sided, exactly flat quad (zero thickness,
+    every vertex exactly coplanar) - the shape of a door or cover panel modelled as a
+    single sheet rather than a closed solid, reproduced with a real ArtVIP object.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    mesh_file = directory / "panel.obj"
+    mesh_file.write_text(
+        "o panel\n"
+        "v 0.0 0.0 0.0\n"
+        "v 1.0 0.0 0.0\n"
+        "v 1.0 1.0 0.0\n"
+        "v 0.0 1.0 0.0\n"
+        "f 1 2 3\nf 1 3 4\n"
+    )
+    return str(mesh_file)
+
+
+def test_builder_compiles_a_body_with_an_exactly_flat_panel(tmp_path):
+    # Before the fix, MuJoCo rejected a mesh with exactly coplanar vertices as
+    # "ValueError: mesh ... has coplanar vertices, cannot compute convex hull" - a
+    # different failure than a thin-but-closed mesh (test above), since there is no
+    # volume-based inertia estimate to fall back on at all: there is no volume.
+    mesh_file = _write_flat_quad_mesh(tmp_path)
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        mesh_shape = Mesh(filename=mesh_file, scale=Scale(1, 1, 1))
+        panel = Body(
+            name=PrefixedName("panel"),
+            visual=ShapeCollection([mesh_shape]),
+            collision=ShapeCollection([mesh_shape]),
+        )
+        world.add_kinematic_structure_entity(panel)
+        world.add_connection(FixedConnection(parent=root, child=panel))
+
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+
+    [mesh_spec] = builder.spec.meshes
+    assert mesh_spec.name == "panel_thickened"
+
+
+def _write_flat_quad_mesh_at_scale(directory, scale: float) -> str:
+    """
+    Writes a minimal OBJ mesh for a single-sided, exactly flat quad ``scale`` units
+    across - large enough that a fixed, furniture-scale thickening offset would be
+    below STL's float32 export precision at this magnitude and get rounded back to
+    exactly zero, reproduced with a real ArtVIP object (one ~24000-unit panel).
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    mesh_file = directory / "large_panel.obj"
+    mesh_file.write_text(
+        "o large_panel\n"
+        f"v 0.0 0.0 0.0\n"
+        f"v {scale} 0.0 0.0\n"
+        f"v {scale} {scale} 0.0\n"
+        f"v 0.0 {scale} 0.0\n"
+        "f 1 2 3\nf 1 3 4\n"
+    )
+    return str(mesh_file)
+
+
+def test_builder_compiles_a_body_with_a_large_flat_panel(tmp_path):
+    # Before scaling the thickening offset to the mesh's own extent, this reproduced
+    # "ValueError: mesh ... has coplanar vertices, cannot compute convex hull" even
+    # after the fixed-offset fix above: the fixed offset survived Python-side but was
+    # rounded back to exactly zero by STL's float32 precision at this magnitude.
+    mesh_file = _write_flat_quad_mesh_at_scale(tmp_path, scale=24000.0)
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        mesh_shape = Mesh(filename=mesh_file, scale=Scale(1, 1, 1))
+        panel = Body(
+            name=PrefixedName("panel"),
+            visual=ShapeCollection([mesh_shape]),
+            collision=ShapeCollection([mesh_shape]),
+        )
+        world.add_kinematic_structure_entity(panel)
+        world.add_connection(FixedConnection(parent=root, child=panel))
+
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+
+    [mesh_spec] = builder.spec.meshes
+    assert mesh_spec.name == "large_panel_thickened"
+
+
+def test_builder_compiles_a_body_with_a_flat_coloured_untextured_mesh(tmp_path):
+    # Before the fix, MujocoMeshConverter._resolve_texture_file_path assumed a
+    # TextureVisuals material always has a backing image and crashed with
+    # "AttributeError: 'NoneType' object has no attribute 'info'" on a material with
+    # only a flat diffuse colour and no image (e.g. a painted wall with no texture map).
+    flat_colour_mesh = trimesh.creation.box(extents=(1.0, 1.0, 1.0))
+    flat_colour_mesh.visual = trimesh.visual.TextureVisuals(
+        material=SimpleMaterial(diffuse=(120, 80, 40, 255))
+    )
+    mesh_file = str(tmp_path / "painted_box.obj")
+    flat_colour_mesh.export(mesh_file)
+
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        mesh_shape = Mesh(filename=mesh_file, scale=Scale(1, 1, 1))
+        panel = Body(
+            name=PrefixedName("panel"),
+            visual=ShapeCollection([mesh_shape]),
+            collision=ShapeCollection([mesh_shape]),
+        )
+        world.add_kinematic_structure_entity(panel)
+        world.add_connection(FixedConnection(parent=root, child=panel))
+
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+
+    [mesh_spec] = builder.spec.meshes
+    assert mesh_spec.name == "painted_box"
+
+
+def test_thicken_if_near_planar_regenerates_instead_of_reusing_a_stale_file(tmp_path):
+    # Before the fix, the thickened output was only (re)written if it didn't already
+    # exist on disk, keyed by the source mesh's basename alone - two different meshes
+    # sharing a basename across builds into the same asset folder (e.g. two objects each
+    # containing a "cover.stl") silently reused whichever one happened to be written
+    # first, reproduced here with a stale file left directly in the asset folder.
+    mesh_file = _write_flat_quad_mesh(tmp_path)  # "panel.obj" -> "panel_thickened.stl"
+    builder = MujocoBuilder()
+    builder._asset_folder_path = str(tmp_path)
+
+    stale_triangle = trimesh.Trimesh(
+        vertices=[[0, 0, 0], [1, 0, 0], [0, 1, 0]], faces=[[0, 1, 2]], process=False
+    )
+    stale_triangle.export(str(tmp_path / "panel_thickened.stl"))
+
+    thickened_path = builder._thicken_if_near_planar(mesh_file)
+
+    # A correctly thickened quad has its 4 corners duplicated (front/back), not the
+    # stale triangle's 3.
+    assert len(trimesh.load(thickened_path, force="mesh").vertices) == 8
+
+
+@dataclass
+class BoxOnPlaneWorld:
+    """
+    A world holding a ground plane and one free-floating box, together with the
+    pieces of it a test needs to address afterwards.
+    """
+
+    world: World
+    """
+    The world itself, ready for a simulator to be built from it.
+    """
+
+    box: Body
+    """
+    The free-floating box, used as the reference frame for poses written to it.
+    """
+
+    box_connection: Connection6DoF
+    """
+    The box's 6DoF connection to the world root, whose origin the tests set.
+    """
+
+
+def _build_box_on_plane_world() -> BoxOnPlaneWorld:
+    """
+    Build a ground plane plus a single free-floating box, authored directly
+    into a :class:`World` so a simulator can be built from it without spawning.
+
+    :return: The world and the box handles the caller needs.
+    """
+    world = World()
+    root = Body(name=PrefixedName("world"))
+    with world.modify_world():
+        world.add_body(root)
+
+        ground_plane = Body(name=PrefixedName("ground_plane"))
+        ground_plane.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=ground_plane
+                    ),
+                    scale=Scale(2.0, 2.0, 0.1),
+                    color=Color(1.0, 1.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=ground_plane,
+        )
+        world.add_connection(FixedConnection(parent=root, child=ground_plane))
+
+        box = Body(name=PrefixedName("free_box"))
+        box.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=box
+                    ),
+                    scale=Scale(0.2, 0.2, 0.2),
+                    color=Color(1.0, 0.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=box,
+        )
+        box_connection = Connection6DoF.create_with_dofs(
+            world=world, parent=root, child=box
+        )
+        world.add_connection(box_connection)
+    return BoxOnPlaneWorld(world=world, box=box, box_connection=box_connection)
+
+
+def test_pose_written_during_sim_to_world_pull_reaches_the_simulator():
+    """
+    A pose written from another thread while the physics thread is inside its
+    *sim → world* pull must still reach MuJoCo.
+
+    The pull overwrites ``world.state`` from ``qpos`` and pauses the sibling
+    state-change callback while it does so. A write that lands inside that
+    window is therefore overwritten with the pre-write pose *and* has its
+    notification swallowed by the pause, so it never reaches ``qpos`` and no
+    error is raised anywhere -- the pose is simply lost. Under load this is
+    what made ``test_world_sim_state_sync`` fail, with the box settling at the
+    origin instead of the pose it was teleported to.
+
+    Rather than wait for that interleaving to happen by chance, this drives it:
+    the pull is held open inside ``_read_6dof_from_qpos`` while a second thread
+    writes a new pose.
+    """
+    target_xyz = numpy.array([0.4, -0.3, 1.25])
+
+    scene = _build_box_on_plane_world()
+    box, box_connection = scene.box, scene.box_connection
+    multi_sim = MujocoSim(world=scene.world, headless=headless, step_size=STEP_SIZE)
+    synchronizer = multi_sim.synchronizer
+    # The pull is wall-clock throttled; this test calls it explicitly and must
+    # not have the call skipped.
+    synchronizer.sync_rate_hz = MujocoSynchronizer.UNTHROTTLED_SYNC_RATE_HZ
+
+    pull_is_inside = threading.Event()
+    let_pull_finish = threading.Event()
+    original_read = synchronizer._read_6dof_from_qpos
+
+    def blocking_read(connection, qpos_address):
+        pull_is_inside.set()
+        assert let_pull_finish.wait(
+            timeout=10
+        ), "test did not release the sim → world pull"
+        return original_read(connection, qpos_address)
+
+    write_failed = []
+
+    def write_new_pose():
         try:
-            dae_world = URDFParser.from_file(file_path=self.test_urdf_tracy).parse()
-        except ParsingError:
-            self.skipTest("Skipping tracy test due to URDF parsing error.")
+            box_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=float(target_xyz[0]),
+                y=float(target_xyz[1]),
+                z=float(target_xyz[2]),
+                reference_frame=box,
+            )
+        except BaseException as error:  # surfaced on the main thread below
+            write_failed.append(error)
 
-        viewer = MultiverseViewer()
-        multi_sim = MujocoSim(viewer=viewer, world=dae_world, headless=headless)
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+    try:
+        synchronizer._read_6dof_from_qpos = blocking_read
+
+        # The physics thread is never started: _sim_to_world is what the
+        # physics thread would call after each mj_step, and calling it directly
+        # keeps the interleaving deterministic.
+        puller = threading.Thread(target=synchronizer._sim_to_world, daemon=True)
+        puller.start()
+        assert pull_is_inside.wait(timeout=10), "sim → world pull never started"
+
+        writer = threading.Thread(target=write_new_pose, daemon=True)
+        writer.start()
+        # Give the writer every chance to slip into the middle of the pull.
+        time.sleep(0.2)
+
+        let_pull_finish.set()
+        puller.join(timeout=10)
+        writer.join(timeout=10)
+        assert not puller.is_alive(), "sim → world pull did not finish"
+        assert not writer.is_alive(), "pose write did not finish"
+        assert not write_failed, f"pose write raised: {write_failed[0]!r}"
+
+        qpos_address = synchronizer._resolve_qpos_address(box_connection)
+        assert qpos_address is not None, "free joint is missing from the MuJoCo model"
+        written_xyz = numpy.asarray(
+            multi_sim.simulator._mj_data.qpos[qpos_address : qpos_address + 3], dtype=float
+        )
+        assert numpy.allclose(written_xyz, target_xyz, atol=1e-6), (
+            "pose written during the sim → world pull never reached MuJoCo: "
+            f"qpos={written_xyz}, expected={target_xyz}"
+        )
+    finally:
+        synchronizer._read_6dof_from_qpos = original_read
+        let_pull_finish.set()
+        synchronizer.stop()
+
+
+def test_pose_write_waits_for_the_running_physics_step():
+    """
+    The *world → sim* push must write ``qpos`` under the simulator's model
+    lock, the same lock :meth:`MujocoSimulator.step_callback` holds across
+    ``mj_step``.
+
+    The scene integrates with RK4, which saves the state at the top of the step
+    and writes the integrated ``qpos`` back at the end. A pose written into
+    ``qpos`` while a step is in flight is therefore overwritten by that final
+    write and disappears -- the body carries on from its old pose and nothing
+    reports an error. Under CI load the physics thread spends most of its wall
+    time inside ``mj_step``, which is what made ``test_world_sim_state_sync``
+    fail there while passing on an idle machine.
+
+    Holding the model lock from another thread stands in for a step in flight:
+    the push must block until it is released, and must land afterwards.
+    """
+    target_xyz = numpy.array([-0.25, 0.45, 1.75])
+
+    scene = _build_box_on_plane_world()
+    box, box_connection = scene.box, scene.box_connection
+    multi_sim = MujocoSim(world=scene.world, headless=headless, step_size=STEP_SIZE)
+    synchronizer = multi_sim.synchronizer
+
+    model_lock_held = threading.Event()
+    release_model_lock = threading.Event()
+    write_returned = threading.Event()
+    write_failed = []
+
+    def hold_model_lock():
+        with multi_sim.simulator._model_lock:
+            model_lock_held.set()
+            release_model_lock.wait(timeout=10)
+
+    def write_new_pose():
+        try:
+            box_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=float(target_xyz[0]),
+                y=float(target_xyz[1]),
+                z=float(target_xyz[2]),
+                reference_frame=box,
+            )
+        except BaseException as error:  # surfaced on the main thread below
+            write_failed.append(error)
+        finally:
+            write_returned.set()
+
+    try:
+        holder = threading.Thread(target=hold_model_lock, daemon=True)
+        holder.start()
+        assert model_lock_held.wait(timeout=10), "could not take the model lock"
+
+        writer = threading.Thread(target=write_new_pose, daemon=True)
+        writer.start()
+
+        assert not write_returned.wait(timeout=1.0), (
+            "the world → sim push completed while another thread held the "
+            "model lock, so it can also run in the middle of an mj_step, "
+            "where RK4 overwrites the pose it just wrote"
+        )
+
+        release_model_lock.set()
+        writer.join(timeout=10)
+        holder.join(timeout=10)
+        assert write_returned.is_set(), "pose write never finished"
+        assert not write_failed, f"pose write raised: {write_failed[0]!r}"
+
+        qpos_address = synchronizer._resolve_qpos_address(box_connection)
+        assert qpos_address is not None, "free joint is missing from the MuJoCo model"
+        written_xyz = numpy.asarray(
+            multi_sim.simulator._mj_data.qpos[qpos_address : qpos_address + 3], dtype=float
+        )
+        assert numpy.allclose(written_xyz, target_xyz, atol=1e-6), (
+            "pose never reached MuJoCo once the model lock was free: "
+            f"qpos={written_xyz}, expected={target_xyz}"
+        )
+    finally:
+        release_model_lock.set()
+        synchronizer.stop()
+
+
+def test_prebuilt_world_multiple_free_bodies_start_at_authored_poses():
+    """
+    Several free-jointed bodies in a prebuilt World must each keep their own authored
+    ``parent_T_connection_expression`` pose when MujocoSim builds and starts the
+    simulation, rather than all collapsing to the world origin.
+
+    A single mis-set index in the keyframe qpos array (e.g. from an off-by-DOF-count
+    error) could still make one body land at the wrong spot while others happen to be
+    correct, so this checks four bodies at once.
+    """
+    box_half_size = 0.02
+    ground_z = box_half_size
+    offsets = {
+        "cube_pos_pos": numpy.array([0.3, 0.3, ground_z]),
+        "cube_neg_pos": numpy.array([-0.3, 0.3, ground_z]),
+        "cube_pos_neg": numpy.array([0.3, -0.3, ground_z]),
+        "cube_neg_neg": numpy.array([-0.3, -0.3, ground_z]),
+    }
+
+    world = World()
+    root = Body(name=PrefixedName("world"))
+    with world.modify_world():
+        world.add_body(root)
+
+        ground_plane = Body(name=PrefixedName("ground_plane"))
+        ground_plane.collision = ShapeCollection(
+            [
+                Box(
+                    origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        reference_frame=ground_plane
+                    ),
+                    scale=Scale(2.0, 2.0, 0.1),
+                    color=Color(1.0, 1.0, 0.0, 1.0),
+                )
+            ],
+            reference_frame=ground_plane,
+        )
+        world.add_connection(
+            FixedConnection(
+                parent=root,
+                child=ground_plane,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    z=-0.05, reference_frame=root
+                ),
+            )
+        )
+
+        for cube_name, cube_offset in offsets.items():
+            cube = Body(name=PrefixedName(cube_name))
+            cube.collision = ShapeCollection(
+                [
+                    Box(
+                        origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                            reference_frame=cube
+                        ),
+                        scale=Scale(
+                            box_half_size * 2, box_half_size * 2, box_half_size * 2
+                        ),
+                        color=Color(0.9, 0.3, 0.3, 1.0),
+                    )
+                ],
+                reference_frame=cube,
+            )
+            world.add_connection(
+                Connection6DoF.create_with_dofs(
+                    world=world,
+                    parent=root,
+                    child=cube,
+                    parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        x=float(cube_offset[0]),
+                        y=float(cube_offset[1]),
+                        z=float(cube_offset[2]),
+                        reference_frame=root,
+                    ),
+                )
+            )
+
+    multi_sim = MujocoSim(world=world, headless=headless, step_size=STEP_SIZE)
+    try:
         multi_sim.start_simulation()
-        start_time = time.time()
-        time.sleep(5.0)
+        time.sleep(1.0)
+
+        positions = {
+            cube_name: numpy.asarray(
+                multi_sim.simulator.get_body_position(cube_name).result[:3],
+                dtype=float,
+            )
+            for cube_name in offsets
+        }
+
         multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
 
-    def test_mujocosim_world_with_added_objects(self):
-        viewer = MultiverseViewer()
-        milk_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "..",
-            "..",
-            "..",
-            "semantic_digital_twin",
-            "resources",
-            "stl",
-            "milk.stl",
-        )
-        stl_parser = STLParser(milk_path)
-        mesh_world = stl_parser.parse()
-        transformation = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=0.5, reference_frame=self.test_urdf_1_world.root
-        )
-        with self.test_urdf_1_world.modify_world():
-            self.test_urdf_1_world.merge_world_at_pose(mesh_world, transformation)
-
-        multi_sim = MujocoSim(
-            viewer=viewer, world=self.test_urdf_1_world, headless=headless
-        )
-        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
-        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
-        self.assertIs(multi_sim.simulator.headless, headless)
-        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
-        multi_sim.start_simulation()
-        start_time = time.time()
-        time.sleep(5.0)
-        multi_sim.stop_simulation()
-        self.assertGreaterEqual(time.time() - start_time, 5.0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        for cube_name, cube_offset in offsets.items():
+            assert numpy.allclose(positions[cube_name], cube_offset, atol=1e-2), (
+                f"{cube_name} did not start/settle at its authored pose: "
+                f"got {positions[cube_name]}, expected {cube_offset}."
+            )
+    finally:
+        stop_multisim_if_running(multi_sim)

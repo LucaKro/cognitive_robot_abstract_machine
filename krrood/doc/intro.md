@@ -31,6 +31,9 @@ A major inspiration for the development of KRROOD is the book
   - Express symbolic rules and rule trees over your domain model
   - Run inference to derive new knowledge from existing facts and relationships
 
+- Utilities for Graphs
+  - Visualize query graphs and rule trees.
+
 ### When to Use KRROOD
 
 - You have a rich domain model and want first-class, object-oriented knowledge representation
@@ -75,7 +78,7 @@ The examples are designed to be incremental and self-contained.
 @software{bassiouny2025krrood,
 author = {Bassiouny, Abdelrhman AND Schierenbeck, Tom},
 title = {Knowledge Representation & Reasoning Through Object-Oriented Design},
-url = {https://github.com/code-iai/krrood},
+url = {https://cram2.github.io/cognitive_robot_abstract_machine/krrood/intro.html},
 version = {1.0.0},
 }
 ```

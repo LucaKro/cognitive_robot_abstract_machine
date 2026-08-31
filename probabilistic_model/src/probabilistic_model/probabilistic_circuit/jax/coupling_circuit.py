@@ -1,4 +1,5 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
+from dataclasses import dataclass
 from functools import cached_property
 
 import jax
@@ -6,11 +7,12 @@ from jax.tree_util import tree_flatten, tree_unflatten
 
 import equinox as eqx
 from typing_extensions import Tuple, List
-import jax.numpy as jnp
-from .probabilistic_circuit import Layer
+from probabilistic_model.exceptions import ShapeMismatchError
+from probabilistic_model.probabilistic_circuit.jax.probabilistic_circuit import Layer
 
 
-class Conditioner:
+@dataclass
+class Conditioner(ABC):
     """
     Interface for a conditioner that generates parameters for a circuit.
     """
@@ -37,6 +39,7 @@ class Conditioner:
 class CouplingCircuit(eqx.Module):
     """
     A probabilistic circuit that uses a function to generate parameters for a circuit.
+
     Simply speaking, this represents P(y, theta=f(x)).
     """
 
@@ -52,7 +55,8 @@ class CouplingCircuit(eqx.Module):
 
     conditioner_columns: jax.Array = eqx.field(static=True)
     """
-    The columns in a matrix that the conditioner takes as input for producing circuit parameters.
+    The columns in a matrix that the conditioner takes as input for producing circuit
+    parameters.
     """
 
     circuit_columns: jax.Array = eqx.field(static=True)
@@ -60,8 +64,13 @@ class CouplingCircuit(eqx.Module):
     The columns in a matrix that the circuit takes as input for calculating likelihoods.
     """
 
-    def __init__(self, conditioner: Conditioner, conditioner_columns: jax.Array,
-                 circuit: Layer, circuit_columns):
+    def __init__(
+        self,
+        conditioner: Conditioner,
+        conditioner_columns: jax.Array,
+        circuit: Layer,
+        circuit_columns,
+    ):
         self.conditioner = conditioner
         self.conditioner_columns = conditioner_columns
         self.circuit = circuit
@@ -70,6 +79,7 @@ class CouplingCircuit(eqx.Module):
     def partition_circuit(self):
         """
         Partition the circuit into the parameters and the static structure.
+
         :return:
         """
         return self.circuit.partition()
@@ -95,14 +105,14 @@ class CouplingCircuit(eqx.Module):
 
         return slices
 
-
     def create_circuit_from_parameters(self, params: jax.Array) -> Layer:
         """
-        Generate a circuit with the structure from self.circuit and the parameters from params.
+        Generate a circuit with the structure from self.circuit and the parameters from
+        params.
+
         :param params: The parameters to be used in the circuit.
         :return: The circuit
         """
-
         # get the parameters and circuit definition
         tree_def, static = self.partition_circuit()
 
@@ -110,7 +120,9 @@ class CouplingCircuit(eqx.Module):
         flat_model, flat_tree_def = jax.tree_util.tree_flatten(tree_def)
 
         # slice the parameters such that they match the pytree
-        slices_parameters = [params[start:end] for start, end in self.slices_of_parameters_for_flat_model]
+        slices_parameters = [
+            params[start:end] for start, end in self.slices_of_parameters_for_flat_model
+        ]
 
         # update the parameters
         params = tree_unflatten(flat_tree_def, slices_parameters)
@@ -135,10 +147,18 @@ class CouplingCircuit(eqx.Module):
 
     def validate(self):
         """
-        Check if the output of the conditioner matches the parametrization of the circuit.
+        Check if the output of the conditioner matches the parametrization of the
+        circuit.
         """
         self.circuit.validate()
-        assert self.circuit.number_of_trainable_parameters == self.conditioner.output_length
+        if (
+            not self.circuit.number_of_trainable_parameters
+            == self.conditioner.output_length
+        ):
+            raise ShapeMismatchError(
+                self.circuit.number_of_trainable_parameters,
+                self.conditioner.output_length,
+            )
 
 
 class LinearConditioner(eqx.Module, Conditioner):
@@ -149,7 +169,9 @@ class LinearConditioner(eqx.Module, Conditioner):
     linear: eqx.nn.Linear
 
     def __init__(self, in_features: int, out_features: int):
-        self.linear = eqx.nn.Linear(in_features, out_features, key=jax.random.PRNGKey(69))
+        self.linear = eqx.nn.Linear(
+            in_features, out_features, key=jax.random.PRNGKey(69)
+        )
 
     def generate_parameters(self, x: jax.Array) -> jax.Array:
         return self.linear(x)

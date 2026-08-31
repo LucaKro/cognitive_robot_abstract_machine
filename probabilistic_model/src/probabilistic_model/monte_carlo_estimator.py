@@ -1,13 +1,16 @@
+from dataclasses import dataclass, field
+
 import numpy as np
 
-from .probabilistic_circuit.rx.helper import uniform_measure_of_event
-from .probabilistic_model import ProbabilisticModel
+from probabilistic_model.probabilistic_circuit.rx.helper import uniform_measure_of_event
+from probabilistic_model.probabilistic_model import ProbabilisticModel
 
 
+@dataclass
 class MonteCarloEstimator:
     """
-    This is a wrapper class for using monte carlo estimations of a model that can be sampled from and where the
-    likelihood can be evaluated.
+    This is a wrapper class for using monte carlo estimations of a model that can be
+    sampled from and where the likelihood can be evaluated.
     """
 
     model: ProbabilisticModel
@@ -15,24 +18,19 @@ class MonteCarloEstimator:
     The wrapped model.
     """
 
-    sample_size: int
+    sample_size: int = field(default=100)
     """
     The number of samples to use for the estimation.
     """
 
-    def __init__(self, model: ProbabilisticModel, sample_size: int = 100):
-        self.model = model
-        self.sample_size = sample_size
-
     def l1_metric_but_with_uniform_measure(self, other: ProbabilisticModel):
         """
-        Calculate the L1 metric between the model and another model using a uniform measure over the union of both
-        distributions to sample from.
+        Calculate the L1 metric between the model and another model using a uniform
+        measure over the union of both distributions to sample from.
 
         :param other: The other model to compare to.
         :return: The L1 metric between the two models.
         """
-
         # get the union of both supports
         supp_of_self = self.model.support
         supp_of_other = other.support
@@ -59,10 +57,9 @@ class MonteCarloEstimator:
         """
         Estimates the L1 metric between to models.
 
-        :other: the other model.
-        :tolerance: Tolerance to use for the comparison of likelihoods.
-        Samples that have a likelihood in both models that differs by less than this tolerance are considered to have
-        an equal likelihood.
+        :other: the other model. :tolerance: Tolerance to use for the comparison of
+        likelihoods. Samples that have a likelihood in both models that differs by less
+        than this tolerance are considered to have an equal likelihood.
         """
         samples_p = self.model.sample(self.sample_size)
         l_p = self.model.likelihood(samples_p)

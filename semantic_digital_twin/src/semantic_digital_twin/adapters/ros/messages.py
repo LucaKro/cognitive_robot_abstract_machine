@@ -1,14 +1,15 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from functools import lru_cache
+import uuid
+from abc import ABC
+from dataclasses import dataclass, field
+from krrood.utils import memoize
 from uuid import UUID
 
-from typing_extensions import Dict, Any, Self, List
+from typing_extensions import Dict, Any, Self, List, Optional
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
-from ...world import World
+from semantic_digital_twin.world import World
 
-from ...world_description.world_modification import (
+from semantic_digital_twin.world_description.world_modification import (
     WorldModelModificationBlock,
 )
 
@@ -20,27 +21,21 @@ class MetaData(SubclassJSONSerializer):
     """
 
     node_name: str
-    """
-    The name of the node that published this message
-    """
+    """The name of the node that published this message."""
 
     process_id: int
-    """
-    The id of the process that published this message
-    """
+    """The id of the process that published this message."""
 
-    object_id: int
-    """
-    The id of the object in the process that issues this publishing call
-    """
+    world_id: UUID = field(default_factory=uuid.uuid4)
+    """The id of the origin world. This is used to identify messages that were published by the same publisher."""
 
-    @lru_cache(maxsize=None)
+    @memoize
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
             "node_name": self.node_name,
             "process_id": self.process_id,
-            "object_id": self.object_id,
+            "world_id": to_json(self.world_id),
         }
 
     @classmethod
@@ -48,26 +43,55 @@ class MetaData(SubclassJSONSerializer):
         return cls(
             node_name=data["node_name"],
             process_id=data["process_id"],
-            object_id=data["object_id"],
+            world_id=from_json(data["world_id"]),
         )
 
     def __hash__(self):
-        return hash((self.node_name, self.process_id, self.object_id))
+        return hash((self.node_name, self.process_id, self.world_id))
 
 
 @dataclass
-class Message(SubclassJSONSerializer, ABC):
+class StreamPosition:
+    """
+    A position in the stream of messages that one publisher sent.
+
+    Positions of different publishers are not comparable, which is why the publisher is
+    part of the position. A process that has to know whether it caught up with a change
+    of another process compares this against what it applied from that publisher.
+    """
+
+    origin: MetaData
+    """The publisher whose stream this position belongs to."""
+
+    sequence_number: int
+    """The position in the stream of that publisher."""
+
+
+@dataclass
+class Message(ABC):
+    """
+    Abstract base class for all messages.
+    """
 
     meta_data: MetaData
-    """
-    Message origin meta data.
+    """Message origin meta data."""
+
+    sequence_number: int = field(default=0, kw_only=True)
+    """Position of this message in the stream of messages its publisher sent.
+
+    Counts up by one per publication, so a recipient can tell how far it has caught up
+    with that publisher, and a publisher can tell others what to catch up with. Assigned
+    when the message is published; a message that was never published has no position.
     """
 
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "meta_data": self.meta_data.to_json(),
-        }
+    @property
+    def position(self) -> StreamPosition:
+        """
+        Where this message sits in the stream of its publisher.
+        """
+        return StreamPosition(
+            origin=self.meta_data, sequence_number=self.sequence_number
+        )
 
 
 @dataclass
@@ -77,29 +101,10 @@ class WorldStateUpdate(Message):
     """
 
     ids: List[UUID]
-    """
-    The ids of the changed free variables.
-    """
+    """The ids of the changed free variables."""
 
     states: List[float]
-    """
-    The states of the changed free variables.
-    """
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "ids": to_json(self.ids),
-            "states": list(self.states),
-        }
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(
-            meta_data=MetaData.from_json(data["meta_data"], **kwargs),
-            ids=from_json(data["ids"]),
-            states=data["states"],
-        )
+    """The states of the changed free variables."""
 
 
 @dataclass
@@ -109,24 +114,27 @@ class ModificationBlock(Message):
     """
 
     modifications: WorldModelModificationBlock
+    """The modifications done to a world."""
+
+
+@dataclass
+class WorldUpdate(Message):
     """
-    The modifications done to a world.
+    Combined model and state update published on a single ordered ROS topic.
+
+    Sending both types of change on the same topic gives FIFO delivery guarantees:
+    a model update published before a state update is always received before that
+    state update, eliminating the cross-topic ordering race present when model and
+    state travel on separate topics.
+
+    Either field may be ``None`` when only one type of change is being communicated.
     """
 
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "modifications": self.modifications.to_json(),
-        }
+    modification_block: Optional[ModificationBlock] = None
+    """The model modification to apply, if any."""
 
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(
-            meta_data=MetaData.from_json(data["meta_data"], **kwargs),
-            modifications=WorldModelModificationBlock.from_json(
-                data["modifications"], **kwargs
-            ),
-        )
+    state_update: Optional[WorldStateUpdate] = None
+    """The state values to apply, if any."""
 
 
 @dataclass
@@ -136,22 +144,7 @@ class LoadModel(Message):
     """
 
     primary_key: int
-    """
-    The primary key identifying the model to be loaded.
-    """
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "primary_key": self.primary_key,
-        }
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(
-            meta_data=MetaData.from_json(data["meta_data"], **kwargs),
-            primary_key=data["primary_key"],
-        )
+    """The primary key identifying the model to be loaded."""
 
 
 @dataclass
@@ -161,19 +154,13 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     """
 
     modifications: List[WorldModelModificationBlock]
-    """
-    The ordered list of world model modification blocks.
-    """
+    """The ordered list of world model modification blocks."""
 
     ids: List[UUID]
-    """
-    The names of the free variables contained in the state snapshot.
-    """
+    """The names of the free variables contained in the state snapshot."""
 
     states: List[float]
-    """
-    The values of the free variables contained in the state snapshot.
-    """
+    """The values of the free variables contained in the state snapshot."""
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -202,8 +189,13 @@ class WorldModelSnapshot(SubclassJSONSerializer):
         world: World, json_data: Dict[str, Any], **kwargs
     ):
         """
-        1. deserialize modifications from json and apply them to the world, block by block
-        2. deserialize state from json and apply it to the world
+        Deserialize modifications and state from JSON and apply them to the world.
+
+        1. Deserialize modifications from JSON and apply them to the world, block by block.
+        2. Deserialize state from JSON and apply it to the world.
+
+        :param world: The world to apply the snapshot to.
+        :param json_data: The JSON data containing the snapshot.
         """
         with world.modify_world():
             for modification in json_data.get("modifications", []):
@@ -219,7 +211,11 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     @staticmethod
     def _apply_json_state(world: World, ids: list[float], states: list[UUID]):
         """
-        Apply the state contained in the json snapshot to the world.
+        Apply the state contained in the JSON snapshot to the world.
+
+        :param world: The world whose state to update.
+        :param ids: The ids of the free variables.
+        :param states: The values of the free variables.
         """
         if not (ids or states):
             return
@@ -228,5 +224,5 @@ class WorldModelSnapshot(SubclassJSONSerializer):
         if not assign_pairs:
             return
         for i, s in assign_pairs:
-            world.state.data[0, i] = s
+            world.state._data[0, i] = s
         world.notify_state_change()

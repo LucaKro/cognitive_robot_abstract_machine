@@ -10,12 +10,14 @@ from sortedcontainers import SortedSet
 
 class SpatialVariables(Enum):
     """
-    Enum for spatial variables used in the semantic digital twin. Used in the context of random events.
+    Enum for spatial variables used in the semantic digital twin.
+
+    Used in the context of random events.
     """
 
-    x = Continuous("x")
-    y = Continuous("y")
-    z = Continuous("z")
+    x = Continuous(name="x")
+    y = Continuous(name="y")
+    z = Continuous(name="z")
 
     @classproperty
     def xy(cls):

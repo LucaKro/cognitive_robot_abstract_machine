@@ -1,6 +1,7 @@
-__version__ = "1.0.0"
 import os
 import threading
+
+from ._version import __version__
 
 
 def preload_matplotlib():
@@ -8,7 +9,6 @@ def preload_matplotlib():
     import matplotlib.pyplot
     from scipy import sparse
     import pandas
-    from pkg_resources import resource_filename
 
 
 # Start preloading in the background

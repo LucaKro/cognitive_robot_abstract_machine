@@ -5,16 +5,45 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from types import FunctionType
-from typing import Set
+from pathlib import Path
+from types import FunctionType, NoneType
+from typing import Set, Generic, TypeVar as TypingTypeVar
 
-from sqlalchemy import types, TypeDecorator, JSON
+from sqlalchemy import types, TypeDecorator
 from typing_extensions import Dict, Any, Sequence, Self
 from typing_extensions import List, Optional, Type
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
-from krrood.entity_query_language.predicate import Symbol
-from krrood.ormatic.dao import AlternativeMapping, T
+from krrood.class_diagrams.mocking import MockedClass
+from krrood.entity_query_language.factories import (
+    variable,
+    count,
+    entity,
+    count_range,
+)
+from krrood.ormatic.data_access_objects.alternative_mappings import (
+    AlternativeMapping,
+    T,
+)
+from krrood.symbol_graph.symbol_graph import Symbol
+from krrood import logger
+try:
+    from random_events.interval import Bound, SimpleInterval
+    from krrood.parametrization.feature_extraction.aggregations import (
+        AggregationStatistic,
+        aggregation_statistic,
+    )
+except ImportError as e:
+    # Was added to allow this to work on Windows which random_events does not support.
+    logger.debug(f"Could not import random_events: {e}")
+    class AggregationStatistic(MockedClass, Generic[T]):
+        ...
+    aggregation_statistic = lambda *args: lambda *args2: args2
+    Bound = NoneType
+    SimpleInterval = NoneType
+
+
+from ..dataset.semantic_world_like_classes import Body, Cabinet
 
 
 # check that custom enums works
@@ -27,58 +56,77 @@ class Element(Enum):
 
 
 @dataclass
-class PositionTypeWrapper(Symbol):
-    position_type: Type[Position]
+class KRROODPositionTypeWrapper(Symbol):
+    position_type: Type[KRROODPosition]
+
+
+@dataclass
+class KRROODBarePositionTypeWrapper(Symbol):
+    position_type: type
 
 
 # check that flat classes work
 @dataclass(unsafe_hash=True)
-class Position(Symbol):
+class KRROODPosition(Symbol):
     x: float
     y: float
     z: float
 
+    @classmethod
+    def from_abc(cls, a: float, b: float, c: float) -> KRROODPosition:
+        return KRROODPosition(a, b, c)
+
 
 # check that classes with optional values work
 @dataclass
-class Orientation(Symbol):
+class KRROODOrientation(Symbol):
     x: float
     y: float
     z: float
     w: Optional[float]
 
 
+# check that the PEP 604 spelling of an optional is recognised just like Optional[...]
+@dataclass
+class KRROODPipeOptionalOrientation(Symbol):
+    x: float
+    y: float
+    z: float
+    w: float | None
+    position: KRROODPosition | None
+
+
 # check that one to one relationship work
 @dataclass
-class Pose(Symbol):
-    position: Position
-    orientation: Orientation
+class KRROODPose(Symbol):
+    position: KRROODPosition
+    orientation: KRROODOrientation
 
 
 # check that many to many relationship to built in types and non built in types work
 @dataclass
-class Positions(Symbol):
-    positions: List[Position]
+class KRROODPositions(Symbol):
+    positions: List[KRROODPosition]
     some_strings: List[str]
 
 
 @dataclass
-class PositionsSubclassWithAnotherPosition(Positions):
-    positions2: Position
+class KRROODPositionsSubclassWithAnotherKRROODPosition(KRROODPositions):
+    positions2: KRROODPosition
 
 
 # check that one to many relationships work where the many side is of the same type
 @dataclass
-class DoublePositionAggregator(Symbol):
-    positions1: List[Position]
-    positions2: List[Position]
+class DoubleKRROODPositionAggregator(Symbol):
+    positions1: List[KRROODPosition]
+    positions2: List[KRROODPosition]
 
 
 # check that inheritance works
 
 
 @dataclass
-class Position4D(Position):
+class KRROODPosition4D(KRROODPosition):
     w: float
 
 
@@ -86,7 +134,7 @@ class Position4D(Position):
 
 
 @dataclass
-class Position5D(Position4D):
+class KRROODPosition5D(KRROODPosition4D):
     v: float
 
 
@@ -114,50 +162,59 @@ class Atom(NotMappedParent, Symbol):
 
 
 # check that custom type checks work
-class PhysicalObject:
+class KRROODPhysicalObject:
     pass
 
 
-class Cup(PhysicalObject):
+class KRROODCup(KRROODPhysicalObject):
     pass
 
 
-class Bowl(PhysicalObject):
+class KRROODBowl(KRROODPhysicalObject):
     pass
 
 
-# @dataclass
-# class MultipleInheritance(Position, Orientation):
-#    pass
+@dataclass(unsafe_hash=True)
+class NestedAction:
+    obj: Body
+    pose: Optional[KRROODPose]
+
+
+@dataclass
+class EnumAction:
+    obj: Body
+    enum: TestEnum
 
 
 @dataclass
 class OriginalSimulatedObject(Symbol):
-    concept: Optional[PhysicalObject]
+    concept: Optional[KRROODPhysicalObject]
     placeholder: float = field(default=0)
 
 
 @dataclass
 class ObjectAnnotation(Symbol):
     """
-    Class for checking how classes that are explicitly mapped interact with original types.
+    Class for checking how classes that are explicitly mapped interact with
+    original types.
     """
 
     object_reference: OriginalSimulatedObject
 
 
 @dataclass
-class KinematicChain(Symbol):
+class KRROODKinematicChain(Symbol):
     name: str
 
 
 @dataclass
-class Torso(KinematicChain):
+class KRROODTorso(KRROODKinematicChain):
     """
-    A Torso is a kinematic chain connecting the base of the robot with a collection of other kinematic chains.
+    A KRROODTorso is a kinematic chain connecting the base of the robot with a
+    collection of other kinematic chains.
     """
 
-    kinematic_chains: List[KinematicChain] = field(default_factory=list)
+    kinematic_chains: List[KRROODKinematicChain] = field(default_factory=list)
     """
     A collection of kinematic chains that are connected to the torso.
     """
@@ -196,7 +253,8 @@ class DerivedEntity(Entity):
 @dataclass
 class EntityAssociation(Symbol):
     """
-    Class for checking how classes that are explicitly mapped interact with original types.
+    Class for checking how classes that are explicitly mapped interact with
+    original types.
     """
 
     entity: Entity
@@ -206,8 +264,8 @@ class EntityAssociation(Symbol):
 # Define an explicit mapping DAO that maps to the base entity class
 
 
-@dataclass
-class CustomEntity(AlternativeMapping[Entity]):
+@dataclass(eq=False)
+class EntityMapping(AlternativeMapping[Entity]):
     overwritten_name: str
 
     @classmethod
@@ -221,13 +279,14 @@ class CustomEntity(AlternativeMapping[Entity]):
 
 class ConceptType(TypeDecorator):
     """
-    Type that casts fields that are of type `type` to their class name on serialization and converts the name
-    to the class itself through the globals on load.
+    Type that casts fields that are of type `type` to their class name on
+    serialization and converts the name to the class itself through the globals
+    on load.
     """
 
     impl = types.String(256)
 
-    def process_bind_param(self, value: PhysicalObject, dialect):
+    def process_bind_param(self, value: KRROODPhysicalObject, dialect):
         return value.__class__.__module__ + "." + value.__class__.__name__
 
     def process_result_value(self, value: impl, dialect) -> Optional[Type]:
@@ -251,7 +310,7 @@ class Backreference(Symbol):
     reference: Reference = None
 
 
-@dataclass
+@dataclass(eq=False)
 class BackreferenceMapping(AlternativeMapping[Backreference]):
     values: List[int]
     reference: Reference
@@ -286,20 +345,20 @@ class ContainerGeneration(Symbol):
 
 
 @dataclass
-class Vector(Symbol):
+class KRROODVector(Symbol):
     x: float
 
 
-@dataclass
-class VectorMapped(AlternativeMapping[Vector]):
+@dataclass(eq=False)
+class KRROODVectorMapped(AlternativeMapping[KRROODVector]):
     x: float
 
     @classmethod
     def from_domain_object(cls, obj: T):
-        return VectorMapped(obj.x)
+        return KRROODVectorMapped(obj.x)
 
     def to_domain_object(self) -> T:
-        return Vector(self.x)
+        return KRROODVector(self.x)
 
 
 @dataclass
@@ -307,9 +366,8 @@ class Rotation(Symbol):
     angle: float
 
 
-@dataclass
+@dataclass(eq=False)
 class RotationMapped(AlternativeMapping[Rotation]):
-
     angle: float
 
     @classmethod
@@ -321,28 +379,28 @@ class RotationMapped(AlternativeMapping[Rotation]):
 
 
 @dataclass
-class Transformation(Symbol):
-    vector: Vector
+class KRROODTransformation(Symbol):
+    vector: KRROODVector
     rotation: Rotation
 
 
-@dataclass
-class TransformationMapped(AlternativeMapping[Transformation]):
-    vector: Vector
+@dataclass(eq=False)
+class KRROODTransformationMapped(AlternativeMapping[KRROODTransformation]):
+    vector: KRROODVector
     rotation: Rotation
 
     @classmethod
     def from_domain_object(cls, obj: T):
-        return TransformationMapped(obj.vector, obj.rotation)
+        return KRROODTransformationMapped(obj.vector, obj.rotation)
 
     def to_domain_object(self) -> T:
-        return Transformation(self.vector, self.rotation)
+        return KRROODTransformation(self.vector, self.rotation)
 
 
 @dataclass
 class Shape(Symbol):
     name: str
-    origin: Transformation
+    origin: KRROODTransformation
 
 
 @dataclass
@@ -356,24 +414,24 @@ class MoreShapes(Symbol):
 
 
 @dataclass
-class VectorsWithProperty(Symbol):
-    _vectors: List[Vector]
+class KRROODVectorsWithProperty(Symbol):
+    _vectors: List[KRROODVector]
 
     @property
-    def vectors(self) -> List[Vector]:
+    def vectors(self) -> List[KRROODVector]:
         return self._vectors
 
 
-@dataclass
-class VectorsWithPropertyMapped(AlternativeMapping[VectorsWithProperty]):
-    vectors: List[Vector]
+@dataclass(eq=False)
+class KRROODVectorsWithPropertyMapped(AlternativeMapping[KRROODVectorsWithProperty]):
+    vectors: List[KRROODVector]
 
     @classmethod
     def from_domain_object(cls, obj: T):
-        return VectorsWithPropertyMapped(obj.vectors)
+        return KRROODVectorsWithPropertyMapped(obj.vectors)
 
     def to_domain_object(self) -> T:
-        return VectorsWithProperty(self.vectors)
+        return KRROODVectorsWithProperty(self.vectors)
 
 
 @dataclass
@@ -387,7 +445,7 @@ class ChildBase(ParentBase):
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class ParentBaseMapping(AlternativeMapping[ParentBase]):
     name: str
 
@@ -401,7 +459,7 @@ class ParentBaseMapping(AlternativeMapping[ParentBase]):
         return ParentBase(self.name, 0)
 
 
-@dataclass
+@dataclass(eq=False)
 class ChildBaseMapping(ParentBaseMapping, AlternativeMapping[ChildBase]):
 
     @classmethod
@@ -422,14 +480,14 @@ class PrivateDefaultFactory(Symbol):
 
 @dataclass
 class RelationshipParent(Symbol):
-    positions: Position
+    positions: KRROODPosition
 
 
 @dataclass
 class RelationshipChild(RelationshipParent):
     """
-    This class should produce a problem when reconstructed from the database as relationships must not be declared
-    twice.
+    This class should produce a problem when reconstructed from the database as
+    relationships must not be declared twice.
     """
 
 
@@ -439,7 +497,8 @@ class RelationshipChild(RelationshipParent):
 @dataclass
 class InheritanceBaseWithoutSymbolButAlternativelyMapped:
     """
-    Test that alternative mappings that have a hierarchy of its own are correctly created.
+    Test that alternative mappings that have a hierarchy of its own are
+    correctly created.
     """
 
     base_attribute: float = 0
@@ -459,7 +518,7 @@ class InheritanceLevel2WithoutSymbolButAlternativelyMapped(
     level_two_attribute: float = 0
 
 
-@dataclass
+@dataclass(eq=False)
 class InheritanceBaseWithoutSymbolButAlternativelyMappedMapping(
     AlternativeMapping[InheritanceBaseWithoutSymbolButAlternativelyMapped]
 ):
@@ -473,7 +532,7 @@ class InheritanceBaseWithoutSymbolButAlternativelyMappedMapping(
         raise NotImplementedError
 
 
-@dataclass
+@dataclass(eq=False)
 class InheritanceLevel1WithoutSymbolButAlternativelyMappedMapping(
     InheritanceBaseWithoutSymbolButAlternativelyMappedMapping,
     AlternativeMapping[InheritanceLevel1WithoutSymbolButAlternativelyMapped],
@@ -485,7 +544,7 @@ class InheritanceLevel1WithoutSymbolButAlternativelyMappedMapping(
         return cls(obj.base_attribute, obj.level_one_attribute)
 
 
-@dataclass
+@dataclass(eq=False)
 class InheritanceLevel2WithoutSymbolButAlternativelyMappedMapping(
     InheritanceLevel1WithoutSymbolButAlternativelyMappedMapping,
     AlternativeMapping[InheritanceLevel2WithoutSymbolButAlternativelyMapped],
@@ -514,7 +573,7 @@ class ChildLevel2NormallyMapped(ChildLevel1NormallyMapped):
     level_two_attribute: float = 0
 
 
-@dataclass
+@dataclass(eq=False)
 class ParentAlternativelyMappedMapping(AlternativeMapping[ParentAlternativelyMapped]):
     derived_attribute: str
     entities: List[Entity]
@@ -579,6 +638,23 @@ class JSONWrapper:
     more_objects: List[JSONSerializableClass] = field(default_factory=list)
 
 
+@dataclass
+class HolderOfSimpleInterval:
+    """
+    Its sole field's type, :class:`random_events.interval.SimpleInterval`, lives in a
+    package nothing else in this module references, which is exactly what is needed to
+    reproduce a bug where ``WrappedTable.create_custom_type`` mapped a
+    ``SubclassJSONSerializer`` field to JSON without importing that field type's own
+    module, tripping a ``MappedAnnotationError`` at class-definition time.
+    """
+
+    bounds: SimpleInterval = field(
+        default_factory=lambda: SimpleInterval.from_data(
+            0.0, 1.0, Bound.CLOSED, Bound.CLOSED
+        )
+    )
+
+
 # %% Multiple inheritance and MRO tests
 
 
@@ -616,14 +692,18 @@ class ListOfEnum(Symbol):
 
 @dataclass
 class ForwardRefTypeA(Symbol):
-    """A simple class used as a forward reference target."""
+    """
+    A simple class used as a forward reference target.
+    """
 
     value: str = ""
 
 
 @dataclass
 class ForwardRefTypeB(Symbol):
-    """Another class used as a forward reference target."""
+    """
+    Another class used as a forward reference target.
+    """
 
     count: int = 0
 
@@ -632,8 +712,9 @@ class ForwardRefTypeB(Symbol):
 class MultipleForwardRefContainer(Symbol):
     """
     A class that has multiple fields with forward reference types.
-    This tests that the forward reference resolution can handle
-    multiple unresolved types that need to be resolved iteratively.
+
+    This tests that the forward reference resolution can handle multiple
+    unresolved types that need to be resolved iteratively.
     """
 
     ref_a: Optional[ForwardRefTypeA] = None
@@ -654,8 +735,8 @@ class UnderspecifiedTypesContainer:
 
 
 @dataclass
-class TestPositionSet:
-    positions: Set[Position] = field(default_factory=set)
+class TestKRROODPositionSet:
+    positions: Set[KRROODPosition] = field(default_factory=set)
 
 
 class PolymorphicEnum(Enum): ...
@@ -683,3 +764,158 @@ class NamedNumbers:
 
     def __hash__(self):
         return hash(self.name)
+
+
+@dataclass
+class GenericClass(Generic[T]):
+    value: T
+    optional_value: Optional[T] = None
+    container: List[T] = field(default_factory=list)
+
+
+@dataclass
+class GenericClassAssociation:
+    associated_value: GenericClass[float]
+    associated_value_list: List[GenericClass[KRROODPosition]]
+
+    associated_value_not_parametrized: GenericClass = None
+    associated_value_not_parametrized_list: List[GenericClass] = field(
+        default_factory=list
+    )
+
+
+# %% Test TypeVar field resolution in DAO generation
+# Reproduces the issue where fields typed with a TypeVar (like
+# TKinematicStructureEntity in HasRootKinematicStructureEntity) were silently
+# skipped by WrappedTable.parse_field.
+
+TTestEntity = TypingTypeVar("TTestEntity", bound=KRROODPosition)
+
+
+@dataclass
+class TypeVarFieldHolder(Symbol):
+    """Domain class with a TypeVar-typed field to test parse_field resolution."""
+
+    typed_field: TTestEntity = field(kw_only=True)
+    name: str = ""
+
+
+@dataclass
+class PathAssociation:
+    path: Path
+
+
+class SceneObjectType(Enum):
+    TABLE = "table"
+    CHAIR = "chair"
+
+
+@dataclass
+class SceneObject:
+    type: SceneObjectType
+
+
+@dataclass
+class SceneRoom:
+    position: KRROODPosition
+    orientation: KRROODOrientation
+    objects: List[SceneObject]
+    type_in_need_of_preprocessing: bool = False
+
+
+@dataclass
+class TestExParts:
+    objects: List[SceneObject]
+    rooms: List[SceneRoom]
+
+
+@dataclass
+class SceneObjectAggregationBase(AggregationStatistic[T]):
+    """
+    Abstract base providing shared aggregation statistics over a
+    ``objects: List[SceneObject]`` field.
+
+    Concrete subclasses bind ``T`` to the owner type and are auto-registered.
+    """
+
+    @aggregation_statistic("objects")
+    def chair_count(self) -> int:
+        """
+        Count of CHAIR-type objects.
+        """
+        type_var = variable(SceneObject, self.instance.objects).type
+        [cou] = (
+            entity(count_range(type_var))
+            .where(type_var == SceneObjectType.CHAIR)
+            .tolist()
+        )
+        return cou
+
+    @aggregation_statistic("objects")
+    def table_count(self) -> int:
+        """
+        Count of TABLE-type objects.
+        """
+        type_var = variable(SceneObject, self.instance.objects).type
+        [cou] = (
+            entity(count_range(type_var))
+            .where(type_var == SceneObjectType.TABLE)
+            .tolist()
+        )
+        return cou
+
+    @aggregation_statistic("objects")
+    def total_count(self) -> int:
+        """
+        Total number of objects.
+        """
+        [cou] = count(variable(SceneObject, self.instance.objects)).tolist()
+        return cou
+
+
+@dataclass
+class SceneRoomAggregations(SceneObjectAggregationBase[SceneRoom]):
+    """
+    Aggregation statistics for :class:`SceneRoom` over its ``objects`` field.
+    """
+
+
+@dataclass
+class TestExPartsAggregations(SceneObjectAggregationBase[TestExParts]):
+    """
+    Aggregation statistics for :class:`TestExParts` over its ``objects`` and
+    ``rooms`` fields.
+    """
+
+    @aggregation_statistic("rooms")
+    def room_count(self) -> int:
+        """
+        Total number of rooms.
+        """
+        [cou] = count(variable(SceneRoom, self.instance.rooms)).tolist()
+        return cou
+
+
+@dataclass
+class ExampleInt:
+    attribute: int
+
+
+@dataclass
+class ExampleString:
+    attribute: str
+
+
+@dataclass
+class MissingBaseClass:
+    objects: List[ExampleInt] = field(default_factory=list)
+
+
+@dataclass
+class ActionWithMissingAggregationsMixin:
+    """
+    Action with a field whose domain type has exchangeable parts but no
+    aggregation mixin.
+    """
+
+    domain_object: Cabinet

@@ -1,31 +1,34 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Type, List
+from dataclasses import dataclass
+from typing import Type
 
 import numpy as np
+from typing_extensions import TypeVar, Generic, get_args
 
-from giskardpy.qp.qp_data import QPData
-from giskardpy.qp.solvers.qp_solver_ids import SupportedQPSolver
+from giskardpy.qp.qp_data import QPDataExplicit, QPDataTwoSidedInequality
 
-if TYPE_CHECKING:
-    from giskardpy.qp.adapters.qp_adapter import GiskardToQPAdapter
+T = TypeVar("T", QPDataExplicit, QPDataTwoSidedInequality)
 
 
-class QPSolver:
-    solver_id: SupportedQPSolver
-    required_adapter_type: Type[GiskardToQPAdapter]
+@dataclass
+class QPSolver(Generic[T]):
 
-    def solver_call(self, qp_data: QPData) -> np.ndarray:
-        raise NotImplementedError()
-
-    def solver_call_batch(self, qps: List[QPData]) -> np.ndarray:
-        raise NotImplementedError()
-
-    def solver_call_explicit_interface(self, qp_data: QPData) -> np.ndarray:
+    @classmethod
+    def qp_data_type(cls) -> Type[T]:
         """
-        min_x 0.5 x^T H x + g^T x
-        s.t.  lb <= x <= ub     (box constraints)
-                   Ex <= bE     (equality constraints)
-            lbA <= Ax <= ubA    (lower/upper inequality constraints)
+        The :class:`QPData` subtype this solver consumes.
+        """
+        return get_args(cls.__orig_bases__[0])[0]
+
+    def solver_call(self, qp_data: T) -> np.ndarray:
+        raise NotImplementedError()
+
+    def solver_call_explicit_interface(self, qp_data: QPDataExplicit) -> np.ndarray:
+        """
+        min_x 0.5 x^T H x + g^T x s.t.
+
+        lb <= x <= ub     (box constraints)        Ex <= bE     (equality constraints)
+        lbA <= Ax <= ubA    (lower/upper inequality constraints)
         """
         raise NotImplementedError()

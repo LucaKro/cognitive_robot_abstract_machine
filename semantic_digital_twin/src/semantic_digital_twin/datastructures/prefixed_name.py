@@ -1,15 +1,21 @@
 from dataclasses import dataclass
 
-from krrood.entity_query_language.predicate import Symbol
-from typing_extensions import Optional, Dict, Any, Self
+from typing_extensions import Optional
 
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.entity_query_language.predicate import Symbol
 
 
 @dataclass
 class PrefixedName(Symbol):
     name: str
+    """
+    The local name identifying the entity.
+    """
+
     prefix: Optional[str] = None
+    """
+    Optional namespace that disambiguates the name from equally named entities in other scopes.
+    """
 
     def __hash__(self):
         return hash((self.prefix, self.name))
@@ -18,6 +24,9 @@ class PrefixedName(Symbol):
         if self.prefix is None or self.prefix == "":
             return self.name
         return f"{self.prefix}/{self.name}"
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}('{self.prefix}/{self.name}')"
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):

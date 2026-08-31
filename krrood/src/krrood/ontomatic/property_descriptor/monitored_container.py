@@ -15,10 +15,12 @@ from typing_extensions import (
     TypeVar,
 )
 
-from ...entity_query_language.predicate import Symbol
+from krrood.symbol_graph.symbol_graph import Symbol
 
 if TYPE_CHECKING:
-    from .property_descriptor import PropertyDescriptor
+    from krrood.ontomatic.property_descriptor.property_descriptor import (
+        PropertyDescriptor,
+    )
 
 
 monitored_type_map: Dict[Type, Type[MonitoredContainer]] = {}
@@ -39,10 +41,10 @@ class MonitoredContainer(Generic[T], ABC):
 
     For example like here, the Set[Person] will be internally replaced with a MonitoredSet[Person] by the
     descriptor, this allows for catching additions/insertions/removals to the Set and applying implicit inferences:
+    >>> from krrood.symbol_graph.symbol_graph import Symbol
     >>> from dataclasses import dataclass, field
     >>> from typing_extensions import Set
     >>> from krrood.ontomatic.property_descriptor.property_descriptor import PropertyDescriptor
-    >>> from krrood.entity_query_language.predicate import Symbol
     ...
     >>> @dataclass
     >>> class Person(Symbol):
@@ -96,18 +98,23 @@ class MonitoredContainer(Generic[T], ABC):
         inferred: bool = False,
         add_relation_to_the_graph: bool = True,
     ) -> Union[Symbol, weakref.ref[Symbol]]:
-        """Call the descriptor on_add with the concrete owner instance
+        """
+        Call the descriptor on_add with the concrete owner instance.
 
         :param value: The value to be added to the container
         :param inferred: Whether the value is inferred or not
-        :param add_relation_to_the_graph: Whether to add the relation to the graph or not.
-        :return: The value with a weakref if inferred is True, otherwise the value itself
+        :param add_relation_to_the_graph: Whether to add the relation to the graph or
+            not.
+        :return: The value with a weakref if inferred is True, otherwise the value
+            itself
         """
         if inferred:
             value = weakref.ref(value, self._remove_item)
         owner = self._owner
         if owner is not None and add_relation_to_the_graph:
-            self._descriptor.add_relation_to_the_graph(owner, value, inferred=inferred)
+            self._descriptor.add_relation_to_the_graph_and_apply_implications(
+                owner, value, inferred=inferred
+            )
         return value
 
     def _update(
@@ -121,7 +128,8 @@ class MonitoredContainer(Generic[T], ABC):
 
         :param value: The value to be added to the container
         :param inferred: If the value is inferred or not
-        :param add_relation_to_the_graph: Whether to add the relation to the graph or not
+        :param add_relation_to_the_graph: Whether to add the relation to the graph or
+            not
         :return: Whether the value was added or not
         """
         if value in self:
@@ -136,8 +144,9 @@ class MonitoredContainer(Generic[T], ABC):
     @abstractmethod
     def _remove_item(self, item):
         """
-        This method is called when an item is removed from the container. It should be implemented by subclasses.
+        This method is called when an item is removed from the container.
 
+        It should be implemented by subclasses.
         :param item: The item to be removed
         """
         ...
@@ -150,8 +159,10 @@ class MonitoredContainer(Generic[T], ABC):
         add_relation_to_the_graph: bool = True,
     ):
         """
-        This method is called when an item is added to the container. It should be implemented by subclasses.
-        In addition, this method should call the descriptor on_add method.
+        This method is called when an item is added to the container.
+
+        It should be implemented by subclasses. In addition, this method should call the
+        descriptor on_add method.
 
         :param item: The item to be added
         :param inferred: Whether the value is inferred or not

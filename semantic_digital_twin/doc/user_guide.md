@@ -29,13 +29,13 @@ The user guide is divided into multiple chapters teaching you the following topi
   - [](world-structure-manipulation)
   - [](semantic_annotations)
 - Advanced Topics
+  - [](building-worlds-with-specifications)
   - [](world-state-manipulation)
   - [](regions)
   - [](semantic_annotation_factories)
   - [](persistence-of-annotated-worlds)
   - Synchronizing worlds across multiple processes
   - Pipelines
-  - [](multiverse)
   - Inverse Kinematics
   - Collision Checking
   - Casadi

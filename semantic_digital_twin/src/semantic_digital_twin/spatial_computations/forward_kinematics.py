@@ -1,31 +1,38 @@
 from __future__ import absolute_import, annotations
 
-from collections import OrderedDict
-from functools import lru_cache
-from typing import Dict, Tuple, TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 
 import numpy as np
 import rustworkx.visit
+from typing_extensions import List
 
 from krrood.symbolic_math.symbolic_math import (
     CompiledFunction,
     Matrix,
     VariableParameters,
+    FloatVariable,
 )
-from ..datastructures.types import NpMatrix4x4
-from ..spatial_types import HomogeneousTransformationMatrix
-from ..spatial_types.math import inverse_frame
-from ..utils import copy_lru_cache
-from ..world_description.world_entity import Connection, KinematicStructureEntity
+from krrood.utils import copy_memoize, memoize, clear_memoization_cache
+from semantic_digital_twin.callbacks.callback import ModelChangeCallback
+from semantic_digital_twin.datastructures.types import NpMatrix4x4
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types.math import inverse_frame
+from semantic_digital_twin.world_description.world_entity import (
+    Connection,
+    KinematicStructureEntity,
+)
 
 if TYPE_CHECKING:
-    from ..world import World
+    from semantic_digital_twin.world import ModelRevision
 
 
-class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
+@dataclass(eq=False)
+class ForwardKinematicsManager(ModelChangeCallback):
     """
-    Visitor class for collection various forward kinematics expressions in a world model.
+    Visitor class for collection various forward kinematics expressions in a world
+    model.
 
     This class is designed to traverse a world, compute the forward kinematics transformations in batches for different
     use cases.
@@ -34,44 +41,72 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
     3. Efficient computation of forward kinematics as position and quaternion, useful for ROS tf.
     """
 
-    compiled_collision_fks: CompiledFunction
-    compiled_all_fks: CompiledFunction
+    compiled_all_fks: CompiledFunction = field(init=False, repr=False)
 
-    forward_kinematics_for_all_bodies: np.ndarray
+    forward_kinematics_for_all_bodies: np.ndarray = field(init=False, repr=False)
     """
-    A 2D array containing the stacked forward kinematics expressions for all bodies in the world.
-    Dimensions are ((number of bodies) * 4) x 4.
-    They are computed in batch for efficiency.
-    """
-    body_id_to_forward_kinematics_idx: Dict[UUID, int]
-    """
-    Given a body id, returns the index of the first row in `forward_kinematics_for_all_bodies` that corresponds to that body.
+    A 2D array containing the stacked forward kinematics expressions for all bodies in
+    the world.
+
+    Dimensions are ((number of bodies) * 4) x 4. They are computed in batch for
+    efficiency.
     """
 
-    def __init__(self, world: World):
-        self.world = world
-        self.child_body_to_fk_expr: Dict[UUID, HomogeneousTransformationMatrix] = {
-            self.world.root.id: HomogeneousTransformationMatrix()
-        }
+    body_id_to_forward_kinematics_idx: Dict[UUID, int] = field(init=False, repr=False)
+    """
+    Given a body id, returns the index of the first row in
+    `forward_kinematics_for_all_bodies` that corresponds to that body.
+    """
 
-    def recompile(self):
-        self.child_body_to_fk_expr: Dict[UUID, HomogeneousTransformationMatrix] = {
-            self.world.root.id: HomogeneousTransformationMatrix()
-        }
-        self.world._travel_branch(self.world.root, self)
+    root_T_kse_expression_cache: Dict[UUID, HomogeneousTransformationMatrix] = field(
+        init=False, repr=False
+    )
+
+    body_id_to_all_fk_index: Dict[UUID, int] = field(init=False, repr=False)
+
+    compiled_revision: Optional[ModelRevision] = field(
+        init=False, default=None, repr=False
+    )
+    """
+    The kinematic structure the current expressions were compiled against.
+
+    ``None`` until the first compilation. Lets :meth:`matches_world_structure` tell a
+    stale set of expressions from an up-to-date one.
+    """
+
+    def on_model_change(self, **kwargs):
+        if len(self._world.kinematic_structure_entities) == 0:
+            return
+        self.update_root_T_kse_expression_cache()
+        clear_memoization_cache(self)
         self.compile()
+        self.recompute()  # we need to recompute because other model updaters might need fk.
+        self.compiled_revision = self._world.get_world_model_manager().revision
 
-    def connection_call(self, edge: Tuple[int, int, Connection]):
+    @property
+    def matches_world_structure(self) -> bool:
         """
-        Gathers forward kinematics expressions for a connection.
+        :return: Whether the compiled expressions still describe the world's kinematic
+            structure, i.e. whether recompiling them would produce the same result.
         """
-        connection = edge[2]
-        map_T_parent = self.child_body_to_fk_expr[connection.parent.id]
-        self.child_body_to_fk_expr[connection.child.id] = map_T_parent.dot(
-            connection.origin_expression
+        return (
+            self.compiled_revision is not None
+            and self.compiled_revision == self._world.get_world_model_manager().revision
         )
 
-    tree_edge = connection_call
+    def update_root_T_kse_expression_cache(self):
+        self.root_T_kse_expression_cache = {
+            self._world.root.id: HomogeneousTransformationMatrix()
+        }
+        for parent, childs in rustworkx.bfs_successors(
+            self._world.kinematic_structure, self._world.root.index
+        ):
+            root_T_parent = self.root_T_kse_expression_cache[parent.id]
+            for child in childs:
+                parent_C_child = self._world.get_connection(parent, child)
+                self.root_T_kse_expression_cache[child.id] = (
+                    root_T_parent @ parent_C_child.origin_expression
+                )
 
     def compile(self) -> None:
         """
@@ -79,40 +114,32 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         """
         all_fks = Matrix.vstack(
             [
-                self.child_body_to_fk_expr[body.id]
-                for body in self.world.kinematic_structure_entities
+                self.root_T_kse_expression_cache[body.id]
+                for body in self._world.kinematic_structure_entities
             ]
         )
-        collision_fks = []
-        for body in sorted(
-            self.world.bodies_with_enabled_collision, key=lambda b: b.id
-        ):
-            if body == self.world.root:
-                continue
-            collision_fks.append(self.child_body_to_fk_expr[body.id])
-        collision_fks = Matrix.vstack(collision_fks)
-        params = [v.variables.position for v in self.world.degrees_of_freedom]
+
         self.compiled_all_fks = all_fks.compile(
-            parameters=VariableParameters.from_lists(params)
+            parameters=VariableParameters.from_lists(
+                self._world.state.position_float_variables
+            )
         )
-        self.compiled_collision_fks = collision_fks.compile(
-            parameters=VariableParameters.from_lists(params)
-        )
-        self.idx_start = {
+        self.compiled_all_fks.bind_args_to_memory_view(0, self._world.state.positions)
+        self.body_id_to_all_fk_index = {
             body.id: i * 4
-            for i, body in enumerate(self.world.kinematic_structure_entities)
+            for i, body in enumerate(self._world.kinematic_structure_entities)
         }
 
     def recompute(self) -> None:
         """
-        Clears cache and recomputes all forward kinematics. Should be called after a state update.
-        """
-        self.compute_np.cache_clear()
-        self.subs = self.world.state.positions
-        self.forward_kinematics_for_all_bodies = self.compiled_all_fks(self.subs)
-        self.collision_fks = self.compiled_collision_fks(self.subs)
+        Clears cache and recomputes all forward kinematics.
 
-    @copy_lru_cache()
+        Should be called after a state update.
+        """
+        clear_memoization_cache(self)
+        self.forward_kinematics_for_all_bodies = self.compiled_all_fks.evaluate()
+
+    @copy_memoize
     def compose_expression(
         self, root: KinematicStructureEntity, tip: KinematicStructureEntity
     ) -> HomogeneousTransformationMatrix:
@@ -123,9 +150,12 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
             It determines the endpoint of the forward kinematics calculation.
         :return: An expression representing the computed forward kinematics of the tip KinematicStructureEntity relative to the root KinematicStructureEntity.
         """
-
+        if root == self._world.root:
+            return self.root_T_kse_expression_cache[tip.id]
         fk = HomogeneousTransformationMatrix()
-        root_chain, tip_chain = self.world.compute_split_chain_of_connections(root, tip)
+        root_chain, tip_chain = self._world.compute_split_chain_of_connections(
+            root, tip
+        )
         connection: Connection
         for connection in root_chain:
             tip_T_root = connection.origin_expression.inverse()
@@ -140,46 +170,50 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         self, root: KinematicStructureEntity, tip: KinematicStructureEntity
     ) -> HomogeneousTransformationMatrix:
         """
-        Compute the forward kinematics from the root KinematicStructureEntity to the tip KinematicStructureEntity.
+        Compute the forward kinematics from the root KinematicStructureEntity to the tip
+        KinematicStructureEntity.
 
-        Calculate the transformation matrix representing the pose of the
-        tip KinematicStructureEntity relative to the root KinematicStructureEntity.
+        Calculate the transformation matrix representing the pose of the tip
+        KinematicStructureEntity relative to the root KinematicStructureEntity.
 
-        :param root: Root KinematicStructureEntity for which the kinematics are computed.
+        :param root: Root KinematicStructureEntity for which the kinematics are
+            computed.
         :param tip: Tip KinematicStructureEntity to which the kinematics are computed.
-        :return: Transformation matrix representing the relative pose of the tip KinematicStructureEntity with respect to the root KinematicStructureEntity.
+        :return: Transformation matrix representing the relative pose of the tip
+            KinematicStructureEntity with respect to the root KinematicStructureEntity.
         """
         return HomogeneousTransformationMatrix(
             data=self.compute_np(root, tip), reference_frame=root
         )
 
-    @lru_cache(maxsize=None)
+    @memoize
     def compute_np(
         self, root: KinematicStructureEntity, tip: KinematicStructureEntity
     ) -> NpMatrix4x4:
         """
         Computes the forward kinematics from the root body to the tip body, root_T_tip.
 
-        This method computes the transformation matrix representing the pose of the
-        tip body relative to the root body, expressed as a numpy ndarray.
+        This method computes the transformation matrix representing the pose of the tip
+        body relative to the root body, expressed as a numpy ndarray.
 
         :param root: Root body for which the kinematics are computed.
         :param tip: Tip body to which the kinematics are computed.
-        :return: Transformation matrix representing the relative pose of the tip body with respect to the root body.
+        :return: Transformation matrix representing the relative pose of the tip body
+            with respect to the root body.
         """
         root = root.id
         tip = tip.id
-        root_is_world = root == self.world.root.id
-        tip_is_world = tip == self.world.root.id
+        root_is_world = root == self._world.root.id
+        tip_is_world = tip == self._world.root.id
 
         if not tip_is_world:
-            i = self.idx_start[tip]
+            i = self.body_id_to_all_fk_index[tip]
             map_T_tip = self.forward_kinematics_for_all_bodies[i : i + 4]
             if root_is_world:
                 return map_T_tip
 
         if not root_is_world:
-            i = self.idx_start[root]
+            i = self.body_id_to_all_fk_index[root]
             map_T_root = self.forward_kinematics_for_all_bodies[i : i + 4]
             root_T_map = inverse_frame(map_T_root)
             if tip_is_world:

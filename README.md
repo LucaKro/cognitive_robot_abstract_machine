@@ -4,7 +4,17 @@
 
 Monorepo for the CRAM cognitive architecture. 
 
-## Installation 
+## Installation
+
+### Clone the repo and its submodules
+Pull the submodules:
+```bash
+git clone https://github.com/cram2/cognitive_robot_abstract_machine.git
+cd cognitive_robot_abstract_machine
+git submodule update --init --recursive
+```
+
+### CRAM Architecture Installation
 
 To install the CRAM architecture, follow these steps:
 
@@ -16,7 +26,7 @@ grep -qxF 'export WORKON_HOME=$HOME/.virtualenvs' ~/.bashrc || echo 'export WORK
 grep -qxF 'export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3' ~/.bashrc || echo 'export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3' >> ~/.bashrc && \
 grep -qxF 'source /usr/share/virtualenvwrapper/virtualenvwrapper.sh' ~/.bashrc || echo 'source /usr/share/virtualenvwrapper/virtualenvwrapper.sh' >> ~/.bashrc && \
 source ~/.bashrc && \
-mkvirtualenv cram-env
+mkvirtualenv cram-env --system-site-packages
 ```
 Activate / deactivate
 
@@ -25,20 +35,140 @@ workon cram-env
 deactivate
 ```
 
+#### Optional: Setup your ROS Workspace
+To run the tests or use CRAM with a real robot you need to setup a ROS workspace with the dependencies. 
+The monorepo provides a shell script to setup the workspace for you. 
+```bash
+export OVERLAY_WS=$HOME/ros_ws
+./scripts/setup_ros_workspace.sh
+```
+This will create a ROS workspace in the folder specified in OVERLAY_WS
 
-We use poetry to manage dependencies. Install poetry if you haven't already:
+### Install additional dependencies
+
+You need to install the following system dependencies:
+
+```bash
+sudo apt install -y graphviz graphviz-dev
+```
+
+
+### Install using UV
+
+To install the whole repo we use uv (https://github.com/astral-sh/uv), first to install uv:
+
+```bash 
+# On macOS and Linux.
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+then install packages:
+
+```bash
+uv sync --active
+```
+
+If you also want the development dependencies, run:
+
+```bash
+uv sync --extra dev --active 
+```
+
+
+### Alternative: Poetry
+
+Alternatively you can use poetry to install all packages in the repository.
+
+Install poetry if you haven't already:
 
 ```bash
 pip install poetry
-``` 
+```
 
 Install the CRAM package along with its dependencies:
 
 ```bash
-cd cognitive_robot_abstract_machine
-git submodule update --init --recursive
 poetry install
 ```
+
+## To run tests
+
+**1. Install system dependencies, set up and build the ROS 2 workspace**
+
+```bash
+sudo bash .github/docker/setup_ros_workspace.sh && source ~/.bashrc
+```
+
+**2. Run a test**
+
+```bash
+pytest test/<package>_test
+```
+
+e.g. `pytest test/coraplex_test`
+
+## Developer / Agent Tooling
+
+`.claude/` holds tooling for AI coding agents (Claude Code) working in this
+repository - hooks that run automatically each session, and skills invoked
+on demand (`/<skill-name>`). Each is documented where it lives; the links
+below are a starting point, not a duplicate of that documentation.
+
+**New here? Start with [`.claude/SETUP.md`](.claude/SETUP.md)** - the one-time
+setup in three steps, including what to change in your fork, your GitHub
+access and your Claude environment.
+[`.claude/hooks/README.md`](.claude/hooks/README.md) is the reference behind
+it: what the setup configures, and everything it unlocks (personal notes,
+per-PR progress tracking, multi-PR plan dashboards).
+
+- **[`.claude/hooks/`](.claude/hooks/README.md)** - a `SessionStart` hook
+  that carries a contributor's own personal workflow notes, per-PR
+  plan/progress tracking, and multi-PR plan manifests across sessions via a
+  personal (gitignored, never-merged) branch, with zero required
+  configuration.
+- **[`.claude/skills/plan-dashboard/`](.claude/skills/plan-dashboard/SKILL.md)** -
+  publishes a live status dashboard for a multi-PR/multi-session
+  initiative, cross-checked against live GitHub PR/CI/review state so a
+  plan's manually-tracked status can never silently drift from reality. See
+  [`example-walkthrough.md`](.claude/skills/plan-dashboard/example-walkthrough.md)
+  for a short, worked example - idea to dashboard, with screenshots.
+- **[`.claude/skills/plan-create/`](.claude/skills/plan-create/SKILL.md)** -
+  bootstraps a new multi-PR/multi-session plan (or migrates an existing
+  freeform roadmap doc into one), validated against the same schema
+  `plan-dashboard` reads.
+- **[`.claude/skills/plan-item-kickoff/`](.claude/skills/plan-item-kickoff/SKILL.md)** -
+  gathers everything available about one tracked plan item (its manifest
+  entry, roadmap history, dependency chain's live state, sibling-item
+  patterns) and proposes an implementation plan via plan mode, without
+  writing any code. The "Start now" button on a not-started item's
+  dashboard card copies the invoking command for this skill.
+- **[`.claude/skills/plan-item-resolve/`](.claude/skills/plan-item-resolve/SKILL.md)** -
+  gathers everything available about one already-underway item (its
+  branch/PR state, CI, review comments, tracking-issue discussion, recorded
+  blockers) and proposes a plan to resolve whatever is stalling it, via plan
+  mode, without writing any code. The "Resolve"/"Resume"/"Reconsider" button
+  on a blocked/in-progress/deferred item's dashboard card copies the
+  invoking command for this skill.
+- **[`.claude/skills/add-plan-item/`](.claude/skills/add-plan-item/SKILL.md)** -
+  decides where a newly described piece of work belongs - folded into an
+  unlanded item, a new item in an existing plan, a plan of its own, or
+  tracked nowhere - by running the shared scope check in
+  [`scope-decision.md`](.claude/skills/add-plan-item/scope-decision.md)
+  against live branch and PR state, then proposes the outcome via plan mode.
+- **[`.claude/skills/stacked-pr-maintenance/`](.claude/skills/stacked-pr-maintenance/SKILL.md)** -
+  runs one maintenance pass over a stacked-PR fork-staging workflow: reparents any pull
+  request whose base has landed, closes what has landed by fast-forwarding, restacks
+  branches whose parent moved, and builds the promotion link for every approved,
+  unblocked branch. Deliberately never writes code - a conflict it cannot merge cleanly,
+  or a red check, is reported to the branch's owner and skipped. Invoke it by hand when
+  the stack needs a pass, or register it as a scheduled Routine using the template in
+  [`routine-prompt.md`](.claude/skills/stacked-pr-maintenance/routine-prompt.md). The
+  workflow it maintains, and the read-only tool it computes with, are described in
+  [`.claude/stack/README.md`](.claude/stack/README.md).
+- **[`.claude/skills/local-code-review/`](.claude/skills/local-code-review/SKILL.md)** -
+  reviews the current branch against upstream `main` for bugs and
+  `AGENTS.md` adherence, then hands back an approval-gated plan to fix every
+  finding (including adding missing tests) before you push.
 
 ## Contribution
 
@@ -106,7 +236,9 @@ Example:
 
     Import Strategy:
 
-    - Use relative importing (e.g., from . import utils) always within the package.
+    - Use absolute imports always within the package as this is easier to maintain and clearer to read and understand.
+
+    - Use relative imports always in tests when importing modules defined in the same test folder/package.
 
     - When importing types, use typing extensions instead of typing or the standard library types;
 

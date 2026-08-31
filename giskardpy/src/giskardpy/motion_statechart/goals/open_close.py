@@ -3,40 +3,52 @@ from __future__ import division
 from dataclasses import dataclass, field
 from typing import Optional
 
-from giskardpy.motion_statechart.context import BuildContext
-from giskardpy.motion_statechart.data_types import DefaultWeights
-from giskardpy.motion_statechart.graph_node import Goal, NodeArtifacts
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
-from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from krrood.symbolic_math.symbolic_math import trinary_logic_and
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from giskardpy.motion_statechart.graph_node import Goal, NodeArtifacts
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 
 
 @dataclass(eq=False, repr=False)
 class Open(Goal):
     """
-    Open a container in an environment.
-    Only works with the environment was added as urdf.
-    Assumes that a handle has already been grasped.
-    Can only handle containers with 1 dof, e.g. drawers or doors.
+    Open a 1-dof mechanism in an environment by driving its degree of freedom towards
+    its upper limit while keeping the end effector fixed relative to the grasped part.
+
+    Assumes that the grasped part (e.g. a handle or a bottle cap) has already been
+    grasped. Works with any mechanism whose grasped part hangs below an
+    :class:`ActiveConnection1DOF`, e.g. drawers, doors, or screw caps.
     """
 
     tip_link: KinematicStructureEntity = field(kw_only=True)
-    """end effector that is grasping the handle"""
+    """
+    End effector that is grasping the handle.
+    """
 
     environment_link: KinematicStructureEntity = field(kw_only=True)
-    """name of the handle that was grasped"""
+    """
+    Name of the handle that was grasped.
+    """
 
     goal_joint_state: Optional[float] = field(default=None, kw_only=True)
-    """goal state for the container. default is maximum joint state."""
+    """
+    Goal state for the container.
 
-    weight: float = field(default=DefaultWeights.WEIGHT_ABOVE_CA, kw_only=True)
+    default is maximum joint state.
+    """
 
-    def expand(self, context: BuildContext) -> None:
+    weight: float = field(
+        default=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE, kw_only=True
+    )
+
+    def expand(self, context: MotionStatechartContext) -> None:
         self.connection = self.environment_link.get_first_parent_connection_of_type(
             ActiveConnection1DOF
         )
@@ -60,15 +72,13 @@ class Open(Goal):
                     name="hold handle",
                     root_link=self.environment_link,
                     tip_link=self.tip_link,
-                    goal_pose=HomogeneousTransformationMatrix(
-                        reference_frame=self.tip_link, child_frame=self.tip_link
-                    ),
+                    goal_pose=Pose(reference_frame=self.tip_link),
                     weight=self.weight,
                 ),
             ]
         )
 
-    def build(self, context: BuildContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=trinary_logic_and(
                 *[node.observation_variable for node in self.nodes]
@@ -79,24 +89,36 @@ class Open(Goal):
 @dataclass(eq=False, repr=False)
 class Close(Open):
     """
-    Open a container in an environment.
-    Only works with the environment was added as urdf.
-    Assumes that a handle has already been grasped.
-    Can only handle containers with 1 dof, e.g. drawers or doors.
+    Close a 1-dof mechanism in an environment by driving its degree of freedom towards
+    its lower limit while keeping the end effector fixed relative to the grasped part.
+
+    Assumes that the grasped part (e.g. a handle or a bottle cap) has already been
+    grasped. Works with any mechanism whose grasped part hangs below an
+    :class:`ActiveConnection1DOF`, e.g. drawers, doors, or screw caps.
     """
 
     tip_link: KinematicStructureEntity = field(kw_only=True)
-    """end effector that is grasping the handle"""
+    """
+    End effector that is grasping the handle.
+    """
 
     environment_link: KinematicStructureEntity = field(kw_only=True)
-    """name of the handle that was grasped"""
+    """
+    Name of the handle that was grasped.
+    """
 
     goal_joint_state: Optional[float] = field(default=None, kw_only=True)
-    """goal state for the container. default is maximum joint state."""
+    """
+    Goal state for the mechanism.
 
-    weight: float = field(default=DefaultWeights.WEIGHT_ABOVE_CA, kw_only=True)
+    default is minimum joint state.
+    """
 
-    def expand(self, context: BuildContext) -> None:
+    weight: float = field(
+        default=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE, kw_only=True
+    )
+
+    def expand(self, context: MotionStatechartContext) -> None:
         self.connection = self.environment_link.get_first_parent_connection_of_type(
             ActiveConnection1DOF
         )
@@ -120,15 +142,13 @@ class Close(Open):
                     name="hold handle",
                     root_link=self.environment_link,
                     tip_link=self.tip_link,
-                    goal_pose=HomogeneousTransformationMatrix(
-                        reference_frame=self.tip_link, child_frame=self.tip_link
-                    ),
+                    goal_pose=Pose(reference_frame=self.tip_link),
                     weight=self.weight,
                 ),
             ]
         )
 
-    def build(self, context: BuildContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(
             observation=trinary_logic_and(
                 *[node.observation_variable for node in self.nodes]
