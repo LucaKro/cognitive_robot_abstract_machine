@@ -1,4 +1,5 @@
 import pytest
+import rclpy
 from sqlalchemy import select
 
 # The alternative mapping needs to be imported for the stretch to work properly
@@ -96,7 +97,7 @@ def complex_plan(mutable_model_world):
             ),
             arm=Arms.LEFT,
             grasp_description=GraspDescription(
-                ApproachDirection.LEFT,
+                ApproachDirection.FRONT,
                 VerticalAlignment.NoAlignment,
                 robot_view.left_arm.end_effector,
             ),
