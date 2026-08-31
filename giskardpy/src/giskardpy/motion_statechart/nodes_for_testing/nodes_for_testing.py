@@ -294,6 +294,21 @@ class NodeObservingAPredicate(MotionStatechartNode):
         return NodeArtifacts(observation=sm.Scalar(self.watched_node.is_succeeded))
 
 
+@dataclass(eq=False, repr=False)
+class NodeObservingGoalReached(MotionStatechartNode):
+    """
+    A node whose observation reads whether another node reached its goal.
+    """
+
+    watched_node: MotionStatechartNode = field(default=None, kw_only=True)
+    """
+    The node whose goal this node observes.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar(self.watched_node.goal_reached))
+
+
 # %% goals that end their child
 
 

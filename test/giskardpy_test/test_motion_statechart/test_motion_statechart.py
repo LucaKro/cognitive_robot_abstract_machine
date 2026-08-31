@@ -66,6 +66,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     GoalWithChildFailingOnItsOwn,
     GoalWithChildStartingLate,
     NodeObservingAPredicate,
+    NodeObservingGoalReached,
     NodeObservingNothingYet,
     ConstTrueNode,
     TestGoal,
@@ -2809,7 +2810,7 @@ class TestGoalReached:
             interrupted: LifeCycleValues.INTERRUPTED,
         }
         assert {
-            node: msc.goal_reached_state[node]
+            node: node.goal_reached_state
             for node in (not_started, running, succeeded, failed, interrupted)
         } == {
             not_started: ObservationStateValues.UNKNOWN,
@@ -2917,6 +2918,51 @@ class TestGoalReached:
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.FALSE,
         }
+
+    def test_an_observation_expression_reads_the_previous_control_cycle(self):
+        """
+        The observation update runs before whether a node reached its goal is derived,
+        so an observation expression reads what the previous control cycle left behind.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                watched := CountControlCycles(control_cycles=2),
+                observer := NodeObservingGoalReached(watched_node=watched),
+            ]
+        )
+
+        executor = _compile_msc(msc)
+        for _ in range(2):
+            executor.tick()
+
+        assert watched.goal_reached_state == ObservationStateValues.TRUE
+        assert observer.observation_state == ObservationStateValues.FALSE
+
+        executor.tick()
+
+        assert observer.observation_state == ObservationStateValues.TRUE
+
+    def test_a_condition_reads_the_current_control_cycle(self):
+        """
+        Whether a node reached its goal is derived before the life cycle update, so a
+        transition condition acts on it on the cycle the goal is reached.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                watched := CountControlCycles(control_cycles=2),
+                waiting := ConstFalseNode(),
+            ]
+        )
+        waiting.start_condition = watched.goal_reached
+
+        executor = _compile_msc(msc)
+        for _ in range(2):
+            executor.tick()
+
+        assert watched.goal_reached_state == ObservationStateValues.TRUE
+        assert waiting.life_cycle_state == LifeCycleValues.RUNNING
 
 
 # %% life cycle predicates

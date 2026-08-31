@@ -487,6 +487,33 @@ class GoalReachedVariable(NodeStateVariable):
     def resolve(self) -> ObservationStateValues:
         return self.motion_statechart_node.goal_reached_state
 
+    @classmethod
+    def replace_in(cls, expression: Scalar) -> Scalar:
+        """
+        Replaces every goal reached variable in `expression` by what it stands for, so
+        the value is read off the life cycle and observation states the expression is
+        compiled against.
+
+        :param expression: The expression to replace them in.
+        :return: `expression` with every goal reached variable replaced.
+        """
+        if isinstance(expression, cls):
+            return expression.motion_statechart_node._create_goal_reached()
+        variables = [
+            variable
+            for variable in expression.free_variables()
+            if isinstance(variable, cls)
+        ]
+        if not variables:
+            return expression
+        return expression.substitute(
+            variables,
+            [
+                variable.motion_statechart_node._create_goal_reached()
+                for variable in variables
+            ],
+        )
+
 
 @dataclass
 class DebugExpression:
@@ -1217,7 +1244,32 @@ class MotionStatechartNode:
         :return: Whether this node has reached its goal: what it observes while it runs,
             and the verdict it earned once it has ended.
         """
-        return ObservationStateValues(self.motion_statechart.goal_reached_state[self])
+        if self.life_cycle_state.is_terminal:
+            return LifeCyclePredicate.IS_SUCCEEDED.value.truth_value(
+                self.life_cycle_state
+            )
+        return ObservationStateValues(self.observation_state)
+
+    def _create_goal_reached(self) -> sm.Scalar:
+        """
+        The same value as :attr:`goal_reached_state`, but read off the life cycle and
+        observation variables rather than off the states they stand for.
+
+        :return: The trinary value :attr:`goal_reached` stands for.
+        """
+        return sm.if_eq_cases(
+            a=self.life_cycle_variable,
+            b_result_cases=[
+                (
+                    int(state),
+                    sm.Scalar(
+                        float(LifeCyclePredicate.IS_SUCCEEDED.value.truth_value(state))
+                    ),
+                )
+                for state in sorted(LifeCycleValues.terminal_states())
+            ],
+            else_result=sm.Scalar(self.observation_variable),
+        )
 
     @property
     def reset_condition(self) -> Scalar:
