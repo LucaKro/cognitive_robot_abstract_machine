@@ -75,8 +75,6 @@ CATKIN_IGNORE
 poetry.lock
 uv.lock
 
-cram-env
-
 # Created during tests
 file::memory:
 
