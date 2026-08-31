@@ -10,7 +10,6 @@ from functools import cached_property
 
 import numpy as np
 from typing_extensions import (
-    Callable,
     ClassVar,
     Dict,
     Any,
@@ -75,6 +74,7 @@ from giskardpy.utils.utils import string_shortener
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.motion_statechart import (
         MotionStatechart,
+        NextLifeCycle,
     )
 
 logger = logging.getLogger(__name__)
@@ -412,15 +412,27 @@ class NodeStateVariable(FloatVariable):
         """
         return self.motion_statechart_node.unique_name
 
+    def as_expression(self, next_life_cycle: Optional[NextLifeCycle] = None) -> Scalar:
+        """
+        A variable the compiled updaters read directly stands for itself; one that is
+        only a name for something else overrides this.
+
+        :param next_life_cycle: The life cycle states every node reaches this control
+            cycle, for a variable whose value depends on them.
+        :return: What this variable stands for.
+        """
+        return self
+
     @classmethod
     def replace_in(
-        cls, expression: Scalar, replacement: Callable[[Self], Scalar]
+        cls, expression: Scalar, next_life_cycle: Optional[NextLifeCycle] = None
     ) -> Scalar:
         """
-        Replaces every variable of this type in `expression` by what it stands for.
+        Replaces every variable of this type in `expression` by what it stands for, see
+        :meth:`as_expression`.
 
         :param expression: The expression to replace them in.
-        :param replacement: Builds the expression that replaces one variable.
+        :param next_life_cycle: Passed on to :meth:`as_expression`.
         :return: `expression` with every variable of this type replaced.
         """
         variables = [
@@ -429,7 +441,8 @@ class NodeStateVariable(FloatVariable):
             if isinstance(variable, cls)
         ]
         return expression.substitute(
-            variables, [replacement(variable) for variable in variables]
+            variables,
+            [variable.as_expression(next_life_cycle) for variable in variables],
         )
 
 
@@ -487,6 +500,16 @@ class LifeCyclePredicateVariable(NodeStateVariable):
             self.motion_statechart_node.life_cycle_state
         )
 
+    def as_expression(self, next_life_cycle: Optional[NextLifeCycle] = None) -> Scalar:
+        """
+        :param next_life_cycle: The life cycle states every node reaches this control
+            cycle, which this predicate is read in.
+        :return: The predicate evaluated in the life cycle state of its node.
+        """
+        return self.predicate.value.expression(
+            next_life_cycle.life_cycle_of(self.motion_statechart_node)
+        )
+
 
 @dataclass(repr=False, eq=False, init=False)
 class GoalReachedVariable(NodeStateVariable):
@@ -508,8 +531,10 @@ class GoalReachedVariable(NodeStateVariable):
     def resolve(self) -> ObservationStateValues:
         return self.motion_statechart_node.goal_reached_state
 
-    def as_expression(self) -> Scalar:
+    def as_expression(self, next_life_cycle: Optional[NextLifeCycle] = None) -> Scalar:
         """
+        :param next_life_cycle: Unused, because this reads the life cycle state its node
+            entered the control cycle with.
         :return: The same value as :meth:`resolve`, read off the life cycle and
             observation variables of the node rather than off their current states.
         """

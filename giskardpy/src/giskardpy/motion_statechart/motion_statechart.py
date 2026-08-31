@@ -303,10 +303,7 @@ class ObservationState(State):
                 b_result_cases=[
                     (
                         int(LifeCycleValues.RUNNING),
-                        GoalReachedVariable.replace_in(
-                            node._observation_expression,
-                            lambda variable: variable.as_expression(),
-                        ),
+                        GoalReachedVariable.replace_in(node._observation_expression),
                     ),
                     (
                         int(LifeCycleValues.PAUSED),
@@ -416,30 +413,23 @@ class NextLifeCycle:
                 a=node.life_cycle_variable,
                 b_result_cases=node.create_lifecycle_transitions().as_cases(),
                 else_result=sm.Scalar(node.life_cycle_variable),
-            ),
-            lambda variable: variable.as_expression(),
+            )
         )
-        expression = LifeCyclePredicateVariable.replace_in(
-            transitions, lambda variable: self._replacement_for(node, variable)
-        )
+        expression = LifeCyclePredicateVariable.replace_in(transitions, self)
         self._nodes_being_built.pop()
         self._expressions[node.index] = expression
         return expression
 
-    def _replacement_for(
-        self, reader: MotionStatechartNode, variable: LifeCyclePredicateVariable
-    ) -> sm.Scalar:
+    def life_cycle_of(self, node: MotionStatechartNode) -> sm.Scalar:
         """
-        :param reader: The node whose expression reads the predicate.
-        :param variable: The predicate to replace by an expression.
-        :return: The predicate evaluated in the life cycle state its node reaches this
-            control cycle, or the one `reader` entered with if it reads about itself.
+        :param node: The node whose life cycle state to read.
+        :return: The state `node` reaches this control cycle, or the one it entered with
+            if it is the node whose expression is currently being built, because that
+            expression is what decides the other one.
         """
-        if variable.motion_statechart_node is reader:
-            return variable.predicate.value.expression(reader.life_cycle_variable)
-        return variable.predicate.value.expression(
-            self.of(variable.motion_statechart_node)
-        )
+        if node is self._nodes_being_built[-1]:
+            return node.life_cycle_variable
+        return self.of(node)
 
 
 @dataclass(repr=False, eq=False)
