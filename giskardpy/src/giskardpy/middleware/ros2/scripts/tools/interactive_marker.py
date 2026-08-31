@@ -14,7 +14,7 @@ from semantic_digital_twin.world_description.world_entity import (
 from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl, Marker
 from visualization_msgs.msg import InteractiveMarkerFeedback
 
-from giskardpy.data_types.exceptions import UnpairedChainEndpointParametersError
+from giskardpy.data_types.exceptions import UnpairedKinematicChainParametersError
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import CountSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
@@ -28,7 +28,7 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
 
 @dataclass(frozen=True)
-class ChainEndpoints:
+class KinematicChain:
     """
     The two links that delimit a kinematic chain a marker controls.
     """
@@ -46,7 +46,7 @@ class ChainEndpoints:
     @classmethod
     def pair_up(
         cls, root_links: List[str], tip_links: List[str]
-    ) -> List[ChainEndpoints]:
+    ) -> List[KinematicChain]:
         """
         Pair each root link with the tip link at the same index.
 
@@ -56,7 +56,7 @@ class ChainEndpoints:
         :return: The endpoints of every chain.
         """
         if len(root_links) != len(tip_links):
-            raise UnpairedChainEndpointParametersError(
+            raise UnpairedKinematicChainParametersError(
                 root_links=root_links, tip_links=tip_links
             )
         return [
@@ -108,7 +108,7 @@ class InteractiveMarkerNode:
     Timeout in seconds for motion execution.
     """
 
-    chains: List[ChainEndpoints] | None = None
+    chains: List[KinematicChain] | None = None
     """
     The kinematic chains to create a marker for.
 
@@ -155,7 +155,7 @@ class InteractiveMarkerNode:
         self._initialize_markers()
         self._setup_marker_server()
 
-    def _read_chains_from_parameters(self) -> List[ChainEndpoints]:
+    def _read_chains_from_parameters(self) -> List[KinematicChain]:
         """
         Pair up the chains declared by the ``root_links`` and ``tip_links`` node
         parameters.
@@ -171,13 +171,13 @@ class InteractiveMarkerNode:
                 ("tip_links", Parameter.Type.STRING_ARRAY),
             ],
         )
-        return ChainEndpoints.pair_up(
+        return KinematicChain.pair_up(
             self.giskard.node_handle.get_parameter("root_links").value,
             self.giskard.node_handle.get_parameter("tip_links").value,
         )
 
     @classmethod
-    def start_in_background_thread(cls, chains: List[ChainEndpoints]) -> Thread:
+    def start_in_background_thread(cls, chains: List[KinematicChain]) -> Thread:
         """
         Start an interactive marker node for the given kinematic chains in a daemon
         thread.

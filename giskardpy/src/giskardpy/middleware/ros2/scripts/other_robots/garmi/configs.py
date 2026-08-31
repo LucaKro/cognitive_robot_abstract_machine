@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from giskardpy.middleware.ros2.command_publishing import MultiDOFCommandFormat
 from giskardpy.middleware.ros2.robot_interface_config import RobotInterfaceConfig
 from giskardpy.middleware.ros2.scripts.tools.interactive_marker import (
-    ChainEndpoints,
+    KinematicChain,
 )
 from giskardpy.model.world_config import WorldWithOmniDriveRobot
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -69,8 +69,8 @@ Names of the two prismatic torso lift joints.
 """
 
 GARMI_INTERACTIVE_MARKER_CHAINS = [
-    ChainEndpoints(root_link="arm_mount_left_link", tip_link="left_fr3_hand_tcp"),
-    ChainEndpoints(root_link="map", tip_link="right_fr3_hand_tcp"),
+    KinematicChain(root_link="arm_mount_left_link", tip_link="left_fr3_hand_tcp"),
+    KinematicChain(root_link="map", tip_link="right_fr3_hand_tcp"),
 ]
 """
 The kinematic chains controllable via interactive markers.

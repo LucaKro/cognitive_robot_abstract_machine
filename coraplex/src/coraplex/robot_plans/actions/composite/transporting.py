@@ -134,6 +134,7 @@ class TransportAction(ActionDescription):
                     grasp_description=self.grasp_description,
                 ),
                 ParkArmsAction(Arms.BOTH),
+                MoveTorsoAction(TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_description),
                 a(PlaceAction)(
                     object_designator=self.object_designator.root,

@@ -26,7 +26,7 @@ class SetupException(GiskardException):
 
 
 @dataclass
-class UnpairedChainEndpointParametersError(SetupException):
+class UnpairedKinematicChainParametersError(SetupException):
     """
     Raised when the ``root_links`` and ``tip_links`` parameters differ in length, so
     their entries cannot be paired into kinematic chains.

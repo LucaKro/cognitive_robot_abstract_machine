@@ -663,7 +663,6 @@ class MJCFParser(WorldModelParser):
                 )
             else:
                 lower_limits = DerivativeMap()
-                # Note: Parse joint limits as float instead of numpy float, otherwise it will trigger .to_np() on symbolic expressions with free variables in giskardpy -> raises Exception
                 lower_limits.position = float(mujoco_joint.range[0])
                 upper_limits = DerivativeMap()
                 upper_limits.position = float(mujoco_joint.range[1])

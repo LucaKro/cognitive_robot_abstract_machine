@@ -1,7 +1,7 @@
 import pytest
 
-from giskardpy.data_types.exceptions import UnpairedChainEndpointParametersError
-from giskardpy.middleware.ros2.scripts.tools.interactive_marker import ChainEndpoints
+from giskardpy.data_types.exceptions import UnpairedKinematicChainParametersError
+from giskardpy.middleware.ros2.scripts.tools.interactive_marker import KinematicChain
 
 # %% pairing root links with tip links
 
@@ -17,19 +17,19 @@ Tip links belonging to :data:`ROOT_LINKS`, in the same order.
 
 
 def test_endpoints_are_paired_by_index():
-    chains = ChainEndpoints.pair_up(ROOT_LINKS, TIP_LINKS)
+    chains = KinematicChain.pair_up(ROOT_LINKS, TIP_LINKS)
 
     assert chains == [
-        ChainEndpoints(root_link=ROOT_LINKS[0], tip_link=TIP_LINKS[0]),
-        ChainEndpoints(root_link=ROOT_LINKS[1], tip_link=TIP_LINKS[1]),
+        KinematicChain(root_link=ROOT_LINKS[0], tip_link=TIP_LINKS[0]),
+        KinematicChain(root_link=ROOT_LINKS[1], tip_link=TIP_LINKS[1]),
     ]
 
 
 def test_more_root_links_than_tip_links_raises():
-    with pytest.raises(UnpairedChainEndpointParametersError):
-        ChainEndpoints.pair_up(ROOT_LINKS, TIP_LINKS[:1])
+    with pytest.raises(UnpairedKinematicChainParametersError):
+        KinematicChain.pair_up(ROOT_LINKS, TIP_LINKS[:1])
 
 
 def test_more_tip_links_than_root_links_raises():
-    with pytest.raises(UnpairedChainEndpointParametersError):
-        ChainEndpoints.pair_up(ROOT_LINKS[:1], TIP_LINKS)
+    with pytest.raises(UnpairedKinematicChainParametersError):
+        KinematicChain.pair_up(ROOT_LINKS[:1], TIP_LINKS)
