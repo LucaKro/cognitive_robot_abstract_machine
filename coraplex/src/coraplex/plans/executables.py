@@ -340,13 +340,13 @@ class GiskardExecutable(Executable):
         executor.context.cleanup()
 
         if not executor.motion_statechart.is_end_motion():
-            failed_nodes = [
+            unfinished_nodes = [
                 node
                 for node in motion_state_chart.nodes
                 if node.life_cycle_state
                 not in [LifeCycleValues.SUCCEEDED, LifeCycleValues.NOT_STARTED]
             ]
-            motion_did_not_finish = MotionDidNotFinish(failed_nodes)
+            motion_did_not_finish = MotionDidNotFinish(unfinished_nodes)
             logger.error(motion_did_not_finish.error_message())
             raise motion_did_not_finish
 

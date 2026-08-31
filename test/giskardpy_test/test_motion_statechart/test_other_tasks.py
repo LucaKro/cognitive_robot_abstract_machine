@@ -740,6 +740,29 @@ def test_angle_goal(pr2_world_state_reset: World):
 
 
 class TestOpenClose:
+    def test_the_mechanism_is_open_once_its_parts_reached_their_goals(
+        self, prismatic_bot2: World
+    ):
+        """
+        Neither part is ended by the goal that runs them, so a part something else ends
+        keeps counting through the verdict it earned rather than through the observation
+        behind it, which is gone by then.
+        """
+        motion_statechart = MotionStatechart()
+        motion_statechart.add_node(
+            open_goal := Open(
+                environment_link=prismatic_bot2.get_body_by_name("robot"),
+                tip_link=prismatic_bot2.get_body_by_name("robot2"),
+            )
+        )
+        Executor(MotionStatechartContext(world=prismatic_bot2)).compile(
+            motion_statechart=motion_statechart
+        )
+
+        assert set(open_goal._observation_expression.free_variables()) == {
+            part.goal_reached for part in open_goal.nodes
+        }
+
     def test_open(self, pr2_world_copy, tmp_path):
 
         with pr2_world_copy.modify_world():

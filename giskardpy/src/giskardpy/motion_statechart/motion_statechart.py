@@ -415,12 +415,35 @@ class NextLifeCycle:
                 else_result=sm.Scalar(node.life_cycle_variable),
             )
         )
-        expression = LifeCyclePredicateVariable.replace_in(transitions, self)
+        expression = self._resolve_predicates_in(transitions)
         self._nodes_being_built.pop()
         self._expressions[node.index] = expression
         return expression
 
-    def life_cycle_of(self, node: MotionStatechartNode) -> sm.Scalar:
+    def _resolve_predicates_in(self, expression: sm.Scalar) -> sm.Scalar:
+        """
+        Replaces every life cycle predicate in `expression` by the value it takes in the
+        state its node reaches this control cycle.
+
+        :param expression: The expression to replace them in.
+        :return:`expression` with every life cycle predicate replaced.
+        """
+        variables = [
+            variable
+            for variable in expression.free_variables()
+            if isinstance(variable, LifeCyclePredicateVariable)
+        ]
+        return expression.substitute(
+            variables,
+            [
+                variable.predicate.value.expression(
+                    self._life_cycle_of(variable.motion_statechart_node)
+                )
+                for variable in variables
+            ],
+        )
+
+    def _life_cycle_of(self, node: MotionStatechartNode) -> sm.Scalar:
         """
         :param node: The node whose life cycle state to read.
         :return: The state `node` reaches this control cycle, or the one it entered with

@@ -93,6 +93,9 @@ class TryInOrder(Goal):
         progress; which of the two happened is decided by what the alternative observes
         as it ends, not here. An observation that is merely still false means the
         alternative has not arrived yet, and is no reason to abandon it.
+
+        A progress monitor ends with the alternative it watches, so it does not go on
+        measuring progress against a node that has already been decided.
         """
         self._check_has_children()
         self._alternatives = list(self.nodes)
@@ -108,6 +111,7 @@ class TryInOrder(Goal):
             )
             self.add_node(still_progressing)
             still_progressing.start_condition = node.is_running
+            still_progressing.end_condition = node.is_terminated
             node.end_condition = trinary_logic_or(
                 node.observation_variable,
                 trinary_logic_not(still_progressing.observation_variable),

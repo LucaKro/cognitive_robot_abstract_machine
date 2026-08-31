@@ -166,7 +166,7 @@ class ConditionNotSatisfied(PlanFailure):
 @dataclass
 class MotionDidNotFinish(PlanFailure):
 
-    failed_motions: List[MotionStatechartNode]
+    unfinished_motions: List[MotionStatechartNode]
     """
     The nodes that did not succeed, whether they failed, were interrupted or never
     ended.
@@ -176,9 +176,9 @@ class MotionDidNotFinish(PlanFailure):
         reports = ", ".join(
             f"{motion.unique_name} "
             f"({TaskStatus.from_life_cycle_state(motion.life_cycle_state).name})"
-            for motion in self.failed_motions
+            for motion in self.unfinished_motions
         )
-        return f"Motion did not finish, following motions failed: {reports}"
+        return f"Motion did not finish, following motions did not succeed: {reports}"
 
     def suggest_correction(self) -> str:
         return ""

@@ -21,6 +21,7 @@ from giskardpy.motion_statechart.exceptions import GoalWithoutChildrenError
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.monitors.payload_monitors import CountControlCycles
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
@@ -151,6 +152,30 @@ def test_try_in_order_single_child():
     _compile_and_tick(goal)
 
     assert goal.observation_state == ObservationStateValues.TRUE
+
+
+# %% progress monitors
+
+
+def test_a_progress_monitor_ends_with_the_alternative_it_watches():
+    """
+    A monitor that outlived its alternative would keep measuring progress against a node
+    that has ended, and would eventually report that node as stalled long after it was
+    decided.
+    """
+    first = ConstFalseNode(name="first")
+    second = ConstTrueNode(name="second")
+    goal = TryInOrder(nodes=[first, second], give_up_after=GIVE_UP_AFTER)
+    _compile_and_tick(goal, alternatives_to_abandon=1)
+
+    monitors = [node for node in goal.nodes if isinstance(node, StillProgressing)]
+
+    # The first alternative was abandoned because its monitor saw it stall, the second
+    # succeeded while its monitor was still seeing progress.
+    assert [monitor.life_cycle_state for monitor in monitors] == [
+        LifeCycleValues.FAILED,
+        LifeCycleValues.SUCCEEDED,
+    ]
 
 
 # %% alternatives that need more than one tick to reach their goal

@@ -72,10 +72,7 @@ from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.utils.utils import string_shortener
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.motion_statechart import (
-        MotionStatechart,
-        NextLifeCycle,
-    )
+    from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 
 logger = logging.getLogger(__name__)
 
@@ -412,27 +409,22 @@ class NodeStateVariable(FloatVariable):
         """
         return self.motion_statechart_node.unique_name
 
-    def as_expression(self, next_life_cycle: Optional[NextLifeCycle] = None) -> Scalar:
+    def as_expression(self) -> Scalar:
         """
         A variable the compiled updaters read directly stands for itself; one that is
         only a name for something else overrides this.
 
-        :param next_life_cycle: The life cycle states every node reaches this control
-            cycle, for a variable whose value depends on them.
         :return: What this variable stands for.
         """
         return self
 
     @classmethod
-    def replace_in(
-        cls, expression: Scalar, next_life_cycle: Optional[NextLifeCycle] = None
-    ) -> Scalar:
+    def replace_in(cls, expression: Scalar) -> Scalar:
         """
         Replaces every variable of this type in `expression` by what it stands for, see
         :meth:`as_expression`.
 
         :param expression: The expression to replace them in.
-        :param next_life_cycle: Passed on to :meth:`as_expression`.
         :return: `expression` with every variable of this type replaced.
         """
         variables = [
@@ -442,7 +434,7 @@ class NodeStateVariable(FloatVariable):
         ]
         return expression.substitute(
             variables,
-            [variable.as_expression(next_life_cycle) for variable in variables],
+            [variable.as_expression() for variable in variables],
         )
 
 
@@ -473,6 +465,11 @@ class LifeCycleVariable(NodeStateVariable):
 class LifeCyclePredicateVariable(NodeStateVariable):
     """
     A symbol representing a trinary test on the life cycle state of a node.
+
+    Unlike the other node state variables this one cannot be expanded on its own, because
+    it is read in the state its node reaches this control cycle rather than the one it
+    entered with. See
+    :meth:`~giskardpy.motion_statechart.motion_statechart.NextLifeCycle.of`.
     """
 
     predicate: LifeCyclePredicate = field(kw_only=True)
@@ -500,16 +497,6 @@ class LifeCyclePredicateVariable(NodeStateVariable):
             self.motion_statechart_node.life_cycle_state
         )
 
-    def as_expression(self, next_life_cycle: Optional[NextLifeCycle] = None) -> Scalar:
-        """
-        :param next_life_cycle: The life cycle states every node reaches this control
-            cycle, which this predicate is read in.
-        :return: The predicate evaluated in the life cycle state of its node.
-        """
-        return self.predicate.value.expression(
-            next_life_cycle.life_cycle_of(self.motion_statechart_node)
-        )
-
 
 @dataclass(repr=False, eq=False, init=False)
 class GoalReachedVariable(NodeStateVariable):
@@ -531,10 +518,8 @@ class GoalReachedVariable(NodeStateVariable):
     def resolve(self) -> ObservationStateValues:
         return self.motion_statechart_node.goal_reached_state
 
-    def as_expression(self, next_life_cycle: Optional[NextLifeCycle] = None) -> Scalar:
+    def as_expression(self) -> Scalar:
         """
-        :param next_life_cycle: Unused, because this reads the life cycle state its node
-            entered the control cycle with.
         :return: The same value as :meth:`resolve`, read off the life cycle and
             observation variables of the node rather than off their current states.
         """
