@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import trimesh
+import webcolors
 
 from krrood.adapters.json_serializer import from_json, to_json
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -512,3 +513,71 @@ def test_distinct_colors_returns_the_requested_number_of_different_colors():
 
     assert len(colors) == 6
     assert len({color.to_rgba() for color in colors}) == 6
+
+
+# %% building a named color
+
+
+def test_named_colors_build_the_class_they_are_asked_of():
+    """
+    A named color builds the class it is asked of, so a subclass of Color gets one of
+    its own kind rather than a plain color.
+    """
+
+    class SubclassedColor(Color):
+        pass
+
+    named_colors = [
+        SubclassedColor.RED(),
+        SubclassedColor.GREEN(),
+        SubclassedColor.BLUE(),
+        SubclassedColor.YELLOW(),
+        SubclassedColor.CYAN(),
+        SubclassedColor.MAGENTA(),
+        SubclassedColor.WHITE(),
+        SubclassedColor.BLACK(),
+        SubclassedColor.GRAY(),
+        SubclassedColor.BEIGE(),
+        SubclassedColor.ORANGE(),
+    ]
+
+    assert [type(color) for color in named_colors] == [SubclassedColor] * len(
+        named_colors
+    )
+
+
+# %% naming a color
+
+
+def test_closest_css3_name_names_a_color_the_palette_defines():
+    """
+    A color the palette defines exactly is named by that very entry.
+    """
+    red = Color(*(component / 255 for component in webcolors.name_to_rgb("red")))
+
+    assert red.closest_css3_name() == "red"
+
+
+def test_closest_css3_name_names_the_nearest_color_the_palette_defines():
+    """
+    A color the palette does not define takes the name of the nearest one.
+    """
+    red, green, blue = webcolors.name_to_rgb("steelblue")
+    off_steelblue = Color(*((red + 1) / 255, (green + 1) / 255, (blue - 1) / 255))
+
+    assert off_steelblue.closest_css3_name() == "steelblue"
+
+
+def test_distinct_colors_of_a_group_get_distinct_css3_names():
+    """
+    A group of distinct colors is named by as many distinct names.
+
+    Callers hand these names out as the only handle on the thing each color marks, so
+    two colors sharing a name makes two things indistinguishable rather than merely
+    alike.
+    """
+    colors = Color.distinct_colors(8)
+
+    names = {color.closest_css3_name() for color in colors}
+
+    assert len(names) == 8

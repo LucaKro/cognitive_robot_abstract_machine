@@ -9,13 +9,14 @@ import shutil
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass, field, fields
-from functools import cached_property
+from functools import cache, cached_property
 from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
 import trimesh
 import trimesh.exchange.stl
+import webcolors
 from PIL import Image
 from plyfile import PlyData
 from trimesh.visual.texture import TextureVisuals, SimpleMaterial
@@ -103,51 +104,7 @@ class Color:
         return (self.R, self.G, self.B)
 
     @classmethod
-    def RED(self):
-        return Color(1, 0, 0)
-
-    @classmethod
-    def YELLOW(self):
-        return Color(1, 1, 0)
-
-    @classmethod
-    def GREEN(self):
-        return Color(0, 1, 0)
-
-    @classmethod
-    def CYAN(self):
-        return Color(0, 1, 1)
-
-    @classmethod
-    def BLUE(self):
-        return Color(0, 0, 1)
-
-    @classmethod
-    def MAGENTA(self):
-        return Color(1, 0, 1)
-
-    @classmethod
-    def WHITE(self):
-        return Color(1, 1, 1)
-
-    @classmethod
-    def BLACK(self):
-        return Color(0, 0, 0)
-
-    @classmethod
-    def GRAY(self):
-        return Color(0.498, 0.498, 0.498)
-
-    @classmethod
-    def BEIGE(self):
-        return Color(1, 0.827, 0.6078)
-
-    @classmethod
-    def ORANGE(self):
-        return Color(1, 0.647, 0)
-
-    @classmethod
-    def from_list(cls, color: List[float]):
+    def from_list(cls, color: List[float]) -> Self:
         """
         Set the rgba_color from a list of RGBA values.
 
@@ -161,7 +118,7 @@ class Color:
             raise ValueError("Color list must have 3 or 4 elements")
 
     @classmethod
-    def from_rgb(cls, rgb: List[float]):
+    def from_rgb(cls, rgb: List[float]) -> Self:
         """
         Set the rgba_color from a list of RGB values.
 
@@ -170,17 +127,13 @@ class Color:
         return cls(*rgb, 1)
 
     @classmethod
-    def from_rgba(cls, rgba: List[float]):
+    def from_rgba(cls, rgba: List[float]) -> Self:
         """
         Set the rgba_color from a list of RGBA values.
 
         :param rgba: The list of RGBA values
         """
         return cls(*rgba)
-
-    @classmethod
-    def PINK(cls) -> Self:
-        return cls(1, 0, 1, 1)
 
     @classmethod
     def BLACK(cls) -> Self:
@@ -215,8 +168,16 @@ class Color:
         return cls(1, 0, 1, 1)
 
     @classmethod
-    def GREY(cls) -> Self:
+    def GRAY(cls) -> Self:
         return cls(0.5, 0.5, 0.5, 1)
+
+    @classmethod
+    def BEIGE(cls) -> Self:
+        return cls(1, 0.827, 0.6078, 1)
+
+    @classmethod
+    def ORANGE(cls) -> Self:
+        return cls(1, 0.647, 0, 1)
 
     @classmethod
     def distinct_colors(cls, count: int) -> List[Self]:
@@ -240,6 +201,35 @@ class Color:
             )
             for index in range(count)
         ]
+
+    @staticmethod
+    @cache
+    def _css3_palette() -> Dict[str, Tuple[int, int, int]]:
+        """
+        :return: Every color the CSS3 specification names, mapped to its red, green and
+            blue values.
+        """
+        return {
+            name: tuple(webcolors.name_to_rgb(name, spec=webcolors.CSS3))
+            for name in webcolors.names(webcolors.CSS3)
+        }
+
+    def closest_css3_name(self) -> str:
+        """
+        :return: The name CSS3 gives the color nearest to this one, measured as the
+            squared distance between their red, green and blue values.
+
+        ..note:: Colors from :meth:`distinct_colors` take distinct names only up to
+            ten of them, past which two of them start to share a name.
+        """
+        palette = self._css3_palette()
+        rgb = tuple(int(round(component * 255)) for component in self.to_rgb())
+        return min(
+            palette,
+            key=lambda name: sum(
+                (own - other) ** 2 for own, other in zip(rgb, palette[name])
+            ),
+        )
 
 
 @dataclass
