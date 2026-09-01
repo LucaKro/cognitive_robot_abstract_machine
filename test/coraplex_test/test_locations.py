@@ -12,7 +12,6 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.locations.factories import (
-    STANDING_DISTANCE_ARM_LENGTH_FRACTION,
     reachability_location,
 )
 from coraplex.view_manager import ViewManager
@@ -241,7 +240,7 @@ def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target
     # under pytest.approx no matter the tolerance.
     expected_distance = (
         float(ViewManager.get_arm_view(Arms.RIGHT, robot).approximate_length())
-        * STANDING_DISTANCE_ARM_LENGTH_FRACTION
+        * 0.66
     )
     target_position = target.to_position().to_np()[:2]
 
