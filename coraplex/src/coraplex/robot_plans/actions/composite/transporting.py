@@ -90,13 +90,12 @@ class TransportAction(ActionDescription):
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
-                    domain=reachability_location(
-                        handle.global_pose, self.context, self.arm
-                    ),
+                    domain=reachability_location(handle, self.context, self.arm),
                 ),
                 keep_joint_states=True,
             ),
             OpenAction(handle, self.arm),
+            MoveTorsoAction(TorsoState.HIGH),
         ]
 
     @property
