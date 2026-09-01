@@ -4,6 +4,7 @@ import unittest
 from dataclasses import dataclass
 
 import numpy as np
+import trimesh
 from importlib.resources import files
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from semantic_digital_twin.pipeline.pipeline import (
     BodyFilter,
     CenterLocalGeometryAndPreserveWorldPose,
     BodyFactoryReplace,
+    TransformGeometry,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -183,3 +185,24 @@ class PipelineTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# %% transforming the geometry of a whole world
+
+
+def test_transform_geometry_transforms_the_mesh(jeroen_cup_world_fixture):
+    """
+    The step carries every mesh vertex through the given transformation.
+    """
+    [cup] = jeroen_cup_world_fixture.bodies
+    [shape] = cup.collision
+    original_vertices = shape.mesh.vertices.copy()
+    transform = HomogeneousTransformationMatrix.from_xyz_rpy(roll=np.pi / 2)
+
+    Pipeline([TransformGeometry(transform)]).apply(jeroen_cup_world_fixture)
+
+    np.testing.assert_allclose(
+        shape.mesh.vertices,
+        trimesh.transform_points(original_vertices, transform.to_np()),
+        atol=1e-9,
+    )

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -62,7 +64,7 @@ class WarsawWorldLoader:
             self.world = self._load_world_from_directory(self.input_directory)
 
         # Cache original visual states of bodies
-        for body in self.world.bodies_with_enabled_collision:
+        for body in self.world.bodies_with_collision:
             if (
                 body.collision
                 and len(body.collision) > 0
@@ -73,7 +75,7 @@ class WarsawWorldLoader:
     @classmethod
     def from_world(
         cls, world: World, camera_field_of_view: Tuple[float, float] = (60, 45)
-    ) -> "WarsawWorldLoader":
+    ) -> WarsawWorldLoader:
         """
         Create a WarsawWorldLoader from an existing World object.
 
@@ -111,7 +113,9 @@ class WarsawWorldLoader:
         pipeline = Pipeline(
             steps=[
                 TransformGeometry(
-                    HomogeneousTransformationMatrix.from_xyz_rpy(roll=np.pi / 2, pitch=0, yaw=0)
+                    HomogeneousTransformationMatrix.from_xyz_rpy(
+                        roll=np.pi / 2, pitch=0, yaw=0
+                    )
                 ),
                 CenterLocalGeometryAndPreserveWorldPose(),
             ]
@@ -152,7 +156,7 @@ class WarsawWorldLoader:
         for i, start in enumerate(
             range(
                 0,
-                len(bodies := self.world.bodies_with_enabled_collision),
+                len(bodies := self.world.bodies_with_collision),
                 number_of_bodies,
             )
         ):
@@ -232,7 +236,7 @@ class WarsawWorldLoader:
         """
         Reset all bodies to their original visual states.
         """
-        for body in self.world.bodies_with_enabled_collision:
+        for body in self.world.bodies_with_collision:
             body.collision[0].mesh.visual = self.original_state[body.id]
 
     @staticmethod
@@ -240,8 +244,8 @@ class WarsawWorldLoader:
         """
         Apply distinct highlight colors to a group of bodies.
         """
-        colors = Color.distinct_html_colors(len(bodies))
+        colors = Color.distinct_colors(len(bodies))
         for body, color in zip(bodies, colors):
             body_mesh: Mesh = body.collision[0]
-            body_mesh.override_mesh_with_color(color)
+            body_mesh.dye(color)
         return {body.id: color for body, color in zip(bodies, colors)}

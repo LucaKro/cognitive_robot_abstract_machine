@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import List, Callable, TYPE_CHECKING
 
 import numpy as np
-import trimesh
 
 from semantic_digital_twin.spatial_types import Point3
 from semantic_digital_twin.spatial_types.spatial_types import (
@@ -197,34 +196,9 @@ class TransformGeometry(Step):
     """
 
     def _apply(self, world: World) -> World:
-        for body in world.bodies_with_enabled_collision:
-            collision = body.collision
-            new_collision = []
-            for coll in collision:
-                if isinstance(coll, (FileMesh, TriangleMesh)):
-                    mesh = coll.mesh
-                    if mesh.vertices.shape[0] > 0:
-                        # Apply the transformation to the vertices
-                        homogenous_vertices = np.hstack(
-                            (mesh.vertices, np.ones((mesh.vertices.shape[0], 1)))
-                        )
-                        transformed_vertices = (
-                            self.transform.to_np() @ homogenous_vertices.T
-                        ).T[:, :3]
-
-                        new_trimesh = trimesh.Trimesh(
-                            vertices=transformed_vertices,
-                            faces=mesh.faces,
-                            visual=mesh.visual,
-                        )
-                        new_mesh = TriangleMesh(
-                            origin=coll.origin,
-                            scale=coll.scale,
-                            color=coll.color,
-                            mesh=new_trimesh,
-                        )
-                        new_collision.append(new_mesh)
-            body.collision = ShapeCollection(new_collision)
-            body.visual = ShapeCollection(new_collision)
-
+        transform = self.transform.to_np()
+        for body in world.bodies_with_collision:
+            for shape in body.collision:
+                if isinstance(shape, Mesh):
+                    shape.mesh.apply_transform(transform)
         return world

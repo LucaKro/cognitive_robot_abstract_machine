@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorsys
 import itertools
 import logging
 import math
@@ -216,6 +217,29 @@ class Color:
     @classmethod
     def GREY(cls) -> Self:
         return cls(0.5, 0.5, 0.5, 1)
+
+    @classmethod
+    def distinct_colors(cls, count: int) -> List[Self]:
+        """
+        :param count: How many colors to generate.
+        :return: That many colors, spread far enough apart to tell them apart in a
+            rendering.
+
+        Hues are spaced by the golden ratio, which keeps consecutive colors far apart
+        instead of crowding one part of the spectrum, and the brightness alternates so
+        that neighbouring hues stay distinguishable as the count grows.
+        """
+        golden_ratio_conjugate = (5**0.5 - 1) / 2
+        return [
+            cls(
+                *colorsys.hsv_to_rgb(
+                    (index * golden_ratio_conjugate) % 1.0,
+                    0.75,
+                    0.95 - 0.15 * (index % 2),
+                )
+            )
+            for index in range(count)
+        ]
 
 
 @dataclass
@@ -468,6 +492,19 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
             shapes=[self], reference_frame=self.origin.reference_frame
         )
 
+    def dye(self, color: Color) -> None:
+        """
+        Paint this shape in *color*, replacing the color, material or texture its mesh
+        carries.
+
+        :param color: The color to paint the shape in.
+        """
+        self.color = color
+        self.mesh.visual = trimesh.visual.ColorVisuals(
+            mesh=self.mesh,
+            face_colors=np.tile(color.to_rgba(), (len(self.mesh.faces), 1)),
+        )
+
     def recenter_origin(self) -> None:
         """
         Moves the origin so the shape's local-frame bounding box is centered on it.
@@ -647,7 +684,7 @@ class Mesh(Shape):
         mesh.apply_scale(self.scale.to_np())
         # Apply the shape's color only when it was explicitly set, so a mesh's own
         # materials or per-vertex colors (e.g. from a .dae or from serialization)
-        # are preserved by default. dye_shapes still works as it sets a color.
+        # are preserved by default. :meth:`~Shape.dye` repaints a mesh built already.
         if self.color != Color():
             mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(
                 self.color.to_rgba()

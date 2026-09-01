@@ -14,6 +14,7 @@ from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import (
     Box,
+    Color,
     Cylinder,
     Mesh,
     Scale,
@@ -456,3 +457,58 @@ def test_mesh_in_frame_in_the_shapes_own_frame_matches_its_local_mesh():
     world_mesh = shape.mesh_in_frame(obstacle)
 
     np.testing.assert_allclose(world_mesh.bounds, shape.mesh.bounds)
+
+
+# %% painting a shape in one color
+
+
+def test_dye_paints_a_mesh_whose_trimesh_is_already_built(tmp_path):
+    """
+    Dyeing a mesh whose trimesh has already been built repaints that trimesh.
+
+    A mesh applies its color while building its trimesh and then keeps it, so changing
+    the color alone would leave an already built mesh in its old color.
+    """
+    mesh = Mesh.from_trimesh(
+        mesh=trimesh.creation.box(extents=(1.0, 1.0, 1.0)), directory=tmp_path
+    )
+    color = Color(R=1.0, G=0.0, B=0.0, A=1.0)
+    assert mesh.mesh.vertices is not None
+
+    mesh.dye(color)
+
+    np.testing.assert_array_equal(
+        np.asarray(mesh.mesh.visual.face_colors),
+        np.tile(
+            trimesh.visual.color.to_rgba(color.to_rgba()), (len(mesh.mesh.faces), 1)
+        ),
+    )
+
+
+def test_dye_paints_a_primitive():
+    """
+    A primitive builds its mesh from its color on every access, so dyeing it must reach
+    that field rather than only the mesh it happens to have handed out.
+    """
+    box = Box(scale=Scale(1.0, 1.0, 1.0))
+    color = Color(R=0.0, G=0.0, B=1.0, A=1.0)
+
+    box.dye(color)
+
+    assert box.color == color
+    np.testing.assert_array_equal(
+        np.asarray(box.mesh.visual.vertex_colors),
+        np.tile(
+            trimesh.visual.color.to_rgba(color.to_rgba()), (len(box.mesh.vertices), 1)
+        ),
+    )
+
+
+# %% telling colors apart
+
+
+def test_distinct_colors_returns_the_requested_number_of_different_colors():
+    colors = Color.distinct_colors(6)
+
+    assert len(colors) == 6
+    assert len({color.to_rgba() for color in colors}) == 6
