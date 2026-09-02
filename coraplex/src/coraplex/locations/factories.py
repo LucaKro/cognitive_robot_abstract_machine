@@ -16,38 +16,12 @@ from coraplex.locations.pose_validator import (
     IsVisibleBy,
 )
 from coraplex.view_manager import ViewManager
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
     Drawer,
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
-
-
-def _get_object_in_hand(
-    test_robot: AbstractRobot, test_world: World, arm: Arms
-) -> Optional[Body]:
-    """
-    Util method that finds the object a robot is holding in the given arm.
-
-    :param test_robot: The robot that is holding something
-    :param test_world: The world in which the robot is located
-    :param arm: The arm that is holding something
-    :returns: The body that the robot is holding in the given arm or None
-    """
-    manipulator = ViewManager.get_end_effector_view(
-        arm,
-        test_robot,
-    )
-
-    objs = set()
-    objs.update(
-        test_world.get_kinematic_structure_entities_of_branch(manipulator.tool_frame)
-    )
-    objs.remove(manipulator.tool_frame)
-    return objs.pop() if objs else None
 
 
 def occupancy_location(target_pose: Pose, context: Context) -> Location:
@@ -64,7 +38,7 @@ def occupancy_location(target_pose: Pose, context: Context) -> Location:
 
 
 def _grasp_to_clear(
-    grasp_frame: Pose,
+    target_T_grasp: Optional[Pose],
     target_body: Optional[Body],
     context: Context,
     arm: Arms,
@@ -76,18 +50,21 @@ def _grasp_to_clear(
     a place instead reads the grasp the gripper already has on it, which is what will
     have to clear the target.
 
-    :param grasp_frame: The grasp frame being reached.
+    :param target_T_grasp: The grasp relative to the target, or ``None`` to grasp the
+        target at its own origin.
     :param target_body: The body being reached for, when there is one.
     :param context: The context holding the robot and world.
     :param arm: The arm doing the reaching.
     :return: The grasp in its body's frame, or ``None`` when no body is involved.
     """
-    held_body = _get_object_in_hand(context.robot, context.world, arm)
-    if held_body is not None:
-        return AreReachableBy.held_grasp_in_body_frame(
-            held_body, ViewManager.get_end_effector_view(arm, context.robot)
-        )
-    return AreReachableBy.grasp_in_body_frame(grasp_frame, target_body)
+    end_effector = ViewManager.get_end_effector_view(arm, context.robot)
+    if end_effector.held_body is not None:
+        return end_effector.held_body_T_grasp
+    if target_body is None:
+        return None
+    if target_T_grasp is None:
+        return Pose(reference_frame=target_body)
+    return target_T_grasp
 
 
 def _grasp_frame_at(target_pose: Pose, target_T_grasp: Optional[Pose]) -> Pose:
@@ -133,7 +110,7 @@ def reachability_location(
     )
     man = ViewManager.get_end_effector_view(arm, context.robot)
     grasp_frame = _grasp_frame_at(target_pose, grasp_pose)
-    body_T_grasp = _grasp_to_clear(grasp_frame, target_body, context, arm)
+    body_T_grasp = _grasp_to_clear(grasp_pose, target_body, context, arm)
 
     costmap = OccupancyCostmap.default_map(context, target_pose) & RingCostmap(
         resolution=0.02,
@@ -251,7 +228,7 @@ def giskard_reachability_location(
 
     man = ViewManager.get_end_effector_view(arm, context.robot)
     grasp_frame = _grasp_frame_at(target_pose, grasp_pose)
-    body_T_grasp = _grasp_to_clear(grasp_frame, target_body, context, arm)
+    body_T_grasp = _grasp_to_clear(grasp_pose, target_body, context, arm)
 
     backend = GiskardLocationBackend(
         target,

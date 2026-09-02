@@ -39,7 +39,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -104,11 +104,13 @@ def robot_setup(request):
 
         # The boxes stand in for any graspable object; the plans only need an annotation
         # to name them by, not a particular kind of object.
-        world.add_semantic_annotations([HasRootBody(root=box1), HasRootBody(root=box2)])
+        world.add_semantic_annotations(
+            [HasGraspPoses(root=box1), HasGraspPoses(root=box2)]
+        )
     return world, request.param[1]
 
 
-def graspable_annotation(world: World, body: Body) -> HasRootBody:
+def graspable_annotation(world: World, body: Body) -> HasGraspPoses:
     """
     The annotation naming ``body`` for the actions that take one rather than a body.
 
@@ -119,7 +121,7 @@ def graspable_annotation(world: World, body: Body) -> HasRootBody:
     return an(
         entity(
             semantic_annotation := variable(
-                HasRootBody, domain=world.semantic_annotations
+                HasGraspPoses, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == body)
     ).first()
@@ -197,11 +199,9 @@ def test_reach_action_multi(immutable_stationary_block_world):
     end_effector_position = end_effector_pose.to_position().to_np()
     end_effector_orientation = end_effector_pose.to_quaternion().to_np()
 
-    target_orientation = (
-        HasApproachesGraspPoses()
-        .tool_frame_goal(grasp_pose, left_arm.end_effector)
-        .to_quaternion()
-    )
+    target_orientation = left_arm.end_effector.tool_frame_goal(
+        grasp_pose
+    ).to_quaternion()
 
     assert end_effector_position[:3] == pytest.approx(position[:3], abs=0.01)
     compare_orientations(

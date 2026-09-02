@@ -353,14 +353,14 @@ class IsObjectReachableBy(PoseValidator, HasApproachesGraspPoses):
                     robot=robot,
                     alternative_motion_mappings=self.alternative_motion_mappings,
                 ),
-                pose=self.tool_frame_goal(grasp_pose, end_effector),
+                pose=end_effector.tool_frame_goal(grasp_pose),
                 tip_link=end_effector.tool_frame,
             ).__call__()
 
         pose_sequence = self.grasp_pose_sequence(
             grasp_pose,
             end_effector,
-            self.grasp_in_body_frame(grasp_pose, self.object_designator),
+            self._grasp_in_body_frame(grasp_pose, self.object_designator),
             reverse=self.reverse,
         )
 

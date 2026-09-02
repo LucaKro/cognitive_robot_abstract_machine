@@ -60,7 +60,7 @@ def test_place_derives_the_grasp_from_the_live_tool_frame_transform(pr2_holding_
     sequential([place], context=Context(world, robot))
 
     end_effector = ViewManager.get_end_effector_view(Arms.LEFT, robot)
-    tool_goal = place.tool_frame_goal(place._grasp_pose_at(target), end_effector)
+    tool_goal = end_effector.tool_frame_goal(place._grasp_pose_at(target))
 
     tool_T_milk = world.transform(milk.global_transform, end_effector.tool_frame)
     placed_milk = tool_goal.to_homogeneous_matrix() @ tool_T_milk

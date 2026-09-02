@@ -1055,6 +1055,23 @@ class Plate(HasSupportingSurface, HasGraspPoses):
     """
 
 
+@dataclass
+class RimWallSection:
+    """
+    Where a bowl's wall runs at one point of its rim, in the bowl's own frame.
+    """
+
+    center: Point3
+    """
+    The middle of the wall, halfway between its inner and its outer surface.
+    """
+
+    outward: Vector3
+    """
+    The direction from the bowl's axis to the wall.
+    """
+
+
 @dataclass(eq=False)
 class Bowl(HasSupportingSurface, HasGraspPoses, IsPerceivable):
     """
@@ -1073,35 +1090,47 @@ class Bowl(HasSupportingSurface, HasGraspPoses, IsPerceivable):
         A bowl offers nothing to grip at its own origin, which is inside it, so the wall
         of its rim is grasped instead.
         """
+        for section in self._rim_wall_sections():
+            yield Pose(
+                position=section.center,
+                orientation=RotationMatrix.from_vectors(
+                    x=Vector3.NEGATIVE_Z(), y=section.outward
+                ).to_quaternion(),
+                reference_frame=self.root,
+            )
+
+    def _rim_wall_sections(self) -> Iterator[RimWallSection]:
+        """
+        Trace the bowl's wall outward from its axis, once per grasp direction.
+
+        A ray outward from the axis enters and leaves the wall, so the wall lies between
+        its two hits. Read that way, each section follows the wall wherever it actually
+        runs, rather than a circle fitted through an irregular rim.
+        """
         mesh = self.root.combined_mesh
-        bowl_center = mesh.bounds.mean(axis=0)
-        rim_height = mesh.bounds[1][2] - self.rim_grasp_depth
-        yaws = self._grasp_yaws()
+        yaws = np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False)
         directions = np.column_stack([np.cos(yaws), np.sin(yaws), np.zeros(len(yaws))])
-        ray_origin = np.array([bowl_center[0], bowl_center[1], rim_height])
-        # A ray outward from the bowl's axis enters and leaves the wall, so the wall
-        # lies between its two hits. Read that way, each grasp follows the wall wherever
-        # it actually runs, rather than a circle fitted through an irregular rim.
-        locations, ray_indices, _ = mesh.ray.intersects_location(
-            ray_origins=np.tile(ray_origin, (len(yaws), 1)), ray_directions=directions
+        bowl_center = mesh.bounds.mean(axis=0)
+        axis_point = np.array(
+            [
+                bowl_center[0],
+                bowl_center[1],
+                mesh.bounds[1][2] - self.rim_grasp_depth,
+            ]
         )
-        for index, yaw in enumerate(yaws):
+        locations, ray_indices, _ = mesh.ray.intersects_location(
+            ray_origins=np.tile(axis_point, (len(yaws), 1)), ray_directions=directions
+        )
+        for index, direction in enumerate(directions):
             hits = locations[ray_indices == index]
             if len(hits) == 0:
                 continue
-            distances = np.linalg.norm(hits[:, :2] - ray_origin[:2], axis=1)
-            wall_center = (distances.min() + distances.max()) / 2
-            radial = Vector3(directions[index][0], directions[index][1], 0)
-            yield Pose(
-                position=Point3(
-                    ray_origin[0] + wall_center * np.cos(yaw),
-                    ray_origin[1] + wall_center * np.sin(yaw),
-                    rim_height,
+            distances = np.linalg.norm(hits[:, :2] - axis_point[:2], axis=1)
+            yield RimWallSection(
+                center=Point3.from_iterable(
+                    axis_point + direction * (distances.min() + distances.max()) / 2
                 ),
-                orientation=RotationMatrix.from_vectors(
-                    x=Vector3.NEGATIVE_Z(), y=radial
-                ).to_quaternion(),
-                reference_frame=self.root,
+                outward=Vector3.from_iterable(direction),
             )
 
 

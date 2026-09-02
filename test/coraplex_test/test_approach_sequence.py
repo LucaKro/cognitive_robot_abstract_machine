@@ -3,7 +3,6 @@ import pytest
 
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
@@ -50,35 +49,6 @@ def grasp_at_origin(body) -> Pose:
     return Pose(reference_frame=body)
 
 
-# %% tool frame goals
-
-
-def test_tool_frame_goal_keeps_the_grasp_position(boxed_pr2_world):
-    _, robot, box = boxed_pr2_world
-    grasp = grasp_at_origin(box)
-    goal = HasApproachesGraspPoses().tool_frame_goal(grasp, robot.left_arm.end_effector)
-    np.testing.assert_allclose(goal.to_np()[:3, 3], grasp.to_np()[:3, 3], atol=1e-9)
-
-
-def test_tool_frame_goal_applies_the_end_effectors_own_orientation(boxed_pr2_world):
-    """
-    Two grippers pointing different ways must be sent different orientations for one
-    and the same grasp.
-    """
-    _, robot, box = boxed_pr2_world
-    end_effector = robot.left_arm.end_effector
-    grasp = grasp_at_origin(box)
-
-    goal = HasApproachesGraspPoses().tool_frame_goal(grasp, end_effector)
-
-    expected = grasp.to_rotation_matrix() @ RotationMatrix.from_quaternion(
-        end_effector.front_facing_orientation
-    )
-    np.testing.assert_allclose(
-        goal.to_rotation_matrix().to_np(), expected.to_np(), atol=1e-9
-    )
-
-
 # %% approach sequences
 
 
@@ -94,7 +64,7 @@ def test_pre_grasp_pose_clears_the_body_it_grasps(boxed_pr2_world):
     pre_grasp, grasp, _ = action.grasp_pose_sequence(
         origin_grasp,
         robot.left_arm.end_effector,
-        action.grasp_in_body_frame(origin_grasp, box),
+        origin_grasp,
     )
 
     expected_standoff = BOX_SCALE.x / 2 + action.approach_clearance
@@ -121,7 +91,7 @@ def test_pre_grasp_pose_of_a_surface_grasp_only_adds_the_clearance(boxed_pr2_wor
     pre_grasp, _, _ = action.grasp_pose_sequence(
         surface_grasp,
         robot.left_arm.end_effector,
-        action.grasp_in_body_frame(surface_grasp, box),
+        surface_grasp,
     )
 
     np.testing.assert_allclose(
@@ -137,13 +107,11 @@ def test_grasp_pose_is_the_middle_of_the_sequence(boxed_pr2_world):
     grasp = grasp_at_origin(box)
 
     approach = HasApproachesGraspPoses()
-    _, middle, _ = approach.grasp_pose_sequence(
-        grasp, end_effector, approach.grasp_in_body_frame(grasp, box)
-    )
+    _, middle, _ = approach.grasp_pose_sequence(grasp, end_effector, grasp)
 
     np.testing.assert_allclose(
         middle.to_np(),
-        HasApproachesGraspPoses().tool_frame_goal(grasp, end_effector).to_np(),
+        end_effector.tool_frame_goal(grasp).to_np(),
         atol=1e-9,
     )
 
@@ -156,7 +124,7 @@ def test_retreat_pose_rises_along_the_world_z_axis(boxed_pr2_world):
     _, _, retreat = action.grasp_pose_sequence(
         grasp,
         robot.left_arm.end_effector,
-        action.grasp_in_body_frame(grasp, box),
+        grasp,
     )
 
     world_P_grasp = world.transform(grasp.to_homogeneous_matrix(), world.root).to_np()
@@ -178,7 +146,7 @@ def test_retreat_pose_keeps_the_grasp_orientation(boxed_pr2_world):
     _, grasp, retreat = approach.grasp_pose_sequence(
         origin_grasp,
         robot.left_arm.end_effector,
-        approach.grasp_in_body_frame(origin_grasp, box),
+        origin_grasp,
     )
 
     np.testing.assert_allclose(
@@ -193,16 +161,38 @@ def test_reversing_turns_the_grasp_into_a_release(boxed_pr2_world):
     action = HasApproachesGraspPoses()
     grasp = grasp_at_origin(box)
 
-    body_T_grasp = action.grasp_in_body_frame(grasp, box)
-    forward = action.grasp_pose_sequence(
-        grasp, robot.left_arm.end_effector, body_T_grasp
-    )
+    forward = action.grasp_pose_sequence(grasp, robot.left_arm.end_effector, grasp)
     backward = action.grasp_pose_sequence(
-        grasp, robot.left_arm.end_effector, body_T_grasp, reverse=True
+        grasp, robot.left_arm.end_effector, grasp, reverse=True
     )
 
     for expected, actual in zip(reversed(forward), backward):
         np.testing.assert_allclose(expected.to_np(), actual.to_np(), atol=1e-9)
+
+
+def test_a_grasp_given_in_another_frame_still_clears_the_body(boxed_pr2_world):
+    """
+    The clearance is read off the body the grasp is aimed at, so a caller who wrote the
+    grasp in the world's frame gets the same stand-off as one who wrote it in the box's.
+    """
+    world, robot, box = boxed_pr2_world
+    action = HasApproachesGraspPoses()
+    origin_grasp = grasp_at_origin(box)
+    world_grasp = world.transform(
+        origin_grasp.to_homogeneous_matrix(), world.root
+    ).to_pose()
+
+    pre_grasp, _, _ = action.grasp_pose_sequence(
+        world_grasp,
+        robot.left_arm.end_effector,
+        action._grasp_in_body_frame(world_grasp, box),
+    )
+
+    np.testing.assert_allclose(
+        world.transform(pre_grasp.to_homogeneous_matrix(), box).to_np()[:3, 3],
+        [-(BOX_SCALE.x / 2 + action.approach_clearance), 0, 0],
+        atol=1e-9,
+    )
 
 
 def test_sequence_without_a_body_stands_off_by_the_clearance_alone(boxed_pr2_world):
@@ -215,29 +205,4 @@ def test_sequence_without_a_body_stands_off_by_the_clearance_alone(boxed_pr2_wor
 
     np.testing.assert_allclose(
         pre_grasp.to_np()[:3, 3], [-action.approach_clearance, 0, 0], atol=1e-9
-    )
-
-
-# %% gripper conventions
-
-
-def test_approach_axis_follows_the_grippers_own_convention(
-    boxed_pr2_world, tracy_world
-):
-    """
-    A PR2 gripper points along its tool frame's x-axis and Tracy's along its z-axis, so
-    the very same grasp frame has to be approached along a different local axis.
-    """
-    _, pr2, _ = boxed_pr2_world
-    tracy = tracy_world.get_semantic_annotations_by_type(Tracy)[0]
-
-    np.testing.assert_allclose(
-        HasApproachesGraspPoses._approach_axis_in_tool_frame(pr2.left_arm.end_effector),
-        [1, 0, 0],
-        atol=1e-9,
-    )
-    np.testing.assert_allclose(
-        HasApproachesGraspPoses._approach_axis_in_tool_frame(tracy.left_arm.end_effector),
-        [0, 0, 1],
-        atol=1e-9,
     )

@@ -34,7 +34,9 @@ from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.exceptions import (
+    MoreThanOneBodyHeld,
     NoJointStateWithType,
+    NothingHeld,
     UselessConceptError,
     DuplicateRobotAssignmentsError,
     MissingDefaultCameraError,
@@ -48,7 +50,7 @@ from semantic_digital_twin.robots.robot_part_mixins import (
     TGenericSensors,
     RobotPartMixin,
 )
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses, HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Agent
 from semantic_digital_twin.spatial_types import (
     Quaternion,
@@ -542,17 +544,135 @@ class EndEffector(AbstractRobotPart, ABC):
     """
     The orientation of the end_effector's tool frame, which is usually the front-facing
     orientation.
+
+    Read as ``grasp_R_tool``: it rotates the tool frame into the grasp frame
+    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
+    describes, whose x-axis is the direction the gripper travels toward the object.
     """
 
     front_facing_axis: Vector3 = field(init=False)
     """
-    The axis of the end_effector's tool frame that is facing forward.
+    The direction the gripper travels toward an object, in the tool frame's own
+    coordinates.
     """
 
     def __post_init__(self):
         super().__post_init__()
-        rotation_matrix = RotationMatrix.from_quaternion(self.front_facing_orientation)
-        self.front_facing_axis = Vector3.from_iterable(rotation_matrix[:3, 0])
+        tool_R_grasp = RotationMatrix.from_quaternion(
+            self.front_facing_orientation
+        ).inverse()
+        self.front_facing_axis = Vector3.from_iterable(
+            (tool_R_grasp @ Vector3.X()).to_np()[:3]
+        )
+
+    def tool_frame_goal(self, grasp_pose: Pose) -> Pose:
+        """
+        Express a grasp frame as a goal for this end effector's tool frame.
+
+        Grippers differ in which way their tool frame points, so a grasp frame only
+        becomes a tool frame goal once the end effector's own orientation is applied.
+
+        :param grasp_pose: The grasp frame to reach.
+        :return: The pose the tool frame has to reach, in ``grasp_pose``'s frame.
+        """
+        grasp_R_tool = RotationMatrix.from_quaternion(self.front_facing_orientation)
+        return Pose(
+            position=grasp_pose.to_position(),
+            orientation=(
+                grasp_pose.to_rotation_matrix() @ grasp_R_tool
+            ).to_quaternion(),
+            reference_frame=grasp_pose.reference_frame,
+        )
+
+    @property
+    def held_body(self) -> Optional[Body]:
+        """
+        The body hanging off the tool frame. If in the future we need this to return
+        the semantic annotation of the body, we should update it.
+
+        :raises MoreThanOneBodyHeld: If the tool frame has more than one child, since
+            there is then no single body the gripper holds.
+        :return: The held body, or ``None`` when the gripper holds nothing.
+        """
+        children = self.tool_frame.child_kinematic_structure_entities
+        if not children:
+            return None
+        if len(children) > 1:
+            raise MoreThanOneBodyHeld(self, children)
+        return children[0]
+
+    @property
+    def held_body_T_grasp(self) -> Pose:
+        """
+        The grasp this gripper has on the body it is holding.
+
+        The body hangs off the tool frame, so the transform between the two *is* the
+        grasp that was achieved, whatever it was and wherever on the body it sits.
+
+        :return: The grasp frame, in :attr:`held_body`'s frame.
+        """
+        body = self.held_body
+        if body is None:
+            raise NothingHeld(self)
+        body_T_tool = self._world.transform(self.tool_frame.global_transform, body)
+        body_R_grasp = (
+            body_T_tool.to_rotation_matrix()
+            @ RotationMatrix.from_quaternion(self.front_facing_orientation).inverse()
+        )
+        return HomogeneousTransformationMatrix.from_point_rotation_matrix(
+            point=body_T_tool.to_position(),
+            rotation_matrix=body_R_grasp,
+            reference_frame=body,
+        ).to_pose()
+
+    def distance_to_grasp(
+        self,
+        grasp_pose: Pose,
+        grasp_rotation_lever_arm: float = 0.1,
+    ) -> float:
+        """
+        How far this gripper is from being able to close on a grasp.
+
+        Position and orientation are combined into one length, so that a grasp the wrist
+        has to turn itself inside out for ranks behind a slightly more distant one it
+        already faces.
+
+        :param grasp_pose: The grasp frame to reach.
+        :param grasp_rotation_lever_arm: How many meters of reach one radian of wrist
+            rotation is worth.
+        :return: The distance in meters.
+        """
+        world_T_goal = self._world.transform(
+            self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
+        )
+        world_T_tool = self.tool_frame.global_transform
+        return float(
+            world_T_tool.to_position().euclidean_distance(world_T_goal.to_position())
+            + grasp_rotation_lever_arm
+            * world_T_tool.to_rotation_matrix().rotational_error(
+                world_T_goal.to_rotation_matrix()
+            )
+        )
+
+    def grasp_poses_by_distance(
+        self,
+        graspable: HasGraspPoses,
+        grasp_rotation_lever_arm: float = 0.1,
+    ) -> List[Pose]:
+        """
+        The grasps an object offers, the ones this gripper is closest to first.
+
+        :param graspable: The object to be grasped.
+        :param grasp_rotation_lever_arm: How many meters of reach one radian of wrist
+            rotation is worth.
+        :return: Its grasp frames, ordered by :meth:`distance_to_grasp`.
+        """
+        return sorted(
+            graspable.grasp_poses(),
+            key=lambda grasp_pose: self.distance_to_grasp(
+                grasp_pose, grasp_rotation_lever_arm
+            ),
+        )
 
 
 @dataclass(eq=False)

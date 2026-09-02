@@ -449,17 +449,11 @@ class HasGraspPoses(HasRootBody):
         The default grasps the object at its own origin, from evenly spaced directions
         around its z-axis. Annotations whose geometry admits a better grip override this.
         """
-        for yaw in self._grasp_yaws():
+        for yaw in np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False):
             yield Pose(
                 orientation=RotationMatrix.from_rpy(yaw=yaw).to_quaternion(),
                 reference_frame=self.root,
             )
-
-    def _grasp_yaws(self) -> np.ndarray:
-        """
-        :return: :attr:`grasp_pose_count` evenly spaced angles covering a full turn.
-        """
-        return np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False)
 
 
 @dataclass(eq=False)

@@ -62,11 +62,13 @@ class TransportAction(ActionDescription, HasApproachesGraspPoses):
         The grasp frame the object is carried by.
 
         The navigation this action plans has to aim at the same grasp the pick-up will
-        take, and both get it from the object itself.
+        take, and both let the gripper choose it from what the object offers.
 
-        :return: The first grasp :attr:`object_designator` offers.
+        :return: The grasp of :attr:`object_designator` the gripper is closest to.
         """
-        return next(iter(self.object_designator.grasp_poses()))
+        return ViewManager.get_end_effector_view(
+            self.arm, self.robot
+        ).grasp_poses_by_distance(self.object_designator)[0]
 
     def inside_container(self) -> List[Body]:
         bodies = []

@@ -102,8 +102,8 @@ class PlaceAction(
         :return: The grasp frame, in :attr:`object_designator`'s frame.
         """
         end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
-        if self.object_designator.parent_connection.parent is end_effector.tool_frame:
-            return self.held_grasp_in_body_frame(self.object_designator, end_effector)
+        if end_effector.held_body is self.object_designator:
+            return end_effector.held_body_T_grasp
 
         previous_pick = self.plan_node.get_previous_node_by_designator_type(
             PickUpAction

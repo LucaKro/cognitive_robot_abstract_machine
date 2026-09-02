@@ -108,7 +108,7 @@ class ReachAction(
         target_pre_pose, target_pose, _ = self.grasp_pose_sequence(
             self.grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
-            self.grasp_in_body_frame(self.grasp_pose, object_body),
+            self._grasp_in_body_frame(self.grasp_pose, object_body),
             reverse=self.reverse_reach_order,
         )
         children = [
@@ -246,11 +246,13 @@ class PickUpAction(
 
         Asked of the object rather than taken from the caller, so that an object which
         knows where it may be held -- a bowl by its rim -- cannot be grasped anywhere
-        else by a caller who does not.
+        else by a caller who does not. Which of them is taken is the gripper's call.
 
-        :return: The first grasp :attr:`object_designator` offers.
+        :return: The grasp of :attr:`object_designator` the gripper is closest to.
         """
-        return next(iter(self.object_designator.grasp_poses()))
+        return ViewManager.get_end_effector_view(
+            self.arm, self.robot
+        ).grasp_poses_by_distance(self.object_designator)[0]
 
     def _grasp_attempt_plan(self) -> PlanNode:
         """
@@ -295,7 +297,7 @@ class PickUpAction(
         _, _, lift_to_pose = self.grasp_pose_sequence(
             self.grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
-            self.grasp_in_body_frame(self.grasp_pose, self.object_designator.root),
+            self._grasp_in_body_frame(self.grasp_pose, self.object_designator.root),
         )
         return sequential(
             children=[
@@ -333,7 +335,9 @@ class PickUpAction(
                 ),
                 arm=variables["arm"],
                 object_designator=kwargs["object_designator"].root,
-                grasp_pose=next(iter(kwargs["object_designator"].grasp_poses())),
+                grasp_pose=end_effector.grasp_poses_by_distance(
+                    kwargs["object_designator"]
+                )[0],
             ),
         )
 
@@ -383,7 +387,7 @@ class GraspingAction(ActionDescription, HasApproachesGraspPoses, HasTcpGoalThres
         pre_pose, grasp_pose, _ = self.grasp_pose_sequence(
             self.grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
-            self.grasp_in_body_frame(self.grasp_pose, self.object_designator),
+            self._grasp_in_body_frame(self.grasp_pose, self.object_designator),
         )
 
         return sequential(
