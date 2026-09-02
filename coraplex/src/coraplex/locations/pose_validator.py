@@ -323,7 +323,10 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             f"Hash of input for pose_sequence_reachability_validator: {hash((*self.pose_sequence, self.tip_link, self.robot))}"
         )
 
-        with self.world.reset_state_context():
+        with (
+            self.world.reset_state_context(),
+            self.world.collision_manager.reset_temporary_rules_context(),
+        ):
 
             msc = self.create_msc()
 

@@ -24,6 +24,9 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from coraplex.view_manager import ViewManager
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowSelfCollisions,
+)
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
@@ -433,3 +436,24 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
     [stall_monitor] = msc.get_nodes_by_type(ProgressStalled)
     [sequence] = msc.get_nodes_by_type(Sequence)
     assert stall_monitor.monitored_node is sequence
+
+
+def test_validation_gives_back_the_collision_rules_it_found(immutable_model_world):
+    """
+    A location judges every candidate against one world copy, so a validation run must
+    leave the collision rules exactly as it found them.
+
+    The reach installs a gripper allowance of its own while it runs, and that allowance
+    outranks the rules of the run it was probing, so a candidate evaluated after another
+    would otherwise be judged against the previous candidate's rules.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = _reachability_validator(world, robot_view, context)
+    rule_of_the_run = AllowSelfCollisions(robot=robot_view)
+    world.collision_manager.clear_temporary_rules()
+    world.collision_manager.add_temporary_rule(rule_of_the_run)
+
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
+        validator()
+
+    assert world.collision_manager.temporary_rules == [rule_of_the_run]

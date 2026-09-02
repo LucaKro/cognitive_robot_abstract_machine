@@ -103,22 +103,16 @@ class Location(Iterable[Pose]):
         it about clearances the executed motion never has to keep.
         """
         collision_manager = test_world.collision_manager
-        rules_of_the_run = list(collision_manager.temporary_rules)
-
-        collision_manager.clear_temporary_rules()
-        collision_manager.extend_temporary_rule(
-            [
-                AvoidExternalCollisions(robot=test_robot, violated_distance=0.05),
-                AllowSelfCollisions(robot=test_robot),
-            ]
-        )
-        collision_manager.update_collision_matrix()
-        contacts = collision_manager.compute_collisions().contacts
-
-        collision_manager.clear_temporary_rules()
-        collision_manager.extend_temporary_rule(rules_of_the_run)
-        collision_manager.update_collision_matrix()
-        return bool(contacts)
+        with collision_manager.reset_temporary_rules_context():
+            collision_manager.clear_temporary_rules()
+            collision_manager.extend_temporary_rule(
+                [
+                    AvoidExternalCollisions(robot=test_robot, violated_distance=0.05),
+                    AllowSelfCollisions(robot=test_robot),
+                ]
+            )
+            collision_manager.update_collision_matrix()
+            return bool(collision_manager.compute_collisions().contacts)
 
     def __iter__(self) -> Iterator[Pose]:
         test_world = deepcopy(self.world)
