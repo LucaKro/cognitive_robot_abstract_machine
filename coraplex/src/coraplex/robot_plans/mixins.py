@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 import numpy as np
-from typing_extensions import List, Optional, TYPE_CHECKING
+from typing_extensions import List, Optional
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.utils import translate_pose_along_local_axis
@@ -13,10 +11,8 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     RotationMatrix,
     Vector3,
 )
+from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.world_description.world_entity import Body
-
-if TYPE_CHECKING:
-    from semantic_digital_twin.robots.robot_parts import EndEffector
 
 
 @dataclass

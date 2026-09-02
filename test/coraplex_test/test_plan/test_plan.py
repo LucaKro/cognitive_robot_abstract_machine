@@ -577,7 +577,7 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
     pick_up_description = a(PickUpAction)(
         object_designator=milk_variable,
         arm=...,
-        approach=a(HasApproachesGraspPoses)(clearance=0.05, retreat_distance=...),
+        approach_clearance=0.05,
     )
 
     parameters = UnderspecifiedParameters(pick_up_description)
