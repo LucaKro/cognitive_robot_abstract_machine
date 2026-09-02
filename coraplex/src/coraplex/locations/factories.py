@@ -155,7 +155,7 @@ def accessing_location(
     :param arm: Arm with which to access the container
     :returns: A location that is accessible from the container.
     """
-    return reachability_location(container.handle.root.global_pose, context, arm)
+    return reachability_location(container.handle.root, context, arm)
 
 
 def visibility_location(target: Union[Pose, Body], context: Context) -> Location:

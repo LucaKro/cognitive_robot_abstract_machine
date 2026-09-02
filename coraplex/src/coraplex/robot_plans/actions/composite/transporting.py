@@ -99,9 +99,7 @@ class TransportAction(ActionDescription, HasApproachesGraspPoses):
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
-                    domain=reachability_location(
-                        handle.global_pose, self.context, self.arm
-                    ),
+                    domain=reachability_location(handle, self.context, self.arm),
                 ),
                 keep_joint_states=True,
             ),
