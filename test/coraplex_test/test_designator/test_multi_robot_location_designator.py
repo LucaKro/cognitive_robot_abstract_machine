@@ -14,8 +14,8 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveSim
 from coraplex.datastructures.dataclasses import Context
 
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import (
     reachability_location,
@@ -421,11 +421,6 @@ def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
             world.get_body_by_name("milk.stl"),
             context,
             Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                ViewManager.get_end_effector_view(Arms.RIGHT, robot),
-            ),
         )
 
         pose = next(iter(location))

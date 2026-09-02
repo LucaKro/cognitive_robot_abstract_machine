@@ -6,8 +6,8 @@ import pytest
 from typing_extensions import Iterator, List
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.view_manager import ViewManager
@@ -182,13 +182,11 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
 ):
     world, robot, context = single_robot_world
     candidate = _candidate(world)
-    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
     backend = GiskardLocationBackend(
         target=candidate,
         arm=Arms.RIGHT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT, VerticalAlignment.NoAlignment, end_effector
-        ),
+        grasp_pose=candidate,
+        approach=HasApproachesGraspPoses(),
         robot=robot,
         world=world,
     )

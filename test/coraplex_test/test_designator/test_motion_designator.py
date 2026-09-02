@@ -10,12 +10,9 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    ApproachDirection,
-    VerticalAlignment,
     Arms,
     MovementType,
 )
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot, real_robot
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import MotionNode, ActionNode
@@ -65,16 +62,8 @@ except (ImportError, ModuleNotFoundError, AttributeError):
 def test_pick_up_motion(immutable_model_world):
     world, view, context = immutable_model_world
     test_world = deepcopy(world)
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        test_world.get_semantic_annotations_by_type(Milk)[0],
-        Arms.LEFT,
-        grasp_description,
-    )
+    milk = test_world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT)
 
     root = sequential(
         children=[
@@ -416,14 +405,8 @@ def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     always on (it crashes on Tracy's real-execution gripper otherwise).
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT)
     sequential([pick_up], context=context)
 
     close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
@@ -442,17 +425,8 @@ def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
     is correctly treated as a real grasp, not a failed motion, once explicitly enabled.
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0],
-        Arms.LEFT,
-        grasp_description,
-        tolerate_grasp_stall=True,
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT, tolerate_grasp_stall=True)
     sequential([pick_up], context=context)
 
     close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
@@ -470,15 +444,8 @@ def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
     physics fields are opt-in additions, not a change to the action's default behaviour.
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT)
 
     assert pick_up.pre_approach_linear_velocity is None
     assert pick_up.final_approach_linear_velocity is None

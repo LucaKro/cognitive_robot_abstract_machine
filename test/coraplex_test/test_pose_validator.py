@@ -5,11 +5,8 @@ from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     Arms,
-    ApproachDirection,
-    VerticalAlignment,
 )
 from coraplex.datastructures.enums import ExecutionType
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.pose_validator import (
@@ -146,14 +143,6 @@ def test_pose_sequence_one_not_reachable(immutable_model_world):
     )
 
 
-def _right_front_grasp(view):
-    return GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.right_arm.end_effector,
-    )
-
-
 def test_is_object_reachable_by_copies_current_world_lazily(
     immutable_model_world, monkeypatch
 ):
@@ -182,7 +171,6 @@ def test_is_object_reachable_by_copies_current_world_lazily(
         ),
         arm=Arms.RIGHT,
         object_designator=milk,
-        grasp_description=_right_front_grasp(view),
     )
 
     # Move the object *after* the predicate has been constructed.
@@ -206,11 +194,11 @@ def test_is_object_reachable_by_copies_current_world_lazily(
     assert captured["tip_link"]._world is captured["world"]
 
 
-def test_is_object_reachable_by_uses_target_pose_sequence(
+def test_is_object_reachable_by_uses_the_grasp_pose_sequence(
     immutable_model_world, monkeypatch
 ):
     """
-    With a target pose set, the reach pose sequence is checked.
+    With a grasp pose set, the reach pose sequence is checked.
     """
     world, view, context = immutable_model_world
     milk = world.get_body_by_name("milk.stl")
@@ -230,8 +218,7 @@ def test_is_object_reachable_by_uses_target_pose_sequence(
         ),
         arm=Arms.RIGHT,
         object_designator=milk,
-        grasp_description=_right_front_grasp(view),
-        target_pose=target,
+        grasp_pose=target,
     )()
 
     assert len(captured["seq"]) == 3
@@ -275,7 +262,7 @@ def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
     assert not seq_calls
     assert len(single_calls) == 1
     assert np.allclose(
-        single_calls[0].to_position().to_np()[:3],
+        world.transform(single_calls[0], world.root).to_position().to_np()[:3],
         milk.global_pose.to_position().to_np()[:3],
     )
 
@@ -297,7 +284,6 @@ def test_is_object_reachable_by_reachable(immutable_model_world):
         ),
         arm=Arms.RIGHT,
         object_designator=milk,
-        grasp_description=_right_front_grasp(view),
     )
 
 
@@ -318,5 +304,4 @@ def test_is_object_reachable_by_not_reachable(immutable_model_world):
         ),
         arm=Arms.RIGHT,
         object_designator=milk,
-        grasp_description=_right_front_grasp(view),
     )

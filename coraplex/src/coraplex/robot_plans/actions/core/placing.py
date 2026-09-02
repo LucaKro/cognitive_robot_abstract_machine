@@ -15,17 +15,13 @@ from krrood.entity_query_language.factories import (
     ConditionType,
 )
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import (
-    Arms,
-    ApproachDirection,
-    VerticalAlignment,
-)
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.querying.predicates import GripperIsFree
-from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
+    HasApproachesGraspPoses,
     HasGraspDetectionThreshold,
     HasTcpGoalThresholds,
     PlaceTuningParameters,
@@ -45,6 +41,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 @dataclass
 class PlaceAction(
     ActionDescription,
+    HasApproachesGraspPoses,
     PlaceTuningParameters,
     HasGraspDetectionThreshold,
     HasTcpGoalThresholds,
@@ -92,23 +89,49 @@ class PlaceAction(
             ],
         )
 
-    @property
-    def _action_plan(self) -> PlanNode:
+    def _grasp_on_the_held_object(self) -> Pose:
+        """
+        The grasp the object is held by, in :attr:`object_designator`'s own frame.
+
+        Read off the gripper itself while it holds the object, since the transform
+        between the two *is* the grasp, wherever on the object it sits. A plan is built
+        before it runs, though, so the object is usually still on its shelf at this
+        point; then the grasp the preceding pick-up was told to take says the same thing
+        in advance.
+
+        :return: The grasp frame, in :attr:`object_designator`'s frame.
+        """
         end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
+        if self.object_designator.parent_connection.parent is end_effector.tool_frame:
+            return self.held_grasp_in_body_frame(self.object_designator, end_effector)
+
         previous_pick = self.plan_node.get_previous_node_by_designator_type(
             PickUpAction
         )
-        previous_grasp_description = (
-            previous_pick.designator.grasp_description
-            if previous_pick
-            else GraspDescription(
-                ApproachDirection.FRONT, VerticalAlignment.NoAlignment, end_effector
-            )
-        )
-        transport_pose, placing_pose, retract_pose = (
-            previous_grasp_description.pose_sequence(
-                self.target_location, self.object_designator, reverse=True
-            )
+        if previous_pick is None:
+            return Pose(reference_frame=self.object_designator)
+        return previous_pick.designator.grasp_pose
+
+    def _grasp_pose_at(self, target_location: Pose) -> Pose:
+        """
+        The grasp frame the object would be released from, were it at
+        ``target_location``.
+
+        :param target_location: Where the object should end up.
+        :return: The grasp frame, in ``target_location``'s frame.
+        """
+        return (
+            target_location.to_homogeneous_matrix()
+            @ self._grasp_on_the_held_object().to_homogeneous_matrix()
+        ).to_pose()
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        transport_pose, placing_pose, retract_pose = self.grasp_pose_sequence(
+            self._grasp_pose_at(self.target_location),
+            ViewManager.get_arm_view(self.arm, self.robot).end_effector,
+            self._grasp_on_the_held_object(),
+            reverse=True,
         )
 
         return sequential(

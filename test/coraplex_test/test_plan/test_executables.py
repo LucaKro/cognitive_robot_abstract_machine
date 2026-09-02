@@ -17,8 +17,7 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import real_robot, simulated_robot
 from coraplex.plans.condition_nodes import PlanNodeStatusMonitor
 from coraplex.plans.factories import execute_single
@@ -41,11 +40,6 @@ def reach_action_executable(immutable_model_world):
         ReachAction(
             Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
             Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
             world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
