@@ -628,49 +628,58 @@ class EndEffector(AbstractRobotPart, ABC):
     def distance_to_grasp(
         self,
         grasp_pose: Pose,
-        grasp_rotation_lever_arm: float = 0.1,
+        misalignment_lever_arm: float = 0.1,
     ) -> float:
         """
         How far this gripper is from being able to close on a grasp.
 
-        Position and orientation are combined into one length, so that a grasp the wrist
-        has to turn itself inside out for ranks behind a slightly more distant one it
-        already faces.
+        Two lengths in one: the Euclidean distance from the tool frame to the grasp,
+        plus what it costs to arrive facing the right way. A grasp is entered along its
+        own x-axis, so one whose x-axis disagrees with the line from the gripper to it
+        has to be entered from the side, and one that disagrees by more than a right
+        angle from behind the object (priced at ``misalignment_lever_arm`` per radian
+        of disagreement).
+
+        Roll about that axis is not counted, since turning the wrist about the direction
+        it already travels along costs the arm little.
+
+        ..note:: A geometric ranking, not a reachability test.
 
         :param grasp_pose: The grasp frame to reach.
-        :param grasp_rotation_lever_arm: How many meters of reach one radian of wrist
-            rotation is worth.
+        :param misalignment_lever_arm: How many meters of reach one radian between the
+            approach direction and the way to the grasp is worth.
         :return: The distance in meters.
         """
         world_T_goal = self._world.transform(
             self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
         )
         world_T_tool = self.tool_frame.global_transform
-        return float(
-            world_T_tool.to_position().euclidean_distance(world_T_goal.to_position())
-            + grasp_rotation_lever_arm
-            * world_T_tool.to_rotation_matrix().rotational_error(
-                world_T_goal.to_rotation_matrix()
-            )
+        world_V_travel = world_T_goal.to_position() - world_T_tool.to_position()
+        travelled = float(world_V_travel.norm())
+        if not travelled:
+            return 0.0
+        world_V_approach = world_T_goal.to_rotation_matrix() @ self.front_facing_axis
+        return travelled + misalignment_lever_arm * float(
+            world_V_approach.angle_between(world_V_travel)
         )
 
     def grasp_poses_by_distance(
         self,
         graspable: HasGraspPoses,
-        grasp_rotation_lever_arm: float = 0.1,
+        misalignment_lever_arm: float = 0.1,
     ) -> List[Pose]:
         """
         The grasps an object offers, the ones this gripper is closest to first.
 
         :param graspable: The object to be grasped.
-        :param grasp_rotation_lever_arm: How many meters of reach one radian of wrist
-            rotation is worth.
+        :param misalignment_lever_arm: How many meters of reach one radian between the
+            approach direction and the way to the grasp is worth.
         :return: Its grasp frames, ordered by :meth:`distance_to_grasp`.
         """
         return sorted(
             graspable.grasp_poses(),
             key=lambda grasp_pose: self.distance_to_grasp(
-                grasp_pose, grasp_rotation_lever_arm
+                grasp_pose, misalignment_lever_arm
             ),
         )
 

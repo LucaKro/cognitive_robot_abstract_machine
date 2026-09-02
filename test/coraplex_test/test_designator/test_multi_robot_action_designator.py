@@ -43,6 +43,8 @@ from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidato
 from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from rustworkx.rustworkx import NoEdgeBetweenNodes
+
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
     GripperState,
@@ -380,11 +382,9 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
     end_effector_position = end_effector_pose.to_position().to_np()
     end_effector_orientation = end_effector_pose.to_quaternion().to_np()
 
-    target_orientation = (
-        HasApproachesGraspPoses()
-        .tool_frame_goal(grasp_pose, left_arm.end_effector)
-        .to_quaternion()
-    )
+    target_orientation = left_arm.end_effector.tool_frame_goal(
+        grasp_pose
+    ).to_quaternion()
 
     assert end_effector_position[:3] == pytest.approx([1, -2, 0.8], abs=0.01)
     compare_orientations(
@@ -488,7 +488,6 @@ def test_grasping(immutable_multiple_robot_apartment):
 
 def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
     world, view, context = mutable_multiple_robot_apartment
-
     context.evaluate_conditions = False
 
     left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
