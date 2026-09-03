@@ -233,6 +233,15 @@ class WarsawWorldLoader:
     Camera field of view for rendering.
     """
 
+    framed_fraction: float = field(default=0.99)
+    """
+    The share of the scene that has to fall inside each view.
+
+    Below 1 the cameras stand closer and the scene's outermost fringe falls outside the
+    view, which on a scanned room crops the stray fragments its walls trail off into
+    rather than anything standing in it.
+    """
+
     original_state: Dict[UUID, Any] = field(init=False, default_factory=dict)
     """
     Original visual states of bodies before highlighting.
@@ -431,19 +440,24 @@ class WarsawWorldLoader:
     """
 
     @cached_property
+    def _scene_points(self) -> np.ndarray:
+        """
+        :return: Every vertex the scene draws, in the world's frame.
+        """
+        return np.concatenate(
+            [
+                shape.mesh_in_frame(self.world.root).vertices
+                for body in self.world.bodies_with_collision
+                for shape in body.collision
+            ]
+        )
+
+    @cached_property
     def _scene_bounds(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         :return: The lowest and highest corner the scene's geometry reaches.
         """
-        corners = np.array(
-            [
-                bound
-                for body in self.world.bodies_with_collision
-                for shape in body.collision
-                for bound in shape.mesh_in_frame(self.world.root).bounds
-            ]
-        )
-        return corners.min(axis=0), corners.max(axis=0)
+        return self._scene_points.min(axis=0), self._scene_points.max(axis=0)
 
     @staticmethod
     def _looking_at(eye: np.ndarray, target: np.ndarray) -> np.ndarray:
@@ -476,34 +490,61 @@ class WarsawWorldLoader:
 
     def compute_camera_poses(self) -> Dict[str, np.ndarray]:
         """
-        :return: One camera pose per named viewpoint, each standing far enough from the
-            scene for the whole of it to fall inside the view.
+        :return: One camera pose per named viewpoint, each standing just far enough from
+            the scene for :attr:`framed_fraction` of it to fall inside the view.
 
         The distance is measured from the scene rather than fixed, so a scene of any size
         is framed rather than viewed from within itself.
         """
         low, high = self._scene_bounds
         middle = (low + high) / 2
-        enclosing_radius = float(np.linalg.norm(high - low)) / 2
-        distance = enclosing_radius / np.tan(
-            np.radians(min(self._camera_field_of_view)) / 2
+
+        poses = {}
+        for name, azimuth in self.VIEWPOINT_AZIMUTHS.items():
+            direction = np.array(
+                [
+                    np.cos(self.VIEWPOINT_ELEVATION) * np.cos(azimuth),
+                    np.cos(self.VIEWPOINT_ELEVATION) * np.sin(azimuth),
+                    np.sin(self.VIEWPOINT_ELEVATION),
+                ]
+            )
+            distance = self._framing_distance(self._scene_points - middle, direction)
+            poses[name] = self._looking_at(middle + distance * direction, middle)
+        return poses
+
+    def _framing_distance(self, points: np.ndarray, direction: np.ndarray) -> float:
+        """
+        Measure how far along *direction* a camera has to stand for
+        :attr:`framed_fraction` of the points to fall inside its view.
+
+        A point's room in the view grows with its distance from the camera, so one on the
+        near side needs more room than one equally far off the view's axis on the far
+        side. Each point is therefore solved for separately and the furthest answer wins.
+
+        ..note:: This measures the scene's own geometry rather than the corners of the box
+            around it, which stand in empty air and would push the camera needlessly far
+            back.
+
+        :param points: The scene's points, relative to what the camera faces.
+        :param direction: The direction from the scene to the camera.
+        :return: The distance from the scene to stand at.
+        """
+        orientation = self._looking_at(direction, np.zeros(3))
+        right, up = orientation[:3, 0], orientation[:3, 1]
+        horizontal, vertical = (
+            np.tan(np.radians(angle) / 2) for angle in self._camera_field_of_view
         )
 
-        return {
-            name: self._looking_at(
-                middle
-                + distance
-                * np.array(
-                    [
-                        np.cos(self.VIEWPOINT_ELEVATION) * np.cos(azimuth),
-                        np.cos(self.VIEWPOINT_ELEVATION) * np.sin(azimuth),
-                        np.sin(self.VIEWPOINT_ELEVATION),
-                    ]
-                ),
-                middle,
-            )
-            for name, azimuth in self.VIEWPOINT_AZIMUTHS.items()
-        }
+        # A point at depth ``distance - along`` fits when its offset across the view is
+        # within that depth's half-width, so it needs ``along + offset / half_angle``.
+        along = points @ direction
+        needed = np.concatenate(
+            [
+                along + np.abs(points @ right) / horizontal,
+                along + np.abs(points @ up) / vertical,
+            ]
+        )
+        return float(np.percentile(needed, self.framed_fraction * 100))
 
     # %% Body Highlighting
     def _reset_body_colors(self):

@@ -270,3 +270,88 @@ def test_every_viewpoint_is_named(tmp_path):
 
     assert set(poses) == set(WarsawWorldLoader.VIEWPOINT_AZIMUTHS)
     assert all(pose.shape == (4, 4) for pose in poses.values())
+
+
+def view_fractions(loader: WarsawWorldLoader, pose: np.ndarray) -> np.ndarray:
+    """
+    Measure where the scene's geometry falls in a camera's view.
+
+    :param loader: The loader holding the scene.
+    :param pose: The camera pose to measure from.
+    :return: Per point, how far across the horizontal and vertical view it lies, where 1
+        is the edge of the view.
+    """
+    right, up, backward = pose[:3, 0], pose[:3, 1], pose[:3, 2]
+    horizontal, vertical = (
+        np.tan(np.radians(angle) / 2) for angle in loader._camera_field_of_view
+    )
+
+    relative = loader._scene_points - pose[:3, 3]
+    depth = relative @ -backward
+    return np.stack(
+        [
+            np.abs(relative @ right) / (depth * horizontal),
+            np.abs(relative @ up) / (depth * vertical),
+        ],
+        axis=1,
+    )
+
+
+def two_triangle_scene(tmp_path, framed_fraction: float) -> WarsawWorldLoader:
+    """
+    :param tmp_path: Where to write the scene.
+    :param framed_fraction: The share of the scene its cameras have to frame.
+    :return: A loader over a scene of two triangles at different heights.
+    """
+    vertices, faces = stacked_triangles([0.0, 4.0])
+    return WarsawWorldLoader(
+        write_scene(
+            tmp_path,
+            class_names=["floor"],
+            face_instances={"floor": [1, 2]},
+            vertices=vertices,
+            faces=faces,
+        ),
+        framed_fraction=framed_fraction,
+    )
+
+
+def test_a_viewpoint_asked_for_the_whole_scene_frames_all_of_it(tmp_path):
+    """
+    No part of the scene falls outside a view asked to hold all of it.
+    """
+    loader = two_triangle_scene(tmp_path, framed_fraction=1.0)
+
+    for pose in loader.compute_camera_poses().values():
+        # The point at the very edge is measured twice over, so it lands on 1 either
+        # side of the last digit.
+        assert np.all(view_fractions(loader, pose) <= 1.0 + 1e-9)
+
+
+def test_every_viewpoint_stands_as_close_as_that_allows(tmp_path):
+    """
+    No viewpoint stands further back than what it was asked to frame requires: some
+    point reaches the very edge of every view.
+    """
+    loader = two_triangle_scene(tmp_path, framed_fraction=1.0)
+
+    for pose in loader.compute_camera_poses().values():
+        assert view_fractions(loader, pose).max() == pytest.approx(1.0)
+
+
+def test_framing_less_than_the_whole_scene_stands_closer(tmp_path):
+    """
+    Framing less of the scene draws the cameras in, leaving its fringe out of view.
+    """
+    whole = two_triangle_scene(tmp_path, framed_fraction=1.0)
+    cropped = two_triangle_scene(tmp_path, framed_fraction=0.9)
+    low, high = whole._scene_bounds
+    middle = (low + high) / 2
+
+    for name, cropped_pose in cropped.compute_camera_poses().items():
+        whole_pose = whole.compute_camera_poses()[name]
+
+        assert np.linalg.norm(cropped_pose[:3, 3] - middle) < np.linalg.norm(
+            whole_pose[:3, 3] - middle
+        )
+        assert view_fractions(cropped, cropped_pose).max() > 1.0

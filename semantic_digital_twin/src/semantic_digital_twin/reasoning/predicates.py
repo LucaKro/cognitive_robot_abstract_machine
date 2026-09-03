@@ -495,8 +495,8 @@ class InFrontOf(ViewDependentSpatialRelation):
     """
 
     def __call__(self) -> bool:
-        self.result = self._signed_distance_along_direction(0) > 0.0
-        return self.result
+        self.spatial_relation_result = self._signed_distance_along_direction(0) > 0.0
+        return self.spatial_relation_result
 
 
 @dataclass
