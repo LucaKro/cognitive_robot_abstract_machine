@@ -92,6 +92,6 @@ class Sage10kOpenDoor(ActionDescription):
         reach_query._where_conditions_.append(free_space_condition)
         reach_action = reach_query
 
-        open_action = OpenAction(object_designator=self.door.handle.root, arm=arm)
+        open_action = OpenAction(object_designator=self.door.handle, arm=arm)
 
         return sequential([reach_action, open_action])

@@ -89,7 +89,9 @@ def test_place_uses_the_grasp_its_pick_up_will_take(mutable_model_world):
     sequential([pick_up, place], context=context)
 
     np.testing.assert_allclose(
-        place._grasp_on_the_held_object().to_np(), pick_up.grasp_pose.to_np(), atol=1e-9
+        place._grasp_on_the_held_object().to_np(),
+        pick_up.chosen_grasp_pose.to_np(),
+        atol=1e-9,
     )
 
 

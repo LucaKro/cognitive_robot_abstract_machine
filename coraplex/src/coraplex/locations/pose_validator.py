@@ -4,7 +4,9 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing_extensions import List, Optional, Self, TYPE_CHECKING
+from abc import ABC
+
+from typing_extensions import List, Optional, Self, Tuple, TYPE_CHECKING
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -40,6 +42,8 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
@@ -359,80 +363,217 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
 
 
 @dataclass
-class IsObjectReachableBy(PoseValidator, HasApproachesGraspPoses):
+class WorldCopy:
     """
-    Reachability check that is evaluated against a *fresh* copy of the world.
+    A throwaway copy of a world, with the robot and gripper found again inside it.
 
-    Both the world copy and the grasp pose sequence are produced inside
-    :meth:`__call__`, i.e. when the surrounding condition/monitor is evaluated,
-    so the result reflects the current world state instead of the state at the
-    time the plan was parsed. The actual reachability simulation is delegated to
-    :class:`AreReachableBy` / :class:`IsReachableBy`, which run on the throwaway
-    copy so the live world is left untouched.
+    A reachability check drives the robot to see whether it arrives, which moves it. The
+    copy is what gets moved, so the world the plan runs against is left as it was.
+    """
+
+    world: World
+    """
+    The copy itself.
+    """
+
+    robot: AbstractRobot
+    """
+    The robot of :attr:`world`, the same one the caller named.
+    """
+
+    end_effector: EndEffector
+    """
+    The end effector of :attr:`robot` that is to do the reaching.
+    """
+
+    @property
+    def context(self) -> Context:
+        """
+        :return: A context addressing this copy, for validators that run inside it.
+        """
+        return Context(world=self.world, robot=self.robot)
+
+
+@dataclass
+class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
+    """
+    Base for validators answering whether a grasp can be reached from where the robot
+    stands.
+
+    The copy and the answer are both produced inside :meth:`__call__`, when the
+    surrounding condition is evaluated, so they reflect the world as it is then rather
+    than as it was when the plan was built.
     """
 
     arm: Arms
     """
-    The arm whose end effector should reach the object.
+    The arm whose end effector should do the reaching.
     """
 
-    object_designator: Body
+    def _copied_world(self) -> WorldCopy:
+        """
+        :return: A copy of the world to try the reach in.
+        """
+        world = deepcopy(self.world)
+        robot = world.get_semantic_annotation_by_id(self.robot.id)
+        return WorldCopy(
+            world=world,
+            robot=robot,
+            end_effector=ViewManager.get_end_effector_view(self.arm, robot),
+        )
+
+    def _reaches(
+        self,
+        grasp_pose: Pose,
+        copied_world: WorldCopy,
+        body: Optional[Body],
+        reverse: bool = False,
+    ) -> bool:
+        """
+        Whether the gripper can perform the approach onto a grasp and withdraw again.
+
+        :param grasp_pose: The grasp frame to reach, in ``copied_world``'s frames.
+        :param copied_world: The copy to try it in.
+        :param body: The body being grasped, whose geometry the approach has to clear.
+        :param reverse: Whether to withdraw from the grasp rather than move onto it.
+        :return: Whether the whole sequence was reached.
+        """
+        return AreReachableBy(
+            context=copied_world.context,
+            pose_sequence=self.grasp_pose_sequence(
+                grasp_pose,
+                copied_world.end_effector,
+                self._grasp_in_body_frame(grasp_pose, body),
+                reverse=reverse,
+            ),
+            tip_link=copied_world.end_effector.tool_frame,
+            approach_clearance=self.approach_clearance,
+            retreat_distance=self.retreat_distance,
+        )()
+
+
+@dataclass
+class IsObjectReachableBy(GraspReachabilityValidator):
     """
-    The object that should be reachable.
+    Validator that asks whether an object can be grasped from where the robot stands.
+
+    The grasps are the ones the object itself offers, tried in the order the gripper
+    ranks them, and the first that can be reached is kept in :attr:`reachable_grasp` so
+    the caller that chose the standing pose also learns which grasp it was chosen for. A
+    grasp is only ever reachable from somewhere, so settling on one before a pose is
+    known is the wrong way round.
     """
 
-    grasp_pose: Optional[Pose] = field(default=None)
+    graspable: HasGraspPoses
     """
-    The grasp frame to reach on the object.
+    The annotation of the object that should be grasped.
+    """
 
-    ``None`` grasps the object at its own frame, which is what ``as_single_grasp``
-    always does since it is never given one.
+    grasp_poses: List[Pose] = field(default_factory=list)
+    """
+    The grasps that may be taken, in :attr:`graspable`'s own frame.
+
+    Empty asks the object for every grasp it offers, which is what a caller wanting the
+    object picked up however it can be means. A caller that has narrowed the choice --
+    to a single grasp, say -- passes what it will accept.
+    """
+
+    reachable_grasp: Optional[Pose] = field(default=None, init=False)
+    """
+    The first grasp found reachable, in the object's own frame.
+
+    ``None`` until a call succeeds, and cleared by every call, so it always belongs to
+    the pose the validator was last asked about.
+    """
+
+    def _against(self, grasp_pose: Pose, root: Body) -> Pose:
+        """
+        The same grasp, written against another copy of the body it belongs to.
+
+        A grasp is expressed in its own root's frame, so the numbers naming it on one
+        copy of a body name it on any other.
+
+        :param grasp_pose: The grasp to rewrite.
+        :param root: The body to write it against.
+        :return: The rewritten grasp.
+        """
+        return Pose(
+            position=grasp_pose.to_position(),
+            orientation=grasp_pose.to_quaternion(),
+            reference_frame=root,
+        )
+
+    def _candidates_in(
+        self, copied_world: WorldCopy, graspable: HasGraspPoses
+    ) -> List[Tuple[Pose, Pose]]:
+        """
+        The grasps to try, best first.
+
+        :param copied_world: The copy the reaches are tried in.
+        :param graspable: The object, as the copy holds it.
+        :return: Pairs of the grasp to try, written against the copy, and the grasp to
+            hand back for it, written against the object the caller holds. A caller that
+            named its grasps gets its own back rather than a rewritten equal.
+        """
+        if not self.grasp_poses:
+            return [
+                (grasp_pose, self._against(grasp_pose, self.graspable.root))
+                for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
+                    graspable
+                )
+            ]
+        candidates = [
+            (self._against(grasp_pose, graspable.root), grasp_pose)
+            for grasp_pose in self.grasp_poses
+        ]
+        return sorted(
+            candidates,
+            key=lambda pair: copied_world.end_effector.distance_to_grasp(pair[0]),
+        )
+
+    def __call__(self, *args, **kwargs) -> bool:
+        self.reachable_grasp = None
+        copied_world = self._copied_world()
+        graspable = copied_world.world.get_semantic_annotation_by_id(self.graspable.id)
+
+        for grasp_pose, reported in self._candidates_in(copied_world, graspable):
+            if self._reaches(grasp_pose, copied_world, graspable.root):
+                self.reachable_grasp = reported
+                return True
+        return False
+
+
+@dataclass
+class IsGraspReachableBy(GraspReachabilityValidator):
+    """
+    Validator that asks whether one named grasp can be reached from where the robot
+    stands.
+
+    A caller that has settled on a grasp is asking about that grasp, so no other is
+    tried; :class:`IsObjectReachableBy` is the question to ask when any grasp will do.
+    """
+
+    grasp_pose: Pose
+    """
+    The grasp frame to reach, in :attr:`object_designator`'s frame.
+    """
+
+    object_designator: Optional[Body] = field(default=None)
+    """
+    The body being grasped, whose geometry the approach has to clear.
+
+    ``None`` when no body is being reached around.
     """
 
     reverse: bool = field(default=False)
     """
-    Whether the grasp pose sequence should be reversed.
-    """
-
-    as_single_grasp: bool = field(default=False)
-    """
-    If set, check reachability of a single grasp pose at the object (used for grasping
-    handles of containers) instead of a full pick pose sequence.
+    Whether the gripper withdraws from the grasp rather than moving onto it.
     """
 
     def __call__(self, *args, **kwargs) -> bool:
-        world = deepcopy(self.world)
-        robot = world.get_semantic_annotation_by_id(self.robot.id)
-        end_effector = ViewManager.get_end_effector_view(self.arm, robot)
-
-        grasp_pose = self.grasp_pose
-        if grasp_pose is None:
-            grasp_pose = Pose(reference_frame=self.object_designator)
-
-        if self.as_single_grasp:
-            return IsReachableBy(
-                context=Context(
-                    world=world,
-                    robot=robot,
-                    alternative_motion_mappings=self.alternative_motion_mappings,
-                ),
-                pose=end_effector.tool_frame_goal(grasp_pose),
-                tip_link=end_effector.tool_frame,
-            ).__call__()
-
-        pose_sequence = self.grasp_pose_sequence(
-            grasp_pose,
-            end_effector,
-            self._grasp_in_body_frame(grasp_pose, self.object_designator),
+        return self._reaches(
+            self.grasp_pose,
+            self._copied_world(),
+            self.object_designator,
             reverse=self.reverse,
         )
-
-        return AreReachableBy(
-            context=Context(
-                world=world,
-                robot=robot,
-                alternative_motion_mappings=self.alternative_motion_mappings,
-            ),
-            pose_sequence=pose_sequence,
-            tip_link=end_effector.tool_frame,
-        ).__call__()

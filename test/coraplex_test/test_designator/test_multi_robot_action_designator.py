@@ -44,7 +44,9 @@ from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from rustworkx.rustworkx import NoEdgeBetweenNodes
 
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
     GripperState,
@@ -108,6 +110,26 @@ def heading_towards(
         yaw=float(np.arctan2(world_V_heading[1], world_V_heading[0])),
         reference_frame=world.root,
     )
+
+
+def _handle_annotation(world, body_name: str):
+    """
+    :return: The handle annotation of the named body, registering one when the world
+        carries none for it.
+    """
+    from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
+
+    body = world.get_body_by_name(body_name)
+    existing = [
+        handle
+        for handle in world.get_semantic_annotations_by_type(Handle)
+        if handle.root is body
+    ]
+    if existing:
+        return existing[0]
+    with world.modify_world():
+        world.add_semantic_annotation_recursively(handle := Handle(root=body))
+    return handle
 
 
 def stand_facing(
@@ -637,7 +659,7 @@ def test_open(immutable_multiple_robot_apartment):
                     reference_frame=world.root,
                 )
             ),
-            OpenAction(world.get_body_by_name("handle_cab10_m"), Arms.LEFT),
+            OpenAction(_handle_annotation(world, "handle_cab10_m"), Arms.LEFT),
         ],
         context,
     )
@@ -654,7 +676,7 @@ def test_close(immutable_multiple_robot_apartment, rclpy_node):
     world.get_connection_by_name("cabinet10_drawer_middle_joint").position = 0.3
     world.notify_state_change()
 
-    handle = world.get_body_by_name("handle_cab10_m")
+    handle = _handle_annotation(world, "handle_cab10_m")
     navigate_position = (
         [1.5, 1.85, 0] if isinstance(robot, (Tiago, Stretch)) else [1.65, 2.0, 0]
     )
@@ -666,7 +688,7 @@ def test_close(immutable_multiple_robot_apartment, rclpy_node):
             NavigateAction(
                 heading_towards(
                     navigate_position,
-                    handle.global_pose.to_position().to_np(),
+                    handle.root.global_pose.to_position().to_np(),
                     world,
                 )
             ),

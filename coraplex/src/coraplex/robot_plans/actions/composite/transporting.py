@@ -93,13 +93,13 @@ class TransportAction(ActionDescription, HasApproachesGraspPoses):
         drawer_annotation = list(drawer_annotation.evaluate())
         if len(drawer_annotation) == 0:
             return []
-        handle = drawer_annotation[0].handle.root
+        handle = drawer_annotation[0].handle
 
         return [
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
-                    domain=reachability_location(handle, self.context, self.arm),
+                    domain=reachability_location(handle.root, self.context, self.arm),
                 ),
                 keep_joint_states=True,
             ),

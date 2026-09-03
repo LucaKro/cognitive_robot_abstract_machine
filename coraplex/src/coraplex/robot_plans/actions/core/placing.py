@@ -110,7 +110,7 @@ class PlaceAction(
         )
         if previous_pick is None:
             return Pose(reference_frame=self.object_designator)
-        return previous_pick.designator.grasp_pose
+        return previous_pick.designator.chosen_grasp_pose
 
     def _grasp_pose_at(self, target_location: Pose) -> Pose:
         """

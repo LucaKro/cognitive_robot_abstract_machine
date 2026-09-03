@@ -13,6 +13,7 @@ from coraplex.locations.base import Location
 from coraplex.locations.costmaps import OccupancyCostmap, RingCostmap, VisibilityCostmap
 from coraplex.locations.pose_validator import (
     AreReachableBy,
+    IsObjectReachableBy,
     IsVisibleBy,
 )
 from coraplex.view_manager import ViewManager
@@ -20,6 +21,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
     Drawer,
 )
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -136,6 +138,62 @@ def reachability_location(
                     robot=context.robot,
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
+                approach_clearance=approach_clearance,
+                retreat_distance=retreat_distance,
+            )
+        ],
+    )
+
+
+def grasping_location(
+    graspable: HasGraspPoses,
+    context: Context,
+    arm: Arms,
+    approach_clearance: float = ActionConfig.approach_clearance,
+    retreat_distance: float = ActionConfig.retreat_distance,
+) -> Location:
+    """
+    Factory that creates a Location for robot poses from which the object can be grasped
+    somehow, rather than from which one particular grasp can be reached.
+
+    A grasp is only reachable from somewhere, so settling on one before a standing pose
+    is known picks it from wherever the robot happens to be. This asks the other way
+    round: a pose qualifies when any of the object's grasps can be reached from it, and
+    the validator keeps the one that was, in
+    :attr:`~coraplex.locations.pose_validator.IsObjectReachableBy.reachable_grasp`.
+
+    :param graspable: The annotation of the object that should be grasped.
+    :param context: The context in which to create the location.
+    :param arm: The arm with which to grasp the object.
+    :param approach_clearance: The gap left between the object and the gripper before
+        the final approach.
+    :param retreat_distance: How far the gripper rises after closing on the object.
+    :returns: A location from which the object can be grasped.
+    """
+    target_pose = graspable.root.global_pose
+    costmap = OccupancyCostmap.default_map(context, target_pose) & RingCostmap(
+        resolution=0.02,
+        width=200,
+        height=200,
+        std=15,
+        distance=ViewManager.get_arm_view(arm, context.robot).approximate_length()
+        * 0.66,
+        world=context.world,
+        origin=target_pose,
+    )
+    return Location(
+        context,
+        target_pose,
+        costmap,
+        [
+            IsObjectReachableBy(
+                context=Context(
+                    world=context.world,
+                    robot=context.robot,
+                    alternative_motion_mappings=context.alternative_motion_mappings,
+                ),
+                arm=arm,
+                graspable=graspable,
                 approach_clearance=approach_clearance,
                 retreat_distance=retreat_distance,
             )

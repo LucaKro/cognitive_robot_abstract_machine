@@ -821,8 +821,8 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     at the grasp itself.
     """
     world, view, context = immutable_model_world
-    milk_body = world.get_body_by_name("milk.stl")
-    grasping = GraspingAction(milk_body, Arms.LEFT, Pose(reference_frame=milk_body))
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    grasping = GraspingAction(milk, Arms.LEFT, Pose(reference_frame=milk.root))
     sequential([grasping], context=context)
 
     reach_nodes = grasping._action_plan.plan.get_nodes_by_designator_type(

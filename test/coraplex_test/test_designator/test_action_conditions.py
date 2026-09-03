@@ -1,4 +1,5 @@
 import pytest
+import rclpy
 
 from krrood.entity_query_language.factories import (
     get_false_statements,
@@ -6,6 +7,7 @@ from krrood.entity_query_language.factories import (
     ConditionType,
 )
 from coraplex.datastructures.enums import Arms
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
 from coraplex.execution_environment import simulated_robot
@@ -38,7 +40,7 @@ def test_get_bound_variables(immutable_model_world):
 
     bound_variables = pick_action._create_variables()
 
-    assert len(bound_variables) == 15
+    assert len(bound_variables) == 16
     assert list(bound_variables.keys()) == [
         "position_threshold",
         "orientation_threshold",
@@ -55,6 +57,7 @@ def test_get_bound_variables(immutable_model_world):
         "arm",
         "tolerate_grasp_stall",
         "perceive_before_grasp",
+        "grasp_pose",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms
@@ -66,6 +69,13 @@ def test_get_bound_variables(immutable_model_world):
 
 def test_pick_up_pre_conditions(mutable_model_world):
     world, view, context = mutable_model_world
+    rclpy.init()
+
+    rosnode = rclpy.create_node("test_node")
+    context.ros_node = rosnode
+    context.debug = True
+
+    VizMarkerPublisher(_world=world, node=rosnode)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     pick_action = PickUpAction(milk, Arms.LEFT)
