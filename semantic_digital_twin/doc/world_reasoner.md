@@ -16,9 +16,10 @@ joints of a parsed world model into semantic annotations: the body a slider pull
 {py:class}`semantic_digital_twin.semantic_annotations.semantic_annotations.Drawer`, the body it slides out of becomes a
 {py:class}`semantic_digital_twin.semantic_annotations.semantic_annotations.Cabinet`, and so on.
 
-It is a rule based classifier built on [Ripple Down Rules](https://github.com/AbdelrhmanBassiouny/ripple_down_rules/tree/main).
-The rules live in the semantic digital twin repository and are versioned and migrated with the world data structures
-they read, so they keep working as those data structures change.
+It is a rule based classifier built on [Ripple Down Rules](https://cram2.github.io/cognitive_robot_abstract_machine/krrood/ripple_down_rules/intro.html),
+which live in this workspace as {py:mod}`krrood.ripple_down_rules`. The rules live in the semantic digital twin
+package and are versioned and migrated with the world data structures they read, so they keep working as those data
+structures change.
 
 ## Using the reasoner
 
@@ -119,9 +120,10 @@ def drawers(world: World) -> List[Drawer]:
     )
 ```
 
-Rules are written in the [entity query language](https://github.com/tomsch420/krrood), which is what lets the reasoner
-explain itself afterwards (see below). Say as much as possible as a query over the joints rather than as a Python
-predicate: a join is what the explanation and the verbalization are able to read back.
+Rules are written in the [Entity Query Language](https://cram2.github.io/cognitive_robot_abstract_machine/krrood/eql/intro.html)
+({py:mod}`krrood.entity_query_language`), which is what lets the reasoner explain itself afterwards (see below).
+Say as much as possible as a query over the joints rather than as a Python predicate: a join is what the explanation
+and the verbalization are able to read back.
 
 Two things to keep in mind when writing one:
 
