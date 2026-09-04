@@ -6,7 +6,7 @@ from collections import deque
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
+from typing import Optional, Any, List, Tuple, Type, TYPE_CHECKING, Iterable, Iterator
 
 from typing_extensions import Union
 
@@ -25,12 +25,14 @@ from coraplex.plans.executables import (
 from coraplex.plans.failures import PlanFailure
 from coraplex.plans.motion_state_chart_building import BuildsMotionStateChart
 from coraplex.plans.plan_entity import PlanEntity
+from semantic_digital_twin.exceptions import BrokenWorldModificationHistoryError
 
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.graph_node import Task
     from coraplex.datastructures.dataclasses import Context
     from coraplex.robot_plans.actions.base import ActionDescription
     from coraplex.robot_plans.motions.base import BaseMotion
+    from semantic_digital_twin.world import World
 
 
 logger = logging.getLogger(__name__)
@@ -398,56 +400,91 @@ class ExecutionBoundaryNode(ABC, PlanNode):
 @dataclass
 class CandidateRehearsal:
     """
-    Tries a grounded action against a disposable copy of the world, to check that it can
-    succeed before it is attempted for real.
+    Tries grounded actions against a disposable copy of the world, to check that a
+    candidate can succeed before it is attempted for real.
 
-    The copy is taken fresh from the current world every time, so a rehearsal never
-    reuses a previous attempt's copy and always reflects whatever state and model
-    changes are actually in `context.world` at the moment it runs. Rehearsal always
-    runs under a forced :attr:`~coraplex.datastructures.enums.ExecutionType.SIMULATED`
-    execution, regardless of the execution type the real attempt will use, since the
-    copy it runs against is never connected to real hardware.
-    """
+    One copy serves every candidate: after an attempt the copy is rolled back to the
+    model version it was at and its state is restored, so the next candidate starts
+    from the same point without another copy having to be made. A fresh copy is taken
+    whenever `context.world` has itself moved on, so a rehearsal always reflects the
+    state and model changes actually in it.
 
-    action: ActionDescription
-    """
-    The grounded action to rehearse.
+    The copy is never connected to a synchronizer, so nothing a rehearsal does is
+    published, and rehearsal always runs under a forced
+    :attr:`~coraplex.datastructures.enums.ExecutionType.SIMULATED` execution regardless
+    of the execution type the real attempt will use.
     """
 
     context: Context
     """
-    The context the action was grounded in.
+    The context the candidates were grounded in.
 
     Only ever read from: rehearsal never mutates it or the world it points at, and the
-    action itself is left untouched too, so it can still be attached and executed for
-    real afterwards.
+    candidates themselves are left untouched too, so they can still be attached and
+    executed for real afterwards.
     """
 
-    def succeeds(self) -> bool:
+    _world: Optional[World] = field(default=None, init=False, repr=False)
+    """
+    The copy candidates are tried against, kept until it no longer matches the world it
+    was taken from.
+    """
+
+    _context: Optional[Context] = field(default=None, init=False, repr=False)
+    """
+    The context pointing at `_world`, rebuilt whenever a new copy is taken.
+    """
+
+    _source_versions: Optional[Tuple[int, int]] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The model and state versions `context.world` had when the copy was taken, used to
+    notice that it has moved on and the copy has to be replaced.
+    """
+
+    def succeeds(self, action: ActionDescription) -> bool:
         """
-        Run `action` against a disposable copy of the world.
+        Run `action` against the disposable copy of the world.
+
+        :param action: The grounded action to rehearse.
+        :return: True if `action` runs to completion without raising a `PlanFailure`.
+        """
+        try:
+            return self._attempt(action)
+        except BrokenWorldModificationHistoryError:
+            # The attempt failed inside an open modification block, so what it already
+            # applied was never recorded and cannot be rolled back. The copy is dropped
+            # instead of being reused in that unknown state.
+            self.discard()
+            return False
+
+    def _attempt(self, action: ActionDescription) -> bool:
+        """
+        Run `action` against the copy and restore the copy afterwards.
 
         The action is relocated onto the copy first: reading through a reference to the
         world it was grounded in would be harmless, but an action that modifies the
         model (attaching a grasped body, say) requires the entities it is given to
         belong to the world being modified.
 
-        :return: True if `action` runs to completion without raising a `PlanFailure`
-            against a disposable copy of `context.world`.
+        The version to roll back to is read here rather than when the copy is taken, so
+        each attempt undoes only its own modifications. Reverting is itself recorded, so
+        rolling every attempt back to where the copy started would mean undoing a longer
+        and longer run of blocks, most of them already-undone ones.
+
+        :param action: The grounded action to rehearse.
+        :return: True if `action` runs to completion without raising a `PlanFailure`.
         """
         from coraplex.plans.plan import Plan
 
-        test_world = deepcopy(self.context.world)
-        test_context = replace(
-            self.context,
-            world=test_world,
-            robot=test_world.get_semantic_annotation_by_id(self.context.robot.id),
-        )
-        test_plan = Plan(context=test_context)
-        candidate = ActionNode(designator=test_world.relocate(self.action))
-        test_plan.add_node(candidate)
+        world = self._copy()
+        plan = Plan(context=self._context)
+        candidate = ActionNode(designator=world.relocate(action))
+        plan.add_node(candidate)
+        version = world.get_world_model_manager().version
 
-        with ExecutionEnvironment(
+        with world.reset_state_context(), ExecutionEnvironment(
             ExecutionType.SIMULATED,
             collision_avoidance=GiskardExecutable.collision_avoidance,
         ):
@@ -457,6 +494,37 @@ class CandidateRehearsal:
                 return True
             except PlanFailure:
                 return False
+            finally:
+                # Undo the model changes before leaving the reset context restores the
+                # state, which needs the degrees of freedom it was snapshotted with.
+                world.rollback_to_version(version)
+
+    def _copy(self) -> World:
+        """
+        :return: The copy to rehearse against, taken again if `context.world` has
+            changed since the current one was made.
+        """
+        versions = (
+            self.context.world.get_world_model_manager().version,
+            self.context.world.state.version,
+        )
+        if self._world is None or self._source_versions != versions:
+            self._world = deepcopy(self.context.world)
+            self._context = replace(
+                self.context,
+                world=self._world,
+                robot=self._world.get_semantic_annotation_by_id(self.context.robot.id),
+            )
+            self._source_versions = versions
+        return self._world
+
+    def discard(self) -> None:
+        """
+        Release the copy, so the next rehearsal takes a fresh one.
+        """
+        self._world = None
+        self._context = None
+        self._source_versions = None
 
 
 @dataclass(eq=False, repr=False)
@@ -492,6 +560,16 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
     time.
 
     On failure, `advance` replaces it with the next candidate.
+    """
+
+    _rehearsal: Optional[CandidateRehearsal] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The rehearsal every candidate of this node is tried against.
+
+    Held across candidates so they share one copy of the world, rather than each paying
+    for its own.
     """
 
     @property
@@ -536,11 +614,14 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
         candidate generator only builds to validate against (for example a location's
         deep-copied test world). Once a candidate is accepted and no retry will happen,
         closing the iterator here releases those resources immediately instead of
-        retaining them for this node's whole lifetime.
+        retaining them for this node's whole lifetime. The rehearsal's copy of the world
+        is released for the same reason.
         """
         if self._action_iterator is not None:
             self._action_iterator.close()
             self._action_iterator = None
+        if self._rehearsal is not None:
+            self._rehearsal.discard()
 
     def notify(self):
         # Resolution is deferred to execution time: the underspecified statement can
@@ -555,9 +636,10 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
         current world state.
 
         Every grounded action is first tried against a disposable copy of the world
-        (:class:`CandidateRehearsal`); a candidate that fails there is discarded
-        without ever being attached to the plan or touching the real world, so a bad
-        parameterization cannot poison a later attempt. Only a candidate that survives
+        (:class:`CandidateRehearsal`), which is rolled back between candidates; a
+        candidate that fails there is discarded without ever being attached to the plan
+        or touching the real world, so a bad parameterization cannot poison a later
+        attempt. Only a candidate that survives
         rehearsal is attached and returned.
 
         Driven by :class:`~pycram.plans.executables.UnderspecifiedExecutable` to ground the
@@ -567,9 +649,12 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
         :return: True if a new candidate was generated, False if the iterator is
             exhausted without any candidate surviving rehearsal.
         """
+        if self._rehearsal is None:
+            self._rehearsal = CandidateRehearsal(context=self.context)
+
         action = self._pull_next_action()
         while action is not None:
-            if CandidateRehearsal(action=action, context=self.context).succeeds():
+            if self._rehearsal.succeeds(action):
                 self._attach(action)
                 self.current_candidate.notify()
                 return True

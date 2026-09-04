@@ -306,14 +306,47 @@ def test_isolation_rejected_candidate_never_touches_real_world(
     assert len(probe.calls) == 3
     # candidate 1's rehearsal: the only attempt it ever gets, and it is a copy.
     assert probe.calls[0].world is not world
-    # candidate 2's rehearsal: a fresh, separate copy.
+    # candidate 2's rehearsal: still a copy, restored to how candidate 1 found it.
     assert probe.calls[1].world is not world
-    assert probe.calls[1].world is not probe.calls[0].world
+    assert probe.calls[1].position_at_entry == probe.calls[0].position_at_entry
     # candidate 2's real attempt: the actual world.
     assert probe.calls[2].world is world
 
     # candidate 1's rejected rehearsal only ever mutated its own throwaway copy.
     assert world.state[dof.id].position == 3
+
+
+def test_rejected_candidates_rehearse_against_one_copy(
+    apartment_world_pr2_copy_with_context,
+):
+    """
+    Candidates that follow a rejected one rehearse against the copy that rejection was
+    made in, rather than each candidate copying the world again.
+
+    Nothing has changed the real world between them, so the copy still describes it and
+    rolling it back is enough to give the next candidate the same starting point.
+    """
+    world, robot, context = apartment_world_pr2_copy_with_context
+    dof = world.degrees_of_freedom[0]
+    probe_key = register_probe()
+
+    action = a(RecordingAction)(
+        probe_key=probe_key,
+        dof_id=dof.id,
+        fail_on_attempt_number=variable_from([1, 2, None]),
+    )
+    plan = execute_single(action_like=action, context=context).plan
+    with simulated_robot:
+        plan.perform()
+
+    probe = _registered_probes[probe_key]
+    # every call but the last is a rehearsal; the last is the accepted candidate's real
+    # attempt, which runs against the real world.
+    rehearsals = probe.calls[:-1]
+    assert len(rehearsals) == 3
+    assert rehearsals[0].world is not world
+    assert rehearsals[1].world is rehearsals[0].world
+    assert rehearsals[2].world is rehearsals[0].world
 
 
 def test_real_failure_keeps_state_and_next_rehearsal_reflects_it(
