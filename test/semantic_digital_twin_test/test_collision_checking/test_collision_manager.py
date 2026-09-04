@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from krrood.symbolic_math.float_variable_data import (
     FloatVariableData,
@@ -8,6 +9,8 @@ from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
 )
 from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowAllCollisions,
+    AllowSelfCollisions,
     AvoidCollisionBetweenGroups,
     AvoidSelfCollisions,
 )
@@ -275,3 +278,82 @@ def test_collision_rules_survive_merge(pr2_world_copy):
     with world.modify_world():
         world.merge_world(pr2_world_copy)
     assert len(world.collision_manager.rules) == expected
+
+
+# %% asking under rules of one's own
+
+
+def test_replace_temporary_rules_restores_the_rules_in_force(cylinder_bot_world):
+    """
+    Temporary rules outrank the default ones, so a question asked under rules of its own
+    has to put back the rules whatever runs next is judged by.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+    rule_of_the_run = AvoidSelfCollisions(robot=robot)
+    collision_manager = cylinder_bot_world.collision_manager
+    collision_manager.add_temporary_rule(rule_of_the_run)
+
+    rule_of_the_question = AllowSelfCollisions(robot=robot)
+
+    with collision_manager.replace_temporary_rules([rule_of_the_question]):
+        rules_while_asking = list(collision_manager.temporary_rules)
+
+    assert rules_while_asking == [rule_of_the_question]
+    assert collision_manager.temporary_rules == [rule_of_the_run]
+
+
+def test_replace_temporary_rules_restores_them_when_the_question_raises(
+    cylinder_bot_world,
+):
+    """
+    A question that fails halfway must not leave its own rules behind.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+    rule_of_the_run = AvoidSelfCollisions(robot=robot)
+    collision_manager = cylinder_bot_world.collision_manager
+    collision_manager.add_temporary_rule(rule_of_the_run)
+
+    with pytest.raises(ZeroDivisionError):
+        with collision_manager.replace_temporary_rules(
+            [AllowSelfCollisions(robot=robot)]
+        ):
+            1 / 0
+
+    assert collision_manager.temporary_rules == [rule_of_the_run]
+
+
+# %% whether a robot touches anything
+
+
+def test_robot_is_in_collision_reports_a_contact_of_its_own(cylinder_bot_world):
+    """
+    The robot answers for its own bodies, under whichever rules the caller set.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+    environment = cylinder_bot_world.get_kinematic_structure_entity_by_name(
+        "environment"
+    )
+
+    with cylinder_bot_world.collision_manager.replace_temporary_rules(
+        [
+            AvoidCollisionBetweenGroups(
+                buffer_zone_distance=10,
+                violated_distance=0.0,
+                body_group_a=[robot.root],
+                body_group_b=[environment],
+            )
+        ]
+    ):
+        assert robot.is_in_collision
+
+
+def test_robot_is_not_in_collision_when_nothing_is_checked(cylinder_bot_world):
+    """
+    With every collision of the robot allowed, no contact is reported for it.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+
+    with cylinder_bot_world.collision_manager.replace_temporary_rules(
+        [AllowAllCollisions()]
+    ):
+        assert not robot.is_in_collision

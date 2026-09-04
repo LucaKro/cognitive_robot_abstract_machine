@@ -321,7 +321,7 @@ class AreReachableBy(PoseValidator):
 
             try:
                 executor.tick_until_end(
-                    timeout=len(self.pose_sequence) * GiskardExecutable.ticks_per_motion
+                    timeout=len(self.pose_sequence) * self.context.ticks_per_motion
                 )
             except TimeoutError:
                 logger.debug(

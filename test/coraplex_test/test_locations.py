@@ -312,3 +312,24 @@ def test_location_validates_against_the_rules_the_plan_runs_with(single_robot_wo
         isinstance(rule, AllowSelfCollisions)
         for rule in recorder.temporary_rules_seen[0]
     )
+
+
+def test_location_validates_with_the_motion_policy_of_its_own_context(
+    single_robot_world,
+):
+    """
+    Validators run against a copy of the world and so are handed a context of their own.
+
+    That context has to carry the tolerances and the tick budget of the run, or a
+    candidate is judged by defaults the plan itself is never held to.
+    """
+    world, robot, context = single_robot_world
+    context.ticks_per_motion = 11
+    context.motion_tolerances.default_tcp_position_threshold = 0.123
+    candidate = _candidate(world)
+    recorder = RecordsEvaluatedRobot()
+
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+
+    assert recorder.context.ticks_per_motion == context.ticks_per_motion
+    assert recorder.context.motion_tolerances is context.motion_tolerances

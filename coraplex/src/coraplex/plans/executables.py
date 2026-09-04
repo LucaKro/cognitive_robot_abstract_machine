@@ -157,14 +157,6 @@ class GiskardExecutable(Executable):
     to the motion state chart.
     """
 
-    ticks_per_motion: ClassVar[int] = 2000
-    """
-    How many ticks each motion of a chart may take before the run gives up on it.
-
-    Also the budget a reachability check gives the same motions, so a pose is not
-    rejected for running out of time sooner than the run that would perform it.
-    """
-
     @property
     def giskard_executables(self) -> List[GiskardExecutable]:
         """
@@ -291,7 +283,7 @@ class GiskardExecutable(Executable):
         executor.compile(motion_state_chart)
 
         counter = 0
-        while counter < len(self.motion_mappings) * GiskardExecutable.ticks_per_motion:
+        while counter < len(self.motion_mappings) * self.context.ticks_per_motion:
             executor.tick()
             counter += 1
             if executor.motion_statechart.is_end_motion():

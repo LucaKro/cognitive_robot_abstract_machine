@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import IntEnum, auto
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 # %% contact classification
 
 
-class ContactProximity(Enum):
+class ContactProximity(IntEnum):
     """
     How close the bodies of a contact are relative to the distances of their collision
     rule.

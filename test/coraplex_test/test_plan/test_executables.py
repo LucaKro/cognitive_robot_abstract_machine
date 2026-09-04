@@ -30,6 +30,7 @@ from coraplex.execution_environment import (
     real_robot,
     simulated_robot,
 )
+from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -223,3 +224,15 @@ def test_prepare_for_execution_leaves_out_collision_avoidance_when_not_asked_for
     chart = reach_action_executable.motion_state_chart
     assert chart.get_nodes_by_type(ExternalCollisionAvoidance) == []
     assert chart.get_nodes_by_type(SelfCollisionAvoidance) == []
+
+
+# %% how long a motion may take
+
+
+def test_the_tick_budget_is_not_class_state(reach_action_executable):
+    """
+    The budget is a policy of the run, carried by its context, so two runs in one
+    process cannot be given different budgets by class state that outlives them.
+    """
+    assert not hasattr(GiskardExecutable, "ticks_per_motion")
+    assert reach_action_executable.context.ticks_per_motion
