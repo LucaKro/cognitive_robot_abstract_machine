@@ -25,6 +25,7 @@ from semantic_digital_twin.exceptions import (
     BrokenWorldModificationHistoryError,
     WorldEntityNotFoundError,
     WorldEntityBelongsToAnotherWorld,
+    AlreadyBelongsToAWorldError,
 )
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.pr2 import PR2, PR2Joint
@@ -1352,14 +1353,68 @@ def test_relocate_annotation_sharing_a_hash_table_key(world_setup):
     assert relocated._world is world_copy
 
 
+def test_relocated_annotation_sharing_a_hash_table_key_can_modify_the_copy(world_setup):
+    """
+    A relocated annotation whose hash table key a same-content annotation took over is
+    usable for modifying the world it was relocated into.
+
+    Model modification is what a relocated reference is needed for, and what a reference
+    left pointing at the world it came from fails at, with a `MismatchingWorld`.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    first, second = Handle(root=l1), Handle(root=l1)
+    with world.modify_world():
+        world.add_semantic_annotation(first)
+        world.add_semantic_annotation(second)
+    world_copy = deepcopy(world)
+
+    relocated = world_copy.relocate(first)
+    new_parent = world_copy.get_body_by_name(r1.name)
+    world_copy.move_branch(relocated.root, new_parent)
+
+    assert relocated.root.parent_connection.parent is new_parent
+
+
+def test_adding_an_entity_that_belongs_to_another_world_raises(world_setup):
+    """
+    An entity cannot be registered with a second world while it still belongs to the
+    first, which would leave it in that world's lookup table under a world it no longer
+    reports.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+
+    with pytest.raises(AlreadyBelongsToAWorldError):
+        l1.add_to_world(World())
+
+    assert l1._world is world
+    assert world.get_kinematic_structure_entity_by_id(l1.id) is l1
+
+
+def test_adding_an_entity_to_the_world_it_belongs_to_re_registers_it(world_setup):
+    """
+    Registering an entity with the world it already belongs to stays allowed, since it
+    only refreshes the entry that world already holds.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+
+    l1.add_to_world(world)
+
+    assert l1._world is world
+    assert world.get_kinematic_structure_entity_by_id(l1.id) is l1
+
+
 def test_relocate_rejects_an_entity_registered_here_but_owned_elsewhere(world_setup):
     """
-    An entity left registered in this world after being added to another one is
-    reported, rather than handed back to fail later wherever it is used.
+    An entity left registered in this world while reporting another one is reported,
+    rather than handed back to fail later wherever it is used.
+
+    :meth:`WorldEntity.add_to_world` refuses to create this state, so the test writes
+    the inconsistent lookup table entry the guard exists for directly.
     """
     world, l1, l2, bf, r1, r2 = world_setup
     other_world = World()
-    l1.add_to_world(other_world)
+    l1._world = other_world
+    world._world_entity_hash_table[hash(l1)] = l1
 
     with pytest.raises(WorldEntityBelongsToAnotherWorld):
         world.relocate(l1)
