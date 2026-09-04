@@ -30,6 +30,7 @@ from krrood.entity_query_language.factories import (
 from krrood.entity_query_language.predicate import symbolic_function
 from typing_extensions import Iterable, List, Optional, Sequence, Tuple, Type, Union
 
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.mixins import (
     HasRootKinematicStructureEntity,
 )
@@ -262,6 +263,33 @@ def container_kind_of(body: Body) -> Optional[ContainerKind]:
     return None
 
 
+# %% what the rules leave alone
+
+
+@symbolic_function
+def is_not_part_of_a_robot(body: Body) -> bool:
+    """
+    Whether the body belongs to the environment rather than to a robot.
+
+    A robot is jointed exactly like furniture - a gripper finger slides as a drawer does,
+    an arm link swings as a door does, and the link bolted to it looks like the handle
+    that opens it - so without this a robot's own links would be annotated as furniture
+    and its kinematic chain rewired around the joints that inserts.
+    """
+    robot_roots = {
+        robot.root
+        for robot in body._world.get_semantic_annotations_by_type(AbstractRobot)
+    }
+    if not robot_roots:
+        return True
+    ancestor = body
+    while ancestor is not None:
+        if ancestor in robot_roots:
+            return False
+        ancestor = ancestor.parent_kinematic_structure_entity
+    return True
+
+
 # %% identities the world already holds
 
 
@@ -367,6 +395,7 @@ def handles(world: World) -> List[Handle]:
         .where(
             joint.child == mount.parent,
             grip.has_collision(),
+            is_not_part_of_a_robot(grip),
             is_not_named_after_furniture(grip),
             is_not_already_something_else(grip, Handle, world.semantic_annotations),
         )
@@ -388,6 +417,7 @@ def drawers_with_a_handle(world: World) -> List[Drawer]:
         entity(inference(Drawer)(root=slider.child, handle=handle))
         .where(
             slider.child.has_collision(),
+            is_not_part_of_a_robot(slider.child),
             mount.parent == slider.child,
             mount.child == handle.root,
         )
@@ -407,6 +437,7 @@ def drawers_without_a_handle(world: World) -> List[Drawer]:
         entity(inference(Drawer)(root=slider.child))
         .where(
             slider.child.has_collision(),
+            is_not_part_of_a_robot(slider.child),
             not_(
                 exists(
                     mount,
@@ -429,6 +460,7 @@ def doors_with_a_handle(world: World) -> List[Door]:
         entity(inference(Door)(root=hinge.child, handle=handle))
         .where(
             hinge.child.has_collision(),
+            is_not_part_of_a_robot(hinge.child),
             mount.parent == hinge.child,
             mount.child == handle.root,
         )
@@ -462,6 +494,7 @@ def doors_without_a_handle(
         entity(inference(Door)(root=hinge.child))
         .where(
             hinge.child.has_collision(),
+            is_not_part_of_a_robot(hinge.child),
             follower.parent == hinge.child,
             follower.multiplier != independent_joint_multiplier,
             mount.parent == follower.child,
@@ -504,6 +537,7 @@ def _containers_of_kind(world: World, kind: Optional[ContainerKind]) -> List[Cab
             )
         )
         .where(
+            is_not_part_of_a_robot(container),
             holds_openable_parts(container, annotations),
             container_kind_of(container) == kind,
             names_no_recognised_kind(container),
@@ -554,7 +588,11 @@ def _furniture_named_after(
     body = mount.child
     return (
         entity(inference(annotation_type)(root=body))
-        .where(body.has_collision(), is_named_after(body, annotation_type))
+        .where(
+            body.has_collision(),
+            is_not_part_of_a_robot(body),
+            is_named_after(body, annotation_type),
+        )
         .tolist()
     )
 

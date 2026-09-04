@@ -335,6 +335,7 @@ def test_explain_inferred_semantic_annotations(apartment_world_copy):
     assert explanation.get_satisfied_conditions_as_string() == (
         "PrismaticConnection.child.has_collision()"
         " (PrismaticConnection.child.has_collision)"
+        "\nAND is_not_part_of_a_robot (PrismaticConnection.child)"
         "\nAND (FixedConnection.parent == PrismaticConnection.child)"
         "\nAND (FixedConnection.child == Handle.root)"
     )
@@ -353,19 +354,23 @@ def test_verbalize_query_that_inferred_semantic_annotations(apartment_world_copy
     ).verbalize(explanation.query_root)
     assert verbalization_paragraph == (
         "If the () of the has_collision of the child of a PrismaticConnection,"
-        " the parent of a FixedConnection is the child of the PrismaticConnection,"
+        " an is_not_part_of_a_robot, where the body of the is_not_part_of_a_robot is"
+        " the child of the PrismaticConnection,"
+        " the parent of a FixedConnection is the body of the is_not_part_of_a_robot,"
         " the child of the FixedConnection is the root of a Handle,"
-        " then there's a Drawer whose root is the child of the PrismaticConnection,"
+        " then there's a Drawer whose root is the body of the is_not_part_of_a_robot,"
         " and whose handle is the Handle"
     )
     assert verbalization_hierarchical == (
         "If\n"
         "  - the () of the has_collision of the child of a PrismaticConnection\n"
-        "  - the parent of a FixedConnection is the child of the PrismaticConnection\n"
+        "  - an is_not_part_of_a_robot, where the body of the is_not_part_of_a_robot is"
+        " the child of the PrismaticConnection\n"
+        "  - the parent of a FixedConnection is the body of the is_not_part_of_a_robot\n"
         "  - the child of the FixedConnection is the root of a Handle\n"
         "then\n"
         "  there's a Drawer\n"
-        "    - whose root is the child of the PrismaticConnection\n"
+        "    - whose root is the body of the is_not_part_of_a_robot\n"
         "    - whose handle is the Handle"
     )
 

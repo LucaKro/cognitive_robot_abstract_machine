@@ -298,6 +298,11 @@ def inferred_body_names(world: World, annotation_type: Type[HasRootBody]) -> Set
 # %% the expectations themselves
 
 
+ROBOT_JOINT_NAME_ONLY_A_ROBOT_HAS = "l_upper_arm_roll_joint"
+"""
+A joint of the robot, which reasoning over a world it stands in must leave in place.
+"""
+
 PREANNOTATED_DRAWER_BODY_NAME = "cabinet10_drawer_top"
 """
 The drawer the apartment fixture annotates by hand before any reasoning runs.
@@ -490,3 +495,34 @@ def test_every_openable_part_is_carried_by_a_mechanical_joint(
         assert isinstance(door.mechanical_joint, Hinge)
 
     assert reasoned_apartment.validate()
+
+
+# %% what the reasoner leaves alone
+
+
+def test_a_robot_in_the_apartment_is_left_alone(pr2_apartment_world: World):
+    """
+    A robot standing in the apartment keeps every one of its joints.
+
+    Its links are jointed like furniture - the torso slides as a drawer does and an arm
+    link swings as a door does - so annotating them would insert mechanical joints into
+    the robot and rewire the chain its motions are addressed by.
+    """
+    robot_body_names = {
+        body.name.name for body in pr2_apartment_world.robot_body_to_robot_mapping
+    }
+    assert ROBOT_JOINT_NAME_ONLY_A_ROBOT_HAS in {
+        connection.name.name for connection in pr2_apartment_world.connections
+    }
+
+    inferred = WorldReasoner(pr2_apartment_world).infer_semantic_annotations()
+
+    claimed = {
+        annotation.root.name.name
+        for annotation in inferred
+        if isinstance(annotation, HasRootBody)
+    } & robot_body_names
+    assert claimed == set()
+    assert ROBOT_JOINT_NAME_ONLY_A_ROBOT_HAS in {
+        connection.name.name for connection in pr2_apartment_world.connections
+    }

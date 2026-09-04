@@ -8,6 +8,7 @@ import pytest
 from typing_extensions import Dict, List, Self, Set
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.reasoning.world_rdr.rules import (
     ContainerKind,
     NamedKind,
@@ -369,6 +370,24 @@ def test_a_linkage_with_no_grip_anywhere_holds_no_door():
     )
 
     assert furniture.root_names(doors_with_a_handle, doors_without_a_handle) == set()
+
+
+# %% what the rules leave alone
+
+
+def test_a_robots_own_parts_are_not_furniture(drawer_with_a_grip):
+    """
+    A robot is jointed exactly like a drawer with a handle on it, so only knowing that
+    the branch is a robot keeps the rules off it.
+    """
+    MinimalRobot.from_branch_in_world(drawer_with_a_grip.bodies["cabinet"])
+
+    assert drawer_with_a_grip.root_names(handles) == set()
+    assert (
+        drawer_with_a_grip.root_names(drawers_with_a_handle, drawers_without_a_handle)
+        == set()
+    )
+    assert drawer_with_a_grip.root_names(cabinets) == set()
 
 
 # %% containers
