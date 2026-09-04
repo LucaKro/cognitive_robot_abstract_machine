@@ -410,11 +410,11 @@ def compose_class(name: str, superclass: Type, mixins: Sequence[Type] = ()) -> T
     :raises TypeError: If the bases cannot be combined into a class, which is itself an
         answer about the proposal.
     """
-    composed = type(name, _in_base_order([superclass, *mixins]), {"__annotations__": {}})
+    composed = type(name, in_base_order([superclass, *mixins]), {"__annotations__": {}})
     return dataclass(composed)
 
 
-def _in_base_order(bases: Sequence[Type]) -> tuple:
+def in_base_order(bases: Sequence[Type]) -> tuple:
     """
     Order bases so that Python can combine them.
 

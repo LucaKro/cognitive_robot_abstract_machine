@@ -340,6 +340,17 @@ class WarsawWorldLoader:
     """
 
     render_resolution: Tuple[int, int] = field(default=(1024, 768))
+
+    deciding_resolution: Optional[Tuple[int, int]] = field(default=None)
+    """
+    How large to draw a render made only to choose between viewpoints, if not the size
+    a kept picture is drawn at.
+
+    Which viewpoint shows more of something is a question about proportions, and
+    proportions survive being asked small -- but only asking it small can answer it
+    differently, and the renders turned out not to be the cost they looked like, so it
+    is not done unless asked for.
+    """
     """
     The size of the images the renders are written as.
     """
@@ -644,6 +655,7 @@ class WarsawWorldLoader:
         scene: trimesh.Scene,
         camera_poses: Dict[str, HomogeneousTransformationMatrix],
         headless: bool = False,
+        resolution: Optional[Tuple[int, int]] = None,
     ) -> Dict[str, bytes]:
         """
         Render one scene from several camera poses.
@@ -651,6 +663,9 @@ class WarsawWorldLoader:
         :param scene: The scene to render.
         :param camera_poses: The poses to render from, by the name of each viewpoint.
         :param headless: Whether to render without opening a window.
+        :param resolution: How large to render, defaulting to the size a picture is
+            kept at. A render made only to be measured and thrown away costs what its
+            pixels cost and needs none of them.
         :return: Per viewpoint, its render as PNG bytes.
         """
         scene.camera.fov = self._camera_field_of_view
@@ -658,7 +673,7 @@ class WarsawWorldLoader:
         for pose_name, camera_pose in camera_poses.items():
             scene.graph[scene.camera.name] = camera_pose
             images[pose_name] = scene.save_image(
-                resolution=self.render_resolution,
+                resolution=resolution or self.render_resolution,
                 visible=not headless,
                 # A scan is a single layer of surface whose faces point whichever way
                 # they were reconstructed, so culling the ones facing away hides parts of
@@ -1097,31 +1112,68 @@ class WarsawWorldLoader:
         self._reset_segment_colors()
         return max(worst, key=lambda name: worst[name])
 
+    def presented_area(
+        self, segment: LabelSegment, direction: np.ndarray
+    ) -> float:
+        """
+        Measure how much of a segment turns towards a direction, without drawing it.
+
+        How large a face looks from a direction is its area foreshortened by how squarely
+        it faces -- ``area * |n . d|`` summed over the segment. It is arithmetic over
+        arrays the mesh already carries, where a render is a tenth of a second.
+
+        Which way a face points does not enter into it, because the renders are made
+        without culling: a scan is a single layer of surface whose faces point whichever
+        way they were reconstructed, so one pointing away is drawn exactly like one
+        pointing towards. Counting only the faces whose normals face the camera measures
+        a picture nobody is taking, and picks a different viewpoint than the render does.
+
+        ..note:: It knows nothing of what stands in front of the segment, nor of the
+            segment standing in front of itself. It ranks; it does not decide.
+
+        :param segment: The segment to measure.
+        :param direction: The direction it is looked at from, from the camera outwards.
+        :return: The area of it presented to that direction, in square metres.
+        """
+        mesh = self.scene_mesh
+        towards = np.abs(mesh.face_normals[segment.faces] @ direction)
+        return float(towards @ mesh.area_faces[segment.faces])
+
     def viewpoint_showing_all_alone(
         self,
         segments: Iterable[LabelSegment],
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
+        considered: int = 4,
     ) -> str:
         """
         Choose the viewpoint showing the least-visible of some segments best, measured
         on the segments by themselves rather than in the room.
 
-        The same choice as :meth:`viewpoint_showing_all` and far cheaper: it draws the
-        few thousand faces in question where that draws a whole scanned room twelve
-        times over, which is the entire cost when the choice is made once for each of
-        two hundred pairs. What it gives up is occlusion by everything else -- a cabinet
-        standing in front of the pair no longer counts against a viewpoint -- which is
-        the right trade when the picture it is chosen for shows the segments alone.
+        The same choice as :meth:`viewpoint_showing_all` and far cheaper. Every viewpoint
+        is first ranked by :meth:`presented_area`, which draws nothing at all; only the
+        best few are then drawn, and drawn small, since what is wanted of those renders
+        is which of them shows more and not a picture anyone keeps.
+
+        What it gives up against :meth:`viewpoint_showing_all` is occlusion by everything
+        else -- a cabinet standing in front of the pair no longer counts against a
+        viewpoint -- which is the right trade when the picture it is chosen for shows the
+        segments alone.
 
         :param segments: The segments that all have to be visible.
         :param viewpoints: Which named viewpoints to consider, defaulting to all.
         :param headless: Whether to render without opening a window.
+        :param considered: How many of the ranked viewpoints to draw and compare, by
+            default all of them. Drawing fewer saved four percent of the time on this
+            scene and picked a different viewpoint than drawing all four in two cases of
+            six, the renders having never been the cost they looked like; the ranking is
+            left for a caller who has more viewpoints than four to choose between. One
+            skips drawing altogether and trusts the arithmetic, which cannot see a
+            segment hiding behind itself.
         :return: The name of the viewpoint that shows the least-visible segment best.
         """
         segments = list(segments)
         faces = np.unique(np.concatenate([segment.faces for segment in segments]))
-        alone = self.scene_mesh.submesh([faces], append=True)
         poses = self._chosen_viewpoints(
             self.compute_camera_poses(
                 self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
@@ -1129,17 +1181,43 @@ class WarsawWorldLoader:
             viewpoints,
         )
 
+        # Ranked by the segment each viewpoint shows worst, so that a handle is not
+        # outvoted by the door it is screwed to.
+        middle = self.scene_mesh.vertices[
+            self.scene_mesh.faces[faces].ravel()
+        ].mean(axis=0)
+        ranked = sorted(
+            poses,
+            key=lambda name: min(
+                self.presented_area(
+                    segment,
+                    (middle - poses[name][:3, 3])
+                    / np.linalg.norm(middle - poses[name][:3, 3]),
+                )
+                for segment in segments
+            ),
+            reverse=True,
+        )
+        looked_at = {name: poses[name] for name in ranked[: max(considered, 1)]}
+        if len(looked_at) == 1:
+            return next(iter(looked_at))
+
+        alone = self.scene_mesh.submesh([faces], append=True)
         dimmed = self._dimmed_face_colors[faces]
         alone.visual.face_colors = dimmed
-        rooms = self._render_from_poses(trimesh.Scene(alone), poses, headless)
+        rooms = self._render_from_poses(
+            trimesh.Scene(alone), looked_at, headless, self.deciding_resolution
+        )
 
         highlight = trimesh.visual.color.to_rgba(Color.distinct_colors(1)[0].to_rgba())
-        worst: Dict[str, Optional[int]] = {name: None for name in poses}
+        worst: Dict[str, Optional[int]] = {name: None for name in looked_at}
         for segment in segments:
             painted = dimmed.copy()
             painted[np.searchsorted(faces, segment.faces)] = highlight
             alone.visual.face_colors = painted
-            shown = self._render_from_poses(trimesh.Scene(alone), poses, headless)
+            shown = self._render_from_poses(
+                trimesh.Scene(alone), looked_at, headless, self.deciding_resolution
+            )
             for name, image in shown.items():
                 visible = changed_pixels(image, rooms[name])
                 if worst[name] is None or visible < worst[name]:
