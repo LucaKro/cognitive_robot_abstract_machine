@@ -412,7 +412,9 @@ class CandidateRehearsal:
     The copy is never connected to a synchronizer, so nothing a rehearsal does is
     published, and rehearsal always runs under a forced
     :attr:`~coraplex.datastructures.enums.ExecutionType.SIMULATED` execution regardless
-    of the execution type the real attempt will use.
+    of the execution type the real attempt will use. Conditions are always evaluated
+    too: whether a candidate is worth attempting for real is exactly what its pre- and
+    postconditions decide, so a plan that skips them elsewhere does not skip them here.
     """
 
     context: Context
@@ -489,8 +491,7 @@ class CandidateRehearsal:
             collision_avoidance=GiskardExecutable.collision_avoidance,
         ):
             try:
-                candidate.notify()
-                candidate.parse().execute()
+                candidate.perform()
                 return True
             except PlanFailure:
                 return False
@@ -514,6 +515,7 @@ class CandidateRehearsal:
                 self.context,
                 world=self._world,
                 robot=self._world.get_semantic_annotation_by_id(self.context.robot.id),
+                evaluate_conditions=True,
             )
             self._source_versions = versions
         return self._world
