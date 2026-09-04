@@ -210,6 +210,25 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
     return relations
 
 
+def describe_class(annotation_class: Type) -> str:
+    """
+    Write out what a class is and what it can hold, as a model reads it.
+
+    :param annotation_class: The class to describe.
+    :return: Its declaration and one line per relation it can stand in.
+    """
+    bases = ", ".join(base.__name__ for base in annotation_class.__bases__)
+    lines = [f"{annotation_class.__name__}({bases})"]
+    for relation in relations_of(annotation_class):
+        many = " (many)" if relation.holds_many else ""
+        cuts = " -- mounting here cuts the part out of the whole" if relation.removes_geometry else ""
+        lines.append(
+            f"  {relation.kind} {relation.field_name} -> {relation.target}{many}"
+            f", mounted with {relation.mounted_by}(){cuts}"
+        )
+    return "\n".join(lines)
+
+
 def _summary_of(annotation_class: Type) -> Optional[str]:
     """
     A dataclass without a docstring is given one listing its signature, which says
