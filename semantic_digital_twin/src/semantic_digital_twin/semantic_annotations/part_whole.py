@@ -9,7 +9,9 @@ it without depending on each other.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import List, Type
 
+from krrood.class_diagrams.class_diagram import WrappedClass
 from krrood.patterns.field_metadata import FieldMetadata
 
 # %% relation metadata
@@ -34,3 +36,95 @@ class IsPartWholeRelationship(FieldMetadata):
     :class:`~semantic_digital_twin.semantic_annotations.semantic_annotations.EntryWay`
     cuts the wall it is an aperture of, but not the door whose passage it marks.
     """
+
+
+# %% relation queries
+
+
+@dataclass
+class PartWholeField:
+    """
+    One field through which an annotation class holds a structural part.
+    """
+
+    whole: Type
+    """
+    The annotation class holding the part.
+    """
+
+    field_name: str
+    """
+    The field the part is held in, as :meth:`PartWholeRelationship.add` names it.
+    """
+
+    part: Type
+    """
+    The type of part the field accepts.
+    """
+
+    removes_part_geometry_from_whole: bool
+    """
+    Whether mounting a part here cuts the part's volume out of the whole's geometry.
+    """
+
+    holds_many: bool
+    """
+    Whether the field holds several parts rather than a single one.
+    """
+
+
+def part_whole_fields(annotation_class: Type) -> List[PartWholeField]:
+    """
+    Report the structural parts an annotation class can hold.
+
+    This reads the same metadata :meth:`PartWholeRelationship.add` routes by, so what it
+    reports and what a mount accepts cannot drift apart.
+
+    :param annotation_class: The annotation class to inspect.
+    :return: One entry per field of that class carrying a part-whole relationship.
+    """
+    part_whole_relationship_fields = []
+    for wrapped_field in WrappedClass(annotation_class).fields_with_metadata(
+        IsPartWholeRelationship
+    ):
+        relationship = IsPartWholeRelationship.of_wrapped_field(wrapped_field)
+        part_whole_relationship_fields.append(
+            PartWholeField(
+                whole=annotation_class,
+                field_name=wrapped_field.field.name,
+                part=wrapped_field.type_endpoint,
+                removes_part_geometry_from_whole=relationship.removes_part_geometry_from_whole,
+                holds_many=wrapped_field.is_many_to_many_relationship,
+            )
+        )
+    return part_whole_relationship_fields
+
+
+def admissible_relations(
+    one_class: Type, other_class: Type
+) -> List[PartWholeField]:
+    """
+    Report the part-whole relations two annotation classes may stand in, in either
+    direction.
+
+    An empty result means neither class can hold the other as a structural part, so an
+    overlap between them is something other than a part-whole relation.
+
+    ..note:: Several entries for the same direction mean the part matches more than one
+        of the whole's fields, which is what makes :meth:`PartWholeRelationship.add`
+        raise ``AmbiguousPart`` unless it is told which field to use.
+
+    :param one_class: One of the annotation classes.
+    :param other_class: The other annotation class.
+    :return: Every admissible relation, each naming which class is the whole and through
+        which field. The part is named as the field declares it, which may be a base of
+        the class that was asked about.
+    """
+    return [
+        part_whole_relationship_field
+        for whole, part in ((one_class, other_class), (other_class, one_class))
+        for part_whole_relationship_field in part_whole_fields(whole)
+        if isinstance(part, type)
+        and isinstance(part_whole_relationship_field.part, type)
+        and issubclass(part, part_whole_relationship_field.part)
+    ]

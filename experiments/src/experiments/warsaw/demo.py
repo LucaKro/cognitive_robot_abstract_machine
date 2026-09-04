@@ -1,20 +1,17 @@
 """
 Load a Warsaw scene and report what it holds.
 
-A scene directory holds one mesh of the whole room, segmented into objects by a set of
-classes. This loads it into a world, one body per object, and prints what came out.
+A scene directory holds one mesh of the whole room, whose faces carry, per class, the
+instance they belong to. This loads it into a world and prints what came out.
 
 Run it against a scene directory::
 
-    python -m experiments.warsaw.demo dataset/kitchenlab_meshes_out_20260816
+    python -m experiments.warsaw.demo dataset/kitchenlab_new_mesh_agreement_dataset
 
 ``--view`` opens an interactive viewer on the scene, and ``--render <directory>`` writes
 images of it from the loader's four camera poses without opening a window::
 
-    python -m experiments.warsaw.demo dataset/kitchenlab_meshes_out_20260816 --view
-
-..note:: Building the world writes one mesh file per object, so a scene of a few hundred
-    objects takes some tens of seconds.
+    python -m experiments.warsaw.demo dataset/kitchenlab_new_mesh_agreement_dataset --view
 """
 
 from __future__ import annotations
@@ -23,40 +20,50 @@ import argparse
 from collections import Counter
 from pathlib import Path
 
+import numpy as np
+
 from experiments.warsaw.world_loader import WarsawWorldLoader
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import Body
-
-
-def height_of(body: Body, world: World) -> float:
-    """
-    :param body: The body to measure.
-    :param world: The world the body belongs to.
-    :return: The body's mean height above the world's origin.
-    """
-    return float(body.collision[0].mesh_in_frame(world.root).vertices[:, 2].mean())
 
 
 def report(loader: WarsawWorldLoader) -> None:
     """
-    Print what a loaded scene holds, tallest body last.
+    Print what a loaded scene holds, class by class.
 
     :param loader: The loader holding the scene's world.
     """
-    bodies = loader.world.bodies_with_collision
-    print(f"bodies: {len(bodies)}")
+    scene = loader.scene
+    segments = loader.label_segments
+    face_count = len(scene.mesh.faces)
 
-    per_class = Counter(str(body.name).rsplit("_", 1)[0] for body in bodies)
-    print(f"classes: {len(per_class)}")
-    for class_name, count in sorted(per_class.items()):
-        print(f"  {class_name:<20} {count}")
+    print(f"mesh: {scene.mesh_path.name}")
+    print(f"vertices: {len(scene.mesh.vertices)}  faces: {face_count}")
+    print(f"classes: {len(scene.class_names)}  segments: {len(segments)}")
 
-    # Measuring a body reads its mesh, so each is measured once and then sorted.
-    measured = [(height_of(body, loader.world), str(body.name)) for body in bodies]
-    print("\nbodies by height:")
-    for height, name in sorted(measured):
-        print(f"  {name:<24} {height:6.2f} m")
+    segments_per_class = Counter(segment.class_name for segment in segments)
+    faces_per_class = Counter()
+    for segment in segments:
+        faces_per_class[segment.class_name] += len(segment)
+
+    print(f"\n{'class':<20} {'segments':>8} {'faces':>10}")
+    for class_name in scene.class_names:
+        print(
+            f"  {class_name:<18} {segments_per_class[class_name]:>8} "
+            f"{faces_per_class[class_name]:>10}"
+        )
+
+    # A face can carry several classes at once, since a scene labels a drawer front both
+    # as the drawer and as the cabinet holding it.
+    labels_per_face = np.zeros(face_count, dtype=np.int32)
+    for instances in scene.face_labels.values():
+        labels_per_face += (instances != scene.UNSEGMENTED).astype(np.int32)
+    labelled = int((labels_per_face > 0).sum())
+    print(
+        f"\nlabelled faces: {labelled} / {face_count} "
+        f"({100 * labelled / face_count:.1f}%), "
+        f"of which {int((labels_per_face > 1).sum())} carry more than one class"
+    )
 
 
 def view(world: World) -> None:
@@ -84,7 +91,7 @@ def main() -> None:
     parser.add_argument(
         "scene_directory",
         type=Path,
-        help="Directory holding the scene mesh and its per-class segmentations.",
+        help="Directory holding the scene's labelled mesh.",
     )
     parser.add_argument(
         "--render",
