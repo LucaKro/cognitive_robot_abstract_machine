@@ -15,6 +15,7 @@ mount through the wrong channel raises rather than building the wrong world quie
 
 from __future__ import annotations
 
+import inspect
 import json
 from dataclasses import dataclass, field, fields as dataclass_fields, is_dataclass
 from pathlib import Path
@@ -325,6 +326,11 @@ def build_taxonomy(
                 if base.__name__ in known
             ],
         }
+        if inspect.isabstract(annotation_class):
+            # A class with an unimplemented abstract method cannot be given to an
+            # object at all, so offering it as an answer is offering a failure three
+            # steps later, where it reads as the world's fault rather than the answer's.
+            node["abstract"] = True
         if annotation_class.__module__.endswith(MIXIN_MODULE_SUFFIX):
             # A mixin is a base to build with, not a thing standing in a room. Saying so
             # is the difference between a model deriving a ceiling from HasRootBody and
@@ -356,7 +362,9 @@ def build_taxonomy(
         "note": (
             "Relations say what a class can hold. 'part' is mounted with add(), "
             "'contains' with add_object() for something merely inside or on it, "
-            "'supports' with add_supporting_surface(). A class marked 'mixin' exists "
+            "'supports' with add_supporting_surface(). A class marked 'abstract' "
+            "cannot be given to an object; name one of its subclasses instead. A "
+            "class marked 'mixin' exists "
             "to be built with rather than to name something in a room. A new class is "
             "composed by naming a superclass and any of the mixins below."
         ),
