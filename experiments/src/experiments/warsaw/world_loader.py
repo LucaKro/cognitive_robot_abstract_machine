@@ -61,6 +61,16 @@ SCENE_BODY_NAME = "scene"
 The name of the body carrying the whole scene.
 """
 
+VIEWPOINT_IN_ROOM = "in-room"
+"""
+Choose a viewpoint by what is visible of the segments in the scene around them.
+"""
+
+VIEWPOINT_ALONE = "alone"
+"""
+Choose a viewpoint by what is visible of the segments on their own.
+"""
+
 MAXIMUM_LABEL_LENGTH = 120
 """
 How many characters of segment names a render's filename carries.
@@ -980,7 +990,7 @@ class WarsawWorldLoader:
         highlights: Sequence[Tuple[Color, np.ndarray]],
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
-        choose_viewpoint: bool = False,
+        choose_viewpoint: Optional[str] = None,
         context_segments: Optional[Iterable[LabelSegment]] = None,
     ) -> Dict[str, bytes]:
         """
@@ -1000,19 +1010,31 @@ class WarsawWorldLoader:
             whole scene. Framing it on a segment together with its measured neighbours
             is what makes a small object visible in it at all: a mug fills 0.00% of a
             picture of the room and 9.6% of a picture of the counter it stands on.
-        :param choose_viewpoint: Whether to keep only the viewpoint that shows the most,
+        :param choose_viewpoint: How to keep only the viewpoint that shows the most,
             measured rather than chosen: a cabinet standing against a wall is invisible
             from three of the four, and a fixed viewpoint then hands a viewer a picture
-            of a room with nothing marked in it.
+            of a room with nothing marked in it. ``in-room`` measures it in the scene, so
+            that what stands in front of the segments counts against a viewpoint;
+            ``alone`` measures it on the segments by themselves, which is what a hundred
+            of these can afford. None keeps every viewpoint.
         :return: The renders, keyed ``<kind>_<viewpoint>``.
         """
         segments = list(segments)
         frame = (
             None if context_segments is None else self.points_of(context_segments)
         )
-        if choose_viewpoint:
+        if choose_viewpoint == VIEWPOINT_IN_ROOM:
             viewpoints = (
                 self.viewpoint_showing_all(segments, viewpoints, headless, frame),
+            )
+        elif choose_viewpoint == VIEWPOINT_ALONE:
+            viewpoints = (
+                self.viewpoint_showing_all_alone(segments, viewpoints, headless),
+            )
+        elif choose_viewpoint is not None:
+            raise ValueError(
+                f"{choose_viewpoint!r} is no way of choosing a viewpoint; it is "
+                f"{VIEWPOINT_IN_ROOM!r}, {VIEWPOINT_ALONE!r} or None"
             )
 
         self._apply_highlight_to_faces(highlights)
@@ -1073,6 +1095,55 @@ class WarsawWorldLoader:
                 if worst[name] is None or visible < worst[name]:
                     worst[name] = visible
         self._reset_segment_colors()
+        return max(worst, key=lambda name: worst[name])
+
+    def viewpoint_showing_all_alone(
+        self,
+        segments: Iterable[LabelSegment],
+        viewpoints: Optional[Sequence[str]] = None,
+        headless: bool = False,
+    ) -> str:
+        """
+        Choose the viewpoint showing the least-visible of some segments best, measured
+        on the segments by themselves rather than in the room.
+
+        The same choice as :meth:`viewpoint_showing_all` and far cheaper: it draws the
+        few thousand faces in question where that draws a whole scanned room twelve
+        times over, which is the entire cost when the choice is made once for each of
+        two hundred pairs. What it gives up is occlusion by everything else -- a cabinet
+        standing in front of the pair no longer counts against a viewpoint -- which is
+        the right trade when the picture it is chosen for shows the segments alone.
+
+        :param segments: The segments that all have to be visible.
+        :param viewpoints: Which named viewpoints to consider, defaulting to all.
+        :param headless: Whether to render without opening a window.
+        :return: The name of the viewpoint that shows the least-visible segment best.
+        """
+        segments = list(segments)
+        faces = np.unique(np.concatenate([segment.faces for segment in segments]))
+        alone = self.scene_mesh.submesh([faces], append=True)
+        poses = self._chosen_viewpoints(
+            self.compute_camera_poses(
+                self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
+            ),
+            viewpoints,
+        )
+
+        dimmed = self._dimmed_face_colors[faces]
+        alone.visual.face_colors = dimmed
+        rooms = self._render_from_poses(trimesh.Scene(alone), poses, headless)
+
+        highlight = trimesh.visual.color.to_rgba(Color.distinct_colors(1)[0].to_rgba())
+        worst: Dict[str, Optional[int]] = {name: None for name in poses}
+        for segment in segments:
+            painted = dimmed.copy()
+            painted[np.searchsorted(faces, segment.faces)] = highlight
+            alone.visual.face_colors = painted
+            shown = self._render_from_poses(trimesh.Scene(alone), poses, headless)
+            for name, image in shown.items():
+                visible = changed_pixels(image, rooms[name])
+                if worst[name] is None or visible < worst[name]:
+                    worst[name] = visible
         return max(worst, key=lambda name: worst[name])
 
     def _dimmed_views(
