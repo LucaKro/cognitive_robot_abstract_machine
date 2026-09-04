@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from copy import deepcopy, copy
 from dataclasses import dataclass, field, fields, is_dataclass
 from functools import wraps, cached_property
+from itertools import chain
 from uuid import UUID
 
 import numpy as np
@@ -50,6 +51,7 @@ from semantic_digital_twin.exceptions import (
     AlreadyBelongsToAWorldError,
     MissingWorldModificationContextError,
     WorldEntityWithIDNotFoundError,
+    WorldEntityBelongsToAnotherWorld,
     MissingReferenceFrameError,
     MismatchingPublishChangesAttribute,
     AtomicWorldModificationNotAtomic,
@@ -1594,15 +1596,25 @@ class World(HasSimulatorProperties):
         return self._get_world_entity_by_hash(hash(id))
 
     def get_world_entity_with_id_by_id(self, id: UUID) -> WorldEntityWithID:
-        result = [
-            v
-            for v in self._world_entity_hash_table.values()
-            if isinstance(v, WorldEntityWithID) and v.id == id
-        ]
-        if len(result) == 0:
-            raise WorldEntityWithIDNotFoundError(id)
-        else:
-            return result[0]
+        """
+        Find this world's entity with the given id.
+
+        .. note:: Semantic annotations are searched in :attr:`semantic_annotations`
+            rather than in the hash table. Their hash describes their content instead
+            of their id, so annotations of the same type over the same kinematic
+            structure entities share one table key and all but the last one added are
+            missing from it.
+
+        :param id: The id of the entity to find.
+        :return: The entity of this world carrying that id.
+        :raises WorldEntityWithIDNotFoundError: If this world holds no such entity.
+        """
+        for entity in chain(
+            self._world_entity_hash_table.values(), self.semantic_annotations
+        ):
+            if isinstance(entity, WorldEntityWithID) and entity.id == id:
+                return entity
+        raise WorldEntityWithIDNotFoundError(id)
 
     def relocate(self, obj: RelocatableType) -> RelocatableType:
         """
@@ -1632,12 +1644,18 @@ class World(HasSimulatorProperties):
 
         :param obj: The object to relocate, or a value containing world entities.
         :return: An equivalent, independent copy of `obj` referring to this world.
+        :raises WorldEntityBelongsToAnotherWorld: If this world's lookup answers with an
+            entity that reports belonging elsewhere, rather than letting it fail later
+            wherever it ends up being used.
         """
         if isinstance(obj, WorldEntityWithID):
             try:
-                return self.get_world_entity_with_id_by_id(obj.id)
+                found = self.get_world_entity_with_id_by_id(obj.id)
             except WorldEntityWithIDNotFoundError:
                 return obj
+            if found._world is not self:
+                raise WorldEntityBelongsToAnotherWorld(world=self, world_entity=found)
+            return found
         if isinstance(obj, Connection):
             parent, child = self.relocate(obj.parent), self.relocate(obj.child)
             if parent is obj.parent or child is obj.child:

@@ -24,6 +24,7 @@ from semantic_digital_twin.exceptions import (
     NonMonotonicTimeError,
     BrokenWorldModificationHistoryError,
     WorldEntityNotFoundError,
+    WorldEntityBelongsToAnotherWorld,
 )
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.pr2 import PR2, PR2Joint
@@ -1311,6 +1312,57 @@ def test_relocate_leaves_an_entity_this_world_does_not_contain(world_setup):
     """
     world, l1, l2, bf, r1, r2 = world_setup
     assert World().relocate(l1) is l1
+
+
+def test_lookup_by_id_finds_an_annotation_sharing_a_hash_table_key(world_setup):
+    """
+    An annotation stays findable by its id after a later annotation of the same type
+    over the same entities takes over its key in the world's hash table.
+
+    A semantic annotation hashes by its content, so both annotations land on one key and
+    only the last one added remains in the table, while both remain part of the world.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    first, second = Handle(root=l1), Handle(root=l1)
+    with world.modify_world():
+        world.add_semantic_annotation(first)
+        world.add_semantic_annotation(second)
+
+    assert first.id != second.id
+    assert hash(first) == hash(second)
+    assert world.get_world_entity_with_id_by_id(first.id) is first
+    assert world.get_world_entity_with_id_by_id(second.id) is second
+
+
+def test_relocate_annotation_sharing_a_hash_table_key(world_setup):
+    """
+    An annotation whose hash table key a later same-content annotation took over is
+    still relocated onto the target world's own instance, rather than left pointing at
+    the world it came from.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    first, second = Handle(root=l1), Handle(root=l1)
+    with world.modify_world():
+        world.add_semantic_annotation(first)
+        world.add_semantic_annotation(second)
+    world_copy = deepcopy(world)
+
+    relocated = world_copy.relocate(first)
+    assert relocated.id == first.id
+    assert relocated._world is world_copy
+
+
+def test_relocate_rejects_an_entity_registered_here_but_owned_elsewhere(world_setup):
+    """
+    An entity left registered in this world after being added to another one is
+    reported, rather than handed back to fail later wherever it is used.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    other_world = World()
+    l1.add_to_world(other_world)
+
+    with pytest.raises(WorldEntityBelongsToAnotherWorld):
+        world.relocate(l1)
 
 
 def test_relocate_copies_mutable_leaf_values(world_setup):
