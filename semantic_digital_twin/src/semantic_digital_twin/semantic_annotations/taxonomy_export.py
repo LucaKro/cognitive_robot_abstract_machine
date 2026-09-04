@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, fields as dataclass_fields, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Set, Type
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Type
 
 from krrood.class_diagrams.class_diagram import WrappedClass
 
@@ -298,6 +298,11 @@ def build_taxonomy(
                 if base.__name__ in known
             ],
         }
+        if annotation_class.__module__.endswith(MIXIN_MODULE_SUFFIX):
+            # A mixin is a base to build with, not a thing standing in a room. Saying so
+            # is the difference between a model deriving a ceiling from HasRootBody and
+            # answering that a ceiling *is* one.
+            node["mixin"] = True
         summary = _summary_of(annotation_class) if include_summaries else None
         if summary:
             node["summary"] = summary
@@ -324,8 +329,9 @@ def build_taxonomy(
         "note": (
             "Relations say what a class can hold. 'part' is mounted with add(), "
             "'contains' with add_object() for something merely inside or on it, "
-            "'supports' with add_supporting_surface(). A new class is composed by "
-            "naming a superclass and any of the mixins below."
+            "'supports' with add_supporting_surface(). A class marked 'mixin' exists "
+            "to be built with rather than to name something in a room. A new class is "
+            "composed by naming a superclass and any of the mixins below."
         ),
         "classes": classes,
         "part_whole_mixins": mixins,
@@ -346,3 +352,57 @@ def export_taxonomy(
     taxonomy = build_taxonomy(root_class, include_summaries=include_summaries)
     Path(output_path).write_text(json.dumps(taxonomy, indent=2), encoding="utf-8")
     return taxonomy
+
+
+def compose_class(name: str, superclass: Type, mixins: Sequence[Type] = ()) -> Type:
+    """
+    Build the class a proposal names, so the ontology can be asked about it.
+
+    A label with no class in the taxonomy is answered by naming a superclass and the
+    mixins to compose it from, and it is those that decide what the class admits: a
+    ``KitchenIsland(Furniture)`` can hold nothing, while a
+    ``KitchenIsland(Furniture, HasDrawers, HasDoors)`` can hold both drawers and doors.
+    Composing the class here answers that before anything is generated or persisted.
+
+    ..note:: The result is a real subclass of its bases, so ``__subclasses__`` reports it
+        and :func:`build_taxonomy` includes it from here on. Export the taxonomy before
+        composing anything that is only a proposal.
+
+    :param name: The name the proposal gives the class.
+    :param superclass: The class it derives from.
+    :param mixins: The mixins contributing relations to it.
+    :return: The composed dataclass.
+    :raises TypeError: If the bases cannot be combined into a class, which is itself an
+        answer about the proposal.
+    """
+    composed = type(name, _in_base_order([superclass, *mixins]), {"__annotations__": {}})
+    return dataclass(composed)
+
+
+def _in_base_order(bases: Sequence[Type]) -> tuple:
+    """
+    Order bases so that Python can combine them.
+
+    A class may not name a base before one of that base's own subclasses, and a proposal
+    naming ``HasRootBody`` with ``IsStorageSpace`` -- which already derives from it --
+    names them the wrong way round. Which of two classes derives from the other is not
+    something the proposal decides, so it is settled here rather than sent back as a
+    problem with the answer.
+
+    :param bases: The classes to derive from, as they were named.
+    :return: The same classes, each once, every one before any class it derives from.
+    """
+    remaining = list(dict.fromkeys(bases))
+    ordered = []
+    while remaining:
+        most_derived = next(
+            candidate
+            for candidate in remaining
+            if not any(
+                other is not candidate and issubclass(other, candidate)
+                for other in remaining
+            )
+        )
+        remaining.remove(most_derived)
+        ordered.append(most_derived)
+    return tuple(ordered)
