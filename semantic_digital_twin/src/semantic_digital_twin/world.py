@@ -51,7 +51,7 @@ from semantic_digital_twin.exceptions import (
     AlreadyBelongsToAWorldError,
     MissingWorldModificationContextError,
     WorldEntityWithIDNotFoundError,
-    WorldEntityBelongsToAnotherWorld,
+    WorldEntityWithIDBelongsToAnotherWorld,
     MissingReferenceFrameError,
     MismatchingPublishChangesAttribute,
     AtomicWorldModificationNotAtomic,
@@ -1634,19 +1634,19 @@ class World(HasSimulatorProperties):
         A :class:`~semantic_digital_twin.world_description.world_entity.WorldEntityWithID`
         is looked up here by its id and a
         :class:`~semantic_digital_twin.world_description.world_entity.Connection`, which
-        has no id, by its relocated parent and child. Anything else is deep-copied, so
+        has no id, by its rebound parent and child. Anything else is deep-copied, so
         `obj` and the result never share mutable state.
 
         An entity this world does not contain is left as it is: it is not this world's
-        state to relocate, and leaving it behaves exactly as not relocating at all.
+        state to rebind, and leaving it behaves exactly as not rebinding at all.
 
         .. note:: An ``init=False`` field a dataclass derives from its other fields in
             `__post_init__` is carried over as originally computed, not recomputed from
-            the relocated values.
+            the rebound values.
 
-        :param obj: The object to relocate, or a value containing world entities.
+        :param obj: The object to rebind, or a value containing world entities.
         :return: An equivalent, independent copy of `obj` referring to this world.
-        :raises WorldEntityBelongsToAnotherWorld: If this world's lookup answers with an
+        :raises WorldEntityWithIDBelongsToAnotherWorld: If this world's lookup answers with an
             entity that reports belonging elsewhere, rather than letting it fail later
             wherever it ends up being used.
         """
@@ -1656,21 +1656,29 @@ class World(HasSimulatorProperties):
             except WorldEntityWithIDNotFoundError:
                 return obj
             if found._world is not self:
-                raise WorldEntityBelongsToAnotherWorld(world=self, world_entity=found)
+                raise WorldEntityWithIDBelongsToAnotherWorld(
+                    world=self, world_entity=found
+                )
             return found
         if isinstance(obj, Connection):
-            parent, child = self.rebind_world_entities(obj.parent), self.rebind_world_entities(obj.child)
+            parent, child = self.rebind_world_entities(
+                obj.parent
+            ), self.rebind_world_entities(obj.child)
             if parent is obj.parent or child is obj.child:
                 return obj
             return self.get_connection(parent, child)
         if isinstance(obj, list_like_classes):
             return type(obj)(self.rebind_world_entities(item) for item in obj)
         if isinstance(obj, dict):
-            return {key: self.rebind_world_entities(value) for key, value in obj.items()}
+            return {
+                key: self.rebind_world_entities(value) for key, value in obj.items()
+            }
         if is_dataclass(obj) and not isinstance(obj, type):
             result = deepcopy(obj)
             for f in fields(obj):
-                setattr(result, f.name, self.rebind_world_entities(getattr(obj, f.name)))
+                setattr(
+                    result, f.name, self.rebind_world_entities(getattr(obj, f.name))
+                )
             return result
         return deepcopy(obj)
 

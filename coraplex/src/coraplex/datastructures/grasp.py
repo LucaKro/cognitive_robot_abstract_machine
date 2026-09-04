@@ -97,7 +97,7 @@ class GraspDescription:
         ]
         return min(
             candidates,
-            key=lambda candidate: candidate.grasp_orientation().rotational_error(
+            key=lambda candidate: candidate.grasp_orientation().rotational_distance(
                 measured_orientation
             ),
         )

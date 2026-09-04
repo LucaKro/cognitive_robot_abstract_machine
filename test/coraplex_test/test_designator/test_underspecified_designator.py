@@ -29,58 +29,57 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
-# %% mimics for testing candidate rehearsal without depending on real motion physics
+# %% mimics for testing candidate trials without depending on real motion physics
 
 
 @dataclass
-class RehearsalCall:
+class TrialCall:
     """
     One recorded attempt of a `RecordingAction`.
     """
 
     world: World
     """
-    The world the attempt actually ran against, so a test can tell a rehearsal copy
+    The world the attempt actually ran against, so a test can tell a trial copy
     from the real world by identity.
     """
 
     position_at_entry: float
     """
     The value of the probed degree of freedom when this attempt started, so a test can
-    tell whether a later rehearsal copy reflects an earlier real failure's state.
+    tell whether a later trial copy reflects an earlier real failure's state.
     """
 
 
-class RehearsalProbe:
+class TrialProbe:
     """
-    Records every attempt of a `RecordingAction` across both rehearsal and real
-    execution.
+    Records every attempt of a `RecordingAction` across both trial and real execution.
     """
 
     def __init__(self):
-        self.calls: List[RehearsalCall] = []
+        self.calls: List[TrialCall] = []
 
 
-_registered_probes: Dict[UUID, RehearsalProbe] = {}
+_registered_probes: Dict[UUID, TrialProbe] = {}
 """
-`RehearsalProbe` instances, keyed by the id a `RecordingAction` carries as `probe_key`.
+`TrialProbe` instances, keyed by the id a `RecordingAction` carries as `probe_key`.
 
-`World.relocate` deep-copies every value it does not recognize as a world entity, so a
-relocated `RecordingAction` cannot share a probe handed to it directly as a field - the
-same isolation that makes a rehearsal safe for real designators. Reaching the probe
+`World.rebind_world_entities` deep-copies every value it does not recognize as a world entity, so a
+rebound `RecordingAction` cannot share a probe handed to it directly as a field - the
+same isolation that makes a trial safe for real designators. Reaching the probe
 out-of-band by an id, whose value survives copying even though its identity need not,
-is what lets a test observe a candidate's rehearsal and its later real attempt as one
+is what lets a test observe a candidate's trial and its later real attempt as one
 sequence.
 """
 
 
 def register_probe() -> UUID:
     """
-    Register a fresh `RehearsalProbe` and return the id a `RecordingAction` should carry
-    to record into it.
+    Register a fresh `TrialProbe` and return the id a `RecordingAction` should carry to
+    record into it.
     """
     key = uuid4()
-    _registered_probes[key] = RehearsalProbe()
+    _registered_probes[key] = TrialProbe()
     return key
 
 
@@ -94,7 +93,7 @@ class RecordingExecutionNode(ExecutionBoundaryNode):
 
     probe_key: UUID = field(kw_only=True)
     """
-    Id of the `RehearsalProbe` this node's attempts are recorded to.
+    Id of the `TrialProbe` this node's attempts are recorded to.
     """
 
     dof_id: UUID = field(kw_only=True)
@@ -134,7 +133,7 @@ class RecordingExecutable(Executable):
     def execute(self) -> None:
         probe = _registered_probes[self.probe_key]
         probe.calls.append(
-            RehearsalCall(
+            TrialCall(
                 world=self.context.world,
                 position_at_entry=self.context.world.state[self.dof_id].position,
             )
@@ -149,8 +148,8 @@ class RecordingExecutable(Executable):
 class RecordingAction(ActionDescription):
     """
     An action whose execution deterministically records itself and can be made to fail
-    on a specific attempt, for testing `UnderspecifiedNode`'s rehearsal-then-real
-    candidate handling without depending on real motion physics.
+    on a specific attempt, for testing `UnderspecifiedNode`'s trial-then-real candidate
+    handling without depending on real motion physics.
     """
 
     probe_key: UUID = field(kw_only=True)
@@ -274,16 +273,16 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
     assert len(plans) == len(list(target_locations._domain_)) * len(list(Arms))
 
 
-# %% candidate rehearsal
+# %% candidate trials
 
 
 def test_isolation_rejected_candidate_never_touches_real_world(
     apartment_world_pr2_copy_with_context,
 ):
     """
-    A candidate that only ever fails must be rejected during rehearsal, against a
+    A candidate that only ever fails must be rejected during its trial, against a
     disposable copy of the world, and never attached to the plan or executed against the
-    real world; only the candidate that survives rehearsal is executed for real.
+    real world; only the candidate that survives its trial is executed for real.
     """
     world, robot, context = apartment_world_pr2_copy_with_context
     dof = world.degrees_of_freedom[0]
@@ -304,23 +303,23 @@ def test_isolation_rejected_candidate_never_touches_real_world(
 
     probe = _registered_probes[probe_key]
     assert len(probe.calls) == 3
-    # candidate 1's rehearsal: the only attempt it ever gets, and it is a copy.
+    # candidate 1's trial: the only attempt it ever gets, and it is a copy.
     assert probe.calls[0].world is not world
-    # candidate 2's rehearsal: still a copy, restored to how candidate 1 found it.
+    # candidate 2's trial: still a copy, restored to how candidate 1 found it.
     assert probe.calls[1].world is not world
     assert probe.calls[1].position_at_entry == probe.calls[0].position_at_entry
     # candidate 2's real attempt: the actual world.
     assert probe.calls[2].world is world
 
-    # candidate 1's rejected rehearsal only ever mutated its own throwaway copy.
+    # candidate 1's rejected trial only ever mutated its own throwaway copy.
     assert world.state[dof.id].position == 3
 
 
-def test_rejected_candidates_rehearse_against_one_copy(
+def test_rejected_candidates_are_tried_against_one_copy(
     apartment_world_pr2_copy_with_context,
 ):
     """
-    Candidates that follow a rejected one rehearse against the copy that rejection was
+    Candidates that follow a rejected one are tried against the copy that rejection was
     made in, rather than each candidate copying the world again.
 
     Nothing has changed the real world between them, so the copy still describes it and
@@ -340,22 +339,22 @@ def test_rejected_candidates_rehearse_against_one_copy(
         plan.perform()
 
     probe = _registered_probes[probe_key]
-    # every call but the last is a rehearsal; the last is the accepted candidate's real
+    # every call but the last is a trial; the last is the accepted candidate's real
     # attempt, which runs against the real world.
-    rehearsals = probe.calls[:-1]
-    assert len(rehearsals) == 3
-    assert rehearsals[0].world is not world
-    assert rehearsals[1].world is rehearsals[0].world
-    assert rehearsals[2].world is rehearsals[0].world
+    trials = probe.calls[:-1]
+    assert len(trials) == 3
+    assert trials[0].world is not world
+    assert trials[1].world is trials[0].world
+    assert trials[2].world is trials[0].world
 
 
-def test_real_failure_keeps_state_and_next_rehearsal_reflects_it(
+def test_real_failure_keeps_state_and_next_trial_reflects_it(
     apartment_world_pr2_copy_with_context,
 ):
     """
-    A candidate that passes rehearsal but then fails for real must leave the real
-    world's state exactly as the failed attempt left it; the next candidate's rehearsal
-    copy must be taken from that post-failure state, not the original one.
+    A candidate that passes its trial but then fails for real must leave the real
+    world's state exactly as the failed attempt left it; the next candidate's trial copy
+    must be taken from that post-failure state, not the original one.
     """
     world, robot, context = apartment_world_pr2_copy_with_context
     dof = world.degrees_of_freedom[0]
@@ -383,14 +382,14 @@ def test_real_failure_keeps_state_and_next_rehearsal_reflects_it(
 
     probe = _registered_probes[probe_key]
     assert len(probe.calls) == 4
-    # candidate 1's rehearsal: a copy, starting from the untouched world.
+    # candidate 1's trial: a copy, starting from the untouched world.
     assert probe.calls[0].world is not world
     assert probe.calls[0].position_at_entry == initial_position
-    # candidate 1's real attempt: the actual world, still untouched by rehearsal,
+    # candidate 1's real attempt: the actual world, still untouched by the trial,
     # mutated and then failed.
     assert probe.calls[1].world is world
     assert probe.calls[1].position_at_entry == initial_position
-    # candidate 2's rehearsal: a fresh copy, taken *after* candidate 1's real failure -
+    # candidate 2's trial: a fresh copy, taken *after* candidate 1's real failure -
     # it must already carry that mutation.
     assert probe.calls[2].world is not world
     assert probe.calls[2].position_at_entry == 2

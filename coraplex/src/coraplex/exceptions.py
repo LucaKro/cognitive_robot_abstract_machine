@@ -13,7 +13,7 @@ from coraplex.plans.failures import PlanFailure
 if TYPE_CHECKING:
     from coraplex.plans.designator import Designator
     from coraplex.robot_plans.actions.base import ActionDescription
-    from semantic_digital_twin.robots.robot_parts import AbstractRobot
+    from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
         SemanticAnnotation,
@@ -344,7 +344,7 @@ class BodyIsNotHeld(DataclassException):
     The body that was expected to be held.
     """
 
-    end_effector: SemanticAnnotation
+    end_effector: EndEffector
     """
     The end effector that was expected to hold it.
     """
