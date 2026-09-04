@@ -26,10 +26,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.pipeline.pipeline import (
-    CenterLocalGeometryAndPreserveWorldPose,
-    Pipeline,
-    TransformGeometry,
+from semantic_digital_twin.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Point3,
 )
 from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
 from semantic_digital_twin.world import World
@@ -242,21 +241,27 @@ def split_world(
     faces: Dict[str, np.ndarray],
     source_to_world,
     directory: Optional[Path] = None,
-    file_type: str = "ply",
+    file_type: str = "obj",
 ) -> World:
     """
     Build a world of one body per object from a scene's mesh.
 
-    The bodies are built from the mesh as it was read, and put through the same steps the
-    unsplit scene is, so each ends up where its geometry was and centered on itself.
+    Each body's geometry is written to its file already in world coordinates and already
+    centred on itself, and its connection carries where that centre sits. Nothing is left
+    for a later step to adjust, because the steps that would --
+    :class:`TransformGeometry` and :class:`CenterLocalGeometryAndPreserveWorldPose` --
+    move the vertices of the mesh *object* a shape has loaded, and a shape backed by a
+    file loads it again from that file when a world is read back. The connection keeps
+    the adjustment, the file never had it, and the geometry comes back moved by it twice
+    over: a body centred at ten metres reads back at twenty.
 
     :param mesh: The scene's mesh, whose faces the objects index.
     :param faces: Per object, the faces that are its alone.
     :param source_to_world: The transform from the file's coordinates to the world's.
     :param directory: Where to write the bodies' meshes, defaulting to a place that is
         removed when the process ends -- which will not do for a world to be persisted.
-    :param file_type: The format to write them in. PLY by default, since the colors a
-        scan carries are what the objects are recognised by.
+    :param file_type: The format to write them in. Not PLY: the collision detector reads
+        only .obj, .stl and .dae, and a body it cannot read stops the world being built.
     :return: The world, flat, one body per object under a single root.
     """
     if directory is not None:
@@ -264,12 +269,18 @@ def split_world(
         # needs this one to be there.
         Path(directory).mkdir(parents=True, exist_ok=True)
 
+    to_world = source_to_world.to_np()
     world = World()
     root = Body(name=PrefixedName(ROOT_BODY_NAME))
     with world.modify_world():
         world.add_body(root)
         for name, kept in faces.items():
             piece = mesh.submesh([kept], append=True)
+            piece.apply_transform(to_world)
+            low, high = piece.bounds
+            centre = (low + high) / 2.0
+            piece.apply_translation(-centre)
+
             shapes = ShapeCollection(
                 [Mesh.from_trimesh(piece, directory=directory, file_type=file_type)]
             )
@@ -277,13 +288,14 @@ def split_world(
             world.add_body(body)
             world.add_connection(
                 FixedConnection(
-                    parent=root, child=body, name=PrefixedName(f"root_to_{name}")
+                    parent=root,
+                    child=body,
+                    name=PrefixedName(f"root_to_{name}"),
+                    parent_T_connection_expression=(
+                        HomogeneousTransformationMatrix.from_point_rotation_matrix(
+                            Point3(*centre)
+                        )
+                    ),
                 )
             )
-
-    return Pipeline(
-        steps=[
-            TransformGeometry(source_to_world),
-            CenterLocalGeometryAndPreserveWorldPose(),
-        ]
-    ).apply(world)
+    return world
