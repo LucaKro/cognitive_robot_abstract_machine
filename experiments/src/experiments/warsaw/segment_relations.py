@@ -71,6 +71,15 @@ class SegmentDescriptor:
     Its surface area, in square metres.
     """
 
+    exclusive_area: float
+    """
+    How much of that area no other segment also claims.
+
+    This is what makes an instance worth showing as an example of its label: a segment
+    can be wholly unclaimed by anything else because it is a stray sliver of a scan, so
+    the share alone picks fragments over objects.
+    """
+
     centroid: Tuple[float, float, float]
     """
     The middle of its surface, in the world's frame.
@@ -122,6 +131,7 @@ class SegmentDescriptor:
             "exclusive_faces": self.exclusive_faces,
             "exclusive_share": round(self.exclusive_share, 4),
             "area": round(self.area, 4),
+            "exclusive_area": round(self.exclusive_area, 4),
             "centroid": [round(value, 4) for value in self.centroid],
             "bounding_box": [
                 [round(value, 4) for value in self.minimum_corner],
@@ -511,6 +521,7 @@ def segment_evidence(
             faces=len(faces),
             exclusive_faces=int(claimed_once[faces].sum()),
             area=float(areas[faces].sum()),
+            exclusive_area=float(areas[faces][claimed_once[faces]].sum()),
             centroid=tuple(segment_centres.mean(axis=0)),
             minimum_corner=tuple(vertices.min(axis=0)),
             maximum_corner=tuple(vertices.max(axis=0)),
