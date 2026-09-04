@@ -1,357 +1,236 @@
+"""
+Reading a Warsaw scene: one mesh whose faces carry, per class, the instance they are.
+
+The scenes here are a few triangles written the way the dataset writes one, so what is
+checked is the reading and not the scan: which objects a file's labels describe, what a
+directory that holds no scene says, and where the cameras end up standing.
+"""
+
 from pathlib import Path
 
 import numpy as np
 import pytest
+import trimesh
+from plyfile import PlyData, PlyElement
 
 from experiments.warsaw.exceptions import (
+    AmbiguousWarsawSceneError,
+    WarsawLabelsMissingError,
     WarsawSceneNotFoundError,
-    WarsawSegmentationMissingError,
 )
-from experiments.warsaw.world_loader import (
-    SceneMeshField,
-    WarsawSceneFile,
-    WarsawWorldLoader,
-)
+from experiments.warsaw.world_loader import WarsawScene, WarsawWorldLoader
 
-# %% a scene directory written the way the dataset writes one
+# %% a scene file written the way the dataset writes one
 
 
 def write_scene(
-    directory: Path,
-    class_names: list[str],
-    face_instances: dict[str, list[int]],
+    path: Path,
     vertices: np.ndarray,
     faces: np.ndarray,
+    labels: dict[str, list[int]],
 ) -> Path:
     """
-    Write a scene directory holding the arrays a Warsaw scene is made of.
+    Write a mesh whose faces carry one instance number per class.
 
-    :param directory: Where to write the scene.
-    :param class_names: The classes the scene distinguishes.
-    :param face_instances: Per class, the instance each face belongs to.
+    :param path: Where to write it.
     :param vertices: The scene's vertices.
     :param faces: The scene's faces.
-    :return: The directory written to.
+    :param labels: Per class, the instance each face belongs to, 0 where the class does
+        not cover the face.
+    :return: The file written.
     """
-    np.savez(
-        directory / WarsawSceneFile.SCENE_MESH.value,
-        **{
-            SceneMeshField.VERTICES.value: vertices.astype(np.float32),
-            SceneMeshField.FACES.value: faces.astype(np.int64),
-            SceneMeshField.VERTEX_COLORS.value: np.tile(
-                np.array([0.5, 0.5, 0.5], dtype=np.float32), (len(vertices), 1)
-            ),
-            SceneMeshField.CLASSES.value: np.array(class_names),
-        },
+    written_vertices = np.array(
+        [tuple(vertex) for vertex in vertices],
+        dtype=[("x", "f4"), ("y", "f4"), ("z", "f4")],
     )
-    for class_name, instances in face_instances.items():
-        np.savez(
-            directory / WarsawSceneFile.segmentation_of(class_name),
-            **{
-                SceneMeshField.FACE_INSTANCES.value: np.array(instances, dtype=np.int64)
-            },
-        )
-    return directory
+    written_faces = np.empty(
+        len(faces),
+        dtype=[("vertex_indices", "i4", (3,))] + [(name, "i4") for name in labels],
+    )
+    written_faces["vertex_indices"] = faces
+    for name, instances in labels.items():
+        written_faces[name] = instances
 
-
-def stacked_triangles(heights: list[float]) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Build one triangle per height, each lying flat at that height along the source
-    frame's vertical axis.
-
-    :param heights: The vertical position of each triangle.
-    :return: The vertices and faces of all triangles.
-    """
-    vertices = np.concatenate(
+    PlyData(
         [
-            np.array([[0.0, height, 0.0], [1.0, height, 0.0], [0.0, height, 1.0]])
-            for height in heights
+            PlyElement.describe(written_vertices, "vertex"),
+            PlyElement.describe(written_faces, "face"),
         ]
-    )
-    faces = np.arange(3 * len(heights)).reshape(-1, 3)
-    return vertices, faces
+    ).write(str(path))
+    return path
 
 
 @pytest.fixture
 def two_class_scene(tmp_path) -> Path:
     """
-    A scene of three triangles: two mugs and one table.
+    :return: A directory holding a scene of four faces: two cabinets of one face each,
+        one drawer covering the second of them, and one face no class covers.
     """
-    vertices, faces = stacked_triangles([0.0, 1.0, 2.0])
-    return write_scene(
-        tmp_path,
-        class_names=["mug", "table"],
-        face_instances={"mug": [1, 2, 0], "table": [0, 0, 1]},
-        vertices=vertices,
-        faces=faces,
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    faces = box.faces[:4]
+    write_scene(
+        tmp_path / "scene.ply",
+        box.vertices,
+        faces,
+        {
+            "cabinet": [1, 2, 2, 0],
+            "drawer": [0, 1, 1, 0],
+        },
     )
+    return tmp_path
 
 
 # %% reading a scene
 
 
-def test_every_segmented_instance_becomes_a_body(two_class_scene):
+def test_every_labelled_instance_becomes_a_segment(two_class_scene):
     """
-    Each instance a class segments the mesh into is loaded as its own body.
+    An object is a class and an instance of it, however many faces it is made of.
     """
-    loader = WarsawWorldLoader(two_class_scene)
-
-    names = sorted(str(body.name) for body in loader.world.bodies_with_collision)
-
-    assert names == ["mug_1", "mug_2", "table_1"]
-
-
-def test_the_unsegmented_remainder_becomes_no_body(two_class_scene):
-    """
-    Instance ``0`` marks the faces a class does not cover, so it is not an object.
-
-    It holds nearly the whole mesh, so loading it would bury the scene under one body
-    per class.
-    """
-    loader = WarsawWorldLoader(two_class_scene)
-
-    assert not [
-        body for body in loader.world.bodies_with_collision if "_0" in str(body.name)
+    scene = WarsawScene.from_directory(two_class_scene)
+    assert [str(segment.name) for segment in scene.segments()] == [
+        "cabinet_1",
+        "cabinet_2",
+        "drawer_1",
     ]
 
 
-def test_a_body_holds_only_the_faces_of_its_instance(two_class_scene):
+def test_the_faces_no_class_covers_become_no_segment(two_class_scene):
     """
-    A body's geometry is the faces segmented into it, and no others.
+    Instance 0 marks a face a class does not cover, and marks no object.
     """
-    loader = WarsawWorldLoader(two_class_scene)
-
-    table = next(
-        body
-        for body in loader.world.bodies_with_collision
-        if str(body.name) == "table_1"
-    )
-
-    assert len(table.collision[0].mesh.faces) == 1
+    scene = WarsawScene.from_directory(two_class_scene)
+    assert all(3 not in segment.faces for segment in scene.segments())
 
 
-def test_a_class_named_with_spaces_is_read_from_its_underscored_file(tmp_path):
+def test_a_segment_holds_only_the_faces_of_its_instance(two_class_scene):
     """
-    The scene names a class ``kitchen island`` while its file is ``kitchen_island.npz``.
+    :attr:`LabelSegment.faces` is what a body is later cut from, so it must hold the
+    faces of that instance and no others.
     """
-    vertices, faces = stacked_triangles([0.0])
-    scene = write_scene(
-        tmp_path,
-        class_names=["kitchen island"],
-        face_instances={"kitchen island": [1]},
-        vertices=vertices,
-        faces=faces,
-    )
+    scene = WarsawScene.from_directory(two_class_scene)
+    segments = {str(segment.name): segment for segment in scene.segments()}
+    assert segments["cabinet_1"].faces.tolist() == [0]
+    assert segments["cabinet_2"].faces.tolist() == [1, 2]
+    assert segments["drawer_1"].faces.tolist() == [1, 2]
 
-    loader = WarsawWorldLoader(scene)
 
-    assert [str(body.name) for body in loader.world.bodies_with_collision] == [
-        "kitchen island_1"
+def test_a_face_can_belong_to_objects_of_several_classes(two_class_scene):
+    """
+    The overlap the whole pipeline exists to resolve: a drawer front is the drawer and
+    the cabinet holding it, and reading must not hide that.
+    """
+    scene = WarsawScene.from_directory(two_class_scene)
+    segments = {str(segment.name): segment for segment in scene.segments()}
+    assert set(segments["cabinet_2"].faces) == set(segments["drawer_1"].faces)
+
+
+def test_the_classes_are_read_in_the_order_the_file_declares_them(two_class_scene):
+    """
+    :return: The classes name the scene's labels, and nothing renames or reorders them.
+    """
+    assert WarsawScene.from_directory(two_class_scene).class_names == [
+        "cabinet",
+        "drawer",
     ]
 
 
-# %% orienting the scene
+# %% a file that is not a scene
 
 
-def test_the_floor_is_loaded_below_the_ceiling(tmp_path):
+def test_a_directory_without_a_scene_is_reported(tmp_path):
     """
-    The source frame's vertical axis points down, so the loaded world has to turn it
-    over: a floor written above a ceiling has to end up below it.
+    :raises WarsawSceneNotFoundError: Which says where it looked and for what.
     """
-    # In the source frame the floor sits at a greater height than the ceiling.
-    vertices, faces = stacked_triangles([3.0, -3.0])
-    scene = write_scene(
-        tmp_path,
-        class_names=["floor", "ceiling"],
-        face_instances={"floor": [1, 0], "ceiling": [0, 1]},
-        vertices=vertices,
-        faces=faces,
-    )
-
-    loader = WarsawWorldLoader(scene)
-    heights = {
-        str(body.name): body.collision[0]
-        .mesh_in_frame(loader.world.root)
-        .vertices[:, 2]
-        .mean()
-        for body in loader.world.bodies_with_collision
-    }
-
-    assert heights["floor_1"] < heights["ceiling_1"]
+    with pytest.raises(WarsawSceneNotFoundError):
+        WarsawScene.from_directory(tmp_path)
 
 
-# %% a directory that holds no scene
-
-
-def test_a_directory_without_a_scene_mesh_is_reported(tmp_path):
+def test_a_directory_holding_more_than_one_scene_is_reported(tmp_path, two_class_scene):
     """
-    A directory holding no scene mesh names the file it is missing.
+    Which of two meshes is the scene is not something to guess at.
     """
-    with pytest.raises(WarsawSceneNotFoundError) as raised:
-        WarsawWorldLoader(tmp_path)
+    box = trimesh.creation.box()
+    write_scene(two_class_scene / "another.ply", box.vertices, box.faces[:1], {"wall": [1]})
+    with pytest.raises(AmbiguousWarsawSceneError):
+        WarsawScene.from_directory(two_class_scene)
 
-    assert WarsawSceneFile.SCENE_MESH.value in str(raised.value)
 
-
-def test_a_class_without_a_segmentation_is_reported(tmp_path):
+def test_a_mesh_carrying_no_labels_is_reported(tmp_path):
     """
-    A class the scene declares but does not segment names the file it is missing.
+    A mesh without labels describes no objects, which is worth saying rather than
+    reading as a scene of nothing.
     """
-    vertices, faces = stacked_triangles([0.0])
-    write_scene(
-        tmp_path,
-        class_names=["mug", "table"],
-        face_instances={"mug": [1]},
-        vertices=vertices,
-        faces=faces,
-    )
-
-    with pytest.raises(WarsawSegmentationMissingError) as raised:
-        WarsawWorldLoader(tmp_path)
-
-    assert WarsawSceneFile.segmentation_of("table") in str(raised.value)
+    trimesh.creation.box().export(str(tmp_path / "scene.ply"))
+    with pytest.raises(WarsawLabelsMissingError):
+        WarsawScene.from_directory(tmp_path)
 
 
-# %% looking at the scene
+# %% loading it into a world
 
 
-def test_the_cameras_stand_outside_the_scene(tmp_path):
+def test_the_scene_becomes_one_body(two_class_scene):
     """
-    Every camera the loader renders from stands clear of the scene's geometry.
-
-    A room is rendered from outside itself. A camera placed within the walls faces their
-    inside and renders black, so a scene larger than the camera's distance would render
-    nothing at all.
+    The scene stays one body until its overlapping labels have been resolved: cutting
+    it earlier would have to give the faces two objects claim to one of them, which is
+    the question the rest of the pipeline answers.
     """
-    # A room far wider than any fixed camera distance would allow for.
-    vertices = np.array(
-        [[-20.0, 0.0, -20.0], [20.0, 0.0, -20.0], [-20.0, 0.0, 20.0], [0.0, -8.0, 0.0]]
-    )
-    faces = np.array([[0, 1, 2], [0, 1, 3]])
-    scene = write_scene(
-        tmp_path,
-        class_names=["floor", "ceiling"],
-        face_instances={"floor": [1, 0], "ceiling": [0, 1]},
-        vertices=vertices,
-        faces=faces,
-    )
-
-    loader = WarsawWorldLoader(scene)
-    corners = np.array(
-        [
-            bound
-            for body in loader.world.bodies_with_collision
-            for shape in body.collision
-            for bound in shape.mesh_in_frame(loader.world.root).bounds
-        ]
-    )
-    low, high = corners.min(axis=0), corners.max(axis=0)
-
-    for transform in loader._predefined_camera_transforms:
-        camera_position = np.asarray(transform)[:3, 3]
-        assert np.any(camera_position < low) or np.any(camera_position > high)
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    assert len(loader.world.bodies_with_collision) == 1
+    assert len(loader.label_segments) == 3
 
 
-def test_every_viewpoint_is_named(tmp_path):
+def test_the_scene_is_turned_into_the_world_s_coordinates(two_class_scene):
     """
-    The scene is framed from one named viewpoint per corner, the names a caller renders
-    by.
+    The file's coordinates are not the world's, and the loader turns them once.
     """
-    vertices, faces = stacked_triangles([0.0, 1.0])
-    scene = write_scene(
-        tmp_path,
-        class_names=["floor"],
-        face_instances={"floor": [1, 1]},
-        vertices=vertices,
-        faces=faces,
-    )
-
-    poses = WarsawWorldLoader(scene).compute_camera_poses()
-
-    assert set(poses) == set(WarsawWorldLoader.VIEWPOINT_AZIMUTHS)
-    assert all(pose.shape == (4, 4) for pose in poses.values())
-
-
-def view_fractions(loader: WarsawWorldLoader, pose: np.ndarray) -> np.ndarray:
-    """
-    Measure where the scene's geometry falls in a camera's view.
-
-    :param loader: The loader holding the scene.
-    :param pose: The camera pose to measure from.
-    :return: Per point, how far across the horizontal and vertical view it lies, where 1
-        is the edge of the view.
-    """
-    right, up, backward = pose[:3, 0], pose[:3, 1], pose[:3, 2]
-    horizontal, vertical = (
-        np.tan(np.radians(angle) / 2) for angle in loader._camera_field_of_view
-    )
-
-    relative = loader._scene_points - pose[:3, 3]
-    depth = relative @ -backward
-    return np.stack(
-        [
-            np.abs(relative @ right) / (depth * horizontal),
-            np.abs(relative @ up) / (depth * vertical),
-        ],
-        axis=1,
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    turned = loader.scene.mesh.copy()
+    turned.apply_transform(WarsawWorldLoader.SOURCE_TO_WORLD.to_np())
+    assert np.allclose(
+        np.sort(loader.scene_mesh.extents), np.sort(turned.extents), atol=1e-6
     )
 
 
-def two_triangle_scene(tmp_path, framed_fraction: float) -> WarsawWorldLoader:
+def test_the_segments_index_the_faces_of_the_loaded_mesh(two_class_scene):
     """
-    :param tmp_path: Where to write the scene.
-    :param framed_fraction: The share of the scene its cameras have to frame.
-    :return: A loader over a scene of two triangles at different heights.
+    Labels are face indices, so a mesh whose faces were renumbered on the way in would
+    leave every one of them pointing at another face than it was written for.
     """
-    vertices, faces = stacked_triangles([0.0, 4.0])
-    return WarsawWorldLoader(
-        write_scene(
-            tmp_path,
-            class_names=["floor"],
-            face_instances={"floor": [1, 2]},
-            vertices=vertices,
-            faces=faces,
-        ),
-        framed_fraction=framed_fraction,
-    )
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    assert len(loader.scene_mesh.faces) == len(loader.scene.mesh.faces)
+    for segment in loader.label_segments:
+        assert segment.faces.max() < len(loader.scene_mesh.faces)
 
 
-def test_a_viewpoint_asked_for_the_whole_scene_frames_all_of_it(tmp_path):
+# %% looking at it
+
+
+def test_every_viewpoint_is_named_and_stands_outside_the_scene(two_class_scene):
     """
-    No part of the scene falls outside a view asked to hold all of it.
+    A camera inside the geometry photographs the inside of a wall.
     """
-    loader = two_triangle_scene(tmp_path, framed_fraction=1.0)
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    poses = loader.compute_camera_poses()
+    assert set(poses) == {"front_left", "front_right", "back_left", "back_right"}
 
-    for pose in loader.compute_camera_poses().values():
-        # The point at the very edge is measured twice over, so it lands on 1 either
-        # side of the last digit.
-        assert np.all(view_fractions(loader, pose) <= 1.0 + 1e-9)
+    low, high = loader.scene_mesh.bounds
+    for pose in poses.values():
+        eye = pose[:3, 3]
+        assert np.any(eye < low) or np.any(eye > high)
 
 
-def test_every_viewpoint_stands_as_close_as_that_allows(tmp_path):
+def test_framing_a_part_of_the_scene_stands_closer_than_framing_all_of_it(
+    two_class_scene,
+):
     """
-    No viewpoint stands further back than what it was asked to frame requires: some
-    point reaches the very edge of every view.
+    A close-up is close: what the camera is framed on decides how far away it stands.
     """
-    loader = two_triangle_scene(tmp_path, framed_fraction=1.0)
-
-    for pose in loader.compute_camera_poses().values():
-        assert view_fractions(loader, pose).max() == pytest.approx(1.0)
-
-
-def test_framing_less_than_the_whole_scene_stands_closer(tmp_path):
-    """
-    Framing less of the scene draws the cameras in, leaving its fringe out of view.
-    """
-    whole = two_triangle_scene(tmp_path, framed_fraction=1.0)
-    cropped = two_triangle_scene(tmp_path, framed_fraction=0.9)
-    low, high = whole._scene_bounds
-    middle = (low + high) / 2
-
-    for name, cropped_pose in cropped.compute_camera_poses().items():
-        whole_pose = whole.compute_camera_poses()[name]
-
-        assert np.linalg.norm(cropped_pose[:3, 3] - middle) < np.linalg.norm(
-            whole_pose[:3, 3] - middle
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    whole = loader.compute_camera_poses()
+    part = loader.compute_camera_poses(loader.points_of(loader.label_segments[:1]))
+    middle = loader.scene_mesh.vertices.mean(axis=0)
+    for name in whole:
+        assert np.linalg.norm(part[name][:3, 3] - middle) < np.linalg.norm(
+            whole[name][:3, 3] - middle
         )
-        assert view_fractions(cropped, cropped_pose).max() > 1.0
