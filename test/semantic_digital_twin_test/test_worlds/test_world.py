@@ -1249,6 +1249,94 @@ def test_copy_id(pr2_world_state_reset):
         assert body.id == pr2_copy.get_kinematic_structure_entity_by_name(body.name).id
 
 
+def test_relocate_body(world_setup):
+    """
+    A directly-held body reference is relocated onto the target world's own body, found
+    by id rather than by identity or name.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    world_copy = deepcopy(world)
+    assert world_copy.relocate(l1) is world_copy.get_body_by_name(l1.name)
+
+
+def test_relocate_connection(world_setup):
+    """
+    A connection, which has no id of its own, is relocated through its parent and child.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    world_copy = deepcopy(world)
+    connection = world.get_connection(l1, l2)
+    assert world_copy.relocate(connection) is world_copy.get_connection(
+        world_copy.get_body_by_name(l1.name), world_copy.get_body_by_name(l2.name)
+    )
+
+
+def test_relocate_nested_dataclass(world_setup):
+    """
+    A world entity nested in a dataclass field is relocated, and sibling fields keep
+    their values.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    world_copy = deepcopy(world)
+
+    @dataclass
+    class BodyReference:
+        body: Body
+        label: str
+
+    relocated = world_copy.relocate(BodyReference(body=l1, label="target"))
+    assert relocated.body is world_copy.get_body_by_name(l1.name)
+    assert relocated.label == "target"
+
+
+def test_relocate_list_and_plain_value(world_setup):
+    """
+    A list relocates elementwise, and a value holding no world entity keeps its value.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    world_copy = deepcopy(world)
+
+    assert world_copy.relocate([l1, l2, "not a world entity"]) == [
+        world_copy.get_body_by_name(l1.name),
+        world_copy.get_body_by_name(l2.name),
+        "not a world entity",
+    ]
+    assert world_copy.relocate(1.5) == 1.5
+
+
+def test_relocate_leaves_an_entity_this_world_does_not_contain(world_setup):
+    """
+    An entity the target world does not contain is left as it is, since it is not that
+    world's state to relocate.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    assert World().relocate(l1) is l1
+
+
+def test_relocate_copies_mutable_leaf_values(world_setup):
+    """
+    A mutable value that is neither a world entity nor a recognized container is copied,
+    not shared.
+
+    Mutating the relocated copy must not affect the original, the way sharing a `Pose`'s
+    underlying `casadi_sx` matrix would.
+    """
+
+    class MutableLeaf:
+        def __init__(self, value):
+            self.value = value
+
+    world, l1, l2, bf, r1, r2 = world_setup
+    world_copy = deepcopy(world)
+
+    leaf = MutableLeaf(value=1)
+    relocated = world_copy.relocate(leaf)
+    assert relocated is not leaf
+
+    relocated.value = 2
+    assert leaf.value == 1
+
+
 def test_world_entity_with_class_id():
     @dataclass(eq=False)
     class A(WorldEntityWithClassBasedID): ...

@@ -3,12 +3,15 @@ from __future__ import annotations
 import logging
 from abc import abstractmethod, ABC
 from collections import deque
-from dataclasses import dataclass, field
+from copy import deepcopy
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
 
 from typing_extensions import Union
 
+from coraplex.datastructures.enums import ExecutionType
+from coraplex.execution_environment import ExecutionEnvironment
 from coraplex.plans.designator import Designator
 from giskardpy.motion_statechart.graph_node import Goal
 from krrood.entity_query_language.query.match import Match
@@ -392,6 +395,70 @@ class ExecutionBoundaryNode(ABC, PlanNode):
     """
 
 
+@dataclass
+class CandidateRehearsal:
+    """
+    Tries a grounded action against a disposable copy of the world, to check that it can
+    succeed before it is attempted for real.
+
+    The copy is taken fresh from the current world every time, so a rehearsal never
+    reuses a previous attempt's copy and always reflects whatever state and model
+    changes are actually in `context.world` at the moment it runs. Rehearsal always
+    runs under a forced :attr:`~coraplex.datastructures.enums.ExecutionType.SIMULATED`
+    execution, regardless of the execution type the real attempt will use, since the
+    copy it runs against is never connected to real hardware.
+    """
+
+    action: ActionDescription
+    """
+    The grounded action to rehearse.
+    """
+
+    context: Context
+    """
+    The context the action was grounded in.
+
+    Only ever read from: rehearsal never mutates it or the world it points at, and the
+    action itself is left untouched too, so it can still be attached and executed for
+    real afterwards.
+    """
+
+    def succeeds(self) -> bool:
+        """
+        Run `action` against a disposable copy of the world.
+
+        The action is relocated onto the copy first: reading through a reference to the
+        world it was grounded in would be harmless, but an action that modifies the
+        model (attaching a grasped body, say) requires the entities it is given to
+        belong to the world being modified.
+
+        :return: True if `action` runs to completion without raising a `PlanFailure`
+            against a disposable copy of `context.world`.
+        """
+        from coraplex.plans.plan import Plan
+
+        test_world = deepcopy(self.context.world)
+        test_context = replace(
+            self.context,
+            world=test_world,
+            robot=test_world.get_semantic_annotation_by_id(self.context.robot.id),
+        )
+        test_plan = Plan(context=test_context)
+        candidate = ActionNode(designator=test_world.relocate(self.action))
+        test_plan.add_node(candidate)
+
+        with ExecutionEnvironment(
+            ExecutionType.SIMULATED,
+            collision_avoidance=GiskardExecutable.collision_avoidance,
+        ):
+            try:
+                candidate.notify()
+                candidate.parse().execute()
+                return True
+            except PlanFailure:
+                return False
+
+
 @dataclass(eq=False, repr=False)
 class UnderspecifiedNode(ExecutionBoundaryNode):
     """
@@ -431,24 +498,30 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
     def designator_type(self) -> Type:
         return self.underspecified_action.type
 
-    def _next_candidate(self) -> Optional[ActionNode]:
+    def _pull_next_action(self) -> Optional[ActionDescription]:
         """
-        Pull the next grounded action from the iterator and make it the current
-        candidate.
+        Pull the next grounded action from the iterator, without attaching it anywhere.
 
-        :return: The new candidate node, or None if the iterator is exhausted.
+        :return: The next grounded action, or None if the iterator is exhausted.
         """
         if self._action_iterator is None:
             self._action_iterator = self.context.query_backend.evaluate(
                 self.underspecified_action
             )
 
-        grounded_action = next(self._action_iterator, None)
-        if grounded_action is None:
+        action = next(self._action_iterator, None)
+        if action is None:
             self._action_iterator = None
-            return None
+        return action
 
-        candidate = ActionNode(designator=grounded_action)
+    def _attach(self, action: ActionDescription) -> ActionNode:
+        """
+        Wrap a grounded action in an `ActionNode` and add it as this node's child.
+
+        :param action: The grounded action to attach.
+        :return: The new candidate node.
+        """
+        candidate = ActionNode(designator=action)
         self.add_child(candidate)
         self.current_candidate = candidate
         return candidate
@@ -478,19 +551,30 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
 
     def advance(self) -> bool:
         """
-        Resolve the next candidate and expand it against the current world state.
+        Resolve the next candidate that survives rehearsal, and expand it against the
+        current world state.
+
+        Every grounded action is first tried against a disposable copy of the world
+        (:class:`CandidateRehearsal`); a candidate that fails there is discarded
+        without ever being attached to the plan or touching the real world, so a bad
+        parameterization cannot poison a later attempt. Only a candidate that survives
+        rehearsal is attached and returned.
 
         Driven by :class:`~pycram.plans.executables.UnderspecifiedExecutable` to ground the
         action at execution time, and reused by failure handling to retry with a freshly
         generated action.
 
         :return: True if a new candidate was generated, False if the iterator is
-            exhausted.
+            exhausted without any candidate surviving rehearsal.
         """
-        if self._next_candidate() is None:
-            return False
-        self.current_candidate.notify()
-        return True
+        action = self._pull_next_action()
+        while action is not None:
+            if CandidateRehearsal(action=action, context=self.context).succeeds():
+                self._attach(action)
+                self.current_candidate.notify()
+                return True
+            action = self._pull_next_action()
+        return False
 
     def parse(self) -> Executable:
         # Defer resolution to execution: the returned executable grounds the action

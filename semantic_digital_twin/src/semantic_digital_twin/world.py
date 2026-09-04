@@ -8,7 +8,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from copy import deepcopy, copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from functools import wraps, cached_property
 from uuid import UUID
 
@@ -128,6 +128,8 @@ logger = logging.getLogger("semantic_digital_twin")
 GenericSemanticAnnotation = TypeVar(
     "GenericSemanticAnnotation", bound=SemanticAnnotation
 )
+
+RelocatableType = TypeVar("RelocatableType")
 
 FunctionStack = List[Tuple[Callable, Dict[str, Any]]]
 
@@ -1601,6 +1603,56 @@ class World(HasSimulatorProperties):
             raise WorldEntityWithIDNotFoundError(id)
         else:
             return result[0]
+
+    def relocate(self, obj: RelocatableType) -> RelocatableType:
+        """
+        Replace every world entity reachable from `obj` with this world's own instance
+        of it.
+
+        `obj` is typically built against a different `World`, for example the one this
+        world was :func:`~copy.deepcopy`'d from, whose bodies and connections this world
+        rebuilt as separate objects. Reading through such a foreign reference is
+        harmless, since execution reads and writes whichever world its context points
+        at, but modifying the model is not: `move_branch` and its kind require the
+        entities they are given to belong to the world being modified.
+
+        Walks `obj` recursively through dataclass fields, lists, tuples and dict values.
+        A :class:`~semantic_digital_twin.world_description.world_entity.WorldEntityWithID`
+        is looked up here by its id and a
+        :class:`~semantic_digital_twin.world_description.world_entity.Connection`, which
+        has no id, by its relocated parent and child. Anything else is deep-copied, so
+        `obj` and the result never share mutable state.
+
+        An entity this world does not contain is left as it is: it is not this world's
+        state to relocate, and leaving it behaves exactly as not relocating at all.
+
+        .. note:: An ``init=False`` field a dataclass derives from its other fields in
+            `__post_init__` is carried over as originally computed, not recomputed from
+            the relocated values.
+
+        :param obj: The object to relocate, or a value containing world entities.
+        :return: An equivalent, independent copy of `obj` referring to this world.
+        """
+        if isinstance(obj, WorldEntityWithID):
+            try:
+                return self.get_world_entity_with_id_by_id(obj.id)
+            except WorldEntityWithIDNotFoundError:
+                return obj
+        if isinstance(obj, Connection):
+            parent, child = self.relocate(obj.parent), self.relocate(obj.child)
+            if parent is obj.parent or child is obj.child:
+                return obj
+            return self.get_connection(parent, child)
+        if isinstance(obj, (list, tuple)):
+            return type(obj)(self.relocate(item) for item in obj)
+        if isinstance(obj, dict):
+            return {key: self.relocate(value) for key, value in obj.items()}
+        if is_dataclass(obj) and not isinstance(obj, type):
+            result = deepcopy(obj)
+            for f in fields(obj):
+                setattr(result, f.name, self.relocate(getattr(obj, f.name)))
+            return result
+        return deepcopy(obj)
 
     def get_kinematic_structure_entity_by_id(
         self, id: UUID
