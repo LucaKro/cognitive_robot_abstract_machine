@@ -283,6 +283,64 @@ class SegmentRelations:
         }
 
 
+@dataclass
+class ClaimantGroup:
+    """
+    A set of faces claimed by exactly the same segments.
+    """
+
+    names: Tuple[str, ...]
+    """
+    The segments claiming them, by name, in alphabetical order.
+    """
+
+    faces: np.ndarray
+    """
+    The faces every one of them claims.
+    """
+
+    def to_json(self) -> Dict[str, Any]:
+        """
+        :return: The group as JSON-ready data, without the faces themselves.
+        """
+        return {"claimants": list(self.names), "faces": int(len(self.faces))}
+
+
+def claimant_groups(
+    segment_faces: List[np.ndarray], names: List[str], face_count: int
+) -> List[ClaimantGroup]:
+    """
+    Gather the contested faces by who claims them.
+
+    Which object a face belongs to is one question per set of claimants, not one per pair
+    of them: a face claimed by a cabinet, a door and an island is a single question with
+    three answers to choose from, where asking it as three pairs invites three answers
+    that need not agree. There are far fewer such sets than pairs, and each is asked once.
+
+    :param segment_faces: Per segment, the faces it is made of.
+    :param names: The segments' names, in the same order.
+    :param face_count: How many faces the scene's mesh has.
+    :return: One group per set of claimants, the largest first.
+    """
+    slots, counts = _claim_slots(segment_faces, face_count)
+    contested = np.flatnonzero(counts > 1)
+    if not len(contested):
+        return []
+
+    rows = np.sort(slots[contested], axis=1)
+    sets, inverse = np.unique(rows, axis=0, return_inverse=True)
+    inverse = np.asarray(inverse).ravel()
+
+    groups = [
+        ClaimantGroup(
+            names=tuple(sorted(names[int(index)] for index in claimants if index >= 0)),
+            faces=contested[inverse == position],
+        )
+        for position, claimants in enumerate(sets)
+    ]
+    return sorted(groups, key=lambda group: -len(group.faces))
+
+
 def _claim_slots(
     segment_faces: List[np.ndarray], face_count: int
 ) -> Tuple[np.ndarray, np.ndarray]:
