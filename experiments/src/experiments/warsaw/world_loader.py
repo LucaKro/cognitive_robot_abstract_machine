@@ -981,6 +981,7 @@ class WarsawWorldLoader:
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
         choose_viewpoint: bool = False,
+        context_segments: Optional[Iterable[LabelSegment]] = None,
     ) -> Dict[str, bytes]:
         """
         Render a part of the scene the three ways a question about it needs answering.
@@ -995,6 +996,10 @@ class WarsawWorldLoader:
             takes them.
         :param viewpoints: Which named viewpoints to render, defaulting to all of them.
         :param headless: Whether to render without opening a window.
+        :param context_segments: What the context view is framed on, defaulting to the
+            whole scene. Framing it on a segment together with its measured neighbours
+            is what makes a small object visible in it at all: a mug fills 0.00% of a
+            picture of the room and 9.6% of a picture of the counter it stands on.
         :param choose_viewpoint: Whether to keep only the viewpoint that shows the most,
             measured rather than chosen: a cabinet standing against a wall is invisible
             from three of the four, and a fixed viewpoint then hands a viewer a picture
@@ -1002,15 +1007,20 @@ class WarsawWorldLoader:
         :return: The renders, keyed ``<kind>_<viewpoint>``.
         """
         segments = list(segments)
+        frame = (
+            None if context_segments is None else self.points_of(context_segments)
+        )
         if choose_viewpoint:
-            viewpoints = (self.viewpoint_showing_all(segments, viewpoints, headless),)
+            viewpoints = (
+                self.viewpoint_showing_all(segments, viewpoints, headless, frame),
+            )
 
         self._apply_highlight_to_faces(highlights)
         painted = np.asarray(self.scene_mesh.visual.face_colors).copy()
         closeups = self.render_segments_alone(segments, painted, viewpoints, headless)
         contexts = self._render_from_poses(
             self._render_scene(),
-            self._chosen_viewpoints(self.compute_camera_poses(), viewpoints),
+            self._chosen_viewpoints(self.compute_camera_poses(frame), viewpoints),
             headless,
         )
 
@@ -1030,6 +1040,7 @@ class WarsawWorldLoader:
         segments: Iterable[LabelSegment],
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
+        frame: Optional[np.ndarray] = None,
     ) -> str:
         """
         Find the viewpoint from which the least-visible of some segments is seen best.
@@ -1044,10 +1055,13 @@ class WarsawWorldLoader:
         :param segments: The segments that all have to be visible.
         :param viewpoints: Which named viewpoints to consider, defaulting to all.
         :param headless: Whether to render without opening a window.
+        :param frame: The points the views are framed on, defaulting to the whole scene.
+            The choice has to be made at the framing it is made for, since which
+            viewpoint shows an object best depends on how closely it is framed.
         :return: The name of the viewpoint that shows the least-visible segment best.
         """
-        poses = self._chosen_viewpoints(self.compute_camera_poses(), viewpoints)
-        rooms = self._dimmed_scene_views(viewpoints, headless)
+        poses = self._chosen_viewpoints(self.compute_camera_poses(frame), viewpoints)
+        rooms = self._dimmed_views(poses, headless, cacheable=frame is None)
         color = Color.distinct_colors(1)[0]
 
         worst = {name: None for name in poses}
@@ -1061,34 +1075,36 @@ class WarsawWorldLoader:
         self._reset_segment_colors()
         return max(worst, key=lambda name: worst[name])
 
-    def _dimmed_scene_views(
-        self, viewpoints: Optional[Sequence[str]], headless: bool
+    def _dimmed_views(
+        self,
+        poses: Dict[str, HomogeneousTransformationMatrix],
+        headless: bool,
+        cacheable: bool,
     ) -> Dict[str, bytes]:
         """
-        Render the whole scene dimmed, with nothing highlighted.
+        Render the scene dimmed and unhighlighted, from given poses.
 
         A context view is measured against this rather than against the scene in its own
         colors, because a highlight render dims everything else: measured against the
-        undimmed scene every pixel of the room differs, and the measurement reports the
-        dimming instead of the highlight. Dimmed and unhighlighted, the only pixels that
-        differ are the highlighted ones.
+        undimmed scene every pixel differs, and the measurement reports the dimming
+        instead of the highlight.
 
-        The scene looks the same behind every region, so this is rendered once however
-        many regions are measured against it.
-
-        :param viewpoints: Which named viewpoints to render.
+        :param poses: The camera poses to render from.
         :param headless: Whether to render without opening a window.
+        :param cacheable: Whether these poses are the whole scene's, which every region
+            shares and which is therefore worth rendering once.
         :return: Per viewpoint, the scene dimmed and unhighlighted.
         """
-        poses = self._chosen_viewpoints(self.compute_camera_poses(), viewpoints)
-        wanted = tuple(sorted(poses))
-        if wanted not in self._plain_views:
-            self._apply_highlight_to_faces([])
-            self._plain_views[wanted] = self._render_from_poses(
-                self._render_scene(), poses, headless
-            )
-            self._reset_segment_colors()
-        return self._plain_views[wanted]
+        key = tuple(sorted(poses))
+        if cacheable and key in self._plain_views:
+            return self._plain_views[key]
+
+        self._apply_highlight_to_faces([])
+        views = self._render_from_poses(self._render_scene(), poses, headless)
+        self._reset_segment_colors()
+        if cacheable:
+            self._plain_views[key] = views
+        return views
 
     # %% Body Highlighting
 
