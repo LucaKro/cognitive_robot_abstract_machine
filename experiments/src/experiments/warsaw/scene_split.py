@@ -259,6 +259,11 @@ def split_world(
         scan carries are what the objects are recognised by.
     :return: The world, flat, one body per object under a single root.
     """
+    if directory is not None:
+        # Each mesh goes in a directory of its own made under this one, and making it
+        # needs this one to be there.
+        Path(directory).mkdir(parents=True, exist_ok=True)
+
     world = World()
     root = Body(name=PrefixedName(ROOT_BODY_NAME))
     with world.modify_world():
