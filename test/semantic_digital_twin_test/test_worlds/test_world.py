@@ -1258,7 +1258,7 @@ def test_relocate_body(world_setup):
     """
     world, l1, l2, bf, r1, r2 = world_setup
     world_copy = deepcopy(world)
-    assert world_copy.relocate(l1) is world_copy.get_body_by_name(l1.name)
+    assert world_copy.rebind_world_entities(l1) is world_copy.get_body_by_name(l1.name)
 
 
 def test_relocate_connection(world_setup):
@@ -1268,7 +1268,7 @@ def test_relocate_connection(world_setup):
     world, l1, l2, bf, r1, r2 = world_setup
     world_copy = deepcopy(world)
     connection = world.get_connection(l1, l2)
-    assert world_copy.relocate(connection) is world_copy.get_connection(
+    assert world_copy.rebind_world_entities(connection) is world_copy.get_connection(
         world_copy.get_body_by_name(l1.name), world_copy.get_body_by_name(l2.name)
     )
 
@@ -1286,7 +1286,7 @@ def test_relocate_nested_dataclass(world_setup):
         body: Body
         label: str
 
-    relocated = world_copy.relocate(BodyReference(body=l1, label="target"))
+    relocated = world_copy.rebind_world_entities(BodyReference(body=l1, label="target"))
     assert relocated.body is world_copy.get_body_by_name(l1.name)
     assert relocated.label == "target"
 
@@ -1298,12 +1298,12 @@ def test_relocate_list_and_plain_value(world_setup):
     world, l1, l2, bf, r1, r2 = world_setup
     world_copy = deepcopy(world)
 
-    assert world_copy.relocate([l1, l2, "not a world entity"]) == [
+    assert world_copy.rebind_world_entities([l1, l2, "not a world entity"]) == [
         world_copy.get_body_by_name(l1.name),
         world_copy.get_body_by_name(l2.name),
         "not a world entity",
     ]
-    assert world_copy.relocate(1.5) == 1.5
+    assert world_copy.rebind_world_entities(1.5) == 1.5
 
 
 def test_relocate_leaves_an_entity_this_world_does_not_contain(world_setup):
@@ -1312,7 +1312,7 @@ def test_relocate_leaves_an_entity_this_world_does_not_contain(world_setup):
     world's state to relocate.
     """
     world, l1, l2, bf, r1, r2 = world_setup
-    assert World().relocate(l1) is l1
+    assert World().rebind_world_entities(l1) is l1
 
 
 def test_lookup_by_id_finds_an_annotation_sharing_a_hash_table_key(world_setup):
@@ -1348,7 +1348,7 @@ def test_relocate_annotation_sharing_a_hash_table_key(world_setup):
         world.add_semantic_annotation(second)
     world_copy = deepcopy(world)
 
-    relocated = world_copy.relocate(first)
+    relocated = world_copy.rebind_world_entities(first)
     assert relocated.id == first.id
     assert relocated._world is world_copy
 
@@ -1368,7 +1368,7 @@ def test_relocated_annotation_sharing_a_hash_table_key_can_modify_the_copy(world
         world.add_semantic_annotation(second)
     world_copy = deepcopy(world)
 
-    relocated = world_copy.relocate(first)
+    relocated = world_copy.rebind_world_entities(first)
     new_parent = world_copy.get_body_by_name(r1.name)
     world_copy.move_branch(relocated.root, new_parent)
 
@@ -1417,7 +1417,7 @@ def test_relocate_rejects_an_entity_registered_here_but_owned_elsewhere(world_se
     world._world_entity_hash_table[hash(l1)] = l1
 
     with pytest.raises(WorldEntityBelongsToAnotherWorld):
-        world.relocate(l1)
+        world.rebind_world_entities(l1)
 
 
 def test_relocate_copies_mutable_leaf_values(world_setup):
@@ -1437,7 +1437,7 @@ def test_relocate_copies_mutable_leaf_values(world_setup):
     world_copy = deepcopy(world)
 
     leaf = MutableLeaf(value=1)
-    relocated = world_copy.relocate(leaf)
+    relocated = world_copy.rebind_world_entities(leaf)
     assert relocated is not leaf
 
     relocated.value = 2

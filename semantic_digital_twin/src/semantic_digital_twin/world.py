@@ -1618,7 +1618,7 @@ class World(HasSimulatorProperties):
                 return entity
         raise WorldEntityWithIDNotFoundError(id)
 
-    def relocate(self, obj: RelocatableType) -> RelocatableType:
+    def rebind_world_entities(self, obj: RelocatableType) -> RelocatableType:
         """
         Replace every world entity reachable from `obj` with this world's own instance
         of it.
@@ -1630,7 +1630,7 @@ class World(HasSimulatorProperties):
         at, but modifying the model is not: `move_branch` and its kind require the
         entities they are given to belong to the world being modified.
 
-        Walks `obj` recursively through dataclass fields, lists, tuples and dict values.
+        Walks `obj` recursively through dataclass fields, list like classes and dict values.
         A :class:`~semantic_digital_twin.world_description.world_entity.WorldEntityWithID`
         is looked up here by its id and a
         :class:`~semantic_digital_twin.world_description.world_entity.Connection`, which
@@ -1659,18 +1659,18 @@ class World(HasSimulatorProperties):
                 raise WorldEntityBelongsToAnotherWorld(world=self, world_entity=found)
             return found
         if isinstance(obj, Connection):
-            parent, child = self.relocate(obj.parent), self.relocate(obj.child)
+            parent, child = self.rebind_world_entities(obj.parent), self.rebind_world_entities(obj.child)
             if parent is obj.parent or child is obj.child:
                 return obj
             return self.get_connection(parent, child)
-        if isinstance(obj, (list, tuple)):
-            return type(obj)(self.relocate(item) for item in obj)
+        if isinstance(obj, list_like_classes):
+            return type(obj)(self.rebind_world_entities(item) for item in obj)
         if isinstance(obj, dict):
-            return {key: self.relocate(value) for key, value in obj.items()}
+            return {key: self.rebind_world_entities(value) for key, value in obj.items()}
         if is_dataclass(obj) and not isinstance(obj, type):
             result = deepcopy(obj)
             for f in fields(obj):
-                setattr(result, f.name, self.relocate(getattr(obj, f.name)))
+                setattr(result, f.name, self.rebind_world_entities(getattr(obj, f.name)))
             return result
         return deepcopy(obj)
 

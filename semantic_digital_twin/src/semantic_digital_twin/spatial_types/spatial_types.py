@@ -1943,6 +1943,19 @@ class Quaternion(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
             return sm.Scalar(ca.mtimes(self.casadi_sx.T, other.casadi_sx))
         return NotImplemented
 
+    def rotational_error(self, other: Quaternion) -> sm.Scalar:
+        """
+        Calculate the rotational error between two orientations.
+
+        The dot product is taken as an absolute value, so the two quaternions that
+        describe every rotation count as the same orientation.
+
+        :param other: The second orientation.
+        :return: The angle between the two orientations, 0 when they describe the same
+            rotation.
+        """
+        return 2 * sm.safe_acos(abs(self.dot(other)))
+
     def slerp(self, other: Quaternion, t: sm.ScalarData) -> Quaternion:
         """
         Spherical linear interpolation that takes into account that q == -q t=0 will

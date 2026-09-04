@@ -2042,6 +2042,32 @@ class TestQuaternion:
         expected = np.dot(q1.T, q2)
         assert np.allclose(result, expected)
 
+    @pytest.mark.parametrize("q1", quaternions)
+    @pytest.mark.parametrize("q2", quaternions)
+    def test_rotational_error_matches_the_rotation_matrices(self, q1, q2):
+        """
+        Two orientations are the same angle apart however they are described.
+        """
+        actual = Quaternion.from_iterable(q1).rotational_error(
+            Quaternion.from_iterable(q2)
+        )
+        expected = RotationMatrix(
+            data=rotation_matrix_from_quaternion(*q1)
+        ).rotational_error(RotationMatrix(data=rotation_matrix_from_quaternion(*q2)))
+        assert np.allclose(
+            shortest_angular_distance(actual.to_np()[0], expected.to_np()[0]), 0
+        )
+
+    @pytest.mark.parametrize("q", quaternions)
+    def test_rotational_error_of_the_two_quaternions_of_one_rotation(self, q):
+        """
+        A quaternion and its negation describe the same rotation, so there is no angle
+        between them.
+        """
+        quaternion = Quaternion.from_iterable(q)
+        assert np.allclose(quaternion.rotational_error(-quaternion).to_np(), 0)
+        assert np.allclose(quaternion.rotational_error(quaternion).to_np(), 0)
+
 
 def test_underspecification_of_vector():
     q = a(Vector3)(x=1, y=2, z=3)

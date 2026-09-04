@@ -34,17 +34,6 @@ if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import EndEffector
 
 
-def _orientation_distance(one: Quaternion, other: Quaternion) -> float:
-    """
-    :param one: The first orientation.
-    :param other: The second orientation.
-    :return: A measure of how far apart two orientations are, 0 when they describe the
-        same rotation. Compared through the absolute dot product, so the two
-        quaternions that represent every rotation count as equal.
-    """
-    return 1.0 - abs(float(np.dot(one.to_np(), other.to_np())))
-
-
 @dataclass
 class GraspDescription:
     """
@@ -108,8 +97,8 @@ class GraspDescription:
         ]
         return min(
             candidates,
-            key=lambda candidate: _orientation_distance(
-                candidate.grasp_orientation(), measured_orientation
+            key=lambda candidate: candidate.grasp_orientation().rotational_error(
+                measured_orientation
             ),
         )
 

@@ -480,7 +480,7 @@ class CandidateRehearsal:
 
         world = self._copy()
         plan = Plan(context=self._context)
-        candidate = ActionNode(designator=world.relocate(action))
+        candidate = ActionNode(designator=world.rebind_world_entities(action))
         plan.add_node(candidate)
         version = world.get_world_model_manager().version
 
