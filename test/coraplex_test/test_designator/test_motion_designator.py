@@ -17,7 +17,7 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot, real_robot
-from coraplex.plans.executables import ModelChangeExecutable
+from coraplex.plans.executables import MoveBranchExecutable
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import MotionNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -585,7 +585,7 @@ def test_move_tool_center_point_motion_frees_what_the_manipulator_grasps_later(
     execute_single(motion, context=context)
     (rule,) = _collision_rule_nodes(motion.motion_chart)[0].temporary_rules
 
-    ModelChangeExecutable(
+    MoveBranchExecutable(
         context=context, body=held_body, new_parent=end_effector.tool_frame
     ).execute()
     rule.update(world)
