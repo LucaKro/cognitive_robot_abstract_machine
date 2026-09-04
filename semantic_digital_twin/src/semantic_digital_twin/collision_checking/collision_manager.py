@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from krrood.utils import memoize, clear_memoization_cache
-from typing import Dict, Any, Iterator, Self
+from typing import Dict, Any, Self
 
 from typing_extensions import List, TYPE_CHECKING
 
@@ -195,30 +194,6 @@ class CollisionManager(ModelChangeCallback):
         Call this before starting a new task.
         """
         self.temporary_rules.clear()
-
-    @contextmanager
-    def replace_temporary_rules(
-        self, rules: List[CollisionRule]
-    ) -> Iterator[CollisionManager]:
-        """
-        Ask a question of the world under `rules` alone, then restore the temporary
-        rules that were in force.
-
-        :param rules: The only temporary rules for the duration of the block.
-
-        Temporary rules outrank the default ones, so rules left behind would answer
-        whatever runs next about distances it never has to keep.
-        """
-        rules_in_force = list(self.temporary_rules)
-        self.clear_temporary_rules()
-        self.extend_temporary_rule(rules)
-        self.update_collision_matrix()
-        try:
-            yield self
-        finally:
-            self.clear_temporary_rules()
-            self.extend_temporary_rule(rules_in_force)
-            self.update_collision_matrix()
 
     @synchronized_attribute_modification
     def extend_max_avoided_bodies_rules(self, rules: List[MaxAvoidedCollisionsRule]):

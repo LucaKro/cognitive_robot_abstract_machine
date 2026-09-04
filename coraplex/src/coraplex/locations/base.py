@@ -145,10 +145,23 @@ class Location(Iterable[Pose]):
                 else pose_candidate
             )
 
-            with test_world.collision_manager.replace_temporary_rules(
+            # Asked under rules of its own, which are taken back down again: the
+            # reachability simulation that follows has to see the rules the plan is
+            # executed with, and temporary rules outrank the robot's own.
+            collision_manager = test_world.collision_manager
+            rules_of_the_run = list(collision_manager.temporary_rules)
+            collision_manager.clear_temporary_rules()
+            collision_manager.extend_temporary_rule(
                 self._standing_clearance(test_robot)
-            ):
-                stands_in_collision = test_robot.is_in_collision
+            )
+            collision_manager.update_collision_matrix()
+
+            stands_in_collision = test_robot.is_in_collision
+
+            collision_manager.clear_temporary_rules()
+            collision_manager.extend_temporary_rule(rules_of_the_run)
+            collision_manager.update_collision_matrix()
+
             if stands_in_collision:
                 logger.debug(f"Candidate pose in collision, skipping")
                 continue
