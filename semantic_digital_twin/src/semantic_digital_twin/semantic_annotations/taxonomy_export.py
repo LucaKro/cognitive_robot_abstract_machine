@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, fields as dataclass_fields, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Type
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
 
 from krrood.class_diagrams.class_diagram import WrappedClass
 
@@ -128,6 +128,12 @@ class SemanticRelation:
     Whether mounting here cuts the part's volume out of the whole's geometry.
     """
 
+    target_class: Optional[Type] = None
+    """
+    The type the field accepts, where it is one, so that what may be mounted into it can
+    be asked rather than compared by name. Left out of the exported form, which names it.
+    """
+
     def to_json(self) -> Dict[str, Any]:
         """
         :return: The relation as JSON-ready data.
@@ -177,6 +183,7 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
             holds_many=part_whole_relationship_field.holds_many,
             mounted_by="add",
             removes_geometry=part_whole_relationship_field.removes_part_geometry_from_whole,
+            target_class=part_whole_relationship_field.part,
         )
         for part_whole_relationship_field in part_whole_fields(annotation_class)
     ]
@@ -197,6 +204,7 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
                 target=getattr(target, "__name__", str(target)),
                 holds_many=wrapped_field.is_many_to_many_relationship,
                 mounted_by=channel.mounted_by,
+                target_class=target if isinstance(target, type) else None,
             )
         )
     return relations
@@ -406,3 +414,31 @@ def _in_base_order(bases: Sequence[Type]) -> tuple:
         remaining.remove(most_derived)
         ordered.append(most_derived)
     return tuple(ordered)
+
+
+def admissible_mounts(one_class: Type, other_class: Type) -> List[Tuple[Type, SemanticRelation]]:
+    """
+    Report every way two classes could be mounted into one another, in either direction.
+
+    A part-whole relation is one of three channels, and it is the narrow one: a mug on a
+    counter and a jar in a box are mounted with add_object, not with add, so
+    asking only about parts reports "no relation" for pairs that have a perfectly good
+    one. What comes back is what the world would accept, not what is the case.
+
+    ..note:: contains is admissible very widely -- IsStorageSpace.objects accepts
+        anything with a root body -- so its presence says much less about a pair than a
+        part-whole relation does.
+
+    :param one_class: One of the annotation classes.
+    :param other_class: The other annotation class.
+    :return: Each admissible mount, as the class that would hold and the relation it
+        would be held in.
+    """
+    return [
+        (whole, relation)
+        for whole, part in ((one_class, other_class), (other_class, one_class))
+        for relation in relations_of(whole)
+        if isinstance(part, type)
+        and isinstance(relation.target_class, type)
+        and issubclass(part, relation.target_class)
+    ]
