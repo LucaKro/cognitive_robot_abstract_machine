@@ -26,11 +26,9 @@ import numpy as np
 from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     admissible_mounts,
-    annotation_classes,
     describe_class,
 )
 from semantic_digital_twin.world_description.geometry import Color
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Dict, List, Optional, Sequence, Tuple, Type
 
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
@@ -196,9 +194,7 @@ class MeasureScene(PipelineStep):
             if self.knowing_the_vocabulary
             else Vocabulary(model="", scene="")
         )
-        return VocabularyClasses(
-            vocabulary=vocabulary, known=annotation_classes(SemanticAnnotation)
-        )
+        return VocabularyClasses(vocabulary=vocabulary, known=self.ontology_classes())
 
     def carry_out(self) -> None:
         """

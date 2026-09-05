@@ -22,12 +22,13 @@ from experiments.warsaw.pipeline.records import (
     LabelAnswer,
     Vocabulary,
 )
-from experiments.warsaw.pipeline.run import Run
+from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     annotation_classes,
+    compose_class,
 )
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
@@ -221,3 +222,51 @@ def test_a_real_run_builds_each_composed_class_the_way_the_vocabulary_composed_i
     wanted = step.wanted_classes(classifications, vocabulary)
     for answer in vocabulary.proposals.values():
         assert wanted[answer.class_name] == [answer.superclass] + answer.mixins
+
+
+# %% what a step is told the ontology holds
+
+
+def test_a_class_composed_earlier_in_the_run_is_not_mistaken_for_the_ontology_s(
+    step, taxonomy
+):
+    """
+    Composing a proposed class registers it as a subclass of the annotation root for the
+    rest of the process, and the steps of a run share one. Asked the live interpreter,
+    the step that generates classes is told a class an earlier step invented for this
+    scene is already part of the ontology, so it generates nothing -- and the
+    interpreter that writes the world, which invented nothing, cannot find the class and
+    leaves those bodies with no annotation at all.
+
+    One real run named its island ``KitchenIsland`` and the class was never written.
+    """
+    step.run.write_json(RunFile.TAXONOMY, taxonomy)
+    compose_class("InventedMidRun", annotation_classes(SemanticAnnotation)["Table"], [])
+
+    assert "InventedMidRun" in annotation_classes(SemanticAnnotation)
+    assert "InventedMidRun" not in step.ontology_classes()
+
+
+def test_a_class_invented_for_this_scene_is_generated_even_after_it_was_composed(
+    step, taxonomy
+):
+    """
+    The class has to reach the run's own file, or the world cannot hold it.
+    """
+    step.run.write_json(RunFile.TAXONOMY, taxonomy)
+    compose_class("InventedMidRun", annotation_classes(SemanticAnnotation)["Table"], [])
+
+    generated = step.generate_missing(
+        {"InventedMidRun": ["Table"]}, step.ontology_classes()
+    )
+    assert generated == ["InventedMidRun(Table)"]
+
+
+def test_the_ontology_a_step_reads_is_the_one_the_run_wrote_down(step, taxonomy):
+    """
+    Every step and every interpreter of one run has to mean the same thing by it.
+    """
+    step.run.write_json(RunFile.TAXONOMY, taxonomy)
+    declared = {node["name"] for node in taxonomy["classes"]}
+    assert set(step.ontology_classes()) <= declared
+    assert "Cabinet" in step.ontology_classes()

@@ -34,10 +34,8 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
     TextPart,
 )
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
     compose_class,
 )
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Any, Dict, List, Type
 
 from experiments.warsaw.pipeline.asking import Question
@@ -261,7 +259,7 @@ class MapLabelVocabulary(PipelineStep):
         )
         taxonomy = self.run.read_json(RunFile.TAXONOMY)
         relations = Relations.from_json(self.run.read_json(RunFile.RELATIONS))
-        known = annotation_classes(SemanticAnnotation)
+        known = self.ontology_classes()
         questioner = self.questioner(RunFile.VOCABULARY_ANSWERS)
 
         asked = [

@@ -205,6 +205,9 @@ class MountAnnotations(Reporting):
         :param classifications: What each body was answered to be.
         :return: The annotation made for each body, by name.
         """
+        # Every subclass this interpreter holds, and deliberately: it composed nothing, so
+        # nothing here is another step's invention, and the classes this run generated are
+        # exactly what it has to be able to find.
         known = annotation_classes(SemanticAnnotation)
         bodies = {str(body.name.name): body for body in world.bodies}
 
@@ -338,7 +341,7 @@ class AnnotateAndMount(PipelineStep):
         )
         vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
         wanted = self.wanted_classes(classifications, vocabulary)
-        known = annotation_classes(SemanticAnnotation)
+        known = self.ontology_classes()
         self.logger.info(
             "%s classes over %s bodies", len(wanted), len(classifications.bodies)
         )
@@ -358,7 +361,8 @@ class AnnotateAndMount(PipelineStep):
             "import sys\n"
             "from pathlib import Path\n"
             "import logging\n"
-            "logging.basicConfig(level=logging.INFO, format='%(message)s')\n"
+            "logging.basicConfig(level=logging.INFO, format='%(message)s', "
+            "stream=sys.stdout)\n"
             "from experiments.warsaw.pipeline.steps.annotate import MountAnnotations\n"
             "MountAnnotations(directory=Path(sys.argv[1])).carry_out()\n",
             [str(self.run.directory)],
@@ -444,8 +448,10 @@ class AnnotateAndMount(PipelineStep):
             generated.append(f"{name}({', '.join(base.__name__ for base in ordered)})")
 
         if builders:
+            generated_classes = GeneratedClasses(directory=self.run.directory)
+            generated_classes.searched_directory.mkdir(parents=True, exist_ok=True)
             SemanticAnnotationClassBuilder.write_classes_to_file(
-                builders, GeneratedClasses(directory=self.run.directory).path
+                builders, generated_classes.path
             )
         return generated
 

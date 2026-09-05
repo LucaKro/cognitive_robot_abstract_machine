@@ -30,10 +30,6 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
     MessagePart,
     TextPart,
 )
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Any, Dict, List, Sequence
 
 from experiments.warsaw.pipeline.asking import Question
@@ -161,7 +157,7 @@ class ClassifyBodies(PipelineStep):
         """
         vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
         taxonomy = VocabularyClasses(
-            vocabulary=vocabulary, known=annotation_classes(SemanticAnnotation)
+            vocabulary=vocabulary, known=self.ontology_classes()
         ).widened(self.run.read_json(RunFile.TAXONOMY))
 
         loader = WarsawWorldLoader(input_directory=self.settings.scene)

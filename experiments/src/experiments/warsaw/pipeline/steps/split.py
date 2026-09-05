@@ -21,11 +21,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 import numpy as np
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Dict, List, Optional, Tuple, Type
 
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
@@ -97,7 +93,7 @@ class SplitScene(PipelineStep):
             len(loader.scene_mesh.faces),
         )
         classes = VocabularyClasses(
-            vocabulary=vocabulary, known=annotation_classes(SemanticAnnotation)
+            vocabulary=vocabulary, known=self.ontology_classes()
         ).by_label()
         ownerships, unreached = self.resolve_owners(
             groups, adjudications, labels, classes

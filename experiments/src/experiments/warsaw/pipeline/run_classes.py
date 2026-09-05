@@ -47,7 +47,17 @@ class GeneratedClasses:
 
     file_name: str = "generated_classes.py"
     """
-    What the file is called inside a run's directory.
+    What the file is called.
+    """
+
+    holding_directory: str = "annotations"
+    """
+    The directory inside the run that holds the generated classes and nothing else.
+
+    Its own directory rather than the run's, because what is put on the annotations
+    package's search path becomes part of that package: with the run's directory there,
+    the inspector script a finished run leaves behind is walked by the ORM generator and
+    mapped as though it were an annotation class, and a run cannot be annotated twice.
     """
 
     @property
@@ -55,7 +65,14 @@ class GeneratedClasses:
         """
         :return: Where the run's generated classes are written.
         """
-        return Path(self.directory).resolve() / self.file_name
+        return self.searched_directory / self.file_name
+
+    @property
+    def searched_directory(self) -> Path:
+        """
+        :return: The directory put on the annotations package's search path.
+        """
+        return Path(self.directory).resolve() / self.holding_directory
 
     @property
     def were_generated(self) -> bool:
@@ -92,7 +109,7 @@ class GeneratedClasses:
 
         # In front of the package's own file, so a walk of the package finds this one
         # first.
-        directory = str(self.path.parent)
+        directory = str(self.searched_directory)
         if directory not in annotations.__path__:
             annotations.__path__.insert(0, directory)
         return sys.modules.get(self.module_name)

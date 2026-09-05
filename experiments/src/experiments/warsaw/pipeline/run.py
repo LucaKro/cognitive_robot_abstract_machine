@@ -87,11 +87,6 @@ class RunFile(StrEnum):
     What the run was told, so a run's numbers can be read beside what produced them.
     """
 
-    GENERATED_CLASSES = "generated_classes.py"
-    """
-    The classes this scene needed that the ontology does not have.
-    """
-
     INSPECTOR = "inspect_world.py"
     """
     The script the run leaves behind so its world can be opened without knowing anything.
