@@ -188,3 +188,8 @@ CLAUDE.local.md
 # Tracking a generated file made every branch switch fail while a checkout held its own
 # copy, which is what git refuses to overwrite.
 **/ormatic_interface.py
+# The Warsaw pipeline's scenes and its output. A run writes a directory of its own beside
+# the scene it read, and none of it belongs in the repository: the scans are hundreds of
+# megabytes and a run's conclusions are a run's, not the project's.
+experiments/src/experiments/warsaw/dataset/
+experiments/src/experiments/warsaw/pipeline_runs/

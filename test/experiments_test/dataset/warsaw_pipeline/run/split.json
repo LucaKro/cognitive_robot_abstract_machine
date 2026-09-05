@@ -1,0 +1,130 @@
+{
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "world_db_id": 1,
+  "bodies": {
+    "cabinet_20": {
+      "faces": 2,
+      "label": "cabinet",
+      "id": "d68f2b53-e284-4080-ad88-7d732fb92416"
+    },
+    "cabinet_4": {
+      "faces": 27,
+      "label": "cabinet",
+      "id": "113b726a-b64c-45e2-960c-7cbf75ebb546"
+    },
+    "cabinet_5": {
+      "faces": 846,
+      "label": "cabinet",
+      "id": "86d2c236-c5a8-4b89-90db-24d910249bc9"
+    },
+    "door_10": {
+      "faces": 415,
+      "label": "door",
+      "id": "9ab1d680-07fd-4b55-bdb2-808fa687d0a1"
+    },
+    "door_11": {
+      "faces": 3779,
+      "label": "door",
+      "id": "efa4d664-1014-4184-a025-a339ad16e628"
+    },
+    "drawer_4": {
+      "faces": 497,
+      "label": "drawer",
+      "id": "cb2fa7e6-2103-4dd0-9563-87d91ee4e4b5"
+    },
+    "drawer_5": {
+      "faces": 1669,
+      "label": "drawer",
+      "id": "64905bbe-6d98-452e-9ecd-904f35caa85c"
+    },
+    "drawer_6": {
+      "faces": 487,
+      "label": "drawer",
+      "id": "0dab54b6-377a-4142-bc3d-3790ffd44c54"
+    },
+    "drawer_7": {
+      "faces": 863,
+      "label": "drawer",
+      "id": "0c6090fd-4636-4c03-8fcf-6a0e7b41e2ca"
+    },
+    "floor_1": {
+      "faces": 44607,
+      "label": "floor",
+      "id": "d644b8c4-ecda-47e4-ae28-572c2ddf6b7d"
+    },
+    "handle_13": {
+      "faces": 69,
+      "label": "handle",
+      "id": "8b98af13-9978-4142-b96b-467a8cb3335f"
+    },
+    "handle_14": {
+      "faces": 72,
+      "label": "handle",
+      "id": "f468df90-1677-4df9-9411-f0da512c8416"
+    },
+    "kitchen_island_1": {
+      "faces": 14646,
+      "label": "kitchen_island",
+      "id": "7c5d5542-2480-4ef6-bb6b-71025aa4d0cf"
+    }
+  },
+  "emptied": {
+    "cabinet_10": {
+      "drawer_7": 827,
+      "handle_13": 69,
+      "drawer_6": 7,
+      "kitchen_island_1": 5
+    },
+    "cabinet_8": {
+      "drawer_5": 1509,
+      "handle_14": 72,
+      "drawer_4": 8
+    }
+  },
+  "still_contested": 0,
+  "pairings": [
+    {
+      "whole": "cabinet_5",
+      "part": "door_11",
+      "field": "doors",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_7",
+      "part": "handle_13",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_5",
+      "part": "handle_14",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_4",
+      "part": "door_10",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_4",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_6",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_7",
+      "field": "",
+      "kind": "part"
+    }
+  ],
+  "annotated_world_db_id": 198
+}

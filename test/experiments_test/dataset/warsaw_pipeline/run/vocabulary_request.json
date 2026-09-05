@@ -1,0 +1,60 @@
+{
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "question": "Each label below names objects in a scanned room. Say which class of the taxonomy each label is, or propose a new class by naming a superclass and any mixins it should be composed of. The taxonomy is in taxonomy.json; its part_whole_mixins list what a new class can be given.",
+  "labels": [
+    {
+      "label": "cabinet",
+      "instances": 5,
+      "exemplar": "cabinet_5",
+      "exemplar_faces": 5694,
+      "exemplar_exclusive_share": 0.1486,
+      "exemplar_exclusive_area": 0.6742,
+      "images": []
+    },
+    {
+      "label": "door",
+      "instances": 2,
+      "exemplar": "door_10",
+      "exemplar_faces": 3800,
+      "exemplar_exclusive_share": 0.0005,
+      "exemplar_exclusive_area": 0.0011,
+      "images": []
+    },
+    {
+      "label": "drawer",
+      "instances": 4,
+      "exemplar": "drawer_5",
+      "exemplar_faces": 1741,
+      "exemplar_exclusive_share": 0.0121,
+      "exemplar_exclusive_area": 0.0093,
+      "images": []
+    },
+    {
+      "label": "floor",
+      "instances": 1,
+      "exemplar": "floor_1",
+      "exemplar_faces": 44607,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 50.0174,
+      "images": []
+    },
+    {
+      "label": "handle",
+      "instances": 2,
+      "exemplar": "handle_13",
+      "exemplar_faces": 69,
+      "exemplar_exclusive_share": 0.0,
+      "exemplar_exclusive_area": 0.0,
+      "images": []
+    },
+    {
+      "label": "kitchen_island",
+      "instances": 1,
+      "exemplar": "kitchen_island_1",
+      "exemplar_faces": 27501,
+      "exemplar_exclusive_share": 0.3254,
+      "exemplar_exclusive_area": 10.6182,
+      "images": []
+    }
+  ]
+}

@@ -29,11 +29,6 @@ from scipy.spatial import cKDTree
 if TYPE_CHECKING:
     from experiments.warsaw.world_loader import WarsawWorldLoader
 
-DEFAULT_NEAREST = 5
-"""
-How many nearest neighbours a segment reports by default.
-"""
-
 
 @dataclass
 class SegmentDescriptor:
@@ -118,6 +113,27 @@ class SegmentDescriptor:
         """
         return self.exclusive_faces / self.faces if self.faces else 0.0
 
+    @classmethod
+    def from_json(cls, payload: Dict[str, Any]) -> SegmentDescriptor:
+        """
+        :param payload: A descriptor as it was written.
+        :return: It, as it was measured.
+        """
+        minimum_corner, maximum_corner = payload["bounding_box"]
+        return cls(
+            name=payload["name"],
+            class_name=payload["class"],
+            instance=payload["instance"],
+            faces=payload["faces"],
+            exclusive_faces=payload["exclusive_faces"],
+            area=payload["area"],
+            exclusive_area=payload["exclusive_area"],
+            centroid=tuple(payload["centroid"]),
+            minimum_corner=tuple(minimum_corner),
+            maximum_corner=tuple(maximum_corner),
+            components=payload["components"],
+            height=payload["height"],
+        )
 
     def to_json(self) -> Dict[str, Any]:
         """
@@ -199,6 +215,25 @@ class PairEvidence:
     """
     Where the first ranks among the second's nearest, or None if further away.
     """
+
+    @classmethod
+    def from_json(cls, payload: Dict[str, Any]) -> PairEvidence:
+        """
+        :param payload: A pair as it was written, possibly carrying more than the
+            measurement -- what the ontology made of it is written beside it.
+        :return: The measurement alone.
+        """
+        return cls(
+            one=payload["one"],
+            other=payload["other"],
+            shared_faces=payload["shared_faces"],
+            share_of_one=payload["share_of_one"],
+            share_of_other=payload["share_of_other"],
+            touching_edges=payload["touching_edges"],
+            distance=payload["distance"],
+            rank_from_one=payload.get("rank_from_one"),
+            rank_from_other=payload.get("rank_from_other"),
+        )
 
     def to_json(self) -> Dict[str, Any]:
         """
@@ -348,8 +383,9 @@ def _claim_slots(
     Record, per face, which segments claim it.
 
     A face is claimed by only a handful of segments, so the claims fit in a few columns
-    and every question about them -- who overlaps whom, who touches whom, which faces are
-    claimed once -- becomes an array operation rather than a walk over a million faces.
+    and every question about them -- who overlaps whom, who touches whom, which faces
+    are claimed once -- becomes an array operation rather than a walk over a million
+    faces.
 
     :param segment_faces: Per segment, the faces it is made of.
     :param face_count: How many faces the scene's mesh has.
@@ -396,7 +432,8 @@ def _edges_between_segments(
     adjacency: np.ndarray, slots: np.ndarray
 ) -> Tuple[Dict[Tuple[int, int], int], Dict[int, np.ndarray]]:
     """
-    Walk the mesh's edges once, sorting each into the segments it runs between or within.
+    Walk the mesh's edges once, sorting each into the segments it runs between or
+    within.
 
     :param adjacency: The pairs of faces sharing an edge.
     :param slots: The claiming segments per face.
@@ -424,9 +461,7 @@ def _edges_between_segments(
                         [
                             differing,
                             np.sort(
-                                np.stack(
-                                    [left[differing], right[differing]], axis=1
-                                ),
+                                np.stack([left[differing], right[differing]], axis=1),
                                 axis=1,
                             ),
                         ]
@@ -488,7 +523,8 @@ def _nearest_neighbours(
     :param points: Per segment, its face centres.
     :param center_bounds: Per segment, the lowest and highest corner of those centres.
     :param how_many: How many neighbours to keep.
-    :return: Per segment, its nearest others as (distance, segment index), nearest first.
+    :return: Per segment, its nearest others as (distance, segment index), nearest
+        first.
     """
     minimum_corners, maximum_corners = center_bounds[:, 0], center_bounds[:, 1]
     neighbours: List[List[Tuple[float, int]]] = []
@@ -517,9 +553,7 @@ def _nearest_neighbours(
     return neighbours
 
 
-def segment_evidence(
-    loader: "WarsawWorldLoader", nearest: int = DEFAULT_NEAREST
-) -> SegmentRelations:
+def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRelations:
     """
     Measure a scene's labelled objects and how they meet.
 
@@ -547,7 +581,9 @@ def segment_evidence(
     # fraction of the mesh's own.
     labelled = counts > 0
     adjacency = mesh.face_adjacency
-    labelled_adjacency = adjacency[labelled[adjacency[:, 0]] & labelled[adjacency[:, 1]]]
+    labelled_adjacency = adjacency[
+        labelled[adjacency[:, 0]] & labelled[adjacency[:, 1]]
+    ]
 
     shared = _shared_faces(slots, counts)
     touching, internal_edges = _edges_between_segments(labelled_adjacency, slots)
@@ -611,9 +647,11 @@ def segment_evidence(
                 touching_edges=touching.get((one, other), 0),
                 distance=distances.get(
                     (one, other),
-                    0.0
-                    if overlap or touching.get((one, other))
-                    else _distance_between(one, other, trees, points),
+                    (
+                        0.0
+                        if overlap or touching.get((one, other))
+                        else _distance_between(one, other, trees, points)
+                    ),
                 ),
                 rank_from_one=ranks.get((one, other)),
                 rank_from_other=ranks.get((other, one)),

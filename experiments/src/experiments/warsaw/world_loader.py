@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import os
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
 from typing import (
@@ -46,40 +47,76 @@ from semantic_digital_twin.world_description.world_entity import (
     SemanticAnnotation,
 )
 
-SCENE_MESH_PATTERN = "*.ply"
-"""
-How a scene directory's one mesh is named.
-"""
 
-GEOMETRY_PROPERTY = "vertex_indices"
-"""
-The face property holding a face's geometry rather than one of its labels.
-"""
+class Viewpoint(StrEnum):
+    """
+    One of the four directions the predefined cameras look at the scene from.
 
-SCENE_BODY_NAME = "scene"
-"""
-The name of the body carrying the whole scene.
-"""
+    They stand a quarter turn apart, offset so that none of them looks straight down an
+    axis of the room and every one sees two of its walls.
+    """
 
-VIEWPOINT_IN_ROOM = "in-room"
-"""
-Choose a viewpoint by what is visible of the segments in the scene around them.
-"""
+    def __new__(cls, name: str, azimuth_degrees: float) -> Viewpoint:
+        member = str.__new__(cls, name)
+        member._value_ = name
+        member.azimuth_degrees = azimuth_degrees
+        return member
 
-VIEWPOINT_ALONE = "alone"
-"""
-Choose a viewpoint by what is visible of the segments on their own.
-"""
+    FRONT_LEFT = ("front_left", 45.0)
+    """
+    From the front left corner.
+    """
 
-MAXIMUM_LABEL_LENGTH = 120
-"""
-How many characters of segment names a render's filename carries.
-"""
+    BACK_LEFT = ("back_left", 135.0)
+    """
+    From the back left corner.
+    """
+
+    BACK_RIGHT = ("back_right", 225.0)
+    """
+    From the back right corner.
+    """
+
+    FRONT_RIGHT = ("front_right", 315.0)
+    """
+    From the front right corner.
+    """
+
+    @property
+    def azimuth(self) -> float:
+        """
+        :return: The direction it looks at the scene from, in radians.
+        """
+        return np.radians(self.azimuth_degrees)
 
 
-def segment_label(
-    segments: Iterable[LabelSegment], maximum_length: int = MAXIMUM_LABEL_LENGTH
-) -> str:
+class ViewpointChoice(StrEnum):
+    """
+    How the one viewpoint a render is kept from is picked.
+
+    Every viewpoint is drawn to decide between them, so choosing costs the renders it
+    then discards.
+    """
+
+    ALONE = "alone"
+    """
+    By what is visible of the segments on their own, which takes seconds and does not
+    count what stands in front of them.
+    """
+
+    IN_ROOM = "in-room"
+    """
+    By what is visible of them in the scene around them, which counts what stands in
+    front of them and takes minutes per region.
+    """
+
+    ALL = "all"
+    """
+    Choose nothing and keep every viewpoint.
+    """
+
+
+def segment_label(segments: Iterable[LabelSegment], maximum_length: int = 120) -> str:
     """
     Name the segments a render highlights, so its filename says what is colored in it.
 
@@ -189,19 +226,22 @@ class WarsawScene:
     """
 
     @classmethod
-    def from_directory(cls, directory: Path) -> WarsawScene:
+    def from_directory(
+        cls, directory: Path, scene_mesh_pattern: str = "*.ply"
+    ) -> WarsawScene:
         """
         Read the scene a directory holds.
 
         :param directory: The directory holding the scene's mesh.
+        :param scene_mesh_pattern: How that mesh is named.
         :raises WarsawSceneNotFoundError: If the directory holds no mesh.
         :raises AmbiguousWarsawSceneError: If it holds more than one.
         """
         directory = Path(directory)
-        scene_meshes = sorted(directory.glob(SCENE_MESH_PATTERN))
+        scene_meshes = sorted(directory.glob(scene_mesh_pattern))
         if not scene_meshes:
             raise WarsawSceneNotFoundError(
-                directory=directory, scene_mesh_pattern=SCENE_MESH_PATTERN
+                directory=directory, scene_mesh_pattern=scene_mesh_pattern
             )
         if len(scene_meshes) > 1:
             raise AmbiguousWarsawSceneError(
@@ -230,20 +270,24 @@ class WarsawScene:
 
     @staticmethod
     def _read_face_labels(
-        mesh: trimesh.Trimesh, scene_mesh_path: Path
+        mesh: trimesh.Trimesh,
+        scene_mesh_path: Path,
+        geometry_property: str = "vertex_indices",
     ) -> Dict[str, np.ndarray]:
         """
         Read the instance each face belongs to, per class.
 
         :param mesh: The mesh the scene was read from.
         :param scene_mesh_path: The file it was read from, for the error message.
+        :param geometry_property: The face property holding a face's geometry rather
+            than one of its labels.
         :return: Per class, the instance each face belongs to.
         :raises WarsawLabelsMissingError: If the mesh carries no labels.
         """
         try:
             faces = mesh.metadata["_ply_raw"]["face"]["data"]
             class_names = [
-                name for name in faces.dtype.names if name != GEOMETRY_PROPERTY
+                name for name in faces.dtype.names if name != geometry_property
             ]
         except (AttributeError, KeyError, TypeError):
             raise WarsawLabelsMissingError(scene_mesh=scene_mesh_path)
@@ -369,6 +413,16 @@ class WarsawWorldLoader:
     The scene the world was loaded from, or None for a world provided directly.
     """
 
+    scene_body_name: str = field(default="scene")
+    """
+    The name of the body carrying the whole scene.
+    """
+
+    viewpoint_elevation: float = field(default_factory=lambda: np.radians(30))
+    """
+    How far above the scene's middle the predefined cameras are lifted, in radians.
+    """
+
     original_state: Dict[UUID, Any] = field(init=False, default_factory=dict)
     """
     Original visual states of bodies before highlighting.
@@ -404,7 +458,7 @@ class WarsawWorldLoader:
         if self.world is None:
             if self.scene is None:
                 self.scene = WarsawScene.from_directory(self.input_directory)
-            self.world = self._world_from_scene(self.scene)
+            self.world = self._world_from_scene(self.scene, self.scene_body_name)
             self._verify_faces_carry_the_labels()
 
         # Cache original visual states of bodies
@@ -441,7 +495,7 @@ class WarsawWorldLoader:
         )
 
     @staticmethod
-    def _world_from_scene(scene: WarsawScene) -> World:
+    def _world_from_scene(scene: WarsawScene, scene_body_name: str = "scene") -> World:
         """
         Build the world a scene describes: its whole mesh, under a single root.
 
@@ -454,13 +508,14 @@ class WarsawWorldLoader:
         labels were written for.
 
         :param scene: The scene to build a world from.
+        :param scene_body_name: What to call the body carrying the whole scene.
         :return: A world holding the scene under a single root.
         """
         main_world = World()
         root = Body(name=PrefixedName("root_body"))
         shapes = ShapeCollection([Mesh.from_file(str(scene.mesh_path))])
         scene_body = Body(
-            name=PrefixedName(SCENE_BODY_NAME), collision=shapes, visual=shapes
+            name=PrefixedName(scene_body_name), collision=shapes, visual=shapes
         )
         with main_world.modify_world():
             main_world.add_body(root)
@@ -469,7 +524,7 @@ class WarsawWorldLoader:
                 FixedConnection(
                     parent=root,
                     child=scene_body,
-                    name=PrefixedName(f"root_to_{SCENE_BODY_NAME}"),
+                    name=PrefixedName(f"root_to_{scene_body_name}"),
                 )
             )
 
@@ -503,7 +558,7 @@ class WarsawWorldLoader:
         :return: The body carrying the scene's geometry.
         """
         for body in self.world.bodies_with_collision:
-            if body.name.name == SCENE_BODY_NAME:
+            if body.name.name == self.scene_body_name:
                 return body
         return self.world.bodies_with_collision[0]
 
@@ -724,21 +779,6 @@ class WarsawWorldLoader:
 
     # %% Export Helpers
 
-    VIEWPOINT_ELEVATION: ClassVar[float] = np.radians(30)
-    """
-    How far above the scene's middle the predefined cameras are lifted.
-    """
-
-    VIEWPOINT_AZIMUTHS: ClassVar[Dict[str, float]] = {
-        "front_left": np.radians(45),
-        "back_left": np.radians(135),
-        "back_right": np.radians(225),
-        "front_right": np.radians(315),
-    }
-    """
-    The direction each named viewpoint looks at the scene from.
-    """
-
     @cached_property
     def _scene_points(self) -> np.ndarray:
         """
@@ -783,7 +823,7 @@ class WarsawWorldLoader:
 
     def compute_camera_poses(
         self, points: Optional[np.ndarray] = None
-    ) -> Dict[str, np.ndarray]:
+    ) -> Dict[Viewpoint, np.ndarray]:
         """
         :param points: The points to frame, defaulting to the whole scene's. Framing a
             few segments instead is what makes a handle of two hundred faces visible at
@@ -798,16 +838,16 @@ class WarsawWorldLoader:
         middle = (framed.min(axis=0) + framed.max(axis=0)) / 2
 
         poses = {}
-        for name, azimuth in self.VIEWPOINT_AZIMUTHS.items():
+        for viewpoint in Viewpoint:
             direction = np.array(
                 [
-                    np.cos(self.VIEWPOINT_ELEVATION) * np.cos(azimuth),
-                    np.cos(self.VIEWPOINT_ELEVATION) * np.sin(azimuth),
-                    np.sin(self.VIEWPOINT_ELEVATION),
+                    np.cos(self.viewpoint_elevation) * np.cos(viewpoint.azimuth),
+                    np.cos(self.viewpoint_elevation) * np.sin(viewpoint.azimuth),
+                    np.sin(self.viewpoint_elevation),
                 ]
             )
             distance = self._framing_distance(framed - middle, direction)
-            poses[name] = self._looking_at(middle + distance * direction, middle)
+            poses[viewpoint] = self._looking_at(middle + distance * direction, middle)
         return poses
 
     def _framing_distance(self, points: np.ndarray, direction: np.ndarray) -> float:
@@ -1035,21 +1075,19 @@ class WarsawWorldLoader:
         :return: The renders, keyed ``<kind>_<viewpoint>``.
         """
         segments = list(segments)
-        frame = (
-            None if context_segments is None else self.points_of(context_segments)
-        )
-        if choose_viewpoint == VIEWPOINT_IN_ROOM:
+        frame = None if context_segments is None else self.points_of(context_segments)
+        if choose_viewpoint == ViewpointChoice.IN_ROOM:
             viewpoints = (
                 self.viewpoint_showing_all(segments, viewpoints, headless, frame),
             )
-        elif choose_viewpoint == VIEWPOINT_ALONE:
+        elif choose_viewpoint == ViewpointChoice.ALONE:
             viewpoints = (
                 self.viewpoint_showing_all_alone(segments, viewpoints, headless),
             )
-        elif choose_viewpoint is not None:
+        elif choose_viewpoint not in (None, ViewpointChoice.ALL):
             raise ValueError(
-                f"{choose_viewpoint!r} is no way of choosing a viewpoint; it is "
-                f"{VIEWPOINT_IN_ROOM!r}, {VIEWPOINT_ALONE!r} or None"
+                f"{choose_viewpoint!r} is no way of choosing a viewpoint; it is one of "
+                f"{', '.join(one.value for one in ViewpointChoice)}"
             )
 
         self._apply_highlight_to_faces(highlights)
@@ -1112,9 +1150,7 @@ class WarsawWorldLoader:
         self._reset_segment_colors()
         return max(worst, key=lambda name: worst[name])
 
-    def presented_area(
-        self, segment: LabelSegment, direction: np.ndarray
-    ) -> float:
+    def presented_area(self, segment: LabelSegment, direction: np.ndarray) -> float:
         """
         Measure how much of a segment turns towards a direction, without drawing it.
 
@@ -1183,9 +1219,9 @@ class WarsawWorldLoader:
 
         # Ranked by the segment each viewpoint shows worst, so that a handle is not
         # outvoted by the door it is screwed to.
-        middle = self.scene_mesh.vertices[
-            self.scene_mesh.faces[faces].ravel()
-        ].mean(axis=0)
+        middle = self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()].mean(
+            axis=0
+        )
         ranked = sorted(
             poses,
             key=lambda name: min(
