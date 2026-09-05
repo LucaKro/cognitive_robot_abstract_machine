@@ -1,0 +1,1408 @@
+{
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "world_db_id": 1,
+  "bodies": {
+    "bottle_1": {
+      "faces": 223,
+      "label": "bottle",
+      "id": "a9d99a20-b825-4e95-98f2-d329b8547642"
+    },
+    "bottle_2": {
+      "faces": 406,
+      "label": "bottle",
+      "id": "343bc099-4ce1-4ecc-9df8-edf3d1df09e4"
+    },
+    "cabinet_1": {
+      "faces": 545,
+      "label": "cabinet",
+      "id": "9a7d03d9-b0fb-4116-b0a3-393750767759"
+    },
+    "cabinet_11": {
+      "faces": 164,
+      "label": "cabinet",
+      "id": "69bf334e-cdca-4ef6-83b8-6f8053bab278"
+    },
+    "cabinet_12": {
+      "faces": 759,
+      "label": "cabinet",
+      "id": "a22a9f28-813d-4219-917d-34e0c8540601"
+    },
+    "cabinet_13": {
+      "faces": 171,
+      "label": "cabinet",
+      "id": "eda45475-aa35-4443-b3f7-abf080feb225"
+    },
+    "cabinet_14": {
+      "faces": 331,
+      "label": "cabinet",
+      "id": "5b811606-f7e8-49a2-be4b-3e997fca4bd2"
+    },
+    "cabinet_15": {
+      "faces": 38,
+      "label": "cabinet",
+      "id": "3bea1a45-203b-410c-9cc9-b1afb53ecd84"
+    },
+    "cabinet_18": {
+      "faces": 64,
+      "label": "cabinet",
+      "id": "f1d74e24-2a5e-46ae-a341-2668e386b79c"
+    },
+    "cabinet_2": {
+      "faces": 960,
+      "label": "cabinet",
+      "id": "8cfe84eb-1ada-41b7-9182-990eaa0bc808"
+    },
+    "cabinet_20": {
+      "faces": 2,
+      "label": "cabinet",
+      "id": "d68f2b53-e284-4080-ad88-7d732fb92416"
+    },
+    "cabinet_22": {
+      "faces": 278,
+      "label": "cabinet",
+      "id": "8d60f86a-273e-48e5-9d11-620154e799bb"
+    },
+    "cabinet_23": {
+      "faces": 524,
+      "label": "cabinet",
+      "id": "eeef59aa-5d5e-4bfa-ba90-192891fb3c9d"
+    },
+    "cabinet_24": {
+      "faces": 796,
+      "label": "cabinet",
+      "id": "ef4ab15e-c0ba-408f-a2ed-bd805fd10eb2"
+    },
+    "cabinet_28": {
+      "faces": 6,
+      "label": "cabinet",
+      "id": "7b50cdbf-128c-4e32-8b7f-4596c59b24bd"
+    },
+    "cabinet_29": {
+      "faces": 459,
+      "label": "cabinet",
+      "id": "86b94818-135f-4d78-bcd8-024ea67fc38d"
+    },
+    "cabinet_3": {
+      "faces": 841,
+      "label": "cabinet",
+      "id": "575d6b23-ddcd-4f94-a7f9-62cdab6dd827"
+    },
+    "cabinet_4": {
+      "faces": 27,
+      "label": "cabinet",
+      "id": "113b726a-b64c-45e2-960c-7cbf75ebb546"
+    },
+    "cabinet_5": {
+      "faces": 846,
+      "label": "cabinet",
+      "id": "86d2c236-c5a8-4b89-90db-24d910249bc9"
+    },
+    "cabinet_6": {
+      "faces": 11,
+      "label": "cabinet",
+      "id": "d6aa1690-504a-4a6e-8ba3-856371b9a1de"
+    },
+    "cabinet_7": {
+      "faces": 7,
+      "label": "cabinet",
+      "id": "50d298e7-0ebb-4319-8c2d-2ced413892b4"
+    },
+    "ceiling_1": {
+      "faces": 3225,
+      "label": "ceiling",
+      "id": "144c8e45-13d4-427d-888a-71e4bac51efa"
+    },
+    "ceiling_10": {
+      "faces": 1398,
+      "label": "ceiling",
+      "id": "54cd77cb-0faa-41af-ab01-68d542419e70"
+    },
+    "ceiling_11": {
+      "faces": 2296,
+      "label": "ceiling",
+      "id": "f0727f12-a758-44f2-b0bc-10e9b6f67124"
+    },
+    "ceiling_12": {
+      "faces": 284,
+      "label": "ceiling",
+      "id": "4c6d0932-cc1a-48c5-9571-bd74125de090"
+    },
+    "ceiling_13": {
+      "faces": 213,
+      "label": "ceiling",
+      "id": "8200c4db-b270-4879-8570-b9bf19ed3601"
+    },
+    "ceiling_14": {
+      "faces": 400,
+      "label": "ceiling",
+      "id": "5469a997-9829-4b54-98f8-6be786deabd5"
+    },
+    "ceiling_15": {
+      "faces": 164,
+      "label": "ceiling",
+      "id": "ca9995fc-8f99-42a7-8351-ba0a9defe38d"
+    },
+    "ceiling_16": {
+      "faces": 2947,
+      "label": "ceiling",
+      "id": "91b73017-7cd1-492d-8655-813bd2d24ac9"
+    },
+    "ceiling_17": {
+      "faces": 352,
+      "label": "ceiling",
+      "id": "7a32c133-4be7-4838-a70c-d3c98667f6f3"
+    },
+    "ceiling_18": {
+      "faces": 272,
+      "label": "ceiling",
+      "id": "d42f5cd0-2854-4008-ae26-8bde0caa1053"
+    },
+    "ceiling_19": {
+      "faces": 321,
+      "label": "ceiling",
+      "id": "bc63d89b-e29a-4f49-b149-612548efe50f"
+    },
+    "ceiling_2": {
+      "faces": 1808,
+      "label": "ceiling",
+      "id": "ff29824f-ae6e-4e5a-9076-0c791da01541"
+    },
+    "ceiling_20": {
+      "faces": 3024,
+      "label": "ceiling",
+      "id": "af29a9ee-0899-4815-81a0-d09bbcd7a9a9"
+    },
+    "ceiling_21": {
+      "faces": 718,
+      "label": "ceiling",
+      "id": "4a7cc7be-b8b3-4308-8b02-1ffb3d9f9faf"
+    },
+    "ceiling_22": {
+      "faces": 204,
+      "label": "ceiling",
+      "id": "4b0814df-04d4-4764-a6cc-530b68327395"
+    },
+    "ceiling_23": {
+      "faces": 220,
+      "label": "ceiling",
+      "id": "c6faf8a9-ab1f-4c9f-9878-3fc77ca84097"
+    },
+    "ceiling_24": {
+      "faces": 277,
+      "label": "ceiling",
+      "id": "ca7062a4-4fe9-4960-a87f-b1d029c6bb05"
+    },
+    "ceiling_25": {
+      "faces": 481,
+      "label": "ceiling",
+      "id": "c9c88060-0e96-4308-8a65-a2b19070fd8d"
+    },
+    "ceiling_26": {
+      "faces": 171,
+      "label": "ceiling",
+      "id": "5cdfc2b5-0c7f-4f9f-bee2-0f081f46e991"
+    },
+    "ceiling_3": {
+      "faces": 402,
+      "label": "ceiling",
+      "id": "838bb12e-d110-470e-8c26-8487abba4185"
+    },
+    "ceiling_4": {
+      "faces": 340,
+      "label": "ceiling",
+      "id": "411a17e7-6372-4b6e-8cbb-ed469ab948e2"
+    },
+    "ceiling_5": {
+      "faces": 231,
+      "label": "ceiling",
+      "id": "6a97bde1-883a-49d8-9c59-a59e41eb588e"
+    },
+    "ceiling_6": {
+      "faces": 3903,
+      "label": "ceiling",
+      "id": "5456c1c7-858c-4f10-841a-c4e43eebe5f9"
+    },
+    "ceiling_7": {
+      "faces": 604,
+      "label": "ceiling",
+      "id": "6b145788-055a-4087-908b-4db5dad4887c"
+    },
+    "ceiling_8": {
+      "faces": 13072,
+      "label": "ceiling",
+      "id": "15ea2fcf-a628-4ce1-b911-3460bb7b7d91"
+    },
+    "ceiling_9": {
+      "faces": 477,
+      "label": "ceiling",
+      "id": "97d6b8f8-aee2-45d1-8584-e0f07564d891"
+    },
+    "coffee_machine_1": {
+      "faces": 1457,
+      "label": "coffee_machine",
+      "id": "802bf28e-ed62-4112-a4fc-daa9d72d57b5"
+    },
+    "container_1": {
+      "faces": 462,
+      "label": "container",
+      "id": "292d7143-12c1-4a99-9259-4cd3f10e401f"
+    },
+    "container_2": {
+      "faces": 73,
+      "label": "container",
+      "id": "298a39b4-6f95-4c4f-aa0c-ed884c0100da"
+    },
+    "container_3": {
+      "faces": 158,
+      "label": "container",
+      "id": "918db957-51f1-434a-96d5-2ff35c272e3f"
+    },
+    "container_4": {
+      "faces": 126,
+      "label": "container",
+      "id": "5660a49d-0804-49c5-9337-1794979ea595"
+    },
+    "container_5": {
+      "faces": 171,
+      "label": "container",
+      "id": "0f1fcbd9-2e10-4935-8712-343fef3c2e3e"
+    },
+    "container_6": {
+      "faces": 531,
+      "label": "container",
+      "id": "df98329b-73a8-48f8-bf05-84a1b6dc7cc5"
+    },
+    "container_7": {
+      "faces": 648,
+      "label": "container",
+      "id": "1acc47c5-d89a-4e8f-8a8b-b8b1cf313a7c"
+    },
+    "container_8": {
+      "faces": 1,
+      "label": "container",
+      "id": "be39398a-4cdc-423b-aed9-73f6c3ff630e"
+    },
+    "container_9": {
+      "faces": 32,
+      "label": "container",
+      "id": "254df5b0-416c-45ad-9a7e-832183e118f5"
+    },
+    "countertop_1": {
+      "faces": 7866,
+      "label": "countertop",
+      "id": "2c8e8cc2-8ac9-4c5d-88c8-a2d9a0fba1b0"
+    },
+    "countertop_2": {
+      "faces": 1737,
+      "label": "countertop",
+      "id": "0fde5346-aa22-40cf-aa60-a7621d61ddd7"
+    },
+    "cutting_board_1": {
+      "faces": 488,
+      "label": "cutting_board",
+      "id": "115dd038-ed21-4e33-9428-444eeea2d3c4"
+    },
+    "door_1": {
+      "faces": 28525,
+      "label": "door",
+      "id": "05637311-67d0-4b13-8a87-dfdd136f578e"
+    },
+    "door_10": {
+      "faces": 415,
+      "label": "door",
+      "id": "9ab1d680-07fd-4b55-bdb2-808fa687d0a1"
+    },
+    "door_11": {
+      "faces": 3779,
+      "label": "door",
+      "id": "efa4d664-1014-4184-a025-a339ad16e628"
+    },
+    "door_12": {
+      "faces": 2491,
+      "label": "door",
+      "id": "70c2c8d2-6c04-4150-86ce-ddea7bb0b841"
+    },
+    "door_13": {
+      "faces": 180,
+      "label": "door",
+      "id": "9d60c8e5-e832-4038-94c5-0914d1237986"
+    },
+    "door_14": {
+      "faces": 1765,
+      "label": "door",
+      "id": "2b72b273-02da-4493-b44d-6c0bef93b4be"
+    },
+    "door_15": {
+      "faces": 988,
+      "label": "door",
+      "id": "23ab64b6-bc96-4df8-99d7-cdd393e5d885"
+    },
+    "door_16": {
+      "faces": 146,
+      "label": "door",
+      "id": "0e9d04d5-536d-47df-a60d-2778076ab5c0"
+    },
+    "door_17": {
+      "faces": 1660,
+      "label": "door",
+      "id": "733ca3f5-55e0-4e21-9f96-642c76c54f31"
+    },
+    "door_18": {
+      "faces": 1426,
+      "label": "door",
+      "id": "e8bdac1d-6fe8-43ba-9f5e-9d79eb20d46d"
+    },
+    "door_19": {
+      "faces": 15,
+      "label": "door",
+      "id": "a9580215-edd1-428d-a656-8ab81ac1988b"
+    },
+    "door_2": {
+      "faces": 39357,
+      "label": "door",
+      "id": "b2a0ce0e-9bc9-4be4-a36d-422f0c673b3e"
+    },
+    "door_20": {
+      "faces": 232,
+      "label": "door",
+      "id": "ef5a1192-aff2-4c2f-95bf-09d8b54bd0aa"
+    },
+    "door_21": {
+      "faces": 440,
+      "label": "door",
+      "id": "4aedf4cb-1c2c-4461-b48d-c642b3e09f13"
+    },
+    "door_4": {
+      "faces": 1343,
+      "label": "door",
+      "id": "8af85927-2e63-42a1-b160-ecd1834a893f"
+    },
+    "door_5": {
+      "faces": 2036,
+      "label": "door",
+      "id": "71f7d704-0a53-4bb9-89c3-23af7d09cef7"
+    },
+    "door_6": {
+      "faces": 3327,
+      "label": "door",
+      "id": "fd05801d-bd5b-40d5-b105-43e469954542"
+    },
+    "door_7": {
+      "faces": 665,
+      "label": "door",
+      "id": "cf740c28-de6e-44bf-aeda-84ebad339033"
+    },
+    "door_8": {
+      "faces": 1291,
+      "label": "door",
+      "id": "a0c67ea4-95db-4c19-b67a-ffb9bc54ad93"
+    },
+    "door_9": {
+      "faces": 21026,
+      "label": "door",
+      "id": "98d34837-de31-4191-b369-f28fa8e31b5e"
+    },
+    "drawer_1": {
+      "faces": 226,
+      "label": "drawer",
+      "id": "04dc25ac-2d1d-4daf-b0a5-add17c3e2131"
+    },
+    "drawer_10": {
+      "faces": 258,
+      "label": "drawer",
+      "id": "303521d8-f623-451f-99dd-9935e5c1484d"
+    },
+    "drawer_11": {
+      "faces": 570,
+      "label": "drawer",
+      "id": "eb62fcd4-606a-4653-bf4b-3e7a92a7fd02"
+    },
+    "drawer_12": {
+      "faces": 1628,
+      "label": "drawer",
+      "id": "10c2f36e-ee7b-4801-a7cf-31f52c097147"
+    },
+    "drawer_13": {
+      "faces": 416,
+      "label": "drawer",
+      "id": "151c661d-d79a-4e28-be28-964163f4d7b2"
+    },
+    "drawer_14": {
+      "faces": 258,
+      "label": "drawer",
+      "id": "29d6867b-9911-4f53-abab-b20f81467910"
+    },
+    "drawer_15": {
+      "faces": 217,
+      "label": "drawer",
+      "id": "38a2c8af-b560-46b6-b8b2-5f75069123a9"
+    },
+    "drawer_16": {
+      "faces": 206,
+      "label": "drawer",
+      "id": "1d1b8b5b-f992-4420-b559-4058f031f91d"
+    },
+    "drawer_17": {
+      "faces": 378,
+      "label": "drawer",
+      "id": "c0ca56bf-9166-46be-b622-869dd5a60056"
+    },
+    "drawer_18": {
+      "faces": 564,
+      "label": "drawer",
+      "id": "68e5b36e-fd44-4045-8124-9efc12b38d7f"
+    },
+    "drawer_19": {
+      "faces": 936,
+      "label": "drawer",
+      "id": "ac6f9bd0-18cc-4077-8136-3445358c9571"
+    },
+    "drawer_2": {
+      "faces": 1075,
+      "label": "drawer",
+      "id": "6b370c3b-1dbe-4843-a365-982660ac1ae1"
+    },
+    "drawer_20": {
+      "faces": 1475,
+      "label": "drawer",
+      "id": "429d0ef8-9064-4ab0-884c-a44b199aa50f"
+    },
+    "drawer_21": {
+      "faces": 1292,
+      "label": "drawer",
+      "id": "6f3ba569-2d78-485e-b5c1-11b1f4c69a18"
+    },
+    "drawer_22": {
+      "faces": 744,
+      "label": "drawer",
+      "id": "6e4f00e2-ea0c-404c-9ce7-87da3ec78292"
+    },
+    "drawer_3": {
+      "faces": 130,
+      "label": "drawer",
+      "id": "f4198fd4-67f3-4ad4-b66d-c38da34bbde6"
+    },
+    "drawer_4": {
+      "faces": 497,
+      "label": "drawer",
+      "id": "cb2fa7e6-2103-4dd0-9563-87d91ee4e4b5"
+    },
+    "drawer_5": {
+      "faces": 1669,
+      "label": "drawer",
+      "id": "64905bbe-6d98-452e-9ecd-904f35caa85c"
+    },
+    "drawer_6": {
+      "faces": 487,
+      "label": "drawer",
+      "id": "0dab54b6-377a-4142-bc3d-3790ffd44c54"
+    },
+    "drawer_7": {
+      "faces": 863,
+      "label": "drawer",
+      "id": "0c6090fd-4636-4c03-8fcf-6a0e7b41e2ca"
+    },
+    "drawer_8": {
+      "faces": 177,
+      "label": "drawer",
+      "id": "60faa5ba-60b4-4f6e-a15c-420547313494"
+    },
+    "drawer_9": {
+      "faces": 490,
+      "label": "drawer",
+      "id": "2cdd4740-3216-4d63-932f-65e638d99938"
+    },
+    "faucet_1": {
+      "faces": 406,
+      "label": "faucet",
+      "id": "ef1a0f24-8d8e-4417-b180-0abce275b97d"
+    },
+    "floor_1": {
+      "faces": 44607,
+      "label": "floor",
+      "id": "d644b8c4-ecda-47e4-ae28-572c2ddf6b7d"
+    },
+    "handle_1": {
+      "faces": 73,
+      "label": "handle",
+      "id": "fa6eedd0-ab17-4132-aad4-b9dfd451c35e"
+    },
+    "handle_10": {
+      "faces": 168,
+      "label": "handle",
+      "id": "20637f2d-593d-4775-b1d8-10048062fb35"
+    },
+    "handle_11": {
+      "faces": 79,
+      "label": "handle",
+      "id": "f6619122-183a-46b8-9b80-e47cf5962200"
+    },
+    "handle_12": {
+      "faces": 106,
+      "label": "handle",
+      "id": "7b4f1611-5f53-4162-b3b1-f024323564ee"
+    },
+    "handle_13": {
+      "faces": 69,
+      "label": "handle",
+      "id": "8b98af13-9978-4142-b96b-467a8cb3335f"
+    },
+    "handle_14": {
+      "faces": 72,
+      "label": "handle",
+      "id": "f468df90-1677-4df9-9411-f0da512c8416"
+    },
+    "handle_15": {
+      "faces": 78,
+      "label": "handle",
+      "id": "fb5815b0-9812-406c-8b21-b575a91e9fd2"
+    },
+    "handle_16": {
+      "faces": 80,
+      "label": "handle",
+      "id": "028c266d-7537-40cc-a85e-451d936cad78"
+    },
+    "handle_17": {
+      "faces": 128,
+      "label": "handle",
+      "id": "3bad7eed-f14b-43ae-81a6-1e8c51ea9341"
+    },
+    "handle_18": {
+      "faces": 48,
+      "label": "handle",
+      "id": "8bd77e40-b43d-4530-825c-f662b633b6e1"
+    },
+    "handle_19": {
+      "faces": 104,
+      "label": "handle",
+      "id": "f80c185b-e6e0-4bc8-8813-25634954c6ee"
+    },
+    "handle_2": {
+      "faces": 115,
+      "label": "handle",
+      "id": "826147df-f21e-46bf-a7a5-8f1299eaa3df"
+    },
+    "handle_20": {
+      "faces": 54,
+      "label": "handle",
+      "id": "bf828e51-f205-47ab-a2c6-598d0e1c3c4d"
+    },
+    "handle_21": {
+      "faces": 33,
+      "label": "handle",
+      "id": "6894d5bd-e4c8-4c3f-b02a-db72bd1a29e1"
+    },
+    "handle_22": {
+      "faces": 146,
+      "label": "handle",
+      "id": "b2d0aa8e-f89a-4ecd-b82e-6c78180a680e"
+    },
+    "handle_23": {
+      "faces": 107,
+      "label": "handle",
+      "id": "a4f97a81-6bac-4e1b-8a86-358d6bbf722a"
+    },
+    "handle_24": {
+      "faces": 83,
+      "label": "handle",
+      "id": "f8147e7b-7f89-4db5-a771-229abeb17a22"
+    },
+    "handle_25": {
+      "faces": 39,
+      "label": "handle",
+      "id": "1ba09732-6b91-4f7d-9cc7-28c5bdb9e7c2"
+    },
+    "handle_26": {
+      "faces": 44,
+      "label": "handle",
+      "id": "a87e7467-70f9-4e31-996b-165ec365fbec"
+    },
+    "handle_27": {
+      "faces": 74,
+      "label": "handle",
+      "id": "1ee6165b-e0d5-456e-a3fb-b2560a41ed2a"
+    },
+    "handle_28": {
+      "faces": 84,
+      "label": "handle",
+      "id": "15d3cc3d-1fa0-4347-840f-e48261597f51"
+    },
+    "handle_29": {
+      "faces": 71,
+      "label": "handle",
+      "id": "041b64f4-e091-4c86-ae68-a0619ca636a6"
+    },
+    "handle_3": {
+      "faces": 60,
+      "label": "handle",
+      "id": "e6529952-923a-4ac7-8bc8-3816680f8244"
+    },
+    "handle_30": {
+      "faces": 99,
+      "label": "handle",
+      "id": "0d12c027-48df-4182-b6ee-bdb0eb6ce08b"
+    },
+    "handle_4": {
+      "faces": 127,
+      "label": "handle",
+      "id": "9e43ef93-3df3-4771-9d9d-fbb57893e489"
+    },
+    "handle_5": {
+      "faces": 115,
+      "label": "handle",
+      "id": "f1cbaeb0-4cf4-41fc-9962-e96de513097f"
+    },
+    "handle_6": {
+      "faces": 101,
+      "label": "handle",
+      "id": "ad4d3a93-9a17-4c7b-90f5-2cc3a92f58d4"
+    },
+    "handle_7": {
+      "faces": 76,
+      "label": "handle",
+      "id": "e955be1f-0f36-4c25-ab14-b0a1faa4ba57"
+    },
+    "handle_8": {
+      "faces": 83,
+      "label": "handle",
+      "id": "6cca7bd1-0a06-40cd-8397-22b01752c9a8"
+    },
+    "handle_9": {
+      "faces": 19,
+      "label": "handle",
+      "id": "ef11c5e9-d5ec-4b22-83a6-737d32033053"
+    },
+    "jar_1": {
+      "faces": 8,
+      "label": "jar",
+      "id": "7fa454d3-a4dc-4274-8ccd-03dfb1b5b214"
+    },
+    "jar_2": {
+      "faces": 3,
+      "label": "jar",
+      "id": "452d2040-9350-4878-91ba-2eb9314d3827"
+    },
+    "jar_5": {
+      "faces": 10,
+      "label": "jar",
+      "id": "85787e61-0e82-48ac-a8ba-3e25de289335"
+    },
+    "jar_6": {
+      "faces": 3,
+      "label": "jar",
+      "id": "04fa1f41-7c41-4298-9039-dd7d4d59ed56"
+    },
+    "jar_7": {
+      "faces": 3,
+      "label": "jar",
+      "id": "8429243f-4edc-4f35-9be2-05f01f136dfa"
+    },
+    "kitchen_island_1": {
+      "faces": 14646,
+      "label": "kitchen_island",
+      "id": "7c5d5542-2480-4ef6-bb6b-71025aa4d0cf"
+    },
+    "kitchen_utensils_2": {
+      "faces": 98,
+      "label": "kitchen_utensils",
+      "id": "d33015c6-df1b-4f22-8539-27d9655311e9"
+    },
+    "kitchen_utensils_5": {
+      "faces": 4,
+      "label": "kitchen_utensils",
+      "id": "bf219182-03b5-4206-83e3-cd56a1087c42"
+    },
+    "kitchen_utensils_7": {
+      "faces": 98,
+      "label": "kitchen_utensils",
+      "id": "daa58d8a-0a30-4532-bd3d-1743c8a4db1c"
+    },
+    "lamp_1": {
+      "faces": 504,
+      "label": "lamp",
+      "id": "688147da-d880-4351-9e44-fdb523fe0711"
+    },
+    "lamp_2": {
+      "faces": 122,
+      "label": "lamp",
+      "id": "22dc7acb-130a-4d69-a2ef-38d7469216de"
+    },
+    "mug_1": {
+      "faces": 82,
+      "label": "mug",
+      "id": "b0cc1f57-d1b6-439b-a133-63c220f5b63b"
+    },
+    "mug_2": {
+      "faces": 147,
+      "label": "mug",
+      "id": "283cd9e1-e404-4a87-b159-210d25967c00"
+    },
+    "mug_3": {
+      "faces": 141,
+      "label": "mug",
+      "id": "59d92689-6211-40fc-97b5-4248c2708aaa"
+    },
+    "mug_4": {
+      "faces": 100,
+      "label": "mug",
+      "id": "6ea5380b-4be0-4d46-8930-1480f6099de1"
+    },
+    "mug_5": {
+      "faces": 125,
+      "label": "mug",
+      "id": "ec78058a-6b48-428c-b615-8958c85156db"
+    },
+    "oven_1": {
+      "faces": 41,
+      "label": "oven",
+      "id": "d1d80dd0-d62b-4b55-be59-430c7436e6f5"
+    },
+    "plate_1": {
+      "faces": 65,
+      "label": "plate",
+      "id": "d0963bc7-cc68-4d9f-91e1-443e074d6148"
+    },
+    "plate_2": {
+      "faces": 99,
+      "label": "plate",
+      "id": "9502df28-6952-4f1e-95d6-28bbacf9677f"
+    },
+    "plate_3": {
+      "faces": 77,
+      "label": "plate",
+      "id": "3c0f7cc0-9da2-43b6-9f8f-686662d41ba6"
+    },
+    "plate_4": {
+      "faces": 164,
+      "label": "plate",
+      "id": "1402c95e-888a-40aa-a0e2-be3aeef86a08"
+    },
+    "plate_5": {
+      "faces": 36,
+      "label": "plate",
+      "id": "4c62f524-5b1e-40fb-83c3-f2f97bcc54b9"
+    },
+    "plate_6": {
+      "faces": 147,
+      "label": "plate",
+      "id": "8714fcaf-8384-4cde-ba63-9782e529a277"
+    },
+    "robot_1": {
+      "faces": 399,
+      "label": "robot",
+      "id": "be35de0e-b891-4dc1-b53a-7ffcc0f7c63c"
+    },
+    "robot_2": {
+      "faces": 2388,
+      "label": "robot",
+      "id": "dafc5ed1-2f6d-4f37-b331-29832ce48fb6"
+    },
+    "robot_3": {
+      "faces": 2736,
+      "label": "robot",
+      "id": "70f193bd-12f4-4d54-b7a4-8d3f97e0fd9a"
+    },
+    "robot_4": {
+      "faces": 1115,
+      "label": "robot",
+      "id": "713f52b1-3f71-4212-a056-11b8ddf873cd"
+    },
+    "robot_5": {
+      "faces": 1084,
+      "label": "robot",
+      "id": "71732787-b99b-46b7-9fd4-d18db4b1d6ea"
+    },
+    "robot_6": {
+      "faces": 188,
+      "label": "robot",
+      "id": "6bacbcd6-c02b-424c-8447-b35d1afb03c9"
+    },
+    "robot_7": {
+      "faces": 395,
+      "label": "robot",
+      "id": "3543ae11-1856-4921-bf41-e57e421d6ce8"
+    },
+    "sink_1": {
+      "faces": 12125,
+      "label": "sink",
+      "id": "dc2bdceb-7a70-47f3-b1d2-2e2e46c3d204"
+    },
+    "sink_2": {
+      "faces": 2164,
+      "label": "sink",
+      "id": "c18c996f-ed0d-49b7-8ca8-c1127e6a8ad4"
+    },
+    "towel_1": {
+      "faces": 217,
+      "label": "towel",
+      "id": "c75e3e8b-63a5-4dda-a89c-8e071d78014a"
+    },
+    "towel_2": {
+      "faces": 189,
+      "label": "towel",
+      "id": "492dd34e-e589-460b-b278-801c88bab4fb"
+    },
+    "towel_3": {
+      "faces": 192,
+      "label": "towel",
+      "id": "b44ce7a1-072d-4d92-856b-17d8498ed50b"
+    },
+    "towel_4": {
+      "faces": 86,
+      "label": "towel",
+      "id": "7e81e803-7aa2-477a-b8c8-4fe4432f6c77"
+    },
+    "towel_5": {
+      "faces": 56,
+      "label": "towel",
+      "id": "bacefb07-5527-4f44-b6fe-fc9713c6a462"
+    },
+    "wall_1": {
+      "faces": 48603,
+      "label": "wall",
+      "id": "46c918d1-c6cd-479f-8e9e-95fb340294aa"
+    },
+    "wall_10": {
+      "faces": 7095,
+      "label": "wall",
+      "id": "53d47510-dda8-4219-90ee-8bbcdad37d43"
+    },
+    "wall_11": {
+      "faces": 6190,
+      "label": "wall",
+      "id": "8dfde7fe-067c-4615-8c80-e052ce44ce34"
+    },
+    "wall_12": {
+      "faces": 1721,
+      "label": "wall",
+      "id": "2271eaf2-d505-461a-8a07-5b07d93b8b6e"
+    },
+    "wall_13": {
+      "faces": 903,
+      "label": "wall",
+      "id": "fdf8e500-c3bd-42af-91f0-9feebc825629"
+    },
+    "wall_14": {
+      "faces": 957,
+      "label": "wall",
+      "id": "7c4da0e0-c6c7-4462-bab3-9467e540f8bd"
+    },
+    "wall_2": {
+      "faces": 855,
+      "label": "wall",
+      "id": "a0e3e7bc-5837-4955-bb46-5f6445342a1a"
+    },
+    "wall_3": {
+      "faces": 2808,
+      "label": "wall",
+      "id": "6620ae2d-22f3-4e63-a3b7-f3bcad0ae085"
+    },
+    "wall_4": {
+      "faces": 7137,
+      "label": "wall",
+      "id": "30bfc8c2-f832-4d33-8e83-fcdc315abfa5"
+    },
+    "wall_5": {
+      "faces": 2297,
+      "label": "wall",
+      "id": "a93ca1f8-f588-453c-963e-443065e5523c"
+    },
+    "wall_6": {
+      "faces": 18814,
+      "label": "wall",
+      "id": "238c092c-ef4b-454e-97e7-0d56c99916f4"
+    },
+    "wall_7": {
+      "faces": 9231,
+      "label": "wall",
+      "id": "3039b0cf-5b00-4a69-af0b-16cbe7a459e5"
+    },
+    "wall_8": {
+      "faces": 10606,
+      "label": "wall",
+      "id": "08df0aef-dabb-4249-9edd-43e475fd9344"
+    },
+    "wall_9": {
+      "faces": 4932,
+      "label": "wall",
+      "id": "c0fc915f-3ccc-4244-8c1a-24afce5579f3"
+    },
+    "window_1": {
+      "faces": 32120,
+      "label": "window",
+      "id": "dcf3622b-8884-4c4a-b3ab-f766c8ca3d65"
+    },
+    "window_10": {
+      "faces": 619,
+      "label": "window",
+      "id": "a04464f5-1a80-4bd1-ad40-dffef274854e"
+    },
+    "window_11": {
+      "faces": 522,
+      "label": "window",
+      "id": "8972068c-ea56-4a4b-8b65-48e925dfd2a9"
+    },
+    "window_2": {
+      "faces": 2428,
+      "label": "window",
+      "id": "18bb7129-5a81-4101-8456-87d1de3c47f8"
+    },
+    "window_3": {
+      "faces": 3757,
+      "label": "window",
+      "id": "f918d16d-9f49-4a40-a90d-5c08d3f529a6"
+    },
+    "window_4": {
+      "faces": 1408,
+      "label": "window",
+      "id": "c00d8ed7-e0a8-44b9-b5ce-8aa010c4a55c"
+    },
+    "window_5": {
+      "faces": 1696,
+      "label": "window",
+      "id": "6426f3c1-f84e-4da4-b952-7a208d5ca0f3"
+    },
+    "window_6": {
+      "faces": 390,
+      "label": "window",
+      "id": "5b44a0ca-f82b-47e3-b518-64c3b900f7a5"
+    },
+    "window_7": {
+      "faces": 2110,
+      "label": "window",
+      "id": "651ff7be-2242-4bf6-b38d-4be8d2d4e23c"
+    },
+    "window_8": {
+      "faces": 791,
+      "label": "window",
+      "id": "1edf16a5-ca49-4f2d-a6f8-a756fcbfb298"
+    },
+    "window_9": {
+      "faces": 4463,
+      "label": "window",
+      "id": "7935a468-f7a9-44c0-9989-2301173bae0b"
+    }
+  },
+  "emptied": {
+    "cabinet_10": {
+      "drawer_7": 827,
+      "handle_13": 69,
+      "drawer_6": 7,
+      "kitchen_island_1": 5
+    },
+    "cabinet_16": {
+      "drawer_10": 193,
+      "handle_30": 99,
+      "drawer_15": 8
+    },
+    "cabinet_17": {
+      "drawer_11": 468,
+      "handle_4": 127,
+      "drawer_10": 16,
+      "drawer_2": 2
+    },
+    "cabinet_19": {
+      "drawer_13": 414,
+      "handle_16": 80,
+      "kitchen_island_1": 6,
+      "drawer_14": 2
+    },
+    "cabinet_21": {
+      "drawer_14": 219,
+      "handle_29": 71
+    },
+    "cabinet_25": {
+      "drawer_15": 161,
+      "handle_12": 106
+    },
+    "cabinet_26": {
+      "drawer_17": 363,
+      "handle_10": 167,
+      "drawer_6": 32,
+      "handle_15": 4,
+      "drawer_7": 1,
+      "drawer_13": 1
+    },
+    "cabinet_27": {
+      "drawer_18": 502,
+      "handle_22": 146
+    },
+    "cabinet_8": {
+      "drawer_5": 1509,
+      "handle_14": 72,
+      "drawer_4": 8
+    },
+    "cabinet_9": {
+      "drawer_6": 403,
+      "drawer_5": 2,
+      "drawer_7": 2
+    },
+    "door_3": {
+      "window_2": 1915
+    },
+    "jar_3": {
+      "container_4": 126,
+      "container_5": 2
+    },
+    "jar_4": {
+      "container_5": 122
+    },
+    "kitchen_utensils_1": {
+      "mug_1": 34,
+      "handle_9": 19
+    },
+    "kitchen_utensils_3": {
+      "plate_3": 49,
+      "mug_2": 5
+    },
+    "kitchen_utensils_4": {
+      "mug_2": 93
+    },
+    "kitchen_utensils_6": {
+      "mug_3": 85
+    },
+    "table_1": {
+      "kitchen_island_1": 514
+    }
+  },
+  "still_contested": 0,
+  "pairings": [
+    {
+      "whole": "cabinet_5",
+      "part": "door_11",
+      "field": "doors",
+      "kind": "part"
+    },
+    {
+      "whole": "door_8",
+      "part": "handle_1",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_17",
+      "part": "handle_10",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_16",
+      "part": "handle_11",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_15",
+      "part": "handle_12",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_7",
+      "part": "handle_13",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_5",
+      "part": "handle_14",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_6",
+      "part": "handle_15",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_13",
+      "part": "handle_16",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_19",
+      "part": "handle_17",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_9",
+      "part": "handle_19",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_1",
+      "part": "handle_2",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_12",
+      "part": "handle_20",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_9",
+      "part": "handle_21",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_18",
+      "part": "handle_22",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_2",
+      "part": "handle_23",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_17",
+      "part": "handle_24",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_22",
+      "part": "handle_25",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_2",
+      "part": "handle_27",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_1",
+      "part": "handle_28",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_14",
+      "part": "handle_29",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_14",
+      "part": "handle_3",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_10",
+      "part": "handle_30",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_11",
+      "part": "handle_4",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_4",
+      "part": "handle_5",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_19",
+      "part": "handle_7",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "door_10",
+      "part": "handle_8",
+      "field": "handle",
+      "kind": "part"
+    },
+    {
+      "whole": "countertop_1",
+      "part": "sink_1",
+      "field": "sink",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_4",
+      "part": "door_10",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_11",
+      "part": "door_12",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_13",
+      "part": "door_13",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_14",
+      "part": "door_14",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "oven_1",
+      "part": "door_15",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_18",
+      "part": "door_17",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_5",
+      "part": "door_18",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_20",
+      "part": "door_19",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_22",
+      "part": "door_20",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_24",
+      "part": "door_21",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_1",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_13",
+      "part": "drawer_12",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_13",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_14",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_16",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_6",
+      "part": "drawer_19",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_6",
+      "part": "drawer_2",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_22",
+      "part": "drawer_20",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_24",
+      "part": "drawer_21",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_15",
+      "part": "drawer_22",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_3",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_4",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_6",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "kitchen_island_1",
+      "part": "drawer_7",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_7",
+      "part": "drawer_8",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "cabinet_15",
+      "part": "drawer_9",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "door_20",
+      "part": "handle_18",
+      "field": "",
+      "kind": "part"
+    },
+    {
+      "whole": "drawer_12",
+      "part": "handle_6",
+      "field": "",
+      "kind": "part"
+    }
+  ],
+  "annotated_world_db_id": 198
+}

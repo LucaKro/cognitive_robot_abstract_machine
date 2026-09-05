@@ -1,0 +1,1432 @@
+{
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "ownership": [
+    {
+      "name": "cabinet__drawer__kitchen_island",
+      "kind": "ownership",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "kitchen_island"
+      ],
+      "shown": [
+        "cabinet_8",
+        "drawer_5",
+        "kitchen_island_1"
+      ],
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_8",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 1503
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 796
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "drawer_13",
+            "kitchen_island_1"
+          ],
+          "faces": 414
+        },
+        {
+          "claimants": [
+            "cabinet_9",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 403
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_4",
+            "kitchen_island_1"
+          ],
+          "faces": 397
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_17",
+            "kitchen_island_1"
+          ],
+          "faces": 363
+        },
+        {
+          "claimants": [
+            "cabinet_21",
+            "drawer_14",
+            "kitchen_island_1"
+          ],
+          "faces": 219
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_8",
+            "kitchen_island_1"
+          ],
+          "faces": 159
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 32
+        },
+        {
+          "claimants": [
+            "cabinet_8",
+            "drawer_4",
+            "kitchen_island_1"
+          ],
+          "faces": 8
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 7
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 4
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_3",
+            "kitchen_island_1"
+          ],
+          "faces": 3
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_1",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_9",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_9",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "drawer_14",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 1
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_13",
+            "kitchen_island_1"
+          ],
+          "faces": 1
+        }
+      ],
+      "contested_faces": 4318,
+      "shares": {
+        "cabinet_8": {
+          "faces": 1589,
+          "contested_share": 0.9459
+        },
+        "drawer_5": {
+          "faces": 1741,
+          "contested_share": 0.8633
+        },
+        "kitchen_island_1": {
+          "faces": 27501,
+          "contested_share": 0.0547
+        }
+      },
+      "exemplar_faces": 1503,
+      "ontology": {
+        "read_as": {
+          "cabinet_8": "Cabinet",
+          "drawer_5": "Drawer",
+          "kitchen_island_1": "KitchenIsland"
+        },
+        "classes": [
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "KitchenIsland(Table, HasDrawers, HasSupportingSurface)\n  part drawers -> Drawer (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()"
+        ],
+        "admits": [
+          "Cabinet.drawers may hold a Drawer (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Drawer.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "KitchenIsland.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "KitchenIsland.drawers may hold a Drawer (part, mounted with add())"
+        ]
+      },
+      "measured": {
+        "cabinet_8": {
+          "faces": 1589,
+          "area": 1.43,
+          "height": 0.87,
+          "pieces": 1
+        },
+        "drawer_5": {
+          "faces": 1741,
+          "area": 1.53,
+          "height": 0.87,
+          "pieces": 1
+        },
+        "kitchen_island_1": {
+          "faces": 27501,
+          "area": 30.695,
+          "height": 1.69,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "cabinet__drawer__kitchen_island__closeup_back_right.png",
+        "cabinet__drawer__kitchen_island__context_back_right.png",
+        "cabinet__drawer__kitchen_island__plain_back_right.png"
+      ],
+      "legend": {
+        "cabinet_8": "tomato",
+        "drawer_5": "royalblue",
+        "kitchen_island_1": "greenyellow",
+        "contested": "mediumorchid"
+      }
+    },
+    {
+      "name": "door__window",
+      "kind": "ownership",
+      "pattern": [
+        "door",
+        "window"
+      ],
+      "shown": [
+        "door_9",
+        "window_3"
+      ],
+      "covers": [
+        {
+          "claimants": [
+            "door_9",
+            "window_3"
+          ],
+          "faces": 3457
+        },
+        {
+          "claimants": [
+            "door_16",
+            "window_9"
+          ],
+          "faces": 3382
+        },
+        {
+          "claimants": [
+            "door_1",
+            "window_7"
+          ],
+          "faces": 2094
+        },
+        {
+          "claimants": [
+            "door_3",
+            "window_2"
+          ],
+          "faces": 1915
+        },
+        {
+          "claimants": [
+            "door_6",
+            "window_5"
+          ],
+          "faces": 1580
+        },
+        {
+          "claimants": [
+            "door_2",
+            "window_4"
+          ],
+          "faces": 1402
+        },
+        {
+          "claimants": [
+            "door_1",
+            "window_8"
+          ],
+          "faces": 783
+        },
+        {
+          "claimants": [
+            "door_2",
+            "window_10"
+          ],
+          "faces": 619
+        },
+        {
+          "claimants": [
+            "door_6",
+            "window_6"
+          ],
+          "faces": 369
+        },
+        {
+          "claimants": [
+            "door_2",
+            "window_9"
+          ],
+          "faces": 9
+        }
+      ],
+      "contested_faces": 15610,
+      "shares": {
+        "door_9": {
+          "faces": 24587,
+          "contested_share": 0.1406
+        },
+        "window_3": {
+          "faces": 3757,
+          "contested_share": 0.9201
+        }
+      },
+      "exemplar_faces": 3457,
+      "ontology": {
+        "read_as": {
+          "door_9": "Door",
+          "window_3": "Aperture"
+        },
+        "classes": [
+          "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
+          "Aperture(HasRootRegion)"
+        ],
+        "admits": []
+      },
+      "measured": {
+        "door_9": {
+          "faces": 24587,
+          "area": 11.728,
+          "height": 3.87,
+          "pieces": 1
+        },
+        "window_3": {
+          "faces": 3757,
+          "area": 1.144,
+          "height": 6.39,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "door__window__closeup_front_right.png",
+        "door__window__context_front_right.png",
+        "door__window__plain_front_right.png"
+      ],
+      "legend": {
+        "door_9": "tomato",
+        "window_3": "royalblue",
+        "contested": "greenyellow"
+      }
+    },
+    {
+      "name": "container__jar",
+      "kind": "ownership",
+      "pattern": [
+        "container",
+        "jar"
+      ],
+      "shown": [
+        "container_7",
+        "jar_6"
+      ],
+      "covers": [
+        {
+          "claimants": [
+            "container_7",
+            "jar_6"
+          ],
+          "faces": 648
+        },
+        {
+          "claimants": [
+            "container_6",
+            "jar_5"
+          ],
+          "faces": 531
+        },
+        {
+          "claimants": [
+            "container_1",
+            "jar_1"
+          ],
+          "faces": 448
+        },
+        {
+          "claimants": [
+            "container_3",
+            "jar_2"
+          ],
+          "faces": 158
+        },
+        {
+          "claimants": [
+            "container_4",
+            "jar_3"
+          ],
+          "faces": 126
+        },
+        {
+          "claimants": [
+            "container_5",
+            "jar_4"
+          ],
+          "faces": 122
+        },
+        {
+          "claimants": [
+            "container_9",
+            "jar_7"
+          ],
+          "faces": 32
+        },
+        {
+          "claimants": [
+            "container_1",
+            "jar_7"
+          ],
+          "faces": 11
+        },
+        {
+          "claimants": [
+            "container_5",
+            "jar_3"
+          ],
+          "faces": 2
+        }
+      ],
+      "contested_faces": 2078,
+      "shares": {
+        "container_7": {
+          "faces": 648,
+          "contested_share": 1.0
+        },
+        "jar_6": {
+          "faces": 651,
+          "contested_share": 0.9954
+        }
+      },
+      "exemplar_faces": 648,
+      "ontology": {
+        "read_as": {
+          "container_7": "Container",
+          "jar_6": "Bottle"
+        },
+        "classes": [
+          "Container(IsStorageSpace, HasRootBody)\n  contains objects -> HasRootBody (many), mounted with add_object()",
+          "Bottle(HasRootBody)"
+        ],
+        "admits": [
+          "Container.objects may hold a HasRootBody (contains, mounted with add_object())"
+        ]
+      },
+      "measured": {
+        "container_7": {
+          "faces": 648,
+          "area": 0.231,
+          "height": 2.88,
+          "pieces": 1
+        },
+        "jar_6": {
+          "faces": 651,
+          "area": 0.232,
+          "height": 2.88,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "container__jar__closeup_front_left.png",
+        "container__jar__context_front_left.png",
+        "container__jar__plain_front_left.png"
+      ],
+      "legend": {
+        "container_7": "tomato",
+        "jar_6": "royalblue",
+        "contested": "greenyellow"
+      }
+    },
+    {
+      "name": "cabinet__drawer__handle",
+      "kind": "ownership",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "handle"
+      ],
+      "shown": [
+        "cabinet_27",
+        "drawer_18",
+        "handle_22"
+      ],
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_27",
+            "drawer_18",
+            "handle_22"
+          ],
+          "faces": 146
+        },
+        {
+          "claimants": [
+            "cabinet_17",
+            "drawer_11",
+            "handle_4"
+          ],
+          "faces": 127
+        },
+        {
+          "claimants": [
+            "cabinet_25",
+            "drawer_15",
+            "handle_12"
+          ],
+          "faces": 106
+        },
+        {
+          "claimants": [
+            "cabinet_16",
+            "drawer_10",
+            "handle_30"
+          ],
+          "faces": 99
+        },
+        {
+          "claimants": [
+            "cabinet_6",
+            "drawer_2",
+            "handle_27"
+          ],
+          "faces": 74
+        },
+        {
+          "claimants": [
+            "cabinet_15",
+            "drawer_9",
+            "handle_21"
+          ],
+          "faces": 33
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_17",
+            "handle_10"
+          ],
+          "faces": 31
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_4",
+            "handle_5"
+          ],
+          "faces": 12
+        }
+      ],
+      "contested_faces": 628,
+      "shares": {
+        "cabinet_27": {
+          "faces": 648,
+          "contested_share": 0.2253
+        },
+        "drawer_18": {
+          "faces": 710,
+          "contested_share": 0.2056
+        },
+        "handle_22": {
+          "faces": 146,
+          "contested_share": 1.0
+        }
+      },
+      "exemplar_faces": 146,
+      "ontology": {
+        "read_as": {
+          "cabinet_27": "Cabinet",
+          "drawer_18": "Drawer",
+          "handle_22": "Handle"
+        },
+        "classes": [
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Handle(HasRootBody)"
+        ],
+        "admits": [
+          "Cabinet.drawers may hold a Drawer (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Drawer.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Drawer.handle may hold a Handle (part, mounted with add())"
+        ]
+      },
+      "measured": {
+        "cabinet_27": {
+          "faces": 648,
+          "area": 0.415,
+          "height": 2.07,
+          "pieces": 1
+        },
+        "drawer_18": {
+          "faces": 710,
+          "area": 0.482,
+          "height": 2.06,
+          "pieces": 1
+        },
+        "handle_22": {
+          "faces": 146,
+          "area": 0.055,
+          "height": 2.18,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "cabinet__drawer__handle__closeup_back_right.png",
+        "cabinet__drawer__handle__context_back_right.png",
+        "cabinet__drawer__handle__plain_back_right.png"
+      ],
+      "legend": {
+        "cabinet_27": "tomato",
+        "drawer_18": "royalblue",
+        "handle_22": "greenyellow",
+        "contested": "mediumorchid"
+      }
+    },
+    {
+      "name": "cabinet__drawer__handle__kitchen_island",
+      "kind": "ownership",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "handle",
+        "kitchen_island"
+      ],
+      "shown": [
+        "cabinet_26",
+        "drawer_17",
+        "handle_10",
+        "kitchen_island_1"
+      ],
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_17",
+            "handle_10",
+            "kitchen_island_1"
+          ],
+          "faces": 136
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "drawer_13",
+            "handle_16",
+            "kitchen_island_1"
+          ],
+          "faces": 80
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_4",
+            "handle_5",
+            "kitchen_island_1"
+          ],
+          "faces": 73
+        },
+        {
+          "claimants": [
+            "cabinet_8",
+            "drawer_5",
+            "handle_14",
+            "kitchen_island_1"
+          ],
+          "faces": 72
+        },
+        {
+          "claimants": [
+            "cabinet_21",
+            "drawer_14",
+            "handle_29",
+            "kitchen_island_1"
+          ],
+          "faces": 71
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "drawer_7",
+            "handle_13",
+            "kitchen_island_1"
+          ],
+          "faces": 69
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_6",
+            "handle_15",
+            "kitchen_island_1"
+          ],
+          "faces": 4
+        }
+      ],
+      "contested_faces": 505,
+      "shares": {
+        "cabinet_26": {
+          "faces": 568,
+          "contested_share": 0.2394
+        },
+        "drawer_17": {
+          "faces": 546,
+          "contested_share": 0.2491
+        },
+        "handle_10": {
+          "faces": 168,
+          "contested_share": 0.8095
+        },
+        "kitchen_island_1": {
+          "faces": 27501,
+          "contested_share": 0.0049
+        }
+      },
+      "exemplar_faces": 136,
+      "ontology": {
+        "read_as": {
+          "cabinet_26": "Cabinet",
+          "drawer_17": "Drawer",
+          "handle_10": "Handle",
+          "kitchen_island_1": "KitchenIsland"
+        },
+        "classes": [
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Handle(HasRootBody)",
+          "KitchenIsland(Table, HasDrawers, HasSupportingSurface)\n  part drawers -> Drawer (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()"
+        ],
+        "admits": [
+          "Cabinet.drawers may hold a Drawer (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Drawer.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "KitchenIsland.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Drawer.handle may hold a Handle (part, mounted with add())",
+          "KitchenIsland.drawers may hold a Drawer (part, mounted with add())"
+        ]
+      },
+      "measured": {
+        "cabinet_26": {
+          "faces": 568,
+          "area": 0.503,
+          "height": 1.75,
+          "pieces": 1
+        },
+        "drawer_17": {
+          "faces": 546,
+          "area": 0.471,
+          "height": 1.78,
+          "pieces": 1
+        },
+        "handle_10": {
+          "faces": 168,
+          "area": 0.053,
+          "height": 1.87,
+          "pieces": 1
+        },
+        "kitchen_island_1": {
+          "faces": 27501,
+          "area": 30.695,
+          "height": 1.69,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "cabinet__drawer__handle__kitchen_island__closeup_back_right.png",
+        "cabinet__drawer__handle__kitchen_island__context_back_right.png",
+        "cabinet__drawer__handle__kitchen_island__plain_back_right.png"
+      ],
+      "legend": {
+        "cabinet_26": "tomato",
+        "drawer_17": "royalblue",
+        "handle_10": "greenyellow",
+        "kitchen_island_1": "mediumorchid",
+        "contested": "turquoise"
+      }
+    }
+  ],
+  "membership": [
+    {
+      "name": "door_10",
+      "kind": "membership",
+      "part": "door_10",
+      "shown": [
+        "door_10",
+        "cabinet_20",
+        "cabinet_4"
+      ],
+      "candidates": {
+        "cabinet_20": {
+          "field": "doors",
+          "shared_faces": 9,
+          "touching_edges": 44,
+          "distance": 0.0
+        },
+        "cabinet_4": {
+          "field": "doors",
+          "shared_faces": 3789,
+          "touching_edges": 5626,
+          "distance": 0.0
+        }
+      },
+      "ontology": {
+        "read_as": {
+          "door_10": "Door",
+          "cabinet_20": "Cabinet",
+          "cabinet_4": "Cabinet"
+        },
+        "classes": [
+          "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()"
+        ],
+        "admits": [
+          "Cabinet.doors may hold a Door (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())"
+        ]
+      },
+      "measured": {
+        "door_10": {
+          "faces": 3800,
+          "area": 1.982,
+          "height": 1.72,
+          "pieces": 1
+        },
+        "cabinet_20": {
+          "faces": 1775,
+          "area": 2.0,
+          "height": 1.57,
+          "pieces": 1
+        },
+        "cabinet_4": {
+          "faces": 3839,
+          "area": 1.997,
+          "height": 1.73,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "door_10__closeup_back_right.png",
+        "door_10__context_back_right.png",
+        "door_10__plain_back_right.png"
+      ],
+      "legend": {
+        "door_10": "tomato",
+        "cabinet_20": "royalblue",
+        "cabinet_4": "greenyellow",
+        "contested": "mediumorchid"
+      }
+    },
+    {
+      "name": "door_12",
+      "kind": "membership",
+      "part": "door_12",
+      "shown": [
+        "door_12",
+        "cabinet_11",
+        "cabinet_14",
+        "cabinet_5"
+      ],
+      "candidates": {
+        "cabinet_11": {
+          "field": "doors",
+          "shared_faces": 2490,
+          "touching_edges": 3749,
+          "distance": 0.0
+        },
+        "cabinet_14": {
+          "field": "doors",
+          "shared_faces": 5,
+          "touching_edges": 19,
+          "distance": 0.0
+        },
+        "cabinet_5": {
+          "field": "doors",
+          "shared_faces": 2,
+          "touching_edges": 17,
+          "distance": 0.0
+        }
+      },
+      "ontology": {
+        "read_as": {
+          "door_12": "Door",
+          "cabinet_11": "Cabinet",
+          "cabinet_14": "Cabinet",
+          "cabinet_5": "Cabinet"
+        },
+        "classes": [
+          "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()"
+        ],
+        "admits": [
+          "Cabinet.doors may hold a Door (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())"
+        ]
+      },
+      "measured": {
+        "door_12": {
+          "faces": 2497,
+          "area": 1.874,
+          "height": 4.03,
+          "pieces": 1
+        },
+        "cabinet_11": {
+          "faces": 2713,
+          "area": 2.033,
+          "height": 4.01,
+          "pieces": 1
+        },
+        "cabinet_14": {
+          "faces": 2166,
+          "area": 3.22,
+          "height": 2.06,
+          "pieces": 1
+        },
+        "cabinet_5": {
+          "faces": 5694,
+          "area": 5.087,
+          "height": 2.44,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "door_12__closeup_front_left.png",
+        "door_12__context_front_left.png",
+        "door_12__plain_front_left.png"
+      ],
+      "legend": {
+        "door_12": "tomato",
+        "cabinet_11": "royalblue",
+        "cabinet_14": "greenyellow",
+        "cabinet_5": "mediumorchid",
+        "contested": "turquoise"
+      }
+    },
+    {
+      "name": "door_13",
+      "kind": "membership",
+      "part": "door_13",
+      "shown": [
+        "door_13",
+        "cabinet_13",
+        "cabinet_14",
+        "cabinet_18"
+      ],
+      "candidates": {
+        "cabinet_13": {
+          "field": "doors",
+          "shared_faces": 1854,
+          "touching_edges": 2785,
+          "distance": 0.0
+        },
+        "cabinet_14": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 28,
+          "distance": 0.0
+        },
+        "cabinet_18": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 21,
+          "distance": 0.0154
+        }
+      },
+      "ontology": {
+        "read_as": {
+          "door_13": "Door",
+          "cabinet_13": "Cabinet",
+          "cabinet_14": "Cabinet",
+          "cabinet_18": "Cabinet"
+        },
+        "classes": [
+          "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()"
+        ],
+        "admits": [
+          "Cabinet.doors may hold a Door (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())"
+        ]
+      },
+      "measured": {
+        "door_13": {
+          "faces": 1854,
+          "area": 1.966,
+          "height": 1.54,
+          "pieces": 1
+        },
+        "cabinet_13": {
+          "faces": 2117,
+          "area": 2.117,
+          "height": 1.47,
+          "pieces": 1
+        },
+        "cabinet_14": {
+          "faces": 2166,
+          "area": 3.22,
+          "height": 2.06,
+          "pieces": 1
+        },
+        "cabinet_18": {
+          "faces": 1781,
+          "area": 3.311,
+          "height": 3.72,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "door_13__closeup_front_left.png",
+        "door_13__context_front_left.png",
+        "door_13__plain_front_left.png"
+      ],
+      "legend": {
+        "door_13": "tomato",
+        "cabinet_13": "royalblue",
+        "cabinet_14": "greenyellow",
+        "cabinet_18": "mediumorchid",
+        "contested": "turquoise"
+      }
+    },
+    {
+      "name": "door_14",
+      "kind": "membership",
+      "part": "door_14",
+      "shown": [
+        "door_14",
+        "cabinet_11",
+        "cabinet_13",
+        "cabinet_14",
+        "cabinet_15",
+        "cabinet_18",
+        "oven_1"
+      ],
+      "candidates": {
+        "cabinet_11": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 9,
+          "distance": 0.0192
+        },
+        "cabinet_13": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 29,
+          "distance": 0.0
+        },
+        "cabinet_14": {
+          "field": "doors",
+          "shared_faces": 1810,
+          "touching_edges": 2708,
+          "distance": 0.0
+        },
+        "cabinet_15": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 7,
+          "distance": 0.0
+        },
+        "cabinet_18": {
+          "field": "doors",
+          "shared_faces": 3,
+          "touching_edges": 22,
+          "distance": 0.0
+        },
+        "oven_1": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 7,
+          "distance": 0.0251
+        }
+      },
+      "ontology": {
+        "read_as": {
+          "door_14": "Door",
+          "cabinet_11": "Cabinet",
+          "cabinet_13": "Cabinet",
+          "cabinet_14": "Cabinet",
+          "cabinet_15": "Cabinet",
+          "cabinet_18": "Cabinet",
+          "oven_1": "Oven"
+        },
+        "classes": [
+          "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Oven(HasRootBody, HasDoors)\n  part doors -> Door (many), mounted with add()"
+        ],
+        "admits": [
+          "Cabinet.doors may hold a Door (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Oven.doors may hold a Door (part, mounted with add())"
+        ]
+      },
+      "measured": {
+        "door_14": {
+          "faces": 1825,
+          "area": 2.663,
+          "height": 1.9,
+          "pieces": 1
+        },
+        "cabinet_11": {
+          "faces": 2713,
+          "area": 2.033,
+          "height": 4.01,
+          "pieces": 1
+        },
+        "cabinet_13": {
+          "faces": 2117,
+          "area": 2.117,
+          "height": 1.47,
+          "pieces": 1
+        },
+        "cabinet_14": {
+          "faces": 2166,
+          "area": 3.22,
+          "height": 2.06,
+          "pieces": 1
+        },
+        "cabinet_15": {
+          "faces": 646,
+          "area": 0.727,
+          "height": 1.55,
+          "pieces": 1
+        },
+        "cabinet_18": {
+          "faces": 1781,
+          "area": 3.311,
+          "height": 3.72,
+          "pieces": 1
+        },
+        "oven_1": {
+          "faces": 941,
+          "area": 1.092,
+          "height": 2.35,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "door_14__closeup_back_right.png",
+        "door_14__context_back_right.png",
+        "door_14__plain_back_right.png"
+      ],
+      "legend": {
+        "door_14": "tomato",
+        "cabinet_11": "royalblue",
+        "cabinet_13": "greenyellow",
+        "cabinet_14": "mediumorchid",
+        "cabinet_15": "turquoise",
+        "cabinet_18": "peru",
+        "oven_1": "blueviolet",
+        "contested": "limegreen"
+      }
+    },
+    {
+      "name": "door_15",
+      "kind": "membership",
+      "part": "door_15",
+      "shown": [
+        "door_15",
+        "cabinet_14",
+        "cabinet_15",
+        "cabinet_5",
+        "oven_1"
+      ],
+      "candidates": {
+        "cabinet_14": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 8,
+          "distance": 0.0
+        },
+        "cabinet_15": {
+          "field": "doors",
+          "shared_faces": 0,
+          "touching_edges": 15,
+          "distance": 0.0139
+        },
+        "cabinet_5": {
+          "field": "doors",
+          "shared_faces": 25,
+          "touching_edges": 52,
+          "distance": 0.0
+        },
+        "oven_1": {
+          "field": "doors",
+          "shared_faces": 900,
+          "touching_edges": 1365,
+          "distance": 0.0
+        }
+      },
+      "ontology": {
+        "read_as": {
+          "door_15": "Door",
+          "cabinet_14": "Cabinet",
+          "cabinet_15": "Cabinet",
+          "cabinet_5": "Cabinet",
+          "oven_1": "Oven"
+        },
+        "classes": [
+          "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
+          "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
+          "Oven(HasRootBody, HasDoors)\n  part doors -> Door (many), mounted with add()"
+        ],
+        "admits": [
+          "Cabinet.doors may hold a Door (part, mounted with add())",
+          "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())",
+          "Oven.doors may hold a Door (part, mounted with add())"
+        ]
+      },
+      "measured": {
+        "door_15": {
+          "faces": 988,
+          "area": 1.163,
+          "height": 2.31,
+          "pieces": 1
+        },
+        "cabinet_14": {
+          "faces": 2166,
+          "area": 3.22,
+          "height": 2.06,
+          "pieces": 1
+        },
+        "cabinet_15": {
+          "faces": 646,
+          "area": 0.727,
+          "height": 1.55,
+          "pieces": 1
+        },
+        "cabinet_5": {
+          "faces": 5694,
+          "area": 5.087,
+          "height": 2.44,
+          "pieces": 1
+        },
+        "oven_1": {
+          "faces": 941,
+          "area": 1.092,
+          "height": 2.35,
+          "pieces": 1
+        }
+      },
+      "images": [
+        "door_15__closeup_back_right.png",
+        "door_15__context_back_right.png",
+        "door_15__plain_back_right.png"
+      ],
+      "legend": {
+        "door_15": "tomato",
+        "cabinet_14": "royalblue",
+        "cabinet_15": "greenyellow",
+        "cabinet_5": "mediumorchid",
+        "oven_1": "turquoise",
+        "contested": "peru"
+      }
+    }
+  ],
+  "settled": [
+    {
+      "claimants": [
+        "cabinet_5",
+        "door_11"
+      ],
+      "faces": 3779
+    },
+    {
+      "claimants": [
+        "cabinet_11",
+        "door_12"
+      ],
+      "faces": 2484
+    },
+    {
+      "claimants": [
+        "cabinet_14",
+        "door_14"
+      ],
+      "faces": 1750
+    },
+    {
+      "claimants": [
+        "cabinet_18",
+        "door_17"
+      ],
+      "faces": 1631
+    },
+    {
+      "claimants": [
+        "cabinet_5",
+        "door_18"
+      ],
+      "faces": 1038
+    },
+    {
+      "claimants": [
+        "cabinet_6",
+        "drawer_2"
+      ],
+      "faces": 1015
+    },
+    {
+      "claimants": [
+        "door_15",
+        "oven_1"
+      ],
+      "faces": 900
+    },
+    {
+      "claimants": [
+        "cabinet_6",
+        "drawer_19"
+      ],
+      "faces": 572
+    },
+    {
+      "claimants": [
+        "cabinet_27",
+        "drawer_18"
+      ],
+      "faces": 502
+    },
+    {
+      "claimants": [
+        "cabinet_15",
+        "drawer_9"
+      ],
+      "faces": 490
+    }
+  ],
+  "forced": [
+    {
+      "part": "door_11",
+      "whole": "cabinet_5",
+      "field": "doors",
+      "shared_faces": 3779,
+      "touching_edges": 5746,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_1",
+      "whole": "door_8",
+      "field": "handle",
+      "shared_faces": 7,
+      "touching_edges": 16,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_10",
+      "whole": "drawer_17",
+      "field": "handle",
+      "shared_faces": 168,
+      "touching_edges": 259,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_11",
+      "whole": "drawer_16",
+      "field": "handle",
+      "shared_faces": 79,
+      "touching_edges": 129,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_12",
+      "whole": "drawer_15",
+      "field": "handle",
+      "shared_faces": 106,
+      "touching_edges": 172,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_13",
+      "whole": "drawer_7",
+      "field": "handle",
+      "shared_faces": 69,
+      "touching_edges": 115,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_14",
+      "whole": "drawer_5",
+      "field": "handle",
+      "shared_faces": 72,
+      "touching_edges": 118,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_15",
+      "whole": "drawer_6",
+      "field": "handle",
+      "shared_faces": 78,
+      "touching_edges": 128,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_16",
+      "whole": "drawer_13",
+      "field": "handle",
+      "shared_faces": 80,
+      "touching_edges": 131,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_17",
+      "whole": "drawer_19",
+      "field": "handle",
+      "shared_faces": 128,
+      "touching_edges": 203,
+      "distance": 0.0
+    }
+  ]
+}

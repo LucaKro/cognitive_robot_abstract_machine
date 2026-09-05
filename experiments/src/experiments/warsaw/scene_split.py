@@ -31,16 +31,12 @@ from semantic_digital_twin.spatial_types import (
     Point3,
 )
 from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
+from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Mesh
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
-
-ROOT_BODY_NAME = "root_body"
-"""
-What the body every object hangs from is called.
-"""
 
 
 @dataclass
@@ -91,10 +87,23 @@ class Pairing:
     The field it is held in.
     """
 
-    kind: str = "part"
+    kind: MountKind = MountKind.PART
     """
-    Which channel mounts it: ``part``, ``contains`` or ``supports``.
+    Which channel mounts it.
     """
+
+    @classmethod
+    def from_json(cls, payload: Dict[str, object]) -> Pairing:
+        """
+        :param payload: A pairing as it was written.
+        :return: It, ready to be carried out.
+        """
+        return cls(
+            whole=payload["whole"],
+            part=payload["part"],
+            field_name=payload["field"] or "",
+            kind=MountKind(payload.get("kind") or MountKind.PART),
+        )
 
     def to_json(self) -> Dict[str, object]:
         """
@@ -104,7 +113,7 @@ class Pairing:
             "whole": self.whole,
             "part": self.part,
             "field": self.field_name,
-            "kind": self.kind,
+            "kind": self.kind.value,
         }
 
 
@@ -200,7 +209,9 @@ def exclusive_faces(
                     split.lost_to[name].get(ownership.owner, 0) + taken
                 )
 
-    split.emptied = sorted(name for name, faces in split.faces.items() if not len(faces))
+    split.emptied = sorted(
+        name for name, faces in split.faces.items() if not len(faces)
+    )
     for name in split.emptied:
         del split.faces[name]
 
@@ -242,6 +253,7 @@ def split_world(
     source_to_world,
     directory: Optional[Path] = None,
     file_type: str = "obj",
+    root_body_name: str = "root_body",
 ) -> World:
     """
     Build a world of one body per object from a scene's mesh.
@@ -262,6 +274,7 @@ def split_world(
         removed when the process ends -- which will not do for a world to be persisted.
     :param file_type: The format to write them in. Not PLY: the collision detector reads
         only .obj, .stl and .dae, and a body it cannot read stops the world being built.
+    :param root_body_name: What to call the body every object hangs from.
     :return: The world, flat, one body per object under a single root.
     """
     if directory is not None:
@@ -271,7 +284,7 @@ def split_world(
 
     to_world = source_to_world.to_np()
     world = World()
-    root = Body(name=PrefixedName(ROOT_BODY_NAME))
+    root = Body(name=PrefixedName(root_body_name))
     with world.modify_world():
         world.add_body(root)
         for name, kept in faces.items():

@@ -1,0 +1,2295 @@
+{
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "answered": [
+    {
+      "kind": "ownership",
+      "name": "cabinet__drawer__kitchen_island",
+      "problems": [],
+      "confidence": 0.86,
+      "reason": "the drawer's surface is the one that is physically present and claimed by the drawer label, even though it is overlapped by the cabinet and kitchen island labels",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "kitchen_island"
+      ],
+      "owner": "drawer",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_8",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 1503
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 796
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "drawer_13",
+            "kitchen_island_1"
+          ],
+          "faces": 414
+        },
+        {
+          "claimants": [
+            "cabinet_9",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 403
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_4",
+            "kitchen_island_1"
+          ],
+          "faces": 397
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_17",
+            "kitchen_island_1"
+          ],
+          "faces": 363
+        },
+        {
+          "claimants": [
+            "cabinet_21",
+            "drawer_14",
+            "kitchen_island_1"
+          ],
+          "faces": 219
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_8",
+            "kitchen_island_1"
+          ],
+          "faces": 159
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 32
+        },
+        {
+          "claimants": [
+            "cabinet_8",
+            "drawer_4",
+            "kitchen_island_1"
+          ],
+          "faces": 8
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 7
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 4
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_3",
+            "kitchen_island_1"
+          ],
+          "faces": 3
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_1",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_9",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_9",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "drawer_14",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 1
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_13",
+            "kitchen_island_1"
+          ],
+          "faces": 1
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "door__window",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The window claims a much larger portion of the contested faces (92%) compared to the door (14%), indicating it is the primary surface for those faces.",
+      "pattern": [
+        "door",
+        "window"
+      ],
+      "owner": "window",
+      "covers": [
+        {
+          "claimants": [
+            "door_9",
+            "window_3"
+          ],
+          "faces": 3457
+        },
+        {
+          "claimants": [
+            "door_16",
+            "window_9"
+          ],
+          "faces": 3382
+        },
+        {
+          "claimants": [
+            "door_1",
+            "window_7"
+          ],
+          "faces": 2094
+        },
+        {
+          "claimants": [
+            "door_3",
+            "window_2"
+          ],
+          "faces": 1915
+        },
+        {
+          "claimants": [
+            "door_6",
+            "window_5"
+          ],
+          "faces": 1580
+        },
+        {
+          "claimants": [
+            "door_2",
+            "window_4"
+          ],
+          "faces": 1402
+        },
+        {
+          "claimants": [
+            "door_1",
+            "window_8"
+          ],
+          "faces": 783
+        },
+        {
+          "claimants": [
+            "door_2",
+            "window_10"
+          ],
+          "faces": 619
+        },
+        {
+          "claimants": [
+            "door_6",
+            "window_6"
+          ],
+          "faces": 369
+        },
+        {
+          "claimants": [
+            "door_2",
+            "window_9"
+          ],
+          "faces": 9
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "container__jar",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The container is the larger object and its label covers the entire surface of the contested faces, indicating it is the primary entity.",
+      "pattern": [
+        "container",
+        "jar"
+      ],
+      "owner": "container",
+      "covers": [
+        {
+          "claimants": [
+            "container_7",
+            "jar_6"
+          ],
+          "faces": 648
+        },
+        {
+          "claimants": [
+            "container_6",
+            "jar_5"
+          ],
+          "faces": 531
+        },
+        {
+          "claimants": [
+            "container_1",
+            "jar_1"
+          ],
+          "faces": 448
+        },
+        {
+          "claimants": [
+            "container_3",
+            "jar_2"
+          ],
+          "faces": 158
+        },
+        {
+          "claimants": [
+            "container_4",
+            "jar_3"
+          ],
+          "faces": 126
+        },
+        {
+          "claimants": [
+            "container_5",
+            "jar_4"
+          ],
+          "faces": 122
+        },
+        {
+          "claimants": [
+            "container_9",
+            "jar_7"
+          ],
+          "faces": 32
+        },
+        {
+          "claimants": [
+            "container_1",
+            "jar_7"
+          ],
+          "faces": 11
+        },
+        {
+          "claimants": [
+            "container_5",
+            "jar_3"
+          ],
+          "faces": 2
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__drawer__handle",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle's faces are fully contained within the contested area, and it is the smallest object claiming them, indicating it is the true surface owner despite being overlapped by larger labels.",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "handle"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_27",
+            "drawer_18",
+            "handle_22"
+          ],
+          "faces": 146
+        },
+        {
+          "claimants": [
+            "cabinet_17",
+            "drawer_11",
+            "handle_4"
+          ],
+          "faces": 127
+        },
+        {
+          "claimants": [
+            "cabinet_25",
+            "drawer_15",
+            "handle_12"
+          ],
+          "faces": 106
+        },
+        {
+          "claimants": [
+            "cabinet_16",
+            "drawer_10",
+            "handle_30"
+          ],
+          "faces": 99
+        },
+        {
+          "claimants": [
+            "cabinet_6",
+            "drawer_2",
+            "handle_27"
+          ],
+          "faces": 74
+        },
+        {
+          "claimants": [
+            "cabinet_15",
+            "drawer_9",
+            "handle_21"
+          ],
+          "faces": 33
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_17",
+            "handle_10"
+          ],
+          "faces": 31
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_4",
+            "handle_5"
+          ],
+          "faces": 12
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__drawer__handle__kitchen_island",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle has the highest proportion of contested faces relative to its total face count, indicating it is the primary surface being claimed.",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "handle",
+        "kitchen_island"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_17",
+            "handle_10",
+            "kitchen_island_1"
+          ],
+          "faces": 136
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "drawer_13",
+            "handle_16",
+            "kitchen_island_1"
+          ],
+          "faces": 80
+        },
+        {
+          "claimants": [
+            "cabinet_7",
+            "drawer_4",
+            "handle_5",
+            "kitchen_island_1"
+          ],
+          "faces": 73
+        },
+        {
+          "claimants": [
+            "cabinet_8",
+            "drawer_5",
+            "handle_14",
+            "kitchen_island_1"
+          ],
+          "faces": 72
+        },
+        {
+          "claimants": [
+            "cabinet_21",
+            "drawer_14",
+            "handle_29",
+            "kitchen_island_1"
+          ],
+          "faces": 71
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "drawer_7",
+            "handle_13",
+            "kitchen_island_1"
+          ],
+          "faces": 69
+        },
+        {
+          "claimants": [
+            "cabinet_26",
+            "drawer_6",
+            "handle_15",
+            "kitchen_island_1"
+          ],
+          "faces": 4
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__door__drawer",
+      "problems": [],
+      "confidence": 0.91,
+      "reason": "the drawer claims 91% of the contested faces, indicating it is the primary surface despite overlapping labels from cabinet and door.",
+      "pattern": [
+        "cabinet",
+        "door",
+        "drawer"
+      ],
+      "owner": "drawer",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_13",
+            "door_13",
+            "drawer_12"
+          ],
+          "faces": 1573
+        },
+        {
+          "claimants": [
+            "cabinet_22",
+            "door_20",
+            "drawer_20"
+          ],
+          "faces": 1456
+        },
+        {
+          "claimants": [
+            "cabinet_24",
+            "door_21",
+            "drawer_21"
+          ],
+          "faces": 1180
+        },
+        {
+          "claimants": [
+            "cabinet_24",
+            "door_20",
+            "drawer_21"
+          ],
+          "faces": 11
+        },
+        {
+          "claimants": [
+            "cabinet_24",
+            "door_20",
+            "drawer_20"
+          ],
+          "faces": 5
+        },
+        {
+          "claimants": [
+            "cabinet_22",
+            "door_20",
+            "drawer_21"
+          ],
+          "faces": 2
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "kitchen_utensils__mug",
+      "problems": [],
+      "confidence": 0.7,
+      "reason": "The mug has a higher face overlap percentage (63%) on the contested area compared to the kitchen utensils (100% but smaller total area), and the mug's label is more specific to the object's function as a drinking container.",
+      "pattern": [
+        "kitchen_utensils",
+        "mug"
+      ],
+      "owner": "mug",
+      "covers": [
+        {
+          "claimants": [
+            "kitchen_utensils_4",
+            "mug_2"
+          ],
+          "faces": 93
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_6",
+            "mug_3"
+          ],
+          "faces": 85
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_2",
+            "mug_4"
+          ],
+          "faces": 80
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_2",
+            "mug_5"
+          ],
+          "faces": 75
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_1",
+            "mug_1"
+          ],
+          "faces": 34
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_5",
+            "mug_3"
+          ],
+          "faces": 3
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__door__handle",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle's faces are fully contained within the contested area, and the handle is a distinct object with its own surface definition, making it the rightful owner of those faces.",
+      "pattern": [
+        "cabinet",
+        "door",
+        "handle"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_18",
+            "door_17",
+            "handle_24"
+          ],
+          "faces": 83
+        },
+        {
+          "claimants": [
+            "cabinet_20",
+            "door_19",
+            "handle_7"
+          ],
+          "faces": 65
+        },
+        {
+          "claimants": [
+            "cabinet_14",
+            "door_14",
+            "handle_3"
+          ],
+          "faces": 60
+        },
+        {
+          "claimants": [
+            "cabinet_4",
+            "door_10",
+            "handle_8"
+          ],
+          "faces": 40
+        },
+        {
+          "claimants": [
+            "cabinet_22",
+            "door_20",
+            "handle_18"
+          ],
+          "faces": 13
+        },
+        {
+          "claimants": [
+            "cabinet_11",
+            "door_12",
+            "handle_20"
+          ],
+          "faces": 6
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__kitchen_island",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The kitchen_island label covers a larger area and has more faces claimed, indicating it is the primary object, while the cabinet's label is secondary and partially overlapped.",
+      "pattern": [
+        "cabinet",
+        "kitchen_island"
+      ],
+      "owner": "kitchen_island",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_7",
+            "kitchen_island_1"
+          ],
+          "faces": 173
+        },
+        {
+          "claimants": [
+            "cabinet_20",
+            "kitchen_island_1"
+          ],
+          "faces": 57
+        },
+        {
+          "claimants": [
+            "cabinet_4",
+            "kitchen_island_1"
+          ],
+          "faces": 19
+        },
+        {
+          "claimants": [
+            "cabinet_19",
+            "kitchen_island_1"
+          ],
+          "faces": 6
+        },
+        {
+          "claimants": [
+            "cabinet_10",
+            "kitchen_island_1"
+          ],
+          "faces": 5
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "drawer__handle__kitchen_island",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle is the only object whose surface the contested faces belong to, as they are part of its physical structure and not covered by the drawer or kitchen island labels.",
+      "pattern": [
+        "drawer",
+        "handle",
+        "kitchen_island"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "drawer_16",
+            "handle_11",
+            "kitchen_island_1"
+          ],
+          "faces": 79
+        },
+        {
+          "claimants": [
+            "drawer_6",
+            "handle_15",
+            "kitchen_island_1"
+          ],
+          "faces": 74
+        },
+        {
+          "claimants": [
+            "drawer_4",
+            "handle_5",
+            "kitchen_island_1"
+          ],
+          "faces": 30
+        },
+        {
+          "claimants": [
+            "drawer_1",
+            "handle_2",
+            "kitchen_island_1"
+          ],
+          "faces": 18
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__door__kitchen_island",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "the kitchen_island has the largest surface area and dominates the contested faces, indicating it is the primary object occupying that space.",
+      "pattern": [
+        "cabinet",
+        "door",
+        "kitchen_island"
+      ],
+      "owner": "kitchen_island",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_4",
+            "door_10",
+            "kitchen_island_1"
+          ],
+          "faces": 3297
+        },
+        {
+          "claimants": [
+            "cabinet_20",
+            "door_19",
+            "kitchen_island_1"
+          ],
+          "faces": 1616
+        },
+        {
+          "claimants": [
+            "cabinet_20",
+            "door_10",
+            "kitchen_island_1"
+          ],
+          "faces": 9
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "kitchen_utensils__plate",
+      "problems": [],
+      "confidence": 0.91,
+      "reason": "the plate's supporting surface is the primary functional surface and the faces are part of its structure, while the kitchen utensils are mounted on it and do not define the surface",
+      "pattern": [
+        "kitchen_utensils",
+        "plate"
+      ],
+      "owner": "plate",
+      "covers": [
+        {
+          "claimants": [
+            "kitchen_utensils_3",
+            "plate_3"
+          ],
+          "faces": 49
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_5",
+            "plate_2"
+          ],
+          "faces": 25
+        },
+        {
+          "claimants": [
+            "kitchen_utensils_2",
+            "plate_5"
+          ],
+          "faces": 17
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__handle",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The handle's faces constitute a much higher percentage of its total surface area compared to the cabinet, indicating that the contested faces are more likely part of the handle's surface.",
+      "pattern": [
+        "cabinet",
+        "handle"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_11",
+            "handle_20"
+          ],
+          "faces": 48
+        },
+        {
+          "claimants": [
+            "cabinet_22",
+            "handle_18"
+          ],
+          "faces": 33
+        },
+        {
+          "claimants": [
+            "cabinet_4",
+            "handle_8"
+          ],
+          "faces": 2
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__door__drawer__handle",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "the handle's surface is fully covered by the contested faces, indicating it is the true owner despite being labeled over other objects.",
+      "pattern": [
+        "cabinet",
+        "door",
+        "drawer",
+        "handle"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_13",
+            "door_13",
+            "drawer_12",
+            "handle_6"
+          ],
+          "faces": 101
+        },
+        {
+          "claimants": [
+            "cabinet_22",
+            "door_20",
+            "drawer_20",
+            "handle_18"
+          ],
+          "faces": 2
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__door__handle__kitchen_island",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle has the highest proportion of contested faces (47%) and is physically smaller, making it more likely to be the true owner of the shared surface.",
+      "pattern": [
+        "cabinet",
+        "door",
+        "handle",
+        "kitchen_island"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_4",
+            "door_10",
+            "handle_8",
+            "kitchen_island_1"
+          ],
+          "faces": 39
+        },
+        {
+          "claimants": [
+            "cabinet_20",
+            "door_19",
+            "handle_7",
+            "kitchen_island_1"
+          ],
+          "faces": 11
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "countertop__kitchen_island",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The countertop claims 84% of the contested faces, indicating it is the primary surface despite the kitchen island being larger in total area.",
+      "pattern": [
+        "countertop",
+        "kitchen_island"
+      ],
+      "owner": "countertop",
+      "covers": [
+        {
+          "claimants": [
+            "countertop_1",
+            "kitchen_island_1"
+          ],
+          "faces": 6812
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "bottle__container__jar",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The bottle label covers the most faces of the contested area and is the largest object claiming those faces.",
+      "pattern": [
+        "bottle",
+        "container",
+        "jar"
+      ],
+      "owner": "bottle",
+      "covers": [
+        {
+          "claimants": [
+            "bottle_2",
+            "container_9",
+            "jar_7"
+          ],
+          "faces": 406
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "countertop__kitchen_island__table",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The kitchen_island has the largest surface area and the contested faces are a small percentage of its total, indicating it is the primary object.",
+      "pattern": [
+        "countertop",
+        "kitchen_island",
+        "table"
+      ],
+      "owner": "kitchen_island",
+      "covers": [
+        {
+          "claimants": [
+            "countertop_1",
+            "kitchen_island_1",
+            "table_1"
+          ],
+          "faces": 291
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "kitchen_island__table",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The kitchen_island has a significantly larger surface area and volume compared to the table, indicating it is the primary object in the scene, and the contested faces are part of its structure.",
+      "pattern": [
+        "kitchen_island",
+        "table"
+      ],
+      "owner": "kitchen_island",
+      "covers": [
+        {
+          "claimants": [
+            "kitchen_island_1",
+            "table_1"
+          ],
+          "faces": 223
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "bottle__container",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The bottle's surface is the primary object claiming the faces, as it is the smaller, more specific entity with a defined shape and function, while the container is a larger assembly that may encompass multiple parts.",
+      "pattern": [
+        "bottle",
+        "container"
+      ],
+      "owner": "bottle",
+      "covers": [
+        {
+          "claimants": [
+            "bottle_1",
+            "container_8"
+          ],
+          "faces": 215
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "handle__kitchen_island",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The handle's surface is the actual functional part being interacted with, and despite the kitchen island label covering it, the handle's physical presence defines the contested faces.",
+      "pattern": [
+        "handle",
+        "kitchen_island"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "handle_2",
+            "kitchen_island_1"
+          ],
+          "faces": 97
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "container__kitchen_utensils",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The container label covers a larger portion of the contested faces (67%) compared to kitchen_utensils (19%), indicating it is the primary surface owner despite both labels overlapping.",
+      "pattern": [
+        "container",
+        "kitchen_utensils"
+      ],
+      "owner": "container",
+      "covers": [
+        {
+          "claimants": [
+            "container_2",
+            "kitchen_utensils_2"
+          ],
+          "faces": 71
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "faucet__handle",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle's surface is the one that is physically present and claimed by the contested faces, even though the faucet label covers it, because the handle is the object whose surface those faces are.",
+      "pattern": [
+        "faucet",
+        "handle"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "faucet_1",
+            "handle_26"
+          ],
+          "faces": 44
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "container__kitchen_utensils__mug",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The mug is the smallest object claiming the contested faces, and its surface is the most directly exposed and distinct in the scan, making it the most likely owner despite being partially overlapped by the container and kitchen_utensils labels.",
+      "pattern": [
+        "container",
+        "kitchen_utensils",
+        "mug"
+      ],
+      "owner": "mug",
+      "covers": [
+        {
+          "claimants": [
+            "container_2",
+            "kitchen_utensils_2",
+            "mug_5"
+          ],
+          "faces": 33
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "handle__kitchen_utensils__mug",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The handle is the smallest object claiming the faces and has a higher percentage of its total faces contested compared to the other objects, indicating it is more likely to be the true owner of the contested surface.",
+      "pattern": [
+        "handle",
+        "kitchen_utensils",
+        "mug"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "handle_9",
+            "kitchen_utensils_1",
+            "mug_1"
+          ],
+          "faces": 19
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "plate__towel",
+      "problems": [],
+      "confidence": 0.7,
+      "reason": "The plate is the larger object and its label covers a greater portion of the contested faces, indicating it is the primary surface.",
+      "pattern": [
+        "plate",
+        "towel"
+      ],
+      "owner": "plate",
+      "covers": [
+        {
+          "claimants": [
+            "plate_4",
+            "towel_5"
+          ],
+          "faces": 17
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "countertop__drawer",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The drawer's surface is the actual physical surface being contested, and it is smaller but more directly claimed by the drawer label compared to the countertop, which covers a larger area but includes the drawer as part of its assembly.",
+      "pattern": [
+        "countertop",
+        "drawer"
+      ],
+      "owner": "drawer",
+      "covers": [
+        {
+          "claimants": [
+            "countertop_2",
+            "drawer_15"
+          ],
+          "faces": 12
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "door__drawer",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The drawer's surface is the primary owner of the contested faces as it is the larger object and the faces are part of its physical structure, despite being partially overlapped by the door label.",
+      "pattern": [
+        "door",
+        "drawer"
+      ],
+      "owner": "drawer",
+      "covers": [
+        {
+          "claimants": [
+            "door_20",
+            "drawer_20"
+          ],
+          "faces": 10
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "kitchen_utensils__mug__plate",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The mug is the largest object claiming the contested faces and has the highest face count among the overlapping labels.",
+      "pattern": [
+        "kitchen_utensils",
+        "mug",
+        "plate"
+      ],
+      "owner": "mug",
+      "covers": [
+        {
+          "claimants": [
+            "kitchen_utensils_3",
+            "mug_2",
+            "plate_3"
+          ],
+          "faces": 5
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__countertop__drawer",
+      "problems": [],
+      "confidence": 0.8,
+      "reason": "The drawer's surface is the actual functional front of the drawer, and even though it is partially covered by the cabinet and countertop labels, the faces belong to the drawer as its primary surface.",
+      "pattern": [
+        "cabinet",
+        "countertop",
+        "drawer"
+      ],
+      "owner": "drawer",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_25",
+            "countertop_2",
+            "drawer_15"
+          ],
+          "faces": 4
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "mug__plate",
+      "problems": [],
+      "confidence": 0.7,
+      "reason": "the mug is larger and its label covers more faces, indicating it is the primary object claiming those surfaces",
+      "pattern": [
+        "mug",
+        "plate"
+      ],
+      "owner": "mug",
+      "covers": [
+        {
+          "claimants": [
+            "mug_1",
+            "plate_1"
+          ],
+          "faces": 3
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "cabinet__handle__kitchen_island",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The handle is the smallest object and its label covers only a small portion of the contested faces, indicating it is the actual surface being claimed.",
+      "pattern": [
+        "cabinet",
+        "handle",
+        "kitchen_island"
+      ],
+      "owner": "handle",
+      "covers": [
+        {
+          "claimants": [
+            "cabinet_4",
+            "handle_8",
+            "kitchen_island_1"
+          ],
+          "faces": 2
+        }
+      ]
+    },
+    {
+      "kind": "ownership",
+      "name": "container__kitchen_utensils__plate",
+      "problems": [],
+      "confidence": 0.85,
+      "reason": "The container is the largest object claiming the contested faces and is physically the primary structure holding the other objects, making it the rightful owner of the shared surface.",
+      "pattern": [
+        "container",
+        "kitchen_utensils",
+        "plate"
+      ],
+      "owner": "container",
+      "covers": [
+        {
+          "claimants": [
+            "container_2",
+            "kitchen_utensils_2",
+            "plate_5"
+          ],
+          "faces": 2
+        }
+      ]
+    },
+    {
+      "kind": "membership",
+      "name": "door_10",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "door_10 is fully enclosed by cabinet_4 in the visual evidence, with no visible gap between them, and cabinet_4's door configuration matches the expected containment of a door.",
+      "part": "door_10",
+      "whole": "cabinet_4"
+    },
+    {
+      "kind": "membership",
+      "name": "door_12",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The door is fully enclosed by the cabinet's doors, with a high degree of surface sharing and no gaps, indicating it is part of cabinet_11.",
+      "part": "door_12",
+      "whole": "cabinet_11"
+    },
+    {
+      "kind": "membership",
+      "name": "door_13",
+      "problems": [],
+      "confidence": 1.0,
+      "reason": "The door is physically attached to cabinet_13, sharing all its faces and edges, and is positioned as a part of it in the room, while the other cabinets are separate and do not share any faces with the door.",
+      "part": "door_13",
+      "whole": "cabinet_13"
+    },
+    {
+      "kind": "membership",
+      "name": "door_14",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The door is physically attached to cabinet_14 with shared faces and zero distance between surfaces, indicating it is a part of that cabinet.",
+      "part": "door_14",
+      "whole": "cabinet_14"
+    },
+    {
+      "kind": "membership",
+      "name": "door_15",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The door is visually integrated into the oven's structure, sharing a large surface area and appearing as part of its front panel, consistent with an oven door.",
+      "part": "door_15",
+      "whole": "oven_1"
+    },
+    {
+      "kind": "membership",
+      "name": "door_17",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The door is fully merged with cabinet_18, sharing most faces and edges, and visually appears as part of it in the room context.",
+      "part": "door_17",
+      "whole": "cabinet_18"
+    },
+    {
+      "kind": "membership",
+      "name": "door_18",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "door_18 is fully embedded within cabinet_5's structure, sharing the most faces and edges with no gap, indicating it is a door part of cabinet_5.",
+      "part": "door_18",
+      "whole": "cabinet_5"
+    },
+    {
+      "kind": "membership",
+      "name": "door_19",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The part shares all its faces with cabinet_20, indicating it is fully contained within it, and the visual evidence shows the door is part of a larger cabinet structure.",
+      "part": "door_19",
+      "whole": "cabinet_20"
+    },
+    {
+      "kind": "membership",
+      "name": "door_20",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The door is physically attached to cabinet_22 with zero distance between surfaces and shares the majority of its faces, indicating it is a part of that cabinet.",
+      "part": "door_20",
+      "whole": "cabinet_22"
+    },
+    {
+      "kind": "membership",
+      "name": "door_21",
+      "problems": [],
+      "confidence": 1.0,
+      "reason": "The door shares all its faces with cabinet_24, indicating it is fully integrated as a door of that cabinet.",
+      "part": "door_21",
+      "whole": "cabinet_24"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_1",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is physically attached to the kitchen island's surface and shares all its faces, indicating it is part of the island rather than a separate cabinet.",
+      "part": "drawer_1",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_10",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is visually embedded within cabinet_16, sharing a large surface area and appearing to be a component of it, consistent with the cabinet holding drawers.",
+      "part": "drawer_10",
+      "whole": "cabinet_16"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_11",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The part labeled \"drawer\" is visually integrated into the cabinet labeled \"cabinet_17\" with significant surface contact and alignment, indicating it is a drawer within that cabinet.",
+      "part": "drawer_11",
+      "whole": "cabinet_17"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_12",
+      "problems": [],
+      "confidence": 1.0,
+      "reason": "The part drawer_12 is fully contained within cabinet_13, sharing all its faces and touching it along edges, indicating it is a drawer inside the cabinet.",
+      "part": "drawer_12",
+      "whole": "cabinet_13"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_13",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is visually integrated into the kitchen island's structure, sharing a continuous surface and being part of its lower section, as shown in the images.",
+      "part": "drawer_13",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_14",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is visually integrated into the larger structure with a continuous top surface, indicating it is part of the kitchen island.",
+      "part": "drawer_14",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_15",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The part drawer_15 shares all its faces with cabinet_25, indicating it is fully contained within it, and the visual evidence shows drawer_15 as a component of cabinet_25.",
+      "part": "drawer_15",
+      "whole": "cabinet_25"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_16",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is physically attached to the kitchen island with zero distance between surfaces and shares all its faces, indicating it is a part of the island.",
+      "part": "drawer_16",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_17",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The part drawer_17 is visually embedded within cabinet_26, sharing a large number of faces and edges, and is positioned as a drawer inside the cabinet, consistent with the ontology's definition of a drawer being part of a cabinet.",
+      "part": "drawer_17",
+      "whole": "cabinet_26"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_18",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The part shares all its faces with cabinet_27 and touches it along many edges, indicating it is fully contained within cabinet_27.",
+      "part": "drawer_18",
+      "whole": "cabinet_27"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_19",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The part drawer_19 is physically attached to cabinet_6 with zero distance between surfaces and shares 572 faces, indicating it is a component of cabinet_6.",
+      "part": "drawer_19",
+      "whole": "cabinet_6"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_2",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The part is visually integrated into cabinet_6 in the room context, with significant surface sharing and alignment consistent with a drawer within a cabinet.",
+      "part": "drawer_2",
+      "whole": "cabinet_6"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_20",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The part labeled \"drawer\" is visually integrated into the cabinet labeled \"cabinet_22\" with shared faces and edges, and the spatial arrangement shows it as a drawer within the cabinet, consistent with the ontology.",
+      "part": "drawer_20",
+      "whole": "cabinet_22"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_21",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The drawer is fully enclosed by the cabinet's structure, sharing a large surface area and fitting perfectly within its designated space, indicating it is part of cabinet_24.",
+      "part": "drawer_21",
+      "whole": "cabinet_24"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_22",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The part labeled \"drawer\" is visually embedded within the cabinet labeled \"cabinet_15\" in the room view, with direct contact and alignment consistent with a drawer inside a cabinet.",
+      "part": "drawer_22",
+      "whole": "cabinet_15"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_3",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is physically integrated into the kitchen island's structure, with its top surface aligned and flush with the island's countertop, indicating it is a drawer within the island.",
+      "part": "drawer_3",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_4",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is visually integrated into the kitchen island's structure, with its top surface aligned and part of the island's countertop, indicating it is a drawer within the island.",
+      "part": "drawer_4",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_5",
+      "problems": [],
+      "confidence": 0.95,
+      "reason": "The part drawer_5 is fully enclosed within cabinet_8, sharing the majority of its surface area and fitting perfectly into its drawer space, indicating it is a drawer of cabinet_8.",
+      "part": "drawer_5",
+      "whole": "cabinet_8"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_6",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is physically attached to the kitchen island's surface, with its top face aligned and sharing edges with the island, indicating it is part of the island's structure.",
+      "part": "drawer_6",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_7",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is physically integrated into the kitchen island's structure, sharing a large surface area and being part of its lower section, consistent with a drawer in a kitchen island.",
+      "part": "drawer_7",
+      "whole": "kitchen_island_1"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_8",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is visually integrated into the cabinet structure, sharing a continuous surface and being part of the cabinet's drawer system, as confirmed by the visual alignment and spatial relationship in the images.",
+      "part": "drawer_8",
+      "whole": "cabinet_7"
+    },
+    {
+      "kind": "membership",
+      "name": "drawer_9",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The drawer is fully enclosed within the cabinet's structure, sharing all its faces and edges, indicating it is a part of cabinet_15.",
+      "part": "drawer_9",
+      "whole": "cabinet_15"
+    },
+    {
+      "kind": "membership",
+      "name": "handle_18",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle is physically attached to the door in the room's spatial configuration, as shown in Picture 2, where the red handle aligns with the blue door surface.",
+      "part": "handle_18",
+      "whole": "door_20"
+    },
+    {
+      "kind": "membership",
+      "name": "handle_6",
+      "problems": [],
+      "confidence": 0.9,
+      "reason": "The handle is physically attached to the drawer's front face in the room context, with no visual evidence of it being part of a door, and the drawer is the only object that aligns with the handle's position and orientation.",
+      "part": "handle_6",
+      "whole": "drawer_12"
+    }
+  ],
+  "settled": [
+    {
+      "claimants": [
+        "cabinet_5",
+        "door_11"
+      ],
+      "faces": 3779
+    },
+    {
+      "claimants": [
+        "cabinet_11",
+        "door_12"
+      ],
+      "faces": 2484
+    },
+    {
+      "claimants": [
+        "cabinet_14",
+        "door_14"
+      ],
+      "faces": 1750
+    },
+    {
+      "claimants": [
+        "cabinet_18",
+        "door_17"
+      ],
+      "faces": 1631
+    },
+    {
+      "claimants": [
+        "cabinet_5",
+        "door_18"
+      ],
+      "faces": 1038
+    },
+    {
+      "claimants": [
+        "cabinet_6",
+        "drawer_2"
+      ],
+      "faces": 1015
+    },
+    {
+      "claimants": [
+        "door_15",
+        "oven_1"
+      ],
+      "faces": 900
+    },
+    {
+      "claimants": [
+        "cabinet_6",
+        "drawer_19"
+      ],
+      "faces": 572
+    },
+    {
+      "claimants": [
+        "cabinet_27",
+        "drawer_18"
+      ],
+      "faces": 502
+    },
+    {
+      "claimants": [
+        "cabinet_15",
+        "drawer_9"
+      ],
+      "faces": 490
+    },
+    {
+      "claimants": [
+        "cabinet_17",
+        "drawer_11"
+      ],
+      "faces": 468
+    },
+    {
+      "claimants": [
+        "cabinet_24",
+        "door_21"
+      ],
+      "faces": 440
+    },
+    {
+      "claimants": [
+        "cabinet_4",
+        "door_10"
+      ],
+      "faces": 413
+    },
+    {
+      "claimants": [
+        "cabinet_28",
+        "drawer_22"
+      ],
+      "faces": 404
+    },
+    {
+      "claimants": [
+        "cabinet_22",
+        "door_20"
+      ],
+      "faces": 226
+    },
+    {
+      "claimants": [
+        "drawer_1",
+        "kitchen_island_1"
+      ],
+      "faces": 224
+    },
+    {
+      "claimants": [
+        "drawer_16",
+        "kitchen_island_1"
+      ],
+      "faces": 206
+    },
+    {
+      "claimants": [
+        "cabinet_16",
+        "drawer_10"
+      ],
+      "faces": 193
+    },
+    {
+      "claimants": [
+        "cabinet_13",
+        "door_13"
+      ],
+      "faces": 180
+    },
+    {
+      "claimants": [
+        "cabinet_25",
+        "drawer_15"
+      ],
+      "faces": 157
+    },
+    {
+      "claimants": [
+        "drawer_5",
+        "kitchen_island_1"
+      ],
+      "faces": 133
+    },
+    {
+      "claimants": [
+        "drawer_19",
+        "handle_17"
+      ],
+      "faces": 128
+    },
+    {
+      "claimants": [
+        "drawer_3",
+        "kitchen_island_1"
+      ],
+      "faces": 127
+    },
+    {
+      "claimants": [
+        "door_9",
+        "handle_19"
+      ],
+      "faces": 104
+    },
+    {
+      "claimants": [
+        "cabinet_24",
+        "drawer_21"
+      ],
+      "faces": 99
+    },
+    {
+      "claimants": [
+        "cabinet_15",
+        "drawer_22"
+      ],
+      "faces": 85
+    },
+    {
+      "claimants": [
+        "door_1",
+        "handle_28"
+      ],
+      "faces": 70
+    },
+    {
+      "claimants": [
+        "drawer_4",
+        "kitchen_island_1"
+      ],
+      "faces": 69
+    },
+    {
+      "claimants": [
+        "cabinet_13",
+        "drawer_12"
+      ],
+      "faces": 55
+    },
+    {
+      "claimants": [
+        "drawer_6",
+        "kitchen_island_1"
+      ],
+      "faces": 45
+    },
+    {
+      "claimants": [
+        "drawer_22",
+        "handle_25"
+      ],
+      "faces": 39
+    },
+    {
+      "claimants": [
+        "drawer_14",
+        "kitchen_island_1"
+      ],
+      "faces": 37
+    },
+    {
+      "claimants": [
+        "cabinet_10",
+        "drawer_7"
+      ],
+      "faces": 31
+    },
+    {
+      "claimants": [
+        "cabinet_13",
+        "drawer_2"
+      ],
+      "faces": 30
+    },
+    {
+      "claimants": [
+        "cabinet_5",
+        "door_15"
+      ],
+      "faces": 25
+    },
+    {
+      "claimants": [
+        "cabinet_7",
+        "drawer_4"
+      ],
+      "faces": 21
+    },
+    {
+      "claimants": [
+        "cabinet_7",
+        "drawer_8"
+      ],
+      "faces": 18
+    },
+    {
+      "claimants": [
+        "drawer_7",
+        "kitchen_island_1"
+      ],
+      "faces": 17
+    },
+    {
+      "claimants": [
+        "cabinet_14",
+        "drawer_22"
+      ],
+      "faces": 16
+    },
+    {
+      "claimants": [
+        "cabinet_17",
+        "drawer_10"
+      ],
+      "faces": 16
+    },
+    {
+      "claimants": [
+        "cabinet_20",
+        "door_19"
+      ],
+      "faces": 15
+    },
+    {
+      "claimants": [
+        "door_2",
+        "handle_23"
+      ],
+      "faces": 13
+    },
+    {
+      "claimants": [
+        "cabinet_11",
+        "door_18"
+      ],
+      "faces": 11
+    },
+    {
+      "claimants": [
+        "drawer_17",
+        "kitchen_island_1"
+      ],
+      "faces": 11
+    },
+    {
+      "claimants": [
+        "cabinet_6",
+        "drawer_11"
+      ],
+      "faces": 10
+    },
+    {
+      "claimants": [
+        "cabinet_16",
+        "drawer_15"
+      ],
+      "faces": 8
+    },
+    {
+      "claimants": [
+        "door_8",
+        "handle_1"
+      ],
+      "faces": 7
+    },
+    {
+      "claimants": [
+        "cabinet_8",
+        "drawer_5"
+      ],
+      "faces": 6
+    },
+    {
+      "claimants": [
+        "cabinet_14",
+        "door_12"
+      ],
+      "faces": 5
+    },
+    {
+      "claimants": [
+        "cabinet_13",
+        "drawer_10"
+      ],
+      "faces": 5
+    },
+    {
+      "claimants": [
+        "cabinet_14",
+        "door_17"
+      ],
+      "faces": 4
+    },
+    {
+      "claimants": [
+        "cabinet_5",
+        "drawer_22"
+      ],
+      "faces": 4
+    },
+    {
+      "claimants": [
+        "cabinet_18",
+        "door_14"
+      ],
+      "faces": 3
+    },
+    {
+      "claimants": [
+        "cabinet_24",
+        "drawer_20"
+      ],
+      "faces": 3
+    },
+    {
+      "claimants": [
+        "cabinet_5",
+        "door_12"
+      ],
+      "faces": 2
+    },
+    {
+      "claimants": [
+        "cabinet_13",
+        "drawer_11"
+      ],
+      "faces": 2
+    },
+    {
+      "claimants": [
+        "cabinet_17",
+        "drawer_2"
+      ],
+      "faces": 2
+    },
+    {
+      "claimants": [
+        "drawer_13",
+        "kitchen_island_1"
+      ],
+      "faces": 1
+    },
+    {
+      "claimants": [
+        "cabinet_22",
+        "drawer_20"
+      ],
+      "faces": 1
+    },
+    {
+      "claimants": [
+        "drawer_17",
+        "handle_10"
+      ],
+      "faces": 1
+    }
+  ],
+  "forced": [
+    {
+      "part": "door_11",
+      "whole": "cabinet_5",
+      "field": "doors",
+      "shared_faces": 3779,
+      "touching_edges": 5746,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_1",
+      "whole": "door_8",
+      "field": "handle",
+      "shared_faces": 7,
+      "touching_edges": 16,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_10",
+      "whole": "drawer_17",
+      "field": "handle",
+      "shared_faces": 168,
+      "touching_edges": 259,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_11",
+      "whole": "drawer_16",
+      "field": "handle",
+      "shared_faces": 79,
+      "touching_edges": 129,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_12",
+      "whole": "drawer_15",
+      "field": "handle",
+      "shared_faces": 106,
+      "touching_edges": 172,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_13",
+      "whole": "drawer_7",
+      "field": "handle",
+      "shared_faces": 69,
+      "touching_edges": 115,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_14",
+      "whole": "drawer_5",
+      "field": "handle",
+      "shared_faces": 72,
+      "touching_edges": 118,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_15",
+      "whole": "drawer_6",
+      "field": "handle",
+      "shared_faces": 78,
+      "touching_edges": 128,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_16",
+      "whole": "drawer_13",
+      "field": "handle",
+      "shared_faces": 80,
+      "touching_edges": 131,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_17",
+      "whole": "drawer_19",
+      "field": "handle",
+      "shared_faces": 128,
+      "touching_edges": 203,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_19",
+      "whole": "door_9",
+      "field": "handle",
+      "shared_faces": 104,
+      "touching_edges": 169,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_2",
+      "whole": "drawer_1",
+      "field": "handle",
+      "shared_faces": 18,
+      "touching_edges": 35,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_20",
+      "whole": "door_12",
+      "field": "handle",
+      "shared_faces": 6,
+      "touching_edges": 18,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_21",
+      "whole": "drawer_9",
+      "field": "handle",
+      "shared_faces": 33,
+      "touching_edges": 55,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_22",
+      "whole": "drawer_18",
+      "field": "handle",
+      "shared_faces": 146,
+      "touching_edges": 235,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_23",
+      "whole": "door_2",
+      "field": "handle",
+      "shared_faces": 13,
+      "touching_edges": 27,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_24",
+      "whole": "door_17",
+      "field": "handle",
+      "shared_faces": 83,
+      "touching_edges": 134,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_25",
+      "whole": "drawer_22",
+      "field": "handle",
+      "shared_faces": 39,
+      "touching_edges": 66,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_27",
+      "whole": "drawer_2",
+      "field": "handle",
+      "shared_faces": 74,
+      "touching_edges": 126,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_28",
+      "whole": "door_1",
+      "field": "handle",
+      "shared_faces": 70,
+      "touching_edges": 117,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_29",
+      "whole": "drawer_14",
+      "field": "handle",
+      "shared_faces": 71,
+      "touching_edges": 116,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_3",
+      "whole": "door_14",
+      "field": "handle",
+      "shared_faces": 60,
+      "touching_edges": 99,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_30",
+      "whole": "drawer_10",
+      "field": "handle",
+      "shared_faces": 99,
+      "touching_edges": 160,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_4",
+      "whole": "drawer_11",
+      "field": "handle",
+      "shared_faces": 127,
+      "touching_edges": 205,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_5",
+      "whole": "drawer_4",
+      "field": "handle",
+      "shared_faces": 115,
+      "touching_edges": 181,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_7",
+      "whole": "door_19",
+      "field": "handle",
+      "shared_faces": 76,
+      "touching_edges": 123,
+      "distance": 0.0
+    },
+    {
+      "part": "handle_8",
+      "whole": "door_10",
+      "field": "handle",
+      "shared_faces": 79,
+      "touching_edges": 123,
+      "distance": 0.0
+    },
+    {
+      "part": "sink_1",
+      "whole": "countertop_1",
+      "field": "sink",
+      "shared_faces": 0,
+      "touching_edges": 14,
+      "distance": 0.0164
+    }
+  ]
+}

@@ -1,0 +1,7770 @@
+{
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "segments": [
+    {
+      "name": "floor_1",
+      "class": "floor",
+      "instance": 1,
+      "faces": 44607,
+      "exclusive_faces": 44607,
+      "exclusive_share": 1.0,
+      "area": 50.0174,
+      "exclusive_area": 50.0174,
+      "centroid": [
+        0.6773,
+        -0.3913,
+        -3.0902
+      ],
+      "bounding_box": [
+        [
+          -4.8034,
+          -5.5585,
+          -3.5613
+        ],
+        [
+          4.4828,
+          5.118,
+          -2.452
+        ]
+      ],
+      "components": 1,
+      "height": 0.5031
+    },
+    {
+      "name": "ceiling_1",
+      "class": "ceiling",
+      "instance": 1,
+      "faces": 3225,
+      "exclusive_faces": 3225,
+      "exclusive_share": 1.0,
+      "area": 0.9373,
+      "exclusive_area": 0.9373,
+      "centroid": [
+        1.9186,
+        -2.3987,
+        2.5417
+      ],
+      "bounding_box": [
+        [
+          0.8685,
+          -2.7554,
+          2.3941
+        ],
+        [
+          3.8514,
+          -1.8689,
+          2.7478
+        ]
+      ],
+      "components": 1,
+      "height": 6.135
+    },
+    {
+      "name": "ceiling_2",
+      "class": "ceiling",
+      "instance": 2,
+      "faces": 1808,
+      "exclusive_faces": 1808,
+      "exclusive_share": 1.0,
+      "area": 0.662,
+      "exclusive_area": 0.662,
+      "centroid": [
+        -0.5608,
+        -2.0026,
+        2.2964
+      ],
+      "bounding_box": [
+        [
+          -1.4286,
+          -2.5407,
+          2.1776
+        ],
+        [
+          0.3906,
+          -1.5296,
+          2.4878
+        ]
+      ],
+      "components": 1,
+      "height": 5.8898
+    },
+    {
+      "name": "ceiling_3",
+      "class": "ceiling",
+      "instance": 3,
+      "faces": 402,
+      "exclusive_faces": 402,
+      "exclusive_share": 1.0,
+      "area": 0.1141,
+      "exclusive_area": 0.1141,
+      "centroid": [
+        -1.7095,
+        -2.6457,
+        2.4191
+      ],
+      "bounding_box": [
+        [
+          -1.8969,
+          -2.8958,
+          2.3682
+        ],
+        [
+          -1.5304,
+          -2.4439,
+          2.4878
+        ]
+      ],
+      "components": 1,
+      "height": 6.0125
+    },
+    {
+      "name": "ceiling_4",
+      "class": "ceiling",
+      "instance": 4,
+      "faces": 340,
+      "exclusive_faces": 340,
+      "exclusive_share": 1.0,
+      "area": 0.1017,
+      "exclusive_area": 0.1017,
+      "centroid": [
+        -2.387,
+        -3.1977,
+        2.5464
+      ],
+      "bounding_box": [
+        [
+          -2.6285,
+          -3.4055,
+          2.4272
+        ],
+        [
+          -2.1511,
+          -3.0236,
+          2.6677
+        ]
+      ],
+      "components": 1,
+      "height": 6.1398
+    },
+    {
+      "name": "ceiling_5",
+      "class": "ceiling",
+      "instance": 5,
+      "faces": 231,
+      "exclusive_faces": 231,
+      "exclusive_share": 1.0,
+      "area": 0.0751,
+      "exclusive_area": 0.0751,
+      "centroid": [
+        -2.0585,
+        -2.9591,
+        2.4293
+      ],
+      "bounding_box": [
+        [
+          -2.291,
+          -3.094,
+          2.3722
+        ],
+        [
+          -1.782,
+          -2.8454,
+          2.5219
+        ]
+      ],
+      "components": 1,
+      "height": 6.0227
+    },
+    {
+      "name": "ceiling_6",
+      "class": "ceiling",
+      "instance": 6,
+      "faces": 3903,
+      "exclusive_faces": 3903,
+      "exclusive_share": 1.0,
+      "area": 0.9315,
+      "exclusive_area": 0.9315,
+      "centroid": [
+        -3.0343,
+        -1.3487,
+        2.9802
+      ],
+      "bounding_box": [
+        [
+          -3.8063,
+          -2.1932,
+          2.7373
+        ],
+        [
+          -2.0838,
+          0.2995,
+          3.1879
+        ]
+      ],
+      "components": 1,
+      "height": 6.5736
+    },
+    {
+      "name": "ceiling_7",
+      "class": "ceiling",
+      "instance": 7,
+      "faces": 604,
+      "exclusive_faces": 604,
+      "exclusive_share": 1.0,
+      "area": 0.1214,
+      "exclusive_area": 0.1214,
+      "centroid": [
+        -3.7948,
+        0.6425,
+        3.1555
+      ],
+      "bounding_box": [
+        [
+          -4.019,
+          0.2851,
+          3.0931
+        ],
+        [
+          -3.5808,
+          0.9562,
+          3.2124
+        ]
+      ],
+      "components": 1,
+      "height": 6.7489
+    },
+    {
+      "name": "ceiling_8",
+      "class": "ceiling",
+      "instance": 8,
+      "faces": 13072,
+      "exclusive_faces": 13072,
+      "exclusive_share": 1.0,
+      "area": 4.1939,
+      "exclusive_area": 4.1939,
+      "centroid": [
+        -1.9489,
+        -0.1923,
+        2.6496
+      ],
+      "bounding_box": [
+        [
+          -3.0218,
+          -1.2718,
+          2.5647
+        ],
+        [
+          -0.349,
+          1.0481,
+          2.747
+        ]
+      ],
+      "components": 1,
+      "height": 6.243
+    },
+    {
+      "name": "ceiling_9",
+      "class": "ceiling",
+      "instance": 9,
+      "faces": 477,
+      "exclusive_faces": 477,
+      "exclusive_share": 1.0,
+      "area": 0.0917,
+      "exclusive_area": 0.0917,
+      "centroid": [
+        -3.5199,
+        0.3688,
+        3.112
+      ],
+      "bounding_box": [
+        [
+          -3.6592,
+          0.0244,
+          3.0832
+        ],
+        [
+          -3.419,
+          0.6937,
+          3.1408
+        ]
+      ],
+      "components": 1,
+      "height": 6.7054
+    },
+    {
+      "name": "ceiling_10",
+      "class": "ceiling",
+      "instance": 10,
+      "faces": 1398,
+      "exclusive_faces": 1398,
+      "exclusive_share": 1.0,
+      "area": 0.3699,
+      "exclusive_area": 0.3699,
+      "centroid": [
+        0.4863,
+        2.5728,
+        3.1188
+      ],
+      "bounding_box": [
+        [
+          0.081,
+          2.1062,
+          3.0343
+        ],
+        [
+          0.8866,
+          3.0378,
+          3.2185
+        ]
+      ],
+      "components": 1,
+      "height": 6.7122
+    },
+    {
+      "name": "ceiling_11",
+      "class": "ceiling",
+      "instance": 11,
+      "faces": 2296,
+      "exclusive_faces": 2296,
+      "exclusive_share": 1.0,
+      "area": 0.6702,
+      "exclusive_area": 0.6702,
+      "centroid": [
+        1.3211,
+        2.8815,
+        3.089
+      ],
+      "bounding_box": [
+        [
+          0.6498,
+          2.4029,
+          3.0141
+        ],
+        [
+          2.0722,
+          3.3485,
+          3.1779
+        ]
+      ],
+      "components": 1,
+      "height": 6.6824
+    },
+    {
+      "name": "ceiling_12",
+      "class": "ceiling",
+      "instance": 12,
+      "faces": 284,
+      "exclusive_faces": 284,
+      "exclusive_share": 1.0,
+      "area": 0.1511,
+      "exclusive_area": 0.1511,
+      "centroid": [
+        3.1384,
+        3.4363,
+        3.1454
+      ],
+      "bounding_box": [
+        [
+          2.7906,
+          3.3242,
+          3.0352
+        ],
+        [
+          3.4712,
+          3.5567,
+          3.2876
+        ]
+      ],
+      "components": 1,
+      "height": 6.7388
+    },
+    {
+      "name": "ceiling_13",
+      "class": "ceiling",
+      "instance": 13,
+      "faces": 213,
+      "exclusive_faces": 213,
+      "exclusive_share": 1.0,
+      "area": 0.088,
+      "exclusive_area": 0.088,
+      "centroid": [
+        1.0184,
+        3.5483,
+        2.943
+      ],
+      "bounding_box": [
+        [
+          0.841,
+          3.3735,
+          2.8766
+        ],
+        [
+          1.2707,
+          3.7103,
+          3.0086
+        ]
+      ],
+      "components": 1,
+      "height": 6.5364
+    },
+    {
+      "name": "ceiling_14",
+      "class": "ceiling",
+      "instance": 14,
+      "faces": 400,
+      "exclusive_faces": 400,
+      "exclusive_share": 1.0,
+      "area": 0.1316,
+      "exclusive_area": 0.1316,
+      "centroid": [
+        1.5509,
+        3.6753,
+        2.9816
+      ],
+      "bounding_box": [
+        [
+          1.3041,
+          3.508,
+          2.8813
+        ],
+        [
+          1.8488,
+          3.8628,
+          3.0511
+        ]
+      ],
+      "components": 1,
+      "height": 6.575
+    },
+    {
+      "name": "ceiling_15",
+      "class": "ceiling",
+      "instance": 15,
+      "faces": 164,
+      "exclusive_faces": 164,
+      "exclusive_share": 1.0,
+      "area": 0.0634,
+      "exclusive_area": 0.0634,
+      "centroid": [
+        0.5961,
+        3.3004,
+        2.9671
+      ],
+      "bounding_box": [
+        [
+          0.3783,
+          3.2019,
+          2.8959
+        ],
+        [
+          0.8088,
+          3.4322,
+          3.0227
+        ]
+      ],
+      "components": 1,
+      "height": 6.5605
+    },
+    {
+      "name": "ceiling_16",
+      "class": "ceiling",
+      "instance": 16,
+      "faces": 2947,
+      "exclusive_faces": 2947,
+      "exclusive_share": 1.0,
+      "area": 0.6974,
+      "exclusive_area": 0.6974,
+      "centroid": [
+        -1.957,
+        1.1878,
+        3.02
+      ],
+      "bounding_box": [
+        [
+          -2.8592,
+          0.7554,
+          2.7568
+        ],
+        [
+          -1.2327,
+          1.7552,
+          3.3334
+        ]
+      ],
+      "components": 1,
+      "height": 6.6134
+    },
+    {
+      "name": "ceiling_17",
+      "class": "ceiling",
+      "instance": 17,
+      "faces": 352,
+      "exclusive_faces": 352,
+      "exclusive_share": 1.0,
+      "area": 0.1311,
+      "exclusive_area": 0.1311,
+      "centroid": [
+        -0.4683,
+        3.7111,
+        3.0126
+      ],
+      "bounding_box": [
+        [
+          -0.6931,
+          3.4663,
+          2.9049
+        ],
+        [
+          -0.1869,
+          3.9082,
+          3.0997
+        ]
+      ],
+      "components": 1,
+      "height": 6.606
+    },
+    {
+      "name": "ceiling_18",
+      "class": "ceiling",
+      "instance": 18,
+      "faces": 272,
+      "exclusive_faces": 272,
+      "exclusive_share": 1.0,
+      "area": 0.0647,
+      "exclusive_area": 0.0647,
+      "centroid": [
+        -1.8879,
+        1.6289,
+        3.1929
+      ],
+      "bounding_box": [
+        [
+          -2.171,
+          1.4669,
+          3.1295
+        ],
+        [
+          -1.5674,
+          1.8252,
+          3.283
+        ]
+      ],
+      "components": 1,
+      "height": 6.7863
+    },
+    {
+      "name": "ceiling_19",
+      "class": "ceiling",
+      "instance": 19,
+      "faces": 321,
+      "exclusive_faces": 321,
+      "exclusive_share": 1.0,
+      "area": 0.0688,
+      "exclusive_area": 0.0688,
+      "centroid": [
+        -2.5802,
+        -2.4579,
+        2.8183
+      ],
+      "bounding_box": [
+        [
+          -2.7639,
+          -2.7039,
+          2.7342
+        ],
+        [
+          -2.4304,
+          -2.249,
+          2.8844
+        ]
+      ],
+      "components": 1,
+      "height": 6.4117
+    },
+    {
+      "name": "ceiling_20",
+      "class": "ceiling",
+      "instance": 20,
+      "faces": 3024,
+      "exclusive_faces": 3024,
+      "exclusive_share": 1.0,
+      "area": 0.9248,
+      "exclusive_area": 0.9248,
+      "centroid": [
+        -0.9471,
+        -1.3968,
+        2.456
+      ],
+      "bounding_box": [
+        [
+          -2.0332,
+          -1.8185,
+          2.288
+        ],
+        [
+          -0.0233,
+          -1.0602,
+          2.6452
+        ]
+      ],
+      "components": 1,
+      "height": 6.0494
+    },
+    {
+      "name": "ceiling_21",
+      "class": "ceiling",
+      "instance": 21,
+      "faces": 718,
+      "exclusive_faces": 718,
+      "exclusive_share": 1.0,
+      "area": 0.1701,
+      "exclusive_area": 0.1701,
+      "centroid": [
+        -1.3392,
+        1.9492,
+        3.2097
+      ],
+      "bounding_box": [
+        [
+          -1.5805,
+          1.7298,
+          3.1468
+        ],
+        [
+          -1.0704,
+          2.1785,
+          3.2983
+        ]
+      ],
+      "components": 1,
+      "height": 6.8031
+    },
+    {
+      "name": "ceiling_22",
+      "class": "ceiling",
+      "instance": 22,
+      "faces": 204,
+      "exclusive_faces": 204,
+      "exclusive_share": 1.0,
+      "area": 0.0704,
+      "exclusive_area": 0.0704,
+      "centroid": [
+        -0.9698,
+        -0.6092,
+        2.6824
+      ],
+      "bounding_box": [
+        [
+          -1.0946,
+          -0.8871,
+          2.6595
+        ],
+        [
+          -0.8226,
+          -0.3196,
+          2.7139
+        ]
+      ],
+      "components": 1,
+      "height": 6.2758
+    },
+    {
+      "name": "ceiling_23",
+      "class": "ceiling",
+      "instance": 23,
+      "faces": 220,
+      "exclusive_faces": 220,
+      "exclusive_share": 1.0,
+      "area": 0.052,
+      "exclusive_area": 0.052,
+      "centroid": [
+        -1.4701,
+        -1.9466,
+        2.3444
+      ],
+      "bounding_box": [
+        [
+          -1.6528,
+          -2.1177,
+          2.3022
+        ],
+        [
+          -1.2766,
+          -1.8069,
+          2.3975
+        ]
+      ],
+      "components": 1,
+      "height": 5.9377
+    },
+    {
+      "name": "ceiling_24",
+      "class": "ceiling",
+      "instance": 24,
+      "faces": 277,
+      "exclusive_faces": 277,
+      "exclusive_share": 1.0,
+      "area": 0.0615,
+      "exclusive_area": 0.0615,
+      "centroid": [
+        -2.2961,
+        -2.7466,
+        2.584
+      ],
+      "bounding_box": [
+        [
+          -2.5205,
+          -2.9141,
+          2.5097
+        ],
+        [
+          -2.0089,
+          -2.6189,
+          2.6899
+        ]
+      ],
+      "components": 1,
+      "height": 6.1773
+    },
+    {
+      "name": "ceiling_25",
+      "class": "ceiling",
+      "instance": 25,
+      "faces": 481,
+      "exclusive_faces": 481,
+      "exclusive_share": 1.0,
+      "area": 0.1651,
+      "exclusive_area": 0.1651,
+      "centroid": [
+        -2.2694,
+        -3.8382,
+        2.6567
+      ],
+      "bounding_box": [
+        [
+          -2.5019,
+          -4.0825,
+          2.5366
+        ],
+        [
+          -2.009,
+          -3.5982,
+          2.7406
+        ]
+      ],
+      "components": 1,
+      "height": 6.2501
+    },
+    {
+      "name": "ceiling_26",
+      "class": "ceiling",
+      "instance": 26,
+      "faces": 171,
+      "exclusive_faces": 171,
+      "exclusive_share": 1.0,
+      "area": 0.0755,
+      "exclusive_area": 0.0755,
+      "centroid": [
+        -0.8897,
+        -3.2673,
+        2.3084
+      ],
+      "bounding_box": [
+        [
+          -1.0884,
+          -3.4125,
+          2.2493
+        ],
+        [
+          -0.74,
+          -3.1171,
+          2.3761
+        ]
+      ],
+      "components": 1,
+      "height": 5.9018
+    },
+    {
+      "name": "wall_1",
+      "class": "wall",
+      "instance": 1,
+      "faces": 48603,
+      "exclusive_faces": 48603,
+      "exclusive_share": 1.0,
+      "area": 23.7521,
+      "exclusive_area": 23.7521,
+      "centroid": [
+        0.3046,
+        -5.3221,
+        0.352
+      ],
+      "bounding_box": [
+        [
+          -2.5239,
+          -6.1557,
+          -3.516
+        ],
+        [
+          5.2513,
+          -3.736,
+          2.5672
+        ]
+      ],
+      "components": 1,
+      "height": 3.9454
+    },
+    {
+      "name": "wall_2",
+      "class": "wall",
+      "instance": 2,
+      "faces": 855,
+      "exclusive_faces": 855,
+      "exclusive_share": 1.0,
+      "area": 0.8605,
+      "exclusive_area": 0.8605,
+      "centroid": [
+        -4.3384,
+        0.1992,
+        -0.3665
+      ],
+      "bounding_box": [
+        [
+          -4.5175,
+          -0.8065,
+          -0.7914
+        ],
+        [
+          -4.0834,
+          0.8261,
+          0.0049
+        ]
+      ],
+      "components": 1,
+      "height": 3.2269
+    },
+    {
+      "name": "wall_3",
+      "class": "wall",
+      "instance": 3,
+      "faces": 2808,
+      "exclusive_faces": 2808,
+      "exclusive_share": 1.0,
+      "area": 0.8061,
+      "exclusive_area": 0.8061,
+      "centroid": [
+        -2.6145,
+        -5.5216,
+        1.9222
+      ],
+      "bounding_box": [
+        [
+          -2.7458,
+          -6.2458,
+          1.2784
+        ],
+        [
+          -2.4532,
+          -4.9216,
+          2.5283
+        ]
+      ],
+      "components": 1,
+      "height": 5.5156
+    },
+    {
+      "name": "wall_4",
+      "class": "wall",
+      "instance": 4,
+      "faces": 7137,
+      "exclusive_faces": 7137,
+      "exclusive_share": 1.0,
+      "area": 3.9976,
+      "exclusive_area": 3.9976,
+      "centroid": [
+        -2.5325,
+        -5.3596,
+        -0.6444
+      ],
+      "bounding_box": [
+        [
+          -2.8838,
+          -5.9814,
+          -3.4235
+        ],
+        [
+          -2.214,
+          -4.695,
+          2.5576
+        ]
+      ],
+      "components": 1,
+      "height": 2.949
+    },
+    {
+      "name": "wall_5",
+      "class": "wall",
+      "instance": 5,
+      "faces": 2297,
+      "exclusive_faces": 2297,
+      "exclusive_share": 1.0,
+      "area": 0.4922,
+      "exclusive_area": 0.4922,
+      "centroid": [
+        -4.6739,
+        2.0219,
+        2.4016
+      ],
+      "bounding_box": [
+        [
+          -4.8414,
+          1.4929,
+          1.8376
+        ],
+        [
+          -4.5071,
+          2.7078,
+          2.912
+        ]
+      ],
+      "components": 1,
+      "height": 5.9949
+    },
+    {
+      "name": "wall_6",
+      "class": "wall",
+      "instance": 6,
+      "faces": 18814,
+      "exclusive_faces": 18814,
+      "exclusive_share": 1.0,
+      "area": 7.6469,
+      "exclusive_area": 7.6469,
+      "centroid": [
+        -4.3555,
+        0.8938,
+        1.207
+      ],
+      "bounding_box": [
+        [
+          -4.9282,
+          -2.0158,
+          -2.734
+        ],
+        [
+          -3.5381,
+          2.5887,
+          2.7684
+        ]
+      ],
+      "components": 1,
+      "height": 4.8004
+    },
+    {
+      "name": "wall_7",
+      "class": "wall",
+      "instance": 7,
+      "faces": 9231,
+      "exclusive_faces": 9231,
+      "exclusive_share": 1.0,
+      "area": 3.4003,
+      "exclusive_area": 3.4003,
+      "centroid": [
+        -3.3786,
+        -2.8768,
+        1.76
+      ],
+      "bounding_box": [
+        [
+          -4.3142,
+          -4.7011,
+          1.1175
+        ],
+        [
+          -2.8683,
+          0.5925,
+          2.5005
+        ]
+      ],
+      "components": 1,
+      "height": 5.3534
+    },
+    {
+      "name": "wall_8",
+      "class": "wall",
+      "instance": 8,
+      "faces": 10606,
+      "exclusive_faces": 10606,
+      "exclusive_share": 1.0,
+      "area": 7.5696,
+      "exclusive_area": 7.5696,
+      "centroid": [
+        -0.1966,
+        4.6996,
+        0.2333
+      ],
+      "bounding_box": [
+        [
+          -0.908,
+          4.2211,
+          -2.5477
+        ],
+        [
+          0.588,
+          5.2175,
+          3.1576
+        ]
+      ],
+      "components": 1,
+      "height": 3.8267
+    },
+    {
+      "name": "wall_9",
+      "class": "wall",
+      "instance": 9,
+      "faces": 4932,
+      "exclusive_faces": 4932,
+      "exclusive_share": 1.0,
+      "area": 2.7883,
+      "exclusive_area": 2.7883,
+      "centroid": [
+        4.4886,
+        -4.0918,
+        -2.3964
+      ],
+      "bounding_box": [
+        [
+          3.9296,
+          -4.3127,
+          -3.5839
+        ],
+        [
+          5.031,
+          -3.8696,
+          -0.5259
+        ]
+      ],
+      "components": 1,
+      "height": 1.197
+    },
+    {
+      "name": "wall_10",
+      "class": "wall",
+      "instance": 10,
+      "faces": 7095,
+      "exclusive_faces": 7095,
+      "exclusive_share": 1.0,
+      "area": 2.1029,
+      "exclusive_area": 2.1029,
+      "centroid": [
+        -2.5107,
+        -5.8469,
+        -0.1247
+      ],
+      "bounding_box": [
+        [
+          -2.8401,
+          -6.1564,
+          -2.8986
+        ],
+        [
+          -2.1889,
+          -5.1407,
+          1.7288
+        ]
+      ],
+      "components": 1,
+      "height": 3.4687
+    },
+    {
+      "name": "wall_11",
+      "class": "wall",
+      "instance": 11,
+      "faces": 6190,
+      "exclusive_faces": 6190,
+      "exclusive_share": 1.0,
+      "area": 2.9193,
+      "exclusive_area": 2.9193,
+      "centroid": [
+        -4.7277,
+        2.7457,
+        1.8535
+      ],
+      "bounding_box": [
+        [
+          -4.9251,
+          1.867,
+          0.1154
+        ],
+        [
+          -4.5279,
+          3.5329,
+          3.0675
+        ]
+      ],
+      "components": 1,
+      "height": 5.4469
+    },
+    {
+      "name": "wall_12",
+      "class": "wall",
+      "instance": 12,
+      "faces": 1721,
+      "exclusive_faces": 1721,
+      "exclusive_share": 1.0,
+      "area": 0.5299,
+      "exclusive_area": 0.5299,
+      "centroid": [
+        0.3921,
+        4.9368,
+        -1.9177
+      ],
+      "bounding_box": [
+        [
+          -0.0337,
+          4.7781,
+          -2.5355
+        ],
+        [
+          0.7432,
+          5.1243,
+          -1.333
+        ]
+      ],
+      "components": 1,
+      "height": 1.6757
+    },
+    {
+      "name": "wall_13",
+      "class": "wall",
+      "instance": 13,
+      "faces": 903,
+      "exclusive_faces": 903,
+      "exclusive_share": 1.0,
+      "area": 1.2207,
+      "exclusive_area": 1.2207,
+      "centroid": [
+        1.9101,
+        -4.7607,
+        -3.0581
+      ],
+      "bounding_box": [
+        [
+          1.1082,
+          -4.9621,
+          -3.5491
+        ],
+        [
+          2.5754,
+          -4.5451,
+          -2.6114
+        ]
+      ],
+      "components": 1,
+      "height": 0.5353
+    },
+    {
+      "name": "wall_14",
+      "class": "wall",
+      "instance": 14,
+      "faces": 957,
+      "exclusive_faces": 957,
+      "exclusive_share": 1.0,
+      "area": 0.4679,
+      "exclusive_area": 0.4679,
+      "centroid": [
+        2.8642,
+        -4.5369,
+        -3.1143
+      ],
+      "bounding_box": [
+        [
+          2.4989,
+          -4.6464,
+          -3.5681
+        ],
+        [
+          3.2216,
+          -4.4438,
+          -2.6812
+        ]
+      ],
+      "components": 1,
+      "height": 0.4791
+    },
+    {
+      "name": "window_1",
+      "class": "window",
+      "instance": 1,
+      "faces": 32120,
+      "exclusive_faces": 32120,
+      "exclusive_share": 1.0,
+      "area": 15.6494,
+      "exclusive_area": 15.6494,
+      "centroid": [
+        2.0921,
+        -5.2463,
+        -0.9886
+      ],
+      "bounding_box": [
+        [
+          0.028,
+          -5.9158,
+          -2.6245
+        ],
+        [
+          4.121,
+          -4.2905,
+          0.6379
+        ]
+      ],
+      "components": 1,
+      "height": 2.6048
+    },
+    {
+      "name": "window_2",
+      "class": "window",
+      "instance": 2,
+      "faces": 2428,
+      "exclusive_faces": 513,
+      "exclusive_share": 0.2113,
+      "area": 0.4988,
+      "exclusive_area": 0.1009,
+      "centroid": [
+        -3.8922,
+        3.8864,
+        2.9714
+      ],
+      "bounding_box": [
+        [
+          -4.49,
+          3.662,
+          2.6566
+        ],
+        [
+          -3.4071,
+          4.0468,
+          3.1865
+        ]
+      ],
+      "components": 1,
+      "height": 6.5648
+    },
+    {
+      "name": "window_3",
+      "class": "window",
+      "instance": 3,
+      "faces": 3757,
+      "exclusive_faces": 300,
+      "exclusive_share": 0.0799,
+      "area": 1.1435,
+      "exclusive_area": 0.0667,
+      "centroid": [
+        -1.7727,
+        4.3134,
+        2.8009
+      ],
+      "bounding_box": [
+        [
+          -2.4911,
+          4.1051,
+          2.4079
+        ],
+        [
+          -1.0787,
+          4.539,
+          3.1676
+        ]
+      ],
+      "components": 1,
+      "height": 6.3943
+    },
+    {
+      "name": "window_4",
+      "class": "window",
+      "instance": 4,
+      "faces": 1408,
+      "exclusive_faces": 6,
+      "exclusive_share": 0.0043,
+      "area": 0.282,
+      "exclusive_area": 0.0011,
+      "centroid": [
+        -4.0696,
+        4.0365,
+        0.6326
+      ],
+      "bounding_box": [
+        [
+          -4.3931,
+          3.9696,
+          0.2177
+        ],
+        [
+          -3.7875,
+          4.1456,
+          1.1013
+        ]
+      ],
+      "components": 1,
+      "height": 4.226
+    },
+    {
+      "name": "window_5",
+      "class": "window",
+      "instance": 5,
+      "faces": 1696,
+      "exclusive_faces": 116,
+      "exclusive_share": 0.0684,
+      "area": 0.441,
+      "exclusive_area": 0.0242,
+      "centroid": [
+        1.6918,
+        5.2274,
+        2.7043
+      ],
+      "bounding_box": [
+        [
+          1.058,
+          5.009,
+          2.4444
+        ],
+        [
+          2.2762,
+          5.4679,
+          3.0062
+        ]
+      ],
+      "components": 1,
+      "height": 6.2977
+    },
+    {
+      "name": "window_6",
+      "class": "window",
+      "instance": 6,
+      "faces": 390,
+      "exclusive_faces": 21,
+      "exclusive_share": 0.0538,
+      "area": 0.1181,
+      "exclusive_area": 0.0038,
+      "centroid": [
+        1.6907,
+        5.2421,
+        2.3571
+      ],
+      "bounding_box": [
+        [
+          1.035,
+          4.9973,
+          2.2525
+        ],
+        [
+          2.1968,
+          5.4573,
+          2.4432
+        ]
+      ],
+      "components": 1,
+      "height": 5.9505
+    },
+    {
+      "name": "window_7",
+      "class": "window",
+      "instance": 7,
+      "faces": 2110,
+      "exclusive_faces": 16,
+      "exclusive_share": 0.0076,
+      "area": 0.7092,
+      "exclusive_area": 0.0038,
+      "centroid": [
+        1.4557,
+        5.364,
+        1.1345
+      ],
+      "bounding_box": [
+        [
+          0.8748,
+          5.0204,
+          0.7818
+        ],
+        [
+          2.1759,
+          5.6299,
+          1.4172
+        ]
+      ],
+      "components": 1,
+      "height": 4.7279
+    },
+    {
+      "name": "window_8",
+      "class": "window",
+      "instance": 8,
+      "faces": 791,
+      "exclusive_faces": 8,
+      "exclusive_share": 0.0101,
+      "area": 0.1797,
+      "exclusive_area": 0.0013,
+      "centroid": [
+        1.7603,
+        5.7411,
+        0.8263
+      ],
+      "bounding_box": [
+        [
+          1.4807,
+          5.6343,
+          0.5314
+        ],
+        [
+          2.1221,
+          5.8468,
+          1.0059
+        ]
+      ],
+      "components": 1,
+      "height": 4.4197
+    },
+    {
+      "name": "window_9",
+      "class": "window",
+      "instance": 9,
+      "faces": 4463,
+      "exclusive_faces": 1072,
+      "exclusive_share": 0.2402,
+      "area": 1.052,
+      "exclusive_area": 0.1981,
+      "centroid": [
+        -3.7256,
+        3.794,
+        2.7907
+      ],
+      "bounding_box": [
+        [
+          -4.422,
+          3.5845,
+          2.4308
+        ],
+        [
+          -2.9846,
+          4.0123,
+          3.1741
+        ]
+      ],
+      "components": 1,
+      "height": 6.3841
+    },
+    {
+      "name": "window_10",
+      "class": "window",
+      "instance": 10,
+      "faces": 619,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.2337,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.6643,
+        3.9767,
+        1.2971
+      ],
+      "bounding_box": [
+        [
+          -4.0509,
+          3.9054,
+          0.8856
+        ],
+        [
+          -3.2892,
+          4.0817,
+          1.5134
+        ]
+      ],
+      "components": 1,
+      "height": 4.8905
+    },
+    {
+      "name": "window_11",
+      "class": "window",
+      "instance": 11,
+      "faces": 522,
+      "exclusive_faces": 522,
+      "exclusive_share": 1.0,
+      "area": 0.1155,
+      "exclusive_area": 0.1155,
+      "centroid": [
+        1.0815,
+        5.7486,
+        -2.0798
+      ],
+      "bounding_box": [
+        [
+          0.8466,
+          5.6791,
+          -2.2324
+        ],
+        [
+          1.2713,
+          5.814,
+          -1.8491
+        ]
+      ],
+      "components": 1,
+      "height": 1.5136
+    },
+    {
+      "name": "door_1",
+      "class": "door",
+      "instance": 1,
+      "faces": 31472,
+      "exclusive_faces": 28525,
+      "exclusive_share": 0.9064,
+      "area": 7.7353,
+      "exclusive_area": 6.8216,
+      "centroid": [
+        1.6391,
+        5.7532,
+        -0.0909
+      ],
+      "bounding_box": [
+        [
+          0.6706,
+          4.92,
+          -1.937
+        ],
+        [
+          2.4492,
+          6.2461,
+          1.6128
+        ]
+      ],
+      "components": 1,
+      "height": 3.5025
+    },
+    {
+      "name": "door_2",
+      "class": "door",
+      "instance": 2,
+      "faces": 41400,
+      "exclusive_faces": 39357,
+      "exclusive_share": 0.9507,
+      "area": 12.5767,
+      "exclusive_area": 12.0526,
+      "centroid": [
+        -3.9106,
+        4.0857,
+        0.1804
+      ],
+      "bounding_box": [
+        [
+          -4.8815,
+          3.3951,
+          -2.5248
+        ],
+        [
+          -2.7578,
+          4.5295,
+          3.5
+        ]
+      ],
+      "components": 1,
+      "height": 3.7738
+    },
+    {
+      "name": "door_3",
+      "class": "door",
+      "instance": 3,
+      "faces": 1915,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.3979,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.8729,
+        3.8914,
+        2.9728
+      ],
+      "bounding_box": [
+        [
+          -4.4692,
+          3.6624,
+          2.6721
+        ],
+        [
+          -3.4126,
+          4.0393,
+          3.1725
+        ]
+      ],
+      "components": 1,
+      "height": 6.5662
+    },
+    {
+      "name": "door_4",
+      "class": "door",
+      "instance": 4,
+      "faces": 1343,
+      "exclusive_faces": 1343,
+      "exclusive_share": 1.0,
+      "area": 0.3834,
+      "exclusive_area": 0.3834,
+      "centroid": [
+        -2.0693,
+        4.2002,
+        -1.6231
+      ],
+      "bounding_box": [
+        [
+          -2.4302,
+          3.9322,
+          -1.9999
+        ],
+        [
+          -1.6187,
+          4.3779,
+          -1.2142
+        ]
+      ],
+      "components": 1,
+      "height": 1.9703
+    },
+    {
+      "name": "door_5",
+      "class": "door",
+      "instance": 5,
+      "faces": 2036,
+      "exclusive_faces": 2036,
+      "exclusive_share": 1.0,
+      "area": 0.6168,
+      "exclusive_area": 0.6168,
+      "centroid": [
+        -2.2227,
+        4.1743,
+        -0.8628
+      ],
+      "bounding_box": [
+        [
+          -2.7415,
+          3.9592,
+          -1.2762
+        ],
+        [
+          -1.6332,
+          4.3811,
+          -0.4708
+        ]
+      ],
+      "components": 1,
+      "height": 2.7305
+    },
+    {
+      "name": "door_6",
+      "class": "door",
+      "instance": 6,
+      "faces": 5276,
+      "exclusive_faces": 3327,
+      "exclusive_share": 0.6306,
+      "area": 2.238,
+      "exclusive_area": 1.7069,
+      "centroid": [
+        1.6241,
+        5.2337,
+        2.3338
+      ],
+      "bounding_box": [
+        [
+          0.7308,
+          4.9229,
+          1.4878
+        ],
+        [
+          2.5896,
+          5.563,
+          2.9911
+        ]
+      ],
+      "components": 1,
+      "height": 5.9272
+    },
+    {
+      "name": "door_7",
+      "class": "door",
+      "instance": 7,
+      "faces": 665,
+      "exclusive_faces": 665,
+      "exclusive_share": 1.0,
+      "area": 0.2844,
+      "exclusive_area": 0.2844,
+      "centroid": [
+        2.6968,
+        5.5936,
+        2.0532
+      ],
+      "bounding_box": [
+        [
+          2.4825,
+          5.51,
+          1.375
+        ],
+        [
+          2.8718,
+          5.671,
+          2.5297
+        ]
+      ],
+      "components": 1,
+      "height": 5.6466
+    },
+    {
+      "name": "door_8",
+      "class": "door",
+      "instance": 8,
+      "faces": 1298,
+      "exclusive_faces": 1291,
+      "exclusive_share": 0.9946,
+      "area": 0.5002,
+      "exclusive_area": 0.497,
+      "centroid": [
+        2.6597,
+        5.697,
+        0.6498
+      ],
+      "bounding_box": [
+        [
+          2.4469,
+          5.6214,
+          -0.469
+        ],
+        [
+          2.821,
+          5.815,
+          1.6077
+        ]
+      ],
+      "components": 1,
+      "height": 4.2432
+    },
+    {
+      "name": "door_9",
+      "class": "door",
+      "instance": 9,
+      "faces": 24587,
+      "exclusive_faces": 21026,
+      "exclusive_share": 0.8552,
+      "area": 11.7277,
+      "exclusive_area": 10.6037,
+      "centroid": [
+        -1.8534,
+        4.5715,
+        0.2753
+      ],
+      "bounding_box": [
+        [
+          -2.9397,
+          4.0416,
+          -2.5158
+        ],
+        [
+          -0.8881,
+          5.051,
+          3.1638
+        ]
+      ],
+      "components": 1,
+      "height": 3.8687
+    },
+    {
+      "name": "door_10",
+      "class": "door",
+      "instance": 10,
+      "faces": 3800,
+      "exclusive_faces": 2,
+      "exclusive_share": 0.0005,
+      "area": 1.9822,
+      "exclusive_area": 0.0011,
+      "centroid": [
+        -0.2845,
+        2.8906,
+        -1.8706
+      ],
+      "bounding_box": [
+        [
+          -0.4601,
+          2.1282,
+          -2.7071
+        ],
+        [
+          -0.1106,
+          3.4859,
+          -0.9774
+        ]
+      ],
+      "components": 1,
+      "height": 1.7228
+    },
+    {
+      "name": "door_11",
+      "class": "door",
+      "instance": 11,
+      "faces": 3779,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 3.6685,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.0675,
+        -4.2107,
+        -1.623
+      ],
+      "bounding_box": [
+        [
+          -2.2904,
+          -4.8329,
+          -3.3135
+        ],
+        [
+          -1.8357,
+          -3.5751,
+          0.382
+        ]
+      ],
+      "components": 1,
+      "height": 1.9704
+    },
+    {
+      "name": "door_12",
+      "class": "door",
+      "instance": 12,
+      "faces": 2497,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.8739,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.2436,
+        -3.23,
+        0.4318
+      ],
+      "bounding_box": [
+        [
+          -2.4805,
+          -3.7798,
+          -0.591
+        ],
+        [
+          -2.084,
+          -2.4614,
+          1.1773
+        ]
+      ],
+      "components": 1,
+      "height": 4.0252
+    },
+    {
+      "name": "door_13",
+      "class": "door",
+      "instance": 13,
+      "faces": 1854,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.9656,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.941,
+        -1.051,
+        -2.0506
+      ],
+      "bounding_box": [
+        [
+          -3.1308,
+          -1.6863,
+          -2.9715
+        ],
+        [
+          -2.7478,
+          -0.4459,
+          -1.2052
+        ]
+      ],
+      "components": 1,
+      "height": 1.5428
+    },
+    {
+      "name": "door_14",
+      "class": "door",
+      "instance": 14,
+      "faces": 1825,
+      "exclusive_faces": 12,
+      "exclusive_share": 0.0066,
+      "area": 2.663,
+      "exclusive_area": 0.0162,
+      "centroid": [
+        -2.6518,
+        -2.0647,
+        -1.6917
+      ],
+      "bounding_box": [
+        [
+          -2.8414,
+          -2.571,
+          -3.0624
+        ],
+        [
+          -2.4274,
+          -1.5734,
+          0.5037
+        ]
+      ],
+      "components": 1,
+      "height": 1.9017
+    },
+    {
+      "name": "door_15",
+      "class": "door",
+      "instance": 15,
+      "faces": 988,
+      "exclusive_faces": 63,
+      "exclusive_share": 0.0638,
+      "area": 1.1625,
+      "exclusive_area": 0.0562,
+      "centroid": [
+        -2.3674,
+        -3.0523,
+        -1.2879
+      ],
+      "bounding_box": [
+        [
+          -2.5617,
+          -3.6596,
+          -1.8077
+        ],
+        [
+          -2.1965,
+          -2.3859,
+          -0.722
+        ]
+      ],
+      "components": 1,
+      "height": 2.3055
+    },
+    {
+      "name": "door_16",
+      "class": "door",
+      "instance": 16,
+      "faces": 3528,
+      "exclusive_faces": 146,
+      "exclusive_share": 0.0414,
+      "area": 0.8906,
+      "exclusive_area": 0.0406,
+      "centroid": [
+        -3.6749,
+        3.8041,
+        2.763
+      ],
+      "bounding_box": [
+        [
+          -4.4201,
+          3.5787,
+          2.4269
+        ],
+        [
+          -2.966,
+          4.0797,
+          3.1905
+        ]
+      ],
+      "components": 1,
+      "height": 6.3564
+    },
+    {
+      "name": "door_17",
+      "class": "door",
+      "instance": 17,
+      "faces": 1743,
+      "exclusive_faces": 25,
+      "exclusive_share": 0.0143,
+      "area": 3.2489,
+      "exclusive_area": 0.0143,
+      "centroid": [
+        -2.8233,
+        -1.1404,
+        0.1132
+      ],
+      "bounding_box": [
+        [
+          -3.0528,
+          -1.9116,
+          -1.3489
+        ],
+        [
+          -2.5828,
+          -0.4941,
+          1.4123
+        ]
+      ],
+      "components": 1,
+      "height": 3.7066
+    },
+    {
+      "name": "door_18",
+      "class": "door",
+      "instance": 18,
+      "faces": 1426,
+      "exclusive_faces": 377,
+      "exclusive_share": 0.2644,
+      "area": 0.9345,
+      "exclusive_area": 0.2282,
+      "centroid": [
+        -1.9683,
+        -4.2328,
+        0.7852
+      ],
+      "bounding_box": [
+        [
+          -2.112,
+          -4.9004,
+          0.1378
+        ],
+        [
+          -1.8189,
+          -3.7154,
+          1.1144
+        ]
+      ],
+      "components": 1,
+      "height": 4.3786
+    },
+    {
+      "name": "door_19",
+      "class": "door",
+      "instance": 19,
+      "faces": 1707,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.9394,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -0.002,
+        1.7944,
+        -2.0061
+      ],
+      "bounding_box": [
+        [
+          -0.1384,
+          1.029,
+          -2.7715
+        ],
+        [
+          0.1819,
+          2.369,
+          -1.0789
+        ]
+      ],
+      "components": 1,
+      "height": 1.5873
+    },
+    {
+      "name": "door_20",
+      "class": "door",
+      "instance": 20,
+      "faces": 1731,
+      "exclusive_faces": 6,
+      "exclusive_share": 0.0035,
+      "area": 1.454,
+      "exclusive_area": 0.0017,
+      "centroid": [
+        -3.6036,
+        0.0763,
+        0.4295
+      ],
+      "bounding_box": [
+        [
+          -3.9416,
+          -0.685,
+          -0.126
+        ],
+        [
+          -3.3493,
+          1.2396,
+          0.8428
+        ]
+      ],
+      "components": 1,
+      "height": 4.0228
+    },
+    {
+      "name": "door_21",
+      "class": "door",
+      "instance": 21,
+      "faces": 1620,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.0026,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.5729,
+        0.0551,
+        1.0293
+      ],
+      "bounding_box": [
+        [
+          -3.8872,
+          -0.796,
+          0.6431
+        ],
+        [
+          -3.3389,
+          1.1206,
+          1.4436
+        ]
+      ],
+      "components": 1,
+      "height": 4.6227
+    },
+    {
+      "name": "lamp_1",
+      "class": "lamp",
+      "instance": 1,
+      "faces": 504,
+      "exclusive_faces": 504,
+      "exclusive_share": 1.0,
+      "area": 0.2309,
+      "exclusive_area": 0.2309,
+      "centroid": [
+        2.7141,
+        2.7076,
+        2.4546
+      ],
+      "bounding_box": [
+        [
+          2.1116,
+          2.4998,
+          2.2925
+        ],
+        [
+          3.2908,
+          2.9059,
+          2.6514
+        ]
+      ],
+      "components": 1,
+      "height": 6.048
+    },
+    {
+      "name": "lamp_2",
+      "class": "lamp",
+      "instance": 2,
+      "faces": 122,
+      "exclusive_faces": 122,
+      "exclusive_share": 1.0,
+      "area": 0.043,
+      "exclusive_area": 0.043,
+      "centroid": [
+        -0.5379,
+        -2.0304,
+        2.0452
+      ],
+      "bounding_box": [
+        [
+          -0.7015,
+          -2.1395,
+          1.9979
+        ],
+        [
+          -0.3877,
+          -1.9229,
+          2.116
+        ]
+      ],
+      "components": 1,
+      "height": 5.6386
+    },
+    {
+      "name": "kitchen_island_1",
+      "class": "kitchen_island",
+      "instance": 1,
+      "faces": 27501,
+      "exclusive_faces": 8950,
+      "exclusive_share": 0.3254,
+      "area": 30.6953,
+      "exclusive_area": 10.6182,
+      "centroid": [
+        1.1584,
+        0.0859,
+        -1.9056
+      ],
+      "bounding_box": [
+        [
+          -0.4572,
+          -2.7992,
+          -3.3605
+        ],
+        [
+          3.0834,
+          3.6938,
+          -0.8989
+        ]
+      ],
+      "components": 1,
+      "height": 1.6878
+    },
+    {
+      "name": "countertop_1",
+      "class": "countertop",
+      "instance": 1,
+      "faces": 8157,
+      "exclusive_faces": 1054,
+      "exclusive_share": 0.1292,
+      "area": 10.5574,
+      "exclusive_area": 0.7698,
+      "centroid": [
+        1.4996,
+        0.7749,
+        -1.2068
+      ],
+      "bounding_box": [
+        [
+          -0.4145,
+          -2.7868,
+          -1.6256
+        ],
+        [
+          3.0834,
+          3.8391,
+          -0.9001
+        ]
+      ],
+      "components": 1,
+      "height": 2.3866
+    },
+    {
+      "name": "countertop_2",
+      "class": "countertop",
+      "instance": 2,
+      "faces": 1753,
+      "exclusive_faces": 1737,
+      "exclusive_share": 0.9909,
+      "area": 1.5952,
+      "exclusive_area": 1.5853,
+      "centroid": [
+        -3.5926,
+        0.379,
+        -1.0241
+      ],
+      "bounding_box": [
+        [
+          -4.4309,
+          -0.6545,
+          -1.1734
+        ],
+        [
+          -3.0263,
+          1.5396,
+          -0.9109
+        ]
+      ],
+      "components": 1,
+      "height": 2.5693
+    },
+    {
+      "name": "table_1",
+      "class": "table",
+      "instance": 1,
+      "faces": 514,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.5786,
+      "exclusive_area": 0.0,
+      "centroid": [
+        1.5466,
+        -2.6473,
+        -1.5794
+      ],
+      "bounding_box": [
+        [
+          1.1149,
+          -2.7992,
+          -2.0268
+        ],
+        [
+          2.1547,
+          -2.4074,
+          -1.4784
+        ]
+      ],
+      "components": 1,
+      "height": 2.014
+    },
+    {
+      "name": "cabinet_1",
+      "class": "cabinet",
+      "instance": 1,
+      "faces": 545,
+      "exclusive_faces": 545,
+      "exclusive_share": 1.0,
+      "area": 0.2256,
+      "exclusive_area": 0.2256,
+      "centroid": [
+        -2.5593,
+        -4.8088,
+        -2.3747
+      ],
+      "bounding_box": [
+        [
+          -2.6509,
+          -4.9319,
+          -3.0625
+        ],
+        [
+          -2.3563,
+          -4.7333,
+          -1.5072
+        ]
+      ],
+      "components": 1,
+      "height": 1.2187
+    },
+    {
+      "name": "cabinet_2",
+      "class": "cabinet",
+      "instance": 2,
+      "faces": 960,
+      "exclusive_faces": 960,
+      "exclusive_share": 1.0,
+      "area": 0.8361,
+      "exclusive_area": 0.8361,
+      "centroid": [
+        -2.2523,
+        -4.9322,
+        -0.428
+      ],
+      "bounding_box": [
+        [
+          -2.5599,
+          -5.0862,
+          -1.4035
+        ],
+        [
+          -1.9541,
+          -4.814,
+          0.5677
+        ]
+      ],
+      "components": 1,
+      "height": 3.1654
+    },
+    {
+      "name": "cabinet_3",
+      "class": "cabinet",
+      "instance": 3,
+      "faces": 841,
+      "exclusive_faces": 841,
+      "exclusive_share": 1.0,
+      "area": 0.3028,
+      "exclusive_area": 0.3028,
+      "centroid": [
+        -2.2194,
+        -5.0349,
+        0.7882
+      ],
+      "bounding_box": [
+        [
+          -2.6991,
+          -5.1956,
+          0.4658
+        ],
+        [
+          -1.8189,
+          -4.8471,
+          1.0395
+        ]
+      ],
+      "components": 1,
+      "height": 4.3816
+    },
+    {
+      "name": "cabinet_4",
+      "class": "cabinet",
+      "instance": 4,
+      "faces": 3839,
+      "exclusive_faces": 27,
+      "exclusive_share": 0.007,
+      "area": 1.997,
+      "exclusive_area": 0.0109,
+      "centroid": [
+        -0.2851,
+        2.892,
+        -1.8676
+      ],
+      "bounding_box": [
+        [
+          -0.4651,
+          2.1282,
+          -2.7237
+        ],
+        [
+          -0.1106,
+          3.4916,
+          -0.9774
+        ]
+      ],
+      "components": 1,
+      "height": 1.7257
+    },
+    {
+      "name": "cabinet_5",
+      "class": "cabinet",
+      "instance": 5,
+      "faces": 5694,
+      "exclusive_faces": 846,
+      "exclusive_share": 0.1486,
+      "area": 5.0868,
+      "exclusive_area": 0.6742,
+      "centroid": [
+        -2.0549,
+        -4.1974,
+        -1.1552
+      ],
+      "bounding_box": [
+        [
+          -2.324,
+          -4.933,
+          -3.3329
+        ],
+        [
+          -1.8273,
+          -3.4501,
+          1.1144
+        ]
+      ],
+      "components": 1,
+      "height": 2.4382
+    },
+    {
+      "name": "cabinet_6",
+      "class": "cabinet",
+      "instance": 6,
+      "faces": 1682,
+      "exclusive_faces": 11,
+      "exclusive_share": 0.0065,
+      "area": 1.3078,
+      "exclusive_area": 0.0039,
+      "centroid": [
+        -3.3607,
+        0.4726,
+        -2.4282
+      ],
+      "bounding_box": [
+        [
+          -3.65,
+          -0.4518,
+          -2.8539
+        ],
+        [
+          -3.1059,
+          1.5262,
+          -1.8795
+        ]
+      ],
+      "components": 1,
+      "height": 1.1652
+    },
+    {
+      "name": "cabinet_7",
+      "class": "cabinet",
+      "instance": 7,
+      "faces": 869,
+      "exclusive_faces": 7,
+      "exclusive_share": 0.0081,
+      "area": 0.9212,
+      "exclusive_area": 0.0012,
+      "centroid": [
+        0.9185,
+        -1.8317,
+        -2.0005
+      ],
+      "bounding_box": [
+        [
+          0.6673,
+          -2.6432,
+          -2.3728
+        ],
+        [
+          1.1334,
+          -0.8303,
+          -1.6091
+        ]
+      ],
+      "components": 1,
+      "height": 1.5929
+    },
+    {
+      "name": "cabinet_8",
+      "class": "cabinet",
+      "instance": 8,
+      "faces": 1589,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.4305,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.8884,
+        -1.6607,
+        -2.7203
+      ],
+      "bounding_box": [
+        [
+          0.6585,
+          -2.5229,
+          -3.1611
+        ],
+        [
+          1.1138,
+          -0.7618,
+          -2.1435
+        ]
+      ],
+      "components": 1,
+      "height": 0.8731
+    },
+    {
+      "name": "cabinet_9",
+      "class": "cabinet",
+      "instance": 9,
+      "faces": 407,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.5624,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5681,
+        -0.4077,
+        -2.5958
+      ],
+      "bounding_box": [
+        [
+          0.4595,
+          -0.8272,
+          -3.0079
+        ],
+        [
+          0.673,
+          0.0317,
+          -2.1188
+        ]
+      ],
+      "components": 1,
+      "height": 0.9976
+    },
+    {
+      "name": "cabinet_10",
+      "class": "cabinet",
+      "instance": 10,
+      "faces": 908,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.9999,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3268,
+        0.5461,
+        -2.4758
+      ],
+      "bounding_box": [
+        [
+          0.1617,
+          -0.0622,
+          -2.9175
+        ],
+        [
+          0.4738,
+          1.2153,
+          -1.992
+        ]
+      ],
+      "components": 1,
+      "height": 1.1175
+    },
+    {
+      "name": "cabinet_11",
+      "class": "cabinet",
+      "instance": 11,
+      "faces": 2713,
+      "exclusive_faces": 164,
+      "exclusive_share": 0.0604,
+      "area": 2.0326,
+      "exclusive_area": 0.1416,
+      "centroid": [
+        -2.2481,
+        -3.2148,
+        0.4157
+      ],
+      "bounding_box": [
+        [
+          -2.4805,
+          -3.7725,
+          -0.591
+        ],
+        [
+          -2.0858,
+          -2.4804,
+          1.2057
+        ]
+      ],
+      "components": 1,
+      "height": 4.0091
+    },
+    {
+      "name": "cabinet_12",
+      "class": "cabinet",
+      "instance": 12,
+      "faces": 759,
+      "exclusive_faces": 759,
+      "exclusive_share": 1.0,
+      "area": 0.534,
+      "exclusive_area": 0.534,
+      "centroid": [
+        -4.1127,
+        1.4492,
+        -1.9863
+      ],
+      "bounding_box": [
+        [
+          -4.4716,
+          1.3535,
+          -2.696
+        ],
+        [
+          -3.7092,
+          1.534,
+          -1.2833
+        ]
+      ],
+      "components": 1,
+      "height": 1.6071
+    },
+    {
+      "name": "cabinet_13",
+      "class": "cabinet",
+      "instance": 13,
+      "faces": 2117,
+      "exclusive_faces": 171,
+      "exclusive_share": 0.0808,
+      "area": 2.1171,
+      "exclusive_area": 0.0603,
+      "centroid": [
+        -2.9517,
+        -1.0301,
+        -2.1231
+      ],
+      "bounding_box": [
+        [
+          -3.1697,
+          -1.6863,
+          -2.9932
+        ],
+        [
+          -2.7478,
+          -0.3779,
+          -1.2052
+        ]
+      ],
+      "components": 1,
+      "height": 1.4703
+    },
+    {
+      "name": "cabinet_14",
+      "class": "cabinet",
+      "instance": 14,
+      "faces": 2166,
+      "exclusive_faces": 331,
+      "exclusive_share": 0.1528,
+      "area": 3.22,
+      "exclusive_area": 0.5527,
+      "centroid": [
+        -2.6401,
+        -2.0869,
+        -1.5343
+      ],
+      "bounding_box": [
+        [
+          -2.8414,
+          -2.5717,
+          -3.078
+        ],
+        [
+          -2.4011,
+          -1.5734,
+          1.2211
+        ]
+      ],
+      "components": 1,
+      "height": 2.0591
+    },
+    {
+      "name": "cabinet_15",
+      "class": "cabinet",
+      "instance": 15,
+      "faces": 646,
+      "exclusive_faces": 38,
+      "exclusive_share": 0.0588,
+      "area": 0.7274,
+      "exclusive_area": 0.0332,
+      "centroid": [
+        -2.3892,
+        -3.0851,
+        -2.0431
+      ],
+      "bounding_box": [
+        [
+          -2.5821,
+          -3.5483,
+          -2.6756
+        ],
+        [
+          -2.258,
+          -2.3723,
+          -1.6537
+        ]
+      ],
+      "components": 1,
+      "height": 1.5503
+    },
+    {
+      "name": "cabinet_16",
+      "class": "cabinet",
+      "instance": 16,
+      "faces": 300,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.266,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.1998,
+        0.1724,
+        -1.244
+      ],
+      "bounding_box": [
+        [
+          -3.3511,
+          -0.2923,
+          -1.4307
+        ],
+        [
+          -3.0995,
+          0.7329,
+          -1.0748
+        ]
+      ],
+      "components": 1,
+      "height": 2.3494
+    },
+    {
+      "name": "cabinet_17",
+      "class": "cabinet",
+      "instance": 17,
+      "faces": 613,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.5785,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.1939,
+        0.0296,
+        -1.6151
+      ],
+      "bounding_box": [
+        [
+          -3.3329,
+          -0.5099,
+          -2.0378
+        ],
+        [
+          -3.0698,
+          0.6121,
+          -1.2798
+        ]
+      ],
+      "components": 1,
+      "height": 1.9783
+    },
+    {
+      "name": "cabinet_18",
+      "class": "cabinet",
+      "instance": 18,
+      "faces": 1781,
+      "exclusive_faces": 64,
+      "exclusive_share": 0.0359,
+      "area": 3.311,
+      "exclusive_area": 0.0738,
+      "centroid": [
+        -2.8205,
+        -1.1481,
+        0.1297
+      ],
+      "bounding_box": [
+        [
+          -3.0528,
+          -1.9521,
+          -1.3489
+        ],
+        [
+          -2.5636,
+          -0.4941,
+          1.386
+        ]
+      ],
+      "components": 1,
+      "height": 3.7231
+    },
+    {
+      "name": "cabinet_19",
+      "class": "cabinet",
+      "instance": 19,
+      "faces": 502,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.6483,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3253,
+        0.4934,
+        -1.7533
+      ],
+      "bounding_box": [
+        [
+          0.1687,
+          -0.094,
+          -2.1346
+        ],
+        [
+          0.4819,
+          1.1062,
+          -1.4091
+        ]
+      ],
+      "components": 1,
+      "height": 1.8401
+    },
+    {
+      "name": "cabinet_20",
+      "class": "cabinet",
+      "instance": 20,
+      "faces": 1775,
+      "exclusive_faces": 2,
+      "exclusive_share": 0.0011,
+      "area": 2.0,
+      "exclusive_area": 0.0014,
+      "centroid": [
+        -0.0006,
+        1.791,
+        -2.0249
+      ],
+      "bounding_box": [
+        [
+          -0.1446,
+          1.0005,
+          -2.8169
+        ],
+        [
+          0.1899,
+          2.3981,
+          -1.0789
+        ]
+      ],
+      "components": 1,
+      "height": 1.5685
+    },
+    {
+      "name": "cabinet_21",
+      "class": "cabinet",
+      "instance": 21,
+      "faces": 290,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.2915,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3246,
+        0.4619,
+        -1.3759
+      ],
+      "bounding_box": [
+        [
+          0.1796,
+          -0.0669,
+          -1.5866
+        ],
+        [
+          0.4715,
+          1.0338,
+          -1.2038
+        ]
+      ],
+      "components": 1,
+      "height": 2.2175
+    },
+    {
+      "name": "cabinet_22",
+      "class": "cabinet",
+      "instance": 22,
+      "faces": 2011,
+      "exclusive_faces": 278,
+      "exclusive_share": 0.1382,
+      "area": 1.722,
+      "exclusive_area": 0.2662,
+      "centroid": [
+        -3.636,
+        0.1721,
+        0.3892
+      ],
+      "bounding_box": [
+        [
+          -4.0783,
+          -0.685,
+          -0.1467
+        ],
+        [
+          -3.331,
+          1.2981,
+          0.8446
+        ]
+      ],
+      "components": 1,
+      "height": 3.9826
+    },
+    {
+      "name": "cabinet_23",
+      "class": "cabinet",
+      "instance": 23,
+      "faces": 524,
+      "exclusive_faces": 524,
+      "exclusive_share": 1.0,
+      "area": 0.4353,
+      "exclusive_area": 0.4353,
+      "centroid": [
+        -3.1661,
+        -0.7016,
+        0.9033
+      ],
+      "bounding_box": [
+        [
+          -3.3833,
+          -0.8241,
+          0.0466
+        ],
+        [
+          -2.9991,
+          -0.5921,
+          1.4593
+        ]
+      ],
+      "components": 1,
+      "height": 4.4967
+    },
+    {
+      "name": "cabinet_24",
+      "class": "cabinet",
+      "instance": 24,
+      "faces": 2534,
+      "exclusive_faces": 796,
+      "exclusive_share": 0.3141,
+      "area": 1.4996,
+      "exclusive_area": 0.4372,
+      "centroid": [
+        -3.5948,
+        0.1511,
+        1.1334
+      ],
+      "bounding_box": [
+        [
+          -3.8942,
+          -0.8115,
+          0.6431
+        ],
+        [
+          -3.3054,
+          1.1375,
+          1.5821
+        ]
+      ],
+      "components": 1,
+      "height": 4.7268
+    },
+    {
+      "name": "cabinet_25",
+      "class": "cabinet",
+      "instance": 25,
+      "faces": 267,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.1983,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.4244,
+        1.0849,
+        -1.1449
+      ],
+      "bounding_box": [
+        [
+          -3.5184,
+          0.6988,
+          -1.3549
+        ],
+        [
+          -3.3415,
+          1.3815,
+          -1.0006
+        ]
+      ],
+      "components": 1,
+      "height": 2.4485
+    },
+    {
+      "name": "cabinet_26",
+      "class": "cabinet",
+      "instance": 26,
+      "faces": 568,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.5029,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5687,
+        -0.4683,
+        -1.8435
+      ],
+      "bounding_box": [
+        [
+          0.4599,
+          -0.901,
+          -2.2651
+        ],
+        [
+          0.6793,
+          -0.0134,
+          -1.5909
+        ]
+      ],
+      "components": 1,
+      "height": 1.7499
+    },
+    {
+      "name": "cabinet_27",
+      "class": "cabinet",
+      "instance": 27,
+      "faces": 648,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.4146,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.4569,
+        1.0851,
+        -1.5272
+      ],
+      "bounding_box": [
+        [
+          -3.5795,
+          0.6903,
+          -1.8586
+        ],
+        [
+          -3.3577,
+          1.4908,
+          -1.284
+        ]
+      ],
+      "components": 1,
+      "height": 2.0662
+    },
+    {
+      "name": "cabinet_28",
+      "class": "cabinet",
+      "instance": 28,
+      "faces": 410,
+      "exclusive_faces": 6,
+      "exclusive_share": 0.0146,
+      "area": 0.5469,
+      "exclusive_area": 0.0055,
+      "centroid": [
+        -2.45,
+        -2.9745,
+        -2.7955
+      ],
+      "bounding_box": [
+        [
+          -2.5912,
+          -3.5103,
+          -3.1307
+        ],
+        [
+          -2.3014,
+          -2.471,
+          -2.3898
+        ]
+      ],
+      "components": 1,
+      "height": 0.7979
+    },
+    {
+      "name": "cabinet_29",
+      "class": "cabinet",
+      "instance": 29,
+      "faces": 459,
+      "exclusive_faces": 459,
+      "exclusive_share": 1.0,
+      "area": 0.2478,
+      "exclusive_area": 0.2478,
+      "centroid": [
+        -4.2563,
+        1.3571,
+        -1.4245
+      ],
+      "bounding_box": [
+        [
+          -4.5581,
+          1.2962,
+          -1.6827
+        ],
+        [
+          -3.8529,
+          1.4433,
+          -1.1205
+        ]
+      ],
+      "components": 1,
+      "height": 2.1689
+    },
+    {
+      "name": "drawer_1",
+      "class": "drawer",
+      "instance": 1,
+      "faces": 244,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.21,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.7857,
+        -1.3255,
+        -1.5422
+      ],
+      "bounding_box": [
+        [
+          0.6856,
+          -1.8269,
+          -1.7292
+        ],
+        [
+          0.8983,
+          -0.909,
+          -1.3762
+        ]
+      ],
+      "components": 1,
+      "height": 2.0512
+    },
+    {
+      "name": "drawer_2",
+      "class": "drawer",
+      "instance": 2,
+      "faces": 1149,
+      "exclusive_faces": 28,
+      "exclusive_share": 0.0244,
+      "area": 0.9956,
+      "exclusive_area": 0.0354,
+      "centroid": [
+        -3.2579,
+        0.0895,
+        -2.4002
+      ],
+      "bounding_box": [
+        [
+          -3.4434,
+          -0.4863,
+          -2.8436
+        ],
+        [
+          -3.0983,
+          0.7506,
+          -1.8795
+        ]
+      ],
+      "components": 1,
+      "height": 1.1932
+    },
+    {
+      "name": "drawer_3",
+      "class": "drawer",
+      "instance": 3,
+      "faces": 130,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.1127,
+      "exclusive_area": 0.0,
+      "centroid": [
+        1.0198,
+        -2.2176,
+        -1.6294
+      ],
+      "bounding_box": [
+        [
+          0.9585,
+          -2.4782,
+          -1.8249
+        ],
+        [
+          1.0879,
+          -1.9788,
+          -1.5047
+        ]
+      ],
+      "components": 1,
+      "height": 1.964
+    },
+    {
+      "name": "drawer_4",
+      "class": "drawer",
+      "instance": 4,
+      "faces": 612,
+      "exclusive_faces": 2,
+      "exclusive_share": 0.0033,
+      "area": 0.5826,
+      "exclusive_area": 0.0004,
+      "centroid": [
+        0.8353,
+        -1.5274,
+        -1.9241
+      ],
+      "bounding_box": [
+        [
+          0.6673,
+          -1.9628,
+          -2.2822
+        ],
+        [
+          0.9578,
+          -0.8303,
+          -1.6206
+        ]
+      ],
+      "components": 1,
+      "height": 1.6693
+    },
+    {
+      "name": "drawer_5",
+      "class": "drawer",
+      "instance": 5,
+      "faces": 1741,
+      "exclusive_faces": 21,
+      "exclusive_share": 0.0121,
+      "area": 1.5301,
+      "exclusive_area": 0.0093,
+      "centroid": [
+        0.9011,
+        -1.708,
+        -2.7269
+      ],
+      "bounding_box": [
+        [
+          0.6564,
+          -2.5908,
+          -3.1816
+        ],
+        [
+          1.1214,
+          -0.7618,
+          -2.1306
+        ]
+      ],
+      "components": 1,
+      "height": 0.8665
+    },
+    {
+      "name": "drawer_6",
+      "class": "drawer",
+      "instance": 6,
+      "faces": 565,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.6791,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5625,
+        -0.3922,
+        -2.5476
+      ],
+      "bounding_box": [
+        [
+          0.4588,
+          -0.8184,
+          -3.0079
+        ],
+        [
+          0.6695,
+          0.0735,
+          -2.0851
+        ]
+      ],
+      "components": 1,
+      "height": 1.0458
+    },
+    {
+      "name": "drawer_7",
+      "class": "drawer",
+      "instance": 7,
+      "faces": 932,
+      "exclusive_faces": 16,
+      "exclusive_share": 0.0172,
+      "area": 1.0048,
+      "exclusive_area": 0.0066,
+      "centroid": [
+        0.3292,
+        0.5387,
+        -2.4864
+      ],
+      "bounding_box": [
+        [
+          0.1617,
+          -0.0622,
+          -2.9443
+        ],
+        [
+          0.4723,
+          1.2057,
+          -1.992
+        ]
+      ],
+      "components": 1,
+      "height": 1.107
+    },
+    {
+      "name": "drawer_8",
+      "class": "drawer",
+      "instance": 8,
+      "faces": 177,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.2406,
+      "exclusive_area": 0.0,
+      "centroid": [
+        1.009,
+        -2.1596,
+        -2.065
+      ],
+      "bounding_box": [
+        [
+          0.9315,
+          -2.4541,
+          -2.3567
+        ],
+        [
+          1.0874,
+          -1.8571,
+          -1.75
+        ]
+      ],
+      "components": 1,
+      "height": 1.5284
+    },
+    {
+      "name": "drawer_9",
+      "class": "drawer",
+      "instance": 9,
+      "faces": 523,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.6022,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.398,
+        -3.0438,
+        -1.9814
+      ],
+      "bounding_box": [
+        [
+          -2.5821,
+          -3.5311,
+          -2.3297
+        ],
+        [
+          -2.2644,
+          -2.3723,
+          -1.6699
+        ]
+      ],
+      "components": 1,
+      "height": 1.612
+    },
+    {
+      "name": "drawer_10",
+      "class": "drawer",
+      "instance": 10,
+      "faces": 357,
+      "exclusive_faces": 44,
+      "exclusive_share": 0.1232,
+      "area": 0.3307,
+      "exclusive_area": 0.0561,
+      "centroid": [
+        -3.1816,
+        0.0915,
+        -1.2559
+      ],
+      "bounding_box": [
+        [
+          -3.3285,
+          -0.5132,
+          -1.5113
+        ],
+        [
+          -3.0448,
+          0.6675,
+          -1.0748
+        ]
+      ],
+      "components": 1,
+      "height": 2.3375
+    },
+    {
+      "name": "drawer_11",
+      "class": "drawer",
+      "instance": 11,
+      "faces": 697,
+      "exclusive_faces": 90,
+      "exclusive_share": 0.1291,
+      "area": 0.6727,
+      "exclusive_area": 0.1002,
+      "centroid": [
+        -3.2129,
+        0.097,
+        -1.6276
+      ],
+      "bounding_box": [
+        [
+          -3.4033,
+          -0.5099,
+          -2.0378
+        ],
+        [
+          -3.0698,
+          0.7419,
+          -1.2798
+        ]
+      ],
+      "components": 1,
+      "height": 1.9657
+    },
+    {
+      "name": "drawer_12",
+      "class": "drawer",
+      "instance": 12,
+      "faces": 1729,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.8911,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.9487,
+        -1.0091,
+        -1.9969
+      ],
+      "bounding_box": [
+        [
+          -3.1412,
+          -1.6543,
+          -2.9152
+        ],
+        [
+          -2.7542,
+          -0.4281,
+          -1.2052
+        ]
+      ],
+      "components": 1,
+      "height": 1.5965
+    },
+    {
+      "name": "drawer_13",
+      "class": "drawer",
+      "instance": 13,
+      "faces": 496,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.6341,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3281,
+        0.4823,
+        -1.7553
+      ],
+      "bounding_box": [
+        [
+          0.1757,
+          -0.094,
+          -2.1424
+        ],
+        [
+          0.4819,
+          1.093,
+          -1.4404
+        ]
+      ],
+      "components": 1,
+      "height": 1.8381
+    },
+    {
+      "name": "drawer_14",
+      "class": "drawer",
+      "instance": 14,
+      "faces": 329,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.3356,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3299,
+        0.4425,
+        -1.3685
+      ],
+      "bounding_box": [
+        [
+          0.1795,
+          -0.1519,
+          -1.5866
+        ],
+        [
+          0.4934,
+          1.0338,
+          -1.1899
+        ]
+      ],
+      "components": 1,
+      "height": 2.2249
+    },
+    {
+      "name": "drawer_15",
+      "class": "drawer",
+      "instance": 15,
+      "faces": 323,
+      "exclusive_faces": 36,
+      "exclusive_share": 0.1115,
+      "area": 0.2609,
+      "exclusive_area": 0.0424,
+      "centroid": [
+        -3.428,
+        1.091,
+        -1.1435
+      ],
+      "bounding_box": [
+        [
+          -3.5486,
+          0.6121,
+          -1.3549
+        ],
+        [
+          -3.3224,
+          1.4685,
+          -0.992
+        ]
+      ],
+      "components": 1,
+      "height": 2.4499
+    },
+    {
+      "name": "drawer_16",
+      "class": "drawer",
+      "instance": 16,
+      "faces": 285,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.2175,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5876,
+        -0.5526,
+        -1.461
+      ],
+      "bounding_box": [
+        [
+          0.4822,
+          -0.929,
+          -1.6622
+        ],
+        [
+          0.6928,
+          -0.1218,
+          -1.3163
+        ]
+      ],
+      "components": 1,
+      "height": 2.1324
+    },
+    {
+      "name": "drawer_17",
+      "class": "drawer",
+      "instance": 17,
+      "faces": 546,
+      "exclusive_faces": 4,
+      "exclusive_share": 0.0073,
+      "area": 0.4708,
+      "exclusive_area": 0.0008,
+      "centroid": [
+        0.5692,
+        -0.472,
+        -1.8161
+      ],
+      "bounding_box": [
+        [
+          0.4602,
+          -0.901,
+          -2.1762
+        ],
+        [
+          0.6793,
+          -0.0139,
+          -1.5589
+        ]
+      ],
+      "components": 1,
+      "height": 1.7772
+    },
+    {
+      "name": "drawer_18",
+      "class": "drawer",
+      "instance": 18,
+      "faces": 710,
+      "exclusive_faces": 62,
+      "exclusive_share": 0.0873,
+      "area": 0.4819,
+      "exclusive_area": 0.0673,
+      "centroid": [
+        -3.4581,
+        1.0842,
+        -1.5372
+      ],
+      "bounding_box": [
+        [
+          -3.5795,
+          0.6299,
+          -1.9107
+        ],
+        [
+          -3.3496,
+          1.5018,
+          -1.2717
+        ]
+      ],
+      "components": 1,
+      "height": 2.0562
+    },
+    {
+      "name": "drawer_19",
+      "class": "drawer",
+      "instance": 19,
+      "faces": 1064,
+      "exclusive_faces": 364,
+      "exclusive_share": 0.3421,
+      "area": 0.6967,
+      "exclusive_area": 0.2914,
+      "centroid": [
+        -3.5334,
+        1.1782,
+        -2.2876
+      ],
+      "bounding_box": [
+        [
+          -3.668,
+          0.6504,
+          -2.7023
+        ],
+        [
+          -3.3916,
+          1.5569,
+          -1.8136
+        ]
+      ],
+      "components": 1,
+      "height": 1.3058
+    },
+    {
+      "name": "drawer_20",
+      "class": "drawer",
+      "instance": 20,
+      "faces": 1477,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 1.1702,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.5894,
+        0.0412,
+        0.463
+      ],
+      "bounding_box": [
+        [
+          -3.9217,
+          -0.685,
+          -0.1228
+        ],
+        [
+          -3.3665,
+          1.2066,
+          0.8428
+        ]
+      ],
+      "components": 1,
+      "height": 4.0564
+    },
+    {
+      "name": "drawer_21",
+      "class": "drawer",
+      "instance": 21,
+      "faces": 1292,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.8749,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.5249,
+        -0.1245,
+        0.9992
+      ],
+      "bounding_box": [
+        [
+          -3.8872,
+          -0.796,
+          0.6431
+        ],
+        [
+          -3.3389,
+          1.1206,
+          1.4358
+        ]
+      ],
+      "components": 1,
+      "height": 4.5926
+    },
+    {
+      "name": "drawer_22",
+      "class": "drawer",
+      "instance": 22,
+      "faces": 783,
+      "exclusive_faces": 235,
+      "exclusive_share": 0.3001,
+      "area": 0.8931,
+      "exclusive_area": 0.2171,
+      "centroid": [
+        -2.4618,
+        -2.9083,
+        -2.6408
+      ],
+      "bounding_box": [
+        [
+          -2.6263,
+          -3.5128,
+          -3.1307
+        ],
+        [
+          -2.2923,
+          -2.3522,
+          -2.1925
+        ]
+      ],
+      "components": 1,
+      "height": 0.9526
+    },
+    {
+      "name": "oven_1",
+      "class": "oven",
+      "instance": 1,
+      "faces": 941,
+      "exclusive_faces": 41,
+      "exclusive_share": 0.0436,
+      "area": 1.0922,
+      "exclusive_area": 0.0287,
+      "centroid": [
+        -2.3605,
+        -3.0696,
+        -1.2434
+      ],
+      "bounding_box": [
+        [
+          -2.5345,
+          -3.6097,
+          -1.7639
+        ],
+        [
+          -2.1965,
+          -2.4459,
+          -0.6272
+        ]
+      ],
+      "components": 1,
+      "height": 2.35
+    },
+    {
+      "name": "coffee_machine_1",
+      "class": "coffee_machine",
+      "instance": 1,
+      "faces": 1457,
+      "exclusive_faces": 1457,
+      "exclusive_share": 1.0,
+      "area": 0.8501,
+      "exclusive_area": 0.8501,
+      "centroid": [
+        -3.6383,
+        1.0717,
+        -0.6224
+      ],
+      "bounding_box": [
+        [
+          -3.8392,
+          0.748,
+          -0.9716
+        ],
+        [
+          -3.4369,
+          1.4535,
+          -0.152
+        ]
+      ],
+      "components": 1,
+      "height": 2.971
+    },
+    {
+      "name": "robot_1",
+      "class": "robot",
+      "instance": 1,
+      "faces": 399,
+      "exclusive_faces": 399,
+      "exclusive_share": 1.0,
+      "area": 0.242,
+      "exclusive_area": 0.242,
+      "centroid": [
+        -3.7196,
+        2.0326,
+        -1.0703
+      ],
+      "bounding_box": [
+        [
+          -3.9281,
+          1.9513,
+          -1.5187
+        ],
+        [
+          -3.5171,
+          2.1486,
+          -0.4434
+        ]
+      ],
+      "components": 1,
+      "height": 2.5231
+    },
+    {
+      "name": "robot_2",
+      "class": "robot",
+      "instance": 2,
+      "faces": 2388,
+      "exclusive_faces": 2388,
+      "exclusive_share": 1.0,
+      "area": 0.8083,
+      "exclusive_area": 0.8083,
+      "centroid": [
+        -3.6501,
+        2.4689,
+        0.0174
+      ],
+      "bounding_box": [
+        [
+          -3.9464,
+          2.1309,
+          -0.3657
+        ],
+        [
+          -3.4029,
+          2.839,
+          0.5554
+        ]
+      ],
+      "components": 1,
+      "height": 3.6108
+    },
+    {
+      "name": "robot_3",
+      "class": "robot",
+      "instance": 3,
+      "faces": 2736,
+      "exclusive_faces": 2736,
+      "exclusive_share": 1.0,
+      "area": 1.2075,
+      "exclusive_area": 1.2075,
+      "centroid": [
+        -3.6701,
+        2.5649,
+        -0.9384
+      ],
+      "bounding_box": [
+        [
+          -4.0882,
+          2.1227,
+          -1.567
+        ],
+        [
+          -2.8304,
+          3.1362,
+          -0.3304
+        ]
+      ],
+      "components": 1,
+      "height": 2.655
+    },
+    {
+      "name": "robot_4",
+      "class": "robot",
+      "instance": 4,
+      "faces": 1115,
+      "exclusive_faces": 1115,
+      "exclusive_share": 1.0,
+      "area": 0.3394,
+      "exclusive_area": 0.3394,
+      "centroid": [
+        -3.8964,
+        3.2583,
+        -0.5828
+      ],
+      "bounding_box": [
+        [
+          -4.3248,
+          2.9859,
+          -0.9106
+        ],
+        [
+          -3.6462,
+          3.607,
+          -0.2229
+        ]
+      ],
+      "components": 1,
+      "height": 3.0105
+    },
+    {
+      "name": "robot_5",
+      "class": "robot",
+      "instance": 5,
+      "faces": 1084,
+      "exclusive_faces": 1084,
+      "exclusive_share": 1.0,
+      "area": 0.7709,
+      "exclusive_area": 0.7709,
+      "centroid": [
+        -3.3432,
+        2.5054,
+        -2.195
+      ],
+      "bounding_box": [
+        [
+          -3.8066,
+          2.0114,
+          -2.6278
+        ],
+        [
+          -3.0,
+          2.9359,
+          -2.0336
+        ]
+      ],
+      "components": 1,
+      "height": 1.3983
+    },
+    {
+      "name": "robot_6",
+      "class": "robot",
+      "instance": 6,
+      "faces": 188,
+      "exclusive_faces": 188,
+      "exclusive_share": 1.0,
+      "area": 0.0825,
+      "exclusive_area": 0.0825,
+      "centroid": [
+        -2.7849,
+        2.7891,
+        -0.1455
+      ],
+      "bounding_box": [
+        [
+          -2.9106,
+          2.6912,
+          -0.3276
+        ],
+        [
+          -2.722,
+          2.9265,
+          -0.0016
+        ]
+      ],
+      "components": 1,
+      "height": 3.4479
+    },
+    {
+      "name": "robot_7",
+      "class": "robot",
+      "instance": 7,
+      "faces": 395,
+      "exclusive_faces": 395,
+      "exclusive_share": 1.0,
+      "area": 0.118,
+      "exclusive_area": 0.118,
+      "centroid": [
+        -3.8839,
+        3.6289,
+        -0.5603
+      ],
+      "bounding_box": [
+        [
+          -4.032,
+          3.5608,
+          -0.8348
+        ],
+        [
+          -3.7791,
+          3.7242,
+          -0.3752
+        ]
+      ],
+      "components": 1,
+      "height": 3.0331
+    },
+    {
+      "name": "sink_1",
+      "class": "sink",
+      "instance": 1,
+      "faces": 12125,
+      "exclusive_faces": 12125,
+      "exclusive_share": 1.0,
+      "area": 2.5928,
+      "exclusive_area": 2.5928,
+      "centroid": [
+        1.0073,
+        1.8111,
+        -1.4994
+      ],
+      "bounding_box": [
+        [
+          0.1132,
+          1.2014,
+          -2.1024
+        ],
+        [
+          1.7685,
+          2.5602,
+          -1.0266
+        ]
+      ],
+      "components": 1,
+      "height": 2.094
+    },
+    {
+      "name": "sink_2",
+      "class": "sink",
+      "instance": 2,
+      "faces": 2164,
+      "exclusive_faces": 2164,
+      "exclusive_share": 1.0,
+      "area": 0.7621,
+      "exclusive_area": 0.7621,
+      "centroid": [
+        1.6581,
+        2.4046,
+        -2.2983
+      ],
+      "bounding_box": [
+        [
+          1.4737,
+          1.3355,
+          -2.7142
+        ],
+        [
+          1.88,
+          3.1848,
+          -1.4723
+        ]
+      ],
+      "components": 1,
+      "height": 1.2951
+    },
+    {
+      "name": "cutting_board_1",
+      "class": "cutting_board",
+      "instance": 1,
+      "faces": 488,
+      "exclusive_faces": 488,
+      "exclusive_share": 1.0,
+      "area": 0.5463,
+      "exclusive_area": 0.5463,
+      "centroid": [
+        0.6541,
+        0.4408,
+        -1.1681
+      ],
+      "bounding_box": [
+        [
+          0.2753,
+          -0.1426,
+          -1.246
+        ],
+        [
+          1.0433,
+          0.8416,
+          -1.1205
+        ]
+      ],
+      "components": 1,
+      "height": 2.4253
+    },
+    {
+      "name": "faucet_1",
+      "class": "faucet",
+      "instance": 1,
+      "faces": 450,
+      "exclusive_faces": 406,
+      "exclusive_share": 0.9022,
+      "area": 0.2093,
+      "exclusive_area": 0.1848,
+      "centroid": [
+        0.9316,
+        1.7383,
+        -0.7692
+      ],
+      "bounding_box": [
+        [
+          0.5336,
+          1.6023,
+          -1.0946
+        ],
+        [
+          1.0862,
+          1.8591,
+          -0.4857
+        ]
+      ],
+      "components": 1,
+      "height": 2.8242
+    },
+    {
+      "name": "handle_1",
+      "class": "handle",
+      "instance": 1,
+      "faces": 73,
+      "exclusive_faces": 66,
+      "exclusive_share": 0.9041,
+      "area": 0.0311,
+      "exclusive_area": 0.0279,
+      "centroid": [
+        2.6026,
+        5.7587,
+        -0.5218
+      ],
+      "bounding_box": [
+        [
+          2.5096,
+          5.7316,
+          -0.6624
+        ],
+        [
+          2.6627,
+          5.7912,
+          -0.4242
+        ]
+      ],
+      "components": 1,
+      "height": 3.0716
+    },
+    {
+      "name": "handle_2",
+      "class": "handle",
+      "instance": 2,
+      "faces": 115,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0433,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.8841,
+        -1.825,
+        -1.5816
+      ],
+      "bounding_box": [
+        [
+          0.8299,
+          -1.9953,
+          -1.6627
+        ],
+        [
+          0.9486,
+          -1.6096,
+          -1.5281
+        ]
+      ],
+      "components": 1,
+      "height": 2.0118
+    },
+    {
+      "name": "handle_3",
+      "class": "handle",
+      "instance": 3,
+      "faces": 60,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.034,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.6485,
+        -1.9045,
+        -1.0512
+      ],
+      "bounding_box": [
+        [
+          -2.7082,
+          -2.0909,
+          -1.1381
+        ],
+        [
+          -2.6063,
+          -1.7215,
+          -1.0
+        ]
+      ],
+      "components": 1,
+      "height": 2.5422
+    },
+    {
+      "name": "handle_4",
+      "class": "handle",
+      "instance": 4,
+      "faces": 127,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0526,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.1881,
+        0.1117,
+        -1.5216
+      ],
+      "bounding_box": [
+        [
+          -3.2558,
+          -0.0909,
+          -1.6031
+        ],
+        [
+          -3.1349,
+          0.3088,
+          -1.4556
+        ]
+      ],
+      "components": 1,
+      "height": 2.0718
+    },
+    {
+      "name": "handle_5",
+      "class": "handle",
+      "instance": 5,
+      "faces": 115,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0376,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.8733,
+        -1.7613,
+        -1.856
+      ],
+      "bounding_box": [
+        [
+          0.8378,
+          -1.962,
+          -1.9403
+        ],
+        [
+          0.9442,
+          -1.5795,
+          -1.7998
+        ]
+      ],
+      "components": 1,
+      "height": 1.7374
+    },
+    {
+      "name": "handle_6",
+      "class": "handle",
+      "instance": 6,
+      "faces": 101,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0458,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.9596,
+        -0.7218,
+        -1.334
+      ],
+      "bounding_box": [
+        [
+          -3.0251,
+          -0.9226,
+          -1.4122
+        ],
+        [
+          -2.9145,
+          -0.5351,
+          -1.2804
+        ]
+      ],
+      "components": 1,
+      "height": 2.2594
+    },
+    {
+      "name": "handle_7",
+      "class": "handle",
+      "instance": 7,
+      "faces": 76,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0336,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -0.0027,
+        1.6069,
+        -1.228
+      ],
+      "bounding_box": [
+        [
+          -0.0395,
+          1.4,
+          -1.2815
+        ],
+        [
+          0.0642,
+          1.7618,
+          -1.1499
+        ]
+      ],
+      "components": 1,
+      "height": 2.3654
+    },
+    {
+      "name": "handle_8",
+      "class": "handle",
+      "instance": 8,
+      "faces": 83,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0314,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -0.2937,
+        2.7253,
+        -1.1248
+      ],
+      "bounding_box": [
+        [
+          -0.341,
+          2.5392,
+          -1.1636
+        ],
+        [
+          -0.2358,
+          2.9213,
+          -1.0818
+        ]
+      ],
+      "components": 1,
+      "height": 2.4686
+    },
+    {
+      "name": "handle_9",
+      "class": "handle",
+      "instance": 9,
+      "faces": 19,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0048,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.5323,
+        0.9032,
+        -0.1143
+      ],
+      "bounding_box": [
+        [
+          -3.562,
+          0.8571,
+          -0.1458
+        ],
+        [
+          -3.5188,
+          0.9253,
+          -0.076
+        ]
+      ],
+      "components": 1,
+      "height": 3.4791
+    },
+    {
+      "name": "handle_10",
+      "class": "handle",
+      "instance": 10,
+      "faces": 168,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0525,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5669,
+        -0.5209,
+        -1.7281
+      ],
+      "bounding_box": [
+        [
+          0.5231,
+          -0.6997,
+          -1.8165
+        ],
+        [
+          0.625,
+          -0.2847,
+          -1.6458
+        ]
+      ],
+      "components": 1,
+      "height": 1.8653
+    },
+    {
+      "name": "handle_11",
+      "class": "handle",
+      "instance": 11,
+      "faces": 79,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0332,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.576,
+        -0.5613,
+        -1.4555
+      ],
+      "bounding_box": [
+        [
+          0.53,
+          -0.7223,
+          -1.5364
+        ],
+        [
+          0.631,
+          -0.3594,
+          -1.3989
+        ]
+      ],
+      "components": 1,
+      "height": 2.1379
+    },
+    {
+      "name": "handle_12",
+      "class": "handle",
+      "instance": 12,
+      "faces": 106,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0515,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.4096,
+        1.0863,
+        -1.1431
+      ],
+      "bounding_box": [
+        [
+          -3.4803,
+          0.905,
+          -1.2193
+        ],
+        [
+          -3.3513,
+          1.2791,
+          -1.0863
+        ]
+      ],
+      "components": 1,
+      "height": 2.4503
+    },
+    {
+      "name": "handle_13",
+      "class": "handle",
+      "instance": 13,
+      "faces": 69,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0365,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.314,
+        0.5161,
+        -2.1903
+      ],
+      "bounding_box": [
+        [
+          0.2885,
+          0.3541,
+          -2.2914
+        ],
+        [
+          0.358,
+          0.6567,
+          -2.1054
+        ]
+      ],
+      "components": 1,
+      "height": 1.4031
+    },
+    {
+      "name": "handle_14",
+      "class": "handle",
+      "instance": 14,
+      "faces": 72,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.029,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.906,
+        -1.7816,
+        -2.4468
+      ],
+      "bounding_box": [
+        [
+          0.8731,
+          -1.8956,
+          -2.5438
+        ],
+        [
+          0.9345,
+          -1.6413,
+          -2.3815
+        ]
+      ],
+      "components": 1,
+      "height": 1.1466
+    },
+    {
+      "name": "handle_15",
+      "class": "handle",
+      "instance": 15,
+      "faces": 78,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0399,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5603,
+        -0.4295,
+        -2.299
+      ],
+      "bounding_box": [
+        [
+          0.5208,
+          -0.6062,
+          -2.3706
+        ],
+        [
+          0.6078,
+          -0.2616,
+          -2.2045
+        ]
+      ],
+      "components": 1,
+      "height": 1.2944
+    },
+    {
+      "name": "handle_16",
+      "class": "handle",
+      "instance": 16,
+      "faces": 80,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0343,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3113,
+        0.4687,
+        -1.6234
+      ],
+      "bounding_box": [
+        [
+          0.2623,
+          0.27,
+          -1.6946
+        ],
+        [
+          0.3724,
+          0.643,
+          -1.5667
+        ]
+      ],
+      "components": 1,
+      "height": 1.97
+    },
+    {
+      "name": "handle_17",
+      "class": "handle",
+      "instance": 17,
+      "faces": 128,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0415,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.4789,
+        1.1581,
+        -1.9536
+      ],
+      "bounding_box": [
+        [
+          -3.5352,
+          1.0028,
+          -2.0336
+        ],
+        [
+          -3.4278,
+          1.3148,
+          -1.9117
+        ]
+      ],
+      "components": 1,
+      "height": 1.6397
+    },
+    {
+      "name": "handle_18",
+      "class": "handle",
+      "instance": 18,
+      "faces": 48,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0238,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.6671,
+        0.3106,
+        0.0532
+      ],
+      "bounding_box": [
+        [
+          -3.7464,
+          0.0967,
+          0.0185
+        ],
+        [
+          -3.6119,
+          0.4823,
+          0.0983
+        ]
+      ],
+      "components": 1,
+      "height": 3.6466
+    },
+    {
+      "name": "handle_19",
+      "class": "handle",
+      "instance": 19,
+      "faces": 104,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0471,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.6762,
+        4.3606,
+        -0.4357
+      ],
+      "bounding_box": [
+        [
+          -2.805,
+          4.3242,
+          -0.6442
+        ],
+        [
+          -2.5916,
+          4.4068,
+          -0.3124
+        ]
+      ],
+      "components": 1,
+      "height": 3.1577
+    },
+    {
+      "name": "handle_20",
+      "class": "handle",
+      "instance": 20,
+      "faces": 54,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0216,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.3847,
+        -2.7531,
+        -0.4088
+      ],
+      "bounding_box": [
+        [
+          -2.4291,
+          -2.8852,
+          -0.4759
+        ],
+        [
+          -2.3452,
+          -2.6128,
+          -0.362
+        ]
+      ],
+      "components": 1,
+      "height": 3.1846
+    },
+    {
+      "name": "handle_21",
+      "class": "handle",
+      "instance": 21,
+      "faces": 33,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0149,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.3865,
+        -3.0366,
+        -1.8501
+      ],
+      "bounding_box": [
+        [
+          -2.4214,
+          -3.114,
+          -1.9139
+        ],
+        [
+          -2.3674,
+          -2.9364,
+          -1.8005
+        ]
+      ],
+      "components": 1,
+      "height": 1.7432
+    },
+    {
+      "name": "handle_22",
+      "class": "handle",
+      "instance": 22,
+      "faces": 146,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0552,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.4294,
+        1.1021,
+        -1.4174
+      ],
+      "bounding_box": [
+        [
+          -3.5077,
+          0.91,
+          -1.5144
+        ],
+        [
+          -3.365,
+          1.2968,
+          -1.3546
+        ]
+      ],
+      "components": 1,
+      "height": 2.176
+    },
+    {
+      "name": "handle_23",
+      "class": "handle",
+      "instance": 23,
+      "faces": 107,
+      "exclusive_faces": 94,
+      "exclusive_share": 0.8785,
+      "area": 0.038,
+      "exclusive_area": 0.0323,
+      "centroid": [
+        -3.031,
+        4.2762,
+        -0.4225
+      ],
+      "bounding_box": [
+        [
+          -3.097,
+          4.2428,
+          -0.589
+        ],
+        [
+          -2.961,
+          4.3247,
+          -0.299
+        ]
+      ],
+      "components": 1,
+      "height": 3.1709
+    },
+    {
+      "name": "handle_24",
+      "class": "handle",
+      "instance": 24,
+      "faces": 83,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0423,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.9439,
+        -0.7346,
+        -0.9295
+      ],
+      "bounding_box": [
+        [
+          -2.9998,
+          -0.9403,
+          -1.0005
+        ],
+        [
+          -2.9008,
+          -0.5632,
+          -0.8743
+        ]
+      ],
+      "components": 1,
+      "height": 2.6639
+    },
+    {
+      "name": "handle_25",
+      "class": "handle",
+      "instance": 25,
+      "faces": 39,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0253,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.4265,
+        -2.9699,
+        -2.3827
+      ],
+      "bounding_box": [
+        [
+          -2.4709,
+          -3.0991,
+          -2.4552
+        ],
+        [
+          -2.3811,
+          -2.8193,
+          -2.3228
+        ]
+      ],
+      "components": 1,
+      "height": 1.2107
+    },
+    {
+      "name": "handle_26",
+      "class": "handle",
+      "instance": 26,
+      "faces": 44,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0245,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.7644,
+        1.6932,
+        -0.5138
+      ],
+      "bounding_box": [
+        [
+          0.5511,
+          1.6485,
+          -0.5535
+        ],
+        [
+          0.9851,
+          1.7379,
+          -0.4857
+        ]
+      ],
+      "components": 1,
+      "height": 3.0796
+    },
+    {
+      "name": "handle_27",
+      "class": "handle",
+      "instance": 27,
+      "faces": 74,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0241,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.2379,
+        0.1414,
+        -2.074
+      ],
+      "bounding_box": [
+        [
+          -3.2893,
+          -0.023,
+          -2.1404
+        ],
+        [
+          -3.1927,
+          0.3127,
+          -2.0339
+        ]
+      ],
+      "components": 1,
+      "height": 1.5194
+    },
+    {
+      "name": "handle_28",
+      "class": "handle",
+      "instance": 28,
+      "faces": 84,
+      "exclusive_faces": 14,
+      "exclusive_share": 0.1667,
+      "area": 0.0361,
+      "exclusive_area": 0.0062,
+      "centroid": [
+        2.2536,
+        5.6771,
+        -0.5205
+      ],
+      "bounding_box": [
+        [
+          2.1691,
+          5.6529,
+          -0.6348
+        ],
+        [
+          2.3629,
+          5.7233,
+          -0.405
+        ]
+      ],
+      "components": 1,
+      "height": 3.0728
+    },
+    {
+      "name": "handle_29",
+      "class": "handle",
+      "instance": 29,
+      "faces": 71,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0252,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3166,
+        0.4255,
+        -1.3561
+      ],
+      "bounding_box": [
+        [
+          0.2693,
+          0.2685,
+          -1.4147
+        ],
+        [
+          0.3754,
+          0.5883,
+          -1.3236
+        ]
+      ],
+      "components": 1,
+      "height": 2.2373
+    },
+    {
+      "name": "handle_30",
+      "class": "handle",
+      "instance": 30,
+      "faces": 99,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0443,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.1699,
+        0.1168,
+        -1.2405
+      ],
+      "bounding_box": [
+        [
+          -3.2299,
+          -0.0792,
+          -1.3061
+        ],
+        [
+          -3.1128,
+          0.2926,
+          -1.1664
+        ]
+      ],
+      "components": 1,
+      "height": 2.3529
+    },
+    {
+      "name": "kitchen_utensils_1",
+      "class": "kitchen_utensils",
+      "instance": 1,
+      "faces": 53,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0216,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.5622,
+        0.9006,
+        -0.0981
+      ],
+      "bounding_box": [
+        [
+          -3.6479,
+          0.8316,
+          -0.1547
+        ],
+        [
+          -3.5188,
+          0.9286,
+          -0.0466
+        ]
+      ],
+      "components": 1,
+      "height": 3.4953
+    },
+    {
+      "name": "kitchen_utensils_2",
+      "class": "kitchen_utensils",
+      "instance": 2,
+      "faces": 376,
+      "exclusive_faces": 98,
+      "exclusive_share": 0.2606,
+      "area": 0.1468,
+      "exclusive_area": 0.0303,
+      "centroid": [
+        1.2677,
+        2.7981,
+        -0.8497
+      ],
+      "bounding_box": [
+        [
+          1.1381,
+          2.6588,
+          -1.0119
+        ],
+        [
+          1.3691,
+          2.9095,
+          -0.7267
+        ]
+      ],
+      "components": 1,
+      "height": 2.7437
+    },
+    {
+      "name": "kitchen_utensils_3",
+      "class": "kitchen_utensils",
+      "instance": 3,
+      "faces": 54,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0156,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.7264,
+        1.3068,
+        -0.1024
+      ],
+      "bounding_box": [
+        [
+          -3.8001,
+          1.2014,
+          -0.1159
+        ],
+        [
+          -3.6039,
+          1.358,
+          -0.0802
+        ]
+      ],
+      "components": 1,
+      "height": 3.491
+    },
+    {
+      "name": "kitchen_utensils_4",
+      "class": "kitchen_utensils",
+      "instance": 4,
+      "faces": 93,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0299,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.7201,
+        1.2953,
+        -0.0512
+      ],
+      "bounding_box": [
+        [
+          -3.7782,
+          1.2073,
+          -0.1141
+        ],
+        [
+          -3.6403,
+          1.3482,
+          -0.0038
+        ]
+      ],
+      "components": 1,
+      "height": 3.5422
+    },
+    {
+      "name": "kitchen_utensils_5",
+      "class": "kitchen_utensils",
+      "instance": 5,
+      "faces": 32,
+      "exclusive_faces": 4,
+      "exclusive_share": 0.125,
+      "area": 0.0083,
+      "exclusive_area": 0.0008,
+      "centroid": [
+        -3.7726,
+        1.0706,
+        -0.1222
+      ],
+      "bounding_box": [
+        [
+          -3.8262,
+          0.9732,
+          -0.1432
+        ],
+        [
+          -3.6939,
+          1.1234,
+          -0.0707
+        ]
+      ],
+      "components": 1,
+      "height": 3.4712
+    },
+    {
+      "name": "kitchen_utensils_6",
+      "class": "kitchen_utensils",
+      "instance": 6,
+      "faces": 85,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0368,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.7192,
+        1.0199,
+        -0.0855
+      ],
+      "bounding_box": [
+        [
+          -3.7981,
+          0.9414,
+          -0.1421
+        ],
+        [
+          -3.6675,
+          1.1182,
+          -0.022
+        ]
+      ],
+      "components": 1,
+      "height": 3.5079
+    },
+    {
+      "name": "kitchen_utensils_7",
+      "class": "kitchen_utensils",
+      "instance": 7,
+      "faces": 98,
+      "exclusive_faces": 98,
+      "exclusive_share": 1.0,
+      "area": 0.0485,
+      "exclusive_area": 0.0485,
+      "centroid": [
+        1.0431,
+        2.7778,
+        -0.5616
+      ],
+      "bounding_box": [
+        [
+          0.9771,
+          2.72,
+          -0.6913
+        ],
+        [
+          1.1311,
+          2.8346,
+          -0.4737
+        ]
+      ],
+      "components": 1,
+      "height": 3.0318
+    },
+    {
+      "name": "plate_1",
+      "class": "plate",
+      "instance": 1,
+      "faces": 68,
+      "exclusive_faces": 65,
+      "exclusive_share": 0.9559,
+      "area": 0.0231,
+      "exclusive_area": 0.0225,
+      "centroid": [
+        -3.5831,
+        0.8979,
+        -0.1503
+      ],
+      "bounding_box": [
+        [
+          -3.7059,
+          0.7697,
+          -0.1744
+        ],
+        [
+          -3.4936,
+          0.9764,
+          -0.1058
+        ]
+      ],
+      "components": 1,
+      "height": 3.4431
+    },
+    {
+      "name": "plate_2",
+      "class": "plate",
+      "instance": 2,
+      "faces": 99,
+      "exclusive_faces": 74,
+      "exclusive_share": 0.7475,
+      "area": 0.0314,
+      "exclusive_area": 0.0252,
+      "centroid": [
+        -3.6975,
+        1.0509,
+        -0.1342
+      ],
+      "bounding_box": [
+        [
+          -3.8262,
+          0.9073,
+          -0.1725
+        ],
+        [
+          -3.6232,
+          1.142,
+          -0.1049
+        ]
+      ],
+      "components": 1,
+      "height": 3.4592
+    },
+    {
+      "name": "plate_3",
+      "class": "plate",
+      "instance": 3,
+      "faces": 82,
+      "exclusive_faces": 28,
+      "exclusive_share": 0.3415,
+      "area": 0.0283,
+      "exclusive_area": 0.0126,
+      "centroid": [
+        -3.695,
+        1.2806,
+        -0.1074
+      ],
+      "bounding_box": [
+        [
+          -3.8001,
+          1.1645,
+          -0.1379
+        ],
+        [
+          -3.5947,
+          1.358,
+          -0.0802
+        ]
+      ],
+      "components": 1,
+      "height": 3.486
+    },
+    {
+      "name": "plate_4",
+      "class": "plate",
+      "instance": 4,
+      "faces": 164,
+      "exclusive_faces": 147,
+      "exclusive_share": 0.8963,
+      "area": 0.0629,
+      "exclusive_area": 0.0594,
+      "centroid": [
+        1.4698,
+        2.5084,
+        -0.9969
+      ],
+      "bounding_box": [
+        [
+          1.3601,
+          2.3435,
+          -1.0389
+        ],
+        [
+          1.565,
+          2.6773,
+          -0.961
+        ]
+      ],
+      "components": 1,
+      "height": 2.5964
+    },
+    {
+      "name": "plate_5",
+      "class": "plate",
+      "instance": 5,
+      "faces": 38,
+      "exclusive_faces": 19,
+      "exclusive_share": 0.5,
+      "area": 0.0084,
+      "exclusive_area": 0.0036,
+      "centroid": [
+        1.2298,
+        2.8882,
+        -0.9703
+      ],
+      "bounding_box": [
+        [
+          1.1322,
+          2.8508,
+          -0.9951
+        ],
+        [
+          1.3287,
+          2.9152,
+          -0.9277
+        ]
+      ],
+      "components": 1,
+      "height": 2.6231
+    },
+    {
+      "name": "plate_6",
+      "class": "plate",
+      "instance": 6,
+      "faces": 147,
+      "exclusive_faces": 147,
+      "exclusive_share": 1.0,
+      "area": 0.0496,
+      "exclusive_area": 0.0496,
+      "centroid": [
+        1.0166,
+        2.4637,
+        -0.9947
+      ],
+      "bounding_box": [
+        [
+          0.9389,
+          2.3337,
+          -1.0488
+        ],
+        [
+          1.1216,
+          2.6076,
+          -0.9561
+        ]
+      ],
+      "components": 1,
+      "height": 2.5987
+    },
+    {
+      "name": "towel_1",
+      "class": "towel",
+      "instance": 1,
+      "faces": 217,
+      "exclusive_faces": 217,
+      "exclusive_share": 1.0,
+      "area": 0.0591,
+      "exclusive_area": 0.0591,
+      "centroid": [
+        1.205,
+        2.5009,
+        -0.9375
+      ],
+      "bounding_box": [
+        [
+          1.1293,
+          2.3122,
+          -0.9921
+        ],
+        [
+          1.2839,
+          2.6485,
+          -0.8936
+        ]
+      ],
+      "components": 1,
+      "height": 2.6559
+    },
+    {
+      "name": "towel_2",
+      "class": "towel",
+      "instance": 2,
+      "faces": 189,
+      "exclusive_faces": 189,
+      "exclusive_share": 1.0,
+      "area": 0.068,
+      "exclusive_area": 0.068,
+      "centroid": [
+        1.3228,
+        2.5033,
+        -0.9453
+      ],
+      "bounding_box": [
+        [
+          1.2436,
+          2.3154,
+          -1.0035
+        ],
+        [
+          1.4121,
+          2.6741,
+          -0.9118
+        ]
+      ],
+      "components": 1,
+      "height": 2.6481
+    },
+    {
+      "name": "towel_3",
+      "class": "towel",
+      "instance": 3,
+      "faces": 192,
+      "exclusive_faces": 192,
+      "exclusive_share": 1.0,
+      "area": 0.0727,
+      "exclusive_area": 0.0727,
+      "centroid": [
+        1.0827,
+        2.4984,
+        -0.9474
+      ],
+      "bounding_box": [
+        [
+          0.9996,
+          2.3028,
+          -1.027
+        ],
+        [
+          1.1611,
+          2.6282,
+          -0.8826
+        ]
+      ],
+      "components": 1,
+      "height": 2.646
+    },
+    {
+      "name": "towel_4",
+      "class": "towel",
+      "instance": 4,
+      "faces": 86,
+      "exclusive_faces": 86,
+      "exclusive_share": 1.0,
+      "area": 0.017,
+      "exclusive_area": 0.017,
+      "centroid": [
+        1.132,
+        2.4585,
+        -0.9676
+      ],
+      "bounding_box": [
+        [
+          1.1032,
+          2.4043,
+          -1.0423
+        ],
+        [
+          1.1613,
+          2.5985,
+          -0.9014
+        ]
+      ],
+      "components": 1,
+      "height": 2.6258
+    },
+    {
+      "name": "towel_5",
+      "class": "towel",
+      "instance": 5,
+      "faces": 73,
+      "exclusive_faces": 56,
+      "exclusive_share": 0.7671,
+      "area": 0.0162,
+      "exclusive_area": 0.0127,
+      "centroid": [
+        1.4016,
+        2.4769,
+        -0.9974
+      ],
+      "bounding_box": [
+        [
+          1.3608,
+          2.354,
+          -1.0312
+        ],
+        [
+          1.4617,
+          2.6327,
+          -0.9618
+        ]
+      ],
+      "components": 1,
+      "height": 2.5959
+    },
+    {
+      "name": "bottle_1",
+      "class": "bottle",
+      "instance": 1,
+      "faces": 223,
+      "exclusive_faces": 8,
+      "exclusive_share": 0.0359,
+      "area": 0.1113,
+      "exclusive_area": 0.0037,
+      "centroid": [
+        -3.55,
+        -0.552,
+        -0.8242
+      ],
+      "bounding_box": [
+        [
+          -3.6511,
+          -0.6249,
+          -1.104
+        ],
+        [
+          -3.4714,
+          -0.4784,
+          -0.5756
+        ]
+      ],
+      "components": 1,
+      "height": 2.7692
+    },
+    {
+      "name": "bottle_2",
+      "class": "bottle",
+      "instance": 2,
+      "faces": 406,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.1726,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.8648,
+        -0.6127,
+        -0.802
+      ],
+      "bounding_box": [
+        [
+          -3.9689,
+          -0.6873,
+          -1.101
+        ],
+        [
+          -3.7943,
+          -0.5077,
+          -0.5127
+        ]
+      ],
+      "components": 1,
+      "height": 2.7913
+    },
+    {
+      "name": "mug_1",
+      "class": "mug",
+      "instance": 1,
+      "faces": 101,
+      "exclusive_faces": 45,
+      "exclusive_share": 0.4455,
+      "area": 0.0399,
+      "exclusive_area": 0.0178,
+      "centroid": [
+        -3.5794,
+        0.8751,
+        -0.1059
+      ],
+      "bounding_box": [
+        [
+          -3.6574,
+          0.8013,
+          -0.16
+        ],
+        [
+          -3.5188,
+          0.9357,
+          -0.0466
+        ]
+      ],
+      "components": 1,
+      "height": 3.4875
+    },
+    {
+      "name": "mug_2",
+      "class": "mug",
+      "instance": 2,
+      "faces": 147,
+      "exclusive_faces": 49,
+      "exclusive_share": 0.3333,
+      "area": 0.0462,
+      "exclusive_area": 0.0155,
+      "centroid": [
+        -3.7171,
+        1.2684,
+        -0.0622
+      ],
+      "bounding_box": [
+        [
+          -3.7782,
+          1.188,
+          -0.1252
+        ],
+        [
+          -3.628,
+          1.3482,
+          -0.0038
+        ]
+      ],
+      "components": 1,
+      "height": 3.5312
+    },
+    {
+      "name": "mug_3",
+      "class": "mug",
+      "instance": 3,
+      "faces": 141,
+      "exclusive_faces": 53,
+      "exclusive_share": 0.3759,
+      "area": 0.0475,
+      "exclusive_area": 0.0095,
+      "centroid": [
+        -3.7344,
+        1.0205,
+        -0.0898
+      ],
+      "bounding_box": [
+        [
+          -3.7981,
+          0.9414,
+          -0.1458
+        ],
+        [
+          -3.6675,
+          1.1182,
+          -0.022
+        ]
+      ],
+      "components": 1,
+      "height": 3.5036
+    },
+    {
+      "name": "mug_4",
+      "class": "mug",
+      "instance": 4,
+      "faces": 100,
+      "exclusive_faces": 20,
+      "exclusive_share": 0.2,
+      "area": 0.0546,
+      "exclusive_area": 0.0138,
+      "centroid": [
+        1.1818,
+        2.8273,
+        -0.8404
+      ],
+      "bounding_box": [
+        [
+          1.1324,
+          2.7196,
+          -0.9815
+        ],
+        [
+          1.2894,
+          2.8965,
+          -0.7351
+        ]
+      ],
+      "components": 1,
+      "height": 2.753
+    },
+    {
+      "name": "mug_5",
+      "class": "mug",
+      "instance": 5,
+      "faces": 125,
+      "exclusive_faces": 17,
+      "exclusive_share": 0.136,
+      "area": 0.056,
+      "exclusive_area": 0.005,
+      "centroid": [
+        1.2959,
+        2.7627,
+        -0.7992
+      ],
+      "bounding_box": [
+        [
+          1.1662,
+          2.6634,
+          -0.9461
+        ],
+        [
+          1.3519,
+          2.8579,
+          -0.7432
+        ]
+      ],
+      "components": 1,
+      "height": 2.7942
+    },
+    {
+      "name": "jar_1",
+      "class": "jar",
+      "instance": 1,
+      "faces": 456,
+      "exclusive_faces": 8,
+      "exclusive_share": 0.0175,
+      "area": 0.1627,
+      "exclusive_area": 0.0026,
+      "centroid": [
+        -4.0293,
+        -0.6497,
+        -0.6392
+      ],
+      "bounding_box": [
+        [
+          -4.1408,
+          -0.7894,
+          -1.0747
+        ],
+        [
+          -3.9283,
+          -0.5296,
+          -0.4694
+        ]
+      ],
+      "components": 1,
+      "height": 2.9542
+    },
+    {
+      "name": "jar_2",
+      "class": "jar",
+      "instance": 2,
+      "faces": 161,
+      "exclusive_faces": 3,
+      "exclusive_share": 0.0186,
+      "area": 0.0984,
+      "exclusive_area": 0.0008,
+      "centroid": [
+        -4.3234,
+        0.3834,
+        -0.7749
+      ],
+      "bounding_box": [
+        [
+          -4.432,
+          0.248,
+          -0.9961
+        ],
+        [
+          -4.2612,
+          0.4958,
+          -0.6622
+        ]
+      ],
+      "components": 1,
+      "height": 2.8185
+    },
+    {
+      "name": "jar_3",
+      "class": "jar",
+      "instance": 3,
+      "faces": 128,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0954,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -4.2691,
+        0.157,
+        -0.7819
+      ],
+      "bounding_box": [
+        [
+          -4.3884,
+          0.0553,
+          -1.0136
+        ],
+        [
+          -4.1664,
+          0.2938,
+          -0.6724
+        ]
+      ],
+      "components": 1,
+      "height": 2.8114
+    },
+    {
+      "name": "jar_4",
+      "class": "jar",
+      "instance": 4,
+      "faces": 122,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0938,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -4.1651,
+        -0.0018,
+        -0.8859
+      ],
+      "bounding_box": [
+        [
+          -4.3151,
+          -0.1131,
+          -1.0572
+        ],
+        [
+          -4.1142,
+          0.1142,
+          -0.7071
+        ]
+      ],
+      "components": 1,
+      "height": 2.7075
+    },
+    {
+      "name": "jar_5",
+      "class": "jar",
+      "instance": 5,
+      "faces": 541,
+      "exclusive_faces": 10,
+      "exclusive_share": 0.0185,
+      "area": 0.2106,
+      "exclusive_area": 0.0033,
+      "centroid": [
+        -4.1302,
+        -0.2281,
+        -0.6312
+      ],
+      "bounding_box": [
+        [
+          -4.2529,
+          -0.3436,
+          -1.0653
+        ],
+        [
+          -4.066,
+          -0.0947,
+          -0.4193
+        ]
+      ],
+      "components": 1,
+      "height": 2.9622
+    },
+    {
+      "name": "jar_6",
+      "class": "jar",
+      "instance": 6,
+      "faces": 651,
+      "exclusive_faces": 3,
+      "exclusive_share": 0.0046,
+      "area": 0.2324,
+      "exclusive_area": 0.0009,
+      "centroid": [
+        -4.0767,
+        -0.431,
+        -0.7104
+      ],
+      "bounding_box": [
+        [
+          -4.1858,
+          -0.5848,
+          -1.0867
+        ],
+        [
+          -4.0194,
+          -0.2969,
+          -0.4506
+        ]
+      ],
+      "components": 1,
+      "height": 2.883
+    },
+    {
+      "name": "jar_7",
+      "class": "jar",
+      "instance": 7,
+      "faces": 452,
+      "exclusive_faces": 3,
+      "exclusive_share": 0.0066,
+      "area": 0.1853,
+      "exclusive_area": 0.0005,
+      "centroid": [
+        -3.8719,
+        -0.6115,
+        -0.8134
+      ],
+      "bounding_box": [
+        [
+          -3.984,
+          -0.6873,
+          -1.1061
+        ],
+        [
+          -3.7901,
+          -0.5077,
+          -0.5127
+        ]
+      ],
+      "components": 1,
+      "height": 2.78
+    },
+    {
+      "name": "container_1",
+      "class": "container",
+      "instance": 1,
+      "faces": 462,
+      "exclusive_faces": 3,
+      "exclusive_share": 0.0065,
+      "area": 0.1628,
+      "exclusive_area": 0.0005,
+      "centroid": [
+        -4.0274,
+        -0.6476,
+        -0.645
+      ],
+      "bounding_box": [
+        [
+          -4.1408,
+          -0.7894,
+          -1.0747
+        ],
+        [
+          -3.9283,
+          -0.5296,
+          -0.4694
+        ]
+      ],
+      "components": 1,
+      "height": 2.9484
+    },
+    {
+      "name": "container_2",
+      "class": "container",
+      "instance": 2,
+      "faces": 106,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0433,
+      "exclusive_area": 0.0,
+      "centroid": [
+        1.3269,
+        2.7618,
+        -0.9155
+      ],
+      "bounding_box": [
+        [
+          1.2736,
+          2.6588,
+          -1.0119
+        ],
+        [
+          1.3627,
+          2.8677,
+          -0.7503
+        ]
+      ],
+      "components": 1,
+      "height": 2.6779
+    },
+    {
+      "name": "container_3",
+      "class": "container",
+      "instance": 3,
+      "faces": 158,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0976,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -4.3233,
+        0.3813,
+        -0.7722
+      ],
+      "bounding_box": [
+        [
+          -4.432,
+          0.248,
+          -0.9961
+        ],
+        [
+          -4.2612,
+          0.4934,
+          -0.6622
+        ]
+      ],
+      "components": 1,
+      "height": 2.8212
+    },
+    {
+      "name": "container_4",
+      "class": "container",
+      "instance": 4,
+      "faces": 126,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.0946,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -4.2704,
+        0.1578,
+        -0.7803
+      ],
+      "bounding_box": [
+        [
+          -4.3884,
+          0.0553,
+          -1.0136
+        ],
+        [
+          -4.1664,
+          0.2938,
+          -0.6724
+        ]
+      ],
+      "components": 1,
+      "height": 2.8131
+    },
+    {
+      "name": "container_5",
+      "class": "container",
+      "instance": 5,
+      "faces": 171,
+      "exclusive_faces": 47,
+      "exclusive_share": 0.2749,
+      "area": 0.1155,
+      "exclusive_area": 0.0209,
+      "centroid": [
+        -4.1748,
+        -0.0269,
+        -0.8561
+      ],
+      "bounding_box": [
+        [
+          -4.3151,
+          -0.1286,
+          -1.0572
+        ],
+        [
+          -4.1142,
+          0.1142,
+          -0.7071
+        ]
+      ],
+      "components": 1,
+      "height": 2.7373
+    },
+    {
+      "name": "container_6",
+      "class": "container",
+      "instance": 6,
+      "faces": 531,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.2073,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -4.1282,
+        -0.2285,
+        -0.6348
+      ],
+      "bounding_box": [
+        [
+          -4.2419,
+          -0.3436,
+          -1.0653
+        ],
+        [
+          -4.066,
+          -0.0947,
+          -0.4314
+        ]
+      ],
+      "components": 1,
+      "height": 2.9586
+    },
+    {
+      "name": "container_7",
+      "class": "container",
+      "instance": 7,
+      "faces": 648,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.2315,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -4.0764,
+        -0.4311,
+        -0.7112
+      ],
+      "bounding_box": [
+        [
+          -4.1858,
+          -0.5848,
+          -1.0867
+        ],
+        [
+          -4.0194,
+          -0.2969,
+          -0.4506
+        ]
+      ],
+      "components": 1,
+      "height": 2.8822
+    },
+    {
+      "name": "container_8",
+      "class": "container",
+      "instance": 8,
+      "faces": 216,
+      "exclusive_faces": 1,
+      "exclusive_share": 0.0046,
+      "area": 0.1083,
+      "exclusive_area": 0.0007,
+      "centroid": [
+        -3.552,
+        -0.5499,
+        -0.8245
+      ],
+      "bounding_box": [
+        [
+          -3.6549,
+          -0.6249,
+          -1.104
+        ],
+        [
+          -3.4989,
+          -0.4784,
+          -0.5756
+        ]
+      ],
+      "components": 1,
+      "height": 2.7689
+    },
+    {
+      "name": "container_9",
+      "class": "container",
+      "instance": 9,
+      "faces": 438,
+      "exclusive_faces": 0,
+      "exclusive_share": 0.0,
+      "area": 0.1826,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -3.8697,
+        -0.6121,
+        -0.8131
+      ],
+      "bounding_box": [
+        [
+          -3.984,
+          -0.6873,
+          -1.1061
+        ],
+        [
+          -3.7901,
+          -0.5077,
+          -0.5127
+        ]
+      ],
+      "components": 1,
+      "height": 2.7803
+    }
+  ],
+  "pairs": [
+    {
+      "one": "floor_1",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.0354,
+      "rank_from_one": 4,
+      "rank_from_other": 4,
+      "classes": {
+        "floor": "Floor",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Floor",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "floor_1: 44607 faces, 50.017 m2, middle 0.50 m up, 1 piece(s), 100% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.035 m apart."
+    },
+    {
+      "one": "floor_1",
+      "other": "kitchen_island_1",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.0301,
+      "rank_from_one": 2,
+      "rank_from_other": null,
+      "classes": {
+        "floor": "Floor",
+        "kitchen_island": "KitchenIsland"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Floor",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        },
+        {
+          "kind": "contains",
+          "whole": "KitchenIsland",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "floor_1: 44607 faces, 50.017 m2, middle 0.50 m up, 1 piece(s), 100% of it claimed by nothing else.\nkitchen_island_1: 27501 faces, 30.695 m2, middle 1.69 m up, 1 piece(s), 33% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.030 m apart."
+    },
+    {
+      "one": "floor_1",
+      "other": "cabinet_20",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.0352,
+      "rank_from_one": 3,
+      "rank_from_other": null,
+      "classes": {
+        "floor": "Floor",
+        "cabinet": "Cabinet"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Floor",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        },
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "floor_1: 44607 faces, 50.017 m2, middle 0.50 m up, 1 piece(s), 100% of it claimed by nothing else.\ncabinet_20: 1775 faces, 2.000 m2, middle 1.57 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.035 m apart."
+    },
+    {
+      "one": "ceiling_17",
+      "other": "window_3",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.7508,
+      "rank_from_one": 2,
+      "rank_from_other": null,
+      "classes": {
+        "ceiling": null,
+        "window": "Aperture"
+      },
+      "status": "class-unknown",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "ceiling_17: 352 faces, 0.131 m2, middle 6.61 m up, 1 piece(s), 100% of it claimed by nothing else.\nwindow_3: 3757 faces, 1.144 m2, middle 6.39 m up, 1 piece(s), 8% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.751 m apart."
+    },
+    {
+      "one": "ceiling_17",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.7577,
+      "rank_from_one": 3,
+      "rank_from_other": null,
+      "classes": {
+        "ceiling": null,
+        "door": "Door"
+      },
+      "status": "class-unknown",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "ceiling_17: 352 faces, 0.131 m2, middle 6.61 m up, 1 piece(s), 100% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.758 m apart."
+    },
+    {
+      "one": "wall_2",
+      "other": "jar_6",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 4,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "wall": "Wall",
+        "jar": "Bottle"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "wall_2: 855 faces, 0.861 m2, middle 3.23 m up, 1 piece(s), 100% of it claimed by nothing else.\njar_6: 651 faces, 0.232 m2, middle 2.88 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces but touch along 4 edges."
+    },
+    {
+      "one": "wall_2",
+      "other": "container_7",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 4,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "wall": "Wall",
+        "container": "Container"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Container",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "wall_2: 855 faces, 0.861 m2, middle 3.23 m up, 1 piece(s), 100% of it claimed by nothing else.\ncontainer_7: 648 faces, 0.231 m2, middle 2.88 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces but touch along 4 edges."
+    },
+    {
+      "one": "wall_8",
+      "other": "window_3",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.3913,
+      "rank_from_one": null,
+      "rank_from_other": 3,
+      "classes": {
+        "wall": "Wall",
+        "window": "Aperture"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Wall",
+          "part": "Aperture",
+          "field": "apertures",
+          "many": true,
+          "removes_geometry": true
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "wall_8: 10606 faces, 7.570 m2, middle 3.83 m up, 1 piece(s), 100% of it claimed by nothing else.\nwindow_3: 3757 faces, 1.144 m2, middle 6.39 m up, 1 piece(s), 8% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.391 m apart."
+    },
+    {
+      "one": "wall_8",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.077,
+      "rank_from_one": 3,
+      "rank_from_other": 5,
+      "classes": {
+        "wall": "Wall",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "wall_8: 10606 faces, 7.570 m2, middle 3.83 m up, 1 piece(s), 100% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.077 m apart."
+    },
+    {
+      "one": "wall_12",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.9285,
+      "rank_from_one": 5,
+      "rank_from_other": null,
+      "classes": {
+        "wall": "Wall",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "wall_12: 1721 faces, 0.530 m2, middle 1.68 m up, 1 piece(s), 100% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.929 m apart."
+    },
+    {
+      "one": "window_3",
+      "other": "window_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.5495,
+      "rank_from_one": 5,
+      "rank_from_other": null,
+      "classes": {
+        "window": "Aperture"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "window_3: 3757 faces, 1.144 m2, middle 6.39 m up, 1 piece(s), 8% of it claimed by nothing else.\nwindow_9: 4463 faces, 1.052 m2, middle 6.38 m up, 1 piece(s), 24% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.549 m apart."
+    },
+    {
+      "one": "window_3",
+      "other": "door_2",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.3614,
+      "rank_from_one": 2,
+      "rank_from_other": null,
+      "classes": {
+        "window": "Aperture",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "window_3: 3757 faces, 1.144 m2, middle 6.39 m up, 1 piece(s), 8% of it claimed by nothing else.\ndoor_2: 41400 faces, 12.577 m2, middle 3.77 m up, 1 piece(s), 95% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.361 m apart."
+    },
+    {
+      "one": "window_3",
+      "other": "door_9",
+      "shared_faces": 3457,
+      "share_of_one": 0.9201,
+      "share_of_other": 0.1406,
+      "touching_edges": 5190,
+      "distance": 0.0,
+      "rank_from_one": 1,
+      "rank_from_other": 1,
+      "classes": {
+        "window": "Aperture",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "window_3: 3757 faces, 1.144 m2, middle 6.39 m up, 1 piece(s), 8% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share 3457 faces, 92% of window_3 and 14% of door_9."
+    },
+    {
+      "one": "window_3",
+      "other": "door_16",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.5374,
+      "rank_from_one": 4,
+      "rank_from_other": null,
+      "classes": {
+        "window": "Aperture",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "window_3: 3757 faces, 1.144 m2, middle 6.39 m up, 1 piece(s), 8% of it claimed by nothing else.\ndoor_16: 3528 faces, 0.891 m2, middle 6.36 m up, 1 piece(s), 4% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.537 m apart."
+    },
+    {
+      "one": "window_9",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.2996,
+      "rank_from_one": 5,
+      "rank_from_other": null,
+      "classes": {
+        "window": "Aperture",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "window_9: 4463 faces, 1.052 m2, middle 6.38 m up, 1 piece(s), 24% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.300 m apart."
+    },
+    {
+      "one": "window_10",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.5392,
+      "rank_from_one": 3,
+      "rank_from_other": null,
+      "classes": {
+        "window": "Aperture",
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "window_10: 619 faces, 0.234 m2, middle 4.89 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.539 m apart."
+    },
+    {
+      "one": "door_2",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 74,
+      "distance": 0.0116,
+      "rank_from_one": null,
+      "rank_from_other": 3,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_2: 41400 faces, 12.577 m2, middle 3.77 m up, 1 piece(s), 95% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces but touch along 74 edges."
+    },
+    {
+      "one": "door_4",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.4205,
+      "rank_from_one": 2,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_4: 1343 faces, 0.383 m2, middle 1.97 m up, 1 piece(s), 100% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.421 m apart."
+    },
+    {
+      "one": "door_5",
+      "other": "door_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.2725,
+      "rank_from_one": 2,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_5: 2036 faces, 0.617 m2, middle 2.73 m up, 1 piece(s), 100% of it claimed by nothing else.\ndoor_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.272 m apart."
+    },
+    {
+      "one": "door_9",
+      "other": "door_16",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.2865,
+      "rank_from_one": null,
+      "rank_from_other": 5,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\ndoor_16: 3528 faces, 0.891 m2, middle 6.36 m up, 1 piece(s), 4% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.287 m apart."
+    },
+    {
+      "one": "door_9",
+      "other": "handle_19",
+      "shared_faces": 104,
+      "share_of_one": 0.0042,
+      "share_of_other": 1.0,
+      "touching_edges": 169,
+      "distance": 0.0,
+      "rank_from_one": 2,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nhandle_19: 104 faces, 0.047 m2, middle 3.16 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 104 faces, 0% of door_9 and 100% of handle_19."
+    },
+    {
+      "one": "door_9",
+      "other": "handle_23",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.101,
+      "rank_from_one": null,
+      "rank_from_other": 2,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_9: 24587 faces, 11.728 m2, middle 3.87 m up, 1 piece(s), 86% of it claimed by nothing else.\nhandle_23: 107 faces, 0.038 m2, middle 3.17 m up, 1 piece(s), 88% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.101 m apart."
+    },
+    {
+      "one": "door_10",
+      "other": "door_19",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 29,
+      "distance": 0.0126,
+      "rank_from_one": 5,
+      "rank_from_other": 4,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_19: 1707 faces, 1.939 m2, middle 1.59 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces but touch along 29 edges."
+    },
+    {
+      "one": "door_10",
+      "other": "kitchen_island_1",
+      "shared_faces": 3345,
+      "share_of_one": 0.8803,
+      "share_of_other": 0.1216,
+      "touching_edges": 5084,
+      "distance": 0.0,
+      "rank_from_one": 1,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "kitchen_island": "KitchenIsland"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "KitchenIsland",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\nkitchen_island_1: 27501 faces, 30.695 m2, middle 1.69 m up, 1 piece(s), 33% of it claimed by nothing else.\nBetween them: they share 3345 faces, 88% of door_10 and 12% of kitchen_island_1."
+    },
+    {
+      "one": "door_10",
+      "other": "cabinet_4",
+      "shared_faces": 3789,
+      "share_of_one": 0.9971,
+      "share_of_other": 0.987,
+      "touching_edges": 5626,
+      "distance": 0.0,
+      "rank_from_one": 2,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_4: 3839 faces, 1.997 m2, middle 1.73 m up, 1 piece(s), 1% of it claimed by nothing else.\nBetween them: they share 3789 faces, 100% of door_10 and 99% of cabinet_4."
+    },
+    {
+      "one": "door_10",
+      "other": "cabinet_20",
+      "shared_faces": 9,
+      "share_of_one": 0.0024,
+      "share_of_other": 0.0051,
+      "touching_edges": 44,
+      "distance": 0.0,
+      "rank_from_one": 3,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_20: 1775 faces, 2.000 m2, middle 1.57 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 9 faces, 0% of door_10 and 1% of cabinet_20."
+    },
+    {
+      "one": "door_10",
+      "other": "handle_8",
+      "shared_faces": 79,
+      "share_of_one": 0.0208,
+      "share_of_other": 0.9518,
+      "touching_edges": 123,
+      "distance": 0.0,
+      "rank_from_one": 4,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\nhandle_8: 83 faces, 0.031 m2, middle 2.47 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 79 faces, 2% of door_10 and 95% of handle_8."
+    },
+    {
+      "one": "door_11",
+      "other": "door_15",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 9,
+      "distance": 0.0219,
+      "rank_from_one": 2,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_11: 3779 faces, 3.669 m2, middle 1.97 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_15: 988 faces, 1.163 m2, middle 2.31 m up, 1 piece(s), 6% of it claimed by nothing else.\nBetween them: they share no faces but touch along 9 edges."
+    },
+    {
+      "one": "door_11",
+      "other": "cabinet_5",
+      "shared_faces": 3779,
+      "share_of_one": 1.0,
+      "share_of_other": 0.6637,
+      "touching_edges": 5746,
+      "distance": 0.0,
+      "rank_from_one": 1,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_11: 3779 faces, 3.669 m2, middle 1.97 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_5: 5694 faces, 5.087 m2, middle 2.44 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share 3779 faces, 100% of door_11 and 66% of cabinet_5."
+    },
+    {
+      "one": "door_11",
+      "other": "cabinet_15",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.0651,
+      "rank_from_one": 5,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_11: 3779 faces, 3.669 m2, middle 1.97 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_15: 646 faces, 0.727 m2, middle 1.55 m up, 1 piece(s), 6% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.065 m apart."
+    },
+    {
+      "one": "door_11",
+      "other": "oven_1",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.0616,
+      "rank_from_one": 4,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "oven": "Oven"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Oven",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_11: 3779 faces, 3.669 m2, middle 1.97 m up, 1 piece(s), 0% of it claimed by nothing else.\noven_1: 941 faces, 1.092 m2, middle 2.35 m up, 1 piece(s), 4% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.062 m apart."
+    },
+    {
+      "one": "door_12",
+      "other": "door_14",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 11,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_12: 2497 faces, 1.874 m2, middle 4.03 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\nBetween them: they share no faces but touch along 11 edges."
+    },
+    {
+      "one": "door_12",
+      "other": "door_18",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 17,
+      "distance": 0.0135,
+      "rank_from_one": 5,
+      "rank_from_other": 3,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_12: 2497 faces, 1.874 m2, middle 4.03 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_18: 1426 faces, 0.935 m2, middle 4.38 m up, 1 piece(s), 26% of it claimed by nothing else.\nBetween them: they share no faces but touch along 17 edges."
+    },
+    {
+      "one": "door_12",
+      "other": "cabinet_5",
+      "shared_faces": 2,
+      "share_of_one": 0.0008,
+      "share_of_other": 0.0004,
+      "touching_edges": 17,
+      "distance": 0.0,
+      "rank_from_one": 1,
+      "rank_from_other": 2,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_12: 2497 faces, 1.874 m2, middle 4.03 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_5: 5694 faces, 5.087 m2, middle 2.44 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share 2 faces, 0% of door_12 and 0% of cabinet_5."
+    },
+    {
+      "one": "door_12",
+      "other": "cabinet_11",
+      "shared_faces": 2490,
+      "share_of_one": 0.9972,
+      "share_of_other": 0.9178,
+      "touching_edges": 3749,
+      "distance": 0.0,
+      "rank_from_one": 2,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_12: 2497 faces, 1.874 m2, middle 4.03 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_11: 2713 faces, 2.033 m2, middle 4.01 m up, 1 piece(s), 6% of it claimed by nothing else.\nBetween them: they share 2490 faces, 100% of door_12 and 92% of cabinet_11."
+    },
+    {
+      "one": "door_12",
+      "other": "cabinet_14",
+      "shared_faces": 5,
+      "share_of_one": 0.002,
+      "share_of_other": 0.0023,
+      "touching_edges": 19,
+      "distance": 0.0,
+      "rank_from_one": 3,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_12: 2497 faces, 1.874 m2, middle 4.03 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_14: 2166 faces, 3.220 m2, middle 2.06 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share 5 faces, 0% of door_12 and 0% of cabinet_14."
+    },
+    {
+      "one": "door_12",
+      "other": "handle_20",
+      "shared_faces": 6,
+      "share_of_one": 0.0024,
+      "share_of_other": 0.1111,
+      "touching_edges": 18,
+      "distance": 0.0,
+      "rank_from_one": 4,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_12: 2497 faces, 1.874 m2, middle 4.03 m up, 1 piece(s), 0% of it claimed by nothing else.\nhandle_20: 54 faces, 0.022 m2, middle 3.18 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 6 faces, 0% of door_12 and 11% of handle_20."
+    },
+    {
+      "one": "door_13",
+      "other": "door_14",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 28,
+      "distance": 0.0163,
+      "rank_from_one": null,
+      "rank_from_other": 5,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\nBetween them: they share no faces but touch along 28 edges."
+    },
+    {
+      "one": "door_13",
+      "other": "door_17",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 21,
+      "distance": 0.0154,
+      "rank_from_one": 4,
+      "rank_from_other": 4,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ndoor_17: 1743 faces, 3.249 m2, middle 3.71 m up, 1 piece(s), 1% of it claimed by nothing else.\nBetween them: they share no faces but touch along 21 edges."
+    },
+    {
+      "one": "door_13",
+      "other": "cabinet_13",
+      "shared_faces": 1854,
+      "share_of_one": 1.0,
+      "share_of_other": 0.8758,
+      "touching_edges": 2785,
+      "distance": 0.0,
+      "rank_from_one": 1,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_13: 2117 faces, 2.117 m2, middle 1.47 m up, 1 piece(s), 8% of it claimed by nothing else.\nBetween them: they share 1854 faces, 100% of door_13 and 88% of cabinet_13."
+    },
+    {
+      "one": "door_13",
+      "other": "cabinet_14",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 28,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_14: 2166 faces, 3.220 m2, middle 2.06 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share no faces but touch along 28 edges."
+    },
+    {
+      "one": "door_13",
+      "other": "cabinet_18",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 21,
+      "distance": 0.0154,
+      "rank_from_one": 5,
+      "rank_from_other": 4,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_18: 1781 faces, 3.311 m2, middle 3.72 m up, 1 piece(s), 4% of it claimed by nothing else.\nBetween them: they share no faces but touch along 21 edges."
+    },
+    {
+      "one": "door_13",
+      "other": "drawer_2",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 4,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "drawer": "Drawer"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Drawer",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ndrawer_2: 1149 faces, 0.996 m2, middle 1.19 m up, 1 piece(s), 2% of it claimed by nothing else.\nBetween them: they share no faces but touch along 4 edges."
+    },
+    {
+      "one": "door_13",
+      "other": "drawer_10",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 2,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "drawer": "Drawer"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Drawer",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ndrawer_10: 357 faces, 0.331 m2, middle 2.34 m up, 1 piece(s), 12% of it claimed by nothing else.\nBetween them: they share no faces but touch along 2 edges."
+    },
+    {
+      "one": "door_13",
+      "other": "drawer_12",
+      "shared_faces": 1674,
+      "share_of_one": 0.9029,
+      "share_of_other": 0.9682,
+      "touching_edges": 2531,
+      "distance": 0.0,
+      "rank_from_one": 2,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "drawer": "Drawer"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Drawer",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\ndrawer_12: 1729 faces, 1.891 m2, middle 1.60 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 1674 faces, 90% of door_13 and 97% of drawer_12."
+    },
+    {
+      "one": "door_13",
+      "other": "handle_3",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.3311,
+      "rank_from_one": null,
+      "rank_from_other": 5,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\nhandle_3: 60 faces, 0.034 m2, middle 2.54 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.331 m apart."
+    },
+    {
+      "one": "door_13",
+      "other": "handle_6",
+      "shared_faces": 101,
+      "share_of_one": 0.0545,
+      "share_of_other": 1.0,
+      "touching_edges": 166,
+      "distance": 0.0,
+      "rank_from_one": 3,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\nhandle_6: 101 faces, 0.046 m2, middle 2.26 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 101 faces, 5% of door_13 and 100% of handle_6."
+    },
+    {
+      "one": "door_13",
+      "other": "handle_24",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 0,
+      "distance": 0.2361,
+      "rank_from_one": null,
+      "rank_from_other": 4,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_13: 1854 faces, 1.966 m2, middle 1.54 m up, 1 piece(s), 0% of it claimed by nothing else.\nhandle_24: 83 faces, 0.042 m2, middle 2.66 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.236 m apart."
+    },
+    {
+      "one": "door_14",
+      "other": "door_15",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 14,
+      "distance": 0.018,
+      "rank_from_one": null,
+      "rank_from_other": 5,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ndoor_15: 988 faces, 1.163 m2, middle 2.31 m up, 1 piece(s), 6% of it claimed by nothing else.\nBetween them: they share no faces but touch along 14 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "door_17",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 21,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ndoor_17: 1743 faces, 3.249 m2, middle 3.71 m up, 1 piece(s), 1% of it claimed by nothing else.\nBetween them: they share no faces but touch along 21 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "cabinet_11",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 9,
+      "distance": 0.0192,
+      "rank_from_one": null,
+      "rank_from_other": 5,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ncabinet_11: 2713 faces, 2.033 m2, middle 4.01 m up, 1 piece(s), 6% of it claimed by nothing else.\nBetween them: they share no faces but touch along 9 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "cabinet_13",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 29,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ncabinet_13: 2117 faces, 2.117 m2, middle 1.47 m up, 1 piece(s), 8% of it claimed by nothing else.\nBetween them: they share no faces but touch along 29 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "cabinet_14",
+      "shared_faces": 1810,
+      "share_of_one": 0.9918,
+      "share_of_other": 0.8356,
+      "touching_edges": 2708,
+      "distance": 0.0,
+      "rank_from_one": 1,
+      "rank_from_other": 2,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ncabinet_14: 2166 faces, 3.220 m2, middle 2.06 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share 1810 faces, 99% of door_14 and 84% of cabinet_14."
+    },
+    {
+      "one": "door_14",
+      "other": "cabinet_15",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 7,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ncabinet_15: 646 faces, 0.727 m2, middle 1.55 m up, 1 piece(s), 6% of it claimed by nothing else.\nBetween them: they share no faces but touch along 7 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "cabinet_18",
+      "shared_faces": 3,
+      "share_of_one": 0.0016,
+      "share_of_other": 0.0017,
+      "touching_edges": 22,
+      "distance": 0.0,
+      "rank_from_one": 2,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "cabinet": "Cabinet"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Cabinet",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Cabinet",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ncabinet_18: 1781 faces, 3.311 m2, middle 3.72 m up, 1 piece(s), 4% of it claimed by nothing else.\nBetween them: they share 3 faces, 0% of door_14 and 0% of cabinet_18."
+    },
+    {
+      "one": "door_14",
+      "other": "drawer_9",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 5,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "drawer": "Drawer"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Drawer",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ndrawer_9: 523 faces, 0.602 m2, middle 1.61 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces but touch along 5 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "drawer_12",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 1,
+      "distance": 0.0,
+      "rank_from_one": null,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "drawer": "Drawer"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Drawer",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ndrawer_12: 1729 faces, 1.891 m2, middle 1.60 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces but touch along 1 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "drawer_22",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 3,
+      "distance": 0.0137,
+      "rank_from_one": 4,
+      "rank_from_other": null,
+      "classes": {
+        "door": "Door",
+        "drawer": "Drawer"
+      },
+      "status": "no-legal-relation",
+      "admissible": [],
+      "other_mounts": [
+        {
+          "kind": "contains",
+          "whole": "Drawer",
+          "field": "objects",
+          "target": "HasRootBody",
+          "mounted_by": "add_object"
+        }
+      ],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\ndrawer_22: 783 faces, 0.893 m2, middle 0.95 m up, 1 piece(s), 30% of it claimed by nothing else.\nBetween them: they share no faces but touch along 3 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "oven_1",
+      "shared_faces": 0,
+      "share_of_one": 0.0,
+      "share_of_other": 0.0,
+      "touching_edges": 7,
+      "distance": 0.0251,
+      "rank_from_one": null,
+      "rank_from_other": 5,
+      "classes": {
+        "door": "Door",
+        "oven": "Oven"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Oven",
+          "part": "Door",
+          "field": "doors",
+          "many": true,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\noven_1: 941 faces, 1.092 m2, middle 2.35 m up, 1 piece(s), 4% of it claimed by nothing else.\nBetween them: they share no faces but touch along 7 edges."
+    },
+    {
+      "one": "door_14",
+      "other": "handle_3",
+      "shared_faces": 60,
+      "share_of_one": 0.0329,
+      "share_of_other": 1.0,
+      "touching_edges": 99,
+      "distance": 0.0,
+      "rank_from_one": 3,
+      "rank_from_other": 1,
+      "classes": {
+        "door": "Door",
+        "handle": "Handle"
+      },
+      "status": "relation-known",
+      "admissible": [
+        {
+          "whole": "Door",
+          "part": "Handle",
+          "field": "handle",
+          "many": false,
+          "removes_geometry": false
+        }
+      ],
+      "other_mounts": [],
+      "prompt_block": "door_14: 1825 faces, 2.663 m2, middle 1.90 m up, 1 piece(s), 1% of it claimed by nothing else.\nhandle_3: 60 faces, 0.034 m2, middle 2.54 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 60 faces, 3% of door_14 and 100% of handle_3."
+    }
+  ]
+}

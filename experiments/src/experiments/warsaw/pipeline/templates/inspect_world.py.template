@@ -1,0 +1,165 @@
+"""
+Open the world this run built.
+
+    python inspect_world.py
+
+Everything it can be told is in the settings below; change them and run it again. Written
+by the run that built it, so the world ids are the ones it was written under.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import Counter
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# The classes this run generated live beside this script, and the world names them. This
+# has to happen before the ORM is imported, or the ORM looks for them in the ontology's own
+# package, where they deliberately are not. The world was written into a schema of this
+# run's own, so that is where to look for it, set before anything asks for a session.
+from experiments.warsaw.pipeline.run_classes import GeneratedClasses
+from experiments.warsaw.pipeline.run_database import RunSchema
+
+GeneratedClasses(directory=Path(__file__).resolve().parent).use()
+RunSchema.for_run(Path(__file__).resolve().parent).use()
+
+from experiments.warsaw.pipeline.world_store import WorldStore  # noqa: E402
+from semantic_digital_twin.spatial_computations.raytracer import RayTracer  # noqa: E402
+
+
+@dataclass
+class Inspection:
+    """
+    What to open, and whether to look at it.
+    """
+
+    annotated_world: int = $annotated
+    """
+    The world this run wrote its annotations into.
+    """
+
+    split_world: int = $split
+    """
+    The world as it was split, before anything was annotated or mounted.
+    """
+
+    world_id: int = $annotated
+    """
+    Which of them to open.
+    """
+
+    view: bool = False
+    """
+    Whether to open it in the viewer as well; close the window to finish.
+    """
+
+    view_resolution: tuple = (1280, 960)
+    """
+    How large the viewer's window is.
+    """
+
+    plumbing: frozenset = frozenset(
+        {
+            "root",
+            "name",
+            "id",
+            "_world",
+            "_semantic_annotations",
+            "simulator_additional_properties",
+            "_inference_explanation_",
+        }
+    )
+    """
+    The fields every annotation carries, which say nothing about what it holds.
+    """
+
+    @property
+    def logger(self) -> logging.Logger:
+        """
+        :return: Where this says what it found.
+        """
+        return logging.getLogger(__name__)
+
+    def holds_something(self, value) -> bool:
+        """
+        :param value: What a field holds.
+        :return: Whether that is anything at all.
+
+        ..note:: Not ``value not in (None, [], ())``: comparing an annotation against
+            those sentinels calls its own ``__eq__``, which hashes both sides, and a list
+            is not hashable.
+        """
+        if value is None:
+            return False
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        return True
+
+    @staticmethod
+    def named(one) -> str:
+        """
+        :param one: An annotation, or whatever a field holds.
+        :return: The body it is on, or the thing itself.
+        """
+        root = getattr(one, "root", None)
+        return str(root.name.name) if root is not None else str(one)
+
+    def shown(self, part) -> object:
+        """
+        :param part: What one relation holds.
+        :return: It, named.
+        """
+        if isinstance(part, (list, tuple, set)):
+            return [self.named(one) for one in part]
+        return self.named(part)
+
+    def carry_out(self) -> None:
+        """
+        Open the world and say what it holds.
+        """
+        world = WorldStore().read(self.world_id)
+        annotations = list(world.semantic_annotations)
+        self.logger.info(
+            "world %s: %s bodies, %s annotations",
+            self.world_id,
+            len(world.bodies),
+            len(annotations),
+        )
+        for name, count in Counter(
+            type(one).__name__ for one in annotations
+        ).most_common():
+            self.logger.info("  %4s %s", count, name)
+
+        held = [
+            (str(one.root.name.name), name, part)
+            for one in annotations
+            if getattr(one, "root", None)
+            for name, part in vars(one).items()
+            if name not in self.plumbing and self.holds_something(part)
+        ]
+        self.logger.info("%s relations that hold something:", len(held))
+        # The whole list is one screen, so all of it is shown: sorted by name and cut
+        # short, it stopped at the cabinets and never reached the island holding its eight
+        # drawers, which is the thing worth seeing.
+        for whole, name, part in sorted(held):
+            self.logger.info("  %s.%s = %s", whole, name, self.shown(part))
+
+        if self.view:
+            # Smoothing recomputes vertex normals for a room's worth of geometry before
+            # the first frame, which is minutes of an apparently black window.
+            RayTracer(world=world).scene.show(
+                smooth=False, resolution=self.view_resolution
+            )
+
+
+def main() -> None:
+    """
+    Open the world with the settings above.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    Inspection().carry_out()
+
+
+if __name__ == "__main__":
+    main()
