@@ -17,14 +17,14 @@ from __future__ import annotations
 
 import inspect
 import json
-from dataclasses import dataclass, field, fields as dataclass_fields, is_dataclass
+from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
 
 from krrood.class_diagrams.class_diagram import WrappedClass
 
 from semantic_digital_twin.semantic_annotations.part_whole import (
-    IsPartWholeRelationship,
     part_whole_fields,
 )
 
@@ -44,15 +44,36 @@ nothing that distinguishes one class from another.
 """
 
 
+class MountKind(StrEnum):
+    """
+    What one of a world's mounts means.
+    """
+
+    PART = "part"
+    """
+    The mounted thing is a structural part of what holds it.
+    """
+
+    CONTAINS = "contains"
+    """
+    The mounted thing is stored inside what holds it.
+    """
+
+    SUPPORTS = "supports"
+    """
+    The mounted thing rests on what holds it.
+    """
+
+
 @dataclass(frozen=True)
 class MountChannel:
     """
     One way a world mounts something into an annotation.
     """
 
-    kind: str
+    kind: MountKind
     """
-    What the relation means, as the export names it.
+    What the relation means.
     """
 
     field_name: str
@@ -73,13 +94,13 @@ class MountChannel:
 
 OCCUPANCY_CHANNELS: List[MountChannel] = [
     MountChannel(
-        kind="contains",
+        kind=MountKind.CONTAINS,
         field_name="objects",
         owner="IsStorageSpace",
         mounted_by="add_object",
     ),
     MountChannel(
-        kind="supports",
+        kind=MountKind.SUPPORTS,
         field_name="supporting_surface",
         owner="HasSupportingSurface",
         mounted_by="add_supporting_surface",
@@ -99,9 +120,9 @@ class SemanticRelation:
     One relation an annotation class can stand in, as a model is told about it.
     """
 
-    kind: str
+    kind: MountKind
     """
-    ``part``, ``contains`` or ``supports``.
+    What the relation means.
     """
 
     field_name: str
@@ -178,7 +199,7 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
     """
     relations = [
         SemanticRelation(
-            kind="part",
+            kind=MountKind.PART,
             field_name=part_whole_relationship_field.field_name,
             target=part_whole_relationship_field.part.__name__,
             holds_many=part_whole_relationship_field.holds_many,
@@ -222,7 +243,11 @@ def describe_class(annotation_class: Type) -> str:
     lines = [f"{annotation_class.__name__}({bases})"]
     for relation in relations_of(annotation_class):
         many = " (many)" if relation.holds_many else ""
-        cuts = " -- mounting here cuts the part out of the whole" if relation.removes_geometry else ""
+        cuts = (
+            " -- mounting here cuts the part out of the whole"
+            if relation.removes_geometry
+            else ""
+        )
         lines.append(
             f"  {relation.kind} {relation.field_name} -> {relation.target}{many}"
             f", mounted with {relation.mounted_by}(){cuts}"
@@ -291,9 +316,7 @@ def annotation_classes(root_class: Type) -> Dict[str, Type]:
     }
 
 
-def build_taxonomy(
-    root_class: Type, include_summaries: bool = False
-) -> Dict[str, Any]:
+def build_taxonomy(root_class: Type, include_summaries: bool = False) -> Dict[str, Any]:
     """
     Describe the annotation taxonomy below a root class.
 
@@ -443,7 +466,9 @@ def in_base_order(bases: Sequence[Type]) -> tuple:
     return tuple(ordered)
 
 
-def admissible_mounts(one_class: Type, other_class: Type) -> List[Tuple[Type, SemanticRelation]]:
+def admissible_mounts(
+    one_class: Type, other_class: Type
+) -> List[Tuple[Type, SemanticRelation]]:
     """
     Report every way two classes could be mounted into one another, in either direction.
 

@@ -54,6 +54,7 @@ dependencies = [
     "pycollada",
     "psycopg",
     "plyfile",
+    "requests",
     "huggingface-hub",
     "usd-core>=24.11",
     "vhacdx",
