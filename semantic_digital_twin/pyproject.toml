@@ -54,6 +54,7 @@ dependencies = [
     "pycollada",
     "psycopg",
     "plyfile",
+    "requests",
     "huggingface-hub",
     "usd-core>=24.11",
     "vhacdx",
@@ -61,6 +62,7 @@ dependencies = [
     "imageio",
     "imageio-ffmpeg",
     "psutil~=5.9.0",
+    "webcolors",
     "giskardpy",
     "krrood",
     "physics_simulators",
@@ -77,6 +79,15 @@ include = ["semantic_digital_twin*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "semantic_digital_twin._version.__version__"}
+
+[dependency-groups]
+workspace = [
+    "giskardpy",
+    "krrood",
+    "physics_simulators",
+    "probabilistic_model",
+    "random_events",
+]
 
 [project.optional-dependencies]
 gui = [

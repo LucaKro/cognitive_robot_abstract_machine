@@ -1,0 +1,231 @@
+{
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "question": "Each label below names objects in a scanned room. Say which class of the taxonomy each label is, or propose a new class by naming a superclass and any mixins it should be composed of. The taxonomy is in taxonomy.json; its part_whole_mixins list what a new class can be given.",
+  "labels": [
+    {
+      "label": "bottle",
+      "instances": 2,
+      "exemplar": "bottle_1",
+      "exemplar_faces": 223,
+      "exemplar_exclusive_share": 0.0359,
+      "exemplar_exclusive_area": 0.0037,
+      "images": []
+    },
+    {
+      "label": "cabinet",
+      "instances": 29,
+      "exemplar": "cabinet_2",
+      "exemplar_faces": 960,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 0.8361,
+      "images": []
+    },
+    {
+      "label": "ceiling",
+      "instances": 26,
+      "exemplar": "ceiling_8",
+      "exemplar_faces": 13072,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 4.1939,
+      "images": []
+    },
+    {
+      "label": "coffee_machine",
+      "instances": 1,
+      "exemplar": "coffee_machine_1",
+      "exemplar_faces": 1457,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 0.8501,
+      "images": []
+    },
+    {
+      "label": "container",
+      "instances": 9,
+      "exemplar": "container_5",
+      "exemplar_faces": 171,
+      "exemplar_exclusive_share": 0.2749,
+      "exemplar_exclusive_area": 0.0209,
+      "images": []
+    },
+    {
+      "label": "countertop",
+      "instances": 2,
+      "exemplar": "countertop_2",
+      "exemplar_faces": 1753,
+      "exemplar_exclusive_share": 0.9909,
+      "exemplar_exclusive_area": 1.5853,
+      "images": []
+    },
+    {
+      "label": "cutting_board",
+      "instances": 1,
+      "exemplar": "cutting_board_1",
+      "exemplar_faces": 488,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 0.5463,
+      "images": []
+    },
+    {
+      "label": "door",
+      "instances": 21,
+      "exemplar": "door_2",
+      "exemplar_faces": 41400,
+      "exemplar_exclusive_share": 0.9507,
+      "exemplar_exclusive_area": 12.0526,
+      "images": []
+    },
+    {
+      "label": "drawer",
+      "instances": 22,
+      "exemplar": "drawer_19",
+      "exemplar_faces": 1064,
+      "exemplar_exclusive_share": 0.3421,
+      "exemplar_exclusive_area": 0.2914,
+      "images": []
+    },
+    {
+      "label": "faucet",
+      "instances": 1,
+      "exemplar": "faucet_1",
+      "exemplar_faces": 450,
+      "exemplar_exclusive_share": 0.9022,
+      "exemplar_exclusive_area": 0.1848,
+      "images": []
+    },
+    {
+      "label": "floor",
+      "instances": 1,
+      "exemplar": "floor_1",
+      "exemplar_faces": 44607,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 50.0174,
+      "images": []
+    },
+    {
+      "label": "handle",
+      "instances": 30,
+      "exemplar": "handle_23",
+      "exemplar_faces": 107,
+      "exemplar_exclusive_share": 0.8785,
+      "exemplar_exclusive_area": 0.0323,
+      "images": []
+    },
+    {
+      "label": "jar",
+      "instances": 7,
+      "exemplar": "jar_5",
+      "exemplar_faces": 541,
+      "exemplar_exclusive_share": 0.0185,
+      "exemplar_exclusive_area": 0.0033,
+      "images": []
+    },
+    {
+      "label": "kitchen_island",
+      "instances": 1,
+      "exemplar": "kitchen_island_1",
+      "exemplar_faces": 27501,
+      "exemplar_exclusive_share": 0.3254,
+      "exemplar_exclusive_area": 10.6182,
+      "images": []
+    },
+    {
+      "label": "kitchen_utensils",
+      "instances": 7,
+      "exemplar": "kitchen_utensils_7",
+      "exemplar_faces": 98,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 0.0485,
+      "images": []
+    },
+    {
+      "label": "lamp",
+      "instances": 2,
+      "exemplar": "lamp_1",
+      "exemplar_faces": 504,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 0.2309,
+      "images": []
+    },
+    {
+      "label": "mug",
+      "instances": 5,
+      "exemplar": "mug_1",
+      "exemplar_faces": 101,
+      "exemplar_exclusive_share": 0.4455,
+      "exemplar_exclusive_area": 0.0178,
+      "images": []
+    },
+    {
+      "label": "oven",
+      "instances": 1,
+      "exemplar": "oven_1",
+      "exemplar_faces": 941,
+      "exemplar_exclusive_share": 0.0436,
+      "exemplar_exclusive_area": 0.0287,
+      "images": []
+    },
+    {
+      "label": "plate",
+      "instances": 6,
+      "exemplar": "plate_4",
+      "exemplar_faces": 164,
+      "exemplar_exclusive_share": 0.8963,
+      "exemplar_exclusive_area": 0.0594,
+      "images": []
+    },
+    {
+      "label": "robot",
+      "instances": 7,
+      "exemplar": "robot_3",
+      "exemplar_faces": 2736,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 1.2075,
+      "images": []
+    },
+    {
+      "label": "sink",
+      "instances": 2,
+      "exemplar": "sink_1",
+      "exemplar_faces": 12125,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 2.5928,
+      "images": []
+    },
+    {
+      "label": "table",
+      "instances": 1,
+      "exemplar": "table_1",
+      "exemplar_faces": 514,
+      "exemplar_exclusive_share": 0.0,
+      "exemplar_exclusive_area": 0.0,
+      "images": []
+    },
+    {
+      "label": "towel",
+      "instances": 5,
+      "exemplar": "towel_3",
+      "exemplar_faces": 192,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 0.0727,
+      "images": []
+    },
+    {
+      "label": "wall",
+      "instances": 14,
+      "exemplar": "wall_1",
+      "exemplar_faces": 48603,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 23.7521,
+      "images": []
+    },
+    {
+      "label": "window",
+      "instances": 11,
+      "exemplar": "window_1",
+      "exemplar_faces": 32120,
+      "exemplar_exclusive_share": 1.0,
+      "exemplar_exclusive_area": 15.6494,
+      "images": []
+    }
+  ]
+}

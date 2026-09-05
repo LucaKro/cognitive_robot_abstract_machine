@@ -1,0 +1,222 @@
+"""
+Working out how few questions a scene's overlaps actually need.
+
+Two hundred overlapping pairs are not two hundred questions. A face belongs to one
+object, so ownership is asked once per set of claimants; a set whose every internal pair
+the ontology settled is not a question at all; and what is left repeats, so it is asked
+once per pattern of classes. Membership is asked only where a part meets more than one
+candidate.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from experiments.warsaw.pipeline.records import Relations, RelationStatus
+from experiments.warsaw.pipeline.run import Run
+from experiments.warsaw.pipeline.settings import PipelineSettings
+from experiments.warsaw.pipeline.steps.evidence import MeasureScene
+from experiments.warsaw.segment_relations import SegmentRelations
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+
+
+@pytest.fixture
+def known():
+    """
+    :return: The ontology's classes by name.
+    """
+    return annotation_classes(SemanticAnnotation)
+
+
+@pytest.fixture
+def step(tmp_path):
+    """
+    :return: The measuring step, for what it works out rather than what it renders.
+    """
+    return MeasureScene(settings=PipelineSettings(), run=Run(directory=tmp_path))
+
+
+@pytest.fixture
+def measured(relations) -> SegmentRelations:
+    """
+    :return: What was measured of a real scene, as the step holds it.
+    """
+    return SegmentRelations(
+        descriptors=relations.descriptors,
+        pairs=[one.evidence for one in relations.pairs],
+    )
+
+
+# %% what the ontology admits between two classes
+
+
+def test_a_cabinet_can_hold_a_drawer_and_only_one_way(step, known):
+    """
+    Exactly one admissible relation leaves only the pair itself in question.
+    """
+    view = step.ontology_view(known["Cabinet"], known["Drawer"])
+    assert view.status is RelationStatus.RELATION_KNOWN
+    assert view.admissible[0].field_name == "drawers"
+    assert view.admissible[0].whole == "Cabinet"
+
+
+def test_two_classes_that_cannot_hold_one_another_leave_an_overlap_unexplained(
+    step, known
+):
+    """
+    An overlap between them is something other than a part, and the adjudication has to
+    be told so rather than being asked which of them is the part.
+    """
+    assert (
+        step.ontology_view(known["Cabinet"], known["Wall"]).status
+        is RelationStatus.NO_LEGAL_RELATION
+    )
+
+
+def test_an_unmapped_label_leaves_the_ontology_with_nothing_to_say(step, known):
+    """
+    Before the vocabulary is answered, no pair has a status at all.
+    """
+    assert (
+        step.ontology_view(None, known["Drawer"]).status is RelationStatus.CLASS_UNKNOWN
+    )
+
+
+def test_containment_is_reported_beside_the_parts_rather_than_as_one(step, known):
+    """
+    ``contains`` is admissible between almost any two annotations, so letting it decide
+    the status would report a relation for every pair in the room -- but a mug on a
+    counter does stand in one, and an adjudication told only about parts would force
+    "part" onto it.
+    """
+    view = step.ontology_view(known["Cabinet"], known["Drawer"])
+    assert all(one.kind != "part" for one in view.other_mounts)
+
+
+# %% which object stands for a label
+
+
+def test_the_object_shown_for_a_label_is_the_one_least_claimed_by_others(
+    step, measured
+):
+    """
+    Ranking by the *share* instead picks slivers, which are wholly unclaimed precisely
+    because they are fragments: on one scene it offered a strip of 545 faces as the
+    example of a cabinet while a whole cabinet front of 960 stood beside it.
+    """
+    for label, name in step.exemplars(measured).items():
+        of_this_label = [
+            one for one in measured.descriptors.values() if one.class_name == label
+        ]
+        assert measured.descriptors[name].exclusive_area == max(
+            one.exclusive_area for one in of_this_label
+        )
+
+
+def test_every_label_of_the_scene_is_shown_by_something(step, measured):
+    """
+    A label nobody pictures is a label nobody can be asked about.
+    """
+    assert set(step.exemplars(measured)) == {
+        one.class_name for one in measured.descriptors.values()
+    }
+
+
+# %% which whole a part belongs to
+
+
+def test_a_part_meeting_one_candidate_is_not_asked_about(step, relations, known):
+    """
+    A drawer that meets exactly one cabinet has nothing to choose between.
+    """
+    memberships = step.memberships(
+        relations,
+        relations.labels,
+        self_classes(relations, known),
+        self_measured(relations),
+    )
+    asked = {one.part for one in memberships.to_ask_about}
+    assert asked.isdisjoint({one.part for one in memberships.forced})
+
+
+def test_a_part_meeting_several_candidates_is_asked_about(step, relations, known):
+    """
+    Which of them it sits in is what the pictures are for.
+    """
+    memberships = step.memberships(
+        relations,
+        relations.labels,
+        self_classes(relations, known),
+        self_measured(relations),
+    )
+    for question in memberships.to_ask_about:
+        assert len(question.candidates) > 1
+        assert question.shown[0] == question.part
+
+
+def test_something_merely_nearby_is_no_candidate(step, relations, known):
+    """
+    A part is attached to the whole it belongs to, so a candidate has to share faces
+    with it or touch it along an edge.
+
+    Offering what is merely nearby trebles the questions and none of what it adds could
+    be right.
+    """
+    memberships = step.memberships(
+        relations,
+        relations.labels,
+        self_classes(relations, known),
+        self_measured(relations),
+    )
+    for one in memberships.to_ask_about:
+        for candidate in one.candidates.values():
+            assert candidate.shared_faces or candidate.touching_edges
+    for one in memberships.forced:
+        assert one.shared_faces or one.touching_edges
+
+
+def test_a_pair_the_ontology_leaves_open_names_no_membership(step, relations, known):
+    """
+    Which field would hold the part is not known until exactly one relation is, so a
+    pair the ontology has not settled cannot say where a mount would go.
+    """
+    memberships = step.memberships(
+        relations,
+        relations.labels,
+        self_classes(relations, known),
+        self_measured(relations),
+    )
+    known_pairs = {
+        tuple(sorted((one.one, one.other)))
+        for one in relations.pairs
+        if one.status is RelationStatus.RELATION_KNOWN
+    }
+    for one in memberships.forced:
+        assert tuple(sorted((one.part, one.whole))) in known_pairs
+
+
+def self_classes(relations: Relations, known):
+    """
+    :param relations: What the measurement wrote.
+    :param known: The ontology's classes by name.
+    :return: Per label, the class the file says it was read as.
+    """
+    read_as = {}
+    for pair in relations.pairs:
+        for label, class_name in pair.classes.items():
+            read_as[label] = known.get(class_name)
+    return read_as
+
+
+def self_measured(relations: Relations) -> SegmentRelations:
+    """
+    :param relations: What the measurement wrote.
+    :return: It, as the step holds it.
+    """
+    return SegmentRelations(
+        descriptors=relations.descriptors,
+        pairs=[one.evidence for one in relations.pairs],
+    )

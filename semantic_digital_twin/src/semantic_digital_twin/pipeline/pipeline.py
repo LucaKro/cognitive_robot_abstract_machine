@@ -182,3 +182,23 @@ class BodyFactoryReplace(Step):
             world.merge_world(new_world, parent_connection)
 
         return world
+
+
+@dataclass
+class TransformGeometry(Step):
+    """
+    Applies a transformation to the geometry of all collision meshes in the world.
+    """
+
+    transform: HomogeneousTransformationMatrix
+    """
+    The transformation matrix to apply to the geometry.
+    """
+
+    def _apply(self, world: World) -> World:
+        transform = self.transform.to_np()
+        for body in world.bodies_with_collision:
+            for shape in body.collision:
+                if isinstance(shape, Mesh):
+                    shape.mesh.apply_transform(transform)
+        return world

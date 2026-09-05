@@ -1,0 +1,1770 @@
+{
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "bodies": {
+    "floor_1": {
+      "class": "Floor",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 0.95,
+      "reason": "The object is the floor of the room, which supports other objects and has a flat surface, matching the definition of a Floor.",
+      "label": "floor",
+      "faces": 44607
+    },
+    "ceiling_1": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 3225
+    },
+    "ceiling_2": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 1808
+    },
+    "ceiling_3": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 402
+    },
+    "ceiling_4": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 340
+    },
+    "ceiling_5": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 231
+    },
+    "ceiling_6": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 3903
+    },
+    "ceiling_7": {
+      "class": "Ceiling",
+      "is_new_class": true,
+      "superclass": "HasRootRegion",
+      "confidence": 0.85,
+      "reason": "The object is located at the top of the room and functions as a ceiling, supporting the structure above it.",
+      "label": "ceiling",
+      "faces": 604
+    },
+    "ceiling_8": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 13072
+    },
+    "ceiling_9": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 477
+    },
+    "ceiling_10": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 1398
+    },
+    "ceiling_11": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 2296
+    },
+    "ceiling_12": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 284
+    },
+    "ceiling_13": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 213
+    },
+    "ceiling_14": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 400
+    },
+    "ceiling_15": {
+      "class": "Ceiling",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.0,
+      "reason": "The object is a flat, horizontal surface above the room, consistent with a ceiling, despite the scan label being 'ceiling' and no class being assigned.",
+      "label": "ceiling",
+      "faces": 164
+    },
+    "ceiling_16": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 2947
+    },
+    "ceiling_17": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 352
+    },
+    "ceiling_18": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 272
+    },
+    "ceiling_19": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 321
+    },
+    "ceiling_20": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 3024
+    },
+    "ceiling_21": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 718
+    },
+    "ceiling_22": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 204
+    },
+    "ceiling_23": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 220
+    },
+    "ceiling_24": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 277
+    },
+    "ceiling_25": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 481
+    },
+    "ceiling_26": {
+      "class": "Level",
+      "is_new_class": false,
+      "superclass": "HasRootRegion",
+      "confidence": null,
+      "reason": null,
+      "label": "ceiling",
+      "faces": 171
+    },
+    "wall_1": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 48603
+    },
+    "wall_2": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 855
+    },
+    "wall_3": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 2808
+    },
+    "wall_4": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 7137
+    },
+    "wall_5": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 2297
+    },
+    "wall_6": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 18814
+    },
+    "wall_7": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 9231
+    },
+    "wall_8": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 10606
+    },
+    "wall_9": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 4932
+    },
+    "wall_10": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 7095
+    },
+    "wall_11": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 6190
+    },
+    "wall_12": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 1721
+    },
+    "wall_13": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": null,
+      "reason": null,
+      "label": "wall",
+      "faces": 903
+    },
+    "wall_14": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": 0.95,
+      "reason": "The object is a wall with multiple windows, which aligns with the 'Wall' class that can have apertures.",
+      "label": "wall",
+      "faces": 957
+    },
+    "window_1": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 32120
+    },
+    "window_2": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 2428
+    },
+    "window_3": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 3757
+    },
+    "window_4": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 1408
+    },
+    "window_5": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 1696
+    },
+    "window_6": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 390
+    },
+    "window_7": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.98,
+      "reason": "The object is a window, which is correctly identified as an aperture in the ontology.",
+      "label": "window",
+      "faces": 2110
+    },
+    "window_8": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": 0.9,
+      "reason": "The object is a rectangular opening in a wall, consistent with the definition of an aperture.",
+      "label": "window",
+      "faces": 791
+    },
+    "window_9": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": 0.9,
+      "reason": "The object is a rectangular opening in a wall, consistent with the definition of an aperture.",
+      "label": "window",
+      "faces": 4463
+    },
+    "window_10": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": 0.9,
+      "reason": "The object is a rectangular opening in a wall, consistent with the definition of an aperture.",
+      "label": "window",
+      "faces": 619
+    },
+    "window_11": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": "HasApertures",
+      "confidence": 0.9,
+      "reason": "The object is a rectangular opening in a wall, consistent with the definition of an aperture.",
+      "label": "window",
+      "faces": 522
+    },
+    "door_1": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "HasHandle",
+      "confidence": 0.95,
+      "reason": "The object has a handle and a mechanical joint, matching the attributes of a door.",
+      "label": "door",
+      "faces": 28525
+    },
+    "door_2": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "HasHandle",
+      "confidence": 0.95,
+      "reason": "The object has a handle and a mechanical joint, matching the attributes of a door.",
+      "label": "door",
+      "faces": 39357
+    },
+    "door_4": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "HasHandle",
+      "confidence": 0.95,
+      "reason": "The object has a handle and a mechanical joint, matching the attributes of a door.",
+      "label": "door",
+      "faces": 1343
+    },
+    "door_5": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "HasHandle",
+      "confidence": 0.95,
+      "reason": "The object has a handle and a mechanical joint, matching the attributes of a door.",
+      "label": "door",
+      "faces": 2036
+    },
+    "door_6": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 3327
+    },
+    "door_7": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 665
+    },
+    "door_8": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 1291
+    },
+    "door_9": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 21026
+    },
+    "door_10": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 415
+    },
+    "door_11": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 3779
+    },
+    "door_12": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 2491
+    },
+    "door_13": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 1.0,
+      "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
+      "label": "door",
+      "faces": 180
+    },
+    "door_14": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 1765
+    },
+    "door_15": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 988
+    },
+    "door_16": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 146
+    },
+    "door_17": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 1660
+    },
+    "door_18": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 1426
+    },
+    "door_19": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 15
+    },
+    "door_20": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 232
+    },
+    "door_21": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.85,
+      "reason": "The object is a door with a handle and a mechanical joint, consistent with the Door class.",
+      "label": "door",
+      "faces": 440
+    },
+    "lamp_1": {
+      "class": "Decor",
+      "is_new_class": false,
+      "superclass": "SemanticAnnotation",
+      "confidence": 0.0,
+      "reason": "The object is a lamp, which is a type of decorative item, and the label 'Decor' is appropriate.",
+      "label": "lamp",
+      "faces": 504
+    },
+    "lamp_2": {
+      "class": "Decor",
+      "is_new_class": false,
+      "superclass": "SemanticAnnotation",
+      "confidence": 0.0,
+      "reason": "The object is a lamp, which is a type of decorative item, and the label 'Decor' is appropriate.",
+      "label": "lamp",
+      "faces": 122
+    },
+    "kitchen_island_1": {
+      "class": "KitchenIsland",
+      "is_new_class": false,
+      "superclass": "Table",
+      "confidence": 0.0,
+      "reason": "The object is a kitchen island, which is a type of table with drawers and a supporting surface, matching the definition of KitchenIsland.",
+      "label": "kitchen_island",
+      "faces": 14646
+    },
+    "countertop_1": {
+      "class": "CounterTop",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a countertop, which is a type of furniture with a supporting surface and a sink, matching the definition of CounterTop.",
+      "label": "countertop",
+      "faces": 7866
+    },
+    "countertop_2": {
+      "class": "CounterTop",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a countertop, which is a type of furniture with a supporting surface and a sink, matching the definition of CounterTop.",
+      "label": "countertop",
+      "faces": 1737
+    },
+    "cabinet_1": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a cabinet, which is a type of furniture with drawers and doors, matching the definition of Cabinet.",
+      "label": "cabinet",
+      "faces": 545
+    },
+    "cabinet_2": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a cabinet, which is a type of furniture with drawers and doors, matching the definition of Cabinet.",
+      "label": "cabinet",
+      "faces": 960
+    },
+    "cabinet_3": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a cabinet, which is a type of furniture with drawers and doors, matching the definition of Cabinet.",
+      "label": "cabinet",
+      "faces": 841
+    },
+    "cabinet_4": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large, multi-door cabinet with a dark finish, consistent with the characteristics of a cabinet in a kitchen or storage area, and it has drawers and doors as indicated by the ontology.",
+      "label": "cabinet",
+      "faces": 27
+    },
+    "cabinet_5": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a tall, dark cabinet with multiple doors and a similar structure to other cabinets in the room, fitting the definition of a cabinet.",
+      "label": "cabinet",
+      "faces": 846
+    },
+    "cabinet_6": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large cabinet with a dark finish and multiple doors, matching the description of a cabinet in the room.",
+      "label": "cabinet",
+      "faces": 11
+    },
+    "cabinet_7": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a tall cabinet with a dark finish and multiple doors, consistent with the characteristics of a cabinet.",
+      "label": "cabinet",
+      "faces": 7
+    },
+    "cabinet_11": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large cabinet with a dark finish and multiple doors, fitting the definition of a cabinet.",
+      "label": "cabinet",
+      "faces": 164
+    },
+    "cabinet_12": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a tall cabinet with a dark finish and multiple doors, consistent with the characteristics of a cabinet.",
+      "label": "cabinet",
+      "faces": 759
+    },
+    "cabinet_13": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large cabinet with a dark finish and multiple doors, matching the description of a cabinet.",
+      "label": "cabinet",
+      "faces": 171
+    },
+    "cabinet_14": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a tall cabinet with a dark finish and multiple doors, consistent with the characteristics of a cabinet.",
+      "label": "cabinet",
+      "faces": 331
+    },
+    "cabinet_15": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large, enclosed storage unit with doors and drawers, consistent with the characteristics of a cabinet.",
+      "label": "cabinet",
+      "faces": 38
+    },
+    "cabinet_18": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a tall, rectangular storage unit with doors and drawers, matching the definition of a cabinet.",
+      "label": "cabinet",
+      "faces": 64
+    },
+    "cabinet_20": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object has multiple compartments and doors, typical of a cabinet used for storage.",
+      "label": "cabinet",
+      "faces": 2
+    },
+    "cabinet_22": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large piece of furniture with doors and drawers, fitting the description of a cabinet.",
+      "label": "cabinet",
+      "faces": 278
+    },
+    "cabinet_23": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a substantial storage unit with doors and drawers, consistent with the properties of a cabinet.",
+      "label": "cabinet",
+      "faces": 524
+    },
+    "cabinet_24": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large, enclosed storage unit with doors and drawers, characteristic of a cabinet.",
+      "label": "cabinet",
+      "faces": 796
+    },
+    "cabinet_28": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large storage unit with doors and drawers, fitting the definition of a cabinet.",
+      "label": "cabinet",
+      "faces": 6
+    },
+    "cabinet_29": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a large, enclosed storage unit with doors and drawers, consistent with the characteristics of a cabinet.",
+      "label": "cabinet",
+      "faces": 459
+    },
+    "drawer_1": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 226
+    },
+    "drawer_2": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 1075
+    },
+    "drawer_3": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 130
+    },
+    "drawer_4": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 497
+    },
+    "drawer_5": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 1669
+    },
+    "drawer_6": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 487
+    },
+    "drawer_7": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 863
+    },
+    "drawer_8": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 177
+    },
+    "drawer_9": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 490
+    },
+    "drawer_10": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 258
+    },
+    "drawer_11": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 570
+    },
+    "drawer_12": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 1628
+    },
+    "drawer_13": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 416
+    },
+    "drawer_14": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 258
+    },
+    "drawer_15": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 217
+    },
+    "drawer_16": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.0,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 206
+    },
+    "drawer_17": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 378
+    },
+    "drawer_18": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 564
+    },
+    "drawer_19": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 936
+    },
+    "drawer_20": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 1475
+    },
+    "drawer_21": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 1292
+    },
+    "drawer_22": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": "Furniture",
+      "confidence": 0.9,
+      "reason": "The object is a drawer with a handle and a mechanical joint, consistent with the Drawer class.",
+      "label": "drawer",
+      "faces": 744
+    },
+    "oven_1": {
+      "class": "Oven",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a kitchen appliance with a door and a mechanical joint, consistent with the Oven class.",
+      "label": "oven",
+      "faces": 41
+    },
+    "coffee_machine_1": {
+      "class": "CoffeeMachine",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a kitchen appliance with a handle and a mechanical joint, consistent with the CoffeeMachine class.",
+      "label": "coffee_machine",
+      "faces": 1457
+    },
+    "robot_1": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 399
+    },
+    "robot_2": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 2388
+    },
+    "robot_3": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 2736
+    },
+    "robot_4": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 1115
+    },
+    "robot_5": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 1084
+    },
+    "robot_6": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 188
+    },
+    "robot_7": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is identified as a robot, which is an agent capable of performing tasks in the environment.",
+      "label": "robot",
+      "faces": 395
+    },
+    "sink_1": {
+      "class": "Sink",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is clearly a sink, identifiable by its basin and faucet, consistent with the label provided.",
+      "label": "sink",
+      "faces": 12125
+    },
+    "sink_2": {
+      "class": "Sink",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a recessed basin in a countertop with a faucet above it, which matches the definition of a Sink.",
+      "label": "sink",
+      "faces": 2164
+    },
+    "cutting_board_1": {
+      "class": "CuttingBoard",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a flat surface on a countertop used for food preparation, consistent with the definition of a CuttingBoard.",
+      "label": "cutting_board",
+      "faces": 488
+    },
+    "faucet_1": {
+      "class": "Faucet",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a spout that dispenses water, which is not explicitly defined in the ontology but can be inferred as a distinct entity from the context and visual evidence.",
+      "label": "faucet",
+      "faces": 406
+    },
+    "handle_1": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a grip attached to a door or drawer, matching the definition of a Handle.",
+      "label": "handle",
+      "faces": 73
+    },
+    "handle_2": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a grip attached to a door or drawer, matching the definition of a Handle.",
+      "label": "handle",
+      "faces": 115
+    },
+    "handle_3": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a grip attached to a door or drawer, matching the definition of a Handle.",
+      "label": "handle",
+      "faces": 60
+    },
+    "handle_4": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a grip attached to a door or drawer, matching the definition of a Handle.",
+      "label": "handle",
+      "faces": 127
+    },
+    "handle_5": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a grip attached to a door or drawer, matching the definition of a Handle.",
+      "label": "handle",
+      "faces": 115
+    },
+    "handle_6": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 101
+    },
+    "handle_7": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 76
+    },
+    "handle_8": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 83
+    },
+    "handle_9": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 19
+    },
+    "handle_10": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 168
+    },
+    "handle_11": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 79
+    },
+    "handle_12": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 106
+    },
+    "handle_13": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 69
+    },
+    "handle_14": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 72
+    },
+    "handle_15": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 78
+    },
+    "handle_16": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 80
+    },
+    "handle_17": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 128
+    },
+    "handle_18": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 48
+    },
+    "handle_19": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 104
+    },
+    "handle_20": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 54
+    },
+    "handle_21": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.85,
+      "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
+      "label": "handle",
+      "faces": 33
+    },
+    "handle_22": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 146
+    },
+    "handle_23": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 107
+    },
+    "handle_24": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 83
+    },
+    "handle_25": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 39
+    },
+    "handle_26": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 44
+    },
+    "handle_27": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 74
+    },
+    "handle_28": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 84
+    },
+    "handle_29": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.95,
+      "reason": "The object is a small, protruding element on a cabinet door, consistent with a handle's function and appearance.",
+      "label": "handle",
+      "faces": 71
+    },
+    "handle_30": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a handle attached to a door, which matches the definition of a Handle.",
+      "label": "handle",
+      "faces": 99
+    },
+    "kitchen_utensils_2": {
+      "class": "ToolWithHandle",
+      "is_new_class": true,
+      "superclass": "Tool",
+      "confidence": 1.0,
+      "reason": "The object is a kitchen utensil with a handle, fitting the description of ToolWithHandle.",
+      "label": "kitchen_utensils",
+      "faces": 98
+    },
+    "kitchen_utensils_5": {
+      "class": "ToolWithHandle",
+      "is_new_class": true,
+      "superclass": "Tool",
+      "confidence": 1.0,
+      "reason": "The object is a kitchen utensil with a handle, fitting the description of ToolWithHandle.",
+      "label": "kitchen_utensils",
+      "faces": 4
+    },
+    "kitchen_utensils_7": {
+      "class": "ToolWithHandle",
+      "is_new_class": true,
+      "superclass": "Tool",
+      "confidence": 1.0,
+      "reason": "The object is a kitchen utensil with a handle, fitting the description of ToolWithHandle.",
+      "label": "kitchen_utensils",
+      "faces": 98
+    },
+    "plate_1": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a plate, which is a type of Plate as defined in the ontology.",
+      "label": "plate",
+      "faces": 65
+    },
+    "plate_2": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a plate, which is a type of Plate as defined in the ontology.",
+      "label": "plate",
+      "faces": 99
+    },
+    "plate_3": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a plate, which is a type of Plate as defined in the ontology.",
+      "label": "plate",
+      "faces": 77
+    },
+    "plate_4": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a plate, which is a type of Plate as defined in the ontology.",
+      "label": "plate",
+      "faces": 164
+    },
+    "plate_5": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a flat, circular item with a smooth surface, consistent with a plate, and it is placed on a supporting surface.",
+      "label": "plate",
+      "faces": 36
+    },
+    "plate_6": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": "HasSupportingSurface",
+      "confidence": 1.0,
+      "reason": "The object is a flat, circular item with a smooth surface, consistent with a plate, and it is placed on a supporting surface.",
+      "label": "plate",
+      "faces": 147
+    },
+    "towel_1": {
+      "class": "Cloth",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object appears to be a flexible, fabric-like item, consistent with a towel, which is classified as a cloth.",
+      "label": "towel",
+      "faces": 217
+    },
+    "towel_2": {
+      "class": "Cloth",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object appears to be a flexible, fabric-like item, consistent with a towel, which is classified as a cloth.",
+      "label": "towel",
+      "faces": 189
+    },
+    "towel_3": {
+      "class": "Cloth",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object appears to be a flexible, fabric-like item, consistent with a towel, which is classified as a cloth.",
+      "label": "towel",
+      "faces": 192
+    },
+    "towel_4": {
+      "class": "Cloth",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object appears to be a flexible, fabric-like item, consistent with a towel, which is classified as a cloth.",
+      "label": "towel",
+      "faces": 86
+    },
+    "towel_5": {
+      "class": "Cloth",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object appears to be a flexible, fabric-like item, consistent with a towel, which is classified as a cloth.",
+      "label": "towel",
+      "faces": 56
+    },
+    "bottle_1": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object has a cylindrical shape with a narrow neck, typical of a bottle, and is made of a rigid material.",
+      "label": "bottle",
+      "faces": 223
+    },
+    "bottle_2": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a container with a narrow neck and a body, consistent with the typical structure of a bottle.",
+      "label": "bottle",
+      "faces": 406
+    },
+    "mug_1": {
+      "class": "Mug",
+      "is_new_class": false,
+      "superclass": "DrinkingContainer",
+      "confidence": 1.0,
+      "reason": "The object has a cylindrical shape with a handle, which is characteristic of a mug used for drinking.",
+      "label": "mug",
+      "faces": 82
+    },
+    "mug_2": {
+      "class": "Mug",
+      "is_new_class": false,
+      "superclass": "DrinkingContainer",
+      "confidence": 1.0,
+      "reason": "The object has a cylindrical shape with a handle, which is characteristic of a mug used for drinking.",
+      "label": "mug",
+      "faces": 147
+    },
+    "mug_3": {
+      "class": "Mug",
+      "is_new_class": false,
+      "superclass": "DrinkingContainer",
+      "confidence": 1.0,
+      "reason": "The object has a cylindrical shape with a handle, which is characteristic of a mug used for drinking.",
+      "label": "mug",
+      "faces": 141
+    },
+    "mug_4": {
+      "class": "Mug",
+      "is_new_class": false,
+      "superclass": "DrinkingContainer",
+      "confidence": 1.0,
+      "reason": "The object has a cylindrical shape with a handle, which is characteristic of a mug used for drinking.",
+      "label": "mug",
+      "faces": 100
+    },
+    "mug_5": {
+      "class": "Mug",
+      "is_new_class": false,
+      "superclass": "DrinkingContainer",
+      "confidence": 1.0,
+      "reason": "The object has a cylindrical shape with a handle, which is characteristic of a mug used for drinking.",
+      "label": "mug",
+      "faces": 125
+    },
+    "jar_1": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a container with a narrow neck and a body, consistent with the typical structure of a bottle.",
+      "label": "jar",
+      "faces": 8
+    },
+    "jar_2": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 1.0,
+      "reason": "The object is a container with a narrow neck and a body, consistent with the typical structure of a bottle.",
+      "label": "jar",
+      "faces": 3
+    },
+    "jar_5": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a narrow neck and a cylindrical body, consistent with a bottle, and the scan label 'jar' was misinterpreted as 'Bottle' which is a more accurate class for this shape.",
+      "label": "jar",
+      "faces": 10
+    },
+    "jar_6": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a narrow neck and a cylindrical body, consistent with a bottle, and the scan label 'jar' was misinterpreted as 'Bottle' which is a more accurate class for this shape.",
+      "label": "jar",
+      "faces": 3
+    },
+    "jar_7": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a narrow neck and a cylindrical body, consistent with a bottle, and the scan label 'jar' was misinterpreted as 'Bottle' which is a more accurate class for this shape.",
+      "label": "jar",
+      "faces": 3
+    },
+    "container_1": {
+      "class": "Container",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "confidence": 0.8,
+      "reason": "The object is a container with a broad body and a wide opening, suitable for storage, and the scan label 'container' was correctly interpreted as a new class 'Container' which fits its function.",
+      "label": "container",
+      "faces": 462
+    },
+    "container_2": {
+      "class": "Container",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "confidence": 0.8,
+      "reason": "The object is a container with a broad body and a wide opening, suitable for storage, and the scan label 'container' was correctly interpreted as a new class 'Container' which fits its function.",
+      "label": "container",
+      "faces": 73
+    },
+    "container_3": {
+      "class": "Container",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "confidence": 0.8,
+      "reason": "The object is a container with a broad body and a wide opening, suitable for storage, and the scan label 'container' was correctly interpreted as a new class 'Container' which fits its function.",
+      "label": "container",
+      "faces": 158
+    },
+    "container_4": {
+      "class": "Container",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "confidence": 0.8,
+      "reason": "The object is a container with a broad body and a wide opening, suitable for storage, and the scan label 'container' was correctly interpreted as a new class 'Container' which fits its function.",
+      "label": "container",
+      "faces": 126
+    },
+    "container_5": {
+      "class": "Container",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "confidence": 0.8,
+      "reason": "The object is a container with a broad body and a wide opening, suitable for storage, and the scan label 'container' was correctly interpreted as a new class 'Container' which fits its function.",
+      "label": "container",
+      "faces": 171
+    },
+    "container_6": {
+      "class": "Container",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a handle and a lid, consistent with the Container class.",
+      "label": "container",
+      "faces": 531
+    },
+    "container_7": {
+      "class": "Container",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a handle and a lid, consistent with the Container class.",
+      "label": "container",
+      "faces": 648
+    },
+    "container_8": {
+      "class": "Container",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a handle and a lid, consistent with the Container class.",
+      "label": "container",
+      "faces": 1
+    },
+    "container_9": {
+      "class": "Container",
+      "is_new_class": false,
+      "superclass": "HasRootBody",
+      "confidence": 0.9,
+      "reason": "The object is a container with a handle and a lid, consistent with the Container class.",
+      "label": "container",
+      "faces": 32
+    }
+  }
+}

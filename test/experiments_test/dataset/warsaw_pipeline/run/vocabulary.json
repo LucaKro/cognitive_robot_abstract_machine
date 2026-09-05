@@ -1,0 +1,265 @@
+{
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "labels": {
+    "bottle": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.9,
+      "reason": "The object is a container with a narrow neck and a body, consistent with a bottle, and the label 'bottle' is directly assigned to it in the ontology.",
+      "problems": [],
+      "exemplar": "bottle_1"
+    },
+    "cabinet": {
+      "class": "Cabinet",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object labeled 'cabinet' is a furniture item with doors and drawers, matching the definition of the 'Cabinet' class in the ontology, which includes parts for doors and drawers and can contain objects.",
+      "problems": [],
+      "exemplar": "cabinet_2"
+    },
+    "ceiling": {
+      "class": null,
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.0,
+      "reason": "The label 'ceiling' refers to a structural element of a room that is not represented in the ontology as a class or mixin; it is a spatial feature rather than an object with parts or relations defined by the given classes.",
+      "problems": [],
+      "exemplar": "ceiling_8"
+    },
+    "coffee_machine": {
+      "class": "CoffeeMachine",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.9,
+      "reason": "The object is a coffee machine, which is already defined in the ontology as a class with the necessary relations for its components and placement on a supporting surface.",
+      "problems": [],
+      "exemplar": "coffee_machine_1"
+    },
+    "container": {
+      "class": "Container",
+      "is_new_class": true,
+      "superclass": "HasRootBody",
+      "mixins": [
+        "IsStorageSpace"
+      ],
+      "confidence": 0.95,
+      "reason": "The object labeled 'container' is a standalone, enclosed item that holds other objects, matching the definition of a container with storage capacity; it aligns with the IsStorageSpace mixin and inherits from HasRootBody as a base.",
+      "problems": [],
+      "exemplar": "container_5"
+    },
+    "countertop": {
+      "class": "CounterTop",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object labeled 'countertop' is a flat surface that supports other objects and has a sink, matching the attributes of the CounterTop class which includes HasSupportingSurface and HasSink mixins.",
+      "problems": [],
+      "exemplar": "countertop_2"
+    },
+    "cutting_board": {
+      "class": "CuttingBoard",
+      "is_new_class": true,
+      "superclass": "HasSupportingSurface",
+      "mixins": [
+        "IsStorageSpace"
+      ],
+      "confidence": 0.95,
+      "reason": "The object is a flat, rectangular surface used for food preparation, placed on a kitchen island and countertop, which matches the function of a cutting board, and it can hold objects as its parts, so it should be classified as a subclass of HasSupportingSurface with IsStorageSpace mixin.",
+      "problems": [],
+      "exemplar": "cutting_board_1"
+    },
+    "door": {
+      "class": "Door",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a rectangular vertical structure with a handle and a glass panel, matching the definition of a Door in the ontology, which includes parts for a handle and a mechanical joint, and can be part of a wall or frame.",
+      "problems": [],
+      "exemplar": "door_2"
+    },
+    "drawer": {
+      "class": "Drawer",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The label 'drawer' refers to a component that is part of furniture like cabinets, and the object's geometry and context confirm it is a drawer, which is already defined in the ontology as a class with relations for mechanical joints and handles.",
+      "problems": [],
+      "exemplar": "drawer_19"
+    },
+    "faucet": {
+      "class": "HasHandle",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object labeled 'faucet' is a handle-like fixture attached to a sink, and the ontology already includes 'HasHandle' as a mixin that allows a class to have a handle; since the faucet's geometry and function align with a handle component, it should be classified under this existing mixin.",
+      "problems": [
+        "HasHandle is a mixin, so it says what a class can hold rather than what it is; derive a class from it instead of answering with it"
+      ],
+      "exemplar": "faucet_1"
+    },
+    "floor": {
+      "class": "Floor",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a flat, horizontal surface that supports other objects and is part of the room's structure, matching the definition of a Floor in the ontology.",
+      "problems": [],
+      "exemplar": "floor_1"
+    },
+    "handle": {
+      "class": "Handle",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a small, elongated protrusion attached to a larger structure (a door), consistent with the function and appearance of a handle; it matches the existing 'Handle' class in the ontology, which is designed for such components.",
+      "problems": [],
+      "exemplar": "handle_23"
+    },
+    "jar": {
+      "class": "Bottle",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.9,
+      "reason": "The object is a cylindrical container with a narrow neck, consistent with a jar, and the label 'jar' shares a face with 'bottle', indicating it is a type of bottle.",
+      "problems": [],
+      "exemplar": "jar_5"
+    },
+    "kitchen_island": {
+      "class": "KitchenIsland",
+      "is_new_class": true,
+      "superclass": "Table",
+      "mixins": [
+        "HasDrawers",
+        "HasSupportingSurface"
+      ],
+      "confidence": 0.95,
+      "reason": "The object is a large table-like structure with drawers and a supporting surface, matching the characteristics of a kitchen island.",
+      "problems": [],
+      "exemplar": "kitchen_island_1"
+    },
+    "kitchen_utensils": {
+      "class": "Tool",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.9,
+      "reason": "The object is a kitchen utensil, which is a type of tool, and the label 'kitchen_utensils' refers to a collection of such tools, fitting the existing 'Tool' class in the ontology.",
+      "problems": [],
+      "exemplar": "kitchen_utensils_7"
+    },
+    "lamp": {
+      "class": "Decor",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a lamp, which is a decorative item placed in a room; the ontology includes 'Decor' as a class for such items, and it fits the context of being a non-functional but aesthetic object.",
+      "problems": [],
+      "exemplar": "lamp_1"
+    },
+    "mug": {
+      "class": "Mug",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a drinking container with a handle, matching the existing class 'Mug' in the ontology.",
+      "problems": [],
+      "exemplar": "mug_1"
+    },
+    "oven": {
+      "class": "Oven",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object labeled 'oven' is a kitchen appliance with a door and a handle, matching the existing 'Oven' class in the ontology, which is defined as having doors and being a HasRootBody entity.",
+      "problems": [],
+      "exemplar": "oven_1"
+    },
+    "plate": {
+      "class": "Plate",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a flat, circular item with a smooth surface that can hold other objects, matching the properties of a Plate as defined in the ontology.",
+      "problems": [],
+      "exemplar": "plate_4"
+    },
+    "robot": {
+      "class": "Agent",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a robot, which is an autonomous agent that can perform tasks in the environment, matching the 'Agent' class in the ontology.",
+      "problems": [],
+      "exemplar": "robot_3"
+    },
+    "sink": {
+      "class": "Sink",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.9,
+      "reason": "The object is a recessed basin with a faucet, consistent with a sink, and the label 'sink' directly matches the existing class 'Sink' in the ontology.",
+      "problems": [],
+      "exemplar": "sink_1"
+    },
+    "table": {
+      "class": "Table",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a flat, elevated surface with a supporting structure underneath, consistent with the definition of a Table in the ontology, and it shares surfaces with countertop and kitchen_island, which are also tables or table-like structures.",
+      "problems": [],
+      "exemplar": "table_1"
+    },
+    "towel": {
+      "class": "Cloth",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a flexible, fabric-like item consistent with a towel, and the ontology includes 'Cloth' as a class for such items.",
+      "problems": [],
+      "exemplar": "towel_3"
+    },
+    "wall": {
+      "class": "Wall",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object is a vertical surface with apertures for doors and windows, matching the definition of Wall in the ontology which has the mixin HasApertures.",
+      "problems": [],
+      "exemplar": "wall_1"
+    },
+    "window": {
+      "class": "Aperture",
+      "is_new_class": false,
+      "superclass": null,
+      "mixins": [],
+      "confidence": 0.95,
+      "reason": "The object labeled 'window' is a rectangular opening in a wall, which matches the definition of an aperture as a hole or opening in a surface, and the ontology includes 'Aperture' as a class with a 'part' relation to 'Wall' via 'apertures'.",
+      "problems": [],
+      "exemplar": "window_1"
+    }
+  }
+}

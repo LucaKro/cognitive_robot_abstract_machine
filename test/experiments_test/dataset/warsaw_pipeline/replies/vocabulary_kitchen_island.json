@@ -1,0 +1,46 @@
+{
+  "id": "gen-1788600888-eVfKQZV7nhUZgl4BHaP4",
+  "object": "chat.completion",
+  "created": 1788600888,
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "provider": "Alibaba",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "native_finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "{\"class\": \"KitchenIsland\", \"is_new_class\": true, \"superclass\": \"Table\", \"mixins\": [\"HasDrawers\", \"HasSupportingSurface\"], \"confidence\": 0.95, \"reason\": \"The object is a large table-like structure with drawers and a supporting surface, matching the characteristics of a kitchen island.\"}",
+        "refusal": null,
+        "reasoning": null
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 9376,
+    "completion_tokens": 75,
+    "total_tokens": 9451,
+    "cost": 0.00125788,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.00125788,
+      "upstream_inference_prompt_cost": 0.00121888,
+      "upstream_inference_completions_cost": 3.9e-05
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}

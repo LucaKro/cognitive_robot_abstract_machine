@@ -1,0 +1,46 @@
+{
+  "id": "gen-1788602110-TepsbRw9BXs0rOARF8Pe",
+  "object": "chat.completion",
+  "created": 1788602110,
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "provider": "Novita",
+  "system_fingerprint": null,
+  "service_tier": null,
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "native_finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "```json\n[\n  {\"name\": \"floor_1\", \"class\": \"Floor\", \"is_new_class\": false, \"superclass\": \"HasSupportingSurface\", \"confidence\": 0.95, \"reason\": \"The object is the floor of the room, which supports other objects and has a flat surface, matching the definition of a Floor.\"},\n  {\"name\": \"ceiling_1\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"},\n  {\"name\": \"ceiling_2\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"},\n  {\"name\": \"ceiling_3\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"},\n  {\"name\": \"ceiling_4\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"},\n  {\"name\": \"ceiling_5\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"},\n  {\"name\": \"ceiling_6\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"},\n  {\"name\": \"ceiling_7\", \"class\": \"Ceiling\", \"is_new_class\": true, \"superclass\": \"HasRootRegion\", \"confidence\": 0.85, \"reason\": \"The object is located at the top of the room and functions as a ceiling, supporting the structure above it.\"}\n]\n```",
+        "refusal": null,
+        "reasoning": null
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10103,
+    "completion_tokens": 555,
+    "total_tokens": 10658,
+    "cost": 0.0024091,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.0024091,
+      "upstream_inference_prompt_cost": 0.0020206,
+      "upstream_inference_completions_cost": 0.0003885
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}
