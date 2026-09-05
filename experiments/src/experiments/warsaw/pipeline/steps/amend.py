@@ -40,10 +40,8 @@ from semantic_digital_twin.semantic_annotations.taxonomy_amendment import (
     granting_mixins,
 )
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
     describe_class,
 )
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Any, Dict, List, Optional, Tuple, Type
 
 from experiments.warsaw.pipeline.asking import Question
@@ -253,7 +251,7 @@ class AmendTaxonomy(PipelineStep):
         vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
         taxonomy = self.run.read_json(RunFile.TAXONOMY)
 
-        known = annotation_classes(SemanticAnnotation)
+        known = self.ontology_classes()
         mixins = [known[mixin["name"]] for mixin in taxonomy["part_whole_mixins"]]
         classes = VocabularyClasses(vocabulary=vocabulary, known=known).by_label()
 
@@ -538,7 +536,7 @@ class RevertAmendments(PipelineStep):
             self.logger.info("nothing is applied, so there is nothing to put back")
             return
 
-        known = annotation_classes(SemanticAnnotation)
+        known = self.ontology_classes()
         self.logger.info("putting back %s amendment(s):", len(applied))
         for record in reversed(applied):
             # before and after swapped, so applying this checks the file really holds the

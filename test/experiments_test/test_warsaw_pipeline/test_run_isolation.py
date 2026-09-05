@@ -155,10 +155,29 @@ def test_a_run_s_classes_are_looked_for_inside_it(tmp_path):
     becoming part of the shared ontology.
     """
     generated = GeneratedClasses(directory=tmp_path)
-    assert generated.path.parent == tmp_path.resolve()
+    assert generated.path.parent == generated.searched_directory
+    assert generated.searched_directory.parent == tmp_path.resolve()
     assert not generated.were_generated
+    generated.searched_directory.mkdir()
     generated.path.write_text("")
     assert generated.were_generated
+
+
+def test_only_the_generated_classes_are_put_on_the_annotations_path(tmp_path):
+    """
+    What is put on that path becomes part of the annotations package, so a run's own
+    directory would offer the inspector script it leaves behind as an annotation module
+    -- which the ORM generator then tries to map, and a run cannot be annotated twice.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir()
+    generated.path.write_text("")
+    (tmp_path / "inspect_world.py").write_text("class Inspection: pass\n")
+
+    assert generated.searched_directory != tmp_path.resolve()
+    assert [one.name for one in generated.searched_directory.iterdir()] == [
+        generated.file_name
+    ]
 
 
 def test_classes_already_imported_from_elsewhere_are_refused(tmp_path, monkeypatch):
@@ -167,6 +186,7 @@ def test_classes_already_imported_from_elsewhere_are_refused(tmp_path, monkeypat
     the run's file now would leave two versions of the same class in one interpreter.
     """
     generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir()
     generated.path.write_text("")
 
     class ImportedFromSomewhereElse:
@@ -184,6 +204,7 @@ def test_pointing_twice_at_the_same_run_is_not_a_conflict(tmp_path, monkeypatch)
     first.
     """
     generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir()
     generated.path.write_text("")
 
     class AlreadyThisRun:

@@ -16,7 +16,11 @@ from dataclasses import dataclass
 from semantic_digital_twin.adapters.vision_language_model.client import (
     VisionLanguageModel,
 )
-from typing_extensions import List, Optional
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+from typing_extensions import Dict, List, Optional, Type
 
 from experiments.warsaw.exceptions import SubprocessStepFailedError
 from experiments.warsaw.pipeline.asking import Questioner
@@ -60,6 +64,31 @@ class PipelineStep(Reporting, ABC):
         """
         Do the step's work, reading and writing the run's own files.
         """
+
+    def ontology_classes(self) -> Dict[str, Type]:
+        """
+        The classes the ontology holds, as this run read them out.
+
+        Not every subclass this interpreter happens to have: composing a proposed class
+        registers it as a subclass of the annotation root for the rest of the process, and
+        the steps of a run share one. Asked the live process, a step is told a class an
+        earlier step invented for this scene is part of the ontology -- so nothing
+        generates it, and the interpreter that writes the world, which invented nothing,
+        cannot find it and leaves those bodies unannotated.
+
+        The exported ontology is the one that is committed and it is written once per run,
+        which is what makes it the same answer in every step and every process.
+
+        :return: The ontology's classes by name.
+        """
+        declared = {
+            node["name"] for node in self.run.read_json(RunFile.TAXONOMY)["classes"]
+        }
+        return {
+            name: annotation_class
+            for name, annotation_class in annotation_classes(SemanticAnnotation).items()
+            if name in declared
+        }
 
     def questioner(self, answers: RunFile) -> Questioner:
         """
