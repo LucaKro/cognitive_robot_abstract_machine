@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import importlib
 import inspect
+import sys
 import uuid
 from abc import ABC
 from dataclasses import dataclass, fields, is_dataclass
@@ -11,7 +12,16 @@ from types import NoneType
 from typing import List, Optional, TypeAlias, TYPE_CHECKING
 
 import numpy as np
-from typing_extensions import Dict, Any, Self, Union, Type, TypeVar
+from typing_extensions import (
+    Any,
+    ClassVar,
+    Dict,
+    Self,
+    Type,
+    TypeVar,
+    Union,
+    get_origin,
+)
 
 from krrood.adapters.exceptions import (
     MissingTypeError,
@@ -500,6 +510,15 @@ class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
     this is not enough, you still need to implement a custom serializer.
     """
 
+    containers_by_class: ClassVar[Dict[Type, Dict[str, type]]] = {}
+    """
+    Per dataclass already read, the fields whose value is rebuilt from its annotation.
+
+    Working this out means resolving the class's annotations, which is too slow to
+    repeat for every record of a file, and the answer cannot change while the class is
+    loaded.
+    """
+
     @classmethod
     def to_json(cls, obj) -> Dict[str, Any]:
         result = {JSON_TYPE_NAME: get_full_class_name(type(obj))}
@@ -523,7 +542,70 @@ class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
         return is_dataclass(clazz)
 
     @classmethod
+    def annotated_containers(cls, clazz: Type) -> Dict[str, type]:
+        """
+        Work out which of a dataclass's fields JSON alone does not say the type of.
+
+        Two kinds are lost on the way out and have to be put back from the annotation:
+
+        A JSON array is read back as a list, which is wrong wherever the field is
+        annotated as a tuple or a set: the value would come back unhashable, so the record
+        holding it could no longer be put in a set or used as a key, and it would not equal
+        the record it was written from.
+
+        An enumeration whose members are strings or integers *is* a string or an integer,
+        so it is written as one and read back as one. It compares equal to its member and
+        is not it, which is the difference between ``kind == MountKind.PART`` and
+        ``kind is MountKind.PART``.
+
+        :param clazz: The dataclass being read.
+        :return: Per field that needs it, what to rebuild the read value with.
+        """
+        if clazz not in cls.containers_by_class:
+            rebuilt_by_field = {}
+            for holder in reversed(clazz.__mro__):
+                module = sys.modules.get(holder.__module__)
+                namespace = dict(vars(module)) if module is not None else {}
+                for name, hint in holder.__dict__.get("__annotations__", {}).items():
+                    rebuilt = cls.rebuilt_with(hint, namespace)
+                    if rebuilt is not None:
+                        rebuilt_by_field[name] = rebuilt
+            cls.containers_by_class[clazz] = rebuilt_by_field
+        return cls.containers_by_class[clazz]
+
+    @classmethod
+    def rebuilt_with(cls, hint: Any, namespace: Dict[str, Any]) -> Optional[type]:
+        """
+        Read one annotation, whether it arrives as a type or as the text of one.
+
+        A module using postponed evaluation hands over strings, and resolving those means
+        binding every name they mention -- which a class annotating a field with a name it
+        imports only for type checking does not allow. The text is read instead, so no
+        annotation can stop a class being deserialized.
+
+        :param hint: What the field is annotated as.
+        :param namespace: The names in scope where the annotation was written.
+        :return: The type a value read for the field is rebuilt with, or None to leave it.
+        """
+        if isinstance(hint, str):
+            containers = {"tuple": tuple, "set": set, "frozenset": frozenset}
+            written = hint.strip()
+            head = written.split("[", 1)[0].rsplit(".", 1)[-1].lower()
+            if head in containers:
+                return containers[head]
+            named = namespace.get(written)
+            if inspect.isclass(named) and issubclass(named, enum.Enum):
+                return named
+            return None
+        if get_origin(hint) in (tuple, set, frozenset):
+            return get_origin(hint)
+        if inspect.isclass(hint) and issubclass(hint, enum.Enum):
+            return hint
+        return None
+
+    @classmethod
     def from_json(cls, data: Dict[str, Any], clazz: Type, **kwargs) -> Self:
+        containers = cls.annotated_containers(clazz)
         introspector = DataclassOnlyIntrospector()
         discovered_attributes = {
             attr.field.name: attr.field for attr in introspector.discover(clazz)
@@ -550,6 +632,10 @@ class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
                 current_result = dict(zip(keys, values))
             else:
                 current_result = from_json(current_data, **kwargs)
+
+            rebuilt = containers.get(field_name)
+            if rebuilt is not None and not isinstance(current_result, rebuilt):
+                current_result = rebuilt(current_result)
 
             if field_.init:
                 init_args[field_name] = current_result

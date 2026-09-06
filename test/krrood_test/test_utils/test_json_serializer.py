@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Any, Self
+from typing import Dict, Any, List, Optional, Self, Set, Tuple, TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -383,3 +383,143 @@ def test_dataclass_dict():
     data = to_json(cls)
     result = from_json(data)
     assert result == cls
+
+
+@dataclass
+class ClassWithContainers:
+    """
+    A class whose fields are the containers a JSON array can stand for.
+    """
+
+    claimants: Tuple[str, ...] = ("a", "b")
+    """
+    A tuple, which has to come back hashable.
+    """
+
+    tags: Set[str] = field(default_factory=lambda: {"x", "y"})
+    """
+    A set, which has to come back without an order.
+    """
+
+    listed: List[str] = field(default_factory=lambda: ["p", "q"])
+    """
+    A list, which is what a JSON array already is.
+    """
+
+
+def test_dataclass_containers_keep_their_type():
+    """
+    A JSON array is read back as whatever the field's annotation says it is.
+
+    Every container is written as an array, so nothing in the file says which one it was.
+    Reading them all back as lists means a tuple field returns unhashable, and the record
+    no longer equals the one it was written from.
+    """
+    held = ClassWithContainers()
+    result = from_json(to_json(held))
+    assert result == held
+    assert isinstance(result.claimants, tuple)
+    assert isinstance(result.tags, set)
+    assert isinstance(result.listed, list)
+
+
+def test_a_tuple_field_comes_back_usable_as_a_key():
+    """
+    The point of keeping the tuple: it can still be put in a set or used as a key.
+    """
+    result = from_json(to_json(ClassWithContainers()))
+    assert {result.claimants} == {("a", "b")}
+
+
+@dataclass
+class ClassWithPostponedAnnotations:
+    """
+    A class whose annotations are strings, as they are under postponed evaluation.
+    """
+
+    claimants: "Tuple[str, ...]" = ("a", "b")
+    """
+    The same tuple, written as a string annotation.
+    """
+
+
+def test_a_string_annotation_is_resolved_before_it_is_read():
+    """
+    A module with ``from __future__ import annotations`` hands over strings, not types.
+    """
+    assert DataclassJSONSerializer.annotated_containers(
+        ClassWithPostponedAnnotations
+    ) == {"claimants": tuple}
+    result = from_json(to_json(ClassWithPostponedAnnotations()))
+    assert isinstance(result.claimants, tuple)
+
+
+class Channel(str, Enum):
+    """
+    An enumeration whose members are strings, so JSON cannot tell them apart from one.
+    """
+
+    PART = "part"
+    CONTAINS = "contains"
+
+
+@dataclass
+class ClassWithStringEnum:
+    """
+    A class holding a member of a string enumeration.
+    """
+
+    channel: Channel = Channel.PART
+    """
+    The member, which has to come back as the member and not as its value.
+    """
+
+
+def test_a_string_enum_comes_back_as_its_member():
+    """
+    A str-valued enum member is a string, so it is written as one and read back as one.
+
+    It compares equal to its member either way; what is lost is that it *is* the member,
+    which is the difference between ``channel == Channel.PART`` and
+    ``channel is Channel.PART``.
+    """
+    result = from_json(to_json(ClassWithStringEnum()))
+    assert result.channel is Channel.PART
+
+
+if TYPE_CHECKING:
+    from krrood.entity_query_language.explanation.explanation import (
+        InferenceExplanation,
+    )
+
+
+@dataclass
+class ClassAnnotatedForTypeCheckingOnly:
+    """
+    A class annotating a field with a name it only imports for type checking.
+
+    Widespread and legal: the name is never bound at runtime, so the annotation cannot be
+    resolved in the running process.
+    """
+
+    explained: "Optional[InferenceExplanation]" = None
+    """
+    The field whose annotation names something this process does not have.
+    """
+
+    tags: Tuple[str, ...] = ("a",)
+    """
+    A field beside it, to show the class is still read.
+    """
+
+
+def test_a_class_whose_annotations_cannot_be_resolved_is_still_read():
+    """
+    Reading a class's annotations must not be what stops it being deserialized.
+
+    Resolving them means binding every name they mention, and a class is free to annotate
+    a field with one it only imports for type checking.
+    """
+    held = ClassAnnotatedForTypeCheckingOnly()
+    result = from_json(to_json(held))
+    assert result == held
