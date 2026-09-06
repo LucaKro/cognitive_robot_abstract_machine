@@ -193,3 +193,8 @@ CLAUDE.local.md
 # megabytes and a run's conclusions are a run's, not the project's.
 experiments/src/experiments/warsaw/dataset/
 experiments/src/experiments/warsaw/pipeline_runs/
+# The self-collision matrix a collision test saves. It is written into whatever directory
+# the tests were started from, so it lands at the root of a checkout and gets swept into a
+# commit; the matrices the project keeps live in
+# semantic_digital_twin/resources/collision_configs/ under the robot's own name.
+test.srdf
