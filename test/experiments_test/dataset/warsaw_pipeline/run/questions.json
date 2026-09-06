@@ -1,74 +1,28 @@
 {
+  "__json_type__": "experiments.warsaw.pipeline.records.OpenQuestions",
   "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
   "ownership": [
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.OwnershipQuestion",
       "name": "cabinet__drawer__kitchen_island",
-      "kind": "ownership",
-      "pattern": [
-        "cabinet",
-        "drawer",
-        "kitchen_island"
-      ],
       "shown": [
         "cabinet_8",
         "drawer_5",
         "kitchen_island_1"
       ],
-      "covers": [
-        {
-          "claimants": [
+      "ontology": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologySlice",
+        "read_as": {
+          "keys": [
             "cabinet_8",
             "drawer_5",
             "kitchen_island_1"
           ],
-          "faces": 1503
-        },
-        {
-          "claimants": [
-            "cabinet_10",
-            "drawer_7",
-            "kitchen_island_1"
-          ],
-          "faces": 796
-        },
-        {
-          "claimants": [
-            "cabinet_8",
-            "drawer_4",
-            "kitchen_island_1"
-          ],
-          "faces": 8
-        },
-        {
-          "claimants": [
-            "cabinet_10",
-            "drawer_6",
-            "kitchen_island_1"
-          ],
-          "faces": 7
-        }
-      ],
-      "contested_faces": 4318,
-      "shares": {
-        "cabinet_8": {
-          "faces": 1589,
-          "contested_share": 0.9459
-        },
-        "drawer_5": {
-          "faces": 1741,
-          "contested_share": 0.8633
-        },
-        "kitchen_island_1": {
-          "faces": 27501,
-          "contested_share": 0.0547
-        }
-      },
-      "exemplar_faces": 1503,
-      "ontology": {
-        "read_as": {
-          "cabinet_8": "Cabinet",
-          "drawer_5": "Drawer",
-          "kitchen_island_1": "KitchenIsland"
+          "values": [
+            "Cabinet",
+            "Drawer",
+            "KitchenIsland"
+          ]
         },
         "classes": [
           "Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers)\n  part drawers -> Drawer (many), mounted with add()\n  part doors -> Door (many), mounted with add()\n  contains objects -> HasRootBody (many), mounted with add_object()\n  supports supporting_surface -> Region, mounted with add_supporting_surface()",
@@ -83,68 +37,141 @@
           "KitchenIsland.drawers may hold a Drawer (part, mounted with add())"
         ]
       },
-      "measured": {
-        "cabinet_8": {
+      "measured": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MeasuredSegment",
+          "name": "cabinet_8",
           "faces": 1589,
           "area": 1.43,
           "height": 0.87,
           "pieces": 1
         },
-        "drawer_5": {
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MeasuredSegment",
+          "name": "drawer_5",
           "faces": 1741,
           "area": 1.53,
           "height": 0.87,
           "pieces": 1
         },
-        "kitchen_island_1": {
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MeasuredSegment",
+          "name": "kitchen_island_1",
           "faces": 27501,
           "area": 30.695,
           "height": 1.69,
           "pieces": 1
         }
-      },
+      ],
       "images": [
         "cabinet__drawer__kitchen_island__closeup_back_right.png",
         "cabinet__drawer__kitchen_island__context_back_right.png",
         "cabinet__drawer__kitchen_island__plain_back_right.png"
       ],
       "legend": {
-        "cabinet_8": "tomato",
-        "drawer_5": "royalblue",
-        "kitchen_island_1": "greenyellow",
-        "contested": "mediumorchid"
-      }
+        "keys": [
+          "cabinet_8",
+          "drawer_5",
+          "kitchen_island_1",
+          "contested"
+        ],
+        "values": [
+          "tomato",
+          "royalblue",
+          "greenyellow",
+          "mediumorchid"
+        ]
+      },
+      "kind": "ownership",
+      "pattern": [
+        "cabinet",
+        "drawer",
+        "kitchen_island"
+      ],
+      "covers": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
+          "claimants": [
+            "cabinet_8",
+            "drawer_5",
+            "kitchen_island_1"
+          ],
+          "faces": 1503
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
+          "claimants": [
+            "cabinet_10",
+            "drawer_7",
+            "kitchen_island_1"
+          ],
+          "faces": 796
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
+          "claimants": [
+            "cabinet_8",
+            "drawer_4",
+            "kitchen_island_1"
+          ],
+          "faces": 8
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
+          "claimants": [
+            "cabinet_10",
+            "drawer_6",
+            "kitchen_island_1"
+          ],
+          "faces": 7
+        }
+      ],
+      "contested_faces": 4318,
+      "exemplar_faces": 1503,
+      "shares": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.ContestedShare",
+          "name": "cabinet_8",
+          "faces": 1589,
+          "contested_share": 0.9459
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.ContestedShare",
+          "name": "drawer_5",
+          "faces": 1741,
+          "contested_share": 0.8633
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.ContestedShare",
+          "name": "kitchen_island_1",
+          "faces": 27501,
+          "contested_share": 0.0547
+        }
+      ]
     }
   ],
   "membership": [
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.MembershipQuestion",
       "name": "door_10",
-      "kind": "membership",
-      "part": "door_10",
       "shown": [
         "door_10",
         "cabinet_20",
         "cabinet_4"
       ],
-      "candidates": {
-        "cabinet_20": {
-          "field": "doors",
-          "shared_faces": 9,
-          "touching_edges": 44,
-          "distance": 0.0
-        },
-        "cabinet_4": {
-          "field": "doors",
-          "shared_faces": 3789,
-          "touching_edges": 5626,
-          "distance": 0.0
-        }
-      },
       "ontology": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologySlice",
         "read_as": {
-          "door_10": "Door",
-          "cabinet_20": "Cabinet",
-          "cabinet_4": "Cabinet"
+          "keys": [
+            "door_10",
+            "cabinet_20",
+            "cabinet_4"
+          ],
+          "values": [
+            "Door",
+            "Cabinet",
+            "Cabinet"
+          ]
         },
         "classes": [
           "Door(HasHandle, HasMechanicalJoint)\n  part mechanical_joint -> MechanicalJoint, mounted with add()\n  part handle -> Handle, mounted with add()\n  part entry_way -> EntryWay, mounted with add()",
@@ -155,41 +182,76 @@
           "Cabinet.objects may hold a HasRootBody (contains, mounted with add_object())"
         ]
       },
-      "measured": {
-        "door_10": {
+      "measured": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MeasuredSegment",
+          "name": "door_10",
           "faces": 3800,
           "area": 1.982,
           "height": 1.72,
           "pieces": 1
         },
-        "cabinet_20": {
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MeasuredSegment",
+          "name": "cabinet_20",
           "faces": 1775,
           "area": 2.0,
           "height": 1.57,
           "pieces": 1
         },
-        "cabinet_4": {
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MeasuredSegment",
+          "name": "cabinet_4",
           "faces": 3839,
           "area": 1.997,
           "height": 1.73,
           "pieces": 1
         }
-      },
+      ],
       "images": [
         "door_10__closeup_back_right.png",
         "door_10__context_back_right.png",
         "door_10__plain_back_right.png"
       ],
       "legend": {
-        "door_10": "tomato",
-        "cabinet_20": "royalblue",
-        "cabinet_4": "greenyellow",
-        "contested": "mediumorchid"
-      }
+        "keys": [
+          "door_10",
+          "cabinet_20",
+          "cabinet_4",
+          "contested"
+        ],
+        "values": [
+          "tomato",
+          "royalblue",
+          "greenyellow",
+          "mediumorchid"
+        ]
+      },
+      "kind": "membership",
+      "part": "door_10",
+      "candidates": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MembershipCandidate",
+          "field_name": "doors",
+          "shared_faces": 9,
+          "touching_edges": 44,
+          "distance": 0.0,
+          "name": "cabinet_20"
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.MembershipCandidate",
+          "field_name": "doors",
+          "shared_faces": 3789,
+          "touching_edges": 5626,
+          "distance": 0.0,
+          "name": "cabinet_4"
+        }
+      ]
     }
   ],
   "settled": [
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "cabinet_5",
         "door_11"
@@ -199,28 +261,31 @@
   ],
   "forced": [
     {
-      "part": "door_11",
-      "whole": "cabinet_5",
-      "field": "doors",
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "doors",
       "shared_faces": 3779,
       "touching_edges": 5746,
-      "distance": 0.0
+      "distance": 0.0,
+      "part": "door_11",
+      "whole": "cabinet_5"
     },
     {
-      "part": "handle_13",
-      "whole": "drawer_7",
-      "field": "handle",
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
       "shared_faces": 69,
       "touching_edges": 115,
-      "distance": 0.0
+      "distance": 0.0,
+      "part": "handle_13",
+      "whole": "drawer_7"
     },
     {
-      "part": "handle_14",
-      "whole": "drawer_5",
-      "field": "handle",
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
       "shared_faces": 72,
       "touching_edges": 118,
-      "distance": 0.0
+      "distance": 0.0,
+      "part": "handle_14",
+      "whole": "drawer_5"
     }
   ]
 }

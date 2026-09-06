@@ -34,8 +34,8 @@ class WorldStore:
         Load the generated interface that says how a world is stored.
 
         Importing it is what registers a data access object for every mapped class, so
-        anything converting a world has to have done it -- ``to_dao`` looks the mapping up
-        by class and reports the world as unmapped when nothing has.
+        anything converting a world has to have done it -- ``to_dao`` looks the mapping
+        up by class and reports the world as unmapped when nothing has.
 
         :return: The interface module.
         """

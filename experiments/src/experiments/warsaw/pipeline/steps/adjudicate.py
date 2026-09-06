@@ -36,7 +36,6 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
 from typing_extensions import Any, Dict, Generic, List, Optional, TypeVar
 
 from experiments.warsaw.pipeline.asking import AnswerType, Question
-from experiments.warsaw.pipeline.prompts import Prompt
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     MembershipAnswer,
@@ -55,6 +54,8 @@ AskedType = TypeVar("AskedType")
 """
 The question record one kind of adjudication is put from.
 """
+
+# %% what each picture of an overlap shows
 
 
 class OverlapCaption(StrEnum):
@@ -85,7 +86,10 @@ class OverlapCaption(StrEnum):
         return PictureKind(self.name.lower())
 
 
-@dataclass
+# %% what is put to a model about an overlap
+
+
+@dataclass(kw_only=True)
 class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
     """
     What the pictures of a set of overlapping objects are shown to settle.
@@ -101,9 +105,9 @@ class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
     Per segment, the label it carries.
     """
 
-    images: Path
+    renders_directory: Path
     """
-    The directory holding its renders.
+    Where the renders shown with the question are kept.
     """
 
     @property
@@ -130,7 +134,7 @@ class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
             if filename is None:
                 continue
             content.append(TextPart(caption.value))
-            content.append(ImagePart.from_file(self.images / filename))
+            content.append(ImagePart.from_file(self.renders_directory / filename))
         return content
 
     def painted(self) -> str:
@@ -174,47 +178,44 @@ class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
         :return: What was measured of each object on its own.
         """
         return "\n".join(
-            f"{name}: {one.faces} faces, {one.area} m2, "
+            f"{one.name}: {one.faces} faces, {one.area} m2, "
             f"middle {one.height} m up, {one.pieces} piece(s)"
-            for name, one in self.asked.measured.items()
+            for one in self.asked.measured
         )
 
 
-@dataclass
+# %% whose the contested faces are
+
+
+@dataclass(kw_only=True)
 class OwnershipDecision(OverlapQuestion[OwnershipAnswer, OwnershipQuestion]):
     """
     Whose the faces a set of labels all claim are.
+    """
+
+    prompt: str = "ownership"
+    """
+    The prompt this question is put with, both halves of it.
     """
 
     @property
     def kind_name(self) -> str:
         return "ownership"
 
-    @property
-    def system_prompt(self) -> str:
-        return Prompt.OWNERSHIP.read()
-
     def message(self) -> List[MessagePart]:
-        # What the picture cannot say. One claimant is often many times the size of the
-        # others -- an island label covers the whole block including its drawers -- and
-        # then the contested faces read as a patch of detail on the big object rather than
-        # as the whole of the small one. The shares say which it is.
-        shares = "\n".join(
-            f"of {name} the contested {self.asked.exemplar_faces} faces are "
-            f"{share.contested_share:.0%}"
-            for name, share in self.asked.shares.items()
-        )
         return [
             TextPart(
-                f"## The labels\n{', '.join(self.asked.pattern)}\n\n"
-                f"{self.ontology()}\n\n"
-                f"## The picture\n{self.painted()}\n\n"
-                f"## What was measured\n{self.measured()}\n{shares}\n\n"
-                f"## How often this happens\n"
-                f"Objects with these labels are labelled over the same faces "
-                f"{len(self.asked.covers)} time(s) in this room, "
-                f"{self.asked.contested_faces} faces in all. The pictures show the "
-                f"largest of them."
+                self.templates.render_document(
+                    self.message_template,
+                    pattern=self.asked.pattern,
+                    ontology=self.ontology(),
+                    painted=self.painted(),
+                    measured=self.measured(),
+                    shares=self.asked.shares,
+                    exemplar_faces=self.asked.exemplar_faces,
+                    covers=len(self.asked.covers),
+                    contested_faces=self.asked.contested_faces,
+                )
             )
         ] + self.pictures()
 
@@ -246,35 +247,36 @@ class OwnershipDecision(OverlapQuestion[OwnershipAnswer, OwnershipQuestion]):
         ]
 
 
-@dataclass
+# %% which whole a part belongs to
+
+
+@dataclass(kw_only=True)
 class MembershipDecision(OverlapQuestion[MembershipAnswer, MembershipQuestion]):
     """
     Which of several candidates a part belongs to.
+    """
+
+    prompt: str = "membership"
+    """
+    The prompt this question is put with, both halves of it.
     """
 
     @property
     def kind_name(self) -> str:
         return "membership"
 
-    @property
-    def system_prompt(self) -> str:
-        return Prompt.MEMBERSHIP.read()
-
     def message(self) -> List[MessagePart]:
-        candidates = "\n".join(
-            f"{name}: shares {how.shared_faces} faces with it, touches it along "
-            f"{how.touching_edges} edges, {how.distance} m between their surfaces, "
-            f"and would hold it in its {how.field_name}"
-            for name, how in self.asked.candidates.items()
-        )
         return [
             TextPart(
-                f"## The part\n{self.asked.part}, labelled "
-                f'"{self.labels[self.asked.part]}"\n\n'
-                f"{self.ontology()}\n\n"
-                f"## What was measured\n{self.measured()}\n\n"
-                f"## The candidates\n{candidates}\n\n"
-                f"## The picture\n{self.painted()}"
+                self.templates.render_document(
+                    self.message_template,
+                    part=self.asked.part,
+                    part_label=self.labels[self.asked.part],
+                    ontology=self.ontology(),
+                    measured=self.measured(),
+                    candidates=self.asked.candidates,
+                    painted=self.painted(),
+                )
             )
         ] + self.pictures()
 
@@ -294,12 +296,15 @@ class MembershipDecision(OverlapQuestion[MembershipAnswer, MembershipQuestion]):
         )
 
     def problems_with(self, answer: MembershipAnswer) -> List[str]:
-        if answer.whole in self.asked.candidates:
+        if answer.whole in self.asked.candidate_names:
             return []
         return [
             f"{answer.whole!r} is not one of the wholes to choose from: "
-            f"{', '.join(self.asked.candidates)}"
+            f"{', '.join(self.asked.candidate_names)}"
         ]
+
+
+# %% what was drawn to ask with
 
 
 @dataclass
@@ -326,6 +331,9 @@ class RenderedQuestions:
         return len(self.with_pictures) + len(self.without)
 
 
+# %% settling every open question
+
+
 @dataclass
 class AdjudicateOverlaps(PipelineStep):
     """
@@ -345,18 +353,18 @@ class AdjudicateOverlaps(PipelineStep):
         """
         Put every rendered question to the model and write the answers.
         """
-        questions = OpenQuestions.from_json(self.run.read_json(RunFile.QUESTIONS))
-        relations = Relations.from_json(self.run.read_json(RunFile.RELATIONS))
+        questions = self.run.read_record(RunFile.QUESTIONS, OpenQuestions)
+        relations = self.run.read_record(RunFile.RELATIONS, Relations)
         labels = relations.labels
-        images = self.run.path(RunFile.QUESTION_RENDERS)
+        renders = self.run.path(RunFile.QUESTION_RENDERS)
         questioner = self.questioner(RunFile.QUESTION_ANSWERS)
 
         ownership = [
-            OwnershipDecision(asked=one, labels=labels, images=images)
+            OwnershipDecision(asked=one, labels=labels, renders_directory=renders)
             for one in questions.ownership
         ]
         membership = [
-            MembershipDecision(asked=one, labels=labels, images=images)
+            MembershipDecision(asked=one, labels=labels, renders_directory=renders)
             for one in questions.membership
         ]
         rendered = self.rendered(ownership + membership)
@@ -394,7 +402,7 @@ class AdjudicateOverlaps(PipelineStep):
             for problem in answer.problems:
                 self.logger.warning("      ! %s", problem)
 
-        self.run.write_json(RunFile.ADJUDICATIONS, adjudications.to_json())
+        self.run.write_record(RunFile.ADJUDICATIONS, adjudications)
         self.report(adjudications)
 
     @staticmethod

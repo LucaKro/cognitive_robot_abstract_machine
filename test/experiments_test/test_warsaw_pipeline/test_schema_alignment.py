@@ -17,8 +17,7 @@ import pytest
 from sqlalchemy import Column, Integer, String, create_engine, text
 from sqlalchemy.orm import DeclarativeBase
 
-from experiments.warsaw.exceptions import ColumnsCannotBeAddedError
-from experiments.warsaw.pipeline.schema_alignment import SchemaAlignment
+from experiments.warsaw.pipeline.database.schema_alignment import SchemaAlignment
 
 
 class StoredThing(DeclarativeBase):
@@ -190,6 +189,3 @@ def test_a_column_that_cannot_be_added_is_reported_rather_than_guessed_at(
     report = alignment.align()
     assert not report.is_aligned
     assert any("RequiredSince.must_be_said" in one for one in report.refused)
-
-    with pytest.raises(ColumnsCannotBeAddedError):
-        SchemaAlignment(engine=standing_database, base=StoredThing).align_or_raise()

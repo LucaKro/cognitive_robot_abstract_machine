@@ -8,7 +8,6 @@ what any one step said. A run that stopped early is worth reporting on too.
 
 from __future__ import annotations
 
-from string import Template
 
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.pipeline.run import Run, RunFile
@@ -53,9 +52,10 @@ def test_the_objects_that_lost_every_face_are_named_with_what_took_them(
     """
     report = RunReport(run=finished_run).markdown()
     assert f"### {len(split.emptied)} objects lost every face" in report
-    for name, took in split.emptied.items():
-        assert f"`{name}` -> " in report
-        assert f"{next(iter(took))} ({next(iter(took.values()))})" in report
+    for segment in split.emptied:
+        assert f"`{segment.name}` -> " in report
+        largest = segment.taken_by[0]
+        assert f"{largest.name} ({largest.faces})" in report
 
 
 def test_every_class_given_is_counted(finished_run, classifications):
@@ -63,9 +63,7 @@ def test_every_class_given_is_counted(finished_run, classifications):
     How often each class was given is what says whether a run discriminated at all.
     """
     report = RunReport(run=finished_run).markdown()
-    for name in {
-        one.class_name for one in classifications.bodies.values() if one.class_name
-    }:
+    for name in {one.class_name for one in classifications.bodies if one.class_name}:
         assert f"`{name}`" in report
 
 
@@ -104,11 +102,11 @@ def test_the_inspector_is_written_with_the_worlds_this_run_wrote(tmp_path, split
     nobody has to be told them.
     """
     run = Run.create(tmp_path)
-    run.write_json(RunFile.SPLIT, split.to_json())
-    RunReport(run=run).write_inspector(Template("annotated=$annotated split=$split"))
-    assert run.path(RunFile.INSPECTOR).read_text() == (
-        f"annotated={split.annotated_world_id} split={split.world_id}"
-    )
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+    assert f"annotated_world: int = {split.annotated_world_id}" in written
+    assert f"split_world: int = {split.world_id}" in written
 
 
 def test_the_report_is_written_into_the_run_it_is_about(tmp_path):
@@ -119,3 +117,18 @@ def test_the_report_is_written_into_the_run_it_is_about(tmp_path):
     written = RunReport(run=run).write()
     assert run.path(RunFile.REPORT).read_text() == written
     assert written.startswith(f"# {run.name}")
+
+
+# %% the report as a whole
+
+
+def test_the_report_says_exactly_what_it_said_before_a_template_wrote_it(
+    finished_run, dataset
+):
+    """
+    Read against what the f-strings produced for the same run, byte for byte: the report
+    is how two runs are compared, so a heading or a count that moved is a comparison
+    that silently stops working.
+    """
+    expected = (dataset / "expected" / "report.md").read_text()
+    assert RunReport(run=finished_run).markdown() == expected

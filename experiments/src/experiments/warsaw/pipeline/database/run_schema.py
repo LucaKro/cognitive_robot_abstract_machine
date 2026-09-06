@@ -55,6 +55,8 @@ class RunSchema:
     The database to reach, or None to read it from the environment when it is needed.
     """
 
+    # %% naming a run's own schema
+
     @classmethod
     def for_run(
         cls,
@@ -108,6 +110,8 @@ class RunSchema:
         query["options"] = f"-csearch_path={self.name}"
         return url.set(query=query).render_as_string(hide_password=False)
 
+    # %% making it and taking it away again
+
     def create(self) -> None:
         """
         Make the schema, if it is not already there.
@@ -156,6 +160,8 @@ class RunSchema:
         finally:
             engine.dispose()
         return dropped
+
+    # %% pointing everything at it
 
     def use(self) -> None:
         """

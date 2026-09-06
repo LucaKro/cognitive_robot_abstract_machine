@@ -47,6 +47,8 @@ class VocabularyClasses(Reporting):
     the ontology already holds.
     """
 
+    # %% building what a proposal names
+
     def composed(self, answer: LabelAnswer) -> Optional[Type]:
         """
         Build the class one proposal names.
@@ -72,7 +74,8 @@ class VocabularyClasses(Reporting):
         :return: Per label, the class it stands for, or None where it stands for none.
         """
         classes: Dict[str, Optional[Type]] = {}
-        for label, answer in self.vocabulary.labels.items():
+        for answer in self.vocabulary.labels:
+            label = answer.label
             if not answer.class_name or answer.problems:
                 classes[label] = None
                 if answer.class_name:
@@ -84,6 +87,8 @@ class VocabularyClasses(Reporting):
             else:
                 classes[label] = self.composed(answer)
         return classes
+
+    # %% putting the proposals beside the ontology
 
     def widened(self, taxonomy: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -111,7 +116,10 @@ class VocabularyClasses(Reporting):
         """
         already = {node["name"] for node in taxonomy["classes"]}
         added = []
-        for label, answer in sorted(self.vocabulary.proposals.items()):
+        for answer in sorted(
+            self.vocabulary.proposals, key=lambda one: one.label or ""
+        ):
+            label = answer.label
             if answer.class_name in already:
                 continue
             composed = self.composed(answer)

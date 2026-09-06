@@ -17,9 +17,17 @@ from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
-from typing_extensions import Any
+from typing_extensions import Any, Type, TypeVar
 
 from experiments.warsaw.exceptions import RunOutputAlreadyWrittenError
+from experiments.warsaw.pipeline.json_record import JsonRecord
+
+RecordType = TypeVar("RecordType", bound=JsonRecord)
+"""
+One of the records a run writes into its directory and reads back.
+"""
+
+# %% everything a run writes
 
 
 class RunFile(StrEnum):
@@ -139,6 +147,9 @@ class RunFile(StrEnum):
     """
 
 
+# %% the directory a run is
+
+
 @dataclass
 class Run:
     """
@@ -209,6 +220,40 @@ class Run:
         :return: What it holds, or an empty mapping when the run never wrote it.
         """
         return self.read_json(run_file) if self.holds(run_file) else {}
+
+    def read_record(self, run_file: RunFile, reader: Type[RecordType]) -> RecordType:
+        """
+        :param run_file: The file to read.
+        :param reader: The record it holds.
+        :return: What it holds, as that record.
+        """
+        return reader.from_json(self.read_json(run_file))
+
+    def read_record_if_written(
+        self, run_file: RunFile, otherwise: RecordType
+    ) -> RecordType:
+        """
+        Read a record from a file a run may not have got as far as writing.
+
+        A report is asked for about runs that stopped halfway as much as about runs that
+        finished, so a file that is not there stands for a record that holds nothing
+        rather than for an error.
+
+        :param run_file: The file to read.
+        :param otherwise: What to stand in with when the run never wrote it.
+        :return: What it holds, or what was given to stand in.
+        """
+        if not self.holds(run_file):
+            return otherwise
+        return type(otherwise).from_json(self.read_json(run_file))
+
+    def write_record(self, run_file: RunFile, record: JsonRecord) -> Path:
+        """
+        :param run_file: The file to write.
+        :param record: What to write.
+        :return: The file written.
+        """
+        return self.write_json(run_file, record.to_json())
 
     def write_json(self, run_file: RunFile, content: Any) -> Path:
         """

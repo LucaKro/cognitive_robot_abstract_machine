@@ -17,22 +17,12 @@ from __future__ import annotations
 
 import json
 
+from dataclasses import replace
+
 import pytest
 
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
-
-
-@pytest.fixture
-def known():
-    """
-    :return: The ontology's classes by name.
-    """
-    return annotation_classes(SemanticAnnotation)
 
 
 def widening(labels, known, taxonomy):
@@ -43,7 +33,12 @@ def widening(labels, known, taxonomy):
     :return: The ontology as the classification step is shown it.
     """
     return VocabularyClasses(
-        vocabulary=Vocabulary(model="", scene="", labels=labels), known=known
+        vocabulary=Vocabulary(
+            model="",
+            scene="",
+            labels=[replace(answer, label=label) for label, answer in labels.items()],
+        ),
+        known=known,
     ).widened(taxonomy)
 
 
@@ -203,5 +198,5 @@ def test_a_real_run_s_proposals_are_exactly_what_is_added(vocabulary, known, tax
     """
     widened = VocabularyClasses(vocabulary=vocabulary, known=known).widened(taxonomy)
     assert named(widened) - named(taxonomy) == {
-        answer.class_name for answer in vocabulary.proposals.values()
+        answer.class_name for answer in vocabulary.proposals
     }

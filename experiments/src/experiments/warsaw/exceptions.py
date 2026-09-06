@@ -327,31 +327,3 @@ class WorldNotInDatabaseError(DataclassException, LookupError):
 
 
 # %% aligning a database that already holds worlds
-
-
-@dataclass
-class ColumnsCannotBeAddedError(DataclassException, RuntimeError):
-    """
-    Raised when a column the ORM asks for cannot be added to a table that holds rows.
-
-    The drift a regenerated ORM leaves is additive and can be closed by adding columns,
-    which costs no stored world. A column that is required and has no value a stored row
-    could have been written with is not guessed at.
-    """
-
-    refusals: List[str]
-    """
-    One sentence per column that cannot be added.
-    """
-
-    def error_message(self) -> str:
-        return (
-            "These columns cannot be added to a database that already holds rows:\n  "
-            + "\n  ".join(self.refusals)
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "The stored worlds predate them, so closing this is a decision about those "
-            "worlds rather than a migration."
-        )

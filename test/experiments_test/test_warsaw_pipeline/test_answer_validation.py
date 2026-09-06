@@ -13,7 +13,7 @@ import pytest
 
 from experiments.warsaw.pipeline.records import (
     BodyAnswer,
-    ClaimantSet,
+    CountedClaimants,
     LabelAnswer,
     LabelRequest,
     MembershipAnswer,
@@ -28,21 +28,10 @@ from experiments.warsaw.pipeline.steps.adjudicate import (
 )
 from experiments.warsaw.pipeline.steps.classify import BodyGroupQuestion
 from experiments.warsaw.pipeline.steps.vocabulary import LabelQuestion
-from experiments.warsaw.world_loader import LabelSegment
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+from experiments.warsaw.world_loader.loader import RenderedSegmentGroup
+from experiments.warsaw.world_loader.scene import LabelSegment
 
 import numpy as np
-
-
-@pytest.fixture
-def known():
-    """
-    :return: The ontology's classes by name.
-    """
-    return annotation_classes(SemanticAnnotation)
 
 
 @pytest.fixture
@@ -55,7 +44,7 @@ def label_question(known, taxonomy, tmp_path):
         every_label=["cabinet", "drawer"],
         taxonomy=taxonomy,
         known=known,
-        images=tmp_path,
+        renders_directory=tmp_path,
     )
 
 
@@ -166,10 +155,10 @@ def ownership_decision(tmp_path):
             name="cabinet__drawer",
             pattern=["cabinet", "drawer"],
             shown=["cabinet_8", "drawer_5"],
-            covers=[ClaimantSet(claimants=("cabinet_8", "drawer_5"), faces=1503)],
+            covers=[CountedClaimants(claimants=("cabinet_8", "drawer_5"), faces=1503)],
         ),
         labels={"cabinet_8": "cabinet", "drawer_5": "drawer"},
-        images=tmp_path,
+        renders_directory=tmp_path,
     )
 
 
@@ -206,13 +195,25 @@ def membership_decision(tmp_path):
             name="door_10",
             part="door_10",
             shown=["door_10", "cabinet_4", "cabinet_20"],
-            candidates={
-                "cabinet_4": MembershipCandidate("doors", 3789, 5626, 0.0),
-                "cabinet_20": MembershipCandidate("doors", 9, 44, 0.0),
-            },
+            candidates=[
+                MembershipCandidate(
+                    name="cabinet_4",
+                    field_name="doors",
+                    shared_faces=3789,
+                    touching_edges=5626,
+                    distance=0.0,
+                ),
+                MembershipCandidate(
+                    name="cabinet_20",
+                    field_name="doors",
+                    shared_faces=9,
+                    touching_edges=44,
+                    distance=0.0,
+                ),
+            ],
         ),
         labels={"door_10": "door", "cabinet_4": "cabinet", "cabinet_20": "cabinet"},
-        images=tmp_path,
+        renders_directory=tmp_path,
     )
 
 
@@ -250,13 +251,23 @@ def body_group(taxonomy):
     from experiments.warsaw.pipeline.records import Vocabulary
 
     return BodyGroupQuestion(
-        index=0,
-        group=[
-            LabelSegment(class_name="drawer", instance=19, faces=np.array([0, 1])),
-            LabelSegment(class_name="handle", instance=23, faces=np.array([2])),
-        ],
-        colors={},
-        images={},
+        rendered=RenderedSegmentGroup(
+            index=0,
+            segments=[
+                LabelSegment(
+                    class_name="drawer",
+                    instance=19,
+                    face_indices=np.array([0, 1]),
+                ),
+                LabelSegment(
+                    class_name="handle",
+                    instance=23,
+                    face_indices=np.array([2]),
+                ),
+            ],
+            colors={},
+            images={},
+        ),
         taxonomy=taxonomy,
         vocabulary=Vocabulary(model="", scene=""),
     )

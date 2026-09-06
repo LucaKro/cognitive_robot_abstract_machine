@@ -15,7 +15,13 @@ from pathlib import Path
 
 from typing_extensions import Optional, Tuple
 
-from experiments.warsaw.world_loader import Viewpoint, ViewpointChoice
+from experiments.warsaw.world_loader.viewpoints import (
+    RenderSizes,
+    Viewpoint,
+    ViewpointChoice,
+)
+
+# %% the models a run can be put to
 
 
 class Model(StrEnum):
@@ -70,13 +76,16 @@ class Model(StrEnum):
     """
 
 
+# %% what a run is told to do
+
+
 @dataclass
 class PipelineSettings:
     """
     What a run is told, in full.
     """
 
-    scene: Path = field(
+    scene_directory: Path = field(
         default_factory=lambda: Path(__file__).resolve().parents[1]
         / "dataset"
         / "kitchenlab_new_mesh_agreement_dataset"
@@ -90,15 +99,9 @@ class PipelineSettings:
     Which model every question goes to.
     """
 
-    render_resolution: Tuple[int, int] = (1024, 768)
+    render_sizes: RenderSizes = field(default_factory=RenderSizes)
     """
-    How large the pictures a model is shown are drawn.
-    """
-
-    deciding_resolution: Optional[Tuple[int, int]] = None
-    """
-    How large to draw the renders made only to choose a viewpoint and then thrown away.
-    ``(256, 192)`` is a sixteenth of the pixels; None draws them full size.
+    How large the renders are drawn.
     """
 
     viewpoint_choice: ViewpointChoice = ViewpointChoice.ALONE

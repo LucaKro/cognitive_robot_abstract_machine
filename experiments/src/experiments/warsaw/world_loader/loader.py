@@ -1,39 +1,28 @@
+"""
+The world a scanned scene becomes, and the pictures taken of it.
+
+The scene is loaded as a single body rather than one body per object, because its
+objects are labels over shared faces; cutting it into bodies is a later step's work.
+What this does beyond loading is draw it: from chosen viewpoints, with chosen objects
+painted, which is how a model is shown what it is being asked about.
+"""
+
 from __future__ import annotations
 
 import io
 import os
 from dataclasses import dataclass, field
-from enum import StrEnum
 from functools import cached_property
 from pathlib import Path
-from typing import (
-    Any,
-    ClassVar,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-)
 from uuid import UUID
 
 import numpy as np
 import trimesh
-from PIL import Image
-
-from experiments.warsaw.exceptions import (
-    AmbiguousWarsawSceneError,
-    WarsawLabelsMisalignedError,
-    WarsawLabelsMissingError,
-    WarsawSceneNotFoundError,
-)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.pipeline.pipeline import (
+    CenterLocalGeometryAndPreserveWorldPose,
     Pipeline,
     TransformGeometry,
-    CenterLocalGeometryAndPreserveWorldPose,
 )
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -46,276 +35,29 @@ from semantic_digital_twin.world_description.world_entity import (
     Body,
     SemanticAnnotation,
 )
+from typing_extensions import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
-
-class Viewpoint(StrEnum):
-    """
-    One of the four directions the predefined cameras look at the scene from.
-
-    They stand a quarter turn apart, offset so that none of them looks straight down an
-    axis of the room and every one sees two of its walls.
-    """
-
-    def __new__(cls, name: str, azimuth_degrees: float) -> Viewpoint:
-        member = str.__new__(cls, name)
-        member._value_ = name
-        member.azimuth_degrees = azimuth_degrees
-        return member
-
-    FRONT_LEFT = ("front_left", 45.0)
-    """
-    From the front left corner.
-    """
-
-    BACK_LEFT = ("back_left", 135.0)
-    """
-    From the back left corner.
-    """
-
-    BACK_RIGHT = ("back_right", 225.0)
-    """
-    From the back right corner.
-    """
-
-    FRONT_RIGHT = ("front_right", 315.0)
-    """
-    From the front right corner.
-    """
-
-    @property
-    def azimuth(self) -> float:
-        """
-        :return: The direction it looks at the scene from, in radians.
-        """
-        return np.radians(self.azimuth_degrees)
-
-
-class ViewpointChoice(StrEnum):
-    """
-    How the one viewpoint a render is kept from is picked.
-
-    Every viewpoint is drawn to decide between them, so choosing costs the renders it
-    then discards.
-    """
-
-    ALONE = "alone"
-    """
-    By what is visible of the segments on their own, which takes seconds and does not
-    count what stands in front of them.
-    """
-
-    IN_ROOM = "in-room"
-    """
-    By what is visible of them in the scene around them, which counts what stands in
-    front of them and takes minutes per region.
-    """
-
-    ALL = "all"
-    """
-    Choose nothing and keep every viewpoint.
-    """
-
-
-def segment_label(segments: Iterable[LabelSegment], maximum_length: int = 120) -> str:
-    """
-    Name the segments a render highlights, so its filename says what is colored in it.
-
-    :param segments: The segments highlighted in the render.
-    :param maximum_length: How many characters of names the filename can hold.
-    :return: Their names joined by dashes, cut short of that length.
-    """
-    names = [str(segment.name).replace(" ", "_") for segment in segments]
-    if len("-".join(names)) <= maximum_length:
-        return "-".join(names)
-
-    kept: List[str] = []
-    length = 0
-    for name in names:
-        if length + len(name) + 1 > maximum_length:
-            break
-        kept.append(name)
-        length += len(name) + 1
-    return "-".join(kept + [f"and_{len(names) - len(kept)}_more"])
-
-
-def changed_pixels(one: bytes, other: bytes) -> int:
-    """
-    Count how many pixels two renders of the same pose differ in.
-
-    Comparing a render against the same view painted in the scene's own colors counts
-    exactly the pixels the highlight is responsible for, which is what "how much of this
-    is visible from here" means. Matching the highlight's color instead would need a
-    tolerance, since a renderer shades one color across a range of them.
-
-    :param one: One render, as PNG bytes.
-    :param other: The other render of the same pose.
-    :return: How many pixels differ.
-    """
-    first = np.asarray(Image.open(io.BytesIO(one)).convert("RGB"))
-    second = np.asarray(Image.open(io.BytesIO(other)).convert("RGB"))
-    if first.shape != second.shape:
-        return 0
-    return int((first != second).any(axis=-1).sum())
-
-
-@dataclass
-class LabelSegment:
-    """
-    One object a Warsaw scene labels: the faces one of its classes marks as one instance.
-
-    A face can belong to segments of several classes at once, since a scene labels, for
-    example, a drawer's front both as ``drawer`` and as the ``cabinet`` holding it.
-    """
-
-    class_name: str
-    """
-    The class that labels this object.
-    """
-
-    instance: int
-    """
-    Which object of that class this is.
-    """
-
-    faces: np.ndarray
-    """
-    The indices of the scene mesh's faces this object is made of.
-    """
-
-    @property
-    def name(self) -> PrefixedName:
-        """
-        :return: The name identifying this object among the scene's objects.
-        """
-        return PrefixedName(f"{self.class_name}_{self.instance}")
-
-    def __len__(self) -> int:
-        """
-        :return: How many of the scene's faces this object is made of.
-        """
-        return len(self.faces)
-
-
-@dataclass
-class WarsawScene:
-    """
-    A Warsaw scene: one mesh whose faces carry, per class, the instance they belong to.
-
-    The scene is stored as a single mesh with one integer face property per class.
-    Instance :attr:`UNSEGMENTED` marks the faces a class does not cover.
-    """
-
-    UNSEGMENTED: ClassVar[int] = 0
-    """
-    The instance marking every face a class does not cover.
-    """
-
-    mesh_path: Path
-    """
-    The file the scene was read from.
-    """
-
-    mesh: trimesh.Trimesh
-    """
-    The scene's geometry, carrying the colors it was scanned in.
-    """
-
-    face_labels: Dict[str, np.ndarray]
-    """
-    Per class, the instance each face belongs to.
-    """
-
-    @classmethod
-    def from_directory(
-        cls, directory: Path, scene_mesh_pattern: str = "*.ply"
-    ) -> WarsawScene:
-        """
-        Read the scene a directory holds.
-
-        :param directory: The directory holding the scene's mesh.
-        :param scene_mesh_pattern: How that mesh is named.
-        :raises WarsawSceneNotFoundError: If the directory holds no mesh.
-        :raises AmbiguousWarsawSceneError: If it holds more than one.
-        """
-        directory = Path(directory)
-        scene_meshes = sorted(directory.glob(scene_mesh_pattern))
-        if not scene_meshes:
-            raise WarsawSceneNotFoundError(
-                directory=directory, scene_mesh_pattern=scene_mesh_pattern
-            )
-        if len(scene_meshes) > 1:
-            raise AmbiguousWarsawSceneError(
-                directory=directory, scene_meshes=scene_meshes
-            )
-        return cls.from_file(scene_meshes[0])
-
-    @classmethod
-    def from_file(cls, scene_mesh_path: Path) -> WarsawScene:
-        """
-        Read the scene one mesh file holds.
-
-        :param scene_mesh_path: The mesh to read.
-        :raises WarsawLabelsMissingError: If the mesh carries no per-face class labels.
-        """
-        scene_mesh_path = Path(scene_mesh_path)
-        # Processing welds vertices and drops degenerate faces, which renumbers the
-        # faces and would leave every label pointing at another face than the one it
-        # was written for.
-        mesh = trimesh.load(scene_mesh_path, process=False)
-        return cls(
-            mesh_path=scene_mesh_path,
-            mesh=mesh,
-            face_labels=cls._read_face_labels(mesh, scene_mesh_path),
-        )
-
-    @staticmethod
-    def _read_face_labels(
-        mesh: trimesh.Trimesh,
-        scene_mesh_path: Path,
-        geometry_property: str = "vertex_indices",
-    ) -> Dict[str, np.ndarray]:
-        """
-        Read the instance each face belongs to, per class.
-
-        :param mesh: The mesh the scene was read from.
-        :param scene_mesh_path: The file it was read from, for the error message.
-        :param geometry_property: The face property holding a face's geometry rather
-            than one of its labels.
-        :return: Per class, the instance each face belongs to.
-        :raises WarsawLabelsMissingError: If the mesh carries no labels.
-        """
-        try:
-            faces = mesh.metadata["_ply_raw"]["face"]["data"]
-            class_names = [
-                name for name in faces.dtype.names if name != geometry_property
-            ]
-        except (AttributeError, KeyError, TypeError):
-            raise WarsawLabelsMissingError(scene_mesh=scene_mesh_path)
-
-        if not class_names:
-            raise WarsawLabelsMissingError(scene_mesh=scene_mesh_path)
-        return {name: np.asarray(faces[name]) for name in class_names}
-
-    @property
-    def class_names(self) -> List[str]:
-        """
-        :return: The classes the scene is labelled by, in the order it declares them.
-        """
-        return list(self.face_labels)
-
-    def segments(self) -> Iterator[LabelSegment]:
-        """
-        :return: Every object the scene labels, in class order.
-        """
-        for class_name, instances in self.face_labels.items():
-            for instance in np.unique(instances):
-                if instance == self.UNSEGMENTED:
-                    continue
-                yield LabelSegment(
-                    class_name=class_name,
-                    instance=int(instance),
-                    faces=np.flatnonzero(instances == instance),
-                )
+from experiments.warsaw.exceptions import WarsawLabelsMisalignedError
+from experiments.warsaw.world_loader.scene import (
+    LabelSegment,
+    WarsawScene,
+    segment_label,
+)
+from experiments.warsaw.world_loader.viewpoints import (
+    RenderSizes,
+    Viewpoint,
+    ViewpointChoice,
+    changed_pixels,
+)
 
 
 @dataclass
@@ -361,12 +103,16 @@ class WarsawWorldLoader:
 
     input_directory: Path = field(default=None)
     """
-    Directory holding the scene to load. Can be None if world is provided directly.
+    Directory holding the scene to load.
+
+    Can be None if world is provided directly.
     """
 
     world: World = field(default=None)
     """
-    Loaded World object. Can be provided directly or loaded from input_directory.
+    Loaded World object.
+
+    Can be provided directly or loaded from input_directory.
     """
 
     _camera_field_of_view: Tuple[float, float] = field(default=(60, 45))
@@ -383,20 +129,9 @@ class WarsawWorldLoader:
     rather than anything standing in it.
     """
 
-    render_resolution: Tuple[int, int] = field(default=(1024, 768))
-
-    deciding_resolution: Optional[Tuple[int, int]] = field(default=None)
+    render_sizes: RenderSizes = field(default_factory=RenderSizes)
     """
-    How large to draw a render made only to choose between viewpoints, if not the size
-    a kept picture is drawn at.
-
-    Which viewpoint shows more of something is a question about proportions, and
-    proportions survive being asked small -- but only asking it small can answer it
-    differently, and the renders turned out not to be the cost they looked like, so it
-    is not done unless asked for.
-    """
-    """
-    The size of the images the renders are written as.
+    How large the renders are drawn.
     """
 
     unhighlighted_dimming: float = field(default=0.35)
@@ -441,16 +176,6 @@ class WarsawWorldLoader:
     once per region measured against it.
     """
 
-    SOURCE_TO_WORLD: ClassVar[HomogeneousTransformationMatrix] = (
-        HomogeneousTransformationMatrix.from_xyz_rpy(roll=-np.pi / 2)
-    )
-    """
-    Turns the scene from the frame it is written in into the world's.
-
-    The scene measures height down its own y axis, so a floor is written at a greater y
-    than the ceiling above it. This rolls that axis onto the world's upward z.
-    """
-
     def __post_init__(self):
         if self.world is None and self.input_directory is None:
             raise ValueError("Either input_directory or world must be provided")
@@ -476,23 +201,6 @@ class WarsawWorldLoader:
             self._original_face_colors = np.asarray(
                 self.scene_mesh.visual.face_colors
             ).copy()
-
-    @classmethod
-    def from_world(
-        cls, world: World, camera_field_of_view: Tuple[float, float] = (60, 45)
-    ) -> WarsawWorldLoader:
-        """
-        Create a WarsawWorldLoader from an existing World object.
-
-        :param world: An existing World object to wrap.
-        :param camera_field_of_view: Camera field of view for rendering.
-        :return: A WarsawWorldLoader instance wrapping the given world.
-        """
-        return cls(
-            input_directory=None,
-            world=world,
-            _camera_field_of_view=camera_field_of_view,
-        )
 
     @staticmethod
     def _world_from_scene(scene: WarsawScene, scene_body_name: str = "scene") -> World:
@@ -530,7 +238,7 @@ class WarsawWorldLoader:
 
         pipeline = Pipeline(
             steps=[
-                TransformGeometry(WarsawWorldLoader.SOURCE_TO_WORLD),
+                TransformGeometry(scene.source_to_world),
                 CenterLocalGeometryAndPreserveWorldPose(),
             ]
         )
@@ -550,7 +258,7 @@ class WarsawWorldLoader:
                 loaded_faces=len(loaded_faces),
             )
 
-    # %% The Scene's Body and Segments
+    # %% the scene's body and its labelled objects
 
     @cached_property
     def scene_body(self) -> Body:
@@ -586,7 +294,7 @@ class WarsawWorldLoader:
             segment for segment in self.label_segments if segment.class_name in wanted
         ]
 
-    # %% Public API
+    # %% drawing the scene
 
     def export_semantic_annotation_inheritance_structure(
         self, output_directory: Path
@@ -718,9 +426,9 @@ class WarsawWorldLoader:
         :param scene: The scene to render.
         :param camera_poses: The poses to render from, by the name of each viewpoint.
         :param headless: Whether to render without opening a window.
-        :param resolution: How large to render, defaulting to the size a picture is
-            kept at. A render made only to be measured and thrown away costs what its
-            pixels cost and needs none of them.
+        :param resolution: How large to render, defaulting to the size a picture is kept
+            at. A render made only to be measured and thrown away costs what its pixels
+            cost and needs none of them.
         :return: Per viewpoint, its render as PNG bytes.
         """
         scene.camera.fov = self._camera_field_of_view
@@ -728,7 +436,7 @@ class WarsawWorldLoader:
         for pose_name, camera_pose in camera_poses.items():
             scene.graph[scene.camera.name] = camera_pose
             images[pose_name] = scene.save_image(
-                resolution=resolution or self.render_resolution,
+                resolution=resolution or self.render_sizes.kept,
                 visible=not headless,
                 # A scan is a single layer of surface whose faces point whichever way
                 # they were reconstructed, so culling the ones facing away hides parts of
@@ -754,7 +462,7 @@ class WarsawWorldLoader:
         """
         scene = self._render_scene()
         scene.graph[scene.camera.name] = camera_transform
-        png = scene.save_image(resolution=self.render_resolution, visible=not headless)
+        png = scene.save_image(resolution=self.render_sizes.kept, visible=not headless)
         if output_filepath:
             with open(output_filepath, "wb") as f:
                 f.write(png)
@@ -777,7 +485,7 @@ class WarsawWorldLoader:
         self._ray_tracer.update_scene()
         return self._ray_tracer.scene
 
-    # %% Export Helpers
+    # %% where to put the camera
 
     @cached_property
     def _scene_points(self) -> np.ndarray:
@@ -884,7 +592,7 @@ class WarsawWorldLoader:
         )
         return float(np.percentile(needed, self.framed_fraction * 100))
 
-    # %% Label Segment Highlighting
+    # %% painting the labelled objects
 
     def _apply_highlight_to_faces(
         self, highlights: Sequence[Tuple[Color, np.ndarray]]
@@ -892,8 +600,8 @@ class WarsawWorldLoader:
         """
         Paint sets of the scene's faces, dimming everything else.
 
-        :param highlights: The color to paint each set of faces in. Later sets paint over
-            earlier ones where they overlap.
+        :param highlights: The color to paint each set of faces in. Later sets paint
+            over earlier ones where they overlap.
         """
         face_colors = self._dimmed_face_colors.copy()
         for color, faces in highlights:
@@ -912,7 +620,7 @@ class WarsawWorldLoader:
         segments = list(segments)
         colors = Color.distinct_colors(len(segments))
         self._apply_highlight_to_faces(
-            [(color, segment.faces) for segment, color in zip(segments, colors)]
+            [(color, segment.face_indices) for segment, color in zip(segments, colors)]
         )
         return {segment.name: color for segment, color in zip(segments, colors)}
 
@@ -986,7 +694,7 @@ class WarsawWorldLoader:
         :param segments: The segments to take the geometry of.
         :return: The vertices their faces are drawn from, in the world's frame.
         """
-        faces = np.concatenate([segment.faces for segment in segments])
+        faces = np.concatenate([segment.face_indices for segment in segments])
         return self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
 
     def render_segments_alone(
@@ -1012,7 +720,9 @@ class WarsawWorldLoader:
         :param headless: Whether to render without opening a window.
         :return: Per viewpoint, its render as PNG bytes.
         """
-        faces = np.unique(np.concatenate([segment.faces for segment in segments]))
+        faces = np.unique(
+            np.concatenate([segment.face_indices for segment in segments])
+        )
         alone = self.scene_mesh.submesh([faces], append=True)
         alone.visual.face_colors = face_colors[faces]
 
@@ -1141,7 +851,7 @@ class WarsawWorldLoader:
 
         worst = {name: None for name in poses}
         for segment in segments:
-            self._apply_highlight_to_faces([(color, segment.faces)])
+            self._apply_highlight_to_faces([(color, segment.face_indices)])
             shown = self._render_from_poses(self._render_scene(), poses, headless)
             for name, image in shown.items():
                 visible = changed_pixels(image, rooms[name])
@@ -1172,8 +882,8 @@ class WarsawWorldLoader:
         :return: The area of it presented to that direction, in square metres.
         """
         mesh = self.scene_mesh
-        towards = np.abs(mesh.face_normals[segment.faces] @ direction)
-        return float(towards @ mesh.area_faces[segment.faces])
+        towards = np.abs(mesh.face_normals[segment.face_indices] @ direction)
+        return float(towards @ mesh.area_faces[segment.face_indices])
 
     def viewpoint_showing_all_alone(
         self,
@@ -1209,7 +919,9 @@ class WarsawWorldLoader:
         :return: The name of the viewpoint that shows the least-visible segment best.
         """
         segments = list(segments)
-        faces = np.unique(np.concatenate([segment.faces for segment in segments]))
+        faces = np.unique(
+            np.concatenate([segment.face_indices for segment in segments])
+        )
         poses = self._chosen_viewpoints(
             self.compute_camera_poses(
                 self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
@@ -1242,17 +954,17 @@ class WarsawWorldLoader:
         dimmed = self._dimmed_face_colors[faces]
         alone.visual.face_colors = dimmed
         rooms = self._render_from_poses(
-            trimesh.Scene(alone), looked_at, headless, self.deciding_resolution
+            trimesh.Scene(alone), looked_at, headless, self.render_sizes.deciding
         )
 
         highlight = trimesh.visual.color.to_rgba(Color.distinct_colors(1)[0].to_rgba())
         worst: Dict[str, Optional[int]] = {name: None for name in looked_at}
         for segment in segments:
             painted = dimmed.copy()
-            painted[np.searchsorted(faces, segment.faces)] = highlight
+            painted[np.searchsorted(faces, segment.face_indices)] = highlight
             alone.visual.face_colors = painted
             shown = self._render_from_poses(
-                trimesh.Scene(alone), looked_at, headless, self.deciding_resolution
+                trimesh.Scene(alone), looked_at, headless, self.render_sizes.deciding
             )
             for name, image in shown.items():
                 visible = changed_pixels(image, rooms[name])
@@ -1291,7 +1003,7 @@ class WarsawWorldLoader:
             self._plain_views[key] = views
         return views
 
-    # %% Body Highlighting
+    # %% painting the bodies of a split world
 
     def _reset_body_colors(self):
         """

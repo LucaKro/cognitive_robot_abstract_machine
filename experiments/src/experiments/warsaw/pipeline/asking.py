@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from semantic_digital_twin.adapters.vision_language_model.client import (
@@ -29,21 +30,85 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
     MessagePart,
     TextPart,
 )
-from typing_extensions import Generic, List, Sequence, TypeVar
+from typing_extensions import Any, Dict, Generic, List, Sequence, Type, TypeVar
 
 from experiments.warsaw.pipeline.reporting import Reporting
+from experiments.warsaw.pipeline.templates import PipelineTemplates
 
 AnswerType = TypeVar("AnswerType")
 """
 What reading one kind of question's answer produces.
 """
 
+# %% the two halves of a prompt
 
-@dataclass
+
+class PromptHalf(StrEnum):
+    """
+    One of the two halves of what a question puts to a model.
+
+    They go into the request as two messages, in two roles, and they have different
+    lifetimes: the standing instruction is sent unchanged however often an unusable answer
+    is put back, while what is being asked about is built afresh each time. Both are kept
+    in one directory per question, so the pair is found together.
+
+    The value is the file each is kept in. Only one of them interpolates anything, so only
+    one of them is named as a template; both are read the same way, since a template with
+    nothing to fill in renders as itself.
+    """
+
+    SYSTEM = "system.md"
+    """
+    What the model is told it is doing.
+    """
+
+    MESSAGE = "message.md.jinja"
+    """
+    What it is being asked about this time.
+    """
+
+
+# %% one thing to ask
+
+
+@dataclass(kw_only=True)
 class Question(ABC, Generic[AnswerType]):
     """
     One thing to ask a model, and the reading of what comes back.
+
+    A question names the prompt it is put with, and both halves of that prompt are found
+    from the name: naming one thing rather than two files is what keeps a question from
+    being asked with one half of one prompt and one half of another.
     """
+
+    templates: PipelineTemplates = field(default_factory=PipelineTemplates)
+    """
+    Where the words put to the model are written from.
+    """
+
+    prompt: str = ""
+    """
+    The prompt this question is put with, by the directory its two halves are kept in.
+    """
+
+    prompts_directory: str = "prompts"
+    """
+    Where those directories are, under the templates.
+    """
+
+    def prompt_template(self, half: PromptHalf) -> str:
+        """
+        :param half: Which half of the prompt is wanted.
+        :return: The template it is written from, by file name.
+        """
+        return f"{self.prompts_directory}/{self.prompt}/{half.value}"
+
+    @property
+    def message_template(self) -> str:
+        """
+        :return: What the model is asked about, by template name.
+        """
+        return self.prompt_template(PromptHalf.MESSAGE)
 
     @property
     @abstractmethod
@@ -53,11 +118,11 @@ class Question(ABC, Generic[AnswerType]):
         """
 
     @property
-    @abstractmethod
     def system_prompt(self) -> str:
         """
         :return: What the model is told it is doing.
         """
+        return self.templates.render_document(self.prompt_template(PromptHalf.SYSTEM))
 
     @abstractmethod
     def message(self) -> List[MessagePart]:
@@ -89,6 +154,38 @@ class Question(ABC, Generic[AnswerType]):
         """
 
 
+# %% a question asked about a class of the ontology
+
+
+@dataclass(kw_only=True)
+class QuestionAboutTheOntology(Question[AnswerType], Generic[AnswerType]):
+    """
+    A question about what a class of the ontology is or what it may hold.
+
+    Both such questions are put the same way: the model is shown the taxonomy, is checked
+    against the classes standing in it, and is given renders of an object of each class
+    being discussed.
+    """
+
+    taxonomy: Dict[str, Any] = field(default_factory=dict)
+    """
+    The ontology as a model reads it.
+    """
+
+    known: Dict[str, Type] = field(default_factory=dict)
+    """
+    The ontology's classes by name, for checking an answer against.
+    """
+
+    renders_directory: Path = field(default_factory=Path)
+    """
+    Where the renders shown with the question are kept.
+    """
+
+
+# %% what came back
+
+
 @dataclass
 class Answered(Generic[AnswerType]):
     """
@@ -116,6 +213,9 @@ class Answered(Generic[AnswerType]):
         :return: Whether the answer can be acted on.
         """
         return not self.problems
+
+
+# %% putting a question, and putting it again
 
 
 @dataclass

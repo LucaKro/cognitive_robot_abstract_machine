@@ -45,6 +45,8 @@ class PipelineStep(Reporting, ABC):
     The directory it writes into.
     """
 
+    # %% what the step is
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -89,6 +91,8 @@ class PipelineStep(Reporting, ABC):
             for name, annotation_class in annotation_classes(SemanticAnnotation).items()
             if name in declared
         }
+
+    # %% what a step needs to do its work
 
     def questioner(self, answers: RunFile) -> Questioner:
         """

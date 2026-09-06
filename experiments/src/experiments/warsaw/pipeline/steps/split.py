@@ -27,13 +27,15 @@ from typing_extensions import Dict, List, Optional, Tuple, Type
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     Adjudications,
+    EmptiedSegment,
     SplitBody,
     SplitRecord,
+    TakenFaces,
     Vocabulary,
 )
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
-from experiments.warsaw.pipeline.world_store import WorldStore
+from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.scene_split import (
     Ownership,
     Pairing,
@@ -44,7 +46,7 @@ from experiments.warsaw.scene_split import (
     split_world,
 )
 from experiments.warsaw.segment_relations import ClaimantGroup, claimant_groups
-from experiments.warsaw.world_loader import WarsawWorldLoader
+from experiments.warsaw.world_loader.loader import WarsawWorldLoader
 
 
 @dataclass
@@ -66,6 +68,8 @@ class SplitScene(PipelineStep):
     How many sets of faces no answer reached to name before counting the rest.
     """
 
+    # %% the step
+
     @property
     def name(self) -> str:
         return "cut the scene into bodies"
@@ -74,21 +78,19 @@ class SplitScene(PipelineStep):
         """
         Apply the decisions, build the bodies, and record what it cost.
         """
-        adjudications = Adjudications.from_json(
-            self.run.read_json(RunFile.ADJUDICATIONS)
-        )
-        vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
+        adjudications = self.run.read_record(RunFile.ADJUDICATIONS, Adjudications)
+        vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
 
-        loader = WarsawWorldLoader(input_directory=self.settings.scene)
+        loader = WarsawWorldLoader(input_directory=self.settings.scene_directory)
         segments = loader.label_segments
         labels = {str(segment.name): segment.class_name for segment in segments}
-        faces = {str(segment.name): segment.faces for segment in segments}
+        faces = {str(segment.name): segment.face_indices for segment in segments}
         self.logger.info(
             "%s segments over %s faces", len(segments), len(loader.scene_mesh.faces)
         )
 
         groups = claimant_groups(
-            [segment.faces for segment in segments],
+            [segment.face_indices for segment in segments],
             [str(segment.name) for segment in segments],
             len(loader.scene_mesh.faces),
         )
@@ -108,10 +110,12 @@ class SplitScene(PipelineStep):
 
         world = self.build_world(loader, split)
         record = self.record_of(loader, split, carried, labels, world)
-        self.run.write_json(RunFile.SPLIT, record.to_json())
+        self.run.write_record(RunFile.SPLIT, record)
         self.logger.info("written to %s", self.run.path(RunFile.SPLIT))
 
     # %% applying the decisions
+
+    # %% deciding whose the contested faces are
 
     @staticmethod
     def resolve_owners(
@@ -190,6 +194,8 @@ class SplitScene(PipelineStep):
 
     # %% building and recording
 
+    # %% building the bodies
+
     def build_world(self, loader: WarsawWorldLoader, split: SplitFaces) -> World:
         """
         Build one body per object, writing their geometry where a stored world can find
@@ -210,7 +216,7 @@ class SplitScene(PipelineStep):
         world = split_world(
             loader.scene.mesh,
             split.faces,
-            WarsawWorldLoader.SOURCE_TO_WORLD,
+            loader.scene.source_to_world,
             directory=directory,
         )
         self.logger.info("the world holds %s bodies", len(world.bodies))
@@ -250,19 +256,36 @@ class SplitScene(PipelineStep):
 
         return SplitRecord(
             scene=str(loader.scene.mesh_path),
-            bodies={
-                name: SplitBody(
+            bodies=[
+                SplitBody(
+                    name=name,
                     faces=int(len(kept)),
                     label=labels[name],
                     body_id=identities.get(name),
                 )
                 for name, kept in split.faces.items()
-            },
-            emptied={name: split.lost_to.get(name, {}) for name in split.emptied},
+            ],
+            emptied=[
+                EmptiedSegment(
+                    name=name,
+                    # Largest taker first: an object that lost everything usually lost
+                    # it to one neighbour, and that one is which answer to look at.
+                    taken_by=[
+                        TakenFaces(name=owner, faces=count)
+                        for owner, count in sorted(
+                            split.lost_to.get(name, {}).items(),
+                            key=lambda took: -took[1],
+                        )
+                    ],
+                )
+                for name in split.emptied
+            ],
             still_contested=len(split.contested),
             pairings=carried,
             world_id=world_id,
         )
+
+    # %% saying what it cost
 
     # %% saying what it cost
 

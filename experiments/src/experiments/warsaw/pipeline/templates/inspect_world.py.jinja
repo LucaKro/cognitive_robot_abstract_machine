@@ -19,12 +19,12 @@ from pathlib import Path
 # package, where they deliberately are not. The world was written into a schema of this
 # run's own, so that is where to look for it, set before anything asks for a session.
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
-from experiments.warsaw.pipeline.run_database import RunSchema
+from experiments.warsaw.pipeline.database.run_schema import RunSchema
 
 GeneratedClasses(directory=Path(__file__).resolve().parent).use()
 RunSchema.for_run(Path(__file__).resolve().parent).use()
 
-from experiments.warsaw.pipeline.world_store import WorldStore  # noqa: E402
+from experiments.warsaw.pipeline.database.world_store import WorldStore  # noqa: E402
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer  # noqa: E402
 
 
@@ -34,17 +34,17 @@ class Inspection:
     What to open, and whether to look at it.
     """
 
-    annotated_world: int = $annotated
+    annotated_world: int = {{ annotated }}
     """
     The world this run wrote its annotations into.
     """
 
-    split_world: int = $split
+    split_world: int = {{ split }}
     """
     The world as it was split, before anything was annotated or mounted.
     """
 
-    world_id: int = $annotated
+    world_id: int = {{ annotated }}
     """
     Which of them to open.
     """

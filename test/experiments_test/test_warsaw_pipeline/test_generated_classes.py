@@ -13,6 +13,10 @@ mounted.
 from __future__ import annotations
 
 import ast
+import subprocess
+from pathlib import Path
+
+from dataclasses import replace
 
 import pytest
 
@@ -23,6 +27,7 @@ from experiments.warsaw.pipeline.records import (
     Vocabulary,
 )
 from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.pipeline.templates import PipelineTemplates
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
@@ -66,7 +71,11 @@ def classified(**bodies) -> Classifications:
     :param bodies: What each body was answered to be.
     :return: Those answers, as the classification step wrote them.
     """
-    return Classifications(model="", scene="", bodies=bodies)
+    return Classifications(
+        model="",
+        scene="",
+        bodies=[replace(answer, name=name) for name, answer in bodies.items()],
+    )
 
 
 def answered(**labels) -> Vocabulary:
@@ -74,7 +83,11 @@ def answered(**labels) -> Vocabulary:
     :param labels: What each label was answered to mean.
     :return: Those answers, as the vocabulary step wrote them.
     """
-    return Vocabulary(model="", scene="", labels=labels)
+    return Vocabulary(
+        model="",
+        scene="",
+        labels=[replace(answer, label=label) for label, answer in labels.items()],
+    )
 
 
 # %% what a class is built from
@@ -200,7 +213,7 @@ def test_a_real_run_asks_for_exactly_the_classes_it_generated(
     """
     wanted = step.wanted_classes(classifications, vocabulary)
     assert set(wanted) == {
-        one.class_name for one in classifications.bodies.values() if one.class_name
+        one.class_name for one in classifications.bodies if one.class_name
     }
     declared = {
         node.name
@@ -220,7 +233,7 @@ def test_a_real_run_builds_each_composed_class_the_way_the_vocabulary_composed_i
     class keeps the mixins that let it hold the parts measured for it.
     """
     wanted = step.wanted_classes(classifications, vocabulary)
-    for answer in vocabulary.proposals.values():
+    for answer in vocabulary.proposals:
         assert wanted[answer.class_name] == [answer.superclass] + answer.mixins
 
 
@@ -270,3 +283,29 @@ def test_the_ontology_a_step_reads_is_the_one_the_run_wrote_down(step, taxonomy)
     declared = {node["name"] for node in taxonomy["classes"]}
     assert set(step.ontology_classes()) <= declared
     assert "Cabinet" in step.ontology_classes()
+
+
+# %% the file a run starts from
+
+
+def test_the_empty_stub_is_what_is_committed():
+    """
+    Every run rewrites the ontology's generated classes to an empty stub before it
+    starts and puts them back when it ends.
+
+    Written from a template, the stub has to come out byte for byte as the committed
+    file, or every run leaves the source tree dirty.
+    """
+    committed = subprocess.run(
+        [
+            "git",
+            "show",
+            "HEAD:semantic_digital_twin/src/semantic_digital_twin/"
+            "semantic_annotations/generated_classes.py",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=Path(__file__).resolve().parents[3],
+    ).stdout
+    assert PipelineTemplates().render("empty_generated_classes.py") == committed

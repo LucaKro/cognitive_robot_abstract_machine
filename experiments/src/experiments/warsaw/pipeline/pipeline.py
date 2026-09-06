@@ -27,7 +27,7 @@ from typing_extensions import List
 
 from experiments.warsaw.pipeline.reporting import Reporting
 from experiments.warsaw.pipeline.run import Run, RunFile
-from experiments.warsaw.pipeline.run_database import RunSchema
+from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.adjudicate import AdjudicateOverlaps
 from experiments.warsaw.pipeline.steps.amend import AmendTaxonomy, RevertAmendments
@@ -38,6 +38,8 @@ from experiments.warsaw.pipeline.steps.prepare import PrepareRun
 from experiments.warsaw.pipeline.steps.split import SplitScene
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.pipeline.steps.vocabulary import MapLabelVocabulary
+
+# %% the run, from end to end
 
 
 @dataclass
@@ -156,6 +158,9 @@ class WarsawPipeline(Reporting):
         :param what: What is about to happen.
         """
         self.logger.info("\n%s\n%s\n%s", self.rule, what, self.rule)
+
+
+# %% running it with nothing to be told
 
 
 def main() -> None:

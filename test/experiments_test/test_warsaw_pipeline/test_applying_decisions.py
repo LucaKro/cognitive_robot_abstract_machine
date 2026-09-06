@@ -14,7 +14,7 @@ import pytest
 
 from experiments.warsaw.pipeline.records import (
     Adjudications,
-    ClaimantSet,
+    CountedClaimants,
     ForcedMembership,
     MembershipAnswer,
     OwnershipAnswer,
@@ -23,18 +23,6 @@ from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.split import SplitScene
 from experiments.warsaw.segment_relations import ClaimantGroup
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
-
-
-@pytest.fixture
-def known():
-    """
-    :return: The ontology's classes by name.
-    """
-    return annotation_classes(SemanticAnnotation)
 
 
 @pytest.fixture
@@ -59,7 +47,7 @@ def test_a_set_the_ontology_settles_is_given_to_the_part(step, known):
         Adjudications(
             model="",
             scene="",
-            settled=[ClaimantSet(claimants=("cabinet_1", "drawer_1"), faces=2)],
+            settled=[CountedClaimants(claimants=("cabinet_1", "drawer_1"), faces=2)],
         ),
         {"cabinet_1": "cabinet", "drawer_1": "drawer"},
         {"cabinet": known["Cabinet"], "drawer": known["Drawer"]},

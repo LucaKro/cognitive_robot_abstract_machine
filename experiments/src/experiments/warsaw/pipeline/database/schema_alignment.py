@@ -29,7 +29,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapper
 from typing_extensions import Dict, Iterable, List, Optional
 
-from experiments.warsaw.exceptions import ColumnsCannotBeAddedError
+# %% what a schema is missing
 
 
 @dataclass
@@ -55,6 +55,9 @@ class AlignmentReport:
         :return: Whether the database now has every column the ORM asks for.
         """
         return not self.refused
+
+
+# %% squaring a schema with the classes standing now
 
 
 @dataclass
@@ -192,16 +195,3 @@ class SchemaAlignment:
                     f'references "{target.table.name}" ("{target.name}")'
                 )
             )
-
-    def align_or_raise(self) -> AlignmentReport:
-        """
-        Add the missing columns, refusing to report success where a gap is left.
-
-        :return: What was added.
-        :raises ColumnsCannotBeAddedError: If a column cannot be added without a
-            decision about the rows that are stored.
-        """
-        report = self.align()
-        if not report.is_aligned:
-            raise ColumnsCannotBeAddedError(refusals=report.refused)
-        return report

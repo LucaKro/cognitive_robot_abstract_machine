@@ -20,18 +20,22 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
 import trimesh
+
+from experiments.warsaw.pipeline.json_record import JsonRecord
 from scipy.spatial import cKDTree
 
 if TYPE_CHECKING:
-    from experiments.warsaw.world_loader import WarsawWorldLoader
+    from experiments.warsaw.world_loader.loader import WarsawWorldLoader
+
+# %% what was measured of a scene's objects
 
 
 @dataclass
-class SegmentDescriptor:
+class SegmentDescriptor(JsonRecord):
     """
     What one labelled object is, measured rather than judged.
     """
@@ -113,53 +117,9 @@ class SegmentDescriptor:
         """
         return self.exclusive_faces / self.faces if self.faces else 0.0
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> SegmentDescriptor:
-        """
-        :param payload: A descriptor as it was written.
-        :return: It, as it was measured.
-        """
-        minimum_corner, maximum_corner = payload["bounding_box"]
-        return cls(
-            name=payload["name"],
-            class_name=payload["class"],
-            instance=payload["instance"],
-            faces=payload["faces"],
-            exclusive_faces=payload["exclusive_faces"],
-            area=payload["area"],
-            exclusive_area=payload["exclusive_area"],
-            centroid=tuple(payload["centroid"]),
-            minimum_corner=tuple(minimum_corner),
-            maximum_corner=tuple(maximum_corner),
-            components=payload["components"],
-            height=payload["height"],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        """
-        :return: The descriptor as JSON-ready data.
-        """
-        return {
-            "name": self.name,
-            "class": self.class_name,
-            "instance": self.instance,
-            "faces": self.faces,
-            "exclusive_faces": self.exclusive_faces,
-            "exclusive_share": round(self.exclusive_share, 4),
-            "area": round(self.area, 4),
-            "exclusive_area": round(self.exclusive_area, 4),
-            "centroid": [round(value, 4) for value in self.centroid],
-            "bounding_box": [
-                [round(value, 4) for value in self.minimum_corner],
-                [round(value, 4) for value in self.maximum_corner],
-            ],
-            "components": self.components,
-            "height": round(self.height, 4),
-        }
-
 
 @dataclass
-class PairEvidence:
+class PairEvidence(JsonRecord):
     """
     What was measured about two labelled objects that may stand in some relation.
     """
@@ -216,41 +176,6 @@ class PairEvidence:
     Where the first ranks among the second's nearest, or None if further away.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> PairEvidence:
-        """
-        :param payload: A pair as it was written, possibly carrying more than the
-            measurement -- what the ontology made of it is written beside it.
-        :return: The measurement alone.
-        """
-        return cls(
-            one=payload["one"],
-            other=payload["other"],
-            shared_faces=payload["shared_faces"],
-            share_of_one=payload["share_of_one"],
-            share_of_other=payload["share_of_other"],
-            touching_edges=payload["touching_edges"],
-            distance=payload["distance"],
-            rank_from_one=payload.get("rank_from_one"),
-            rank_from_other=payload.get("rank_from_other"),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        """
-        :return: The evidence as JSON-ready data.
-        """
-        return {
-            "one": self.one,
-            "other": self.other,
-            "shared_faces": self.shared_faces,
-            "share_of_one": round(self.share_of_one, 4),
-            "share_of_other": round(self.share_of_other, 4),
-            "touching_edges": self.touching_edges,
-            "distance": round(self.distance, 4),
-            "rank_from_one": self.rank_from_one,
-            "rank_from_other": self.rank_from_other,
-        }
-
     def as_prompt_block(self, descriptors: Dict[str, SegmentDescriptor]) -> str:
         """
         State the measurements in the words a model reads them in.
@@ -306,16 +231,8 @@ class SegmentRelations:
         """
         return [pair for pair in self.pairs if name in (pair.one, pair.other)]
 
-    def to_json(self) -> Dict[str, Any]:
-        """
-        :return: The whole table as JSON-ready data.
-        """
-        return {
-            "segments": [
-                descriptor.to_json() for descriptor in self.descriptors.values()
-            ],
-            "pairs": [pair.to_json() for pair in self.pairs],
-        }
+
+# %% the faces several objects claim
 
 
 @dataclass
@@ -333,12 +250,6 @@ class ClaimantGroup:
     """
     The faces every one of them claims.
     """
-
-    def to_json(self) -> Dict[str, Any]:
-        """
-        :return: The group as JSON-ready data, without the faces themselves.
-        """
-        return {"claimants": list(self.names), "faces": int(len(self.faces))}
 
 
 def claimant_groups(
@@ -402,6 +313,9 @@ def _claim_slots(
         slots[faces, filled[faces]] = index
         filled[faces] += 1
     return slots, counts
+
+
+# %% measuring one pair
 
 
 def _shared_faces(slots: np.ndarray, counts: np.ndarray) -> Dict[Tuple[int, int], int]:
@@ -553,6 +467,9 @@ def _nearest_neighbours(
     return neighbours
 
 
+# %% measuring the whole scene
+
+
 def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRelations:
     """
     Measure a scene's labelled objects and how they meet.
@@ -573,7 +490,7 @@ def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRe
     floor = float(mesh.vertices[:, 2].min())
 
     slots, counts = _claim_slots(
-        [segment.faces for segment in segments], len(mesh.faces)
+        [segment.face_indices for segment in segments], len(mesh.faces)
     )
     claimed_once = counts == 1
 
@@ -593,7 +510,7 @@ def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRe
     trees: List[cKDTree] = []
     center_bounds = np.zeros((len(segments), 2, 3))
     for index, segment in enumerate(segments):
-        faces = segment.faces
+        faces = segment.face_indices
         segment_centres = centres[faces]
         points.append(segment_centres)
         trees.append(cKDTree(segment_centres))
@@ -633,7 +550,7 @@ def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRe
             distances[key] = min(distances.get(key, np.inf), distance)
 
     names = [str(segment.name) for segment in segments]
-    sizes = [len(segment.faces) for segment in segments]
+    sizes = [len(segment.face_indices) for segment in segments]
     pairs = []
     for one, other in sorted(set(shared) | set(touching) | set(distances)):
         overlap = shared.get((one, other), 0)

@@ -13,6 +13,10 @@ import json
 from pathlib import Path
 
 import pytest
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 from experiments.warsaw.pipeline.records import (
     Adjudications,
@@ -126,3 +130,11 @@ def classifications(finished_run) -> Classifications:
     return Classifications.from_json(
         json.loads((finished_run.directory / "classifications.json").read_text())
     )
+
+
+@pytest.fixture
+def known() -> dict:
+    """
+    :return: The ontology's classes by name, as the live interpreter holds them.
+    """
+    return annotation_classes(SemanticAnnotation)

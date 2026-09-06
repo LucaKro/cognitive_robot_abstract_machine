@@ -34,37 +34,27 @@ from typing_extensions import Any, Dict, List, Sequence
 
 from experiments.warsaw.pipeline.asking import Question
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
-from experiments.warsaw.pipeline.prompts import Prompt
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications, Vocabulary
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
-from experiments.warsaw.world_loader import LabelSegment, WarsawWorldLoader
+from experiments.warsaw.world_loader.loader import (
+    RenderedSegmentGroup,
+    WarsawWorldLoader,
+)
+from experiments.warsaw.world_loader.scene import LabelSegment
+
+# %% what a handful of painted bodies are
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
     """
     What a handful of painted bodies are, put to a model with the room around them.
     """
 
-    index: int
+    rendered: RenderedSegmentGroup
     """
-    Which group of the run this is, which its kept reply is filed under.
-    """
-
-    group: Sequence[LabelSegment]
-    """
-    The bodies painted in the pictures.
-    """
-
-    colors: Dict[Any, Any]
-    """
-    The color each was given, by name.
-    """
-
-    images: Dict[str, bytes]
-    """
-    The renders, by viewpoint, as they came out of the renderer.
+    The painted bodies and the renders they were painted into.
     """
 
     taxonomy: Dict[str, Any]
@@ -77,28 +67,42 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
     What the vocabulary step answered per label.
     """
 
+    prompt: str = "classification"
+    """
+    The prompt this question is put with, both halves of it.
+    """
+
     @property
     def key(self) -> str:
-        return f"group{self.index}"
+        return f"group{self.rendered.index}"
 
-    @property
-    def system_prompt(self) -> str:
-        return Prompt.CLASSIFICATION.read()
+    def listed(self) -> List[Dict[str, Any]]:
+        """
+        :return: Per body in the pictures, what a model is told about it: the colour it
+            was painted, the label the scan gave it, and what that label was read as.
+        """
+        return [
+            {
+                "name": f"{segment.name}",
+                "color": self.rendered.colors[segment.name].closest_css3_name(),
+                "label": segment.class_name,
+                "read_as": self.vocabulary.answer_for(segment.class_name).class_name
+                or "no class",
+            }
+            for segment in self.rendered.segments
+        ]
 
     def message(self) -> List[MessagePart]:
-        listed = "\n".join(
-            f"{segment.name}: painted {self.colors[segment.name].closest_css3_name()}, "
-            f'labelled "{segment.class_name}" by the scan, which was read as '
-            f"{self.vocabulary.answer_for(segment.class_name).class_name or 'no class'}"
-            for segment in self.group
-        )
         content: List[MessagePart] = [
             TextPart(
-                f"## The ontology\n{json.dumps(self.taxonomy)}\n\n"
-                f"## The objects to name\n{listed}"
+                self.templates.render_document(
+                    self.message_template,
+                    taxonomy=json.dumps(self.taxonomy),
+                    bodies=self.listed(),
+                )
             )
         ]
-        for viewpoint, image in sorted(self.images.items()):
+        for viewpoint, image in sorted(self.rendered.images.items()):
             content.append(TextPart(f"The room from the {viewpoint}."))
             content.append(ImagePart(image=image))
         return content
@@ -110,7 +114,7 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
             answered if isinstance(answered, list) else answered.get("objects", [])
         )
         return {
-            str(one["name"]): BodyAnswer.from_json(one)
+            str(one["name"]): BodyAnswer.spoken(one)
             for one in objects
             if one.get("name")
         }
@@ -125,7 +129,7 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
         :param answer: What the model said, by body name.
         :return: One sentence per problem, empty when there are none.
         """
-        wanted = {str(segment.name) for segment in self.group}
+        wanted = {str(segment.name) for segment in self.rendered.segments}
         problems = []
         missing = sorted(wanted - set(answer))
         unknown = sorted(set(answer) - wanted)
@@ -139,6 +143,9 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
             if name in wanted and not one.class_name:
                 problems.append(f"{name} was given no class")
         return problems
+
+
+# %% naming every body of the scene
 
 
 @dataclass
@@ -155,12 +162,12 @@ class ClassifyBodies(PipelineStep):
         """
         Paint every body, ask what it is, and write the answers.
         """
-        vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
+        vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
         taxonomy = VocabularyClasses(
             vocabulary=vocabulary, known=self.ontology_classes()
         ).widened(self.run.read_json(RunFile.TAXONOMY))
 
-        loader = WarsawWorldLoader(input_directory=self.settings.scene)
+        loader = WarsawWorldLoader(input_directory=self.settings.scene_directory)
         bodies = self.split_segments(loader)
         self.logger.info(
             "%s bodies to name, %s at a time", len(bodies), self.settings.group_size
@@ -168,7 +175,7 @@ class ClassifyBodies(PipelineStep):
 
         renders = self.run.directory_for(RunFile.CLASSIFICATION_RENDERS)
         questioner = self.questioner(RunFile.CLASSIFICATION_ANSWERS)
-        named: Dict[str, BodyAnswer] = {}
+        named: List[BodyAnswer] = []
 
         for rendered in loader.render_label_segment_groups(
             group_size=self.settings.group_size,
@@ -180,10 +187,7 @@ class ClassifyBodies(PipelineStep):
 
             answered = questioner.answer(
                 BodyGroupQuestion(
-                    index=rendered.index,
-                    group=rendered.segments,
-                    colors=rendered.colors,
-                    images=rendered.images,
+                    rendered=rendered,
                     taxonomy=taxonomy,
                     vocabulary=vocabulary,
                 )
@@ -191,9 +195,10 @@ class ClassifyBodies(PipelineStep):
             for segment in rendered.segments:
                 name = str(segment.name)
                 answer = answered.answer.get(name, BodyAnswer())
+                answer.name = name
                 answer.label = segment.class_name
                 answer.faces = int(len(segment))
-                named[name] = answer
+                named.append(answer)
                 new = " [new]" if answer.is_new_class else ""
                 self.logger.info("  %-22s -> %s%s", name, answer.class_name, new)
             for problem in answered.problems:
@@ -204,7 +209,7 @@ class ClassifyBodies(PipelineStep):
             scene=str(loader.scene.mesh_path),
             bodies=named,
         )
-        self.run.write_json(RunFile.CLASSIFICATIONS, classifications.to_json())
+        self.run.write_record(RunFile.CLASSIFICATIONS, classifications)
         self.report(classifications, vocabulary)
 
     def split_segments(self, loader: WarsawWorldLoader) -> List[LabelSegment]:
@@ -224,7 +229,7 @@ class ClassifyBodies(PipelineStep):
             LabelSegment(
                 class_name=by_name[name].class_name,
                 instance=by_name[name].instance,
-                faces=kept[name],
+                face_indices=kept[name],
             )
             for name in kept.files
         ]
@@ -235,11 +240,11 @@ class ClassifyBodies(PipelineStep):
         :param vocabulary: What every label was answered to mean.
         """
         counted = Counter(
-            one.class_name for one in classifications.bodies.values() if one.class_name
+            one.class_name for one in classifications.bodies if one.class_name
         )
         agreed = sum(
             1
-            for one in classifications.bodies.values()
+            for one in classifications.bodies
             if one.class_name
             and one.class_name == vocabulary.answer_for(one.label).class_name
         )

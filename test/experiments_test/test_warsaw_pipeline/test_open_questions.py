@@ -17,18 +17,6 @@ from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 from experiments.warsaw.segment_relations import SegmentRelations
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
-
-
-@pytest.fixture
-def known():
-    """
-    :return: The ontology's classes by name.
-    """
-    return annotation_classes(SemanticAnnotation)
 
 
 @pytest.fixture
@@ -172,7 +160,7 @@ def test_something_merely_nearby_is_no_candidate(step, relations, known):
         self_measured(relations),
     )
     for one in memberships.to_ask_about:
-        for candidate in one.candidates.values():
+        for candidate in one.candidates:
             assert candidate.shared_faces or candidate.touching_edges
     for one in memberships.forced:
         assert one.shared_faces or one.touching_edges

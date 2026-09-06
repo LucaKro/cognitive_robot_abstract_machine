@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing_extensions import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -37,6 +37,10 @@ from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Mesh
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
+
+from experiments.warsaw.pipeline.json_record import JsonRecord
+
+# %% what the split decides and what it builds
 
 
 @dataclass
@@ -67,7 +71,7 @@ class Ownership:
 
 
 @dataclass
-class Pairing:
+class Pairing(JsonRecord):
     """
     One mount to carry out once the bodies exist.
     """
@@ -91,30 +95,6 @@ class Pairing:
     """
     Which channel mounts it.
     """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, object]) -> Pairing:
-        """
-        :param payload: A pairing as it was written.
-        :return: It, ready to be carried out.
-        """
-        return cls(
-            whole=payload["whole"],
-            part=payload["part"],
-            field_name=payload["field"] or "",
-            kind=MountKind(payload.get("kind") or MountKind.PART),
-        )
-
-    def to_json(self) -> Dict[str, object]:
-        """
-        :return: The pairing as JSON-ready data.
-        """
-        return {
-            "whole": self.whole,
-            "part": self.part,
-            "field": self.field_name,
-            "kind": self.kind.value,
-        }
 
 
 @dataclass
@@ -148,6 +128,9 @@ class SplitFaces:
     Applying one decision per set of claimants cannot leave any, so anything here means a
     set was reached by no decision rather than that two decisions disagreed.
     """
+
+
+# %% giving the contested faces away
 
 
 def owner_by_ontology(
@@ -227,6 +210,9 @@ def exclusive_faces(
     return split
 
 
+# %% the mounts that survive the split
+
+
 def pairings(candidates: Sequence[Pairing], split: SplitFaces) -> List[Pairing]:
     """
     Report the mounts that still have both ends.
@@ -245,6 +231,9 @@ def pairings(candidates: Sequence[Pairing], split: SplitFaces) -> List[Pairing]:
         for pairing in candidates
         if pairing.whole in split.faces and pairing.part in split.faces
     ]
+
+
+# %% building the bodies
 
 
 def split_world(

@@ -20,7 +20,7 @@ from experiments.warsaw.exceptions import (
 )
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
-from experiments.warsaw.pipeline.run_database import RunSchema
+from experiments.warsaw.pipeline.database.run_schema import RunSchema
 
 # %% the directory a run writes into
 
@@ -165,7 +165,8 @@ def test_a_run_s_classes_are_looked_for_inside_it(tmp_path):
 
 def test_only_the_generated_classes_are_put_on_the_annotations_path(tmp_path):
     """
-    What is put on that path becomes part of the annotations package, so a run's own
+    What is put on that path becomes part of the annotations package, so a run's own.
+
     directory would offer the inspector script it leaves behind as an annotation module
     -- which the ORM generator then tries to map, and a run cannot be annotated twice.
     """
@@ -232,7 +233,7 @@ def test_a_world_can_be_converted_only_once_the_mappings_are_loaded():
     from krrood.ormatic.data_access_objects.helper import get_dao_class
     from semantic_digital_twin.world import World
 
-    from experiments.warsaw.pipeline.world_store import WorldStore
+    from experiments.warsaw.pipeline.database.world_store import WorldStore
 
     WorldStore().mappings()
     assert get_dao_class(World) is not None

@@ -18,7 +18,11 @@ from experiments.warsaw.pipeline.records import (
     BodyAnswer,
     Classifications,
     LabelAnswer,
+    MembershipAnswer,
+    MembershipQuestion,
     OpenQuestions,
+    OwnershipAnswer,
+    OwnershipQuestion,
     QuestionKind,
     PictureKind,
     Relations,
@@ -110,7 +114,7 @@ def test_a_body_s_answer_keeps_only_what_the_pipeline_reads():
     A model's extra fields do not reach the file.
     """
     answer = BodyAnswer.from_json(
-        {"class": "Drawer", "confidence": 0.9, "invented_by_the_model": "ignored"}
+        {"class_name": "Drawer", "confidence": 0.9, "invented_by_the_model": "ignored"}
     )
     assert "invented_by_the_model" not in answer.to_json()
     assert answer.class_name == "Drawer"
@@ -164,7 +168,7 @@ def test_a_pairing_without_a_channel_is_a_structural_part():
     """
     Every pairing the adjudication names is a structural part unless it says otherwise.
     """
-    read = Pairing.from_json({"whole": "a", "part": "b", "field": "doors"})
+    read = Pairing.from_json({"whole": "a", "part": "b", "field_name": "doors"})
     assert read.kind is MountKind.PART
 
 
@@ -173,9 +177,10 @@ def test_the_split_s_pairings_name_bodies_it_built(split):
     A mount needs both ends to be bodies, which is what the split checked before
     writing.
     """
+    built = {body.name for body in split.bodies}
     for pairing in split.pairings:
-        assert pairing.whole in split.bodies
-        assert pairing.part in split.bodies
+        assert pairing.whole in built
+        assert pairing.part in built
 
 
 # %% what a render's name says it shows
@@ -201,3 +206,72 @@ def test_a_render_whose_name_says_nothing_is_not_guessed_at():
     A file that is not one of the run's renders captions nothing.
     """
     assert PictureKind.of_render("something_else.png") is None
+
+
+# %% the records that used to be keyed by name
+
+
+def test_every_body_of_a_split_knows_its_own_name(split):
+    """
+    The split's bodies were a mapping keyed by name and are now a list, so each one has
+    to carry the name it was keyed by; a body that lost it is one nothing can mount
+    into.
+    """
+    names = [body.name for body in split.bodies]
+    assert names
+    assert all(names)
+    assert len(set(names)) == len(names)
+
+
+def test_every_answered_label_knows_which_label_it_answers(vocabulary):
+    """
+    An answer with no label is one no segment can be read through.
+    """
+    assert vocabulary.labels
+    assert all(answer.label for answer in vocabulary.labels)
+    assert len(vocabulary.by_label) == len(vocabulary.labels)
+
+
+def test_every_named_body_knows_which_body_it_names(classifications):
+    """
+    The annotation step walks these to find the body each answer is about.
+    """
+    names = [answer.name for answer in classifications.bodies]
+    assert names
+    assert all(names)
+    assert len(set(names)) == len(names)
+
+
+def test_a_question_s_measurements_and_shares_name_what_they_measured(questions):
+    """
+    Both were mappings keyed by segment, and both are read out beside each other in the
+    question put to a model, so each entry has to say which segment it is about.
+    """
+    asked = questions.ownership[0]
+    assert {one.name for one in asked.measured} == set(asked.shown)
+    assert {one.name for one in asked.shares} == set(asked.shown)
+
+
+def test_a_membership_question_names_what_it_is_choosing_between(questions):
+    """
+    An answer is checked against these names, so they are what the question offers.
+    """
+    asked = questions.membership[0]
+    assert asked.candidate_names == [one.name for one in asked.candidates]
+    assert len(asked.candidate_names) > 1
+
+
+# %% what the shared shapes must not flatten
+
+
+def test_each_question_and_answer_says_which_kind_it_is():
+    """
+    Both questions about an overlap share one shape, and so do both answers.
+
+    What they do not share is which kind they are -- that is the whole difference
+    between them, and a shared default would quietly make every membership an ownership.
+    """
+    assert OwnershipQuestion(name="a").kind is QuestionKind.OWNERSHIP
+    assert MembershipQuestion(name="a", part="p").kind is QuestionKind.MEMBERSHIP
+    assert OwnershipAnswer(name="a").kind is QuestionKind.OWNERSHIP
+    assert MembershipAnswer(name="a", part="p").kind is QuestionKind.MEMBERSHIP

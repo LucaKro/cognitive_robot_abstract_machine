@@ -22,9 +22,11 @@ from pathlib import Path
 
 import numpy as np
 
-from experiments.warsaw.world_loader import WarsawWorldLoader
+from experiments.warsaw.world_loader.loader import WarsawWorldLoader
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.world import World
+
+# %% saying what a world holds
 
 
 def report(loader: WarsawWorldLoader) -> None:
@@ -57,13 +59,16 @@ def report(loader: WarsawWorldLoader) -> None:
     # as the drawer and as the cabinet holding it.
     labels_per_face = np.zeros(face_count, dtype=np.int32)
     for instances in scene.face_labels.values():
-        labels_per_face += (instances != scene.UNSEGMENTED).astype(np.int32)
+        labels_per_face += (instances != scene.unsegmented).astype(np.int32)
     labelled = int((labels_per_face > 0).sum())
     print(
         f"\nlabelled faces: {labelled} / {face_count} "
         f"({100 * labelled / face_count:.1f}%), "
         f"of which {int((labels_per_face > 1).sum())} carry more than one class"
     )
+
+
+# %% looking at it
 
 
 def view(world: World) -> None:
@@ -79,6 +84,9 @@ def view(world: World) -> None:
     #
     # The scene's own camera is sized for rendering, which fills the screen in a window.
     scene.show(smooth=False, resolution=(1280, 960))
+
+
+# %% running it with nothing to be told
 
 
 def main() -> None:

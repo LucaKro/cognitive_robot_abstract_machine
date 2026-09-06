@@ -6,9 +6,11 @@ checked is the reading and not the scan: which objects a file's labels describe,
 directory that holds no scene says, and where the cameras end up standing.
 """
 
+import io
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 import pytest
 import trimesh
 from plyfile import PlyData, PlyElement
@@ -18,7 +20,9 @@ from experiments.warsaw.exceptions import (
     WarsawLabelsMissingError,
     WarsawSceneNotFoundError,
 )
-from experiments.warsaw.world_loader import WarsawScene, WarsawWorldLoader
+from experiments.warsaw.world_loader.loader import WarsawWorldLoader
+from experiments.warsaw.world_loader.viewpoints import changed_pixels
+from experiments.warsaw.world_loader.scene import WarsawScene
 
 # %% a scene file written the way the dataset writes one
 
@@ -100,19 +104,19 @@ def test_the_faces_no_class_covers_become_no_segment(two_class_scene):
     Instance 0 marks a face a class does not cover, and marks no object.
     """
     scene = WarsawScene.from_directory(two_class_scene)
-    assert all(3 not in segment.faces for segment in scene.segments())
+    assert all(3 not in segment.face_indices for segment in scene.segments())
 
 
 def test_a_segment_holds_only_the_faces_of_its_instance(two_class_scene):
     """
-    :attr:`LabelSegment.faces` is what a body is later cut from, so it must hold the
-    faces of that instance and no others.
+    :attr:`LabelSegment.face_indices` is what a body is later cut from, so it must hold
+    the faces of that instance and no others.
     """
     scene = WarsawScene.from_directory(two_class_scene)
     segments = {str(segment.name): segment for segment in scene.segments()}
-    assert segments["cabinet_1"].faces.tolist() == [0]
-    assert segments["cabinet_2"].faces.tolist() == [1, 2]
-    assert segments["drawer_1"].faces.tolist() == [1, 2]
+    assert segments["cabinet_1"].face_indices.tolist() == [0]
+    assert segments["cabinet_2"].face_indices.tolist() == [1, 2]
+    assert segments["drawer_1"].face_indices.tolist() == [1, 2]
 
 
 def test_a_face_can_belong_to_objects_of_several_classes(two_class_scene):
@@ -122,7 +126,9 @@ def test_a_face_can_belong_to_objects_of_several_classes(two_class_scene):
     """
     scene = WarsawScene.from_directory(two_class_scene)
     segments = {str(segment.name): segment for segment in scene.segments()}
-    assert set(segments["cabinet_2"].faces) == set(segments["drawer_1"].faces)
+    assert set(segments["cabinet_2"].face_indices) == set(
+        segments["drawer_1"].face_indices
+    )
 
 
 def test_the_classes_are_read_in_the_order_the_file_declares_them(two_class_scene):
@@ -151,7 +157,9 @@ def test_a_directory_holding_more_than_one_scene_is_reported(tmp_path, two_class
     Which of two meshes is the scene is not something to guess at.
     """
     box = trimesh.creation.box()
-    write_scene(two_class_scene / "another.ply", box.vertices, box.faces[:1], {"wall": [1]})
+    write_scene(
+        two_class_scene / "another.ply", box.vertices, box.faces[:1], {"wall": [1]}
+    )
     with pytest.raises(AmbiguousWarsawSceneError):
         WarsawScene.from_directory(two_class_scene)
 
@@ -166,14 +174,97 @@ def test_a_mesh_carrying_no_labels_is_reported(tmp_path):
         WarsawScene.from_directory(tmp_path)
 
 
+# %% a payload that is not shaped the way a scan writes one
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        pytest.param({}, id="nothing at all"),
+        pytest.param({"other": 1}, id="no raw block"),
+        pytest.param({"_ply_raw": {}}, id="no face element"),
+        pytest.param({"_ply_raw": {"face": {}}}, id="no rows"),
+        pytest.param({"_ply_raw": {"face": {"data": None}}}, id="empty rows"),
+    ],
+)
+def test_a_payload_without_the_labels_is_refused_rather_than_walked(metadata, tmp_path):
+    """
+    The labels are read out of a path into the file format's own payload, and every step
+    of that path can be absent.
+
+    A mesh missing any of them carries no labels, which is reported rather than raised
+    from halfway down the walk.
+    """
+
+    class Scanned:
+        """
+        Stands in for a mesh read from a file that is not a labelled scan.
+        """
+
+        def __init__(self, kept):
+            self.metadata = kept
+
+    with pytest.raises(WarsawLabelsMissingError):
+        WarsawScene._read_face_labels(Scanned(metadata), tmp_path / "scene.ply")
+
+
+def test_a_payload_holding_only_geometry_carries_no_labels(tmp_path):
+    """
+    A face always carries its vertices; that property is the geometry, not a label.
+    """
+
+    class Scanned:
+        """
+        Stands in for a mesh whose faces carry geometry and nothing else.
+        """
+
+        metadata = {
+            "_ply_raw": {
+                "face": {"data": np.zeros(3, dtype=[("vertex_indices", "i4")])}
+            }
+        }
+
+    with pytest.raises(WarsawLabelsMissingError):
+        WarsawScene._read_face_labels(Scanned(), tmp_path / "scene.ply")
+
+
+def test_every_face_property_that_is_not_geometry_is_a_class(tmp_path):
+    """
+    What is left after the geometry is the classes the scan wrote onto the faces.
+    """
+
+    class Scanned:
+        """
+        Stands in for a mesh whose faces carry two labels beside their geometry.
+        """
+
+        metadata = {
+            "_ply_raw": {
+                "face": {
+                    "data": np.zeros(
+                        3,
+                        dtype=[
+                            ("vertex_indices", "i4"),
+                            ("cabinet", "i4"),
+                            ("drawer", "i4"),
+                        ],
+                    )
+                }
+            }
+        }
+
+    read = WarsawScene._read_face_labels(Scanned(), tmp_path / "scene.ply")
+    assert list(read) == ["cabinet", "drawer"]
+
+
 # %% loading it into a world
 
 
 def test_the_scene_becomes_one_body(two_class_scene):
     """
-    The scene stays one body until its overlapping labels have been resolved: cutting
-    it earlier would have to give the faces two objects claim to one of them, which is
-    the question the rest of the pipeline answers.
+    The scene stays one body until its overlapping labels have been resolved: cutting it
+    earlier would have to give the faces two objects claim to one of them, which is the
+    question the rest of the pipeline answers.
     """
     loader = WarsawWorldLoader(input_directory=two_class_scene)
     assert len(loader.world.bodies_with_collision) == 1
@@ -186,7 +277,7 @@ def test_the_scene_is_turned_into_the_world_s_coordinates(two_class_scene):
     """
     loader = WarsawWorldLoader(input_directory=two_class_scene)
     turned = loader.scene.mesh.copy()
-    turned.apply_transform(WarsawWorldLoader.SOURCE_TO_WORLD.to_np())
+    turned.apply_transform(loader.scene.source_to_world.to_np())
     assert np.allclose(
         np.sort(loader.scene_mesh.extents), np.sort(turned.extents), atol=1e-6
     )
@@ -200,7 +291,7 @@ def test_the_segments_index_the_faces_of_the_loaded_mesh(two_class_scene):
     loader = WarsawWorldLoader(input_directory=two_class_scene)
     assert len(loader.scene_mesh.faces) == len(loader.scene.mesh.faces)
     for segment in loader.label_segments:
-        assert segment.faces.max() < len(loader.scene_mesh.faces)
+        assert segment.face_indices.max() < len(loader.scene_mesh.faces)
 
 
 # %% looking at it
@@ -234,3 +325,52 @@ def test_framing_a_part_of_the_scene_stands_closer_than_framing_all_of_it(
         assert np.linalg.norm(part[name][:3, 3] - middle) < np.linalg.norm(
             whole[name][:3, 3] - middle
         )
+
+
+# %% telling two renders apart
+
+
+def rendered(color, size=(4, 3)) -> bytes:
+    """
+    :param color: What to paint every pixel.
+    :param size: How large the picture is.
+    :return: The picture, as PNG bytes.
+    """
+    kept = io.BytesIO()
+    Image.new("RGB", size, color).save(kept, format="PNG")
+    return kept.getvalue()
+
+
+def test_two_identical_renders_differ_nowhere():
+    """
+    How much of an object is visible is counted as the pixels a highlight changed, so
+    two pictures of the same thing must count as no change at all.
+    """
+    assert changed_pixels(rendered((10, 20, 30)), rendered((10, 20, 30))) == 0
+
+
+def test_every_pixel_of_a_repainted_render_is_counted():
+    """
+    Repainting the whole picture changes every one of its pixels.
+    """
+    assert changed_pixels(rendered((0, 0, 0)), rendered((255, 255, 255))) == 12
+
+
+def test_only_the_pixels_that_moved_are_counted():
+    """
+    A highlight covers part of the view, and what is counted is that part.
+    """
+    painted = Image.new("RGB", (4, 3), (0, 0, 0))
+    painted.putpixel((0, 0), (255, 0, 0))
+    painted.putpixel((1, 1), (255, 0, 0))
+    kept = io.BytesIO()
+    painted.save(kept, format="PNG")
+    assert changed_pixels(rendered((0, 0, 0)), kept.getvalue()) == 2
+
+
+def test_renders_of_different_sizes_are_not_compared():
+    """
+    Two pictures of different sizes are not two views of the same pose, so there is
+    nothing to count.
+    """
+    assert changed_pixels(rendered((0, 0, 0)), rendered((0, 0, 0), size=(8, 6))) == 0

@@ -19,7 +19,7 @@ whether the class should have it.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import semantic_digital_twin
@@ -44,9 +44,8 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 )
 from typing_extensions import Any, Dict, List, Optional, Tuple, Type
 
-from experiments.warsaw.pipeline.asking import Question
+from experiments.warsaw.pipeline.asking import QuestionAboutTheOntology
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
-from experiments.warsaw.pipeline.prompts import Prompt
 from experiments.warsaw.pipeline.records import (
     AmendmentRecord,
     Relations,
@@ -57,9 +56,11 @@ from experiments.warsaw.pipeline.records import (
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 
+# %% whether a class is missing a structural part
 
-@dataclass
-class MixinProposal(Question[AmendmentRecord]):
+
+@dataclass(kw_only=True)
+class MixinProposal(QuestionAboutTheOntology[AmendmentRecord]):
     """
     Whether one class of the ontology should be given one mixin.
     """
@@ -69,24 +70,9 @@ class MixinProposal(Question[AmendmentRecord]):
     The amendment in question, and what was measured that raised it.
     """
 
-    known: Dict[str, Type]
-    """
-    The ontology's classes by name.
-    """
-
-    taxonomy: Dict[str, Any]
-    """
-    The ontology as a model reads it.
-    """
-
     request: VocabularyRequest
     """
     The vocabulary question, for the exemplar of a label.
-    """
-
-    images: Path
-    """
-    The directory holding the exemplar renders.
     """
 
     plain_render_marker: str = "__plain_"
@@ -95,13 +81,14 @@ class MixinProposal(Question[AmendmentRecord]):
     nothing about which faces the label covers and is left out.
     """
 
+    prompt: str = "taxonomy_amendment"
+    """
+    The prompt this question is put with, both halves of it.
+    """
+
     @property
     def key(self) -> str:
         return "-".join((self.record.whole, self.record.mixin, self.record.part))
-
-    @property
-    def system_prompt(self) -> str:
-        return Prompt.TAXONOMY_AMENDMENT.read()
 
     def held_parts(self, annotation_class: Type) -> List[Type]:
         """
@@ -136,27 +123,22 @@ class MixinProposal(Question[AmendmentRecord]):
             describe_class(held)
             for held in self.held_parts(self.known[self.record.whole])
         ]
-        already = (
-            "## What those parts hold in turn\n" + "\n".join(onwards) + "\n\n"
-            if onwards
-            else ""
-        )
         content: List[MessagePart] = [
             TextPart(
-                f"## The proposal\n"
-                f"Give {self.record.whole} the mixin {self.record.mixin}, which "
-                f"introduces: {granted}.\n\n"
-                f"## The class as it stands\n"
-                f"{describe_class(self.known[self.record.whole])}\n\n"
-                f"## The part\n{describe_class(self.known[self.record.part])}\n\n"
-                f"{already}"
-                f"## What was measured\n"
-                f"In one scanned room, objects labelled "
-                f"{', '.join(sorted(self.record.whole_labels))} were read as "
-                f"{self.record.whole}, and objects labelled "
-                f"{', '.join(sorted(self.record.part_labels))} as {self.record.part}. "
-                f"They share faces over {self.record.measured_pairs} measured pairs, "
-                f"{self.record.shared_faces} shared faces in all."
+                self.templates.render_document(
+                    self.message_template,
+                    whole=self.record.whole,
+                    part=self.record.part,
+                    mixin=self.record.mixin,
+                    granted=granted,
+                    whole_as_it_stands=describe_class(self.known[self.record.whole]),
+                    part_as_it_stands=describe_class(self.known[self.record.part]),
+                    held_onwards=onwards,
+                    whole_labels=sorted(self.record.whole_labels),
+                    part_labels=sorted(self.record.part_labels),
+                    measured_pairs=self.record.measured_pairs,
+                    shared_faces=self.record.shared_faces,
+                )
             )
         ]
         content.extend(self.exemplar_pictures())
@@ -187,19 +169,19 @@ class MixinProposal(Question[AmendmentRecord]):
                         f"{entry.color}."
                     )
                 )
-                content.append(ImagePart.from_file(self.images / filename))
+                content.append(ImagePart.from_file(self.renders_directory / filename))
         return content
 
     def read(self, response: ModelResponse) -> AmendmentRecord:
         answered = response.parse_json()
-        judged = AmendmentRecord.from_json(self.record.to_json())
+        judged = replace(self.record)
         judged.amend = bool(answered.get("amend"))
         judged.confidence = answered.get("confidence")
         judged.reason = answered.get("reason")
         return judged
 
     def refusal(self, refused: ModelRefusedError) -> AmendmentRecord:
-        judged = AmendmentRecord.from_json(self.record.to_json())
+        judged = replace(self.record)
         judged.reason = str(refused)
         return judged
 
@@ -209,6 +191,9 @@ class MixinProposal(Question[AmendmentRecord]):
         :return: Nothing: yes and no are both usable answers, and a refusal is read as no.
         """
         return []
+
+
+# %% proposing and carrying out the amendments
 
 
 @dataclass
@@ -244,11 +229,9 @@ class AmendTaxonomy(PipelineStep):
         Judge every amendment the measurements raise, and apply the accepted ones if
         asked.
         """
-        relations = Relations.from_json(self.run.read_json(RunFile.RELATIONS))
-        request = VocabularyRequest.from_json(
-            self.run.read_json(RunFile.VOCABULARY_REQUEST)
-        )
-        vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
+        relations = self.run.read_record(RunFile.RELATIONS, Relations)
+        request = self.run.read_record(RunFile.VOCABULARY_REQUEST, VocabularyRequest)
+        vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
         taxonomy = self.run.read_json(RunFile.TAXONOMY)
 
         known = self.ontology_classes()
@@ -381,7 +364,7 @@ class AmendTaxonomy(PipelineStep):
                     known=known,
                     taxonomy=taxonomy,
                     request=request,
-                    images=self.run.path(RunFile.EXEMPLARS),
+                    renders_directory=self.run.path(RunFile.EXEMPLARS),
                 )
             )
             judgement = answered.answer
@@ -502,6 +485,9 @@ class AmendTaxonomy(PipelineStep):
             [str(self.orm_generator)],
             what="rebuilding the ORM from the amended classes",
         )
+
+
+# %% putting the ontology back
 
 
 @dataclass

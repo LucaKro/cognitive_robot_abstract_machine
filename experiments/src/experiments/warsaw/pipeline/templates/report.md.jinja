@@ -1,0 +1,43 @@
+# {{ run_name }}
+
+- scene: `{{ scene }}`
+- worlds: **{{ annotated_world }}** annotated, {{ split_world }} as it was split
+- models: {{ vocabulary_model }} (vocabulary), {{ adjudication_model }} (adjudication), {{ classification_model }} (classification)
+
+## What was measured
+
+- {{ segments }} labelled objects over {{ pairs }} measurable pairs, {{ overlapping }} of them sharing faces
+- {{ settled }} sets of contested faces the ontology settled, {{ forced }} memberships with only one candidate
+
+## What was asked
+
+- {{ labels }} labels, {{ labels_mapped }} mapped to a class, {{ labels_new }} of them new
+- {{ patterns_adjudicated }} class patterns and {{ memberships_adjudicated }} memberships adjudicated, {{ answers_with_problems }} with problems
+- {{ bodies_named }} bodies named, {{ distinct_classes }} distinct classes
+
+## What was built
+
+- {{ bodies }} bodies, {{ faces }} faces between them, {{ still_contested }} faces still claimed twice
+- {{ pairings }} pairings carried past the split
+{% if emptied %}
+
+### {{ emptied | length }} objects lost every face
+
+{% for segment in emptied %}
+- `{{ segment.name }}` -> {% for took in segment.taken_by %}{{ took.name }} ({{ took.faces }}){{ ', ' if not loop.last }}{% endfor +%}
+{% endfor %}
+{% endif %}
+{% if classes_given %}
+
+### Classes given
+
+{% for name, count in classes_given %}
+- {{ count }} x `{{ name }}`
+{% endfor %}
+{% endif %}
+
+## Looking at it
+
+```
+python {{ inspector }}
+```

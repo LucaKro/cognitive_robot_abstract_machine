@@ -11,23 +11,13 @@ class.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
 from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
-
-
-@pytest.fixture
-def known():
-    """
-    :return: The ontology's classes by name.
-    """
-    return annotation_classes(SemanticAnnotation)
 
 
 def classes_of(labels, known):
@@ -37,7 +27,12 @@ def classes_of(labels, known):
     :return: Per label, the class it stands for.
     """
     return VocabularyClasses(
-        vocabulary=Vocabulary(model="", scene="", labels=labels), known=known
+        vocabulary=Vocabulary(
+            model="",
+            scene="",
+            labels=[replace(answer, label=label) for label, answer in labels.items()],
+        ),
+        known=known,
     ).by_label()
 
 
@@ -181,5 +176,5 @@ def test_every_usable_answer_of_a_real_run_becomes_a_class(vocabulary, known):
     stops being an object.
     """
     classes = VocabularyClasses(vocabulary=vocabulary, known=known).by_label()
-    for label, answer in vocabulary.labels.items():
-        assert (classes[label] is not None) == answer.is_usable
+    for answer in vocabulary.labels:
+        assert (classes[answer.label] is not None) == answer.is_usable

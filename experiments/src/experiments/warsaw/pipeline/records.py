@@ -3,12 +3,13 @@ What one step of the pipeline hands to the next.
 
 Every step reads what the step before it wrote, so each field name is written in one
 module and read in another. Mirroring each file in a dataclass writes those names once:
-the reader and the writer are the same declaration, and a field that moves moves for
-both.
+the reader and the writer are the same declaration, and a field that moves moves for both.
 
-The shapes here are the pipeline's own, so they carry no type name into the files. A
-run's artefacts are read by people comparing one run against another, and stamping a
-class name into every node would make them harder to read for nothing.
+A record is a dataclass and its fields say what it holds, so krrood's serializer is what
+reads and writes it; the mapping is not written out anywhere.
+
+Where several records say the same thing -- both questions about an overlap, both answers
+settling one, both answers naming a class -- they say it once, in a class they share.
 """
 
 from __future__ import annotations
@@ -16,10 +17,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import Any, Dict, List, Optional, Tuple
+from typing_extensions import Any, ClassVar, Dict, List, Optional, Self, Tuple
 
+from experiments.warsaw.pipeline.json_record import JsonRecord
 from experiments.warsaw.scene_split import Pairing
-from experiments.warsaw.segment_relations import PairEvidence, SegmentDescriptor
+from experiments.warsaw.segment_relations import (
+    ClaimantGroup,
+    PairEvidence,
+    SegmentDescriptor,
+)
 
 # %% named alternatives
 
@@ -101,11 +107,110 @@ class PictureKind(StrEnum):
         return cls(tail) if tail in set(cls) else None
 
 
+# %% what every artefact says about itself
+
+
+@dataclass
+class RunArtefact(JsonRecord):
+    """
+    Something a step wrote about one scene.
+    """
+
+    scene: str
+    """
+    The mesh it is about.
+    """
+
+
+@dataclass
+class AnsweredByModel(RunArtefact):
+    """
+    Something a step wrote down after asking a model.
+
+    Which model answered is part of the artefact rather than of the run: a run may ask
+    different steps of different models, and two runs are only comparable where the same
+    model answered the same question.
+    """
+
+    model: str
+    """
+    The model that was asked.
+    """
+
+
+# %% an answer that names a class
+
+
+@dataclass
+class ClassAnswer(JsonRecord):
+    """
+    An answer naming the class of something, whether a label or a single body.
+
+    The same thing is asked twice in a run and about two different subjects: once about a
+    label, which covers many objects, and once about each body in the room it stands in.
+    Both come back as a class of the ontology or as one proposed by naming what it derives
+    from, so both are read the same way.
+    """
+
+    label: Optional[str] = None
+    """
+    The scan's word for it, which is what was asked about or what the body was labelled.
+    """
+
+    class_name: Optional[str] = None
+    """
+    The class it is, or None where the ontology should hold nothing for it.
+    """
+
+    is_new_class: bool = False
+    """
+    Whether that class is proposed rather than found in the ontology.
+    """
+
+    superclass: Optional[str] = None
+    """
+    What a proposed class derives from.
+    """
+
+    confidence: Optional[float] = None
+    """
+    How sure the model said it was.
+    """
+
+    reason: Optional[str] = None
+    """
+    Why, in one sentence.
+    """
+
+    spoken_class: ClassVar[str] = "class"
+    """
+    What the class is called in the words a model is asked to answer in.
+    """
+
+    @classmethod
+    def spoken(cls, payload: Dict[str, Any]) -> Self:
+        """
+        Read an answer as the model wrote it, rather than as this record stores it.
+
+        A model is asked for ``class``, because that is what the thing is called; the
+        field is ``class_name``, because ``class`` is a Python keyword. The prompt cannot
+        be written in the field's words, so the two are reconciled here -- once, for every
+        answer that names a class, and at the only place a model's words come in.
+
+        :param payload: What the model said, in the words it was asked for.
+        :return: It, as an answer.
+        """
+        said = dict(payload)
+        if cls.spoken_class in said:
+            said["class_name"] = said.pop(cls.spoken_class)
+        return cls.from_json(said)
+
+
 # %% what the ontology admits between two classes
 
 
 @dataclass
-class AdmissibleRelation:
+class AdmissibleRelation(JsonRecord):
     """
     One part-whole relation the ontology allows between two classes.
     """
@@ -135,28 +240,9 @@ class AdmissibleRelation:
     Whether mounting takes the part's geometry out of the whole's.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> AdmissibleRelation:
-        return cls(
-            whole=payload["whole"],
-            part=payload["part"],
-            field_name=payload["field"],
-            holds_many=payload["many"],
-            removes_geometry=payload["removes_geometry"],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "whole": self.whole,
-            "part": self.part,
-            "field": self.field_name,
-            "many": self.holds_many,
-            "removes_geometry": self.removes_geometry,
-        }
-
 
 @dataclass
-class AdmissibleMount:
+class AdmissibleMount(JsonRecord):
     """
     One mount the ontology allows between two classes that is not a structural part.
     """
@@ -186,28 +272,9 @@ class AdmissibleMount:
     The method that carries the mount out.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> AdmissibleMount:
-        return cls(
-            kind=payload["kind"],
-            whole=payload["whole"],
-            field_name=payload["field"],
-            target=payload["target"],
-            mounted_by=payload["mounted_by"],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "kind": self.kind,
-            "whole": self.whole,
-            "field": self.field_name,
-            "target": self.target,
-            "mounted_by": self.mounted_by,
-        }
-
 
 @dataclass
-class OntologyView:
+class OntologyView(JsonRecord):
     """
     What the ontology admits between the classes of two segments.
 
@@ -231,31 +298,37 @@ class OntologyView:
     The mounts allowed between them that are not structural parts.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> OntologyView:
-        return cls(
-            status=RelationStatus(payload["status"]),
-            admissible=[
-                AdmissibleRelation.from_json(one) for one in payload["admissible"]
-            ],
-            other_mounts=[
-                AdmissibleMount.from_json(one) for one in payload["other_mounts"]
-            ],
-        )
 
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "status": self.status.value,
-            "admissible": [one.to_json() for one in self.admissible],
-            "other_mounts": [one.to_json() for one in self.other_mounts],
-        }
+@dataclass
+class OntologySlice(JsonRecord):
+    """
+    What the taxonomy holds about the handful of objects one question is about.
+
+    The slice rather than the whole taxonomy: a question about three objects is not helped
+    by a hundred and thirty-nine classes.
+    """
+
+    read_as: Dict[str, Optional[str]] = field(default_factory=dict)
+    """
+    Per segment, the class it was read as.
+    """
+
+    classes: List[str] = field(default_factory=list)
+    """
+    Each of those classes, written out.
+    """
+
+    admits: List[str] = field(default_factory=list)
+    """
+    What the ontology admits between them.
+    """
 
 
 # %% relations.json
 
 
 @dataclass
-class PairRecord:
+class PairRecord(JsonRecord):
     """
     Two segments measured to meet, and what the ontology makes of them.
     """
@@ -301,33 +374,11 @@ class PairRecord:
         """
         return self.view.status if self.view else RelationStatus.CLASS_UNKNOWN
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> PairRecord:
-        return cls(
-            evidence=PairEvidence.from_json(payload),
-            classes=dict(payload.get("classes") or {}),
-            view=OntologyView.from_json(payload) if "status" in payload else None,
-            prompt_block=payload.get("prompt_block") or "",
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            **self.evidence.to_json(),
-            "classes": self.classes,
-            **(self.view.to_json() if self.view else {}),
-            "prompt_block": self.prompt_block,
-        }
-
 
 @dataclass
-class Relations:
+class Relations(RunArtefact):
     """
     How a scene's labelled objects were measured to meet.
-    """
-
-    scene: str
-    """
-    The mesh they were measured on.
     """
 
     segments: List[SegmentDescriptor] = field(default_factory=list)
@@ -354,30 +405,12 @@ class Relations:
         """
         return {descriptor.name: descriptor.class_name for descriptor in self.segments}
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> Relations:
-        return cls(
-            scene=payload["scene"],
-            segments=[
-                SegmentDescriptor.from_json(one)
-                for one in payload.get("segments") or []
-            ],
-            pairs=[PairRecord.from_json(one) for one in payload.get("pairs") or []],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "scene": self.scene,
-            "segments": [one.to_json() for one in self.segments],
-            "pairs": [one.to_json() for one in self.pairs],
-        }
-
 
 # %% vocabulary_request.json
 
 
 @dataclass
-class LabelRequest:
+class LabelRequest(JsonRecord):
     """
     One label of a scene, and the object standing for it.
     """
@@ -422,43 +455,11 @@ class LabelRequest:
     What it was painted in those renders.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> LabelRequest:
-        return cls(
-            label=payload["label"],
-            instances=payload["instances"],
-            exemplar=payload["exemplar"],
-            exemplar_faces=payload.get("exemplar_faces") or 0,
-            exemplar_exclusive_share=payload.get("exemplar_exclusive_share") or 0.0,
-            exemplar_exclusive_area=payload.get("exemplar_exclusive_area") or 0.0,
-            images=list(payload.get("images") or []),
-            color=payload.get("color"),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        written = {
-            "label": self.label,
-            "instances": self.instances,
-            "exemplar": self.exemplar,
-            "exemplar_faces": self.exemplar_faces,
-            "exemplar_exclusive_share": self.exemplar_exclusive_share,
-            "exemplar_exclusive_area": self.exemplar_exclusive_area,
-            "images": self.images,
-        }
-        if self.color is not None:
-            written["color"] = self.color
-        return written
-
 
 @dataclass
-class VocabularyRequest:
+class VocabularyRequest(RunArtefact):
     """
     The question asking which class each of a scene's labels means.
-    """
-
-    scene: str
-    """
-    The mesh the labels were read from.
     """
 
     question: str
@@ -479,59 +480,19 @@ class VocabularyRequest:
         """
         return [entry.label for entry in self.labels]
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> VocabularyRequest:
-        return cls(
-            scene=payload["scene"],
-            question=payload["question"],
-            labels=[LabelRequest.from_json(one) for one in payload.get("labels") or []],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "scene": self.scene,
-            "question": self.question,
-            "labels": [one.to_json() for one in self.labels],
-        }
-
 
 # %% vocabulary.json
 
 
 @dataclass
-class LabelAnswer:
+class LabelAnswer(ClassAnswer):
     """
     What was answered about one label.
-    """
-
-    class_name: Optional[str] = None
-    """
-    The class the label means, or None where the ontology should hold nothing for it.
-    """
-
-    is_new_class: bool = False
-    """
-    Whether that class is proposed rather than found in the ontology.
-    """
-
-    superclass: Optional[str] = None
-    """
-    What a proposed class derives from.
     """
 
     mixins: List[str] = field(default_factory=list)
     """
     What a proposed class is composed with, which decides what it can hold.
-    """
-
-    confidence: Optional[float] = None
-    """
-    How sure the model said it was.
-    """
-
-    reason: Optional[str] = None
-    """
-    Why, in one sentence.
     """
 
     problems: List[str] = field(default_factory=list)
@@ -564,97 +525,51 @@ class LabelAnswer:
         """
         if payload is None or isinstance(payload, str):
             return cls(class_name=payload or None)
-        return cls.from_json(payload)
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> LabelAnswer:
-        return cls(
-            class_name=payload.get("class"),
-            is_new_class=bool(payload.get("is_new_class")),
-            superclass=payload.get("superclass"),
-            mixins=list(payload.get("mixins") or []),
-            confidence=payload.get("confidence"),
-            reason=payload.get("reason"),
-            problems=list(payload.get("problems") or []),
-            exemplar=payload.get("exemplar"),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "class": self.class_name,
-            "is_new_class": self.is_new_class,
-            "superclass": self.superclass,
-            "mixins": self.mixins,
-            "confidence": self.confidence,
-            "reason": self.reason,
-            "problems": self.problems,
-            "exemplar": self.exemplar,
-        }
+        return cls.spoken(payload)
 
 
 @dataclass
-class Vocabulary:
+class Vocabulary(AnsweredByModel):
     """
     What each of a scene's labels was answered to mean.
     """
 
-    model: str
+    labels: List[LabelAnswer] = field(default_factory=list)
     """
-    Which model was asked.
-    """
-
-    scene: str
-    """
-    The mesh the labels were read from.
+    One answer per label.
     """
 
-    labels: Dict[str, LabelAnswer] = field(default_factory=dict)
-    """
-    The answer per label.
-    """
+    @property
+    def by_label(self) -> Dict[str, LabelAnswer]:
+        """
+        :return: The answers by the label each is about.
+        """
+        return {answer.label: answer for answer in self.labels if answer.label}
 
     def answer_for(self, label: str) -> LabelAnswer:
         """
         :param label: The label to look up.
         :return: What was answered about it, blank where nothing was.
         """
-        return self.labels.get(label, LabelAnswer())
+        return self.by_label.get(label, LabelAnswer())
 
     @property
-    def proposals(self) -> Dict[str, LabelAnswer]:
+    def proposals(self) -> List[LabelAnswer]:
         """
-        :return: Per label, the answer that proposed a class rather than naming one.
+        :return: The answers that proposed a class rather than naming one.
         """
-        return {
-            label: answer
-            for label, answer in self.labels.items()
+        return [
+            answer
+            for answer in self.labels
             if answer.is_new_class and answer.class_name
-        }
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> Vocabulary:
-        return cls(
-            model=payload.get("model") or "",
-            scene=payload.get("scene") or "",
-            labels={
-                label: LabelAnswer.of(one)
-                for label, one in (payload.get("labels") or {}).items()
-            },
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "model": self.model,
-            "scene": self.scene,
-            "labels": {label: one.to_json() for label, one in self.labels.items()},
-        }
+        ]
 
 
-# %% questions.json
+# %% what a scene's overlaps were measured to be
 
 
 @dataclass
-class ClaimantSet:
+class CountedClaimants(JsonRecord):
     """
     A set of faces claimed by exactly the same segments, counted rather than listed.
     """
@@ -670,57 +585,29 @@ class ClaimantSet:
     """
 
     @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> ClaimantSet:
-        return cls(claimants=tuple(payload["claimants"]), faces=payload["faces"])
+    def of(cls, group: ClaimantGroup) -> CountedClaimants:
+        """
+        Say what a measured group of claimants holds, without the faces themselves.
 
-    def to_json(self) -> Dict[str, Any]:
-        return {"claimants": list(self.claimants), "faces": self.faces}
+        A group carries *which* faces are contested, which is what the split works on and
+        what no file can hold; a run records how many there are. They are the same set
+        counted two ways, so the one that can be written is made from the one that cannot.
 
-
-@dataclass
-class OntologySlice:
-    """
-    What the taxonomy holds about the handful of objects one question is about.
-
-    The slice rather than the whole taxonomy: a question about three objects is not helped
-    by a hundred and thirty-nine classes.
-    """
-
-    read_as: Dict[str, Optional[str]] = field(default_factory=dict)
-    """
-    Per segment, the class it was read as.
-    """
-
-    classes: List[str] = field(default_factory=list)
-    """
-    Each of those classes, written out.
-    """
-
-    admits: List[str] = field(default_factory=list)
-    """
-    What the ontology admits between them.
-    """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> OntologySlice:
-        return cls(
-            read_as=dict(payload.get("read_as") or {}),
-            classes=list(payload.get("classes") or []),
-            admits=list(payload.get("admits") or []),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "read_as": self.read_as,
-            "classes": self.classes,
-            "admits": self.admits,
-        }
+        :param group: The claimants as the measurement found them.
+        :return: The same claimants, counted.
+        """
+        return cls(claimants=group.names, faces=int(len(group.faces)))
 
 
 @dataclass
-class MeasuredSegment:
+class MeasuredSegment(JsonRecord):
     """
     What was measured of one object on its own.
+    """
+
+    name: str
+    """
+    The object it was measured of.
     """
 
     faces: int
@@ -743,26 +630,9 @@ class MeasuredSegment:
     How many connected pieces it falls into.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> MeasuredSegment:
-        return cls(
-            faces=payload["faces"],
-            area=payload["area"],
-            height=payload["height"],
-            pieces=payload["pieces"],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "faces": self.faces,
-            "area": self.area,
-            "height": self.height,
-            "pieces": self.pieces,
-        }
-
 
 @dataclass
-class ContestedShare:
+class ContestedShare(JsonRecord):
     """
     How much of one claimant the contested faces are.
 
@@ -770,6 +640,11 @@ class ContestedShare:
     claimant is twenty times the size of the others: an island label covers the whole block
     including its drawers, so a drawer front reads as a patch of detail on the island
     rather than as the drawer.
+    """
+
+    name: str
+    """
+    The claimant whose share this is.
     """
 
     faces: int
@@ -782,16 +657,59 @@ class ContestedShare:
     What share of them are contested.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> ContestedShare:
-        return cls(faces=payload["faces"], contested_share=payload["contested_share"])
 
-    def to_json(self) -> Dict[str, Any]:
-        return {"faces": self.faces, "contested_share": self.contested_share}
+# %% questions.json
 
 
-@dataclass
-class OwnershipQuestion:
+@dataclass(kw_only=True)
+class OverlapQuestion(JsonRecord):
+    """
+    What is put to a model about a set of objects the scan drew over one another.
+
+    Two things are asked about an overlap and they are asked the same way: whose the
+    contested faces are, and which whole a part belongs to. Both show the same pictures of
+    the same objects, say what the ontology admits between them, and say what each was
+    measured to be, so all of that is written down once.
+    """
+
+    name: str
+    """
+    What the question is filed under, which is what its answer names back.
+    """
+
+    shown: List[str] = field(default_factory=list)
+    """
+    The segments in the pictures.
+    """
+
+    ontology: OntologySlice = field(default_factory=lambda: OntologySlice())
+    """
+    What the ontology admits between their classes.
+    """
+
+    measured: List[MeasuredSegment] = field(default_factory=list)
+    """
+    What was measured of each of them on its own.
+    """
+
+    images: List[str] = field(default_factory=list)
+    """
+    The renders of them, by filename.
+    """
+
+    legend: Dict[str, str] = field(default_factory=dict)
+    """
+    Per segment, what it was painted in those renders.
+    """
+
+    kind: QuestionKind = QuestionKind.OWNERSHIP
+    """
+    What the question is about.
+    """
+
+
+@dataclass(kw_only=True)
+class OwnershipQuestion(OverlapQuestion):
     """
     Whose surface a set of faces several labels claim is.
 
@@ -799,22 +717,12 @@ class OwnershipQuestion:
     window sharing a pane is one question however many glazed doors the room has.
     """
 
-    name: str
-    """
-    What the question is called, which is its pattern joined up.
-    """
-
     pattern: List[str] = field(default_factory=list)
     """
     The labels that meet like this.
     """
 
-    shown: List[str] = field(default_factory=list)
-    """
-    The objects in the pictures.
-    """
-
-    covers: List[ClaimantSet] = field(default_factory=list)
+    covers: List[CountedClaimants] = field(default_factory=list)
     """
     Every set of faces this one answer decides.
     """
@@ -829,224 +737,25 @@ class OwnershipQuestion:
     How many the pictured set holds.
     """
 
-    shares: Dict[str, ContestedShare] = field(default_factory=dict)
+    shares: List[ContestedShare] = field(default_factory=list)
     """
     Per claimant, how much of it the contested faces are.
     """
 
-    ontology: OntologySlice = field(default_factory=OntologySlice)
-    """
-    What the taxonomy holds about the objects shown.
-    """
 
-    measured: Dict[str, MeasuredSegment] = field(default_factory=dict)
+@dataclass(kw_only=True)
+class MeasuredMeeting(JsonRecord):
     """
-    What was measured of each of them.
-    """
+    How a part was measured to meet a whole it could belong to.
 
-    images: List[str] = field(default_factory=list)
-    """
-    The renders of the question, by filename.
-    """
-
-    legend: Dict[str, str] = field(default_factory=dict)
-    """
-    What each color in those renders stands for.
-    """
-
-    kind: QuestionKind = QuestionKind.OWNERSHIP
-    """
-    What the question is about.
-    """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> OwnershipQuestion:
-        return cls(
-            name=payload["name"],
-            pattern=list(payload.get("pattern") or []),
-            shown=list(payload.get("shown") or []),
-            covers=[ClaimantSet.from_json(one) for one in payload.get("covers") or []],
-            contested_faces=payload.get("contested_faces") or 0,
-            exemplar_faces=payload.get("exemplar_faces") or 0,
-            shares={
-                name: ContestedShare.from_json(one)
-                for name, one in (payload.get("shares") or {}).items()
-            },
-            ontology=OntologySlice.from_json(payload.get("ontology") or {}),
-            measured={
-                name: MeasuredSegment.from_json(one)
-                for name, one in (payload.get("measured") or {}).items()
-            },
-            images=list(payload.get("images") or []),
-            legend=dict(payload.get("legend") or {}),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "kind": self.kind.value,
-            "pattern": self.pattern,
-            "shown": self.shown,
-            "covers": [one.to_json() for one in self.covers],
-            "contested_faces": self.contested_faces,
-            "shares": {name: one.to_json() for name, one in self.shares.items()},
-            "exemplar_faces": self.exemplar_faces,
-            "ontology": self.ontology.to_json(),
-            "measured": {name: one.to_json() for name, one in self.measured.items()},
-            "images": self.images,
-            "legend": self.legend,
-        }
-
-
-@dataclass
-class MembershipCandidate:
-    """
-    One object a part could belong to, and how it was measured to meet it.
+    The same measurements decide it whether or not there is anything to choose between:
+    one candidate makes it a membership nothing needs to be asked about, several make it a
+    question, and both carry the same numbers.
     """
 
     field_name: str
     """
-    The field it would be held in.
-    """
-
-    shared_faces: int
-    """
-    How many faces the two share.
-    """
-
-    touching_edges: int
-    """
-    How many edges they touch along.
-    """
-
-    distance: float
-    """
-    How far apart their surfaces are, in metres.
-    """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> MembershipCandidate:
-        return cls(
-            field_name=payload["field"],
-            shared_faces=payload["shared_faces"],
-            touching_edges=payload["touching_edges"],
-            distance=payload["distance"],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "field": self.field_name,
-            "shared_faces": self.shared_faces,
-            "touching_edges": self.touching_edges,
-            "distance": self.distance,
-        }
-
-
-@dataclass
-class MembershipQuestion:
-    """
-    Which whole a part belongs to, asked only where it meets more than one candidate.
-    """
-
-    name: str
-    """
-    What the question is called, which is the part.
-    """
-
-    part: str
-    """
-    The object that belongs to one of the candidates.
-    """
-
-    shown: List[str] = field(default_factory=list)
-    """
-    The objects in the pictures.
-    """
-
-    candidates: Dict[str, MembershipCandidate] = field(default_factory=dict)
-    """
-    The wholes it could belong to.
-    """
-
-    ontology: OntologySlice = field(default_factory=OntologySlice)
-    """
-    What the taxonomy holds about them.
-    """
-
-    measured: Dict[str, MeasuredSegment] = field(default_factory=dict)
-    """
-    What was measured of each of them.
-    """
-
-    images: List[str] = field(default_factory=list)
-    """
-    The renders of the question, by filename.
-    """
-
-    legend: Dict[str, str] = field(default_factory=dict)
-    """
-    What each color in those renders stands for.
-    """
-
-    kind: QuestionKind = QuestionKind.MEMBERSHIP
-    """
-    What the question is about.
-    """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> MembershipQuestion:
-        return cls(
-            name=payload["name"],
-            part=payload["part"],
-            shown=list(payload.get("shown") or []),
-            candidates={
-                name: MembershipCandidate.from_json(one)
-                for name, one in (payload.get("candidates") or {}).items()
-            },
-            ontology=OntologySlice.from_json(payload.get("ontology") or {}),
-            measured={
-                name: MeasuredSegment.from_json(one)
-                for name, one in (payload.get("measured") or {}).items()
-            },
-            images=list(payload.get("images") or []),
-            legend=dict(payload.get("legend") or {}),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "kind": self.kind.value,
-            "part": self.part,
-            "shown": self.shown,
-            "candidates": {
-                name: one.to_json() for name, one in self.candidates.items()
-            },
-            "ontology": self.ontology.to_json(),
-            "measured": {name: one.to_json() for name, one in self.measured.items()},
-            "images": self.images,
-            "legend": self.legend,
-        }
-
-
-@dataclass
-class ForcedMembership:
-    """
-    A part that meets exactly one candidate, so there is nothing to choose between.
-    """
-
-    part: str
-    """
-    The object that belongs to it.
-    """
-
-    whole: str
-    """
-    The one object it could belong to.
-    """
-
-    field_name: str
-    """
-    The field it would be held in.
+    The field the whole would hold it in.
     """
 
     shared_faces: int = 0
@@ -1064,37 +773,70 @@ class ForcedMembership:
     How far apart their surfaces are, in metres.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> ForcedMembership:
-        return cls(
-            part=payload["part"],
-            whole=payload["whole"],
-            field_name=payload["field"],
-            shared_faces=payload.get("shared_faces") or 0,
-            touching_edges=payload.get("touching_edges") or 0,
-            distance=payload.get("distance") or 0.0,
-        )
 
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "part": self.part,
-            "whole": self.whole,
-            "field": self.field_name,
-            "shared_faces": self.shared_faces,
-            "touching_edges": self.touching_edges,
-            "distance": self.distance,
-        }
+@dataclass(kw_only=True)
+class MembershipCandidate(MeasuredMeeting):
+    """
+    One object a part could belong to, and how it was measured to meet it.
+    """
+
+    name: str
+    """
+    The object the part could belong to.
+    """
+
+
+@dataclass(kw_only=True)
+class MembershipQuestion(OverlapQuestion):
+    """
+    Which whole a part belongs to, asked only where it meets more than one candidate.
+    """
+
+    part: str
+    """
+    The object that belongs to one of the candidates.
+    """
+
+    candidates: List[MembershipCandidate] = field(default_factory=list)
+    """
+    The wholes it could belong to.
+    """
+
+    kind: QuestionKind = QuestionKind.MEMBERSHIP
+    """
+    What the question is about.
+    """
+
+    @property
+    def candidate_names(self) -> List[str]:
+        """
+        :return: The objects the part could belong to, which is what is being chosen
+            between and so what an answer has to name one of.
+        """
+        return [candidate.name for candidate in self.candidates]
+
+
+@dataclass(kw_only=True)
+class ForcedMembership(MeasuredMeeting):
+    """
+    A part that meets exactly one candidate, so there is nothing to choose between.
+    """
+
+    part: str
+    """
+    The object that belongs to it.
+    """
+
+    whole: str
+    """
+    The one object it could belong to.
+    """
 
 
 @dataclass
-class OpenQuestions:
+class OpenQuestions(RunArtefact):
     """
     What the measurements and the ontology leave open about a scene's overlaps.
-    """
-
-    scene: str
-    """
-    The mesh they were measured on.
     """
 
     ownership: List[OwnershipQuestion] = field(default_factory=list)
@@ -1107,7 +849,7 @@ class OpenQuestions:
     Which whole each part belongs to, where more than one is possible.
     """
 
-    settled: List[ClaimantSet] = field(default_factory=list)
+    settled: List[CountedClaimants] = field(default_factory=list)
     """
     The sets the ontology already decides, which are not questions at all.
     """
@@ -1117,63 +859,23 @@ class OpenQuestions:
     The memberships with only one candidate.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> OpenQuestions:
-        return cls(
-            scene=payload.get("scene") or "",
-            ownership=[
-                OwnershipQuestion.from_json(one)
-                for one in payload.get("ownership") or []
-            ],
-            membership=[
-                MembershipQuestion.from_json(one)
-                for one in payload.get("membership") or []
-            ],
-            settled=[
-                ClaimantSet.from_json(one) for one in payload.get("settled") or []
-            ],
-            forced=[
-                ForcedMembership.from_json(one) for one in payload.get("forced") or []
-            ],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "scene": self.scene,
-            "ownership": [one.to_json() for one in self.ownership],
-            "membership": [one.to_json() for one in self.membership],
-            "settled": [one.to_json() for one in self.settled],
-            "forced": [one.to_json() for one in self.forced],
-        }
-
 
 # %% adjudications.json
 
 
-@dataclass
-class OwnershipAnswer:
+@dataclass(kw_only=True)
+class Adjudication(JsonRecord):
     """
-    Whose the contested faces of one class pattern are.
+    One open question, settled.
+
+    An answer carries the question it answers rather than pointing at it, so a run's
+    adjudications can be read on their own: what was decided sits beside what it was
+    decided about.
     """
 
     name: str
     """
-    The question it answers.
-    """
-
-    pattern: List[str] = field(default_factory=list)
-    """
-    The labels that meet like this.
-    """
-
-    owner: Optional[str] = None
-    """
-    The label whose surface those faces are.
-    """
-
-    covers: List[ClaimantSet] = field(default_factory=list)
-    """
-    Every set of faces this answer decides.
+    The question it answers, by the name that question was filed under.
     """
 
     confidence: Optional[float] = None
@@ -1193,43 +895,36 @@ class OwnershipAnswer:
 
     kind: QuestionKind = QuestionKind.OWNERSHIP
     """
-    What the question was about.
+    What the question it answers was about.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> OwnershipAnswer:
-        return cls(
-            name=payload["name"],
-            pattern=list(payload.get("pattern") or []),
-            owner=payload.get("owner"),
-            covers=[ClaimantSet.from_json(one) for one in payload.get("covers") or []],
-            confidence=payload.get("confidence"),
-            reason=payload.get("reason"),
-            problems=list(payload.get("problems") or []),
-        )
 
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "kind": self.kind.value,
-            "name": self.name,
-            "problems": self.problems,
-            "confidence": self.confidence,
-            "reason": self.reason,
-            "pattern": self.pattern,
-            "owner": self.owner,
-            "covers": [one.to_json() for one in self.covers],
-        }
+@dataclass(kw_only=True)
+class OwnershipAnswer(Adjudication):
+    """
+    Whose the contested faces of one class pattern are.
+    """
+
+    pattern: List[str] = field(default_factory=list)
+    """
+    The labels that meet like this.
+    """
+
+    owner: Optional[str] = None
+    """
+    The label whose surface those faces are.
+    """
+
+    covers: List[CountedClaimants] = field(default_factory=list)
+    """
+    Every set of faces this answer decides.
+    """
 
 
-@dataclass
-class MembershipAnswer:
+@dataclass(kw_only=True)
+class MembershipAnswer(Adjudication):
     """
     Which whole one part belongs to.
-    """
-
-    name: str
-    """
-    The question it answers.
     """
 
     part: str
@@ -1242,63 +937,16 @@ class MembershipAnswer:
     The object it belongs to.
     """
 
-    confidence: Optional[float] = None
-    """
-    How sure the model said it was.
-    """
-
-    reason: Optional[str] = None
-    """
-    Why, in one sentence.
-    """
-
-    problems: List[str] = field(default_factory=list)
-    """
-    What makes the answer unusable, empty when nothing does.
-    """
-
     kind: QuestionKind = QuestionKind.MEMBERSHIP
     """
-    What the question was about.
+    What the question it answers was about.
     """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> MembershipAnswer:
-        return cls(
-            name=payload["name"],
-            part=payload["part"],
-            whole=payload.get("whole"),
-            confidence=payload.get("confidence"),
-            reason=payload.get("reason"),
-            problems=list(payload.get("problems") or []),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "kind": self.kind.value,
-            "name": self.name,
-            "problems": self.problems,
-            "confidence": self.confidence,
-            "reason": self.reason,
-            "part": self.part,
-            "whole": self.whole,
-        }
 
 
 @dataclass
-class Adjudications:
+class Adjudications(AnsweredByModel):
     """
     What was answered about everything the measurements and the ontology left open.
-    """
-
-    model: str
-    """
-    Which model was asked.
-    """
-
-    scene: str
-    """
-    The mesh the questions were measured on.
     """
 
     ownership: List[OwnershipAnswer] = field(default_factory=list)
@@ -1311,7 +959,7 @@ class Adjudications:
     Which whole each part belongs to.
     """
 
-    settled: List[ClaimantSet] = field(default_factory=list)
+    settled: List[CountedClaimants] = field(default_factory=list)
     """
     The sets the ontology decides, carried through so the split need read one file.
     """
@@ -1339,48 +987,57 @@ class Adjudications:
         """
         return {one.claimants for one in self.settled}
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> Adjudications:
-        answered = payload.get("answered") or []
-        return cls(
-            model=payload.get("model") or "",
-            scene=payload.get("scene") or "",
-            ownership=[
-                OwnershipAnswer.from_json(one)
-                for one in answered
-                if one["kind"] == QuestionKind.OWNERSHIP
-            ],
-            membership=[
-                MembershipAnswer.from_json(one)
-                for one in answered
-                if one["kind"] == QuestionKind.MEMBERSHIP
-            ],
-            settled=[
-                ClaimantSet.from_json(one) for one in payload.get("settled") or []
-            ],
-            forced=[
-                ForcedMembership.from_json(one) for one in payload.get("forced") or []
-            ],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "model": self.model,
-            "scene": self.scene,
-            "answered": [one.to_json() for one in self.ownership]
-            + [one.to_json() for one in self.membership],
-            "settled": [one.to_json() for one in self.settled],
-            "forced": [one.to_json() for one in self.forced],
-        }
-
 
 # %% split.json
 
 
 @dataclass
-class SplitBody:
+class TakenFaces(JsonRecord):
+    """
+    How many of one segment's faces a single owner took.
+    """
+
+    name: str
+    """
+    The body that took them.
+    """
+
+    faces: int
+    """
+    How many it took.
+    """
+
+
+@dataclass
+class EmptiedSegment(JsonRecord):
+    """
+    A labelled object the split left with nothing, and where its faces went.
+
+    An object that vanished is usually the interesting thing about a run: it says the
+    scan labelled something that the ontology, or an answer, decided was really part of
+    its neighbour.
+    """
+
+    name: str
+    """
+    The segment that was emptied.
+    """
+
+    taken_by: List[TakenFaces] = field(default_factory=list)
+    """
+    Per body that took some of its faces, how many it took.
+    """
+
+
+@dataclass
+class SplitBody(JsonRecord):
     """
     One body the split built.
+    """
+
+    name: str
+    """
+    What everything else addresses it by.
     """
 
     faces: int
@@ -1401,35 +1058,21 @@ class SplitBody:
     an id of its own; a step reading the world back needs both to say the same thing.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> SplitBody:
-        return cls(
-            faces=payload["faces"], label=payload["label"], body_id=payload.get("id")
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {"faces": self.faces, "label": self.label, "id": self.body_id}
-
 
 @dataclass
-class SplitRecord:
+class SplitRecord(RunArtefact):
     """
     What the split built, what it cost, and the mounts carried past it.
     """
 
-    scene: str
+    bodies: List[SplitBody] = field(default_factory=list)
     """
-    The mesh it was cut from.
-    """
-
-    bodies: Dict[str, SplitBody] = field(default_factory=dict)
-    """
-    Every body, by the name it carries everywhere else.
+    Every body the split built.
     """
 
-    emptied: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    emptied: List[EmptiedSegment] = field(default_factory=list)
     """
-    Per segment left with no faces, how many each owner took from it.
+    Every segment left with no faces, and where they went.
     """
 
     still_contested: int = 0
@@ -1452,77 +1095,19 @@ class SplitRecord:
     The world the annotations were written to, once the last step has run.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> SplitRecord:
-        return cls(
-            scene=payload.get("scene") or "",
-            bodies={
-                name: SplitBody.from_json(one)
-                for name, one in (payload.get("bodies") or {}).items()
-            },
-            emptied={
-                name: dict(took)
-                for name, took in (payload.get("emptied") or {}).items()
-            },
-            still_contested=payload.get("still_contested") or 0,
-            pairings=[Pairing.from_json(one) for one in payload.get("pairings") or []],
-            world_id=payload.get("world_db_id"),
-            annotated_world_id=payload.get("annotated_world_db_id"),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        written = {
-            "scene": self.scene,
-            "world_db_id": self.world_id,
-            "bodies": {
-                name: one.to_json() for name, one in sorted(self.bodies.items())
-            },
-            "emptied": self.emptied,
-            "still_contested": self.still_contested,
-            "pairings": [one.to_json() for one in self.pairings],
-        }
-        if self.annotated_world_id is not None:
-            written["annotated_world_db_id"] = self.annotated_world_id
-        return written
-
 
 # %% classifications.json
 
 
 @dataclass
-class BodyAnswer:
+class BodyAnswer(ClassAnswer):
     """
     What one body was answered to be.
     """
 
-    class_name: Optional[str] = None
+    name: Optional[str] = None
     """
-    The class it is.
-    """
-
-    is_new_class: bool = False
-    """
-    Whether that class is proposed rather than found in the ontology.
-    """
-
-    superclass: Optional[str] = None
-    """
-    What a proposed class derives from.
-    """
-
-    confidence: Optional[float] = None
-    """
-    How sure the model said it was.
-    """
-
-    reason: Optional[str] = None
-    """
-    Why, in one sentence.
-    """
-
-    label: Optional[str] = None
-    """
-    The label the scene gave the body, which the answer may disagree with.
+    The body it is about, which is what a model is asked to name it by.
     """
 
     faces: int = 0
@@ -1530,75 +1115,24 @@ class BodyAnswer:
     How many faces the body is made of.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> BodyAnswer:
-        return cls(
-            class_name=payload.get("class"),
-            is_new_class=bool(payload.get("is_new_class")),
-            superclass=payload.get("superclass"),
-            confidence=payload.get("confidence"),
-            reason=payload.get("reason"),
-            label=payload.get("label"),
-            faces=payload.get("faces") or 0,
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "class": self.class_name,
-            "is_new_class": self.is_new_class,
-            "superclass": self.superclass,
-            "confidence": self.confidence,
-            "reason": self.reason,
-            "label": self.label,
-            "faces": self.faces,
-        }
-
 
 @dataclass
-class Classifications:
+class Classifications(AnsweredByModel):
     """
     What each body of a split scene was answered to be.
     """
 
-    model: str
+    bodies: List[BodyAnswer] = field(default_factory=list)
     """
-    Which model was asked.
+    One answer per body.
     """
-
-    scene: str
-    """
-    The mesh the bodies were cut from.
-    """
-
-    bodies: Dict[str, BodyAnswer] = field(default_factory=dict)
-    """
-    The answer per body.
-    """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> Classifications:
-        return cls(
-            model=payload.get("model") or "",
-            scene=payload.get("scene") or "",
-            bodies={
-                name: BodyAnswer.from_json(one)
-                for name, one in (payload.get("bodies") or {}).items()
-            },
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "model": self.model,
-            "scene": self.scene,
-            "bodies": {name: one.to_json() for name, one in self.bodies.items()},
-        }
 
 
 # %% taxonomy_amendments.json
 
 
 @dataclass
-class SourceEdit:
+class SourceEdit(JsonRecord):
     """
     One line of the ontology's own source as it was and as it became.
     """
@@ -1623,26 +1157,9 @@ class SourceEdit:
     What was written instead.
     """
 
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> SourceEdit:
-        return cls(
-            file=payload["file"],
-            line=payload["line"],
-            before=payload["before"],
-            after=payload["after"],
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "file": self.file,
-            "line": self.line,
-            "before": self.before,
-            "after": self.after,
-        }
-
 
 @dataclass
-class AmendmentRecord:
+class AmendmentRecord(JsonRecord):
     """
     One mixin a class could be given, what raised it, and what became of the proposal.
     """
@@ -1716,43 +1233,3 @@ class AmendmentRecord:
     """
     Whether it was put back after having been in force.
     """
-
-    @classmethod
-    def from_json(cls, payload: Dict[str, Any]) -> AmendmentRecord:
-        return cls(
-            whole=payload["whole"],
-            mixin=payload["mixin"],
-            part=payload["part"],
-            whole_labels=list(payload.get("whole_labels") or []),
-            part_labels=list(payload.get("part_labels") or []),
-            measured_pairs=payload.get("measured_pairs") or 0,
-            shared_faces=payload.get("shared_faces") or 0,
-            amend=bool(payload.get("amend")),
-            confidence=payload.get("confidence"),
-            reason=payload.get("reason"),
-            blocked=payload.get("blocked"),
-            edit=SourceEdit.from_json(payload["edit"]) if payload.get("edit") else None,
-            applied=bool(payload.get("applied")),
-            reverted=bool(payload.get("reverted")),
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        written = {
-            "whole": self.whole,
-            "mixin": self.mixin,
-            "part": self.part,
-            "whole_labels": sorted(self.whole_labels),
-            "part_labels": sorted(self.part_labels),
-            "measured_pairs": self.measured_pairs,
-            "shared_faces": self.shared_faces,
-            "amend": self.amend,
-            "confidence": self.confidence,
-            "reason": self.reason,
-            "applied": self.applied,
-            "reverted": self.reverted,
-        }
-        if self.blocked is not None:
-            written["blocked"] = self.blocked
-        if self.edit is not None:
-            written["edit"] = self.edit.to_json()
-        return written

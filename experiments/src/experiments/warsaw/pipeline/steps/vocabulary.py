@@ -38,8 +38,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 )
 from typing_extensions import Any, Dict, List, Type
 
-from experiments.warsaw.pipeline.asking import Question
-from experiments.warsaw.pipeline.prompts import Prompt
+from experiments.warsaw.pipeline.asking import QuestionAboutTheOntology
 from experiments.warsaw.pipeline.records import (
     LabelAnswer,
     LabelRequest,
@@ -50,6 +49,8 @@ from experiments.warsaw.pipeline.records import (
 )
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
+
+# %% what each picture of a label shows
 
 
 class ExemplarCaption(StrEnum):
@@ -86,8 +87,11 @@ class ExemplarCaption(StrEnum):
         return PictureKind(self.name.lower())
 
 
-@dataclass
-class LabelQuestion(Question[LabelAnswer]):
+# %% what one label means
+
+
+@dataclass(kw_only=True)
+class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
     """
     What one of a scene's labels means, put to a model with pictures of one such object.
     """
@@ -103,33 +107,19 @@ class LabelQuestion(Question[LabelAnswer]):
     left to mean: a room that labels handles separately does not mean them by ``drawer``.
     """
 
-    taxonomy: Dict[str, Any]
-    """
-    The ontology as a model reads it.
-    """
-
-    known: Dict[str, Type]
-    """
-    The ontology's classes by name, for checking an answer against.
-    """
-
-    images: Path
-    """
-    The directory holding the exemplar renders.
-    """
-
     meets: str = ""
     """
     What the pictured object meets, as the scan measures it.
     """
 
+    prompt: str = "vocabulary"
+    """
+    The prompt this question is put with, both halves of it.
+    """
+
     @property
     def key(self) -> str:
         return self.label.label
-
-    @property
-    def system_prompt(self) -> str:
-        return Prompt.VOCABULARY.read()
 
     @property
     def mixin_names(self) -> List[str]:
@@ -153,15 +143,15 @@ class LabelQuestion(Question[LabelAnswer]):
         }
         content: List[MessagePart] = [
             TextPart(
-                f"## The ontology\n{json.dumps(self.taxonomy)}\n\n"
-                f"## The label\n"
-                f'The label is "{self.label.label}". The room carries '
-                f"{self.label.instances} objects labelled with it.\n"
-                f"The room's labels are: {', '.join(self.every_label)}.\n\n"
-                f"{self.meets}\n\n"
-                f"## The pictures\n"
-                f'They show one of them, "{self.label.exemplar}", chosen as the one '
-                f"whose faces are least shared with other labels."
+                self.templates.render_document(
+                    self.message_template,
+                    taxonomy=json.dumps(self.taxonomy),
+                    label=self.label.label,
+                    instances=self.label.instances,
+                    every_label=self.every_label,
+                    meets=self.meets,
+                    exemplar=self.label.exemplar,
+                )
             )
         ]
         for caption in ExemplarCaption:
@@ -169,11 +159,11 @@ class LabelQuestion(Question[LabelAnswer]):
             if filename is None:
                 continue
             content.append(TextPart(caption.value.format(color=self.label.color)))
-            content.append(ImagePart.from_file(self.images / filename))
+            content.append(ImagePart.from_file(self.renders_directory / filename))
         return content
 
     def read(self, response: ModelResponse) -> LabelAnswer:
-        return LabelAnswer.from_json(response.parse_json())
+        return LabelAnswer.spoken(response.parse_json())
 
     def refusal(self, refused: ModelRefusedError) -> LabelAnswer:
         return LabelAnswer(problems=[str(refused)])
@@ -235,6 +225,9 @@ class LabelQuestion(Question[LabelAnswer]):
         return problems
 
 
+# %% mapping every label of the scene
+
+
 @dataclass
 class MapLabelVocabulary(PipelineStep):
     """
@@ -254,11 +247,9 @@ class MapLabelVocabulary(PipelineStep):
         """
         Ask about every label, check what comes back, and write the mapping.
         """
-        request = VocabularyRequest.from_json(
-            self.run.read_json(RunFile.VOCABULARY_REQUEST)
-        )
+        request = self.run.read_record(RunFile.VOCABULARY_REQUEST, VocabularyRequest)
         taxonomy = self.run.read_json(RunFile.TAXONOMY)
-        relations = Relations.from_json(self.run.read_json(RunFile.RELATIONS))
+        relations = self.run.read_record(RunFile.RELATIONS, Relations)
         known = self.ontology_classes()
         questioner = self.questioner(RunFile.VOCABULARY_ANSWERS)
 
@@ -275,7 +266,7 @@ class MapLabelVocabulary(PipelineStep):
         )
 
         vocabulary = Vocabulary(
-            model=self.settings.model.value, scene=request.scene, labels={}
+            model=self.settings.model.value, scene=request.scene, labels=[]
         )
         for entry in asked:
             answered = questioner.answer(
@@ -284,17 +275,18 @@ class MapLabelVocabulary(PipelineStep):
                     every_label=request.label_names,
                     taxonomy=taxonomy,
                     known=known,
-                    images=self.run.path(RunFile.EXEMPLARS),
+                    renders_directory=self.run.path(RunFile.EXEMPLARS),
                     meets=self.meetings(relations, entry.exemplar),
                 )
             )
             answer = answered.answer
             answer.problems = answered.problems
             answer.exemplar = entry.exemplar
-            vocabulary.labels[entry.label] = answer
+            answer.label = entry.label
+            vocabulary.labels.append(answer)
             self.report_answer(entry.label, answer)
 
-        self.run.write_json(RunFile.VOCABULARY, vocabulary.to_json())
+        self.run.write_record(RunFile.VOCABULARY, vocabulary)
         self.report(vocabulary)
 
     @staticmethod
@@ -375,9 +367,9 @@ class MapLabelVocabulary(PipelineStep):
         """
         :param vocabulary: What was answered about every label.
         """
-        mapped = [one for one in vocabulary.labels.values() if one.class_name]
+        mapped = [one for one in vocabulary.labels if one.class_name]
         proposed = [one for one in mapped if one.is_new_class]
-        troubled = [one for one in vocabulary.labels.values() if one.problems]
+        troubled = [one for one in vocabulary.labels if one.problems]
         self.logger.info(
             "%s of %s labels mapped, %s of them to new classes, %s with problems",
             len(mapped),

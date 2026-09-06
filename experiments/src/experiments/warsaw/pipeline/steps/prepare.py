@@ -29,8 +29,11 @@ from experiments.warsaw.exceptions import (
     SubprocessStepFailedError,
 )
 from experiments.warsaw.pipeline.run import RunFile
-from experiments.warsaw.pipeline.run_database import RunSchema
+from experiments.warsaw.pipeline.templates import PipelineTemplates
+from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.steps.step import PipelineStep
+
+# %% the ontology a run starts from
 
 
 @dataclass
@@ -55,6 +58,9 @@ class PreparedOntology:
     """
 
 
+# %% getting a run ready
+
+
 @dataclass
 class PrepareRun(PipelineStep):
     """
@@ -66,14 +72,12 @@ class PrepareRun(PipelineStep):
     The ontology's own files a run may amend and must not leave amended.
     """
 
-    templates: Path = field(
-        default_factory=lambda: Path(__file__).resolve().parents[1] / "templates"
-    )
+    templates: PipelineTemplates = field(default_factory=PipelineTemplates)
     """
     Where the file a reset ontology is written from is kept.
     """
 
-    empty_classes_template: str = "empty_generated_classes.py.template"
+    empty_classes_template: str = "empty_generated_classes.py"
     """
     The generated classes as a run finds them: the imports and nothing else.
     """
@@ -168,7 +172,7 @@ class PrepareRun(PipelineStep):
         Empty the classes generated for an earlier scene.
         """
         self.generated_classes_file.write_text(
-            (self.templates / self.empty_classes_template).read_text()
+            self.templates.render(self.empty_classes_template)
         )
 
     def regenerate_orm(self) -> None:

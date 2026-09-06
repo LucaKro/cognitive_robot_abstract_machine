@@ -25,7 +25,6 @@ import inspect
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from string import Template
 
 import semantic_digital_twin
 from semantic_digital_twin.exceptions import UsageError
@@ -48,12 +47,14 @@ from experiments.warsaw.pipeline.records import (
 )
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.pipeline.reporting import Reporting
+from experiments.warsaw.pipeline.database.run_schema import RunSchema
+from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
-from experiments.warsaw.pipeline.run_database import RunSchema
 from experiments.warsaw.pipeline.steps.step import PipelineStep
-from experiments.warsaw.pipeline.world_store import WorldStore
 from experiments.warsaw.scene_split import Pairing
+
+# %% a mount the world would not carry out
 
 
 @dataclass
@@ -71,6 +72,9 @@ class RefusedMount:
     """
     What the world said about it.
     """
+
+
+# %% what the mounting came to
 
 
 @dataclass
@@ -97,6 +101,9 @@ class Mounted:
         return self.carried_out + len(self.refused)
 
 
+# %% annotating and mounting, in a new interpreter
+
+
 @dataclass
 class MountAnnotations(Reporting):
     """
@@ -111,18 +118,6 @@ class MountAnnotations(Reporting):
     directory: Path
     """
     The run's directory.
-    """
-
-    templates: Path = field(
-        default_factory=lambda: Path(__file__).resolve().parents[1] / "templates"
-    )
-    """
-    Where the script a run leaves behind to open its world is written from.
-    """
-
-    inspector_template: str = "inspect_world.py.template"
-    """
-    That script, with the world ids left to fill in.
     """
 
     @property
@@ -140,10 +135,8 @@ class MountAnnotations(Reporting):
         GeneratedClasses(directory=self.directory).use()
         RunSchema.for_run(self.directory).use()
 
-        split = SplitRecord.from_json(self.run.read_json(RunFile.SPLIT))
-        classifications = Classifications.from_json(
-            self.run.read_json(RunFile.CLASSIFICATIONS)
-        )
+        split = self.run.read_record(RunFile.SPLIT, SplitRecord)
+        classifications = self.run.read_record(RunFile.CLASSIFICATIONS, Classifications)
         if split.world_id is None:
             raise NoWorldRecordedError(step="split")
 
@@ -182,12 +175,10 @@ class MountAnnotations(Reporting):
             split.annotated_world_id,
             split.world_id,
         )
-        self.run.write_json(RunFile.SPLIT, split.to_json())
+        self.run.write_record(RunFile.SPLIT, split)
 
         report = RunReport(run=self.run)
-        report.write_inspector(
-            Template((self.templates / self.inspector_template).read_text())
-        )
+        report.write_inspector()
         report.write()
         self.logger.info(
             "written to %s and %s",
@@ -214,7 +205,8 @@ class MountAnnotations(Reporting):
         annotations: Dict[str, SemanticAnnotation] = {}
         left_alone: Counter = Counter()
         with world.modify_world():
-            for name, answer in classifications.bodies.items():
+            for answer in classifications.bodies:
+                name = answer.name
                 body = bodies.get(name)
                 if body is None:
                     left_alone["no such body"] += 1
@@ -307,6 +299,9 @@ class MountAnnotations(Reporting):
             whole.add(part, field_name=pairing.field_name)
 
 
+# %% generating the classes the scene needs
+
+
 @dataclass
 class AnnotateAndMount(PipelineStep):
     """
@@ -336,10 +331,8 @@ class AnnotateAndMount(PipelineStep):
         """
         Generate what the ontology lacks, rebuild the ORM, then annotate in a new one.
         """
-        classifications = Classifications.from_json(
-            self.run.read_json(RunFile.CLASSIFICATIONS)
-        )
-        vocabulary = Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
+        classifications = self.run.read_record(RunFile.CLASSIFICATIONS, Classifications)
+        vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
         wanted = self.wanted_classes(classifications, vocabulary)
         known = self.ontology_classes()
         self.logger.info(
@@ -396,12 +389,12 @@ class AnnotateAndMount(PipelineStep):
         """
         composed = {
             answer.class_name: [answer.superclass] + list(answer.mixins)
-            for answer in vocabulary.labels.values()
+            for answer in vocabulary.labels
             if answer.class_name and answer.is_new_class and answer.superclass
         }
 
         wanted: Dict[str, List[str]] = {}
-        for answer in classifications.bodies.values():
+        for answer in classifications.bodies:
             if not answer.class_name or answer.class_name in wanted:
                 continue
             wanted[answer.class_name] = composed.get(

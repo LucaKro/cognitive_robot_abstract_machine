@@ -1,13 +1,15 @@
 {
-  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "__json_type__": "experiments.warsaw.pipeline.records.Adjudications",
   "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
-  "answered": [
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "ownership": [
     {
-      "kind": "ownership",
+      "__json_type__": "experiments.warsaw.pipeline.records.OwnershipAnswer",
       "name": "cabinet__drawer__kitchen_island",
-      "problems": [],
       "confidence": 0.86,
       "reason": "the drawer's surface is the one that is physically present and claimed by the drawer label, even though it is overlapped by the cabinet and kitchen island labels",
+      "problems": [],
+      "kind": "ownership",
       "pattern": [
         "cabinet",
         "drawer",
@@ -16,6 +18,7 @@
       "owner": "drawer",
       "covers": [
         {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
           "claimants": [
             "cabinet_8",
             "drawer_5",
@@ -24,6 +27,7 @@
           "faces": 1503
         },
         {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
           "claimants": [
             "cabinet_10",
             "drawer_7",
@@ -32,6 +36,7 @@
           "faces": 796
         },
         {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
           "claimants": [
             "cabinet_8",
             "drawer_4",
@@ -40,6 +45,7 @@
           "faces": 8
         },
         {
+          "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
           "claimants": [
             "cabinet_10",
             "drawer_6",
@@ -48,55 +54,63 @@
           "faces": 7
         }
       ]
-    },
+    }
+  ],
+  "membership": [
     {
-      "kind": "membership",
+      "__json_type__": "experiments.warsaw.pipeline.records.MembershipAnswer",
       "name": "door_10",
-      "problems": [],
       "confidence": 0.9,
       "reason": "door_10 is fully enclosed by cabinet_4 in the visual evidence, with no visible gap between them, and cabinet_4's door configuration matches the expected containment of a door.",
+      "problems": [],
+      "kind": "membership",
       "part": "door_10",
       "whole": "cabinet_4"
     },
     {
-      "kind": "membership",
+      "__json_type__": "experiments.warsaw.pipeline.records.MembershipAnswer",
       "name": "drawer_4",
-      "problems": [],
       "confidence": 0.9,
       "reason": "The drawer is visually integrated into the kitchen island's structure, with its top surface aligned and part of the island's countertop, indicating it is a drawer within the island.",
+      "problems": [],
+      "kind": "membership",
       "part": "drawer_4",
       "whole": "kitchen_island_1"
     },
     {
-      "kind": "membership",
+      "__json_type__": "experiments.warsaw.pipeline.records.MembershipAnswer",
       "name": "drawer_5",
-      "problems": [],
       "confidence": 0.95,
       "reason": "The part drawer_5 is fully enclosed within cabinet_8, sharing the majority of its surface area and fitting perfectly into its drawer space, indicating it is a drawer of cabinet_8.",
+      "problems": [],
+      "kind": "membership",
       "part": "drawer_5",
       "whole": "cabinet_8"
     },
     {
-      "kind": "membership",
+      "__json_type__": "experiments.warsaw.pipeline.records.MembershipAnswer",
       "name": "drawer_6",
-      "problems": [],
       "confidence": 0.9,
       "reason": "The drawer is physically attached to the kitchen island's surface, with its top face aligned and sharing edges with the island, indicating it is part of the island's structure.",
+      "problems": [],
+      "kind": "membership",
       "part": "drawer_6",
       "whole": "kitchen_island_1"
     },
     {
-      "kind": "membership",
+      "__json_type__": "experiments.warsaw.pipeline.records.MembershipAnswer",
       "name": "drawer_7",
-      "problems": [],
       "confidence": 0.9,
       "reason": "The drawer is physically integrated into the kitchen island's structure, sharing a large surface area and being part of its lower section, consistent with a drawer in a kitchen island.",
+      "problems": [],
+      "kind": "membership",
       "part": "drawer_7",
       "whole": "kitchen_island_1"
     }
   ],
   "settled": [
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "cabinet_5",
         "door_11"
@@ -104,6 +118,7 @@
       "faces": 3779
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "cabinet_4",
         "door_10"
@@ -111,6 +126,7 @@
       "faces": 413
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "drawer_5",
         "kitchen_island_1"
@@ -118,6 +134,7 @@
       "faces": 133
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "drawer_4",
         "kitchen_island_1"
@@ -125,6 +142,7 @@
       "faces": 69
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "drawer_6",
         "kitchen_island_1"
@@ -132,6 +150,7 @@
       "faces": 45
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "cabinet_10",
         "drawer_7"
@@ -139,6 +158,7 @@
       "faces": 31
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "drawer_7",
         "kitchen_island_1"
@@ -146,6 +166,7 @@
       "faces": 17
     },
     {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
       "claimants": [
         "cabinet_8",
         "drawer_5"
@@ -155,28 +176,31 @@
   ],
   "forced": [
     {
-      "part": "door_11",
-      "whole": "cabinet_5",
-      "field": "doors",
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "doors",
       "shared_faces": 3779,
       "touching_edges": 5746,
-      "distance": 0.0
+      "distance": 0.0,
+      "part": "door_11",
+      "whole": "cabinet_5"
     },
     {
-      "part": "handle_13",
-      "whole": "drawer_7",
-      "field": "handle",
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
       "shared_faces": 69,
       "touching_edges": 115,
-      "distance": 0.0
+      "distance": 0.0,
+      "part": "handle_13",
+      "whole": "drawer_7"
     },
     {
-      "part": "handle_14",
-      "whole": "drawer_5",
-      "field": "handle",
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
       "shared_faces": 72,
       "touching_edges": 118,
-      "distance": 0.0
+      "distance": 0.0,
+      "part": "handle_14",
+      "whole": "drawer_5"
     }
   ]
 }

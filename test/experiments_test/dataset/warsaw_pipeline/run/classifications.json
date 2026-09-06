@@ -1,123 +1,150 @@
 {
-  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "__json_type__": "experiments.warsaw.pipeline.records.Classifications",
   "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
-  "bodies": {
-    "floor_1": {
-      "class": "Floor",
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "bodies": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "floor",
+      "class_name": "Floor",
       "is_new_class": false,
       "superclass": "HasSupportingSurface",
       "confidence": 0.95,
       "reason": "The object is the floor of the room, which supports other objects and has a flat surface, matching the definition of a Floor.",
-      "label": "floor",
+      "name": "floor_1",
       "faces": 44607
     },
-    "door_10": {
-      "class": "Door",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "door",
+      "class_name": "Door",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 1.0,
       "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
-      "label": "door",
+      "name": "door_10",
       "faces": 415
     },
-    "door_11": {
-      "class": "Door",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "door",
+      "class_name": "Door",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 1.0,
       "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
-      "label": "door",
+      "name": "door_11",
       "faces": 3779
     },
-    "kitchen_island_1": {
-      "class": "KitchenIsland",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "kitchen_island",
+      "class_name": "KitchenIsland",
       "is_new_class": false,
       "superclass": "Table",
       "confidence": 0.0,
       "reason": "The object is a kitchen island, which is a type of table with drawers and a supporting surface, matching the definition of KitchenIsland.",
-      "label": "kitchen_island",
+      "name": "kitchen_island_1",
       "faces": 14646
     },
-    "cabinet_4": {
-      "class": "Cabinet",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "cabinet",
+      "class_name": "Cabinet",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.9,
       "reason": "The object is a large, multi-door cabinet with a dark finish, consistent with the characteristics of a cabinet in a kitchen or storage area, and it has drawers and doors as indicated by the ontology.",
-      "label": "cabinet",
+      "name": "cabinet_4",
       "faces": 27
     },
-    "cabinet_5": {
-      "class": "Cabinet",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "cabinet",
+      "class_name": "Cabinet",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.9,
       "reason": "The object is a tall, dark cabinet with multiple doors and a similar structure to other cabinets in the room, fitting the definition of a cabinet.",
-      "label": "cabinet",
+      "name": "cabinet_5",
       "faces": 846
     },
-    "cabinet_20": {
-      "class": "Cabinet",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "cabinet",
+      "class_name": "Cabinet",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.9,
       "reason": "The object has multiple compartments and doors, typical of a cabinet used for storage.",
-      "label": "cabinet",
+      "name": "cabinet_20",
       "faces": 2
     },
-    "drawer_4": {
-      "class": "Drawer",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "drawer",
+      "class_name": "Drawer",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
-      "label": "drawer",
+      "name": "drawer_4",
       "faces": 497
     },
-    "drawer_5": {
-      "class": "Drawer",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "drawer",
+      "class_name": "Drawer",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
-      "label": "drawer",
+      "name": "drawer_5",
       "faces": 1669
     },
-    "drawer_6": {
-      "class": "Drawer",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "drawer",
+      "class_name": "Drawer",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
-      "label": "drawer",
+      "name": "drawer_6",
       "faces": 487
     },
-    "drawer_7": {
-      "class": "Drawer",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "drawer",
+      "class_name": "Drawer",
       "is_new_class": false,
       "superclass": "Furniture",
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
-      "label": "drawer",
+      "name": "drawer_7",
       "faces": 863
     },
-    "handle_13": {
-      "class": "Handle",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "handle",
+      "class_name": "Handle",
       "is_new_class": false,
       "superclass": "HasRootBody",
       "confidence": 0.85,
       "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
-      "label": "handle",
+      "name": "handle_13",
       "faces": 69
     },
-    "handle_14": {
-      "class": "Handle",
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
+      "label": "handle",
+      "class_name": "Handle",
       "is_new_class": false,
       "superclass": "HasRootBody",
       "confidence": 0.85,
       "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
-      "label": "handle",
+      "name": "handle_14",
       "faces": 72
     }
-  }
+  ]
 }

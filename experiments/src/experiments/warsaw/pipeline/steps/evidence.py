@@ -35,7 +35,7 @@ from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     AdmissibleMount,
     AdmissibleRelation,
-    ClaimantSet,
+    CountedClaimants,
     ContestedShare,
     ForcedMembership,
     MeasuredSegment,
@@ -59,11 +59,11 @@ from experiments.warsaw.segment_relations import (
     claimant_groups,
     segment_evidence,
 )
-from experiments.warsaw.world_loader import (
-    LabelSegment,
-    ViewpointChoice,
-    WarsawWorldLoader,
-)
+from experiments.warsaw.world_loader.loader import WarsawWorldLoader
+from experiments.warsaw.world_loader.scene import LabelSegment
+from experiments.warsaw.world_loader.viewpoints import ViewpointChoice
+
+# %% what the measurements leave open
 
 
 @dataclass
@@ -88,6 +88,9 @@ class WhatIsOpen:
     """
 
 
+# %% the parts and the wholes they could belong to
+
+
 @dataclass
 class Memberships:
     """
@@ -103,6 +106,9 @@ class Memberships:
     """
     The parts that meet exactly one, where there is nothing to choose between.
     """
+
+
+# %% measuring the scene
 
 
 @dataclass
@@ -149,6 +155,8 @@ class MeasureScene(PipelineStep):
     What the vocabulary request asks.
     """
 
+    # %% the step
+
     @property
     def name(self) -> str:
         return (
@@ -180,9 +188,8 @@ class MeasureScene(PipelineStep):
         :return: The scene, loaded and ready to be measured and rendered.
         """
         return WarsawWorldLoader(
-            input_directory=self.settings.scene,
-            render_resolution=self.settings.render_resolution,
-            deciding_resolution=self.settings.deciding_resolution,
+            input_directory=self.settings.scene_directory,
+            render_sizes=self.settings.render_sizes,
         )
 
     def vocabulary_classes(self) -> VocabularyClasses:
@@ -190,7 +197,7 @@ class MeasureScene(PipelineStep):
         :return: What each label stands for, empty on the pass that has not asked yet.
         """
         vocabulary = (
-            Vocabulary.from_json(self.run.read_json(RunFile.VOCABULARY))
+            self.run.read_record(RunFile.VOCABULARY, Vocabulary)
             if self.knowing_the_vocabulary
             else Vocabulary(model="", scene="")
         )
@@ -217,12 +224,12 @@ class MeasureScene(PipelineStep):
 
         classes = self.vocabulary_classes().by_label()
         relations = self.relations_of(loader, measured, classes)
-        self.run.write_json(RunFile.RELATIONS, relations.to_json())
+        self.run.write_record(RunFile.RELATIONS, relations)
 
         request = self.vocabulary_request(loader, measured)
         if self.exemplar_renders:
             self.render_exemplars(loader, measured, segments, request)
-        self.run.write_json(RunFile.VOCABULARY_REQUEST, request.to_json())
+        self.run.write_record(RunFile.VOCABULARY_REQUEST, request)
 
         open_now = self.open_questions(loader, measured, relations, classes)
         self.logger.info(
@@ -236,11 +243,13 @@ class MeasureScene(PipelineStep):
             self.render_questions(
                 loader, measured, segments, open_now.questions, open_now.contested
             )
-        self.run.write_json(RunFile.QUESTIONS, open_now.questions.to_json())
+        self.run.write_record(RunFile.QUESTIONS, open_now.questions)
 
         self.report(relations)
 
     # %% what the ontology makes of a pair
+
+    # %% what the ontology admits between two segments
 
     def ontology_view(
         self, one_class: Optional[Type], other_class: Optional[Type]
@@ -342,6 +351,8 @@ class MeasureScene(PipelineStep):
 
     # %% the question asking what the labels mean
 
+    # %% choosing what to picture
+
     @staticmethod
     def exemplars(measured: SegmentRelations) -> Dict[str, str]:
         """
@@ -400,6 +411,8 @@ class MeasureScene(PipelineStep):
 
     # %% rendering
 
+    # %% drawing it
+
     @staticmethod
     def neighbourhood(
         measured: SegmentRelations,
@@ -444,7 +457,7 @@ class MeasureScene(PipelineStep):
         """
         colors = Color.distinct_colors(len(segments) + 1)
         highlights = [
-            (color, segment.faces) for color, segment in zip(colors, segments)
+            (color, segment.face_indices) for color, segment in zip(colors, segments)
         ]
         highlights.append((colors[-1], contested))
         legend = {str(segment.name): color for color, segment in zip(colors, segments)}
@@ -491,7 +504,7 @@ class MeasureScene(PipelineStep):
             entry.images = self.write_images(
                 loader.render_region(
                     [segment],
-                    [(color, segment.faces)],
+                    [(color, segment.face_indices)],
                     viewpoints=self.viewpoints,
                     headless=self.settings.headless,
                     choose_viewpoint=self.chooses_viewpoint,
@@ -553,6 +566,8 @@ class MeasureScene(PipelineStep):
 
     # %% what is left to decide
 
+    # %% what a model is told about the classes
+
     @staticmethod
     def ontology_slice(
         names: Sequence[str],
@@ -604,21 +619,24 @@ class MeasureScene(PipelineStep):
     @staticmethod
     def measured_of(
         names: Sequence[str], measured: SegmentRelations
-    ) -> Dict[str, MeasuredSegment]:
+    ) -> List[MeasuredSegment]:
         """
         :param names: The segments in question.
         :param measured: The measured scene.
-        :return: Per segment, what was measured of it on its own.
+        :return: What was measured of each of them on its own.
         """
-        return {
-            name: MeasuredSegment(
+        return [
+            MeasuredSegment(
+                name=name,
                 faces=int(measured.descriptors[name].faces),
                 area=round(measured.descriptors[name].area, 3),
                 height=round(measured.descriptors[name].height, 2),
                 pieces=int(measured.descriptors[name].components),
             )
             for name in names
-        }
+        ]
+
+    # %% what is left to ask
 
     def open_questions(
         self,
@@ -649,7 +667,7 @@ class MeasureScene(PipelineStep):
         """
         segments = loader.label_segments
         groups = claimant_groups(
-            [segment.faces for segment in segments],
+            [segment.face_indices for segment in segments],
             [str(segment.name) for segment in segments],
             len(loader.scene_mesh.faces),
         )
@@ -665,7 +683,7 @@ class MeasureScene(PipelineStep):
                 status.get(tuple(sorted(pair))) for pair in combinations(group.names, 2)
             ]
             if all(answer is RelationStatus.RELATION_KNOWN for answer in inside):
-                settled.append(ClaimantSet.from_json(group.to_json()))
+                settled.append(CountedClaimants.of(group))
             else:
                 patterns[tuple(sorted(labels[name] for name in group.names))].append(
                     group
@@ -678,18 +696,19 @@ class MeasureScene(PipelineStep):
                 name="__".join(pattern),
                 pattern=list(pattern),
                 shown=list(exemplar.names),
-                covers=[ClaimantSet.from_json(group.to_json()) for group in members],
+                covers=[CountedClaimants.of(group) for group in members],
                 contested_faces=sum(len(group.faces) for group in members),
                 exemplar_faces=int(len(exemplar.faces)),
-                shares={
-                    name: ContestedShare(
+                shares=[
+                    ContestedShare(
+                        name=name,
                         faces=int(measured.descriptors[name].faces),
                         contested_share=round(
                             len(exemplar.faces) / measured.descriptors[name].faces, 4
                         ),
                     )
                     for name in exemplar.names
-                },
+                ],
                 ontology=self.ontology_slice(exemplar.names, labels, classes),
                 measured=self.measured_of(exemplar.names, measured),
             )
@@ -740,6 +759,7 @@ class MeasureScene(PipelineStep):
             if pair.classes.get(labels[whole]) != admitted.whole:
                 whole, part = part, whole
             candidates[part][whole] = MembershipCandidate(
+                name=whole,
                 field_name=admitted.field_name,
                 shared_faces=pair.evidence.shared_faces,
                 touching_edges=pair.evidence.touching_edges,
@@ -751,7 +771,7 @@ class MeasureScene(PipelineStep):
                 name=part,
                 part=part,
                 shown=[part] + sorted(wholes),
-                candidates=dict(sorted(wholes.items())),
+                candidates=[wholes[name] for name in sorted(wholes)],
                 ontology=self.ontology_slice([part] + sorted(wholes), labels, classes),
                 measured=self.measured_of([part] + sorted(wholes), measured),
             )
@@ -771,6 +791,8 @@ class MeasureScene(PipelineStep):
             if len(wholes) == 1
         ]
         return Memberships(to_ask_about=to_ask_about, forced=forced)
+
+    # %% saying what was measured
 
     def report(self, relations: Relations) -> None:
         """

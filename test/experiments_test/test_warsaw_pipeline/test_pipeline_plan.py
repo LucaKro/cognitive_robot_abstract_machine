@@ -22,7 +22,7 @@ from experiments.warsaw.pipeline.steps.classify import ClassifyBodies
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 from experiments.warsaw.pipeline.steps.split import SplitScene
 from experiments.warsaw.pipeline.steps.vocabulary import MapLabelVocabulary
-from experiments.warsaw.world_loader import Viewpoint, ViewpointChoice
+from experiments.warsaw.world_loader.viewpoints import Viewpoint, ViewpointChoice
 
 
 def planned(settings: PipelineSettings, tmp_path: Path):
