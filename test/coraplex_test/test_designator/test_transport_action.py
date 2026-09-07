@@ -13,6 +13,7 @@ from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import Point3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from typing_extensions import List, Type
@@ -37,7 +38,7 @@ def transport_plan(world, context, look_at_operation_site: bool) -> PlanNode:
     The plan of a transport carrying the milk to a fixed pose.
     """
     action = TransportAction(
-        world.get_body_by_name("milk.stl"),
+        world.get_semantic_annotations_by_type(Milk)[0],
         Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
         Arms.LEFT,
         look_at_operation_site=look_at_operation_site,

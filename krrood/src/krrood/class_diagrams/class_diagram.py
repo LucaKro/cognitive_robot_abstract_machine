@@ -47,6 +47,10 @@ from krrood.class_diagrams.attribute_introspector import (
     DataclassOnlyIntrospector,
 )
 from krrood.class_diagrams.method_classifier import factory_method_names
+from krrood.class_diagrams.progress_report import (
+    is_progress_wanted,
+    report_progress,
+)
 from krrood.class_diagrams.wrapped_field import WrappedField
 from krrood.patterns.field_metadata import FieldMetadata
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
@@ -439,7 +443,8 @@ class ClassDiagram:
             if is_dataclass(get_origin(clazz)):
                 generics.append(clazz)
                 clazz = get_origin(clazz)
-            self.add_node(WrappedClass(clazz=clazz))
+            # pass the bare class so add_node() dedupes it against classes/generics
+            self.add_node(clazz)
         self._create_nodes_for_specialized_generic_type_hints(generics)
         self._create_all_relations()
 
@@ -870,8 +875,13 @@ class ClassDiagram:
         internal collection. Relations are only created when the target class is found among
         the wrapped classes.
 
+        Resolving a class's field types is the long part of building a diagram, so a
+        class finished here is what progress is reported against.
+
         :raises: This method does not explicitly raise any exceptions.
         """
+        report_wanted = is_progress_wanted()
+        total_classes = len(self.wrapped_classes)
         for clazz in self.wrapped_classes:
             # Handle GenericAlias in issubclass
             origin = get_origin(clazz.clazz)
@@ -904,6 +914,8 @@ class ClassDiagram:
                     target=wrapped_target_class,
                 )
                 self.add_relation(relation)
+            if report_wanted:
+                report_progress(clazz.name, total_classes)
 
     def _create_association_relations_inferred_from_role_takers(self):
         """

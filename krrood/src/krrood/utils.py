@@ -617,7 +617,7 @@ def _handle_import_node(
 
 
 @lru_cache(maxsize=None)
-def _warn_about_unresolvable_type_checking_import_once(
+def _log_unresolvable_import_once(
     resolved_module_name: Optional[str],
     name: str,
     file_path: Optional[str],
@@ -631,15 +631,14 @@ def _warn_about_unresolvable_type_checking_import_once(
     A dataclass field annotated under ``if TYPE_CHECKING:`` with a name from a module
     involved in a circular import can be re-resolved many times while that module is
     still initializing (once per class needing it, and once per lookup attempt). Every
-    attempt raises the exact same, already self-diagnosing ``AttributeError`` and is
-    otherwise harmless, so repeating the warning for each attempt only floods the log
-    without adding information; the ``lru_cache`` collapses repeats of the identical
-    triple to a single log line.
+    attempt fails identically and is otherwise harmless, so repeating the warning for
+    each attempt only floods the log without adding information; the ``lru_cache``
+    collapses repeats of the identical triple to a single log line.
 
     :param resolved_module_name: The module the failed import targeted.
-    :param name: The attribute name that could not be found on the module.
+    :param name: The name that could not be bound from that module.
     :param file_path: The path of the file whose imports were being extracted.
-    :param error_message: The message of the ``AttributeError`` that was raised.
+    :param error_message: The message of the error that was raised.
     """
     logger.debug(
         f"Could not import {resolved_module_name}: {error_message} while extracting imports from {file_path}"
@@ -680,7 +679,13 @@ def _handle_import_from_node(
     """
     Process a from-import node and update the provided scope mapping.
 
-    A from-import whose module cannot be imported contributes no names to the scope.
+    A statement whose module cannot be imported contributes no names and is skipped,
+    just as a name missing from an imported module is: the scope is built for
+    best-effort name resolution, so one statement that cannot be bound must not cost
+    the caller every other name in the file.
+
+    ..note:: A module a generator is about to write, such as an ORM interface, is
+        absent for exactly as long as that generator runs.
 
     :param node: The from-import node to process.
     :param scope: The scope mapping to update.
@@ -701,17 +706,22 @@ def _handle_import_from_node(
     # Mimic original behavior: allow package_name to be overwritten for subsequent iterations
     package_name = resolved_package_name
 
-    module = None
-    if resolved_module_name is not None:
-        module = _import_module_tolerating_absence(
-            resolved_module_name, package_name, file_path
-        )
+    try:
+        module = None
+        if resolved_module_name is not None:
+            module = get_and_import_module(resolved_module_name, package_name)
 
-    if module is None and resolved_package_name and resolved_module_name:
-        # Retry as an absolute package-qualified import
-        module = _import_module_tolerating_absence(
-            f"{resolved_package_name}.{resolved_module_name}", None, file_path
-        )
+        if module is None and resolved_package_name and resolved_module_name:
+            # Fallback already attempted in _import_module_safely; keep for parity
+            module = get_and_import_module(
+                f"{resolved_package_name}.{resolved_module_name}", None
+            )
+    except ModuleNotFoundError as error:
+        for alias in node.names:
+            _log_unresolvable_import_once(
+                resolved_module_name, alias.name, file_path, str(error)
+            )
+        return package_name
 
     if module is None:
         return package_name
@@ -725,9 +735,7 @@ def _handle_import_from_node(
             else:
                 scope[asname] = getattr(module, name)
         except AttributeError as e:
-            _warn_about_unresolvable_type_checking_import_once(
-                resolved_module_name, name, file_path, str(e)
-            )
+            _log_unresolvable_import_once(resolved_module_name, name, file_path, str(e))
 
     return package_name
 

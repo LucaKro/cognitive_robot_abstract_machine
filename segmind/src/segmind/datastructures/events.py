@@ -15,7 +15,7 @@ from segmind.datastructures.object_tracker import (
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Aperture
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -200,7 +200,7 @@ class AbstractContactEvent(EventWithTrackedObjects, ABC):
     The bodies that were in contact with each other in the previous time step.
     """
 
-    bounding_box: BoundingBox = field(init=False)
+    bounding_box: VolumetricBoundingBox = field(init=False)
     """
     Bounding box of the object.
     """
@@ -210,7 +210,9 @@ class AbstractContactEvent(EventWithTrackedObjects, ABC):
     Pose of the object.
     """
 
-    with_object_bounding_box: Optional[BoundingBox] = field(init=False, default=None)
+    with_object_bounding_box: Optional[VolumetricBoundingBox] = field(
+        init=False, default=None
+    )
     """
     Bounding box of the second object in contact.
     """
@@ -221,14 +223,14 @@ class AbstractContactEvent(EventWithTrackedObjects, ABC):
     """
 
     def __post_init__(self):
-        self.bounding_box = BoundingBox.from_mesh(
+        self.bounding_box = VolumetricBoundingBox.from_mesh(
             self.tracked_object.collision.combined_mesh,
             origin=self.tracked_object.global_pose.to_homogeneous_matrix(),
         )
         self.pose = self.tracked_object.global_pose
 
         if self.with_object is not None:
-            self.with_object_bounding_box = BoundingBox.from_mesh(
+            self.with_object_bounding_box = VolumetricBoundingBox.from_mesh(
                 self.with_object.collision.combined_mesh,
                 origin=self.with_object.global_pose.to_homogeneous_matrix(),
             )
