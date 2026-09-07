@@ -18,7 +18,15 @@
 ## What was built
 
 - {{ bodies }} bodies, {{ faces }} faces between them, {{ still_contested }} faces still claimed twice
-- {{ pairings }} pairings carried past the split
+- {{ pairings }} pairings carried past the split, {{ mounted }} of them mounted
+{% if refused %}
+
+### {{ refused | length }} mounts the world would not carry out
+
+{% for refusal in refused %}
+- `{{ refusal.pairing.whole }}` <- `{{ refusal.pairing.part }}`: {{ refusal.reason }}
+{% endfor %}
+{% endif %}
 {% if emptied %}
 
 ### {{ emptied | length }} objects lost every face

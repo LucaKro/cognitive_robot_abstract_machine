@@ -35,7 +35,9 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
 )
 from typing_extensions import Any, Dict, Generic, List, Optional, TypeVar
 
-from experiments.warsaw.pipeline.asking import AnswerType, Question
+from krrood.ormatic.utils import classproperty
+
+from experiments.warsaw.pipeline.asking import AnswerType, Prompt, Question
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     MembershipAnswer,
@@ -90,7 +92,7 @@ class OverlapCaption(StrEnum):
 
 
 @dataclass(kw_only=True)
-class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
+class OverlapDecision(Question[AnswerType], Generic[AnswerType, AskedType]):
     """
     What the pictures of a set of overlapping objects are shown to settle.
     """
@@ -112,14 +114,7 @@ class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
 
     @property
     def key(self) -> str:
-        return f"{self.kind_name}__{self.asked.name}"
-
-    @property
-    @abstractmethod
-    def kind_name(self) -> str:
-        """
-        :return: What kind of question this is, which its kept reply is filed under.
-        """
+        return f"{self.prompt.value}__{self.asked.name}"
 
     def pictures(self) -> List[MessagePart]:
         """
@@ -188,19 +183,17 @@ class OverlapQuestion(Question[AnswerType], Generic[AnswerType, AskedType]):
 
 
 @dataclass(kw_only=True)
-class OwnershipDecision(OverlapQuestion[OwnershipAnswer, OwnershipQuestion]):
+class OwnershipDecision(OverlapDecision[OwnershipAnswer, OwnershipQuestion]):
     """
     Whose the faces a set of labels all claim are.
     """
 
-    prompt: str = "ownership"
-    """
-    The prompt this question is put with, both halves of it.
-    """
-
-    @property
-    def kind_name(self) -> str:
-        return "ownership"
+    @classproperty
+    def prompt(cls) -> Prompt:
+        """
+        :return: The prompt this question is put with, both halves of it.
+        """
+        return Prompt.OWNERSHIP
 
     def message(self) -> List[MessagePart]:
         return [
@@ -225,7 +218,6 @@ class OwnershipDecision(OverlapQuestion[OwnershipAnswer, OwnershipQuestion]):
             name=self.asked.name,
             pattern=list(self.asked.pattern),
             owner=answered.get("owner"),
-            covers=list(self.asked.covers),
             confidence=answered.get("confidence"),
             reason=answered.get("reason"),
         )
@@ -234,7 +226,6 @@ class OwnershipDecision(OverlapQuestion[OwnershipAnswer, OwnershipQuestion]):
         return OwnershipAnswer(
             name=self.asked.name,
             pattern=list(self.asked.pattern),
-            covers=list(self.asked.covers),
             problems=[str(refused)],
         )
 
@@ -251,19 +242,17 @@ class OwnershipDecision(OverlapQuestion[OwnershipAnswer, OwnershipQuestion]):
 
 
 @dataclass(kw_only=True)
-class MembershipDecision(OverlapQuestion[MembershipAnswer, MembershipQuestion]):
+class MembershipDecision(OverlapDecision[MembershipAnswer, MembershipQuestion]):
     """
     Which of several candidates a part belongs to.
     """
 
-    prompt: str = "membership"
-    """
-    The prompt this question is put with, both halves of it.
-    """
-
-    @property
-    def kind_name(self) -> str:
-        return "membership"
+    @classproperty
+    def prompt(cls) -> Prompt:
+        """
+        :return: The prompt this question is put with, both halves of it.
+        """
+        return Prompt.MEMBERSHIP
 
     def message(self) -> List[MessagePart]:
         return [
@@ -313,12 +302,12 @@ class RenderedQuestions:
     The open questions sorted by whether there are pictures to put them with.
     """
 
-    with_pictures: List[OverlapQuestion] = field(default_factory=list)
+    with_pictures: List[OverlapDecision] = field(default_factory=list)
     """
     The ones that can be asked.
     """
 
-    without: List[OverlapQuestion] = field(default_factory=list)
+    without: List[OverlapDecision] = field(default_factory=list)
     """
     The ones that cannot: a question is what the pictures settle.
     """
@@ -384,20 +373,16 @@ class AdjudicateOverlaps(PipelineStep):
             "asking %s about %s questions ...", self.settings.model.value, len(asked)
         )
         adjudications = Adjudications(
-            model=self.settings.model.value,
-            scene=relations.scene,
-            settled=list(questions.settled),
-            forced=list(questions.forced),
+            model=self.settings.model.value, scene=relations.scene
         )
         for question in asked:
             answered = questioner.answer(question)
             answer = answered.answer
             answer.problems = answered.problems
+            adjudications.answered.append(answer)
             if isinstance(answer, OwnershipAnswer):
-                adjudications.ownership.append(answer)
                 self.logger.info("  %-44s -> %s", answer.name, answer.owner)
             else:
-                adjudications.membership.append(answer)
                 self.logger.info("  %-44s in %s", answer.name, answer.whole)
             for problem in answer.problems:
                 self.logger.warning("      ! %s", problem)
@@ -406,7 +391,7 @@ class AdjudicateOverlaps(PipelineStep):
         self.report(adjudications)
 
     @staticmethod
-    def rendered(questions: List[OverlapQuestion]) -> RenderedQuestions:
+    def rendered(questions: List[OverlapDecision]) -> RenderedQuestions:
         """
         :param questions: Every open question.
         :return: Them, sorted by whether there are pictures to put them with.
@@ -420,8 +405,7 @@ class AdjudicateOverlaps(PipelineStep):
         """
         :param adjudications: What was answered.
         """
-        answered = adjudications.ownership + adjudications.membership
-        troubled = [one for one in answered if one.problems]
+        troubled = [one for one in adjudications.answered if one.problems]
         self.logger.info(
             "%s patterns and %s memberships answered, %s with problems",
             len(adjudications.ownership),

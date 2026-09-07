@@ -28,6 +28,7 @@ from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     EmptiedSegment,
+    Relations,
     SplitBody,
     SplitRecord,
     TakenFaces,
@@ -45,7 +46,7 @@ from experiments.warsaw.scene_split import (
     pairings,
     split_world,
 )
-from experiments.warsaw.segment_relations import ClaimantGroup, claimant_groups
+from experiments.warsaw.segment_relations import ClaimedFaces, claimant_groups
 from experiments.warsaw.world_loader.loader import WarsawWorldLoader
 
 
@@ -79,6 +80,7 @@ class SplitScene(PipelineStep):
         Apply the decisions, build the bodies, and record what it cost.
         """
         adjudications = self.run.read_record(RunFile.ADJUDICATIONS, Adjudications)
+        relations = self.run.read_record(RunFile.RELATIONS, Relations)
         vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
 
         loader = WarsawWorldLoader(input_directory=self.settings.scene_directory)
@@ -98,14 +100,14 @@ class SplitScene(PipelineStep):
             vocabulary=vocabulary, known=self.ontology_classes()
         ).by_label()
         ownerships, unreached = self.resolve_owners(
-            groups, adjudications, labels, classes
+            groups, adjudications, relations, labels, classes
         )
         self.report_unreached(unreached)
 
         split = exclusive_faces(faces, ownerships)
         self.report_split(split, ownerships, labels)
 
-        carried = pairings(self.named_pairings(adjudications), split)
+        carried = pairings(self.named_pairings(adjudications, relations), split)
         self.logger.info("%s pairings carried past the split", len(carried))
 
         world = self.build_world(loader, split)
@@ -119,11 +121,12 @@ class SplitScene(PipelineStep):
 
     @staticmethod
     def resolve_owners(
-        groups: List[ClaimantGroup],
+        groups: List[ClaimedFaces],
         adjudications: Adjudications,
+        relations: Relations,
         labels: Dict[str, str],
         classes: Dict[str, Optional[Type]],
-    ) -> Tuple[List[Ownership], List[ClaimantGroup]]:
+    ) -> Tuple[List[Ownership], List[ClaimedFaces]]:
         """
         Work out who each set of contested faces belongs to.
 
@@ -133,11 +136,13 @@ class SplitScene(PipelineStep):
 
         :param groups: The sets of faces and who claims them.
         :param adjudications: What the adjudication wrote.
+        :param relations: What the measurement wrote, which is where the sets the
+            ontology settled are recorded.
         :param labels: Per segment, the label it carries.
         :param classes: Per label, the class it was read as.
         :return: The ownerships, and the groups no answer reached.
         """
-        settled = adjudications.settled_claimants
+        settled = relations.settled_claimants
         answers = adjudications.owner_by_pattern
 
         ownerships, unreached = [], []
@@ -168,18 +173,22 @@ class SplitScene(PipelineStep):
         return ownerships, unreached
 
     @staticmethod
-    def named_pairings(adjudications: Adjudications) -> List[Pairing]:
+    def named_pairings(
+        adjudications: Adjudications, relations: Relations
+    ) -> List[Pairing]:
         """
         :param adjudications: What the adjudication wrote.
-        :return: Every mount its answers named, before the split drops any.
+        :param relations: What the measurement wrote, which is where the memberships
+            with only one candidate are recorded.
+        :return: Every mount the run named, before the split drops any.
         """
         fields = {
             (forced.part, forced.whole): forced.field_name
-            for forced in adjudications.forced
+            for forced in relations.forced
         }
         carried = [
             Pairing(whole=forced.whole, part=forced.part, field_name=forced.field_name)
-            for forced in adjudications.forced
+            for forced in relations.forced
         ]
         carried += [
             Pairing(
@@ -289,7 +298,7 @@ class SplitScene(PipelineStep):
 
     # %% saying what it cost
 
-    def report_unreached(self, unreached: List[ClaimantGroup]) -> None:
+    def report_unreached(self, unreached: List[ClaimedFaces]) -> None:
         """
         :param unreached: The sets of faces no answer reached.
         """

@@ -42,11 +42,12 @@ from typing_extensions import Dict, List, Type
 from experiments.warsaw.exceptions import NoWorldRecordedError
 from experiments.warsaw.pipeline.records import (
     Classifications,
+    RefusedMount,
     SplitRecord,
     Vocabulary,
 )
 from experiments.warsaw.pipeline.report import RunReport
-from experiments.warsaw.pipeline.reporting import Reporting
+from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.pipeline.run import Run, RunFile
@@ -55,23 +56,6 @@ from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.scene_split import Pairing
 
 # %% a mount the world would not carry out
-
-
-@dataclass
-class RefusedMount:
-    """
-    One pairing the world would not carry out, and why.
-    """
-
-    pairing: Pairing
-    """
-    The mount that was refused.
-    """
-
-    reason: str
-    """
-    What the world said about it.
-    """
 
 
 # %% what the mounting came to
@@ -105,7 +89,7 @@ class Mounted:
 
 
 @dataclass
-class MountAnnotations(Reporting):
+class MountAnnotations(HasLogger):
     """
     The annotating and mounting half, done in an interpreter that knows the run's
     classes.
@@ -170,6 +154,7 @@ class MountAnnotations(Reporting):
         # that was not there. Two rows also keep the split world as it was, which is what
         # the classification and the pairings were decided against.
         split.annotated_world_id = store.write(world)
+        split.refused = mounted.refused
         self.logger.info(
             "written as world %s, annotated, beside the split world %s",
             split.annotated_world_id,

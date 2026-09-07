@@ -22,11 +22,11 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 from typing_extensions import Any, Dict, Optional, Type
 
 from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
-from experiments.warsaw.pipeline.reporting import Reporting
+from experiments.warsaw.bases import HasLogger
 
 
 @dataclass
-class VocabularyClasses(Reporting):
+class VocabularyClasses(HasLogger):
     """
     What each of a scene's labels stands for, as a class rather than as a name.
     """

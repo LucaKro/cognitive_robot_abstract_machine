@@ -1,7 +1,7 @@
 {
   "__json_type__": "experiments.warsaw.pipeline.records.OpenQuestions",
   "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
-  "ownership": [
+  "asked": [
     {
       "__json_type__": "experiments.warsaw.pipeline.records.OwnershipQuestion",
       "name": "cabinet__drawer__kitchen_island",
@@ -82,7 +82,6 @@
           "mediumorchid"
         ]
       },
-      "kind": "ownership",
       "pattern": [
         "cabinet",
         "drawer",
@@ -148,9 +147,7 @@
           "contested_share": 0.0547
         }
       ]
-    }
-  ],
-  "membership": [
+    },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.MembershipQuestion",
       "name": "door_10",
@@ -227,7 +224,6 @@
           "mediumorchid"
         ]
       },
-      "kind": "membership",
       "part": "door_10",
       "candidates": [
         {
@@ -247,45 +243,6 @@
           "name": "cabinet_4"
         }
       ]
-    }
-  ],
-  "settled": [
-    {
-      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
-      "claimants": [
-        "cabinet_5",
-        "door_11"
-      ],
-      "faces": 3779
-    }
-  ],
-  "forced": [
-    {
-      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
-      "field_name": "doors",
-      "shared_faces": 3779,
-      "touching_edges": 5746,
-      "distance": 0.0,
-      "part": "door_11",
-      "whole": "cabinet_5"
-    },
-    {
-      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
-      "field_name": "handle",
-      "shared_faces": 69,
-      "touching_edges": 115,
-      "distance": 0.0,
-      "part": "handle_13",
-      "whole": "drawer_7"
-    },
-    {
-      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
-      "field_name": "handle",
-      "shared_faces": 72,
-      "touching_edges": 118,
-      "distance": 0.0,
-      "part": "handle_14",
-      "whole": "drawer_5"
     }
   ]
 }

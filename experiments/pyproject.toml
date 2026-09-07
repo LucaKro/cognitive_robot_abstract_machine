@@ -25,9 +25,11 @@ include-package-data = true
 "experiments.warsaw.pipeline" = [
   "templates/*.jinja",
   "templates/*.py",
-  "templates/prompts/*/*.md",
-  "templates/prompts/*/*.jinja",
 ]
+"experiments.warsaw.pipeline.steps.vocabulary" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+"experiments.warsaw.pipeline.steps.adjudicate" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+"experiments.warsaw.pipeline.steps.classify" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+"experiments.warsaw.pipeline.steps.amend" = ["prompts/*/*.md", "prompts/*/*.jinja"]
 
 [tool.setuptools.dynamic]
 version = {attr = "experiments._version.__version__"}

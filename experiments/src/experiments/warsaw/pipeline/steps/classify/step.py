@@ -32,7 +32,9 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
 )
 from typing_extensions import Any, Dict, List, Sequence
 
-from experiments.warsaw.pipeline.asking import Question
+from krrood.ormatic.utils import classproperty
+
+from experiments.warsaw.pipeline.asking import Prompt, Question
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications, Vocabulary
 from experiments.warsaw.pipeline.run import RunFile
@@ -67,10 +69,12 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
     What the vocabulary step answered per label.
     """
 
-    prompt: str = "classification"
-    """
-    The prompt this question is put with, both halves of it.
-    """
+    @classproperty
+    def prompt(cls) -> Prompt:
+        """
+        :return: The prompt this question is put with, both halves of it.
+        """
+        return Prompt.CLASSIFICATION
 
     @property
     def key(self) -> str:

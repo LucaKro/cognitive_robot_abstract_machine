@@ -18,7 +18,7 @@
 ## What was built
 
 - 13 bodies, 67979 faces between them, 0 faces still claimed twice
-- 7 pairings carried past the split
+- 7 pairings carried past the split, 7 of them mounted
 
 ### 2 objects lost every face
 

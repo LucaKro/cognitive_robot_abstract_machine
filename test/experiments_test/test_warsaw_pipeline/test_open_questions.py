@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import pytest
 
+from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
+
 from experiments.warsaw.pipeline.records import Relations, RelationStatus
 from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
@@ -81,7 +83,9 @@ def test_containment_is_reported_beside_the_parts_rather_than_as_one(step, known
     "part" onto it.
     """
     view = step.ontology_view(known["Cabinet"], known["Drawer"])
-    assert all(one.kind != "part" for one in view.other_mounts)
+    assert view.status is RelationStatus.RELATION_KNOWN
+    assert [one.field_name for one in view.admissible] == ["drawers"]
+    assert {one.kind for one in view.mounts} == {MountKind.PART, MountKind.CONTAINS}
 
 
 # %% which object stands for a label
@@ -178,7 +182,7 @@ def test_a_pair_the_ontology_leaves_open_names_no_membership(step, relations, kn
         self_measured(relations),
     )
     known_pairs = {
-        tuple(sorted((one.one, one.other)))
+        tuple(sorted((one.evidence.one, one.evidence.other)))
         for one in relations.pairs
         if one.status is RelationStatus.RELATION_KNOWN
     }

@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from experiments.warsaw.pipeline.asking import Question, Questioner
+from krrood.ormatic.utils import classproperty
+
+from experiments.warsaw.pipeline.asking import Prompt, Question, Questioner
 from semantic_digital_twin.adapters.vision_language_model.client import ModelResponse
 from semantic_digital_twin.adapters.vision_language_model.exceptions import (
     ModelRefusedError,
@@ -63,6 +65,14 @@ class NamingOneThing(Question[Dict[str, Any]]):
     """
     The names the answer may give.
     """
+
+    @classproperty
+    def prompt(cls) -> Prompt:
+        """
+        :return: A prompt of the pipeline's, which this question never reads: it puts its
+            own words rather than a template's.
+        """
+        return Prompt.VOCABULARY
 
     @property
     def key(self) -> str:

@@ -88,7 +88,7 @@ class SchemaAlignment:
         reader = inspect(self.engine)
         present = set(reader.get_table_names())
         missing: Dict[Table, List[Column]] = {}
-        for table in self.metadata.sorted_tables:
+        for table in self.base.metadata.sorted_tables:
             if table.name not in present:
                 continue
             columns = {column["name"] for column in reader.get_columns(table.name)}
@@ -96,13 +96,6 @@ class SchemaAlignment:
             if absent:
                 missing[table] = absent
         return missing
-
-    @property
-    def metadata(self) -> MetaData:
-        """
-        :return: The tables the ORM declares.
-        """
-        return self.base.metadata
 
     @property
     def mappers(self) -> Iterable[Mapper]:

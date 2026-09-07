@@ -436,15 +436,16 @@
       "view": {
         "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
         "status": "no-legal-relation",
-        "admissible": [],
-        "other_mounts": [
+        "mounts": [
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
             "kind": "contains",
             "whole": "Floor",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           },
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
@@ -452,7 +453,9 @@
             "whole": "KitchenIsland",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           }
         ]
       },
@@ -485,15 +488,16 @@
       "view": {
         "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
         "status": "no-legal-relation",
-        "admissible": [],
-        "other_mounts": [
+        "mounts": [
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
             "kind": "contains",
             "whole": "Floor",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           },
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
@@ -501,7 +505,9 @@
             "whole": "Cabinet",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           }
         ]
       },
@@ -534,15 +540,16 @@
       "view": {
         "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
         "status": "no-legal-relation",
-        "admissible": [],
-        "other_mounts": [
+        "mounts": [
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
             "kind": "contains",
             "whole": "KitchenIsland",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           }
         ]
       },
@@ -575,24 +582,26 @@
       "view": {
         "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
         "status": "relation-known",
-        "admissible": [
+        "mounts": [
           {
-            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleRelation",
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "part",
             "whole": "Cabinet",
-            "part": "Door",
             "field_name": "doors",
+            "target": "Door",
             "holds_many": true,
+            "mounted_by": "add",
             "removes_geometry": false
-          }
-        ],
-        "other_mounts": [
+          },
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
             "kind": "contains",
             "whole": "Cabinet",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           }
         ]
       },
@@ -625,24 +634,26 @@
       "view": {
         "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
         "status": "relation-known",
-        "admissible": [
+        "mounts": [
           {
-            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleRelation",
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "part",
             "whole": "Cabinet",
-            "part": "Door",
             "field_name": "doors",
+            "target": "Door",
             "holds_many": true,
+            "mounted_by": "add",
             "removes_geometry": false
-          }
-        ],
-        "other_mounts": [
+          },
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
             "kind": "contains",
             "whole": "Cabinet",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           }
         ]
       },
@@ -675,28 +686,69 @@
       "view": {
         "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
         "status": "relation-known",
-        "admissible": [
+        "mounts": [
           {
-            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleRelation",
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "part",
             "whole": "Cabinet",
-            "part": "Door",
             "field_name": "doors",
+            "target": "Door",
             "holds_many": true,
+            "mounted_by": "add",
             "removes_geometry": false
-          }
-        ],
-        "other_mounts": [
+          },
           {
             "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
             "kind": "contains",
             "whole": "Cabinet",
             "field_name": "objects",
             "target": "HasRootBody",
-            "mounted_by": "add_object"
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
           }
         ]
       },
       "prompt_block": "door_11: 3779 faces, 3.669 m2, middle 1.97 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_5: 5694 faces, 5.087 m2, middle 2.44 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share 3779 faces, 100% of door_11 and 66% of cabinet_5."
+    }
+  ],
+  "settled": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
+      "claimants": [
+        "cabinet_5",
+        "door_11"
+      ],
+      "faces": 3779
+    }
+  ],
+  "forced": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "doors",
+      "shared_faces": 3779,
+      "touching_edges": 5746,
+      "distance": 0.0,
+      "part": "door_11",
+      "whole": "cabinet_5"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
+      "shared_faces": 69,
+      "touching_edges": 115,
+      "distance": 0.0,
+      "part": "handle_13",
+      "whole": "drawer_7"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
+      "shared_faces": 72,
+      "touching_edges": 118,
+      "distance": 0.0,
+      "part": "handle_14",
+      "whole": "drawer_5"
     }
   ]
 }

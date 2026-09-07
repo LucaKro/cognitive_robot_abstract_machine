@@ -32,7 +32,6 @@ def test_a_run_is_named_for_when_it_started(tmp_path):
     run = Run.create(tmp_path, name_format="%Y-%m-%d")
     assert run.directory.parent == tmp_path
     assert run.directory.exists()
-    assert run.name == run.directory.name
 
 
 def test_two_runs_do_not_share_a_directory(tmp_path):

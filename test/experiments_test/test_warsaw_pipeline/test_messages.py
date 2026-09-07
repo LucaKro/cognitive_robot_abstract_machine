@@ -12,6 +12,8 @@ test is the text.
 
 from __future__ import annotations
 
+import pathlib
+import sys
 from dataclasses import dataclass
 
 import pytest
@@ -24,19 +26,18 @@ from typing_extensions import List
 
 from experiments.warsaw.pipeline.records import AmendmentRecord
 from experiments.warsaw.pipeline.run import RunFile
-from experiments.warsaw.pipeline.steps.amend import MixinProposal
-from experiments.warsaw.pipeline.steps.adjudicate import (
+from experiments.warsaw.pipeline.steps.amend.step import MixinProposal
+from experiments.warsaw.pipeline.steps.adjudicate.step import (
     MembershipDecision,
     OwnershipDecision,
 )
-from experiments.warsaw.pipeline.steps.classify import BodyGroupQuestion
+from experiments.warsaw.pipeline.steps.classify.step import BodyGroupQuestion
 from experiments.warsaw.world_loader.loader import RenderedSegmentGroup
-from experiments.warsaw.pipeline.steps.vocabulary import (
+from experiments.warsaw.pipeline.steps.vocabulary.step import (
     LabelQuestion,
     MapLabelVocabulary,
 )
 from experiments.warsaw.pipeline.asking import PromptHalf
-from experiments.warsaw.pipeline.templates import PipelineTemplates
 
 
 @pytest.fixture
@@ -215,11 +216,13 @@ def test_the_amendment_question_says_what_it_always_said(
 
 def test_every_question_is_put_with_both_halves_of_its_own_prompt():
     """
-    A question names one prompt and both halves are found from that name.
+    A question names one prompt and both halves are found from that name, in the
+    directory of the step that puts it.
 
     Naming one thing rather than two files is what stops a question being asked with one
     half of one prompt and one half of another, which would tell a model it was deciding
-    something other than what it was shown.
+    something other than what it was shown. Keeping them beside the step is what stops a
+    step being moved without the words it asks in.
     """
     named = set()
     for question in (
@@ -229,11 +232,13 @@ def test_every_question_is_put_with_both_halves_of_its_own_prompt():
         BodyGroupQuestion,
         MixinProposal,
     ):
-        prompt = question.__dataclass_fields__["prompt"].default
-        assert prompt, question.__name__
+        prompt = question.prompt
         assert prompt not in named, f"{question.__name__} shares a prompt"
         named.add(prompt)
+        assert question.prompts_directory.parent == pathlib.Path(
+            sys.modules[question.__module__].__file__
+        ).resolve().parent, f"{question.__name__} reads prompts from another step"
         for half in PromptHalf:
-            assert PipelineTemplates().render_document(
-                f"prompts/{prompt}/{half.value}"
+            assert question.templates.render_document(
+                f"{prompt.value}/{half.value}"
             ), f"{question.__name__} has no {half.value}"

@@ -24,13 +24,13 @@ from typing_extensions import Dict, List, Optional, Type
 
 from experiments.warsaw.exceptions import SubprocessStepFailedError
 from experiments.warsaw.pipeline.asking import Questioner
-from experiments.warsaw.pipeline.reporting import Reporting
+from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.settings import PipelineSettings
 
 
 @dataclass
-class PipelineStep(Reporting, ABC):
+class PipelineStep(HasLogger, ABC):
     """
     One step of the pipeline, as it is carried out.
     """

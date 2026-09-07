@@ -14,6 +14,7 @@ cheaper than either dropping the question or letting a person correct it by hand
 from __future__ import annotations
 
 import json
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -32,7 +33,9 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
 )
 from typing_extensions import Any, Dict, Generic, List, Sequence, Type, TypeVar
 
-from experiments.warsaw.pipeline.reporting import Reporting
+from krrood.ormatic.utils import classproperty
+
+from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.templates import PipelineTemplates
 
 AnswerType = TypeVar("AnswerType")
@@ -68,6 +71,41 @@ class PromptHalf(StrEnum):
     """
 
 
+class Prompt(StrEnum):
+    """
+    One of the prompts the pipeline puts its questions with.
+
+    A prompt is a directory holding both halves, and there is one per kind of question.
+    Which one a question uses is a property of the kind of question it is rather than
+    something an instance is told, so it is named here and answered by the class.
+    """
+
+    VOCABULARY = "vocabulary"
+    """
+    Which class of the ontology a label means.
+    """
+
+    OWNERSHIP = "ownership"
+    """
+    Whose the faces several labels all claim are.
+    """
+
+    MEMBERSHIP = "membership"
+    """
+    Which of several wholes a part belongs to.
+    """
+
+    CLASSIFICATION = "classification"
+    """
+    What each body of a split scene is.
+    """
+
+    TAXONOMY_AMENDMENT = "taxonomy_amendment"
+    """
+    Whether a class of the ontology should be given a mixin.
+    """
+
+
 # %% one thing to ask
 
 
@@ -81,27 +119,37 @@ class Question(ABC, Generic[AnswerType]):
     being asked with one half of one prompt and one half of another.
     """
 
-    templates: PipelineTemplates = field(default_factory=PipelineTemplates)
-    """
-    Where the words put to the model are written from.
-    """
+    @property
+    @abstractmethod
+    def prompt(self) -> Prompt:
+        """
+        :return: The prompt this question is put with, both halves of it.
+        """
 
-    prompt: str = ""
-    """
-    The prompt this question is put with, by the directory its two halves are kept in.
-    """
+    @classproperty
+    def prompts_directory(cls) -> Path:
+        """
+        The prompts a step puts its questions with are kept in the step's own directory,
+        which is what makes a step one thing to read: what it asks, how it reads the
+        answer, and the words it asks in are all in one place.
 
-    prompts_directory: str = "prompts"
-    """
-    Where those directories are, under the templates.
-    """
+        :return: Where this question's prompts are, beside the module declaring it.
+        """
+        return Path(sys.modules[cls.__module__].__file__).resolve().parent / "prompts"
+
+    @classproperty
+    def templates(cls) -> PipelineTemplates:
+        """
+        :return: Where the words put to the model are written from.
+        """
+        return PipelineTemplates(directory=cls.prompts_directory)
 
     def prompt_template(self, half: PromptHalf) -> str:
         """
         :param half: Which half of the prompt is wanted.
         :return: The template it is written from, by file name.
         """
-        return f"{self.prompts_directory}/{self.prompt}/{half.value}"
+        return f"{self.prompt.value}/{half.value}"
 
     @property
     def message_template(self) -> str:
@@ -219,7 +267,7 @@ class Answered(Generic[AnswerType]):
 
 
 @dataclass
-class Questioner(Reporting):
+class Questioner(HasLogger):
     """
     A model being asked the pipeline's questions, with every reply kept.
     """

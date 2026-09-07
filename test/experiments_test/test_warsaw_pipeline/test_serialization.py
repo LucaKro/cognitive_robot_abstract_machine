@@ -20,7 +20,7 @@ from experiments.warsaw.pipeline.records import (
     LabelAnswer,
 )
 from experiments.warsaw.scene_split import Pairing
-from experiments.warsaw.segment_relations import ClaimantGroup
+from experiments.warsaw.segment_relations import ClaimedFaces
 
 # %% what a model says, which nothing has stamped
 
@@ -116,7 +116,7 @@ def test_a_measured_group_of_claimants_is_counted_without_its_faces():
     A group carries which faces are contested, which no file can hold; the record holds
     how many there are.
     """
-    group = ClaimantGroup(names=("cabinet_8", "drawer_5"), faces=np.arange(7))
+    group = ClaimedFaces(names=("cabinet_8", "drawer_5"), faces=np.arange(7))
     counted = CountedClaimants.of(group)
     assert isinstance(counted, CountedClaimants)
     assert counted.claimants == group.names

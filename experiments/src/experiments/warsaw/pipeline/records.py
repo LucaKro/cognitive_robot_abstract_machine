@@ -17,33 +17,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import Any, ClassVar, Dict, List, Optional, Self, Tuple
+from typing_extensions import Any, ClassVar, Dict, List, Optional, Self, Set, Tuple
 
-from experiments.warsaw.pipeline.json_record import JsonRecord
+from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
+
+from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.scene_split import Pairing
 from experiments.warsaw.segment_relations import (
-    ClaimantGroup,
+    ClaimedFaces,
     PairEvidence,
     SegmentDescriptor,
 )
 
 # %% named alternatives
-
-
-class QuestionKind(StrEnum):
-    """
-    What an open question is about.
-    """
-
-    OWNERSHIP = "ownership"
-    """
-    Whose surface a face several labels claim is.
-    """
-
-    MEMBERSHIP = "membership"
-    """
-    Which whole a part belongs to.
-    """
 
 
 class RelationStatus(StrEnum):
@@ -138,11 +124,40 @@ class AnsweredByModel(RunArtefact):
     """
 
 
+# %% what a model says, whatever it was asked
+
+
+@dataclass(kw_only=True)
+class ModelAnswer(JsonRecord):
+    """
+    What a model said, over and above the answer itself.
+
+    Five steps ask a model something and each reads a different answer out of the reply,
+    but every one of them asks for the same three things around it: how sure it is, why,
+    and -- filled in here rather than by the model -- what makes what it said unusable.
+    """
+
+    confidence: Optional[float] = None
+    """
+    How sure the model said it was.
+    """
+
+    reason: Optional[str] = None
+    """
+    Why, in one sentence.
+    """
+
+    problems: List[str] = field(default_factory=list)
+    """
+    What makes the answer unusable, empty when nothing does.
+    """
+
+
 # %% an answer that names a class
 
 
 @dataclass
-class ClassAnswer(JsonRecord):
+class ClassAnswer(ModelAnswer):
     """
     An answer naming the class of something, whether a label or a single body.
 
@@ -170,16 +185,6 @@ class ClassAnswer(JsonRecord):
     superclass: Optional[str] = None
     """
     What a proposed class derives from.
-    """
-
-    confidence: Optional[float] = None
-    """
-    How sure the model said it was.
-    """
-
-    reason: Optional[str] = None
-    """
-    Why, in one sentence.
     """
 
     spoken_class: ClassVar[str] = "class"
@@ -210,44 +215,16 @@ class ClassAnswer(JsonRecord):
 
 
 @dataclass
-class AdmissibleRelation(JsonRecord):
-    """
-    One part-whole relation the ontology allows between two classes.
-    """
-
-    whole: str
-    """
-    The class that would hold.
-    """
-
-    part: str
-    """
-    The class it would hold.
-    """
-
-    field_name: str
-    """
-    The field it would be held in.
-    """
-
-    holds_many: bool
-    """
-    Whether that field holds several parts rather than one.
-    """
-
-    removes_geometry: bool
-    """
-    Whether mounting takes the part's geometry out of the whole's.
-    """
-
-
-@dataclass
 class AdmissibleMount(JsonRecord):
     """
-    One mount the ontology allows between two classes that is not a structural part.
+    One way the ontology allows two classes to be mounted into one another.
+
+    A structural part is one of these rather than a kind apart: the channel says which it
+    is, and every channel names the same things -- which class holds, through which field,
+    what that field accepts, and by which method.
     """
 
-    kind: str
+    kind: MountKind
     """
     The channel that mounts it.
     """
@@ -267,9 +244,19 @@ class AdmissibleMount(JsonRecord):
     What that field accepts.
     """
 
+    holds_many: bool
+    """
+    Whether that field holds several of them rather than one.
+    """
+
     mounted_by: str
     """
     The method that carries the mount out.
+    """
+
+    removes_geometry: bool
+    """
+    Whether mounting takes what is held out of the geometry of what holds it.
     """
 
 
@@ -288,15 +275,21 @@ class OntologyView(JsonRecord):
     What that leaves open.
     """
 
-    admissible: List[AdmissibleRelation] = field(default_factory=list)
+    mounts: List[AdmissibleMount] = field(default_factory=list)
     """
-    The part-whole relations allowed between them.
+    Every mount allowed between them, of any channel.
     """
 
-    other_mounts: List[AdmissibleMount] = field(default_factory=list)
-    """
-    The mounts allowed between them that are not structural parts.
-    """
+    @property
+    def admissible(self) -> List[AdmissibleMount]:
+        """
+        The part-whole ones alone, which are what the status is decided by: ``contains``
+        is admissible between almost any two annotations, so counting it would report a
+        relation for every pair in the room.
+
+        :return: The structural parts allowed between them.
+        """
+        return [one for one in self.mounts if one.kind is MountKind.PART]
 
 
 @dataclass
@@ -321,6 +314,88 @@ class OntologySlice(JsonRecord):
     admits: List[str] = field(default_factory=list)
     """
     What the ontology admits between them.
+    """
+
+
+# %% what the ontology settles about an overlap on its own
+
+
+@dataclass
+class CountedClaimants(JsonRecord):
+    """
+    A set of faces claimed by exactly the same segments, counted rather than listed.
+    """
+
+    claimants: Tuple[str, ...]
+    """
+    The segments claiming them.
+    """
+
+    faces: int
+    """
+    How many faces they all claim.
+    """
+
+    @classmethod
+    def of(cls, group: ClaimedFaces) -> CountedClaimants:
+        """
+        Say what a measured group of claimants holds, without the faces themselves.
+
+        A group carries *which* faces are contested, which is what the split works on and
+        what no file can hold; a run records how many there are. They are the same set
+        counted two ways, so the one that can be written is made from the one that cannot.
+
+        :param group: The claimants as the measurement found them.
+        :return: The same claimants, counted.
+        """
+        return cls(claimants=group.names, faces=int(len(group.faces)))
+
+
+@dataclass(kw_only=True)
+class MeasuredMeeting(JsonRecord):
+    """
+    How a part was measured to meet a whole it could belong to.
+
+    The same measurements decide it whether or not there is anything to choose between:
+    one candidate makes it a membership nothing needs to be asked about, several make it a
+    question, and both carry the same numbers.
+    """
+
+    field_name: str
+    """
+    The field the whole would hold it in.
+    """
+
+    shared_faces: int = 0
+    """
+    How many faces the two share.
+    """
+
+    touching_edges: int = 0
+    """
+    How many edges they touch along.
+    """
+
+    distance: float = 0.0
+    """
+    How far apart their surfaces are, in metres.
+    """
+
+
+@dataclass(kw_only=True)
+class ForcedMembership(MeasuredMeeting):
+    """
+    A part that meets exactly one candidate, so there is nothing to choose between.
+    """
+
+    part: str
+    """
+    The object that belongs to it.
+    """
+
+    whole: str
+    """
+    The one object it could belong to.
     """
 
 
@@ -354,20 +429,6 @@ class PairRecord(JsonRecord):
     """
 
     @property
-    def one(self) -> str:
-        """
-        :return: The name of the first segment.
-        """
-        return self.evidence.one
-
-    @property
-    def other(self) -> str:
-        """
-        :return: The name of the second segment.
-        """
-        return self.evidence.other
-
-    @property
     def status(self) -> RelationStatus:
         """
         :return: What the ontology leaves open about the pair.
@@ -390,6 +451,23 @@ class Relations(RunArtefact):
     """
     Every pair that shares faces, touches, or is among a segment's nearest.
     """
+
+    settled: List[CountedClaimants] = field(default_factory=list)
+    """
+    The sets of contested faces the ontology decides on its own.
+    """
+
+    forced: List[ForcedMembership] = field(default_factory=list)
+    """
+    The memberships with only one candidate, which leave nothing to choose between.
+    """
+
+    @property
+    def settled_claimants(self) -> Set[Tuple[str, ...]]:
+        """
+        :return: The claimant sets the ontology decides, as their names alone.
+        """
+        return {one.claimants for one in self.settled}
 
     @property
     def descriptors(self) -> Dict[str, SegmentDescriptor]:
@@ -495,11 +573,6 @@ class LabelAnswer(ClassAnswer):
     What a proposed class is composed with, which decides what it can hold.
     """
 
-    problems: List[str] = field(default_factory=list)
-    """
-    What makes the answer unusable, empty when nothing does.
-    """
-
     exemplar: Optional[str] = None
     """
     The object that was pictured when it was asked.
@@ -565,54 +638,34 @@ class Vocabulary(AnsweredByModel):
         ]
 
 
-# %% what a scene's overlaps were measured to be
+# %% what one of a scene's objects was measured to be
 
 
 @dataclass
-class CountedClaimants(JsonRecord):
+class NamedSegment(JsonRecord):
     """
-    A set of faces claimed by exactly the same segments, counted rather than listed.
-    """
+    One of the scene's objects, named and sized.
 
-    claimants: Tuple[str, ...]
-    """
-    The segments claiming them.
-    """
-
-    faces: int
-    """
-    How many faces they all claim.
-    """
-
-    @classmethod
-    def of(cls, group: ClaimantGroup) -> CountedClaimants:
-        """
-        Say what a measured group of claimants holds, without the faces themselves.
-
-        A group carries *which* faces are contested, which is what the split works on and
-        what no file can hold; a run records how many there are. They are the same set
-        counted two ways, so the one that can be written is made from the one that cannot.
-
-        :param group: The claimants as the measurement found them.
-        :return: The same claimants, counted.
-        """
-        return cls(claimants=group.names, faces=int(len(group.faces)))
-
-
-@dataclass
-class MeasuredSegment(JsonRecord):
-    """
-    What was measured of one object on its own.
+    Everything a run writes addresses an object by the name the scan gave it, and how much
+    of the scene an object holds is what decides almost every question asked about it, so
+    the two travel together.
     """
 
     name: str
     """
-    The object it was measured of.
+    The object it is about.
     """
 
     faces: int
     """
-    How many of the scene's faces it is made of.
+    How many of the scene's faces it holds.
+    """
+
+
+@dataclass
+class MeasuredSegment(NamedSegment):
+    """
+    What was measured of one object on its own.
     """
 
     area: float
@@ -632,7 +685,7 @@ class MeasuredSegment(JsonRecord):
 
 
 @dataclass
-class ContestedShare(JsonRecord):
+class ContestedShare(NamedSegment):
     """
     How much of one claimant the contested faces are.
 
@@ -640,16 +693,6 @@ class ContestedShare(JsonRecord):
     claimant is twenty times the size of the others: an island label covers the whole block
     including its drawers, so a drawer front reads as a patch of detail on the island
     rather than as the drawer.
-    """
-
-    name: str
-    """
-    The claimant whose share this is.
-    """
-
-    faces: int
-    """
-    How many faces the claimant has in all.
     """
 
     contested_share: float
@@ -702,11 +745,6 @@ class OverlapQuestion(JsonRecord):
     Per segment, what it was painted in those renders.
     """
 
-    kind: QuestionKind = QuestionKind.OWNERSHIP
-    """
-    What the question is about.
-    """
-
 
 @dataclass(kw_only=True)
 class OwnershipQuestion(OverlapQuestion):
@@ -724,7 +762,7 @@ class OwnershipQuestion(OverlapQuestion):
 
     covers: List[CountedClaimants] = field(default_factory=list)
     """
-    Every set of faces this one answer decides.
+    Every set of faces this one question decides.
     """
 
     contested_faces: int = 0
@@ -740,37 +778,6 @@ class OwnershipQuestion(OverlapQuestion):
     shares: List[ContestedShare] = field(default_factory=list)
     """
     Per claimant, how much of it the contested faces are.
-    """
-
-
-@dataclass(kw_only=True)
-class MeasuredMeeting(JsonRecord):
-    """
-    How a part was measured to meet a whole it could belong to.
-
-    The same measurements decide it whether or not there is anything to choose between:
-    one candidate makes it a membership nothing needs to be asked about, several make it a
-    question, and both carry the same numbers.
-    """
-
-    field_name: str
-    """
-    The field the whole would hold it in.
-    """
-
-    shared_faces: int = 0
-    """
-    How many faces the two share.
-    """
-
-    touching_edges: int = 0
-    """
-    How many edges they touch along.
-    """
-
-    distance: float = 0.0
-    """
-    How far apart their surfaces are, in metres.
     """
 
 
@@ -802,11 +809,6 @@ class MembershipQuestion(OverlapQuestion):
     The wholes it could belong to.
     """
 
-    kind: QuestionKind = QuestionKind.MEMBERSHIP
-    """
-    What the question is about.
-    """
-
     @property
     def candidate_names(self) -> List[str]:
         """
@@ -816,55 +818,41 @@ class MembershipQuestion(OverlapQuestion):
         return [candidate.name for candidate in self.candidates]
 
 
-@dataclass(kw_only=True)
-class ForcedMembership(MeasuredMeeting):
-    """
-    A part that meets exactly one candidate, so there is nothing to choose between.
-    """
-
-    part: str
-    """
-    The object that belongs to it.
-    """
-
-    whole: str
-    """
-    The one object it could belong to.
-    """
-
-
 @dataclass
 class OpenQuestions(RunArtefact):
     """
     What the measurements and the ontology leave open about a scene's overlaps.
+
+    Both kinds are asked the same way and most readers want them together, so they are
+    written as one list; each carries which kind it is, and the two that want one kind
+    read it back out.
     """
 
-    ownership: List[OwnershipQuestion] = field(default_factory=list)
+    asked: List[OverlapQuestion] = field(default_factory=list)
     """
-    Whose the contested faces are, once per class pattern.
-    """
-
-    membership: List[MembershipQuestion] = field(default_factory=list)
-    """
-    Which whole each part belongs to, where more than one is possible.
+    Every question the overlaps raise, of either kind.
     """
 
-    settled: List[CountedClaimants] = field(default_factory=list)
-    """
-    The sets the ontology already decides, which are not questions at all.
-    """
+    @property
+    def ownership(self) -> List[OwnershipQuestion]:
+        """
+        :return: Whose the contested faces are, once per class pattern.
+        """
+        return [one for one in self.asked if isinstance(one, OwnershipQuestion)]
 
-    forced: List[ForcedMembership] = field(default_factory=list)
-    """
-    The memberships with only one candidate.
-    """
+    @property
+    def membership(self) -> List[MembershipQuestion]:
+        """
+        :return: Which whole each part belongs to, where more than one is possible.
+        """
+        return [one for one in self.asked if isinstance(one, MembershipQuestion)]
 
 
 # %% adjudications.json
 
 
 @dataclass(kw_only=True)
-class Adjudication(JsonRecord):
+class Adjudication(ModelAnswer):
     """
     One open question, settled.
 
@@ -878,31 +866,15 @@ class Adjudication(JsonRecord):
     The question it answers, by the name that question was filed under.
     """
 
-    confidence: Optional[float] = None
-    """
-    How sure the model said it was.
-    """
-
-    reason: Optional[str] = None
-    """
-    Why, in one sentence.
-    """
-
-    problems: List[str] = field(default_factory=list)
-    """
-    What makes the answer unusable, empty when nothing does.
-    """
-
-    kind: QuestionKind = QuestionKind.OWNERSHIP
-    """
-    What the question it answers was about.
-    """
-
 
 @dataclass(kw_only=True)
 class OwnershipAnswer(Adjudication):
     """
     Whose the contested faces of one class pattern are.
+
+    The pattern is carried rather than pointed at, so an answer says both what it decided
+    and what it decided about; which sets of faces that reaches is the question's to say,
+    and is read from there.
     """
 
     pattern: List[str] = field(default_factory=list)
@@ -913,11 +885,6 @@ class OwnershipAnswer(Adjudication):
     owner: Optional[str] = None
     """
     The label whose surface those faces are.
-    """
-
-    covers: List[CountedClaimants] = field(default_factory=list)
-    """
-    Every set of faces this answer decides.
     """
 
 
@@ -937,11 +904,6 @@ class MembershipAnswer(Adjudication):
     The object it belongs to.
     """
 
-    kind: QuestionKind = QuestionKind.MEMBERSHIP
-    """
-    What the question it answers was about.
-    """
-
 
 @dataclass
 class Adjudications(AnsweredByModel):
@@ -949,25 +911,24 @@ class Adjudications(AnsweredByModel):
     What was answered about everything the measurements and the ontology left open.
     """
 
-    ownership: List[OwnershipAnswer] = field(default_factory=list)
+    answered: List[Adjudication] = field(default_factory=list)
     """
-    Whose the contested faces of each class pattern are.
-    """
-
-    membership: List[MembershipAnswer] = field(default_factory=list)
-    """
-    Which whole each part belongs to.
+    Every question that was put, as it was settled, of either kind.
     """
 
-    settled: List[CountedClaimants] = field(default_factory=list)
-    """
-    The sets the ontology decides, carried through so the split need read one file.
-    """
+    @property
+    def ownership(self) -> List[OwnershipAnswer]:
+        """
+        :return: Whose the contested faces of each class pattern are.
+        """
+        return [one for one in self.answered if isinstance(one, OwnershipAnswer)]
 
-    forced: List[ForcedMembership] = field(default_factory=list)
-    """
-    The memberships with only one candidate, carried through for the same reason.
-    """
+    @property
+    def membership(self) -> List[MembershipAnswer]:
+        """
+        :return: Which whole each part belongs to.
+        """
+        return [one for one in self.answered if isinstance(one, MembershipAnswer)]
 
     @property
     def owner_by_pattern(self) -> Dict[Tuple[str, ...], str]:
@@ -979,13 +940,6 @@ class Adjudications(AnsweredByModel):
             for answer in self.ownership
             if answer.owner
         }
-
-    @property
-    def settled_claimants(self) -> set:
-        """
-        :return: The claimant sets the ontology decides, as their names alone.
-        """
-        return {one.claimants for one in self.settled}
 
 
 # %% split.json
@@ -1030,19 +984,9 @@ class EmptiedSegment(JsonRecord):
 
 
 @dataclass
-class SplitBody(JsonRecord):
+class SplitBody(NamedSegment):
     """
     One body the split built.
-    """
-
-    name: str
-    """
-    What everything else addresses it by.
-    """
-
-    faces: int
-    """
-    How many of the scene's faces are its alone.
     """
 
     label: str
@@ -1056,6 +1000,28 @@ class SplitBody(JsonRecord):
 
     The name is what everything else addresses a body by, and the world addresses it by
     an id of its own; a step reading the world back needs both to say the same thing.
+    """
+
+
+@dataclass
+class RefusedMount(JsonRecord):
+    """
+    One mount the world would not carry out, and why.
+
+    A pairing every earlier step agreed on can still be refused here, because the class a
+    body was given may not admit the part another step said it holds. That is a part left
+    where the split put it rather than where the run decided it belongs, so it is recorded
+    beside the objects the split emptied and for the same reason.
+    """
+
+    pairing: Pairing
+    """
+    The mount that was refused.
+    """
+
+    reason: str
+    """
+    What the world said about it.
     """
 
 
@@ -1083,6 +1049,11 @@ class SplitRecord(RunArtefact):
     pairings: List[Pairing] = field(default_factory=list)
     """
     The mounts that still have both ends.
+    """
+
+    refused: List[RefusedMount] = field(default_factory=list)
+    """
+    The mounts the world would not carry out, once the last step has tried them.
     """
 
     world_id: Optional[int] = None
@@ -1159,7 +1130,7 @@ class SourceEdit(JsonRecord):
 
 
 @dataclass
-class AmendmentRecord(JsonRecord):
+class AmendmentRecord(ModelAnswer):
     """
     One mixin a class could be given, what raised it, and what became of the proposal.
     """
@@ -1202,16 +1173,6 @@ class AmendmentRecord(JsonRecord):
     amend: bool = False
     """
     Whether the model said the class should have the mixin.
-    """
-
-    confidence: Optional[float] = None
-    """
-    How sure it said it was.
-    """
-
-    reason: Optional[str] = None
-    """
-    Why, in one sentence.
     """
 
     blocked: Optional[str] = None

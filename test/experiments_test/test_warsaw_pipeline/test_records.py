@@ -23,7 +23,6 @@ from experiments.warsaw.pipeline.records import (
     OpenQuestions,
     OwnershipAnswer,
     OwnershipQuestion,
-    QuestionKind,
     PictureKind,
     Relations,
     RelationStatus,
@@ -80,7 +79,9 @@ def test_a_pair_carries_both_the_measurement_and_what_the_ontology_makes_of_it(
     both.
     """
     overlapping = next(one for one in relations.pairs if one.evidence.shared_faces)
-    assert overlapping.one == overlapping.evidence.one
+    assert {overlapping.evidence.one, overlapping.evidence.other} <= set(
+        relations.descriptors
+    )
     assert overlapping.status in set(RelationStatus)
 
 
@@ -127,11 +128,14 @@ def test_the_two_kinds_of_answer_are_read_apart(adjudications):
     """
     Ownership decides whose a face is; membership decides which whole a part is in.
 
-    They are answered in one file and acted on in two different places.
+    They are answered in one list and acted on in two different places, so the two the
+    file is read back through have to divide it between them: an answer neither reaches
+    is one the split never applies.
     """
     assert adjudications.ownership and adjudications.membership
-    assert all(one.kind is QuestionKind.OWNERSHIP for one in adjudications.ownership)
-    assert all(one.kind is QuestionKind.MEMBERSHIP for one in adjudications.membership)
+    assert len(adjudications.ownership) + len(adjudications.membership) == len(
+        adjudications.answered
+    )
 
 
 def test_an_ownership_answer_is_looked_up_by_the_pattern_it_answers(adjudications):
@@ -142,12 +146,12 @@ def test_an_ownership_answer_is_looked_up_by_the_pattern_it_answers(adjudication
     assert adjudications.owner_by_pattern[tuple(answer.pattern)] == answer.owner
 
 
-def test_the_sets_the_ontology_settles_are_carried_to_the_split(adjudications):
+def test_the_sets_the_ontology_settles_are_carried_to_the_split(relations):
     """
     The split asks whether a set of claimants was settled, so it is carried as names.
     """
-    assert adjudications.settled_claimants
-    assert all(isinstance(one, tuple) for one in adjudications.settled_claimants)
+    assert relations.settled_claimants
+    assert all(isinstance(one, tuple) for one in relations.settled_claimants)
 
 
 # %% the mounts carried past the split
@@ -260,18 +264,3 @@ def test_a_membership_question_names_what_it_is_choosing_between(questions):
     assert asked.candidate_names == [one.name for one in asked.candidates]
     assert len(asked.candidate_names) > 1
 
-
-# %% what the shared shapes must not flatten
-
-
-def test_each_question_and_answer_says_which_kind_it_is():
-    """
-    Both questions about an overlap share one shape, and so do both answers.
-
-    What they do not share is which kind they are -- that is the whole difference
-    between them, and a shared default would quietly make every membership an ownership.
-    """
-    assert OwnershipQuestion(name="a").kind is QuestionKind.OWNERSHIP
-    assert MembershipQuestion(name="a", part="p").kind is QuestionKind.MEMBERSHIP
-    assert OwnershipAnswer(name="a").kind is QuestionKind.OWNERSHIP
-    assert MembershipAnswer(name="a", part="p").kind is QuestionKind.MEMBERSHIP

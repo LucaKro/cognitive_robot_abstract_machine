@@ -15,13 +15,13 @@ from pathlib import Path
 from experiments.warsaw.pipeline.pipeline import WarsawPipeline
 from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import Model, PipelineSettings
-from experiments.warsaw.pipeline.steps.adjudicate import AdjudicateOverlaps
-from experiments.warsaw.pipeline.steps.amend import AmendTaxonomy, RevertAmendments
+from experiments.warsaw.pipeline.steps.adjudicate.step import AdjudicateOverlaps
+from experiments.warsaw.pipeline.steps.amend.step import AmendTaxonomy, RevertAmendments
 from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
-from experiments.warsaw.pipeline.steps.classify import ClassifyBodies
+from experiments.warsaw.pipeline.steps.classify.step import ClassifyBodies
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 from experiments.warsaw.pipeline.steps.split import SplitScene
-from experiments.warsaw.pipeline.steps.vocabulary import MapLabelVocabulary
+from experiments.warsaw.pipeline.steps.vocabulary.step import MapLabelVocabulary
 from experiments.warsaw.world_loader.viewpoints import Viewpoint, ViewpointChoice
 
 

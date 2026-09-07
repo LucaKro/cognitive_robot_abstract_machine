@@ -22,12 +22,12 @@ from experiments.warsaw.pipeline.records import (
     OwnershipAnswer,
     OwnershipQuestion,
 )
-from experiments.warsaw.pipeline.steps.adjudicate import (
+from experiments.warsaw.pipeline.steps.adjudicate.step import (
     MembershipDecision,
     OwnershipDecision,
 )
-from experiments.warsaw.pipeline.steps.classify import BodyGroupQuestion
-from experiments.warsaw.pipeline.steps.vocabulary import LabelQuestion
+from experiments.warsaw.pipeline.steps.classify.step import BodyGroupQuestion
+from experiments.warsaw.pipeline.steps.vocabulary.step import LabelQuestion
 from experiments.warsaw.world_loader.loader import RenderedSegmentGroup
 from experiments.warsaw.world_loader.scene import LabelSegment
 

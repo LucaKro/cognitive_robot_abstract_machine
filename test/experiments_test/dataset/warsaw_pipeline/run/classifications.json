@@ -12,7 +12,8 @@
       "confidence": 0.95,
       "reason": "The object is the floor of the room, which supports other objects and has a flat surface, matching the definition of a Floor.",
       "name": "floor_1",
-      "faces": 44607
+      "faces": 44607,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -23,7 +24,8 @@
       "confidence": 1.0,
       "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
       "name": "door_10",
-      "faces": 415
+      "faces": 415,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -34,7 +36,8 @@
       "confidence": 1.0,
       "reason": "The object is a door with a handle and a mechanical joint, fitting the Door class.",
       "name": "door_11",
-      "faces": 3779
+      "faces": 3779,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -45,7 +48,8 @@
       "confidence": 0.0,
       "reason": "The object is a kitchen island, which is a type of table with drawers and a supporting surface, matching the definition of KitchenIsland.",
       "name": "kitchen_island_1",
-      "faces": 14646
+      "faces": 14646,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -56,7 +60,8 @@
       "confidence": 0.9,
       "reason": "The object is a large, multi-door cabinet with a dark finish, consistent with the characteristics of a cabinet in a kitchen or storage area, and it has drawers and doors as indicated by the ontology.",
       "name": "cabinet_4",
-      "faces": 27
+      "faces": 27,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -67,7 +72,8 @@
       "confidence": 0.9,
       "reason": "The object is a tall, dark cabinet with multiple doors and a similar structure to other cabinets in the room, fitting the definition of a cabinet.",
       "name": "cabinet_5",
-      "faces": 846
+      "faces": 846,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -78,7 +84,8 @@
       "confidence": 0.9,
       "reason": "The object has multiple compartments and doors, typical of a cabinet used for storage.",
       "name": "cabinet_20",
-      "faces": 2
+      "faces": 2,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -89,7 +96,8 @@
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
       "name": "drawer_4",
-      "faces": 497
+      "faces": 497,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -100,7 +108,8 @@
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
       "name": "drawer_5",
-      "faces": 1669
+      "faces": 1669,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -111,7 +120,8 @@
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
       "name": "drawer_6",
-      "faces": 487
+      "faces": 487,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -122,7 +132,8 @@
       "confidence": 0.0,
       "reason": "The object is a drawer with a handle and mechanical joint, consistent with the Drawer class.",
       "name": "drawer_7",
-      "faces": 863
+      "faces": 863,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -133,7 +144,8 @@
       "confidence": 0.85,
       "reason": "The object is a small protrusion on a cabinet door, consistent with a handle's function and appearance.",
       "name": "handle_13",
-      "faces": 69
+      "faces": 69,
+      "problems": []
     },
     {
       "__json_type__": "experiments.warsaw.pipeline.records.BodyAnswer",
@@ -144,7 +156,8 @@
       "confidence": 0.85,
       "reason": "The object is a small, protruding component on a cabinet door, consistent with a handle's function and placement.",
       "name": "handle_14",
-      "faces": 72
+      "faces": 72,
+      "problems": []
     }
   ]
 }

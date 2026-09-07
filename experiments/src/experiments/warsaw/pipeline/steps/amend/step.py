@@ -44,7 +44,9 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 )
 from typing_extensions import Any, Dict, List, Optional, Tuple, Type
 
-from experiments.warsaw.pipeline.asking import QuestionAboutTheOntology
+from krrood.ormatic.utils import classproperty
+
+from experiments.warsaw.pipeline.asking import Prompt, QuestionAboutTheOntology
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     AmendmentRecord,
@@ -81,10 +83,12 @@ class MixinProposal(QuestionAboutTheOntology[AmendmentRecord]):
     nothing about which faces the label covers and is left out.
     """
 
-    prompt: str = "taxonomy_amendment"
-    """
-    The prompt this question is put with, both halves of it.
-    """
+    @classproperty
+    def prompt(cls) -> Prompt:
+        """
+        :return: The prompt this question is put with, both halves of it.
+        """
+        return Prompt.TAXONOMY_AMENDMENT
 
     @property
     def key(self) -> str:

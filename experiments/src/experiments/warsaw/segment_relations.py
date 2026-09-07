@@ -25,7 +25,7 @@ from typing_extensions import TYPE_CHECKING, Dict, List, Optional, Tuple
 import numpy as np
 import trimesh
 
-from experiments.warsaw.pipeline.json_record import JsonRecord
+from experiments.warsaw.bases import JsonRecord
 from scipy.spatial import cKDTree
 
 if TYPE_CHECKING:
@@ -236,9 +236,12 @@ class SegmentRelations:
 
 
 @dataclass
-class ClaimantGroup:
+class ClaimedFaces:
     """
-    A set of faces claimed by exactly the same segments.
+    A set of faces claimed by exactly the same segments, listed rather than counted.
+
+    Which faces they are is what the split works on and what no file can hold; a run
+    records how many there are instead, as :class:`CountedClaimants`.
     """
 
     names: Tuple[str, ...]
@@ -254,7 +257,7 @@ class ClaimantGroup:
 
 def claimant_groups(
     segment_faces: List[np.ndarray], names: List[str], face_count: int
-) -> List[ClaimantGroup]:
+) -> List[ClaimedFaces]:
     """
     Gather the contested faces by who claims them.
 
@@ -278,7 +281,7 @@ def claimant_groups(
     inverse = np.asarray(inverse).ravel()
 
     groups = [
-        ClaimantGroup(
+        ClaimedFaces(
             names=tuple(sorted(names[int(index)] for index in claimants if index >= 0)),
             faces=contested[inverse == position],
         )

@@ -18,12 +18,11 @@ back, and the same measurement says what the ontology admits for every pair.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 from pathlib import Path
 
 import numpy as np
-from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     admissible_mounts,
     describe_class,
@@ -34,7 +33,6 @@ from typing_extensions import Dict, List, Optional, Sequence, Tuple, Type
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     AdmissibleMount,
-    AdmissibleRelation,
     CountedClaimants,
     ContestedShare,
     ForcedMembership,
@@ -75,6 +73,16 @@ class WhatIsOpen:
     questions: OpenQuestions
     """
     What is left to decide.
+    """
+
+    settled: List[CountedClaimants] = field(default_factory=list)
+    """
+    The sets of contested faces the ontology decides on its own.
+    """
+
+    forced: List[ForcedMembership] = field(default_factory=list)
+    """
+    The memberships with only one candidate.
     """
 
     contested: Dict[str, np.ndarray] = field(default_factory=dict)
@@ -224,7 +232,6 @@ class MeasureScene(PipelineStep):
 
         classes = self.vocabulary_classes().by_label()
         relations = self.relations_of(loader, measured, classes)
-        self.run.write_record(RunFile.RELATIONS, relations)
 
         request = self.vocabulary_request(loader, measured)
         if self.exemplar_renders:
@@ -232,12 +239,14 @@ class MeasureScene(PipelineStep):
         self.run.write_record(RunFile.VOCABULARY_REQUEST, request)
 
         open_now = self.open_questions(loader, measured, relations, classes)
+        relations = replace(relations, settled=open_now.settled, forced=open_now.forced)
+        self.run.write_record(RunFile.RELATIONS, relations)
         self.logger.info(
             "%s class patterns and %s memberships are open; %s groups the ontology "
             "settles",
             len(open_now.questions.ownership),
             len(open_now.questions.membership),
-            len(open_now.questions.settled),
+            len(open_now.settled),
         )
         if self.question_renders:
             self.render_questions(
@@ -271,38 +280,26 @@ class MeasureScene(PipelineStep):
         if one_class is None or other_class is None:
             return OntologyView(status=RelationStatus.CLASS_UNKNOWN)
 
-        admissible = [
-            AdmissibleRelation(
-                whole=relation.whole.__name__,
-                part=relation.part.__name__,
-                field_name=relation.field_name,
-                holds_many=relation.holds_many,
-                removes_geometry=relation.removes_part_geometry_from_whole,
-            )
-            for relation in admissible_relations(one_class, other_class)
-        ]
-        if not admissible:
-            status = RelationStatus.NO_LEGAL_RELATION
-        elif len(admissible) == 1:
-            status = RelationStatus.RELATION_KNOWN
-        else:
-            status = RelationStatus.RELATION_AMBIGUOUS
-
-        return OntologyView(
-            status=status,
-            admissible=admissible,
-            other_mounts=[
+        view = OntologyView(
+            status=RelationStatus.NO_LEGAL_RELATION,
+            mounts=[
                 AdmissibleMount(
                     kind=relation.kind,
                     whole=whole.__name__,
                     field_name=relation.field_name,
                     target=relation.target,
+                    holds_many=relation.holds_many,
                     mounted_by=relation.mounted_by,
+                    removes_geometry=relation.removes_geometry,
                 )
                 for whole, relation in admissible_mounts(one_class, other_class)
-                if relation.kind != "part"
             ],
         )
+        if len(view.admissible) == 1:
+            return replace(view, status=RelationStatus.RELATION_KNOWN)
+        if view.admissible:
+            return replace(view, status=RelationStatus.RELATION_AMBIGUOUS)
+        return view
 
     def relations_of(
         self,
@@ -672,7 +669,7 @@ class MeasureScene(PipelineStep):
             len(loader.scene_mesh.faces),
         )
         status = {
-            tuple(sorted((pair.one, pair.other))): pair.status
+            tuple(sorted((pair.evidence.one, pair.evidence.other))): pair.status
             for pair in relations.pairs
         }
         labels = relations.labels
@@ -719,11 +716,10 @@ class MeasureScene(PipelineStep):
         return WhatIsOpen(
             questions=OpenQuestions(
                 scene=relations.scene,
-                ownership=ownership,
-                membership=memberships.to_ask_about,
-                settled=settled,
-                forced=memberships.forced,
+                asked=ownership + memberships.to_ask_about,
             ),
+            settled=settled,
+            forced=memberships.forced,
             contested=contested,
         )
 
@@ -755,7 +751,7 @@ class MeasureScene(PipelineStep):
             if not pair.evidence.shared_faces and not pair.evidence.touching_edges:
                 continue
             admitted = pair.view.admissible[0]
-            whole, part = pair.one, pair.other
+            whole, part = pair.evidence.one, pair.evidence.other
             if pair.classes.get(labels[whole]) != admitted.whole:
                 whole, part = part, whole
             candidates[part][whole] = MembershipCandidate(

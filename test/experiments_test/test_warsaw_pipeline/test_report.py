@@ -9,7 +9,9 @@ what any one step said. A run that stopped early is worth reporting on too.
 from __future__ import annotations
 
 
+from experiments.warsaw.pipeline.records import RefusedMount, SplitRecord
 from experiments.warsaw.pipeline.report import RunReport
+from experiments.warsaw.scene_split import Pairing
 from experiments.warsaw.pipeline.run import Run, RunFile
 
 # %% a run that finished
@@ -90,7 +92,40 @@ def test_a_run_that_lost_nothing_says_nothing_about_losses(tmp_path):
     """
     A heading with nothing under it reads as a step that failed.
     """
-    assert "lost every face" not in RunReport(run=Run.create(tmp_path)).markdown()
+    written = RunReport(run=Run.create(tmp_path)).markdown()
+    assert "lost every face" not in written
+    assert "would not carry out" not in written
+
+
+def test_a_mount_the_world_refused_is_named_with_what_it_said(tmp_path):
+    """
+    A pairing every earlier step agreed on can still be refused, which leaves a part
+    where the split put it rather than where the run decided it belongs.
+
+    Said only to the terminal it scrolls away with the run; the report is what is read
+    afterwards, so a run whose mounts were all refused has to read differently from one
+    where they were carried out.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(
+        RunFile.SPLIT,
+        SplitRecord(
+            scene="",
+            pairings=[Pairing(whole="cabinet_5", part="door_11", field_name="doors")],
+            refused=[
+                RefusedMount(
+                    pairing=Pairing(
+                        whole="cabinet_5", part="door_11", field_name="doors"
+                    ),
+                    reason="AmbiguousPart: Cabinet holds no Door",
+                )
+            ],
+        ),
+    )
+    report = RunReport(run=run).markdown()
+    assert "1 pairings carried past the split, 0 of them mounted" in report
+    assert "### 1 mounts the world would not carry out" in report
+    assert "`cabinet_5` <- `door_11`: AmbiguousPart: Cabinet holds no Door" in report
 
 
 # %% what is left behind beside the report
@@ -116,7 +151,7 @@ def test_the_report_is_written_into_the_run_it_is_about(tmp_path):
     run = Run.create(tmp_path)
     written = RunReport(run=run).write()
     assert run.path(RunFile.REPORT).read_text() == written
-    assert written.startswith(f"# {run.name}")
+    assert written.startswith(f"# {run.directory.name}")
 
 
 # %% the report as a whole

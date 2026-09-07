@@ -20,7 +20,7 @@ from pathlib import Path
 from typing_extensions import Any, Type, TypeVar
 
 from experiments.warsaw.exceptions import RunOutputAlreadyWrittenError
-from experiments.warsaw.pipeline.json_record import JsonRecord
+from experiments.warsaw.bases import JsonRecord
 
 RecordType = TypeVar("RecordType", bound=JsonRecord)
 """
@@ -174,13 +174,6 @@ class Run:
         directory = Path(runs_directory) / datetime.now().strftime(name_format)
         directory.mkdir(parents=True, exist_ok=False)
         return cls(directory=directory)
-
-    @property
-    def name(self) -> str:
-        """
-        :return: What the run is called, which is when it started.
-        """
-        return self.directory.name
 
     def path(self, run_file: RunFile) -> Path:
         """

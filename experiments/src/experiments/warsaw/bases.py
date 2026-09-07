@@ -1,16 +1,15 @@
 """
-How a record is written to a run's files and read back from them.
+What anything in the Warsaw pipeline can be, over and above what it does.
 
-Every step reads what the step before it wrote, so each field name is written in one
-module and read in another. Mirroring each file in a dataclass writes those names once:
-the reader and the writer are the same declaration, and a field that moves moves for
-both.
-
-A record is a dataclass and its fields say what it holds, so krrood's serializer is what
-reads and writes it; the mapping is not written out anywhere.
+Two things are wanted almost everywhere and belong to no one step: saying what is being
+done, and being written to a run's files. Each is a handful of lines, and a module apiece
+made the two look like separate concerns rather than the small shared ones they are.
 """
 
 from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
 
 from krrood.adapters.exceptions import JSON_TYPE_NAME
 from krrood.adapters.json_serializer import (
@@ -20,10 +19,41 @@ from krrood.adapters.json_serializer import (
 from krrood.utils import get_full_class_name
 from typing_extensions import Any, Dict, Self
 
+# %% saying what is being done
+
+
+@dataclass
+class HasLogger:
+    """
+    Something that says what it is doing.
+
+    A run is minutes of work over seven steps, and what it says as it goes is the only
+    account of it until the report is written at the end. That account goes to logging
+    rather than to standard output, so a caller decides where it lands and a step does
+    not.
+    """
+
+    @property
+    def logger(self) -> logging.Logger:
+        """
+        :return: Where this says what it is doing, named for the module it is declared in
+            so a caller can quieten one part of a run without quietening the rest.
+        """
+        return logging.getLogger(type(self).__module__)
+
+
+# %% being written to a run's files
+
 
 class JsonRecord(SubclassJSONSerializer):
     """
     Something a step writes into a run's directory, or reads out of a model's reply.
+
+    Every step reads what the step before it wrote, so each field name is written in one
+    module and read in another. Mirroring each file in a dataclass writes those names
+    once: the reader and the writer are the same declaration, and a field that moves
+    moves for both. What reads and writes it is krrood's serializer, working from the
+    fields themselves, so the mapping is not spelled out anywhere.
 
     A record reaches this class from two sides. A file the pipeline wrote carries the name
     of the class that wrote it, so reading it back needs nothing but the file. A model's

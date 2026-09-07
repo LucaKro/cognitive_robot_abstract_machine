@@ -38,7 +38,9 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 )
 from typing_extensions import Any, Dict, List, Type
 
-from experiments.warsaw.pipeline.asking import QuestionAboutTheOntology
+from krrood.ormatic.utils import classproperty
+
+from experiments.warsaw.pipeline.asking import Prompt, QuestionAboutTheOntology
 from experiments.warsaw.pipeline.records import (
     LabelAnswer,
     LabelRequest,
@@ -112,10 +114,12 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
     What the pictured object meets, as the scan measures it.
     """
 
-    prompt: str = "vocabulary"
-    """
-    The prompt this question is put with, both halves of it.
-    """
+    @classproperty
+    def prompt(cls) -> Prompt:
+        """
+        :return: The prompt this question is put with, both halves of it.
+        """
+        return Prompt.VOCABULARY
 
     @property
     def key(self) -> str:
@@ -308,9 +312,13 @@ class MapLabelVocabulary(PipelineStep):
         overlapping: Counter = Counter()
         touching: Counter = Counter()
         for pair in relations.pairs:
-            if exemplar not in (pair.one, pair.other):
+            if exemplar not in (pair.evidence.one, pair.evidence.other):
                 continue
-            other = pair.other if pair.one == exemplar else pair.one
+            other = (
+                pair.evidence.other
+                if pair.evidence.one == exemplar
+                else pair.evidence.one
+            )
             if pair.evidence.shared_faces:
                 overlapping[labels[other]] += 1
             elif pair.evidence.touching_edges:

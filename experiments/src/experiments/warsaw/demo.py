@@ -86,7 +86,7 @@ def view(world: World) -> None:
     scene.show(smooth=False, resolution=(1280, 960))
 
 
-# %% running it with nothing to be told
+# %% running the demo
 
 
 def main() -> None:

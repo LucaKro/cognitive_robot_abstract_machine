@@ -25,25 +25,25 @@ from dataclasses import dataclass, field
 
 from typing_extensions import List
 
-from experiments.warsaw.pipeline.reporting import Reporting
+from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.settings import PipelineSettings
-from experiments.warsaw.pipeline.steps.adjudicate import AdjudicateOverlaps
-from experiments.warsaw.pipeline.steps.amend import AmendTaxonomy, RevertAmendments
+from experiments.warsaw.pipeline.steps.adjudicate.step import AdjudicateOverlaps
+from experiments.warsaw.pipeline.steps.amend.step import AmendTaxonomy, RevertAmendments
 from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
-from experiments.warsaw.pipeline.steps.classify import ClassifyBodies
+from experiments.warsaw.pipeline.steps.classify.step import ClassifyBodies
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 from experiments.warsaw.pipeline.steps.prepare import PrepareRun
 from experiments.warsaw.pipeline.steps.split import SplitScene
 from experiments.warsaw.pipeline.steps.step import PipelineStep
-from experiments.warsaw.pipeline.steps.vocabulary import MapLabelVocabulary
+from experiments.warsaw.pipeline.steps.vocabulary.step import MapLabelVocabulary
 
 # %% the run, from end to end
 
 
 @dataclass
-class WarsawPipeline(Reporting):
+class WarsawPipeline(HasLogger):
     """
     A labelled scan turned into an annotated, hierarchical world.
     """
@@ -120,7 +120,7 @@ class WarsawPipeline(Reporting):
             "%s over %s steps into %s, writing to schema %s",
             self.settings.model.name,
             len(planned),
-            run.name,
+            run.directory.name,
             schema.name,
         )
 

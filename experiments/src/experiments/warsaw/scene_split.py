@@ -38,7 +38,7 @@ from semantic_digital_twin.world_description.geometry import Mesh
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
-from experiments.warsaw.pipeline.json_record import JsonRecord
+from experiments.warsaw.bases import JsonRecord
 
 # %% what the split decides and what it builds
 

@@ -155,10 +155,10 @@ class RunReport:
         relations, questions = self.relations, self.questions
         vocabulary, adjudications = self.vocabulary, self.adjudications
         split, classifications = self.split, self.classifications
-        answered = adjudications.ownership + adjudications.membership
+        answered = adjudications.answered
         bodies = classifications.bodies
         return {
-            "run_name": self.run.name,
+            "run_name": self.run.directory.name,
             "scene": relations.scene or self.unknown_scene,
             "annotated_world": split.annotated_world_id,
             "split_world": split.world_id,
@@ -170,8 +170,8 @@ class RunReport:
             "overlapping": sum(
                 1 for pair in relations.pairs if pair.evidence.shared_faces
             ),
-            "settled": len(questions.settled),
-            "forced": len(questions.forced),
+            "settled": len(relations.settled),
+            "forced": len(relations.forced),
             "labels": len(vocabulary.labels),
             "labels_mapped": sum(1 for one in vocabulary.labels if one.class_name),
             "labels_new": sum(1 for one in vocabulary.labels if one.is_new_class),
@@ -187,6 +187,8 @@ class RunReport:
             "still_contested": split.still_contested,
             "pairings": len(split.pairings),
             "emptied": sorted(split.emptied, key=lambda one: one.name),
+            "refused": sorted(split.refused, key=lambda one: one.pairing.part),
+            "mounted": len(split.pairings) - len(split.refused),
             "classes_given": self.classes_given(),
             "inspector": RunFile.INSPECTOR.value,
         }
