@@ -187,7 +187,7 @@ class BodyFactoryReplace(Step):
 @dataclass
 class TransformGeometry(Step):
     """
-    Applies a transformation to the geometry of all collision meshes in the world.
+    Applies a transformation to the geometry of all collision shapes in the world.
     """
 
     transform: HomogeneousTransformationMatrix
@@ -201,4 +201,8 @@ class TransformGeometry(Step):
             for shape in body.collision:
                 if isinstance(shape, Mesh):
                     shape.mesh.apply_transform(transform)
+                    continue
+                # A primitive builds its mesh fresh on every access, so what stands for
+                # where it is placed is its origin.
+                shape.origin = self.transform @ shape.origin
         return world

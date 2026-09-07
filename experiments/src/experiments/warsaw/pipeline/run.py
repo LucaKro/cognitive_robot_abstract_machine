@@ -90,11 +90,6 @@ class RunFile(StrEnum):
     What each body was answered to be.
     """
 
-    SETTINGS = "settings.json"
-    """
-    What the run was told, so a run's numbers can be read beside what produced them.
-    """
-
     INSPECTOR = "inspect_world.py"
     """
     The script the run leaves behind so its world can be opened without knowing anything.

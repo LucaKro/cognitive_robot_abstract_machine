@@ -17,12 +17,22 @@ from plyfile import PlyData, PlyElement
 
 from experiments.warsaw.exceptions import (
     AmbiguousWarsawSceneError,
+    CameraHasNoDirectionError,
+    NoSegmentsGivenError,
+    SceneBodyNotFoundError,
     WarsawLabelsMissingError,
     WarsawSceneNotFoundError,
 )
-from experiments.warsaw.world_loader.loader import WarsawWorldLoader
+from experiments.warsaw.world_loader.loader import (
+    SHARED_FACES_LABEL,
+    WarsawWorldLoader,
+)
 from experiments.warsaw.world_loader.viewpoints import changed_pixels
-from experiments.warsaw.world_loader.scene import WarsawScene
+from experiments.warsaw.world_loader.scene import (
+    LabelSegment,
+    WarsawScene,
+    segment_label,
+)
 
 # %% a scene file written the way the dataset writes one
 
@@ -277,7 +287,7 @@ def test_the_scene_is_turned_into_the_world_s_coordinates(two_class_scene):
     """
     loader = WarsawWorldLoader(input_directory=two_class_scene)
     turned = loader.scene.mesh.copy()
-    turned.apply_transform(loader.scene.source_to_world.to_np())
+    turned.apply_transform(loader.scene.world_T_source.to_np())
     assert np.allclose(
         np.sort(loader.scene_mesh.extents), np.sort(turned.extents), atol=1e-6
     )
@@ -374,3 +384,168 @@ def test_renders_of_different_sizes_are_not_compared():
     nothing to count.
     """
     assert changed_pixels(rendered((0, 0, 0)), rendered((0, 0, 0), size=(8, 6))) == 0
+
+
+# %% a scene body the world does not carry
+
+
+def test_a_scene_body_name_matching_nothing_is_reported(two_class_scene):
+    """
+    Falling back to whatever body came first renders a different body than was asked
+    for.
+    """
+    loaded = WarsawWorldLoader(input_directory=two_class_scene)
+    with pytest.raises(SceneBodyNotFoundError):
+        WarsawWorldLoader(world=loaded.world, scene_body_name="not_a_body")
+
+
+# %% a camera with nothing to look at
+
+
+def test_a_camera_standing_where_it_looks_is_reported(two_class_scene):
+    """
+    A camera whose eye is its target has no direction, which silently becomes NaN.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    somewhere = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(CameraHasNoDirectionError):
+        loader._looking_at(somewhere, somewhere)
+
+
+def test_a_camera_looking_straight_down_is_reported(two_class_scene):
+    """
+    Looking along the world's own up axis leaves the sideways direction undefined.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    with pytest.raises(CameraHasNoDirectionError):
+        loader._looking_at(np.array([0.0, 0.0, 1.0]), np.array([0.0, 0.0, 0.0]))
+
+
+# %% asking about no segments at all
+
+
+def test_rendering_no_segments_is_reported(two_class_scene):
+    """
+    An empty selection reaches numpy as an empty concatenate, which says nothing useful.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    with pytest.raises(NoSegmentsGivenError):
+        loader.points_of([])
+
+
+# %% naming what a render highlights
+
+
+def a_segment(class_name: str, instance: int = 0) -> LabelSegment:
+    """
+    :param class_name: The class labelling the object.
+    :param instance: Which object of that class it is.
+    :return: A segment covering one face, named after the two.
+    """
+    return LabelSegment(
+        class_name=class_name, instance=instance, face_indices=np.array([0])
+    )
+
+
+def test_a_label_short_enough_names_every_segment():
+    """
+    The filename says what is colored in the render, so every name is kept while it
+    fits.
+    """
+    segments = [a_segment("cabinet"), a_segment("drawer", 1)]
+    assert segment_label(segments) == "cabinet_0-drawer_1"
+
+
+def test_a_label_too_long_is_cut_short_and_counts_what_it_dropped():
+    """
+    A filename has a length limit, and what did not fit still has to be accounted for.
+    """
+    segments = [a_segment("cabinet", index) for index in range(4)]
+    assert (
+        segment_label(segments, maximum_length=21) == "cabinet_0-cabinet_1-and_2_more"
+    )
+
+
+# %% coloring two segments so the faces they disagree about can be seen
+
+
+def test_each_segment_keeps_the_faces_it_alone_claims(two_class_scene):
+    """
+    A face claimed by one segment alone is painted in that segment's own color.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    one = LabelSegment("cabinet", 0, np.array([0, 1, 2]))
+    other = LabelSegment("drawer", 0, np.array([2, 3]))
+
+    highlights, _ = loader.pair_highlights(one, other)
+
+    (_, only_one), (_, only_other), (_, shared) = highlights
+    assert sorted(only_one.tolist()) == [0, 1]
+    assert sorted(only_other.tolist()) == [3]
+    assert sorted(shared.tolist()) == [2]
+
+
+def test_the_faces_both_claim_take_a_third_color(two_class_scene):
+    """
+    Painted in one of the two colors, an overlap would look like it belonged to
+    whichever was painted last, and the question being asked would not be in the picture
+    at all.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    one = LabelSegment("cabinet", 0, np.array([0, 1, 2]))
+    other = LabelSegment("drawer", 0, np.array([2, 3]))
+
+    highlights, legend = loader.pair_highlights(one, other)
+
+    assert set(legend) == {"cabinet_0", "drawer_0", SHARED_FACES_LABEL}
+    colors = [color for color, _ in highlights]
+    assert legend["cabinet_0"] == colors[0]
+    assert legend["drawer_0"] == colors[1]
+    assert legend[SHARED_FACES_LABEL] == colors[2]
+
+
+def test_segments_sharing_nothing_have_no_shared_color_to_explain(two_class_scene):
+    """
+    The legend says what is in the picture, and nothing is painted the third color.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    one = LabelSegment("cabinet", 0, np.array([0, 1]))
+    other = LabelSegment("drawer", 0, np.array([2, 3]))
+
+    _, legend = loader.pair_highlights(one, other)
+
+    assert set(legend) == {"cabinet_0", "drawer_0"}
+
+
+# %% measuring how much of a segment turns towards a direction
+
+
+def test_a_segment_presents_more_area_head_on_than_edge_on(two_class_scene):
+    """
+    How large a face looks is its area foreshortened by how squarely it faces.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    segment = loader.label_segments[0]
+    normal = loader.scene_mesh.face_normals[segment.face_indices[0]]
+
+    head_on = loader.presented_area(segment, normal)
+    edge_on = loader.presented_area(
+        segment,
+        np.cross(normal, [0.0, 0.0, 1.0])
+        / np.linalg.norm(np.cross(normal, [0.0, 0.0, 1.0])),
+    )
+
+    assert head_on > edge_on
+
+
+def test_the_area_presented_is_never_more_than_the_segment_has(two_class_scene):
+    """
+    Foreshortening only ever takes area away.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    segment = loader.label_segments[0]
+    total = float(loader.scene_mesh.area_faces[segment.face_indices].sum())
+
+    presented = loader.presented_area(segment, np.array([0.0, 0.0, 1.0]))
+
+    assert 0.0 <= presented <= total + 1e-9

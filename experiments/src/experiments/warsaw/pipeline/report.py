@@ -11,18 +11,39 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-from typing_extensions import Any, Dict, List, Tuple
+from typing_extensions import Any, Dict, List
 
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     Classifications,
-    OpenQuestions,
     Relations,
     SplitRecord,
     Vocabulary,
 )
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.templates import PipelineTemplates
+
+# %% what the report counts
+
+
+@dataclass
+class ClassCount:
+    """
+    How many of a run's bodies were given one class.
+    """
+
+    class_name: str
+    """
+    The class they were given.
+    """
+
+    count: int
+    """
+    How many bodies were given it.
+    """
+
+
+# %% the report itself
 
 
 @dataclass
@@ -69,15 +90,6 @@ class RunReport:
         :return: How the scene's objects were measured to meet.
         """
         return self.run.read_record_if_written(RunFile.RELATIONS, Relations(scene=""))
-
-    @property
-    def questions(self) -> OpenQuestions:
-        """
-        :return: What the measurements and the ontology left open.
-        """
-        return self.run.read_record_if_written(
-            RunFile.QUESTIONS, OpenQuestions(scene="")
-        )
 
     @property
     def vocabulary(self) -> Vocabulary:
@@ -152,7 +164,7 @@ class RunReport:
 
         :return: Every number and name the report is written from.
         """
-        relations, questions = self.relations, self.questions
+        relations = self.relations
         vocabulary, adjudications = self.vocabulary, self.adjudications
         split, classifications = self.split, self.classifications
         answered = adjudications.answered
@@ -189,14 +201,19 @@ class RunReport:
             "emptied": sorted(split.emptied, key=lambda one: one.name),
             "refused": sorted(split.refused, key=lambda one: one.pairing.part),
             "mounted": len(split.pairings) - len(split.refused),
-            "classes_given": self.classes_given(),
+            "classes_given": self.classes_given(classifications),
             "inspector": RunFile.INSPECTOR.value,
         }
 
-    def classes_given(self) -> List[Tuple[str, int]]:
+    def classes_given(self, classifications: Classifications) -> List[ClassCount]:
         """
+        :param classifications: What each body was answered to be.
         :return: How many bodies each class was given to, the most given first.
         """
-        return Counter(
-            one.class_name for one in self.classifications.bodies if one.class_name
-        ).most_common()
+        counted = Counter(
+            one.class_name for one in classifications.bodies if one.class_name
+        )
+        return [
+            ClassCount(class_name=class_name, count=count)
+            for class_name, count in counted.most_common()
+        ]

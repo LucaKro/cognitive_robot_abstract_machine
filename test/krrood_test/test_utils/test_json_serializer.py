@@ -1,3 +1,4 @@
+import json
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
@@ -20,6 +21,7 @@ from krrood.adapters.json_serializer import (
     JSONAttributeDiff,
     shallow_diff_json,
     DataclassJSONSerializer,
+    Rebuild,
 )
 from krrood.utils import get_full_class_name
 
@@ -427,8 +429,9 @@ def test_a_tuple_field_comes_back_usable_as_a_key():
     """
     The point of keeping the tuple: it can still be put in a set or used as a key.
     """
-    result = from_json(to_json(ClassWithContainers()))
-    assert {result.claimants} == {("a", "b")}
+    held = ClassWithContainers()
+    result = from_json(to_json(held))
+    assert {result.claimants} == {held.claimants}
 
 
 @dataclass
@@ -447,9 +450,9 @@ def test_a_string_annotation_is_resolved_before_it_is_read():
     """
     A module with ``from __future__ import annotations`` hands over strings, not types.
     """
-    assert DataclassJSONSerializer.annotated_containers(
-        ClassWithPostponedAnnotations
-    ) == {"claimants": tuple}
+    assert DataclassJSONSerializer.rebuilds_by_field(ClassWithPostponedAnnotations) == {
+        "claimants": Rebuild(container=tuple)
+    }
     result = from_json(to_json(ClassWithPostponedAnnotations()))
     assert isinstance(result.claimants, tuple)
 
@@ -487,39 +490,51 @@ def test_a_string_enum_comes_back_as_its_member():
     assert result.channel is Channel.PART
 
 
-if TYPE_CHECKING:
-    from krrood.entity_query_language.explanation.explanation import (
-        InferenceExplanation,
-    )
+# %% an enum member the annotation does not name at the top level
 
 
 @dataclass
-class ClassAnnotatedForTypeCheckingOnly:
+class ClassWithNestedStringEnum:
     """
-    A class annotating a field with a name it only imports for type checking.
-
-    Widespread and legal: the name is never bound at runtime, so the annotation cannot be
-    resolved in the running process.
+    A class holding string enum members behind ``Optional`` and inside a container.
     """
 
-    explained: "Optional[InferenceExplanation]" = None
+    channel: Optional[Channel] = Channel.CONTAINS
     """
-    The field whose annotation names something this process does not have.
+    A member behind ``Optional``, which is a ``Union`` and not the enum itself.
     """
 
-    tags: Tuple[str, ...] = ("a",)
+    channels: Tuple[Channel, ...] = (Channel.PART, Channel.CONTAINS)
     """
-    A field beside it, to show the class is still read.
+    Members inside a tuple, which says what it holds only in its argument.
     """
 
 
-def test_a_class_whose_annotations_cannot_be_resolved_is_still_read():
+def written_and_read_back(held: Any) -> Any:
     """
-    Reading a class's annotations must not be what stops it being deserialized.
+    Round-trip a record through JSON text, as writing it to a file does.
 
-    Resolving them means binding every name they mention, and a class is free to annotate
-    a field with one it only imports for type checking.
+    :param held: The record to write.
+    :return: The record read back from its text.
     """
-    held = ClassAnnotatedForTypeCheckingOnly()
-    result = from_json(to_json(held))
-    assert result == held
+    return from_json(json.loads(json.dumps(to_json(held))))
+
+
+def test_an_optional_enum_comes_back_as_its_member():
+    """
+    ``Optional[Channel]`` is still an annotation naming an enum, one wrapper further out.
+    """
+    result = written_and_read_back(ClassWithNestedStringEnum())
+    assert result.channel is Channel.CONTAINS
+
+
+def test_enum_members_inside_a_container_come_back_as_members():
+    """
+    A tuple of members has to come back holding the members, not their values.
+    """
+    held = ClassWithNestedStringEnum()
+    result = written_and_read_back(held)
+    assert result.channels == held.channels
+    assert all(
+        member is expected for member, expected in zip(result.channels, held.channels)
+    )

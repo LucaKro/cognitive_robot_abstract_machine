@@ -50,6 +50,11 @@ class PlyPayload(StrEnum):
     The rows themselves, one per face.
     """
 
+    GEOMETRY = "vertex_indices"
+    """
+    The face property holding a face's geometry rather than one of its labels.
+    """
+
 
 # %% the objects a scan labels
 
@@ -147,7 +152,7 @@ class WarsawScene:
     The instance marking every face a class does not cover.
     """
 
-    source_to_world: HomogeneousTransformationMatrix = field(
+    world_T_source: HomogeneousTransformationMatrix = field(
         default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
             roll=-np.pi / 2
         )
@@ -206,7 +211,7 @@ class WarsawScene:
     def _read_face_labels(
         mesh: trimesh.Trimesh,
         scene_mesh_path: Path,
-        geometry_property: str = "vertex_indices",
+        geometry_property: str = PlyPayload.GEOMETRY,
     ) -> Dict[str, np.ndarray]:
         """
         Read the instance each face belongs to, per class.

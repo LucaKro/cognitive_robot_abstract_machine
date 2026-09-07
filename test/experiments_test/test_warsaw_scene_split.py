@@ -51,9 +51,6 @@ def test_claimant_groups_gathers_faces_by_who_claims_them():
         face_count=4,
     )
     assert {group.names: sorted(group.faces.tolist()) for group in groups} == {
-        ("one", "other", "third"): [2],
-        ("one", "other"): [],
-    } or {group.names: sorted(group.faces.tolist()) for group in groups} == {
         ("one", "other", "third"): [2]
     }
 
@@ -148,7 +145,11 @@ def test_a_pairing_whose_end_was_emptied_is_dropped():
     """
     A mount needs both ends to be bodies.
     """
-    segments = {"cabinet_1": np.array([1]), "drawer_1": np.array([1]), "handle_1": np.array([9])}
+    segments = {
+        "cabinet_1": np.array([1]),
+        "drawer_1": np.array([1]),
+        "handle_1": np.array([9]),
+    }
     split = exclusive_faces(
         segments, [Ownership(("cabinet_1", "drawer_1"), "drawer_1", np.array([1]))]
     )
@@ -205,7 +206,10 @@ def test_bodies_are_centred_on_themselves_and_stay_centred_when_read_back(
     for body in world.bodies:
         if body.name.name == "root_body":
             continue
-        for mesh in (body.collision[0].mesh, Mesh(filename=body.collision[0].filename).mesh):
+        for mesh in (
+            body.collision[0].mesh,
+            Mesh(filename=body.collision[0].filename).mesh,
+        ):
             middle = (mesh.vertices.min(axis=0) + mesh.vertices.max(axis=0)) / 2
             assert np.allclose(middle, 0, atol=1e-9)
 
@@ -228,7 +232,10 @@ def test_the_geometry_does_not_move(two_boxes, tmp_path):
         padded = np.column_stack([corners, np.ones(len(corners))])
         expected = (to_world.to_np() @ padded.T)[:3].T
 
-        for mesh in (body.collision[0].mesh, Mesh(filename=body.collision[0].filename).mesh):
+        for mesh in (
+            body.collision[0].mesh,
+            Mesh(filename=body.collision[0].filename).mesh,
+        ):
             placed = where_it_sits(world, body, mesh)
             assert np.allclose(placed.min(axis=0), expected.min(axis=0), atol=1e-6)
             assert np.allclose(placed.max(axis=0), expected.max(axis=0), atol=1e-6)

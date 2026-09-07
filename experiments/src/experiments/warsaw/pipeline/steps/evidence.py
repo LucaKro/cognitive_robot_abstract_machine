@@ -30,6 +30,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 from semantic_digital_twin.world_description.geometry import Color
 from typing_extensions import Dict, List, Optional, Sequence, Tuple, Type
 
+from experiments.warsaw.pipeline.templates import PipelineTemplates
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     AdmissibleMount,
@@ -153,15 +154,20 @@ class MeasureScene(PipelineStep):
     needs.
     """
 
-    question_prompt: str = (
-        "Each label below names objects in a scanned room. Say which class of the "
-        "ontology each label is, or propose a new class by naming a superclass and any "
-        "mixins it should be composed of. The ontology is in taxonomy.json; its "
-        "part_whole_mixins list what a new class can be given."
-    )
+    question_template: str = "vocabulary_request.md"
     """
-    What the vocabulary request asks.
+    The file the vocabulary request's question is written in, beside this step.
     """
+
+    @property
+    def question_prompt(self) -> str:
+        """
+        :return: What the vocabulary request asks.
+        """
+        prompts = PipelineTemplates(
+            directory=Path(__file__).resolve().parent / "prompts"
+        )
+        return prompts.render_document(self.question_template)
 
     # %% the step
 

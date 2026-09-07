@@ -19,7 +19,6 @@ This decides nothing itself.
 
 from __future__ import annotations
 
-from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -46,9 +45,9 @@ from experiments.warsaw.pipeline.records import (
     OpenQuestions,
     OwnershipAnswer,
     OwnershipQuestion,
-    PictureKind,
     Relations,
 )
+from experiments.warsaw.world_loader.viewpoints import PictureKind
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 

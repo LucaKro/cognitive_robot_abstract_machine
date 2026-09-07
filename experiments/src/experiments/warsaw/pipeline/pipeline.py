@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 from typing_extensions import List
 
+from krrood.exceptions import DataclassException
 from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
@@ -126,7 +127,7 @@ class WarsawPipeline(HasLogger):
 
         for number, step in enumerate(planned, start=1):
             self.announce(f"{number}/{len(planned)}  {step.name}")
-            self.carry_out_step(step, number, len(planned))
+            self.carry_out_step(step)
 
         self.announce("done")
         for made in (RunFile.REPORT, RunFile.INSPECTOR):
@@ -134,23 +135,24 @@ class WarsawPipeline(HasLogger):
                 self.logger.info("  %s", run.path(made))
         return run
 
-    def carry_out_step(self, step: PipelineStep, number: int, of: int) -> None:
+    def carry_out_step(self, step: PipelineStep) -> None:
         """
         Carry out one step, letting an optional one fail.
 
         :param step: The step to carry out.
-        :param number: Which step this is, counting from one.
-        :param of: How many there are.
-        :raises Exception: Whatever the step raised, when the run depends on it.
+        :raises DataclassException: Whatever the step raised, when the run depends on
+            it.
         """
         if not step.is_optional:
             step.carry_out()
             return
         try:
             step.carry_out()
-        except Exception as failure:
+        except DataclassException as failure:
             # An optional step is one the run was told it could do without, so its failure
             # is a thing to report rather than a state the run should not have reached.
+            # Only the project's own exceptions say that; anything else is a bug, and a
+            # bug is not something to carry on from.
             self.logger.warning("%s failed, carrying on: %s", step.name, failure)
 
     def announce(self, what: str) -> None:

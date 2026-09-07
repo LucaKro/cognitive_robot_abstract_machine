@@ -17,20 +17,150 @@ in the database. Nothing here decides that a class is missing something; it repo
 from __future__ import annotations
 
 import ast
+from abc import ABC
 import inspect
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Type
+from typing_extensions import List, Optional, Sequence, Type
 
+from krrood.exceptions import DataclassException
 from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
 from semantic_digital_twin.semantic_annotations.taxonomy_export import compose_class
 
+# %% what an amendment is and why one is refused
 
-class CannotAmendClass(Exception):
+
+class CannotAmendClass(DataclassException, ValueError, ABC):
     """
     Raised when a class cannot be given a mixin by editing the source it is written in.
+
+    Each way that can fail is its own subclass, so a caller deciding what to do about it
+    branches on the situation rather than on the wording.
     """
+
+
+@dataclass
+class ClassHasNoSource(CannotAmendClass):
+    """
+    Raised when a class has no source file, which is what a class built at run time
+    rather than written down looks like.
+    """
+
+    class_name: str
+    """
+    The class that was to be amended.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.class_name} has no source."
+
+    def suggest_correction(self) -> str:
+        return "Amend a class that is written down; one built at run time has no file."
+
+
+@dataclass
+class ClassNotWrittenDown(CannotAmendClass):
+    """
+    Raised when a class's own module does not declare it, so it was built rather than
+    written.
+    """
+
+    class_name: str
+    """
+    The class that was looked for.
+    """
+
+    path: Path
+    """
+    The file its module is written in.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.class_name} is not declared in {self.path}."
+
+    def suggest_correction(self) -> str:
+        return "Amend a class that is written down rather than built at run time."
+
+
+@dataclass
+class ClassDeclaredWithoutBases(CannotAmendClass):
+    """
+    Raised when a class's declaration names no bases, so there is no base list to add
+    to.
+    """
+
+    class_name: str
+    """
+    The class that was to be amended.
+    """
+
+    mixin_name: str
+    """
+    The mixin it was to gain.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.class_name} is declared without bases, so there is no base list to "
+            f"add {self.mixin_name} to."
+        )
+
+    def suggest_correction(self) -> str:
+        return f"Give {self.class_name} a base to derive from before amending it."
+
+
+@dataclass
+class MixinNotImportedWhereDeclared(CannotAmendClass):
+    """
+    Raised when the module declaring a class does not import the mixin it would gain, so
+    the amended declaration would not resolve.
+    """
+
+    class_name: str
+    """
+    The class that was to be amended.
+    """
+
+    mixin_name: str
+    """
+    The mixin it was to gain.
+    """
+
+    module_name: str
+    """
+    The module its declaration is written in.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.mixin_name} is not imported in {self.module_name}."
+
+    def suggest_correction(self) -> str:
+        return f"Import {self.mixin_name} in {self.module_name} before amending."
+
+
+@dataclass
+class DeclarationMovedSinceRead(CannotAmendClass):
+    """
+    Raised when the line an amendment was read from no longer reads as it did, which
+    means the file changed underneath and the line number is stale.
+    """
+
+    path: Path
+    """
+    The file the amendment was read from.
+    """
+
+    line_number: int
+    """
+    The line it was read at, counting from one.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.path}:{self.line_number} no longer reads as it was read."
+
+    def suggest_correction(self) -> str:
+        return "Work the amendment out again from the file as it now stands."
 
 
 @dataclass
@@ -79,8 +209,8 @@ class SourceAmendment:
         lines = self.path.read_text(encoding="utf-8").splitlines(keepends=True)
         index = self.line_number - 1
         if lines[index].rstrip("\n") != self.before:
-            raise CannotAmendClass(
-                f"{self.path}:{self.line_number} no longer reads as it was read"
+            raise DeclarationMovedSinceRead(
+                path=self.path, line_number=self.line_number
             )
         lines[index] = self.after + "\n"
         self.path.write_text("".join(lines), encoding="utf-8")
@@ -99,9 +229,10 @@ class SourceAmendment:
         )
 
 
-def granting_mixins(
-    whole: Type, part: Type, mixins: Sequence[Type]
-) -> List[Type]:
+# %% which mixins would grant a relation
+
+
+def granting_mixins(whole: Type, part: Type, mixins: Sequence[Type]) -> List[Type]:
     """
     Report which mixins would let one class hold another as a structural part.
 
@@ -125,7 +256,9 @@ def granting_mixins(
     for mixin in mixins:
         if issubclass(whole, mixin):
             continue
-        composed = compose_class(f"{whole.__name__}With{mixin.__name__}", whole, [mixin])
+        composed = compose_class(
+            f"{whole.__name__}With{mixin.__name__}", whole, [mixin]
+        )
         if _fields_holding(composed, part) - already:
             granting.append(mixin)
     return granting
@@ -145,6 +278,9 @@ def _fields_holding(whole: Type, part: Type) -> set:
     }
 
 
+# %% finding and editing a class's declaration
+
+
 def _declaration_of(annotation_class: Type) -> tuple:
     """
     Find where a class is declared.
@@ -158,23 +294,19 @@ def _declaration_of(annotation_class: Type) -> tuple:
     try:
         path = Path(inspect.getsourcefile(annotation_class))
     except TypeError as failure:
-        raise CannotAmendClass(f"{annotation_class.__name__} has no source") from failure
+        raise ClassHasNoSource(class_name=annotation_class.__name__) from failure
 
     source = path.read_text(encoding="utf-8")
     declaration = next(
         (
             node
             for node in ast.walk(ast.parse(source))
-            if isinstance(node, ast.ClassDef)
-            and node.name == annotation_class.__name__
+            if isinstance(node, ast.ClassDef) and node.name == annotation_class.__name__
         ),
         None,
     )
     if declaration is None:
-        raise CannotAmendClass(
-            f"{annotation_class.__name__} is not declared in {path}, so it was built "
-            f"rather than written"
-        )
+        raise ClassNotWrittenDown(class_name=annotation_class.__name__, path=path)
     return path, declaration, source
 
 
@@ -199,16 +331,16 @@ def amend_class_source(
 
     path, declaration, source = _declaration_of(annotation_class)
     if not declaration.bases:
-        raise CannotAmendClass(
-            f"{annotation_class.__name__} is declared without bases, so there is no "
-            f"base list to add {mixin.__name__} to"
+        raise ClassDeclaredWithoutBases(
+            class_name=annotation_class.__name__, mixin_name=mixin.__name__
         )
 
     module = sys.modules.get(annotation_class.__module__)
-    if getattr(module, mixin.__name__, None) is not mixin:
-        raise CannotAmendClass(
-            f"{mixin.__name__} is not imported in {annotation_class.__module__}, so a "
-            f"declaration naming it would not resolve"
+    if module.__dict__.get(mixin.__name__) is not mixin:
+        raise MixinNotImportedWhereDeclared(
+            class_name=annotation_class.__name__,
+            mixin_name=mixin.__name__,
+            module_name=annotation_class.__module__,
         )
 
     last_base = declaration.bases[-1]

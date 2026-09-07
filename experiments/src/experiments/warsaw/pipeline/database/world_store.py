@@ -14,12 +14,16 @@ imports nothing itself, which is what lets the steps run in one process.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
+from types import ModuleType
 
 from typing_extensions import TYPE_CHECKING
 
 from experiments.warsaw.exceptions import WorldNotInDatabaseError
 
 if TYPE_CHECKING:
+    from sqlalchemy import Engine
+
     from semantic_digital_twin.world import World
 
 
@@ -29,7 +33,7 @@ class WorldStore:
     The database a run's worlds are kept in.
     """
 
-    def mappings(self):
+    def mappings(self) -> ModuleType:
         """
         Load the generated interface that says how a world is stored.
 
@@ -43,13 +47,17 @@ class WorldStore:
 
         return ormatic_interface
 
-    def engine(self):
+    @cached_property
+    def engine(self) -> Engine:
         """
+        Built once per store: an engine holds a pool of connections, and one made per
+        call leaves a pool behind for every world read or written.
+
         :return: A connection to the database the environment points at.
         """
         from semantic_digital_twin.orm.utils import semantic_digital_twin_sessionmaker
 
-        return semantic_digital_twin_sessionmaker()().bind
+        return semantic_digital_twin_sessionmaker().kw["bind"]
 
     def create_tables(self) -> int:
         """
@@ -61,7 +69,7 @@ class WorldStore:
         :return: How many tables the ORM declares.
         """
         base = self.mappings().Base
-        base.metadata.create_all(bind=self.engine())
+        base.metadata.create_all(bind=self.engine)
         return len(base.metadata.tables)
 
     def write(self, world: World) -> int:
@@ -75,7 +83,7 @@ class WorldStore:
         from sqlalchemy.orm import Session
 
         self.mappings()
-        with Session(self.engine()) as session:
+        with Session(self.engine) as session:
             stored = to_dao(world)
             session.add(stored)
             session.commit()
@@ -92,7 +100,7 @@ class WorldStore:
         """
         from sqlalchemy.orm import Session
 
-        with Session(self.engine()) as session:
+        with Session(self.engine) as session:
             stored = session.get(self.mappings().WorldMappingDAO, world_id)
             if stored is None:
                 raise WorldNotInDatabaseError(world_id=world_id)

@@ -10,9 +10,6 @@ import uuid
 from contextlib import contextmanager
 from copy import deepcopy, copy
 from dataclasses import dataclass, field
-from enum import IntEnum
-from functools import wraps, lru_cache, cached_property
-from itertools import combinations_with_replacement
 from pathlib import Path
 from functools import wraps, cached_property
 from uuid import UUID
@@ -34,7 +31,6 @@ from typing_extensions import (
     Iterable,
     Iterator,
     TYPE_CHECKING,
-    get_args,
 )
 from typing_extensions import List
 from typing_extensions import Type, Set
@@ -59,7 +55,6 @@ from semantic_digital_twin.exceptions import (
     MismatchingPublishChangesAttribute,
     AtomicWorldModificationNotAtomic,
     SemanticAnnotationCircularDependencyError,
-    WorldValidationError,
     WorldIsNotATreeError,
     WorldContainsOrphanedDegreeOfFreedom,
     BrokenWorldModificationHistoryError,
@@ -2594,7 +2589,11 @@ class World(HasSimulatorProperties):
     ) -> None:
         """
         Export the kinematic structure tree to a JSON representation.
+
         :param output_path: Path to the output file.
+        :param include_connections: Whether each entity also names the connection it
+            hangs from.
+        :raises ValueError: If the world holds nothing to export.
         """
 
         def _export_node(kse: KinematicStructureEntity) -> Dict[str, Any]:

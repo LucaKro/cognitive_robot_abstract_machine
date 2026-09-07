@@ -64,7 +64,8 @@ def test_dye_shapes_paints_an_already_built_mesh(tmp_path):
         mesh=trimesh.creation.box(extents=(1.0, 1.0, 1.0)), directory=tmp_path
     )
     color = Color(R=0.0, G=1.0, B=0.0, A=1.0)
-    assert mesh.mesh.vertices is not None
+    # Build and cache the mesh before dyeing, which repaints what is cached.
+    mesh.mesh.vertices
 
     ShapeCollection(shapes=[mesh]).dye_shapes(color)
 

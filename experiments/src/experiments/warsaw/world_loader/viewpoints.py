@@ -87,6 +87,42 @@ class ViewpointChoice(StrEnum):
     """
 
 
+# %% what a render shows
+
+
+class PictureKind(StrEnum):
+    """
+    What one of a question's renders shows.
+
+    A render is written as ``<subject>__<kind>_<viewpoint>.png``, so the kind is read
+    back out of the filename when the question is put to a model.
+    """
+
+    CONTEXT = "context"
+    """
+    Where in the room the subject is.
+    """
+
+    PLAIN = "plain"
+    """
+    The subject alone, in the colors it was scanned in.
+    """
+
+    CLOSEUP = "closeup"
+    """
+    The subject alone, painted, which is exactly the faces in question.
+    """
+
+    @classmethod
+    def of_render(cls, filename: str) -> Optional[PictureKind]:
+        """
+        :param filename: A render's name.
+        :return: What it shows, or None if its name does not say.
+        """
+        tail = filename.rsplit("__", 1)[-1].split("_", 1)[0]
+        return cls(tail) if tail in set(cls) else None
+
+
 # %% how large to draw
 
 

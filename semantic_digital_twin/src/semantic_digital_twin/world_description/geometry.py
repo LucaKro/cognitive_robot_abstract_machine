@@ -494,9 +494,12 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
         :param color: The color to paint the shape in.
         """
         self.color = color
-        self.mesh.visual = trimesh.visual.ColorVisuals(
-            mesh=self.mesh,
-            face_colors=np.tile(color.to_rgba(), (len(self.mesh.faces), 1)),
+        # Built once: a primitive rebuilds its mesh on every access, so repainting one
+        # freshly built mesh would paint an object nothing else ever sees.
+        mesh = self.mesh
+        mesh.visual = trimesh.visual.ColorVisuals(
+            mesh=mesh,
+            face_colors=np.tile(color.to_rgba(), (len(mesh.faces), 1)),
         )
 
     def recenter_origin(self) -> None:

@@ -25,7 +25,7 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
     MessagePart,
     TextPart,
 )
-from typing_extensions import Any, Dict, List
+from typing_extensions import Sequence, Any, Dict, List
 
 
 @dataclass
@@ -44,7 +44,7 @@ class ScriptedAnswers:
     Every message it was sent, in order.
     """
 
-    def ask(self, content, system: str) -> ModelResponse:
+    def ask(self, content: Sequence[MessagePart], system: str) -> ModelResponse:
         """
         :param content: The question.
         :param system: What it is told it is doing.

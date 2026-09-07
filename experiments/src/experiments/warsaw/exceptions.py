@@ -326,4 +326,82 @@ class WorldNotInDatabaseError(DataclassException, LookupError):
         )
 
 
-# %% aligning a database that already holds worlds
+# %% finding what to render
+
+
+@dataclass
+class SceneBodyNotFoundError(DataclassException, LookupError):
+    """
+    Raised when no body in the world carries the name the scene was loaded under.
+    """
+
+    scene_body_name: str
+    """
+    The name a body was looked for under.
+    """
+
+    body_names: List[str]
+    """
+    The names the world's bodies with collision carry instead.
+    """
+
+    def error_message(self) -> str:
+        carried = ", ".join(sorted(self.body_names)) or "none"
+        return (
+            f"No body named '{self.scene_body_name}' carries collision geometry; "
+            f"the world carries: {carried}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Name the body the scene was loaded as in scene_body_name, or load the "
+            "scene through the loader so it is named the way the loader names it."
+        )
+
+
+@dataclass
+class NoSegmentsGivenError(DataclassException, ValueError):
+    """
+    Raised when a render is asked for over no segments at all.
+    """
+
+    def error_message(self) -> str:
+        return "No segments were given to render."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Pass the segments to be rendered. An empty selection is a question about "
+            "nothing, which is decided by the caller rather than here."
+        )
+
+
+@dataclass
+class CameraHasNoDirectionError(DataclassException, ValueError):
+    """
+    Raised when a camera's placement leaves the direction it faces undefined.
+
+    A camera standing where it looks has no forward direction, and one looking straight
+    along the world's up axis has no sideways one. Either leaves the transform full of
+    NaN rather than pointing anywhere.
+    """
+
+    eye: List[float]
+    """
+    Where the camera stands.
+    """
+
+    target: List[float]
+    """
+    What it was to face.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A camera at {self.eye} facing {self.target} has no direction to look in."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Place the camera away from what it looks at, and off the axis running "
+            "straight up through it."
+        )

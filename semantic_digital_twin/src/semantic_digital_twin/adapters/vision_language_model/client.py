@@ -10,6 +10,7 @@ surviving a rate limit, and getting JSON out of a reply that may be wrapped in p
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -24,6 +25,8 @@ from semantic_digital_twin.adapters.vision_language_model.exceptions import (
     ModelRefusedError,
 )
 from semantic_digital_twin.adapters.vision_language_model.message import MessagePart
+
+# %% what a service says went wrong
 
 
 class ServiceFailure(IntEnum):
@@ -81,6 +84,9 @@ class Role(StrEnum):
     """
     The question itself.
     """
+
+
+# %% reading what the model answered
 
 
 @dataclass
@@ -159,6 +165,9 @@ class ModelResponse:
             if start != -1 and end > start:
                 found.append(answer[start : end + 1])
         return found
+
+
+# %% asking the model
 
 
 @dataclass
@@ -284,7 +293,9 @@ class VisionLanguageModel:
             if not worth_retrying or attempt == self.maximum_attempts - 1:
                 raise failure
             waited = 2**attempt
-            print(f"    the request {reason}, asking again in {waited}s ...")
+            logging.getLogger(__name__).warning(
+                "the request %s, asking again in %ss", reason, waited
+            )
             time.sleep(waited)
 
     def _headers(self) -> Dict[str, str]:

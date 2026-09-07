@@ -427,6 +427,7 @@ class AmendTaxonomy(PipelineStep):
             amendments have been put back.
         """
         written: List[SourceAmendment] = []
+        amended = False
         try:
             for amendment in amendments:
                 amendment.apply()
@@ -440,11 +441,12 @@ class AmendTaxonomy(PipelineStep):
             self.verify(written)
             self.logger.info("regenerating the ORM ...")
             self.regenerate_orm()
-        except Exception:
-            for amendment in reversed(written):
-                amendment.reverted().apply()
-            self.logger.error("the amendments were undone; nothing was changed.")
-            raise
+            amended = True
+        finally:
+            if not amended:
+                for amendment in reversed(written):
+                    amendment.reverted().apply()
+                self.logger.error("the amendments were undone; nothing was changed.")
         self.logger.info("the ORM was regenerated; the ontology is amended.")
         self.logger.info("it is put back when the run ends.")
 

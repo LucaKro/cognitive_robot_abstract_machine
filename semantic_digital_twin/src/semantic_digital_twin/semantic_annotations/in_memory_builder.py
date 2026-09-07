@@ -1,13 +1,20 @@
 import os.path
 from dataclasses import field, MISSING, make_dataclass, dataclass
-from enum import Enum, StrEnum
+from enum import Enum
 from pathlib import Path
-from typing import Iterable, Tuple, Dict, Callable, Union, List, Set
 from jinja2 import Environment, FileSystemLoader
-from typing_extensions import Any
+from typing_extensions import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Set,
+    Tuple,
+    Union,
+)
 
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
-
 
 # Mapping from module name patterns to import statements for generated files
 _MODULE_TO_IMPORT = {
@@ -128,7 +135,7 @@ class SemanticAnnotationClassBuilder:
         """
         if not any(issubclass(base, SemanticAnnotation) for base in self.bases):
             raise TypeError(
-                f"At least one base class must be a subclass of SemanticAnnotation."
+                "At least one base class must be a subclass of SemanticAnnotation."
             )
         expanded_fields = self._expand_fields_for_make_dataclass()
         cls = make_dataclass(
@@ -152,7 +159,9 @@ class SemanticAnnotationClassBuilder:
             out.append(
                 {
                     "name": name,
-                    "type_hint": getattr(type_, "__name__", repr(type_)),
+                    "type_hint": (
+                        type_.__name__ if isinstance(type_, type) else repr(type_)
+                    ),
                     "default": (
                         None
                         if default is SpecialFieldTypes.NO_DEFAULT

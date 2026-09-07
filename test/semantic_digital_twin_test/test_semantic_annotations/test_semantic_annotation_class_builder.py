@@ -70,11 +70,11 @@ def test_build_creates_dataclass_with_kwonly_required_fields():
     Cls = b.build()
 
     # dataclass settings
-    assert getattr(Cls, "__dataclass_params__").eq is False
+    assert Cls.__dataclass_params__.eq is False
 
-    # must pass required field as keyword-only
+    # the keyword-only field cannot be filled by position
     with pytest.raises(TypeError):
-        _ = Cls(10)  # positional not allowed due to kw_only
+        _ = Cls(10, 20)
 
     with pytest.raises(TypeError):
         _ = Cls()  # missing required field
@@ -114,7 +114,9 @@ def test_render_source_contains_expected_content():
 
     # Check class header and fields rendered with defaults
     assert "@dataclass" in src_no_imports
-    assert "class RenderAnno(" in src_no_imports and "SemanticAnnotation" in src_no_imports
+    assert (
+        "class RenderAnno(" in src_no_imports and "SemanticAnnotation" in src_no_imports
+    )
     assert "age: int" in src_no_imports
     assert "label: str = 'foo'" in src_no_imports
 
@@ -134,3 +136,60 @@ def test_append_to_file_appends_source(tmp_path: Path):
     assert content.startswith("\n\n@dataclass")
     assert "class A1(" in content and "x: int = 1" in content
     assert "class A2(" in content and "y: int" in content
+
+
+# %% writing the classes a run generated to a file
+
+
+def test_written_classes_are_importable_python(tmp_path):
+    """
+    The file this writes is imported by the next step of a run, so it has to parse and
+    resolve every name it uses.
+    """
+    written = tmp_path / "generated_classes.py"
+    SemanticAnnotationClassBuilder.write_classes_to_file(
+        [_builder("WrittenAnno").add_base(SemanticAnnotation)], written
+    )
+
+    source = written.read_text(encoding="utf-8")
+    compile(source, str(written), "exec")
+    assert "class WrittenAnno(" in source
+    assert "SemanticAnnotation" in source
+
+
+def test_a_base_shared_by_two_classes_is_imported_once(tmp_path):
+    """
+    Importing the same name twice is what a set of names per source is there to prevent.
+    """
+    written = tmp_path / "generated_classes.py"
+    SemanticAnnotationClassBuilder.write_classes_to_file(
+        [
+            _builder("FirstAnno").add_base(SemanticAnnotation),
+            _builder("SecondAnno").add_base(SemanticAnnotation),
+        ],
+        written,
+    )
+
+    source = written.read_text(encoding="utf-8")
+    assert source.count("SemanticAnnotation") >= 2
+    importing = [
+        line
+        for line in source.splitlines()
+        if line.startswith("from") and "SemanticAnnotation" in line
+    ]
+    assert len(importing) == 1
+
+
+def test_every_written_class_appears_in_the_file(tmp_path):
+    """
+    A run generates one class per proposal it accepted, and leaving one out would leave
+    a body with no class to be annotated as.
+    """
+    written = tmp_path / "generated_classes.py"
+    names = ["AlphaAnno", "BetaAnno", "GammaAnno"]
+    SemanticAnnotationClassBuilder.write_classes_to_file(
+        [_builder(name).add_base(SemanticAnnotation) for name in names], written
+    )
+
+    source = written.read_text(encoding="utf-8")
+    assert [name for name in names if f"class {name}(" in source] == names

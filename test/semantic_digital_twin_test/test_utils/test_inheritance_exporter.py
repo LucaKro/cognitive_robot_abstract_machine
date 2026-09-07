@@ -1,12 +1,13 @@
 import json
 from pathlib import Path
-from typing_extensions import Any
 from abc import ABC
 
 import pytest
 
-from semantic_digital_twin.utils import InheritanceStructureExporter
-
+from semantic_digital_twin.inheritance_structure import (
+    UNANNOTATED_TYPE_NAME,
+    InheritanceStructureExporter,
+)
 
 # --- Test-only class hierarchy -------------------------------------------------
 
@@ -78,8 +79,8 @@ def test_walk_related_classes_subclasses_and_bases():
 def test_type_to_string_variants():
     exp = make_exporter()
 
-    # None annotation becomes Any object (not a string)
-    assert exp._type_to_string(None) is Any
+    # A missing annotation is named, not handed back as the type object itself
+    assert exp._type_to_string(None) == UNANNOTATED_TYPE_NAME
 
     # Forward reference string
     assert exp._type_to_string("World") == "World"
@@ -98,8 +99,8 @@ def test_get_only_required_public_fields_filters_correctly():
 
     exp = make_exporter()
     sig = inspect.signature(ConcreteChild.__init__)
-    init_ann = getattr(ConcreteChild.__init__, "__annotations__", {}) or {}
-    class_ann = getattr(ConcreteChild, "__annotations__", {}) or {}
+    init_ann = inspect.get_annotations(ConcreteChild.__init__)
+    class_ann = inspect.get_annotations(ConcreteChild)
 
     # Collect by invoking the private helper directly
     results = []
@@ -115,7 +116,7 @@ def test_get_only_required_public_fields_filters_correctly():
     ]
 
 
-def testcollect_required_public_fields_aggregates_from_init():
+def test_collect_required_public_fields_aggregates_from_init():
     exp = make_exporter()
     fields_concrete = exp.collect_required_public_fields(ConcreteChild)
     assert fields_concrete == [
@@ -186,3 +187,29 @@ def test_export_writes_json(tmp_path):
     assert payload["root_name"] == "Root"
     names = sorted(node["name"] for node in payload["subclasses"])
     assert names == ["AbstractChild", "ConcreteChild"]
+
+
+# %% a required field whose annotation is missing
+
+
+class UnannotatedRoot:
+    pass
+
+
+class UnannotatedChild(UnannotatedRoot):
+    def __init__(self, described, *args, **kwargs):
+        pass
+
+
+def test_export_writes_a_required_field_that_carries_no_annotation(tmp_path):
+    """
+    A field with no annotation must still be written as JSON, not as a type object.
+    """
+    output_path = tmp_path / "out.json"
+    InheritanceStructureExporter(
+        root_class=UnannotatedRoot, output_path=output_path
+    ).export()
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    (unannotated,) = payload["subclasses"]
+    assert unannotated["fields"] == [{"name": "described", "type": "Any"}]

@@ -25,6 +25,9 @@ GeneratedClasses(directory=Path(__file__).resolve().parent).use()
 RunSchema.for_run(Path(__file__).resolve().parent).use()
 
 from experiments.warsaw.pipeline.database.world_store import WorldStore  # noqa: E402
+from semantic_digital_twin.semantic_annotations.mixins import (  # noqa: E402
+    HasRootKinematicStructureEntity,
+)
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer  # noqa: E402
 
 
@@ -102,8 +105,9 @@ class Inspection:
         :param one: An annotation, or whatever a field holds.
         :return: The body it is on, or the thing itself.
         """
-        root = getattr(one, "root", None)
-        return str(root.name.name) if root is not None else str(one)
+        if isinstance(one, HasRootKinematicStructureEntity) and one.root is not None:
+            return str(one.root.name.name)
+        return str(one)
 
     def shown(self, part) -> object:
         """
@@ -134,7 +138,7 @@ class Inspection:
         held = [
             (str(one.root.name.name), name, part)
             for one in annotations
-            if getattr(one, "root", None)
+            if isinstance(one, HasRootKinematicStructureEntity) and one.root
             for name, part in vars(one).items()
             if name not in self.plumbing and self.holds_something(part)
         ]

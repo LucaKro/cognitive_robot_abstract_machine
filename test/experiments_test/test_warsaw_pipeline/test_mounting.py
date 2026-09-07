@@ -19,6 +19,8 @@ from semantic_digital_twin.exceptions import CannotBeAPartOf
 from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
 from typing_extensions import Any, List
 
+# %% wholes that record or refuse what they are given
+
 
 @dataclass
 class RecordingWhole:
@@ -76,6 +78,9 @@ class RefusingWhole:
         (MountKind.SUPPORTS, ""),
     ],
 )
+# %% carrying a mount out through its channel
+
+
 def test_a_pairing_is_mounted_through_the_channel_it_names(kind, expected_field):
     """
     The channel is what the ontology said mounts this relation when the pair was

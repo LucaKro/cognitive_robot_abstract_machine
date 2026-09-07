@@ -25,8 +25,9 @@ from typing_extensions import TYPE_CHECKING, Dict, List, Optional, Tuple
 import numpy as np
 import trimesh
 
-from experiments.warsaw.bases import JsonRecord
 from scipy.spatial import cKDTree
+
+from experiments.warsaw.bases import JsonRecord
 
 if TYPE_CHECKING:
     from experiments.warsaw.world_loader.loader import WarsawWorldLoader
@@ -401,6 +402,26 @@ def _edges_between_segments(
     }
 
 
+@dataclass(order=True, frozen=True)
+class Neighbour:
+    """
+    One segment measured near another.
+
+    Ordered by distance first, which is what keeps the nearest at the front while the
+    search prunes candidates against the worst one it has kept.
+    """
+
+    distance: float
+    """
+    How far apart their nearest face centres are, in metres.
+    """
+
+    segment: int
+    """
+    Which segment it is, by index.
+    """
+
+
 def _distance_between(
     one: int, other: int, trees: List[cKDTree], points: List[np.ndarray]
 ) -> float:
@@ -427,7 +448,7 @@ def _nearest_neighbours(
     points: List[np.ndarray],
     center_bounds: np.ndarray,
     how_many: int,
-) -> List[List[Tuple[float, int]]]:
+) -> List[List[Neighbour]]:
     """
     Find each segment's nearest others, exactly.
 
@@ -440,11 +461,10 @@ def _nearest_neighbours(
     :param points: Per segment, its face centres.
     :param center_bounds: Per segment, the lowest and highest corner of those centres.
     :param how_many: How many neighbours to keep.
-    :return: Per segment, its nearest others as (distance, segment index), nearest
-        first.
+    :return: Per segment, its nearest others, nearest first.
     """
     minimum_corners, maximum_corners = center_bounds[:, 0], center_bounds[:, 1]
-    neighbours: List[List[Tuple[float, int]]] = []
+    neighbours: List[List[Neighbour]] = []
     for index in range(len(trees)):
         gaps = np.maximum(
             0.0,
@@ -456,14 +476,14 @@ def _nearest_neighbours(
         lower_bounds = np.linalg.norm(gaps, axis=1)
         lower_bounds[index] = np.inf
 
-        found: List[Tuple[float, int]] = []
+        found: List[Neighbour] = []
         for candidate in np.argsort(lower_bounds):
             if not np.isfinite(lower_bounds[candidate]):
                 break
-            if len(found) >= how_many and lower_bounds[candidate] >= found[-1][0]:
+            if len(found) >= how_many and lower_bounds[candidate] >= found[-1].distance:
                 break
             distance = _distance_between(index, int(candidate), trees, points)
-            found.append((distance, int(candidate)))
+            found.append(Neighbour(distance=distance, segment=int(candidate)))
             found.sort()
             del found[how_many:]
         neighbours.append(found)
@@ -473,7 +493,7 @@ def _nearest_neighbours(
 # %% measuring the whole scene
 
 
-def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRelations:
+def segment_evidence(loader: WarsawWorldLoader, nearest: int = 5) -> SegmentRelations:
     """
     Measure a scene's labelled objects and how they meet.
 
@@ -547,10 +567,10 @@ def segment_evidence(loader: "WarsawWorldLoader", nearest: int = 5) -> SegmentRe
     ranks: Dict[Tuple[int, int], int] = {}
     distances: Dict[Tuple[int, int], float] = {}
     for index, found in enumerate(neighbours):
-        for rank, (distance, other) in enumerate(found, start=1):
-            ranks[(index, other)] = rank
-            key = (min(index, other), max(index, other))
-            distances[key] = min(distances.get(key, np.inf), distance)
+        for rank, neighbour in enumerate(found, start=1):
+            ranks[(index, neighbour.segment)] = rank
+            key = (min(index, neighbour.segment), max(index, neighbour.segment))
+            distances[key] = min(distances.get(key, np.inf), neighbour.distance)
 
     names = [str(segment.name) for segment in segments]
     sizes = [len(segment.face_indices) for segment in segments]

@@ -28,6 +28,7 @@ from pathlib import Path
 
 import semantic_digital_twin
 from semantic_digital_twin.exceptions import UsageError
+from semantic_digital_twin.world import World
 from semantic_digital_twin.semantic_annotations.in_memory_builder import (
     SemanticAnnotationClassBuilder,
 )
@@ -172,7 +173,7 @@ class MountAnnotations(HasLogger):
         )
 
     def annotate(
-        self, world, classifications: Classifications
+        self, world: World, classifications: Classifications
     ) -> Dict[str, SemanticAnnotation]:
         """
         Give every body an annotation of the class it was named as.
@@ -221,7 +222,7 @@ class MountAnnotations(HasLogger):
 
     def mount(
         self,
-        world,
+        world: World,
         annotations: Dict[str, SemanticAnnotation],
         pairings: List[Pairing],
     ) -> Mounted:

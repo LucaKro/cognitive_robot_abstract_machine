@@ -20,13 +20,26 @@ import json
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
+from typing_extensions import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+)
 
 from krrood.class_diagrams.class_diagram import WrappedClass
 
 from semantic_digital_twin.semantic_annotations.part_whole import (
     part_whole_fields,
 )
+
+# %% the vocabulary a mount is described in
+
 
 MIXIN_MODULE_SUFFIX = "semantic_annotations.mixins"
 """
@@ -92,7 +105,7 @@ class MountChannel:
     """
 
 
-OCCUPANCY_CHANNELS: List[MountChannel] = [
+OCCUPANCY_CHANNELS: Tuple[MountChannel, ...] = (
     MountChannel(
         kind=MountKind.CONTAINS,
         field_name="objects",
@@ -105,7 +118,7 @@ OCCUPANCY_CHANNELS: List[MountChannel] = [
         owner="HasSupportingSurface",
         mounted_by="add_supporting_surface",
     ),
-]
+)
 """
 The relations that are not part-whole but are still mounted into the world.
 
@@ -172,6 +185,9 @@ class SemanticRelation:
         return rendered
 
 
+# %% what relations a class can stand in
+
+
 def _own_field_names(annotation_class: Type) -> Set[str]:
     """
     :param annotation_class: The class to inspect.
@@ -223,7 +239,7 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
             SemanticRelation(
                 kind=channel.kind,
                 field_name=channel.field_name,
-                target=getattr(target, "__name__", str(target)),
+                target=target.__name__ if isinstance(target, type) else str(target),
                 holds_many=wrapped_field.is_many_to_many_relationship,
                 mounted_by=channel.mounted_by,
                 target_class=target if isinstance(target, type) else None,
@@ -270,6 +286,9 @@ def _summary_of(annotation_class: Type) -> Optional[str]:
     return " ".join(documentation.split()).split(". ")[0].rstrip(".") or None
 
 
+# %% finding the classes there are
+
+
 def load_annotation_modules() -> None:
     """
     Import the modules declaring the taxonomy.
@@ -314,6 +333,9 @@ def annotation_classes(root_class: Type) -> Dict[str, Type]:
         annotation_class.__name__: annotation_class
         for annotation_class in _walk_subclasses(root_class)
     }
+
+
+# %% building and writing the taxonomy
 
 
 def build_taxonomy(root_class: Type, include_summaries: bool = False) -> Dict[str, Any]:
@@ -410,6 +432,9 @@ def export_taxonomy(
     taxonomy = build_taxonomy(root_class, include_summaries=include_summaries)
     Path(output_path).write_text(json.dumps(taxonomy, indent=2), encoding="utf-8")
     return taxonomy
+
+
+# %% composing a class from a proposal
 
 
 def compose_class(name: str, superclass: Type, mixins: Sequence[Type] = ()) -> Type:

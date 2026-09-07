@@ -21,6 +21,7 @@ from experiments.warsaw.pipeline.records import (
     MembershipQuestion,
     OwnershipAnswer,
     OwnershipQuestion,
+    Vocabulary,
 )
 from experiments.warsaw.pipeline.steps.adjudicate.step import (
     MembershipDecision,
@@ -248,8 +249,6 @@ def body_group(taxonomy):
     """
     :return: A question about two painted bodies, ready to judge answers to.
     """
-    from experiments.warsaw.pipeline.records import Vocabulary
-
     return BodyGroupQuestion(
         rendered=RenderedSegmentGroup(
             index=0,

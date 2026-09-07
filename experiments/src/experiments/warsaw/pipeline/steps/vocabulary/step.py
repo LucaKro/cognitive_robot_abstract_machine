@@ -22,7 +22,6 @@ import json
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum
-from pathlib import Path
 
 from semantic_digital_twin.adapters.vision_language_model.client import ModelResponse
 from semantic_digital_twin.adapters.vision_language_model.exceptions import (
@@ -44,11 +43,11 @@ from experiments.warsaw.pipeline.asking import Prompt, QuestionAboutTheOntology
 from experiments.warsaw.pipeline.records import (
     LabelAnswer,
     LabelRequest,
-    PictureKind,
     Relations,
     Vocabulary,
     VocabularyRequest,
 )
+from experiments.warsaw.world_loader.viewpoints import PictureKind
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 

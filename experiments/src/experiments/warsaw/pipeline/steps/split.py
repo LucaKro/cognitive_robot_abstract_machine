@@ -225,7 +225,7 @@ class SplitScene(PipelineStep):
         world = split_world(
             loader.scene.mesh,
             split.faces,
-            loader.scene.source_to_world,
+            loader.scene.world_T_source,
             directory=directory,
         )
         self.logger.info("the world holds %s bodies", len(world.bodies))

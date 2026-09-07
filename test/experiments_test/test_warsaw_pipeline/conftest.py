@@ -29,6 +29,8 @@ from experiments.warsaw.pipeline.records import (
 )
 from experiments.warsaw.pipeline.run import Run
 
+# %% where a run's files live
+
 
 @pytest.fixture
 def dataset() -> Path:
@@ -52,6 +54,9 @@ def replies(dataset) -> Path:
     :return: The directory holding replies as a model returned them.
     """
     return dataset / "replies"
+
+
+# %% what each step of that run wrote
 
 
 @pytest.fixture
@@ -130,6 +135,9 @@ def classifications(finished_run) -> Classifications:
     return Classifications.from_json(
         json.loads((finished_run.directory / "classifications.json").read_text())
     )
+
+
+# %% the ontology as the interpreter holds it
 
 
 @pytest.fixture

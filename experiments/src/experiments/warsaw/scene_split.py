@@ -20,10 +20,12 @@ world.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing_extensions import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+import trimesh
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
@@ -236,12 +238,25 @@ def pairings(candidates: Sequence[Pairing], split: SplitFaces) -> List[Pairing]:
 # %% building the bodies
 
 
+class MeshFileType(StrEnum):
+    """
+    The formats a split body's mesh may be written in.
+
+    Not PLY: the collision detector reads only these three, and a body it cannot read
+    stops the world being built.
+    """
+
+    OBJ = "obj"
+    STL = "stl"
+    DAE = "dae"
+
+
 def split_world(
-    mesh,
+    mesh: trimesh.Trimesh,
     faces: Dict[str, np.ndarray],
-    source_to_world,
+    world_T_source: HomogeneousTransformationMatrix,
     directory: Optional[Path] = None,
-    file_type: str = "obj",
+    file_type: MeshFileType = MeshFileType.OBJ,
     root_body_name: str = "root_body",
 ) -> World:
     """
@@ -258,11 +273,10 @@ def split_world(
 
     :param mesh: The scene's mesh, whose faces the objects index.
     :param faces: Per object, the faces that are its alone.
-    :param source_to_world: The transform from the file's coordinates to the world's.
+    :param world_T_source: The transform from the file's coordinates to the world's.
     :param directory: Where to write the bodies' meshes, defaulting to a place that is
         removed when the process ends -- which will not do for a world to be persisted.
-    :param file_type: The format to write them in. Not PLY: the collision detector reads
-        only .obj, .stl and .dae, and a body it cannot read stops the world being built.
+    :param file_type: The format to write them in.
     :param root_body_name: What to call the body every object hangs from.
     :return: The world, flat, one body per object under a single root.
     """
@@ -271,7 +285,7 @@ def split_world(
         # needs this one to be there.
         Path(directory).mkdir(parents=True, exist_ok=True)
 
-    to_world = source_to_world.to_np()
+    to_world = world_T_source.to_np()
     world = World()
     root = Body(name=PrefixedName(root_body_name))
     with world.modify_world():

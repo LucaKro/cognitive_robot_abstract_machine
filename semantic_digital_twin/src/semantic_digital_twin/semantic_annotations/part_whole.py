@@ -9,7 +9,7 @@ it without depending on each other.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Type
+from typing_extensions import List, Type
 
 from krrood.class_diagrams.class_diagram import WrappedClass
 from krrood.patterns.field_metadata import FieldMetadata
@@ -100,9 +100,7 @@ def part_whole_fields(annotation_class: Type) -> List[PartWholeField]:
     return part_whole_relationship_fields
 
 
-def admissible_relations(
-    one_class: Type, other_class: Type
-) -> List[PartWholeField]:
+def admissible_relations(one_class: Type, other_class: Type) -> List[PartWholeField]:
     """
     Report the part-whole relations two annotation classes may stand in, in either
     direction.

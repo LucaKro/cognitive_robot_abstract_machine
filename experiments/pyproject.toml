@@ -26,6 +26,7 @@ include-package-data = true
   "templates/*.jinja",
   "templates/*.py",
 ]
+"experiments.warsaw.pipeline.steps" = ["prompts/*.md"]
 "experiments.warsaw.pipeline.steps.vocabulary" = ["prompts/*/*.md", "prompts/*/*.jinja"]
 "experiments.warsaw.pipeline.steps.adjudicate" = ["prompts/*/*.md", "prompts/*/*.jinja"]
 "experiments.warsaw.pipeline.steps.classify" = ["prompts/*/*.md", "prompts/*/*.jinja"]

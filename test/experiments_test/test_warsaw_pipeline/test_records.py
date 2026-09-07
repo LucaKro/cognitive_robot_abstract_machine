@@ -18,18 +18,14 @@ from experiments.warsaw.pipeline.records import (
     BodyAnswer,
     Classifications,
     LabelAnswer,
-    MembershipAnswer,
-    MembershipQuestion,
     OpenQuestions,
-    OwnershipAnswer,
-    OwnershipQuestion,
-    PictureKind,
     Relations,
     RelationStatus,
     SplitRecord,
     Vocabulary,
     VocabularyRequest,
 )
+from experiments.warsaw.world_loader.viewpoints import PictureKind
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.scene_split import Pairing
 from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
@@ -263,4 +259,3 @@ def test_a_membership_question_names_what_it_is_choosing_between(questions):
     asked = questions.membership[0]
     assert asked.candidate_names == [one.name for one in asked.candidates]
     assert len(asked.candidate_names) > 1
-

@@ -9,13 +9,9 @@ painted, which is how a model is shown what it is being asked about.
 
 from __future__ import annotations
 
-import io
-import os
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from uuid import UUID
-
 import numpy as np
 import trimesh
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -25,8 +21,7 @@ from semantic_digital_twin.pipeline.pipeline import (
     TransformGeometry,
 )
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.utils import InheritanceStructureExporter
+from semantic_digital_twin.inheritance_structure import InheritanceStructureExporter
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Color, Mesh
@@ -36,7 +31,6 @@ from semantic_digital_twin.world_description.world_entity import (
     SemanticAnnotation,
 )
 from typing_extensions import (
-    Any,
     Dict,
     Iterable,
     Iterator,
@@ -46,13 +40,19 @@ from typing_extensions import (
     Tuple,
 )
 
-from experiments.warsaw.exceptions import WarsawLabelsMisalignedError
+from experiments.warsaw.exceptions import (
+    CameraHasNoDirectionError,
+    NoSegmentsGivenError,
+    SceneBodyNotFoundError,
+    WarsawLabelsMisalignedError,
+)
 from experiments.warsaw.world_loader.scene import (
     LabelSegment,
     WarsawScene,
     segment_label,
 )
 from experiments.warsaw.world_loader.viewpoints import (
+    PictureKind,
     RenderSizes,
     Viewpoint,
     ViewpointChoice,
@@ -94,6 +94,12 @@ class RenderedSegmentGroup:
         return segment_label(self.segments)
 
 
+SHARED_FACES_LABEL = "both"
+"""
+What the legend calls the faces two segments both claim.
+"""
+
+
 @dataclass
 class WarsawWorldLoader:
     """
@@ -101,14 +107,14 @@ class WarsawWorldLoader:
     rendering and export operations.
     """
 
-    input_directory: Path = field(default=None)
+    input_directory: Optional[Path] = field(default=None)
     """
     Directory holding the scene to load.
 
     Can be None if world is provided directly.
     """
 
-    world: World = field(default=None)
+    world: Optional[World] = field(default=None)
     """
     Loaded World object.
 
@@ -158,11 +164,6 @@ class WarsawWorldLoader:
     How far above the scene's middle the predefined cameras are lifted, in radians.
     """
 
-    original_state: Dict[UUID, Any] = field(init=False, default_factory=dict)
-    """
-    Original visual states of bodies before highlighting.
-    """
-
     _original_face_colors: Optional[np.ndarray] = field(init=False, default=None)
     """
     The color of each of the scene body's faces before anything was highlighted.
@@ -185,15 +186,6 @@ class WarsawWorldLoader:
                 self.scene = WarsawScene.from_directory(self.input_directory)
             self.world = self._world_from_scene(self.scene, self.scene_body_name)
             self._verify_faces_carry_the_labels()
-
-        # Cache original visual states of bodies
-        for body in self.world.bodies_with_collision:
-            if (
-                body.collision
-                and len(body.collision) > 0
-                and hasattr(body.collision[0], "mesh")
-            ):
-                self.original_state[body.id] = body.collision[0].mesh.visual.copy()
 
         # Face colors are read once here, while the mesh still carries the colors it was
         # scanned in, because highlighting replaces them.
@@ -238,7 +230,7 @@ class WarsawWorldLoader:
 
         pipeline = Pipeline(
             steps=[
-                TransformGeometry(scene.source_to_world),
+                TransformGeometry(scene.world_T_source),
                 CenterLocalGeometryAndPreserveWorldPose(),
             ]
         )
@@ -268,7 +260,10 @@ class WarsawWorldLoader:
         for body in self.world.bodies_with_collision:
             if body.name.name == self.scene_body_name:
                 return body
-        return self.world.bodies_with_collision[0]
+        raise SceneBodyNotFoundError(
+            scene_body_name=self.scene_body_name,
+            body_names=[body.name.name for body in self.world.bodies_with_collision],
+        )
 
     @property
     def scene_mesh(self) -> trimesh.Trimesh:
@@ -380,7 +375,7 @@ class WarsawWorldLoader:
 
     def render_scene_from_predefined_poses(
         self, output_path: Path, filename_prefix: str, headless: bool = False
-    ):
+    ) -> None:
         """
         Render the world from each of the predefined camera poses, writing one image per
         pose.
@@ -392,13 +387,13 @@ class WarsawWorldLoader:
         for index, pose in enumerate(self._predefined_camera_transforms):
             self.render_scene_from_camera_pose(
                 pose,
-                os.path.join(output_path, f"{filename_prefix}_{index}.png"),
+                Path(output_path) / f"{filename_prefix}_{index}.png",
                 headless=headless,
             )
 
     def render_scene_from_camera_poses(
         self,
-        camera_poses: Dict[str, HomogeneousTransformationMatrix],
+        camera_poses: Dict[str, np.ndarray],
         headless: bool = False,
     ) -> Dict[str, bytes]:
         """
@@ -416,7 +411,7 @@ class WarsawWorldLoader:
     def _render_from_poses(
         self,
         scene: trimesh.Scene,
-        camera_poses: Dict[str, HomogeneousTransformationMatrix],
+        camera_poses: Dict[str, np.ndarray],
         headless: bool = False,
         resolution: Optional[Tuple[int, int]] = None,
     ) -> Dict[str, bytes]:
@@ -448,8 +443,8 @@ class WarsawWorldLoader:
 
     def render_scene_from_camera_pose(
         self,
-        camera_transform: HomogeneousTransformationMatrix,
-        output_filepath=None,
+        camera_transform: np.ndarray,
+        output_filepath: Optional[Path] = None,
         headless: bool = False,
     ) -> bytes:
         """
@@ -464,8 +459,7 @@ class WarsawWorldLoader:
         scene.graph[scene.camera.name] = camera_transform
         png = scene.save_image(resolution=self.render_sizes.kept, visible=not headless)
         if output_filepath:
-            with open(output_filepath, "wb") as f:
-                f.write(png)
+            Path(output_filepath).write_bytes(png)
         return png
 
     @cached_property
@@ -510,8 +504,12 @@ class WarsawWorldLoader:
         :return: The camera's transform in the world's frame.
         """
         forward = target - eye
+        if not np.linalg.norm(forward):
+            raise CameraHasNoDirectionError(eye=eye.tolist(), target=target.tolist())
         forward = forward / np.linalg.norm(forward)
         right = np.cross(forward, np.array([0.0, 0.0, 1.0]))
+        if not np.linalg.norm(right):
+            raise CameraHasNoDirectionError(eye=eye.tolist(), target=target.tolist())
         right = right / np.linalg.norm(right)
 
         transform = np.eye(4)
@@ -662,17 +660,25 @@ class WarsawWorldLoader:
             the faces it alone claims, and ``both`` for the faces they share, which is
             absent when they share none.
         """
-        shared = np.intersect1d(one.faces, other.faces, assume_unique=True)
+        shared = np.intersect1d(
+            one.face_indices, other.face_indices, assume_unique=True
+        )
         colors = Color.distinct_colors(3)
         highlights = [
-            (colors[0], np.setdiff1d(one.faces, other.faces, assume_unique=True)),
-            (colors[1], np.setdiff1d(other.faces, one.faces, assume_unique=True)),
+            (
+                colors[0],
+                np.setdiff1d(one.face_indices, other.face_indices, assume_unique=True),
+            ),
+            (
+                colors[1],
+                np.setdiff1d(other.face_indices, one.face_indices, assume_unique=True),
+            ),
             (colors[2], shared),
         ]
 
         legend = {str(one.name): colors[0], str(other.name): colors[1]}
         if len(shared):
-            legend["both"] = colors[2]
+            legend[SHARED_FACES_LABEL] = colors[2]
         return highlights, legend
 
     def highlight_pair(
@@ -689,12 +695,24 @@ class WarsawWorldLoader:
         self._apply_highlight_to_faces(highlights)
         return legend
 
+    def face_indices_of(self, segments: Iterable[LabelSegment]) -> np.ndarray:
+        """
+        :param segments: The segments to take the faces of.
+        :return: The index of every face they cover.
+        :raises NoSegmentsGivenError: If no segments were given.
+        """
+        gathered = [segment.face_indices for segment in segments]
+        if not gathered:
+            raise NoSegmentsGivenError()
+        return np.concatenate(gathered)
+
     def points_of(self, segments: Iterable[LabelSegment]) -> np.ndarray:
         """
         :param segments: The segments to take the geometry of.
         :return: The vertices their faces are drawn from, in the world's frame.
+        :raises NoSegmentsGivenError: If no segments were given.
         """
-        faces = np.concatenate([segment.face_indices for segment in segments])
+        faces = self.face_indices_of(segments)
         return self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
 
     def render_segments_alone(
@@ -720,9 +738,7 @@ class WarsawWorldLoader:
         :param headless: Whether to render without opening a window.
         :return: Per viewpoint, its render as PNG bytes.
         """
-        faces = np.unique(
-            np.concatenate([segment.face_indices for segment in segments])
-        )
+        faces = np.unique(self.face_indices_of(segments))
         alone = self.scene_mesh.submesh([faces], append=True)
         alone.visual.face_colors = face_colors[faces]
 
@@ -736,9 +752,9 @@ class WarsawWorldLoader:
 
     def _chosen_viewpoints(
         self,
-        poses: Dict[str, HomogeneousTransformationMatrix],
+        poses: Dict[str, np.ndarray],
         viewpoints: Optional[Sequence[str]],
-    ) -> Dict[str, HomogeneousTransformationMatrix]:
+    ) -> Dict[str, np.ndarray]:
         """
         :param poses: The poses of every named viewpoint.
         :param viewpoints: The names to keep, or None to keep all of them.
@@ -755,7 +771,7 @@ class WarsawWorldLoader:
         highlights: Sequence[Tuple[Color, np.ndarray]],
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
-        choose_viewpoint: Optional[str] = None,
+        choose_viewpoint: Optional[ViewpointChoice] = None,
         context_segments: Optional[Iterable[LabelSegment]] = None,
     ) -> Dict[str, bytes]:
         """
@@ -815,9 +831,15 @@ class WarsawWorldLoader:
         )
 
         return {
-            **{f"closeup_{name}": image for name, image in closeups.items()},
-            **{f"context_{name}": image for name, image in contexts.items()},
-            **{f"plain_{name}": image for name, image in plains.items()},
+            **{
+                f"{PictureKind.CLOSEUP}_{name}": image
+                for name, image in closeups.items()
+            },
+            **{
+                f"{PictureKind.CONTEXT}_{name}": image
+                for name, image in contexts.items()
+            },
+            **{f"{PictureKind.PLAIN}_{name}": image for name, image in plains.items()},
         }
 
     def viewpoint_showing_all(
@@ -845,6 +867,9 @@ class WarsawWorldLoader:
             viewpoint shows an object best depends on how closely it is framed.
         :return: The name of the viewpoint that shows the least-visible segment best.
         """
+        segments = list(segments)
+        if not segments:
+            raise NoSegmentsGivenError()
         poses = self._chosen_viewpoints(self.compute_camera_poses(frame), viewpoints)
         rooms = self._dimmed_views(poses, headless, cacheable=frame is None)
         color = Color.distinct_colors(1)[0]
@@ -890,7 +915,7 @@ class WarsawWorldLoader:
         segments: Iterable[LabelSegment],
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
-        considered: int = 4,
+        considered: int = len(Viewpoint),
     ) -> str:
         """
         Choose the viewpoint showing the least-visible of some segments best, measured
@@ -919,9 +944,7 @@ class WarsawWorldLoader:
         :return: The name of the viewpoint that shows the least-visible segment best.
         """
         segments = list(segments)
-        faces = np.unique(
-            np.concatenate([segment.face_indices for segment in segments])
-        )
+        faces = np.unique(self.face_indices_of(segments))
         poses = self._chosen_viewpoints(
             self.compute_camera_poses(
                 self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
@@ -974,7 +997,7 @@ class WarsawWorldLoader:
 
     def _dimmed_views(
         self,
-        poses: Dict[str, HomogeneousTransformationMatrix],
+        poses: Dict[str, np.ndarray],
         headless: bool,
         cacheable: bool,
     ) -> Dict[str, bytes]:
@@ -1002,23 +1025,3 @@ class WarsawWorldLoader:
         if cacheable:
             self._plain_views[key] = views
         return views
-
-    # %% painting the bodies of a split world
-
-    def _reset_body_colors(self):
-        """
-        Reset all bodies to their original visual states.
-        """
-        for body in self.world.bodies_with_collision:
-            body.collision[0].mesh.visual = self.original_state[body.id]
-
-    @staticmethod
-    def _apply_highlight_to_group(bodies: List[Body]) -> Dict[UUID, Color]:
-        """
-        Apply distinct highlight colors to a group of bodies.
-        """
-        colors = Color.distinct_colors(len(bodies))
-        for body, color in zip(bodies, colors):
-            body_mesh: Mesh = body.collision[0]
-            body_mesh.dye(color)
-        return {body.id: color for body, color in zip(bodies, colors)}

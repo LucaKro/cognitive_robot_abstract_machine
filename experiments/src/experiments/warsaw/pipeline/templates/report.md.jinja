@@ -39,8 +39,8 @@
 
 ### Classes given
 
-{% for name, count in classes_given %}
-- {{ count }} x `{{ name }}`
+{% for given in classes_given %}
+- {{ given.count }} x `{{ given.class_name }}`
 {% endfor %}
 {% endif %}
 

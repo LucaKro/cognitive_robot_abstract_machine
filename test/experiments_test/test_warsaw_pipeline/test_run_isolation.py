@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from experiments.warsaw.exceptions import (
+    DatabaseNotConfiguredError,
     GeneratedClassesAlreadyImportedError,
     RunOutputAlreadyWrittenError,
 )
@@ -172,7 +173,8 @@ def test_only_the_generated_classes_are_put_on_the_annotations_path(tmp_path):
     generated = GeneratedClasses(directory=tmp_path)
     generated.searched_directory.mkdir()
     generated.path.write_text("")
-    (tmp_path / "inspect_world.py").write_text("class Inspection: pass\n")
+    # Only its presence matters: the search must not reach outside its own directory.
+    (tmp_path / "inspect_world.py").write_text("not read by the search\n")
 
     assert generated.searched_directory != tmp_path.resolve()
     assert [one.name for one in generated.searched_directory.iterdir()] == [
@@ -236,3 +238,14 @@ def test_a_world_can_be_converted_only_once_the_mappings_are_loaded():
 
     WorldStore().mappings()
     assert get_dao_class(World) is not None
+
+
+def test_a_schema_with_no_uri_and_no_environment_is_reported(monkeypatch):
+    """
+    Neither the run nor the environment saying where the database is is a configuration
+    error, not a schema pointing nowhere.
+    """
+    schema = RunSchema(name="run_x")
+    monkeypatch.delenv(schema.variable, raising=False)
+    with pytest.raises(DatabaseNotConfiguredError):
+        schema.base_uri
