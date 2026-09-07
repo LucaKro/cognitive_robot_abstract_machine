@@ -81,6 +81,39 @@ class EmptyMotionStatechartError(MotionStatechartError):
 
 
 @dataclass
+class WorldStateArrayReplacedError(MotionStatechartError):
+    """
+    Raised when the world replaced its state array while a motion statechart was
+    compiled against it.
+    """
+
+    compiled_degrees_of_freedom: int
+    """
+    Number of degrees of freedom the motion statechart was compiled against.
+    """
+
+    current_degrees_of_freedom: int
+    """
+    Number of degrees of freedom the world holds now.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The world replaced its state array, which the compiled motion statechart "
+            f"still reads through a memory view of the previous one. It was compiled "
+            f"against {self.compiled_degrees_of_freedom} degrees of freedom and the "
+            f"world now has {self.current_degrees_of_freedom}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Adding or removing a degree of freedom replaces the state array. Avoid "
+            "such model changes while a motion is running, or re-compile afterwards. "
+            "Re-parenting a branch preserves the degrees of freedom and is safe."
+        )
+
+
+@dataclass
 class NodeAlreadyBelongsToDifferentNodeError(NodeInitializationError):
     """
     Raised when a node that is already part of the statechart is added a second time.
@@ -206,6 +239,42 @@ class NodeNotBuiltError(NodeInitializationError):
 
     def suggest_correction(self) -> str:
         return "Compile the motion statechart before reading a node's build artifacts."
+
+
+@dataclass
+class MissingFailureMonitorError(NodeInitializationError):
+    """
+    Raised when a repeating goal has no way of telling that an attempt failed.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.node.unique_name} is configured to repeat a task, but no failure monitor is defined to determine when an attempt has failed."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Pass a failure_monitor, or use a subclass such as RepeatOnStall that derives "
+            "the failure condition from the task."
+        )
+
+
+@dataclass
+class ConflictingFailureMonitorError(NodeInitializationError):
+    """
+    Raised when a repeating goal derives its own failure monitor but was given one as
+    well.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'"{self.node.unique_name}" derives its own failure monitor, so the one passed '
+            f"as failure_monitor would never be used."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Drop the failure_monitor argument, or use RepeatUntil itself to retry on a "
+            "monitor of your own."
+        )
 
 
 @dataclass
@@ -526,8 +595,8 @@ class DuplicateContextExtensionError(MotionStatechartError):
 @dataclass
 class ActionClientTypeMismatchError(MotionStatechartError):
     """
-    Raised when an action topic is requested with a different message type than the
-    one its cached action client was created with.
+    Raised when an action topic is requested with a different message type than the one
+    its cached action client was created with.
     """
 
     action_topic: str

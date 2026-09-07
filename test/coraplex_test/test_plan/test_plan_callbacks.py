@@ -10,7 +10,7 @@ from typing_extensions import List, Tuple
 
 from coraplex.datastructures.enums import TaskStatus
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.attachment_nodes import ModelChangeNode
+from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.executables import MotionLifeCycleTracker
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_callbacks import PlanCallback
@@ -236,7 +236,7 @@ def test_a_performed_model_change_reports_it_succeeded(mutable_model_world):
     the attach that ended it is not.
     """
     world, robot_view, context = mutable_model_world
-    attach = ModelChangeNode(
+    attach = ReAttachNode(
         body=world.get_body_by_name("milk.stl"), new_parent=world.root
     )
     plan = sequential([attach], context=context).plan

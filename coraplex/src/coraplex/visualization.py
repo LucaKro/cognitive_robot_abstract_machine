@@ -261,7 +261,7 @@ class WorldVisualization:
         if not rclpy.ok():
             rclpy.init()
         self.ros_node = rclpy.create_node("viz_marker")
-        VizMarkerPublisher(_world=self.world, node=self.ros_node).with_tf_publisher()
+        VizMarkerPublisher(_world=self.world, node=self.ros_node)
 
     def _start_cramera(self) -> None:
         try:

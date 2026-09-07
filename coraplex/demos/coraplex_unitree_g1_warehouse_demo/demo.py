@@ -28,12 +28,14 @@ from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.testing import setup_world, start_visualization
 from coraplex.view_manager import ViewManager
+from krrood.entity_query_language.factories import an, entity, variable
 from semantic_digital_twin.api import (
     BodySpecification,
     RobotSpecification,
     WorldSpecification,
 )
 from semantic_digital_twin.robots.unitree_g1 import UnitreeG1
+from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
@@ -94,7 +96,7 @@ def build_world() -> World:
     """
     :return: The warehouse with the G1 and the parcel in it.
     """
-    return WorldSpecification.from_gazebo(
+    world = WorldSpecification.from_gazebo(
         WORLD_URI,
         robots=[
             RobotSpecification(
@@ -111,6 +113,13 @@ def build_world() -> World:
             )
         ],
     ).to_domain_object()
+    # The parcel stands in for any graspable object; the plan only needs an annotation
+    # to name it by, not a particular kind of object.
+    with world.modify_world():
+        world.add_semantic_annotation(
+            HasRootBody(root=world.get_body_by_name("parcel"))
+        )
+    return world
 
 
 def standing_pose_in_front_of(pose: Pose, world: World) -> Pose:
@@ -136,6 +145,13 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
     :return: The plan transporting the parcel from one pallet stack to the other.
     """
     parcel = world.get_body_by_name("parcel")
+    parcel_annotation = an(
+        entity(
+            semantic_annotation := variable(
+                HasRootBody, domain=world.semantic_annotations
+            )
+        ).where(semantic_annotation.root == parcel)
+    ).first()
     grasp = GraspDescription(
         ApproachDirection.FRONT,
         VerticalAlignment.NoAlignment,
@@ -154,7 +170,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
             # %% bring to place pose
             ParkArmsAction(Arms.BOTH),
             NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PickUpAction(parcel, Arms.LEFT, grasp),
+            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
             ParkArmsAction(Arms.BOTH),
             MoveJointsMotion(
                 names=[
@@ -184,6 +200,13 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
     :return: The plan transporting the parcel from one pallet stack to the other.
     """
     parcel = world.get_body_by_name("parcel")
+    parcel_annotation = an(
+        entity(
+            semantic_annotation := variable(
+                HasRootBody, domain=world.semantic_annotations
+            )
+        ).where(semantic_annotation.root == parcel)
+    ).first()
     grasp = GraspDescription(
         ApproachDirection.FRONT,
         VerticalAlignment.NoAlignment,
@@ -202,7 +225,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
             # %% bring to place pose
             ParkArmsAction(Arms.BOTH),
             NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PickUpAction(parcel, Arms.LEFT, grasp),
+            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
             ParkArmsAction(Arms.BOTH),
             MoveJointsMotion(
                 names=[

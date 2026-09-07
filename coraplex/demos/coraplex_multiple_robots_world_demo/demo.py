@@ -184,7 +184,7 @@ try:
 
     rclpy.init()
     node = rclpy.create_node("viz_marker")
-    VizMarkerPublisher(_world=world, node=node).with_tf_publisher()
+    VizMarkerPublisher(_world=world, node=node)
 except ImportError:
     node = None
 
