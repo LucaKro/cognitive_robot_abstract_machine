@@ -10,6 +10,7 @@ from typing import ClassVar, List, Self
 
 from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowCollisionBetweenGroups,
     AvoidExternalCollisions,
     AvoidSelfCollisions,
     SelfCollisionMatrixRule,
@@ -82,6 +83,21 @@ class GarmiJoint(StrEnum):
     RIGHT_ARM_JOINT_6 = "right_fr3_joint6"
     RIGHT_ARM_JOINT_7 = "right_fr3_joint7"
     RIGHT_GRIPPER_FINGER = "right_fr3_finger_joint1"
+
+
+GARMI_SHELL = (
+    "left_side_cover_link",
+    "right_side_cover_link",
+    "front_cover_link",
+    "rear_cover_link",
+    "cover_link",
+)
+"""
+Bodies making up GARMI's outer shell, as spelled in its URDF.
+
+They are what the robot presents to whatever it drives past, so they are held further off
+than the rest of it.
+"""
 
 
 @dataclass(eq=False)
@@ -401,8 +417,8 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
 
     ARM_PARK_CONFIGURATION: ClassVar[dict[str, float]] = {
         "fr3_joint1": 0.0,
-        "fr3_joint2": -0.7853981633974483,
-        "fr3_joint3": 0.0,
+        "fr3_joint2": -1.6,
+        "fr3_joint3": -1.0,
         "fr3_joint4": -2.356194490192345,
         "fr3_joint5": 0.0,
         "fr3_joint6": 1.5707963267948966,
@@ -460,8 +476,8 @@ class GarmiRightArm(Arm[GarmiRightGripper]):
 
     ARM_PARK_CONFIGURATION: ClassVar[dict[str, float]] = {
         "fr3_joint1": 0.0,
-        "fr3_joint2": -0.7853981633974483,
-        "fr3_joint3": 0.0,
+        "fr3_joint2": -1.6,
+        "fr3_joint3": 1.0,
         "fr3_joint4": -2.356194490192345,
         "fr3_joint5": 0.0,
         "fr3_joint6": 1.5707963267948966,
@@ -615,6 +631,17 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
     Franka FR3 arms, parallel grippers, and a pan/tilt head.
     """
 
+    @classproperty
+    def collision_defaults_to_visual(cls) -> bool:
+        """
+        Whether links declaring no collision geometry take their visual geometry.
+
+        True, because GARMI's shell -- the side, front and rear covers -- is drawn but
+        never described for contact, so without it the bodies that bound the robot's real
+        width do not collide.
+        """
+        return True
+
     @classmethod
     def get_ros_file_path(cls) -> str:
         """
@@ -670,5 +697,29 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
                 buffer_zone_distance=0.03,
                 violated_distance=0.0,
                 robot=self,
+            )
+        )
+
+        shell = [
+            self._world.get_body_in_branch_by_name(self.root, body_name)
+            for body_name in GARMI_SHELL
+        ]
+
+        # The shell is bodywork laid over the robot, so its geometry overlaps what it
+        # covers by construction and is only ever checked against the world.
+        self._world.collision_manager.add_ignore_collision_rule(
+            AllowCollisionBetweenGroups(
+                body_group_a=shell, body_group_b=self.bodies_with_collision
+            )
+        )
+
+        # The shell is also what bumps into furniture first, so it keeps a wider berth
+        # than the rest of the robot.
+        self._world.collision_manager.add_default_rule(
+            AvoidExternalCollisions(
+                buffer_zone_distance=0.2,
+                violated_distance=0.05,
+                robot=self,
+                body_subset=set(shell),
             )
         )

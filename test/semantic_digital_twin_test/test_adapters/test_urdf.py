@@ -11,6 +11,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.pr2 import PR2, PR2Joint
 from semantic_digital_twin.robots.tiago import Tiago, TiagoJoint
 from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.geometry import Scale
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -274,4 +275,89 @@ def test_a_mesh_keeps_the_color_of_its_material(named_materials_path):
 
     assert (color.R, color.G, color.B, color.A) == tuple(
         declared_color(named_materials_path, "DarkGrey")
+    )
+
+
+# %% collision geometry from visuals
+
+
+@pytest.fixture
+def visual_without_collision_path(urdf_paths):
+    """
+    Path of the URDF whose first link declares a visual and no collision.
+    """
+    return os.path.join(
+        os.path.dirname(urdf_paths.table), "visual_without_collision.urdf"
+    )
+
+
+VISUAL_ONLY_LINK = "visual_only"
+"""
+Name of the link declaring a visual and no collision.
+"""
+
+VISUAL_AND_COLLISION_LINK = "visual_and_collision"
+"""
+Name of the link declaring a visual and a collision of its own.
+"""
+
+
+def declared_collision_box_size(path: str, link_name: str) -> list:
+    """
+    The size a link's collision box is declared with in a URDF.
+
+    :param path: The URDF file to read.
+    :param link_name: Name of the link to read the collision off.
+    """
+    document = urdfpy.URDF.from_xml_file(path)
+    link = next(link for link in document.links if link.name == link_name)
+    return link.collisions[0].geometry.size
+
+
+def test_a_link_without_collision_has_none(visual_without_collision_path):
+    world = URDFParser.from_file(file_path=visual_without_collision_path).parse()
+
+    body = world.get_body_by_name(VISUAL_ONLY_LINK)
+
+    assert list(body.collision) == []
+    assert not body.has_collision()
+
+
+def test_a_link_without_collision_takes_its_visual_when_asked(
+    visual_without_collision_path,
+):
+    """
+    A description written for rendering only can still be collided with, which is what
+    lets an environment mesh block the robot.
+    """
+    world = URDFParser.from_file(
+        file_path=visual_without_collision_path, collision_defaults_to_visual=True
+    ).parse()
+
+    body = world.get_body_by_name(VISUAL_ONLY_LINK)
+
+    assert len(body.collision) == len(body.visual)
+    for collision, visual in zip(body.collision, body.visual):
+        assert collision is not visual
+        assert collision.scale == visual.scale
+        np.testing.assert_allclose(collision.origin.to_np(), visual.origin.to_np())
+    assert body.has_collision()
+
+
+def test_a_link_with_collision_keeps_its_own(visual_without_collision_path):
+    """
+    The visual only stands in where there is nothing to stand in for, so a link
+    declaring both keeps the collision it was given.
+    """
+    world = URDFParser.from_file(
+        file_path=visual_without_collision_path, collision_defaults_to_visual=True
+    ).parse()
+
+    body = world.get_body_by_name(VISUAL_AND_COLLISION_LINK)
+
+    assert len(body.collision) == 1
+    assert body.collision[0].scale == Scale(
+        *declared_collision_box_size(
+            visual_without_collision_path, VISUAL_AND_COLLISION_LINK
+        )
     )

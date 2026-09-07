@@ -41,6 +41,7 @@ from semantic_digital_twin.api import (
     BodySpecification,
     Connection6DoFSpecification,
     RobotSpecification,
+    SemanticAnnotationWithRootSpecification,
     WorldSpecification,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
@@ -48,11 +49,11 @@ from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.garmi import Garmi
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color
-from semantic_digital_twin.world_description.world_entity import Body
 
 _HERE = os.path.dirname(__file__)
 _WORLDS = os.path.join(_HERE, "..", "..", "resources", "worlds")
@@ -72,6 +73,14 @@ on, a reach drives the base past the object and into the shelving.
 CARRYING_ARM = Arms.LEFT
 """
 The arm that picks and places, one hand throughout.
+"""
+
+AVOIDS_COLLISIONS = True
+"""
+Whether every motion of the run carries a collision-avoidance goal.
+
+On, because the hall is collided with: the racks the arm reaches into are geometry the
+motions have to be held off, not just scenery the captured poses happen to miss.
 """
 
 LYING_ON_ITS_SIDE = math.pi / 2
@@ -238,6 +247,8 @@ class PartsCollectionDemonstration(RobotDemonstration):
     def build_simulated_world(self) -> World:
         return WorldSpecification.from_urdf(
             os.path.join(_WORLDS, ENV_FILE),
+            # the hall is drawn by a visual mesh only, and the robot has to bump into it
+            collision_defaults_to_visual=True,
             robots=[
                 RobotSpecification(
                     semantic_annotation_type=self.used_robot,
@@ -254,13 +265,19 @@ class PartsCollectionDemonstration(RobotDemonstration):
 
     def populate_scene(self, world: World) -> None:
         for part in PARTS:
-            # free to move (Connection6DoF), so the robot can pick it up and carry it
-            BodySpecification.mesh(
+            # a pick-up takes the annotation of what it grasps, not the bare body, so
+            # each part is spawned already named by one
+            SemanticAnnotationWithRootSpecification(
                 part.mesh,
-                os.path.join(_OBJECTS, part.mesh),
-                color=part.color,
-                parent_T_self=part.storage_pose.to_homogeneous_matrix(),
-                connection_specification=Connection6DoFSpecification(),
+                semantic_annotation_type=HasRootBody,
+                # free to move (Connection6DoF), so the robot can pick it up and carry it
+                root_specification=BodySpecification.mesh(
+                    part.mesh,
+                    os.path.join(_OBJECTS, part.mesh),
+                    color=part.color,
+                    parent_T_self=part.storage_pose.to_homogeneous_matrix(),
+                    connection_specification=Connection6DoFSpecification(),
+                ),
             ).spawn(world)
 
     def build_context(self, world: World) -> Context:
@@ -283,7 +300,7 @@ class PartsCollectionDemonstration(RobotDemonstration):
             steps.extend(
                 self.carry(
                     context,
-                    world.get_body_by_name(part.mesh),
+                    self.annotation_of(world, part.mesh),
                     part.grasp(end_effector),
                     part.storage_stand,
                     part.delivery_pose,
@@ -292,10 +309,25 @@ class PartsCollectionDemonstration(RobotDemonstration):
             )
         return sequential(steps, context=context).plan
 
+    @staticmethod
+    def annotation_of(world: World, mesh: PartMesh) -> HasRootBody:
+        """
+        The annotation naming one of the collected parts.
+
+        :param world: The world the part was spawned in.
+        :param mesh: The mesh the part is made of, which is also its body's name.
+        """
+        body = world.get_body_by_name(mesh)
+        return next(
+            annotation
+            for annotation in world.get_semantic_annotations_by_type(HasRootBody)
+            if annotation.root is body
+        )
+
     def carry(
         self,
         context: Context,
-        part: Body,
+        part: HasRootBody,
         grasp: GraspDescription,
         stand_to_pick: Pose,
         destination: Pose,
@@ -308,7 +340,7 @@ class PartsCollectionDemonstration(RobotDemonstration):
         part back to its rack by swapping them.
 
         :param context: The plan context the actions are built against.
-        :param part: The body being carried.
+        :param part: The annotation of the part being carried.
         :param grasp: How the part is taken hold of.
         :param stand_to_pick: Base pose the part is picked up from.
         :param destination: Where the part is put down.
@@ -322,7 +354,7 @@ class PartsCollectionDemonstration(RobotDemonstration):
             ParkArmsAction(Arms.BOTH),
             NavigateAction(self.against_world_root(context, stand_to_place)),
             PlaceAction(
-                part, self.against_world_root(context, destination), CARRYING_ARM
+                part.root, self.against_world_root(context, destination), CARRYING_ARM
             ),
             ParkArmsAction(Arms.BOTH),
         ]
@@ -353,7 +385,7 @@ def main() -> None:
     """
     PartsCollectionDemonstration(
         used_robot=Garmi,
-        collision_avoidance=False,
+        collision_avoidance=AVOIDS_COLLISIONS,
         default_visualization_backend=VisualizationBackend.CRAMERA,
     ).run()
 

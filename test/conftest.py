@@ -482,6 +482,7 @@ def world_with_urdf_factory(
     urdf_parser = URDFParser.from_file(
         file_path=robot_semantic_annotation.get_ros_file_path(),
         path_resolver=urdf_path_resolver,
+        collision_defaults_to_visual=robot_semantic_annotation.collision_defaults_to_visual,
     )
     world_with_urdf = urdf_parser.parse()
     if robot_semantic_annotation is not None:

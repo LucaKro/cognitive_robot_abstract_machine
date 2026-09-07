@@ -274,6 +274,22 @@ def test_world_specification_from_urdf_environment():
     assert world.root is not None
 
 
+def test_world_specification_from_urdf_can_take_collision_from_visuals():
+    """
+    An environment whose URDF declares visuals only is still something the robot can
+    collide with when the specification asks for it.
+    """
+    world = WorldSpecification.from_urdf(
+        os.path.join(RESOURCES, "urdf", "visual_without_collision.urdf"),
+        collision_defaults_to_visual=True,
+    ).to_domain_object()
+
+    body = world.get_body_by_name("visual_only")
+
+    assert len(body.collision) == len(body.visual)
+    assert body.collision[0].scale == body.visual[0].scale
+
+
 def test_materialized_environments_share_no_entity_ids():
     specification = WorldSpecification.from_urdf(
         os.path.join(RESOURCES, "urdf", "table.urdf")

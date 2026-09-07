@@ -1112,7 +1112,8 @@ class RobotSpecification:
         is_active = issubclass(connection_type, ActiveConnection)
 
         robot_world = URDFParser.from_file(
-            self.semantic_annotation_type.get_ros_file_path()
+            self.semantic_annotation_type.get_ros_file_path(),
+            collision_defaults_to_visual=self.semantic_annotation_type.collision_defaults_to_visual,
         ).parse()
         robot_id = self.semantic_annotation_type.from_world(robot_world).id
 
@@ -1204,6 +1205,7 @@ class WorldSpecification:
         *,
         prefix: str | None = None,
         path_resolver: PathResolver | None = None,
+        collision_defaults_to_visual: bool = False,
         robots: list[RobotSpecification] | None = None,
         objects: list[SpawnSpecification] | None = None,
     ) -> Self:
@@ -1214,12 +1216,18 @@ class WorldSpecification:
             description; robots are supplied through ``robots``.
         :param prefix: Optional name prefix for the parsed environment.
         :param path_resolver: Resolver for mesh/package paths referenced by the URDF.
+        :param collision_defaults_to_visual: Whether a link declaring no collision
+            geometry takes its visual geometry as collision geometry, which is how an
+            environment drawn for rendering only becomes something to collide with.
         :param robots: The robots merged into the environment.
         :param objects: Specifications spawned once the robots are in place.
         :return: The created specification.
         """
         world_parser = URDFParser.from_file(
-            file_path, prefix=prefix, path_resolver=path_resolver
+            file_path,
+            prefix=prefix,
+            path_resolver=path_resolver,
+            collision_defaults_to_visual=collision_defaults_to_visual,
         )
         return cls(
             world_parser=world_parser,

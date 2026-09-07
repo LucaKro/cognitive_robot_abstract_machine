@@ -134,6 +134,13 @@ class URDFParser(WorldModelParser):
     The path resolver to use for resolving URIs in the URDF file.
     """
 
+    collision_defaults_to_visual: bool = False
+    """
+    Whether a link declaring no collision geometry takes its visual geometry as
+    collision geometry, so a description written for rendering only can still be
+    collided with.
+    """
+
     def __post_init__(self):
         self.urdf = hacky_urdf_parser_fix(self.urdf)
         self.parsed = urdfpy.URDF.from_xml_string(self.urdf)
@@ -146,9 +153,25 @@ class URDFParser(WorldModelParser):
         file_path: str,
         prefix: Optional[str] = None,
         path_resolver: Optional[PathResolver] = None,
+        collision_defaults_to_visual: bool = False,
     ) -> URDFParser:
+        """
+        Creates a parser for a URDF or xacro file.
+
+        :param file_path: The path of the file to parse.
+        :param prefix: The prefix for every name used in this world.
+        :param path_resolver: Resolver for the URIs the file names its meshes by,
+            defaulting to one that reads paths relative to the file itself.
+        :param collision_defaults_to_visual: Whether a link declaring no collision
+            geometry takes its visual geometry as collision geometry.
+        :return: A parser for the world described by the file.
+        """
         if file_path.endswith(".xacro"):
-            return cls.from_xacro(file_path, prefix)
+            return cls.from_xacro(
+                file_path,
+                prefix,
+                collision_defaults_to_visual=collision_defaults_to_visual,
+            )
 
         file_path = (path_resolver or CompositePathResolver()).resolve(file_path)
         if path_resolver is None:
@@ -166,9 +189,12 @@ class URDFParser(WorldModelParser):
                 # Since parsing URDF causes a lot of warning messages which can't be deactivated, we suppress them
                 with suppress_stdout_stderr():
                     urdf = file.read()
-        urdf_parser = cls(urdf=urdf, prefix=prefix)
-        urdf_parser.path_resolver = path_resolver
-        return urdf_parser
+        return cls(
+            urdf=urdf,
+            prefix=prefix,
+            path_resolver=path_resolver,
+            collision_defaults_to_visual=collision_defaults_to_visual,
+        )
 
     @classmethod
     def from_xacro(
@@ -176,6 +202,7 @@ class URDFParser(WorldModelParser):
         xacro_path: str,
         prefix: Optional[str] = None,
         mappings: Optional[Dict[str, str]] = None,
+        collision_defaults_to_visual: bool = False,
     ) -> URDFParser:
         """
         Creates a parser from a xacro file by expanding it to URDF.
@@ -187,11 +214,17 @@ class URDFParser(WorldModelParser):
         :param prefix: The prefix for every name used in this world.
         :param mappings: The xacro substitution arguments to apply during expansion (the
             ``arg`` values, e.g. ``{"ur_type": "ur5"}``).
+        :param collision_defaults_to_visual: Whether a link declaring no collision
+            geometry takes its visual geometry as collision geometry.
         :return: A parser for the world described by the expanded xacro file.
         """
         xacro_path = CompositePathResolver().resolve(xacro_path)
         urdf = process_file(xacro_path, mappings=mappings).toxml()
-        return URDFParser(urdf=urdf, prefix=prefix)
+        return URDFParser(
+            urdf=urdf,
+            prefix=prefix,
+            collision_defaults_to_visual=collision_defaults_to_visual,
+        )
 
     def parse(self) -> World:
         prefix = self.parsed.name
@@ -330,14 +363,29 @@ class URDFParser(WorldModelParser):
         """
         name = PrefixedName(prefix=self.prefix, name=link.name)
         body = Body(name=name)
-        visuals = self.parse_geometry(link.visuals, body)
-        collisions = self.parse_geometry(link.collisions, body)
-        body.visual = visuals
-        body.collision = collisions
+        body.visual = self.parse_geometry(link.visuals, body)
+        body.collision = self.parse_collision(link, body)
         inertial = self.parse_inertial(link, body)
         if inertial is not None:
             body.inertial = inertial
         return body
+
+    def parse_collision(self, link: urdfpy.Link, body: Body) -> ShapeCollection:
+        """
+        Parses the collision geometry of a URDF link.
+
+        A link declaring none takes its visual geometry instead where
+        :attr:`collision_defaults_to_visual` asks for it. The two collections are parsed
+        separately rather than shared, because each is transformed and dyed on its own.
+
+        :param link: The URDF link whose ``collision`` elements are parsed.
+        :param body: The body of the geometry, used for back referencing.
+        :return: The shapes the link is collided with.
+        """
+        collisions = self.parse_geometry(link.collisions, body)
+        if collisions or not self.collision_defaults_to_visual:
+            return collisions
+        return self.parse_geometry(link.visuals, body)
 
     def parse_inertial(self, link: urdfpy.Link, body: Body) -> Optional[Inertial]:
         """

@@ -4,13 +4,17 @@
   (metres, Z up, roof off), so the Plan Builder can load it through URDFParser like the
   kitchen and apartment worlds.
 
-  Visual only, on purpose. The hall is one mesh whose collision fills the whole interior
-  as a solid block, so the occupancy costmap (it ray casts each floor cell down and marks
-  it blocked on any hit) finds zero free standing cells, and every costmap based action
-  (NavigateAction, TransportAction) fails with "Merged locations is empty". With no
-  collision the floor is free space again and those actions resolve. The trade off is
-  that nothing stops the robot passing through a rack; for a manipulation demo in
-  simulation that is fine.
+  The link declares a visual and no collision, so by default nothing here is collided
+  with and the robot passes straight through the racks. A loader that wants the hall to
+  block asks the parser for it: URDFParser's collision_defaults_to_visual (reachable
+  through WorldSpecification.from_urdf) makes a link without collision take its visual.
+
+  It is left to the loader because the floor is part of this mesh, and the occupancy
+  costmap ray casts each floor cell down and marks it blocked on any hit. With the hall
+  collided with, every cell hits its floor and a costmap based action (TransportAction,
+  a NavigateAction given a location rather than a pose) fails with "Merged locations is
+  empty". A demo standing at poses of its own can have the collision; one searching for
+  where to stand cannot.
 -->
 <robot name="warehouse6">
   <link name="warehouse6">

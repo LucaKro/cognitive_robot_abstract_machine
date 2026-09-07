@@ -76,3 +76,14 @@ def test_every_station_is_within_the_reach_the_run_relies_on(demo):
     for part in demo.PARTS:
         assert reach(part.storage_pose, part.storage_stand) <= proven_reach
         assert reach(part.delivery_pose, part.delivery_stand) <= proven_reach
+
+
+# %% collision avoidance
+
+
+def test_the_run_avoids_collisions(demo):
+    """
+    The hall's racks are only kept clear of because every motion of the run carries a
+    collision-avoidance goal; without it the arm follows its captured poses through them.
+    """
+    assert demo.AVOIDS_COLLISIONS

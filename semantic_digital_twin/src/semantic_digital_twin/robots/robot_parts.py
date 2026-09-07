@@ -713,6 +713,15 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
         URDF file.
         """
 
+    @classproperty
+    def collision_defaults_to_visual(cls) -> bool:
+        """
+        Whether links of this robot declaring no collision geometry take their visual
+        geometry, for a description that draws part of the robot without describing it
+        for contact.
+        """
+        return False
+
     @classmethod
     @abstractmethod
     def _get_root_body_name(cls) -> str:
