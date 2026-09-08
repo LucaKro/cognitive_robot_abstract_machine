@@ -496,13 +496,14 @@ def test_grasping(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
     left_arm = ViewManager.get_arm_view(Arms.LEFT, robot)
 
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     grasping_action = GraspingAction(
-        world.get_body_by_name("milk.stl"),
+        milk,
         Arms.LEFT,
-        Pose(reference_frame=world.get_body_by_name("milk.stl")),
+        Pose(reference_frame=milk.root),
     )
 
-    milk_body = world.get_body_by_name("milk.stl")
+    milk_body = milk.root
     milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1, -2, 0.8, reference_frame=world.root
     )
@@ -520,10 +521,13 @@ def test_grasping(immutable_multiple_robot_apartment):
     )
     with simulated_robot:
         plan.perform()
-    dist = np.linalg.norm(
-        world.get_body_by_name("milk.stl").global_transform.to_np()[3, :3]
+
+    # The grasp is the milk's own origin, so that is where the tool frame ends up.
+    assert np.allclose(
+        milk_body.global_pose.to_position().to_np(),
+        left_arm.end_effector.tool_frame.global_pose.to_position().to_np(),
+        atol=0.01,
     )
-    assert dist < 0.01
 
 
 def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):

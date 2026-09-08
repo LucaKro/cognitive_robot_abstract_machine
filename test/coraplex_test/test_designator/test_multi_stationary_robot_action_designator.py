@@ -243,7 +243,7 @@ def test_grasping(immutable_stationary_block_world):
 
     box_body = world.get_body_by_name("box1")
     description = GraspingAction(
-        box_body,
+        graspable_annotation(world, box_body),
         Arms.LEFT,
         Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body),
     )
@@ -253,10 +253,13 @@ def test_grasping(immutable_stationary_block_world):
     ).plan
     with simulated_robot:
         plan.perform()
-    dist = np.linalg.norm(
-        world.get_body_by_name("box1").global_transform.to_np()[3, :3]
+
+    # The grasp sits at the box's own origin, so that is where the tool frame ends up.
+    assert np.allclose(
+        box_body.global_pose.to_position().to_np(),
+        left_arm.end_effector.tool_frame.global_pose.to_position().to_np(),
+        atol=0.01,
     )
-    assert dist < 0.01
 
 
 def test_pick_up_multi(mutable_stationary_block_world):

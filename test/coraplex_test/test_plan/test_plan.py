@@ -23,7 +23,9 @@ from coraplex.plans.failures import EmptyUnderspecified
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.plans.attachment_nodes import ReAttachNode
+from coraplex.robot_plans.actions.core.pick_up import GraspingAction, PickUpAction
+from coraplex.robot_plans.motions.gripper import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from krrood.entity_query_language.backends import ProbabilisticBackend
@@ -427,8 +429,8 @@ def _torso_position(world):
 
 def test_sequence_runs_all_motions(immutable_model_world):
     """
-    Every motion of a sequence is executed, so the torso ends at the target of the *last*
-    motion.
+    Every motion of a sequence is executed, so the torso ends at the target of the
+    *last* motion.
 
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.
@@ -650,9 +652,7 @@ def test_node_expansion(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
-        [
-            PickUpAction(object_designator=milk, arm=Arms.RIGHT)
-        ],
+        [PickUpAction(object_designator=milk, arm=Arms.RIGHT)],
         context=context,
     )
 
@@ -661,7 +661,13 @@ def test_node_expansion(immutable_model_world):
 
     expanded_children = pick_node.children
     assert len(expanded_children) == 3
-    assert len(expanded_children[1].children) == 4
+
+    # A pick-up takes hold of the object, tells the world the object now hangs off the
+    # gripper, and lifts it; the reach and the closing gripper belong to the grasp.
+    grasp, reattach, lift = expanded_children[1].children
+    assert isinstance(grasp.designator, GraspingAction)
+    assert isinstance(reattach, ReAttachNode)
+    assert isinstance(lift.designator, MoveToolCenterPointMotion)
 
 
 def test_expand_move_torso(immutable_model_world):

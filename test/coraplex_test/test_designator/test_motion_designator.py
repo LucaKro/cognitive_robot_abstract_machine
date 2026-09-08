@@ -414,6 +414,25 @@ def test_move_gripper_motion_tolerate_stall_can_be_explicitly_enabled(
     assert LocalMinimumReached in node_types
 
 
+def _close_motion_of(pick_up: PickUpAction) -> MoveGripperMotion:
+    """
+    :return: The motion that closes the gripper on what a pick-up grasps.
+
+    A pick-up closes the gripper through the grasp it is built from, and the reach
+    inside that grasp opens it first, so the closing motion is picked out of an
+    expanded plan rather than read off the pick-up's own children.
+    """
+    pick_up.plan_node.notify()
+    [close_motion] = [
+        node.designator
+        for node in pick_up.plan_node.plan.get_nodes_by_designator_type(
+            MoveGripperMotion
+        )
+        if node.designator.motion is GripperState.CLOSE
+    ]
+    return close_motion
+
+
 def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     immutable_model_world,
 ):
@@ -428,11 +447,7 @@ def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     pick_up = PickUpAction(milk, Arms.LEFT)
     sequential([pick_up], context=context)
 
-    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
-        MoveGripperMotion
-    )
-    assert len(close_motion_nodes) == 1
-    assert close_motion_nodes[0].designator.tolerate_stall is False
+    assert _close_motion_of(pick_up).tolerate_stall is False
 
 
 def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
@@ -448,11 +463,7 @@ def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
     pick_up = PickUpAction(milk, Arms.LEFT, tolerate_grasp_stall=True)
     sequential([pick_up], context=context)
 
-    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
-        MoveGripperMotion
-    )
-    assert len(close_motion_nodes) == 1
-    assert close_motion_nodes[0].designator.tolerate_stall is True
+    assert _close_motion_of(pick_up).tolerate_stall is True
 
 
 def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
@@ -619,11 +630,7 @@ def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_wor
     pick_up = PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT)
     sequential([pick_up], context=context)
 
-    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
-        MoveGripperMotion
-    )
-    assert len(close_motion_nodes) == 1
-    assert close_motion_nodes[0].designator.allow_gripper_collision is True
+    assert _close_motion_of(pick_up).allow_gripper_collision is True
 
 
 def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
@@ -867,7 +874,8 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     grasping = GraspingAction(milk, Arms.LEFT, Pose(reference_frame=milk.root))
     sequential([grasping], context=context)
 
-    reach_nodes = grasping._action_plan.plan.get_nodes_by_designator_type(
+    grasping.plan_node.notify()
+    reach_nodes = grasping.plan_node.plan.get_nodes_by_designator_type(
         MoveToolCenterPointMotion
     )
     assert len(reach_nodes) == 2
