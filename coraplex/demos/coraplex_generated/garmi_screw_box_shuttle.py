@@ -21,6 +21,8 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 
+import numpy as np
+
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     ApproachDirection,
@@ -56,11 +58,50 @@ from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color
 
 _HERE = os.path.dirname(__file__)
-_WORLDS = os.path.join(_HERE, "..", "..", "resources", "worlds")
 _OBJECTS = os.path.join(_HERE, "..", "..", "resources", "objects")
 
-ENV_FILE = "warehouse6.urdf"
-ROBOT_XY = (1.5, 2.5)
+ENV_URI = (
+    "package://aws_robomaker_small_warehouse_world/worlds/no_roof_small_warehouse/"
+    "no_roof_small_warehouse.world"
+)
+"""
+The warehouse the run takes place in, the same one the Unitree G1 demo uses.
+
+Needs the ``aws_robomaker_small_warehouse_world`` package built in the workspace, since
+the world and its meshes are read from its share directory. Every fitting in it is a
+body of its own with its own collision geometry, so the aisles stay free of the robot.
+"""
+
+FLOOR_TOP = 0.034
+"""
+Where the warehouse's floor surface sits.
+
+The robot's own frame has its wheels at zero, so its odom is lifted by this much for it
+to stand on the floor rather than in it.
+"""
+
+STORAGE_TOP = 0.72
+"""
+Height of the flat top the parts are picked from.
+
+Cast onto the drawn surface rather than taken from the stack's overall height: these
+stacks are modelled as uneven piles, so their bounding box tops 20 cm above the only
+part of them a thing can be set down on.
+"""
+
+STANDING_DISTANCE = 1
+"""
+How far the robot's base stands from a part it reaches for.
+
+Set by the aisle rather than by the arm: a stack's collision geometry reaches out to
+2.324 at the height of the base while its flat top only begins at 2.60, so the base
+keeps its distance from the pile and the arm covers the rest.
+"""
+
+ROBOT_XY = (0.75, 6.0)
+"""
+Where the robot starts, in the open aisle between the two stacks it works at.
+"""
 
 BASE_MAY_DRIVE_WHILE_REACHING = False
 """
@@ -73,6 +114,15 @@ on, a reach drives the base past the object and into the shelving.
 CARRYING_ARM = Arms.LEFT
 """
 The arm that picks and places, one hand throughout.
+"""
+
+TICKS_PER_MOTION = 6000
+"""
+How long each motion may take before the run gives up on it.
+
+Three times the default: a motion that has to hold itself off the shelving converges
+more slowly than one that may drive straight at its goal, and the run is otherwise given
+up on while it is still closing in.
 """
 
 AVOIDS_COLLISIONS = True
@@ -135,6 +185,9 @@ class Part:
     delivery_pose: Pose
     """
     Where the part is put down on the delivery rack.
+
+    Turned to face the robot, which stands on the opposite side of this stack from the
+    one it picks at, so the part is put down from the front rather than reached around.
     """
 
     delivery_stand: Pose
@@ -172,14 +225,42 @@ class Part:
         )
 
 
+STORAGE_X = -0.75
+"""
+Where a part rests on the storage stack.
+
+On the very lip of its flat top, which the stack is drawn with from 2.52 and collides
+from 2.47: a part further in puts the wrist behind the hand over the higher of those
+two, where it is held its buffer distance off the stack and the hand never reaches down.
+"""
+
+WRENCH_SHELF = 1.084
+"""
+The flat top the wrench is taken from, which is a different pile from the one the parcel
+rests on and so a different height.
+"""
+
+LOWER_PLATEAU = 0.727
+"""
+The step of the storage stack the parcel is set down on, below the one it is taken from.
+"""
+
+CONTAINER_FLOOR = 0.55
+"""
+Inside of the container the wrench is delivered into.
+
+Its floor runs from 0.50 to 1.00 across and 8.55 to 8.95 along, well below the rim at
+1.41, so the hand comes down into it rather than in from the side.
+"""
+
 PARTS = (
     Part(
         mesh=PartMesh.SCREW_BOX,
         color=Color(),
-        storage_pose=Pose.from_xyz_rpy(2.35, -0.05, 0.708),
-        storage_stand=Pose.from_xyz_rpy(1.40, -0.29, 0.0),
-        delivery_pose=Pose.from_xyz_rpy(6.75, -1.20, 0.818),
-        delivery_stand=Pose.from_xyz_rpy(5.95, -1.44, 0.0),
+        storage_pose=Pose.from_xyz_rpy(STORAGE_X, 5.80, STORAGE_TOP + 0.088, yaw=np.pi),
+        storage_stand=Pose.from_xyz_rpy(STORAGE_X + STANDING_DISTANCE, 5.80, 0.0, yaw=np.pi),
+        delivery_pose=Pose.from_xyz_rpy(2.60, 7.85, LOWER_PLATEAU + 0.088),
+        delivery_stand=Pose.from_xyz_rpy(2.60 - STANDING_DISTANCE, 7.85, 0.0),
         # standing upright, so the fingers close on its 0.065 m side
         approach_direction=ApproachDirection.FRONT,
         vertical_alignment=VerticalAlignment.NoAlignment,
@@ -188,50 +269,61 @@ PARTS = (
     Part(
         mesh=PartMesh.WRENCH,
         color=Color(0.55, 0.57, 0.60),
-        storage_pose=Pose.from_xyz_rpy(2.35, -1.25, 0.716),
-        storage_stand=Pose.from_xyz_rpy(1.40, -1.49, 0.0),
-        delivery_pose=Pose.from_xyz_rpy(6.75, -1.80, 0.826),
-        delivery_stand=Pose.from_xyz_rpy(5.95, -2.04, 0.0),
-        # standing upright in a tool rack: the hand comes down onto its head and closes
-        # on the 0.009 m web, the only dimension a parallel gripper can span
-        approach_direction=ApproachDirection.FRONT,
-        vertical_alignment=VerticalAlignment.TOP,
-        rotate_gripper=False,
-    ),
-    Part(
-        mesh=PartMesh.AXLE,
-        color=Color(0.45, 0.47, 0.50),
-        storage_pose=Pose.from_xyz_rpy(2.50, 2.60, 0.693, roll=LYING_ON_ITS_SIDE),
-        storage_stand=Pose.from_xyz_rpy(1.55, 2.36, 0.0),
-        delivery_pose=Pose.from_xyz_rpy(6.75, -3.20, 0.743, roll=LYING_ON_ITS_SIDE),
-        delivery_stand=Pose.from_xyz_rpy(5.95, -3.44, 0.0),
-        # lying across the shelf front: the hand comes down along the rack and closes
-        # across the 0.025 m rod rather than along its 0.845 m length
+        storage_pose=Pose.from_xyz_rpy(
+            2.64, 8.65, WRENCH_SHELF - 0.007, roll=LYING_ON_ITS_SIDE
+        ),
+        storage_stand=Pose.from_xyz_rpy(2.64 - 0.85, 8.65, 0.0),
+        delivery_pose=Pose.from_xyz_rpy(
+            0.72, 8.35, CONTAINER_FLOOR - 0.007, roll=LYING_ON_ITS_SIDE, yaw=math.pi/2
+        ),
+        delivery_stand=Pose.from_xyz_rpy(0.72, 7.55, 0.0, yaw=math.pi/2),
+        # lying flat and taken from above, since it is delivered into a container whose
+        # walls leave no way in from the side. Flat rather than standing, because a hand
+        # descending on a wrench stood on end brings the wrist down beside it, and the
+        # arm is held its buffer distance clear of whatever it reaches for.
         approach_direction=ApproachDirection.LEFT,
         vertical_alignment=VerticalAlignment.NoAlignment,
         rotate_gripper=False,
     ),
-    Part(
-        mesh=PartMesh.PLATE,
-        color=Color(0.72, 0.70, 0.66),
-        storage_pose=Pose.from_xyz_rpy(2.50, 3.20, 0.80, roll=LYING_ON_ITS_SIDE),
-        # a third of a metre closer in than the other parts are fetched from: the rolled
-        # wrist costs reach, and from their distance the arm stalls short of the plate
-        storage_stand=Pose.from_xyz_rpy(1.85, 2.96, 0.0),
-        delivery_pose=Pose.from_xyz_rpy(6.60, -2.40, 0.83, roll=LYING_ON_ITS_SIDE),
-        # squared up on the drop rather than offset to the hand's side like the others,
-        # which is the difference between putting the plate down and stalling in front
-        # of it
-        delivery_stand=Pose.from_xyz_rpy(6.05, -2.40, 0.0),
-        # standing on its rim, with the hand rolled a quarter turn so the fingers close
-        # on the 0.02 m thickness instead of the 0.2 m the gripper cannot span
-        approach_direction=ApproachDirection.FRONT,
-        vertical_alignment=VerticalAlignment.NoAlignment,
-        rotate_gripper=True,
-    ),
+    # Part(
+    #     mesh=PartMesh.AXLE,
+    #     color=Color(0.45, 0.47, 0.50),
+    #     storage_pose=Pose.from_xyz_rpy(2.50, 2.60, 0.693, roll=LYING_ON_ITS_SIDE),
+    #     storage_stand=Pose.from_xyz_rpy(1.55, 2.36, 0.0),
+    #     delivery_pose=Pose.from_xyz_rpy(6.75, -3.20, 0.743, roll=LYING_ON_ITS_SIDE),
+    #     delivery_stand=Pose.from_xyz_rpy(5.95, -3.44, 0.0),
+    #     # lying across the shelf front: the hand comes down along the rack and closes
+    #     # across the 0.025 m rod rather than along its 0.845 m length
+    #     approach_direction=ApproachDirection.LEFT,
+    #     vertical_alignment=VerticalAlignment.NoAlignment,
+    #     rotate_gripper=False,
+    # ),
+    # Part(
+    #     mesh=PartMesh.PLATE,
+    #     color=Color(0.72, 0.70, 0.66),
+    #     storage_pose=Pose.from_xyz_rpy(2.50, 3.20, 0.80, roll=LYING_ON_ITS_SIDE),
+    #     # a third of a metre closer in than the other parts are fetched from: the rolled
+    #     # wrist costs reach, and from their distance the arm stalls short of the plate
+    #     storage_stand=Pose.from_xyz_rpy(1.85, 2.96, 0.0),
+    #     delivery_pose=Pose.from_xyz_rpy(6.60, -2.40, 0.83, roll=LYING_ON_ITS_SIDE),
+    #     # squared up on the drop rather than offset to the hand's side like the others,
+    #     # which is the difference between putting the plate down and stalling in front
+    #     # of it
+    #     delivery_stand=Pose.from_xyz_rpy(6.05, -2.40, 0.0),
+    #     # standing on its rim, with the hand rolled a quarter turn so the fingers close
+    #     # on the 0.02 m thickness instead of the 0.2 m the gripper cannot span
+    #     approach_direction=ApproachDirection.FRONT,
+    #     vertical_alignment=VerticalAlignment.NoAlignment,
+    #     rotate_gripper=True,
+    # ),
 )
 """
 The parts the run collects, in the order they are fetched.
+
+The axle and the plate are left out of the run: the flat tops of these two stacks
+measure 0.5 m at their longest, so the 0.845 m axle rests on neither of them, and the
+plate is 0.2 m across, which puts the wrist carrying the hand inside the distance the
+arm is held off whatever it reaches for whichever side it is approached from.
 """
 
 
@@ -245,15 +337,17 @@ class PartsCollectionDemonstration(RobotDemonstration):
     """
 
     def build_simulated_world(self) -> World:
-        return WorldSpecification.from_urdf(
-            os.path.join(_WORLDS, ENV_FILE),
-            # the hall is drawn by a visual mesh only, and the robot has to bump into it
-            collision_defaults_to_visual=True,
+        return WorldSpecification.from_gazebo(
+            ENV_URI,
+            # The hall collides as a handful of boxes standing in for shapes drawn in
+            # far more detail, which buries every ledge below a pile's top in solid
+            # geometry. Colliding as it is drawn gives the decomposition the real shape.
+            collision_from_visual=True,
             robots=[
                 RobotSpecification(
                     semantic_annotation_type=self.used_robot,
                     world_T_odom=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        ROBOT_XY[0], ROBOT_XY[1], 0.0
+                        ROBOT_XY[0], ROBOT_XY[1], FLOOR_TOP
                     ),
                 ),
             ],
@@ -287,7 +381,11 @@ class PartsCollectionDemonstration(RobotDemonstration):
         if isinstance(robot, HasMobileBase):
             robot.mobile_base.full_body_controlled = BASE_MAY_DRIVE_WHILE_REACHING
         context = Context(
-            world=world, robot=robot, _debug=False, ros_node=self.ros_node
+            world=world,
+            robot=robot,
+            _debug=False,
+            ros_node=self.ros_node,
+            ticks_per_motion=TICKS_PER_MOTION,
         )
         context.evaluate_conditions = False
         return context
@@ -347,9 +445,11 @@ class PartsCollectionDemonstration(RobotDemonstration):
         :param stand_to_place: Base pose the part is put down from.
         """
         return [
-            NavigateAction(self.against_world_root(context, stand_to_pick)),
+            # Parked before driving, not after: the arms swing wide as they tuck, so they
+            # are brought in while the robot still stands clear of the station.
             ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.MID),
+            NavigateAction(self.against_world_root(context, stand_to_pick)),
+            MoveTorsoAction(TorsoState.HIGH),
             PickUpAction(part, CARRYING_ARM, grasp),
             ParkArmsAction(Arms.BOTH),
             NavigateAction(self.against_world_root(context, stand_to_place)),
@@ -386,7 +486,7 @@ def main() -> None:
     PartsCollectionDemonstration(
         used_robot=Garmi,
         collision_avoidance=AVOIDS_COLLISIONS,
-        default_visualization_backend=VisualizationBackend.CRAMERA,
+        # default_visualization_backend=VisualizationBackend.CRAMERA,
     ).run()
 
 

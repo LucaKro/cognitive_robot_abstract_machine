@@ -30,6 +30,7 @@ try:
     import rclpy
     from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
         VizMarkerPublisher,
+        ShapeSource,
     )
 except ImportError:
     rclpy = None
@@ -261,7 +262,7 @@ class WorldVisualization:
         if not rclpy.ok():
             rclpy.init()
         self.ros_node = rclpy.create_node("viz_marker")
-        VizMarkerPublisher(_world=self.world, node=self.ros_node)
+        VizMarkerPublisher(_world=self.world, node=self.ros_node).with_collision_visualization()
 
     def _start_cramera(self) -> None:
         try:

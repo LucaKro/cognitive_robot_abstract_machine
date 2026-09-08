@@ -266,6 +266,7 @@ class _CancelBecauseExternalCollisionViolated(_CancelBecauseCollisionViolated):
     """
     The list of external collision avoidance tasks to check for collisions.
     """
+
     exception: Exception = field(init=False, default=Exception)
     """
     Set to init=False, because this class creates its own exception.
@@ -294,10 +295,13 @@ class _CancelBecauseExternalCollisionViolated(_CancelBecauseCollisionViolated):
         collisions = []
         thresholds = []
         for task in violated_tasks:
-            collision = context.external_collision_manager.last_closest_contacts[
+            # The task that failed is the one for this slot of the group, so the contact
+            # it failed on is the one at that index. Reporting the group's closest
+            # contact instead names a pair that is not the one in violation.
+            contacts = context.external_collision_manager.last_closest_contacts[
                 task.collision_group
-            ][0]
-            collisions.append(collision)
+            ]
+            collisions.append(contacts[task.collision_index])
             thresholds.append(task.violated_distance.evaluate()[0])
         raise CollisionViolatedError(
             violated_collisions=collisions, thresholds=thresholds
@@ -386,7 +390,9 @@ class ExternalCollisionAvoidance(Goal):
         left out of drawings. Set `plot_specs.collapse_children` to False to draw them.
     """
 
-    plot_specifications: NodePlotSpec = plot_specification_field(NodePlotSpec.create_collapsed_goal_style)
+    plot_specifications: NodePlotSpec = plot_specification_field(
+        NodePlotSpec.create_collapsed_goal_style
+    )
 
     robot: AbstractRobot = field(kw_only=True, default=None)
     """
@@ -653,6 +659,7 @@ class _CancelBecauseSelfCollisionViolated(_CancelBecauseCollisionViolated):
     """
     The list of self collision avoidance tasks to check for collisions.
     """
+
     exception: Exception = field(init=False, default=Exception)
     """
     Set to init=False, because this class creates its own exception.
@@ -703,7 +710,9 @@ class SelfCollisionAvoidance(Goal):
         draw them.
     """
 
-    plot_specs: NodePlotSpec = plot_specification_field(NodePlotSpec.create_collapsed_goal_style)
+    plot_specs: NodePlotSpec = plot_specification_field(
+        NodePlotSpec.create_collapsed_goal_style
+    )
 
     robot: AbstractRobot = field(kw_only=True, default=None)
     """

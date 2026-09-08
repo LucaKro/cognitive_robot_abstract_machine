@@ -907,3 +907,109 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     )
     assert len(reach_nodes) == 2
     assert all(node.designator.allow_gripper_collision is True for node in reach_nodes)
+
+
+# %% a base that may not drive stands still
+
+
+class TestBaseStandsStillWhileTheRobotMoves:
+    """
+    A motion of a robot whose base may not drive while it moves holds that base where it
+    stands, so nothing but a drive moves it.
+    """
+
+    @staticmethod
+    def _reach(world):
+        return MoveToolCenterPointMotion(
+            Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
+            Arms.LEFT,
+        )
+
+    def test_a_reach_holds_the_base_at_its_own_pose(self, immutable_simple_pr2_world):
+        world, robot, context = immutable_simple_pr2_world
+        robot.mobile_base.full_body_controlled = False
+        motion = self._reach(world)
+        sequential([motion], context=context)
+
+        holding = motion.base_standing_still()
+
+        assert holding.root_link is world.root
+        assert holding.tip_link is robot.root
+        # the identity in the base's own frame is wherever that base stands
+        assert holding.goal_pose.reference_frame is robot.root
+        np.testing.assert_array_equal(holding.goal_pose.to_np(), np.eye(4))
+
+    def test_the_hold_outweighs_collision_avoidance(self, immutable_simple_pr2_world):
+        """
+        A base that may not drive may not be driven by avoidance either, which is what
+        carried the robot into the shelving it was told to stand clear of.
+        """
+        world, robot, context = immutable_simple_pr2_world
+        robot.mobile_base.full_body_controlled = False
+        motion = self._reach(world)
+        sequential([motion], context=context)
+
+        holding = motion.base_standing_still()
+
+        assert holding.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+
+    def test_the_base_is_held_while_the_world_settles(
+        self, immutable_simple_pr2_world
+    ):
+        """
+        A chart keeps ticking after its last motion retires, so the hold every motion
+        carries has to be taken over for those ticks.
+        """
+        world, robot, context = immutable_simple_pr2_world
+        robot.mobile_base.full_body_controlled = False
+        motion = self._reach(world)
+
+        with simulated_robot:
+            executable = sequential([motion], context=context).parse()
+            executable.prepare_for_execution()
+
+        (holding,) = [
+            node
+            for node in executable.motion_state_chart.nodes
+            if isinstance(node, CartesianPose) and node.tip_link is robot.root
+        ]
+        assert (
+            holding.start_condition is executable.root_node.observation_variable
+        )
+
+    def test_a_base_that_may_drive_is_not_held(self, immutable_simple_pr2_world):
+        world, robot, context = immutable_simple_pr2_world
+        robot.mobile_base.full_body_controlled = True
+        motion = self._reach(world)
+        sequential([motion], context=context)
+
+        assert motion.base_standing_still() is None
+
+    def test_the_hold_runs_beside_the_motion_it_belongs_to(
+        self, immutable_simple_pr2_world
+    ):
+        """
+        The hold shares the life cycle of its motion, so a chart mixing a drive with
+        reaches holds the base for the reaches alone.
+        """
+        world, robot, context = immutable_simple_pr2_world
+        robot.mobile_base.full_body_controlled = False
+        driving = MoveMotion(
+            Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+        )
+        reaching = self._reach(world)
+
+        with simulated_robot:
+            executable = sequential([driving, reaching], context=context).parse()
+        charts = {
+            type(node.motion): task
+            for node, task in executable.motion_mappings.items()
+        }
+
+        assert not isinstance(charts[MoveMotion], Parallel)
+        (holding,) = [
+            node
+            for node in charts[MoveToolCenterPointMotion].nodes
+            if isinstance(node, CartesianPose) and node.tip_link is robot.root
+        ]
+        assert holding.goal_pose.reference_frame is robot.root

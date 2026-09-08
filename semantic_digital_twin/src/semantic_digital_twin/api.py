@@ -1279,6 +1279,7 @@ class WorldSpecification:
         path_resolver: PathResolver | None = None,
         robots: list[RobotSpecification] | None = None,
         objects: list[SpawnSpecification] | None = None,
+        collision_from_visual: bool = False,
     ) -> Self:
         """
         Build a specification whose environment is parsed from a Gazebo SDF world or
@@ -1291,12 +1292,17 @@ class WorldSpecification:
             references. Defaults to one that searches next to the file.
         :param robots: The robots merged into the environment.
         :param objects: Specifications spawned once the robots are in place.
+        :param collision_from_visual: Whether every link of the environment collides as
+            it is drawn, rather than as the coarse geometry the file declares for it.
         :return: The created specification.
         """
         from semantic_digital_twin.adapters.gazebo import GazeboParser
 
         world_parser = GazeboParser.from_file(
-            file_path, prefix=prefix, path_resolver=path_resolver
+            file_path,
+            prefix=prefix,
+            path_resolver=path_resolver,
+            collision_from_visual=collision_from_visual,
         )
         return cls(
             world_parser=world_parser,

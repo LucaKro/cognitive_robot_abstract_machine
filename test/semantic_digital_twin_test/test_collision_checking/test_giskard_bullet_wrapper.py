@@ -2,7 +2,9 @@ import copy
 import os
 
 import giskardpy_bullet_bindings as pb
+import numpy as np
 import pytest
+import trimesh
 from importlib.resources import files
 from pathlib import Path
 
@@ -168,6 +170,7 @@ def test_create_shape_from_geometry_shared_shape_does_not_leak_pose_between_worl
     """
     Two independent ``BulletCollisionDetector`` instances built from worlds with
     identical geometry may end up sharing the same cached ``bullet.CollisionShape``.
+
     Moving a body's pose in one world must not affect collision results in the other.
     """
     world_a, box_a, cylinder_a, sphere_a, mesh_a, compound_a = world_setup_simple
@@ -193,3 +196,47 @@ def test_create_shape_from_geometry_shared_shape_does_not_leak_pose_between_worl
     )
 
     assert collision_b_after.distance == pytest.approx(baseline_distance_b)
+
+
+# %% mesh units
+
+
+AWS_GROUND = (
+    "package://aws_robomaker_small_warehouse_world/models/"
+    "aws_robomaker_warehouse_GroundB_01/meshes/"
+    "aws_robomaker_warehouse_GroundB_01_collision.DAE"
+)
+"""
+A convex collision mesh written in centimetres, as the AWS warehouse models are.
+"""
+
+
+def test_a_convex_mesh_keeps_the_size_it_was_loaded_with():
+    """
+    A mesh file may be written in another unit than meters, and only the loaded mesh has
+    been converted.
+
+    Handing the file itself to Bullet reads those numbers as meters, which for a
+    centimetre file makes the collision shape a hundred times too big -- large enough to
+    swallow whatever stands on it.
+    """
+    from semantic_digital_twin.adapters.package_resolver import CompositePathResolver
+    from semantic_digital_twin.exceptions import PathResolutionError
+
+    try:
+        path = CompositePathResolver().resolve(AWS_GROUND)
+    except PathResolutionError as error:
+        pytest.skip(f"AWS warehouse meshes not available: {error}")
+
+    mesh = Mesh(filename=path)
+    assert mesh.mesh.is_convex, "this fixture is here to cover the convex path"
+
+    handed_to_bullet = convert_to_decomposed_obj_and_save_in_tmp(
+        mesh=mesh, mesh_decomposer=None
+    )
+
+    np.testing.assert_allclose(
+        trimesh.load_mesh(handed_to_bullet, process=False).bounds,
+        mesh.mesh.bounds,
+        atol=1e-6,
+    )

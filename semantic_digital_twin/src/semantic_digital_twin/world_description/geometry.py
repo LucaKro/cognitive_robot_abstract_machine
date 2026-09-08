@@ -543,9 +543,24 @@ class Mesh(Shape):
         :return: The loaded mesh, measured in meters.
         """
         mesh = trimesh.load_mesh(filename, process=process)
-        if mesh.units is not None:
+        units = mesh.units or Mesh._declared_units(filename)
+        if units is not None:
+            mesh.units = units
             mesh.convert_units("meters")
         return mesh
+
+    @staticmethod
+    def _declared_units(filename: str) -> Optional[str]:
+        """
+        Read the unit a file declares from the scene it describes.
+
+        Joining a file's geometries into a single mesh keeps no unit, so a file holding
+        more than one geometry is read as unitless and has to be asked again as a scene.
+
+        :param filename: The path of the mesh file.
+        :return: The unit the file declares, or nothing while it declares none.
+        """
+        return trimesh.load(filename, process=False).units
 
     def to_json(self) -> Dict[str, Any]:
         # Serialize the unscaled geometry and the scale separately. This is the same

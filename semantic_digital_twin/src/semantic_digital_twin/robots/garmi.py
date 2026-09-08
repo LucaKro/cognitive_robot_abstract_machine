@@ -11,6 +11,7 @@ from typing import ClassVar, List, Self
 from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
+    AllowCollisionForBodies,
     AvoidExternalCollisions,
     AvoidSelfCollisions,
     SelfCollisionMatrixRule,
@@ -86,17 +87,29 @@ class GarmiJoint(StrEnum):
 
 
 GARMI_SHELL = (
+    "cover_link",
     "left_side_cover_link",
     "right_side_cover_link",
     "front_cover_link",
     "rear_cover_link",
-    "cover_link",
+    "front_lights_link",
+    "rear_lights_link",
+    "axle_link",
+    "front_rocker_link",
+    "rear_rocker_link",
+    "lidar2d_0_link",
+    "lidar2d_1_link",
+    "imu_1_link",
 )
 """
-Bodies making up GARMI's outer shell, as spelled in its URDF.
+The base's outer shell, as spelled in GARMI's URDF.
 
-They are what the robot presents to whatever it drives past, so they are held further off
-than the rest of it.
+None of it is checked for contact. Most of it is drawn without a contact model of its own
+and takes its visual geometry (see :attr:`Garmi.collision_defaults_to_visual`), which
+overlaps the robot underneath it; and the shell as a whole reaches below the floor the
+robot drives on. Keeping the geometry gives the robot its true width wherever a bounding
+box or a ray is asked for, while leaving it out of collision checking keeps it from
+reporting contact with the ground it stands on.
 """
 
 
@@ -700,26 +713,22 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
             )
         )
 
-        shell = [
-            self._world.get_body_in_branch_by_name(self.root, body_name)
-            for body_name in GARMI_SHELL
-        ]
-
-        # The shell is bodywork laid over the robot, so its geometry overlaps what it
-        # covers by construction and is only ever checked against the world.
         self._world.collision_manager.add_ignore_collision_rule(
-            AllowCollisionBetweenGroups(
-                body_group_a=shell, body_group_b=self.bodies_with_collision
+            AllowCollisionForBodies(
+                allowed_collision_bodies={
+                    self._world.get_body_in_branch_by_name(self.root, body_name)
+                    for body_name in GARMI_SHELL
+                }
             )
         )
 
-        # The shell is also what bumps into furniture first, so it keeps a wider berth
-        # than the rest of the robot.
-        self._world.collision_manager.add_default_rule(
-            AvoidExternalCollisions(
-                buffer_zone_distance=0.2,
-                violated_distance=0.05,
-                robot=self,
-                body_subset=set(shell),
+        # An arm is never checked against its own hand or what that hand holds: a long
+        # object grasped across its middle reaches back along the forearm, which is the
+        # arm carrying it rather than the arm running into something.
+        for arm in self.get_arms():
+            self._world.collision_manager.add_ignore_collision_rule(
+                AllowCollisionBetweenGroups(
+                    body_group_a=arm.bodies_with_collision,
+                    body_group_b=arm.end_effector.bodies_with_collision,
+                )
             )
-        )

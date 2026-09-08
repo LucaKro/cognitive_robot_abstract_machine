@@ -47,6 +47,7 @@ class GazeboFixturePaths:
     named_pose_relative_to: str
     model_frame_axis: str
     expressed_in_axis: str
+    coarse_collision: str
 
 
 @pytest.fixture
@@ -77,6 +78,7 @@ def gazebo_paths():
         unsupported_geometry=os.path.join(directory, "unsupported_geometry.sdf"),
         named_pose_frame=os.path.join(directory, "named_pose_frame.sdf"),
         named_pose_relative_to=os.path.join(directory, "named_pose_relative_to.sdf"),
+        coarse_collision=os.path.join(directory, "coarse_collision.sdf"),
         model_frame_axis=os.path.join(directory, "model_frame_axis.sdf"),
         expressed_in_axis=os.path.join(directory, "expressed_in_axis.sdf"),
     )
@@ -551,3 +553,42 @@ class TestSmallWarehouseWorld:
             isinstance(body.parent_connection, FixedConnection)
             for body in placed_bodies
         )
+
+
+# %% collision geometry taken from the visuals
+
+
+class TestCollisionTakenFromVisual:
+    """
+    A description whose collision geometry is a coarse stand-in can be read with its
+    visual geometry in that place instead.
+    """
+
+    def test_the_declared_collision_is_kept_by_default(self, gazebo_paths):
+        world = GazeboParser.from_file(gazebo_paths.coarse_collision).parse()
+
+        (collision,) = world.get_body_by_name("link").collision
+        assert collision.scale.to_np().tolist() == [3.0, 3.0, 3.0]
+
+    def test_the_visual_stands_in_for_the_collision(self, gazebo_paths):
+        world = GazeboParser.from_file(
+            gazebo_paths.coarse_collision, collision_from_visual=True
+        ).parse()
+
+        body = world.get_body_by_name("link")
+        (visual,) = body.visual
+        (collision,) = body.collision
+        assert collision.scale.to_np().tolist() == visual.scale.to_np().tolist()
+
+    def test_the_visual_pose_comes_with_it(self, gazebo_paths):
+        """
+        The stand-in has to sit where the visual sits, or it bounds a different volume.
+        """
+        world = GazeboParser.from_file(
+            gazebo_paths.coarse_collision, collision_from_visual=True
+        ).parse()
+
+        body = world.get_body_by_name("link")
+        (visual,) = body.visual
+        (collision,) = body.collision
+        assert collision.origin.to_np().tolist() == visual.origin.to_np().tolist()

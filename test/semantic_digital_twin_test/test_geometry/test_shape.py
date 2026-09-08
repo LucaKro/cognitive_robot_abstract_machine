@@ -377,6 +377,19 @@ def test_mesh_declaring_centimeters_loads_in_meters():
     assert mesh.mesh.extents == pytest.approx([1.0, 1.0, 1.0])
 
 
+def test_mesh_of_several_geometries_declaring_centimeters_loads_in_meters():
+    """
+    A file holding more than one geometry is converted like any other.
+
+    Joining a file's geometries into one mesh drops the unit the file declared, so such
+    a file is read as unitless and arrives a hundred times too large unless the
+    declaration is taken from the file itself.
+    """
+    mesh = Mesh(filename=collada_fixture_path("centimeter_two_cubes.dae"))
+
+    assert mesh.mesh.extents == pytest.approx([2.0, 1.0, 1.0])
+
+
 def test_mesh_declaring_no_units_is_taken_as_meters():
     """
     A mesh file that states no units is read as it is written.

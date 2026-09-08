@@ -237,9 +237,32 @@ class GiskardExecutable(Executable):
             self.motion_state_chart.add_node(ExternalCollisionAvoidance())
             self.motion_state_chart.add_node(SelfCollisionAvoidance())
 
+        self._hold_the_base_while_the_world_settles(end_trigger)
+
         end_motion = EndMotion()
         end_motion.start_condition = end_trigger
         self.motion_state_chart.add_node(end_motion)
+
+    def _hold_the_base_while_the_world_settles(self, end_trigger: Scalar) -> None:
+        """
+        Extend the chart with the task holding the base of a robot that may not drive
+        while it moves, from the moment its last motion is done.
+
+        Every motion holds the base for as long as it runs, but the chart keeps ticking
+        after the last of them retires, until the world has settled. Collision
+        avoidance drives the base freely during those ticks, which is enough to carry
+        the robot into what it was told to stand clear of.
+
+        :param end_trigger: Observed once every motion of this chart is done.
+        """
+        motions = list(self.motion_mappings)
+        if not motions:
+            return
+        holding = motions[0].motion.base_standing_still()
+        if holding is None:
+            return
+        self.motion_state_chart.add_node(holding)
+        holding.start_condition = end_trigger
 
     def _add_condition_monitors(self, end_trigger: Scalar) -> Scalar:
         """

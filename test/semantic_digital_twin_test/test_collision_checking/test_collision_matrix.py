@@ -888,3 +888,26 @@ class TestCollisionRuleSerialization:
 
         assert restored.buffer_zone_distance == rule.buffer_zone_distance
         assert restored.violated_distance == rule.violated_distance
+
+
+class TestAllowCollisionForBodies:
+    """
+    A rule told which bodies to allow has to still know them once the world moves on,
+    which the base class' update would otherwise undo.
+    """
+
+    def test_the_named_bodies_leave_the_collision_matrix(self, pr2_world_copy):
+        base_link = pr2_world_copy.get_body_by_name("base_link")
+        rule = AllowCollisionForBodies(allowed_collision_bodies={base_link})
+        collision_manager = pr2_world_copy.collision_manager
+        with pr2_world_copy.modify_world():
+            collision_manager.add_ignore_collision_rule(rule)
+
+        collision_manager.update_collision_matrix()
+
+        assert rule.allowed_collision_bodies == {base_link}
+        assert not [
+            check
+            for check in collision_manager.collision_matrix.collision_checks
+            if base_link in (check.body_a, check.body_b)
+        ]

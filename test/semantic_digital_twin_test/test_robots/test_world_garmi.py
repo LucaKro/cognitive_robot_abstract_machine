@@ -13,13 +13,16 @@ import pytest
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.collision_checking.collision_rules import (
-    AvoidExternalCollisions,
-    AvoidSelfCollisions,
     SelfCollisionMatrixRule,
 )
 from semantic_digital_twin.datastructures.definitions import StaticJointState
 from semantic_digital_twin.exceptions import ParsingError
-from semantic_digital_twin.robots.garmi import Garmi, GarmiLeftArm, GarmiRightArm
+from semantic_digital_twin.robots.garmi import (
+    GARMI_SHELL,
+    Garmi,
+    GarmiLeftArm,
+    GarmiRightArm,
+)
 
 COLLISION_CONFIG = os.path.join(
     Path(files("semantic_digital_twin")).parent.parent,
@@ -133,53 +136,6 @@ def test_the_arms_park_turned_away_from_each_other(garmi):
 # %% collision rules
 
 
-def shell_rule(world) -> AvoidExternalCollisions:
-    """
-    The rule covering only part of the robot, which is the one guarding the base shell.
-
-    :param world: The world the robot registered its rules in.
-    """
-    return next(
-        rule
-        for rule in world.collision_manager.default_rules
-        if isinstance(rule, AvoidExternalCollisions) and rule.body_subset is not None
-    )
-
-
-def whole_robot_rule(world) -> AvoidExternalCollisions:
-    """
-    The rule covering the whole robot.
-
-    :param world: The world the robot registered its rules in.
-    """
-    return next(
-        rule
-        for rule in world.collision_manager.default_rules
-        if isinstance(rule, AvoidExternalCollisions) and rule.body_subset is None
-    )
-
-
-def test_the_base_shell_keeps_a_wider_berth_than_the_rest(garmi_world):
-    """
-    The shell is what bumps into furniture first, so it is held further off than the rest
-    of the robot is.
-    """
-    shell = shell_rule(garmi_world)
-
-    assert (
-        shell.buffer_zone_distance > whole_robot_rule(garmi_world).buffer_zone_distance
-    )
-    assert shell.violated_distance > whole_robot_rule(garmi_world).violated_distance
-
-
-def test_the_bodies_the_shell_rule_guards_all_collide(garmi_world):
-    """
-    A rule naming a body that carries no collision geometry guards nothing.
-    """
-    for body in shell_rule(garmi_world).body_subset:
-        assert body.has_collision()
-
-
 def test_the_collision_matrix_switches_off_the_links_its_file_names(garmi_world):
     """
     The SRDF's ``disable_all_collisions`` links are taken out of collision checking
@@ -201,35 +157,27 @@ def test_the_collision_matrix_switches_off_the_links_its_file_names(garmi_world)
     assert {body.name.name for body in matrix.allowed_collision_bodies} == switched_off
 
 
-def test_the_shell_never_collides_with_the_robot_it_covers(garmi_world):
+def test_the_shell_is_left_out_of_collision_checking(garmi_world):
     """
-    The shell's geometry overlaps what it covers by construction -- the side covers reach
-    several centimetres into the chassis -- so any such pair left in collision checking
-    puts the robot in permanent violation of its own self-collision rule.
+    Bodywork geometry is the drawn skin, not a contact model: it overlaps both the robot
+    underneath it and the ground the robot stands on, so a check against it can only ever
+    report a collision the robot cannot do anything about.
     """
-    robot = garmi_world.get_semantic_annotations_by_type(Garmi)[0]
-    buffer_zone = next(
-        rule.buffer_zone_distance
-        for rule in garmi_world.collision_manager.default_rules
-        if isinstance(rule, AvoidSelfCollisions)
-    )
-    disabled = set()
-    for rule in garmi_world.collision_manager.ignore_collision_rules:
-        rule.update(garmi_world)
-        disabled |= {
-            frozenset((check.body_a.name.name, check.body_b.name.name))
-            for check in rule.allowed_collision_pairs
-        }
+    shell = {garmi_world.get_body_by_name(body_name) for body_name in GARMI_SHELL}
+    garmi_world.collision_manager.update_collision_matrix()
 
-    shell = shell_rule(garmi_world).body_subset
-    detector = garmi_world.collision_manager.collision_detector
-    touching = [
-        (covering.name.name, covered.name.name)
-        for covering in shell
-        for covered in robot.bodies_with_collision
-        if covered not in shell
-        and detector.check_collision_between_bodies(covering, covered, buffer_zone)
+    checks = garmi_world.collision_manager.collision_matrix.collision_checks
+
+    assert checks, "the collision matrix is empty, so it proves nothing"
+    assert not [
+        check for check in checks if check.body_a in shell or check.body_b in shell
     ]
 
-    assert touching, "the shell no longer overlaps anything it covers"
-    assert all(frozenset(pair) in disabled for pair in touching)
+
+def test_the_shell_keeps_the_shape_it_is_drawn_with(garmi_world):
+    """
+    Leaving bodywork out of collision checking must not cost the robot its true shape:
+    the covers are what its width is measured from.
+    """
+    for body_name in GARMI_SHELL:
+        assert garmi_world.get_body_by_name(body_name).has_collision()

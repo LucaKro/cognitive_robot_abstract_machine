@@ -41,11 +41,13 @@ LOG_DIR = create_cache_dir("log")
 _shape_cache: Dict[Any, bullet.CollisionShape] = {}
 """
 Process-wide cache of built Bullet collision shapes, keyed by geometry content (see
-:func:`_geometry_cache_key`). Shapes are immutable geometry definitions with no
-per-instance transform state, so a single shape can safely be referenced by many
-``bullet.CollisionObject``s across independent ``KineverseWorld`` instances (e.g. after
-``deepcopy`` of a ``World``). Persists for the life of the process rather than being
-scoped to a single ``BulletCollisionDetector``.
+:func:`_geometry_cache_key`).
+
+Shapes are immutable geometry definitions with no per-instance transform state, so a
+single shape can safely be referenced by many ``bullet.CollisionObject``s across
+independent ``KineverseWorld`` instances (e.g. after ``deepcopy`` of a ``World``).
+Persists for the life of the process rather than being scoped to a single
+``BulletCollisionDetector``.
 """
 
 
@@ -53,9 +55,9 @@ def _geometry_cache_key(geometry: Shape) -> Any:
     """
     Builds a cheap, content-based cache key for a geometry's collision shape.
 
-    Only touches plain dataclass fields, never the lazily-loaded
-    :attr:`Mesh.mesh` property, so looking up the key never forces the expensive
-    mesh load the cache is meant to avoid.
+    Only touches plain dataclass fields, never the lazily-loaded :attr:`Mesh.mesh`
+    property, so looking up the key never forces the expensive mesh load the cache is
+    meant to avoid.
 
     :param geometry: the geometry to build a cache key for.
     :return: a hashable key identifying the shape that would be built for this geometry.
@@ -260,12 +262,12 @@ def load_convex_mesh_shape(
     :param mesh_decomposer: optional decomposer used for non-convex meshes.
     :return: the bullet convex shape.
     """
-    if not mesh.mesh.is_convex and mesh_decomposer is not None:
-        obj_pkg_filename = convert_to_decomposed_obj_and_save_in_tmp(
-            mesh=mesh, mesh_decomposer=mesh_decomposer
-        )
-    else:
-        obj_pkg_filename = mesh.filename
+    # Always the cached copy, never the file itself: the cached copy is written from the
+    # mesh as loaded, which is in meters, while the file may be written in another unit
+    # that Bullet would read as meters.
+    obj_pkg_filename = convert_to_decomposed_obj_and_save_in_tmp(
+        mesh=mesh, mesh_decomposer=mesh_decomposer
+    )
     return bullet.load_convex_shape(
         obj_pkg_filename,
         single_shape=single_shape,

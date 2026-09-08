@@ -271,6 +271,15 @@ class AllowCollisionForBodies(AllowCollisionRule):
     The set of bodies for which all collisions should be allowed.
     """
 
+    def update(self, world: World):
+        """
+        Keeps the bodies this rule was given.
+
+        They are configuration rather than something read off the world, so the base
+        class' habit of emptying them whenever the world moves on would leave the rule
+        with nothing to allow.
+        """
+
     def _update(self, world: World): ...
 
 

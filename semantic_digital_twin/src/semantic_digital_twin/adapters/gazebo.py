@@ -120,6 +120,16 @@ class GazeboParser(WorldModelParser):
     The prefix for every name used in this world.
     """
 
+    collision_from_visual: bool = False
+    """
+    Whether every link takes its visual geometry as its collision geometry, in place of
+    the collision geometry the file declares.
+
+    A description often collides as a handful of boxes standing in for a shape drawn in
+    far more detail, which leaves the hollows and steps of that shape solid. Reading the
+    visuals instead gives the collision checker the shape that is drawn.
+    """
+
     path_resolver: PathResolver = field(default_factory=CompositePathResolver)
     """
     The path resolver used for the URIs referenced by this document.
@@ -142,6 +152,7 @@ class GazeboParser(WorldModelParser):
         file_path: str,
         prefix: Optional[str] = None,
         path_resolver: Optional[PathResolver] = None,
+        collision_from_visual: bool = False,
     ) -> GazeboParser:
         """
         Creates a parser for a description file.
@@ -153,6 +164,8 @@ class GazeboParser(WorldModelParser):
         :param file_path: The path of the file to parse.
         :param prefix: The prefix for every name used in this world.
         :param path_resolver: The resolver for the URIs referenced by the file.
+        :param collision_from_visual: Whether every link collides as it is drawn, see
+            :attr:`collision_from_visual`.
         :return: A parser for the described world.
         """
         file_locator = path_resolver or CompositePathResolver()
@@ -160,7 +173,9 @@ class GazeboParser(WorldModelParser):
         path_resolver = path_resolver or cls.resolver_for_file(resolved_path)
         with open(resolved_path, "r") as file:
             sdf = file.read()
-        parser = cls(sdf=sdf, prefix=prefix)
+        parser = cls(
+            sdf=sdf, prefix=prefix, collision_from_visual=collision_from_visual
+        )
         parser.path_resolver = path_resolver
         return parser
 
@@ -557,12 +572,25 @@ class GazeboParser(WorldModelParser):
         """
         body = Body(name=PrefixedName(element.get("name"), prefix))
         body.visual = self.parse_shapes(element.findall("visual"), body)
-        body.collision = self.parse_shapes(element.findall("collision"), body)
+        body.collision = self.parse_collision(element, body)
 
         inertial = self.parse_inertial(element.find("inertial"), body)
         if inertial is not None:
             body.inertial = inertial
         return body
+
+    def parse_collision(
+        self, element: ElementTree.Element, body: Body
+    ) -> ShapeCollection:
+        """
+        Parses the collision geometry of a ``link`` element.
+
+        :param element: The ``link`` element whose collision geometry is read.
+        :param body: The body the shapes belong to, used as their reference frame.
+        :return: The collision shapes of the link.
+        """
+        declared = "visual" if self.collision_from_visual else "collision"
+        return self.parse_shapes(element.findall(declared), body)
 
     def parse_inertial(
         self, element: Optional[ElementTree.Element], body: Body
