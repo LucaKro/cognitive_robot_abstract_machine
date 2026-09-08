@@ -17,7 +17,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 )
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
@@ -317,8 +317,10 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             msc.add_node(SelfCollisionAvoidance(cancel_if_collision_violated=False))
             msc.add_nodes(self._gripper_allowance_of_the_reach())
         msc.add_node(EndMotion.when_true(sequence_node))
-        msc.add_node(stalled := ProgressStalled(monitored_node=sequence_node))
-        msc.add_node(stalled.cancel_motion())
+        msc.add_node(
+            still_progressing := StillProgressing(monitored_node=sequence_node)
+        )
+        msc.add_node(still_progressing.cancel_motion())
 
         return msc
 

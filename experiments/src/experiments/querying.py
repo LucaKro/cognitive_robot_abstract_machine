@@ -31,8 +31,9 @@ import numpy as np
 import coraplex as _coraplex_pkg
 import coraplex.orm.ormatic_interface  # type: ignore  # noqa: F401
 import krrood.entity_query_language.factories as eql
+from giskardpy.motion_statechart.data_types import LifeCycleValues
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, TaskStatus
+from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import Base, PlanMappingDAO  # type: ignore
 from coraplex.plans.factories import sequential, try_in_order, code
@@ -256,7 +257,9 @@ def _q_what_did_you_do(plan: Plan) -> BehaviourQuery:
     n = eql.variable(ActionNode, domain=plan.plan_graph.nodes())
     return BehaviourQuery(
         question="What did you just do?",
-        query=eql.an(eql.entity(n).where(n.status == TaskStatus.SUCCEEDED)).ordered_by(
+        query=eql.an(
+            eql.entity(n).where(n.status == LifeCycleValues.SUCCEEDED)
+        ).ordered_by(
             n.start_time,
             descending=False,
         ),
@@ -267,9 +270,9 @@ def _q_walk_through_in_order(plan: Plan) -> BehaviourQuery:
     n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
     return BehaviourQuery(
         question="Walk me through what you did in order.",
-        query=eql.an(eql.entity(n).where(n.status == TaskStatus.SUCCEEDED)).ordered_by(
-            n.start_time
-        ),
+        query=eql.an(
+            eql.entity(n).where(n.status == LifeCycleValues.SUCCEEDED)
+        ).ordered_by(n.start_time),
     )
 
 
@@ -300,7 +303,7 @@ def _q_did_anything_go_wrong(plan: Plan) -> BehaviourQuery:
     n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
     return BehaviourQuery(
         question="Did anything go wrong?",
-        query=eql.an(eql.entity(n).where(n.status == TaskStatus.FAILED)),
+        query=eql.an(eql.entity(n).where(n.status == LifeCycleValues.FAILED)),
     )
 
 
@@ -308,7 +311,7 @@ def _q_why_did_you_fail(plan: Plan) -> BehaviourQuery:
     n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
     return BehaviourQuery(
         question="Why did you fail at that step?",
-        query=eql.an(eql.entity(n.reason).where(n.status == TaskStatus.FAILED)),
+        query=eql.an(eql.entity(n.reason).where(n.status == LifeCycleValues.FAILED)),
     )
 
 
@@ -316,7 +319,9 @@ def _q_how_many_retries(plan: Plan) -> BehaviourQuery:
     n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
     return BehaviourQuery(
         question="How many times did you retry before giving up?",
-        query=(eql.set_of(c := eql.count_all()).where(n.status == TaskStatus.FAILED)),
+        query=(
+            eql.set_of(c := eql.count_all()).where(n.status == LifeCycleValues.FAILED)
+        ),
     )
 
 
@@ -327,8 +332,8 @@ def _q_which_fallback(plan: Plan) -> BehaviourQuery:
         question="Which fallback did you end up using?",
         query=eql.an(
             eql.entity(n).where(
-                n.status == TaskStatus.SUCCEEDED,
-                eql.exists(s, s.status == TaskStatus.FAILED),
+                n.status == LifeCycleValues.SUCCEEDED,
+                eql.exists(s, s.status == LifeCycleValues.FAILED),
             )
         ),
     )

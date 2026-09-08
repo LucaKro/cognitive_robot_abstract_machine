@@ -238,7 +238,6 @@ class RobotDemonstration(ABC):
             viz = VizMarkerPublisher(node=self.ros_node, _world=world)
             viz.with_collision_visualization()
             return world
-
         world = self.ros_session.fetch_world()
         WorldSynchronizer(_world=world, node=self.ros_session.node)
         return world

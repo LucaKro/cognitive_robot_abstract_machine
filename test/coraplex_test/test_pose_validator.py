@@ -18,7 +18,7 @@ from coraplex.locations.pose_validator import (
 )
 from coraplex.robot_plans import MoveToolCenterPointMotion
 from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
@@ -445,9 +445,9 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
 
     msc = validator.create_msc()
 
-    [stall_monitor] = msc.get_nodes_by_type(ProgressStalled)
+    [progress_monitor] = msc.get_nodes_by_type(StillProgressing)
     [sequence] = msc.get_nodes_by_type(Sequence)
-    assert stall_monitor.monitored_node is sequence
+    assert progress_monitor.monitored_node is sequence
 
 
 def test_validation_gives_back_the_collision_rules_it_found(immutable_model_world):
