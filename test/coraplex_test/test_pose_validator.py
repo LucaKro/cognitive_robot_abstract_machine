@@ -17,6 +17,7 @@ from coraplex.locations.pose_validator import (
     IsObjectReachableBy,
 )
 from coraplex.robot_plans import MoveToolCenterPointMotion
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
@@ -469,6 +470,31 @@ def test_validation_gives_back_the_collision_rules_it_found(immutable_model_worl
         validator()
 
     assert world.collision_manager.temporary_rules == [rule_of_the_run]
+
+
+def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model_world):
+    """
+    The stall monitor is what ends a hopeless probe, so the validator does not need a
+    tick budget of its own to stop one.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = AreReachableBy(
+        context=Context(
+            world=world,
+            robot=robot_view,
+            alternative_motion_mappings=context.alternative_motion_mappings,
+        ),
+        pose_sequence=[
+            Pose(Point3.from_iterable([2.3, 2, 1]), reference_frame=world.root)
+        ],
+        tip_link=world.get_body_by_name("r_gripper_tool_frame"),
+    )
+
+    with world.reset_state_context():
+        executor = validator.create_executor(validator.create_msc())
+
+        with pytest.raises(NoProgressError):
+            executor.tick_until_end()
 
 
 # %% grasping from a standing pose

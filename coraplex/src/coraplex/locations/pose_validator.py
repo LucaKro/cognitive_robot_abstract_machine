@@ -214,19 +214,6 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             **clearances,
         )
 
-    def _arm_reaching_with_the_tip(self) -> Optional[Arms]:
-        """
-        :return: The arm whose tool frame the sequence moves, or None when the tip is
-            not a tool frame of this robot.
-        """
-        for arm in Arms:
-            if (
-                self.tip_link
-                == ViewManager.get_end_effector_view(arm, self.robot).tool_frame
-            ):
-                return arm
-        return None
-
     def _gripper_allowance_of_the_reach(self) -> List[UpdateTemporaryCollisionRules]:
         """
         :return: The rule freeing the manipulator that performs this reach, matching
@@ -237,7 +224,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         probe that does not free the manipulator never converges on the pose it is
         asked about.
         """
-        arm = self._arm_reaching_with_the_tip()
+        arm = ViewManager.get_arm_by_tool_frame(self.tip_link, self.robot)
         if arm is None:
             return []
         return [
@@ -262,7 +249,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             self.alternative_motion_mappings, self.robot, MoveToolCenterPointMotion
         )
         if alternative_motion:
-            correct_arm = self._arm_reaching_with_the_tip()
+            correct_arm = ViewManager.get_arm_by_tool_frame(self.tip_link, self.robot)
             if correct_arm is None:
                 raise TipLinkDoesNotMatchAnyArm(self.tip_link, self.robot)
             sequence = []
@@ -324,6 +311,23 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
 
         return msc
 
+    def create_executor(self, msc: MotionStatechart) -> Executor:
+        """
+        Creates the executor that runs a probe of this validator.
+
+        :param msc: The motion statechart the executor is compiled against.
+        """
+        executor = Executor(
+            context=MotionStatechartContext(
+                world=self.world,
+                qp_controller_config=QPControllerConfig(
+                    target_frequency=50, prediction_horizon=4, verbose=False
+                ),
+            ),
+        )
+        executor.compile(msc)
+        return executor
+
     def __call__(self, *args, **kwargs) -> bool:
         logger.debug(
             f"Hash of input for pose_sequence_reachability_validator: {hash((*self.pose_sequence, self.tip_link, self.robot))}"
@@ -334,22 +338,10 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             self.world.collision_manager.reset_temporary_rules_context(),
         ):
 
-            msc = self.create_msc()
-
-            executor = Executor(
-                context=MotionStatechartContext(
-                    world=self.world,
-                    qp_controller_config=QPControllerConfig(
-                        target_frequency=50, prediction_horizon=4, verbose=False
-                    ),
-                ),
-            )
-            executor.compile(msc)
+            executor = self.create_executor(self.create_msc())
 
             try:
-                executor.tick_until_end(
-                    timeout=len(self.pose_sequence) * GiskardExecutable.ticks_per_motion
-                )
+                executor.tick_until_end()
             except TimeoutError:
                 logger.debug(
                     f"Timeout while executing pose sequence: {self.pose_sequence}"

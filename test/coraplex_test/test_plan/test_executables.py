@@ -28,6 +28,7 @@ from coraplex.execution_environment import (
     real_robot,
     simulated_robot,
 )
+from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -78,10 +79,14 @@ def test_parsing_populates_the_chart_with_the_motions(reach_action_executable):
     chart = reach_action_executable.motion_state_chart
 
     assert len(tasks) == 2
-    assert chart.get_nodes_by_type(CartesianPose) == tasks
     assert reach_action_executable.root_node in chart.nodes
     for task in tasks:
         assert task in chart.nodes
+        # A reach that frees its gripper carries its Cartesian goal alongside the
+        # collision rules, so the mapped node is the pair rather than the goal itself.
+        assert (
+            len([node for node in task.nodes if isinstance(node, CartesianPose)]) == 1
+        )
 
 
 def test_parsing_mirrors_the_plan_tree_as_nested_goals(reach_action_executable):
@@ -183,7 +188,7 @@ def test_pre_condition_monitor_gates_the_root_goal(reach_action_executable):
 # %% collision avoidance
 
 
-def test_motion_state_chart_avoids_the_robot_colliding_with_itself(
+def test_prepare_for_execution_avoids_the_robot_colliding_with_itself(
     reach_action_executable,
 ):
     """
@@ -193,20 +198,34 @@ def test_motion_state_chart_avoids_the_robot_colliding_with_itself(
     becomes a constraint on its own.
     """
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-        chart = reach_action_executable.motion_state_chart
+        reach_action_executable.prepare_for_execution()
 
+    chart = reach_action_executable.motion_state_chart
     assert len(chart.get_nodes_by_type(ExternalCollisionAvoidance)) == 1
     assert len(chart.get_nodes_by_type(SelfCollisionAvoidance)) == 1
 
 
-def test_motion_state_chart_leaves_out_collision_avoidance_when_not_asked_for(
+def test_prepare_for_execution_leaves_out_collision_avoidance_when_not_asked_for(
     reach_action_executable,
 ):
     """
     A run that does not ask for collision avoidance gets neither goal.
     """
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=False):
-        chart = reach_action_executable.motion_state_chart
+        reach_action_executable.prepare_for_execution()
 
+    chart = reach_action_executable.motion_state_chart
     assert chart.get_nodes_by_type(ExternalCollisionAvoidance) == []
     assert chart.get_nodes_by_type(SelfCollisionAvoidance) == []
+
+
+# %% how long a motion may take
+
+
+def test_the_tick_budget_is_not_class_state(reach_action_executable):
+    """
+    The budget is a policy of the run, carried by its context, so two runs in one
+    process cannot be given different budgets by class state that outlives them.
+    """
+    assert not hasattr(GiskardExecutable, "ticks_per_motion")
+    assert reach_action_executable.context.ticks_per_motion

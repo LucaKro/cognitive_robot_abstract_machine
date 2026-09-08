@@ -200,7 +200,7 @@ def test_labels_name_the_bodies_of_contacts_inside_the_buffer_zone(
 ):
     collision_manager = _avoid_robot_environment_collisions(cylinder_bot_world)
     publisher = CollisionVisualizationMarkerPublisher(
-        node=rclpy_node, world=cylinder_bot_world
+        node=rclpy_node, world=cylinder_bot_world, publish_labels=True
     )
     recorder = _subscribe(rclpy_node, publisher)
 
@@ -227,7 +227,7 @@ def test_labels_name_the_bodies_of_contacts_inside_the_buffer_zone(
 def test_label_is_colored_like_the_contact_it_names(rclpy_node, cylinder_bot_world):
     collision_manager = _avoid_robot_environment_collisions(cylinder_bot_world)
     publisher = CollisionVisualizationMarkerPublisher(
-        node=rclpy_node, world=cylinder_bot_world
+        node=rclpy_node, world=cylinder_bot_world, publish_labels=True
     )
     recorder = _subscribe(rclpy_node, publisher)
 
@@ -243,7 +243,7 @@ def test_label_is_colored_like_the_contact_it_names(rclpy_node, cylinder_bot_wor
 def test_no_labels_for_contacts_outside_the_buffer_zone(rclpy_node, cylinder_bot_world):
     collision_manager = _avoid_robot_environment_collisions(cylinder_bot_world)
     publisher = CollisionVisualizationMarkerPublisher(
-        node=rclpy_node, world=cylinder_bot_world
+        node=rclpy_node, world=cylinder_bot_world, publish_labels=True
     )
     recorder = _subscribe(rclpy_node, publisher)
 
@@ -264,7 +264,7 @@ def test_labels_of_contacts_that_left_the_buffer_zone_are_deleted(
 ):
     collision_manager = _avoid_robot_environment_collisions(cylinder_bot_world)
     publisher = CollisionVisualizationMarkerPublisher(
-        node=rclpy_node, world=cylinder_bot_world
+        node=rclpy_node, world=cylinder_bot_world, publish_labels=True
     )
     recorder = _subscribe(rclpy_node, publisher)
 
@@ -288,3 +288,20 @@ def test_labels_of_contacts_that_left_the_buffer_zone_are_deleted(
         if label.action == Marker.DELETE
     }
     assert deleted_label_ids == published_label_ids
+
+
+def test_no_labels_are_published_unless_asked_for(rclpy_node, cylinder_bot_world):
+    """
+    Labels cost a marker per contact, so a publisher only draws them on request.
+    """
+    collision_manager = _avoid_robot_environment_collisions(cylinder_bot_world)
+    publisher = CollisionVisualizationMarkerPublisher(
+        node=rclpy_node, world=cylinder_bot_world
+    )
+    recorder = _subscribe(rclpy_node, publisher)
+
+    collision_manager.compute_collisions()
+
+    _wait_for_message(recorder)
+    assert recorder.last_msg.markers[0].type == Marker.LINE_LIST
+    assert _label_markers(recorder.last_msg, publisher) == []
