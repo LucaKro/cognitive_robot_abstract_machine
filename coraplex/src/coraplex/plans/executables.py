@@ -1,26 +1,21 @@
 from __future__ import annotations
 
-import logging
-from contextlib import suppress
 from dataclasses import dataclass, field
 
 from typing_extensions import List, Dict, ClassVar, Optional, TYPE_CHECKING
 
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
-    MotionDidNotFinish,
     ConditionNotSatisfied,
     UnknownExecutionType,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import LifeCycleValues
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
 from giskardpy.motion_statechart.graph_node import CancelMotion
 from giskardpy.motion_statechart.graph_node import EndMotion, Goal, Task
-from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
@@ -36,8 +31,6 @@ if TYPE_CHECKING:
     from coraplex.plans.plan_node import MotionNode
     from coraplex.plans.underspecified import UnderspecifiedNode
     from coraplex.datastructures.dataclasses import Context
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -259,8 +252,10 @@ class GiskardExecutable(Executable):
         it is done or gives up.
 
         The chart's own stall monitor decides when a motion is hopeless, so a motion
-        that keeps converging is never cut off for taking many ticks, and one that
-        converges to nothing does not tick forever.
+        that keeps converging is never cut off for taking many ticks.
+
+        :raises NoProgressError: When the motion stops approaching its goal. The error
+            names the tasks that stalled.
         """
         executor = Ros2Executor(
             context=MotionStatechartContext(
@@ -271,29 +266,17 @@ class GiskardExecutable(Executable):
             ),
             ros_node=self.context.ros_node,
         )
-        motion_state_chart = self.motion_state_chart
-        executor.compile(motion_state_chart)
+        executor.compile(self.motion_state_chart)
 
-        # Giving up raises out of the tick that cancels the motion; which motions were
-        # left unfinished is reported below, once the chart has been cleaned up.
-        with suppress(NoProgressError):
+        # A chart that gives up cancels itself, which raises out of the tick doing it.
+        # The robot is stopped and the chart torn down either way.
+        try:
             while not executor.motion_statechart.is_end_motion():
                 executor.tick()
-
-        executor.set_velocity_acceleration_jerk_to_zero()
-        executor.motion_statechart.cleanup_nodes(context=executor.context)
-        executor.context.cleanup()
-
-        if not executor.motion_statechart.is_end_motion():
-            unfinished_nodes = [
-                node
-                for node in motion_state_chart.nodes
-                if node.life_cycle_state
-                not in [LifeCycleValues.SUCCEEDED, LifeCycleValues.NOT_STARTED]
-            ]
-            motion_did_not_finish = MotionDidNotFinish(unfinished_nodes)
-            logger.error(motion_did_not_finish.error_message())
-            raise motion_did_not_finish
+        finally:
+            executor.set_velocity_acceleration_jerk_to_zero()
+            executor.motion_statechart.cleanup_nodes(context=executor.context)
+            executor.context.cleanup()
 
     def _execute_real(self) -> None:
         """

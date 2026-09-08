@@ -11,7 +11,7 @@ from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
+from coraplex.exceptions import ConditionNotSatisfied
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction

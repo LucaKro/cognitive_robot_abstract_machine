@@ -13,6 +13,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion, Task
 from giskardpy.motion_statechart.monitors.payload_monitors import (
@@ -29,7 +30,7 @@ from coraplex.execution_environment import (
     real_robot,
     simulated_robot,
 )
-from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
+from coraplex.exceptions import ConditionNotSatisfied
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -265,5 +266,5 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     executable = plan.parse()
 
     with simulated_robot:
-        with pytest.raises(MotionDidNotFinish):
+        with pytest.raises(NoProgressError):
             executable.execute()
