@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 from dataclasses import dataclass, field
 
 from typing_extensions import List, Dict, ClassVar, Optional, TYPE_CHECKING
@@ -19,6 +20,8 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 )
 from giskardpy.motion_statechart.graph_node import CancelMotion
 from giskardpy.motion_statechart.graph_node import EndMotion, Goal, Task
+from giskardpy.motion_statechart.exceptions import NoProgressError
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
@@ -144,7 +147,9 @@ class GiskardExecutable(Executable):
 
     def prepare_for_execution(self) -> None:
         """
-        Extend the motion state chart with the nodes that terminate it.
+        Extend the motion state chart with the nodes that terminate it: one that ends
+        the motion once it reaches its goal, and one that gives up on it once it stops
+        approaching one.
 
         This runs just before compilation rather than during parsing, because the
         execution type is only known once an
@@ -158,6 +163,11 @@ class GiskardExecutable(Executable):
         end_motion = EndMotion()
         end_motion.start_condition = end_trigger
         self.motion_state_chart.add_node(end_motion)
+
+        self.motion_state_chart.add_node(
+            still_progressing := StillProgressing(monitored_node=self.root_node)
+        )
+        self.motion_state_chart.add_node(still_progressing.cancel_motion())
 
     def _add_condition_monitors(self, end_trigger: Scalar) -> Scalar:
         """
@@ -246,7 +256,11 @@ class GiskardExecutable(Executable):
     def _execute_simulation(self) -> None:
         """
         Compiles the motion state chart and ticks it in the world of the context until
-        it is done.
+        it is done or gives up.
+
+        The chart's own stall monitor decides when a motion is hopeless, so a motion
+        that keeps converging is never cut off for taking many ticks, and one that
+        converges to nothing does not tick forever.
         """
         executor = Ros2Executor(
             context=MotionStatechartContext(
@@ -260,12 +274,11 @@ class GiskardExecutable(Executable):
         motion_state_chart = self.motion_state_chart
         executor.compile(motion_state_chart)
 
-        counter = 0
-        while counter < len(self.motion_mappings) * self.context.ticks_per_motion:
-            executor.tick()
-            counter += 1
-            if executor.motion_statechart.is_end_motion():
-                break
+        # Giving up raises out of the tick that cancels the motion; which motions were
+        # left unfinished is reported below, once the chart has been cleaned up.
+        with suppress(NoProgressError):
+            while not executor.motion_statechart.is_end_motion():
+                executor.tick()
 
         executor.set_velocity_acceleration_jerk_to_zero()
         executor.motion_statechart.cleanup_nodes(context=executor.context)

@@ -18,6 +18,7 @@ from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion, Task
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
 )
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -28,7 +29,7 @@ from coraplex.execution_environment import (
     real_robot,
     simulated_robot,
 )
-from coraplex.plans.executables import GiskardExecutable
+from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -142,7 +143,11 @@ def test_execution_does_not_add_condition_monitors(
 
     chart = reach_action_executable.motion_state_chart
     assert chart.get_nodes_by_type(ThreadedPredicateMonitor) == []
-    assert chart.get_nodes_by_type(CancelMotion) == []
+    assert [
+        cancel
+        for cancel in chart.get_nodes_by_type(CancelMotion)
+        if isinstance(cancel.exception, ConditionNotSatisfied)
+    ] == []
 
 
 # %% wiring conditions into a chart
@@ -219,13 +224,46 @@ def test_prepare_for_execution_leaves_out_collision_avoidance_when_not_asked_for
     assert chart.get_nodes_by_type(SelfCollisionAvoidance) == []
 
 
-# %% how long a motion may take
+# %% giving up on a motion that stops progressing
 
 
-def test_the_tick_budget_is_not_class_state(reach_action_executable):
+def test_prepare_for_execution_watches_the_whole_motion_for_progress(
+    reach_action_executable,
+):
     """
-    The budget is a policy of the run, carried by its context, so two runs in one
-    process cannot be given different budgets by class state that outlives them.
+    A stalled run has to end by itself, so the chart carries a monitor watching the root
+    goal and an abort path wired to it.
     """
-    assert not hasattr(GiskardExecutable, "ticks_per_motion")
-    assert reach_action_executable.context.ticks_per_motion
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=False):
+        reach_action_executable.prepare_for_execution()
+
+    chart = reach_action_executable.motion_state_chart
+    [progress_monitor] = chart.get_nodes_by_type(StillProgressing)
+
+    assert progress_monitor.monitored_node is reach_action_executable.root_node
+    assert len(chart.get_nodes_by_type(CancelMotion)) == 1
+
+
+def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
+    immutable_model_world,
+):
+    """
+    Nothing bounds the tick loop but the monitor, so a reach the arm cannot close on has
+    to end the run rather than tick forever.
+    """
+    world, view, context = immutable_model_world
+    out_of_reach = Pose.from_xyz_rpy(2, 1.5, 50, reference_frame=world.root)
+    plan = execute_single(
+        ReachAction(
+            out_of_reach,
+            Arms.RIGHT,
+            world.get_semantic_annotations_by_type(Milk)[0],
+        ),
+        context=context,
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    with simulated_robot:
+        with pytest.raises(MotionDidNotFinish):
+            executable.execute()
