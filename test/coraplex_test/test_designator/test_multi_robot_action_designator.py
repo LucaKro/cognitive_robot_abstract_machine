@@ -935,7 +935,9 @@ def test_elevator_navigation(mutable_multiple_robot_apartment, rclpy_node):
     distance_from_cabin_center = float(elevator.scale.x) / 2 + action.exit_clearance
     expected_position = (
         cabin_position[:3]
-        + elevator.hole_direction.to_np().flatten()[:3] * -1 * distance_from_cabin_center
+        + elevator.hole_direction.to_np().flatten()[:3]
+        * -1
+        * distance_from_cabin_center
     )
     expected_position[2] = starting_height + elevator_travel
 
