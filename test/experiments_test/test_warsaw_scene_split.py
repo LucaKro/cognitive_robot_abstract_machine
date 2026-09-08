@@ -256,3 +256,63 @@ def test_every_face_lands_in_exactly_one_body(two_boxes, tmp_path):
         if body.name.name != "root_body"
     )
     assert built == sum(len(kept) for kept in faces.values())
+
+
+# %% what the split does not drag into the bodies
+
+
+class CountsItsCopies:
+    """
+    Stands in for something a mesh carries that is expensive to copy.
+
+    Counting the copies is how a test says what a cut carries along, since the cost of
+    carrying it is measured in memory and nothing about the bodies shows it.
+    """
+
+    def __init__(self):
+        self.copies = 0
+        """
+        How often it has been deep-copied.
+        """
+
+    def __deepcopy__(self, memo) -> "CountsItsCopies":
+        self.copies += 1
+        return self
+
+
+def test_the_scene_s_metadata_is_not_copied_once_per_body(two_boxes, tmp_path):
+    """
+    A scanned scene's mesh carries the file it was read from in its metadata, and
+    trimesh copies a mesh's metadata into every piece it cuts from it.
+
+    On a scan that is a few hundred megabytes per body, which is what runs the machine
+    out of memory.
+    """
+    scene, faces = two_boxes
+    carried = CountsItsCopies()
+    scene.metadata["scan"] = carried
+
+    split_world(scene, faces, HomogeneousTransformationMatrix(), directory=tmp_path)
+
+    assert carried.copies == 0
+
+
+def test_the_bodies_keep_the_colors_the_scene_was_scanned_in(two_boxes, tmp_path):
+    """
+    The colors are the scene's own, and a body cut from it is shown in them.
+    """
+    scene, faces = two_boxes
+    scene.visual.face_colors[faces["one"]] = [255, 0, 0, 255]
+    scene.visual.face_colors[faces["other"]] = [0, 0, 255, 255]
+
+    world = split_world(
+        scene, faces, HomogeneousTransformationMatrix(), directory=tmp_path
+    )
+
+    painted = {
+        body.name.name: np.asarray(body.collision[0].mesh.visual.face_colors)
+        for body in world.bodies
+        if body.name.name != "root_body"
+    }
+    assert (painted["one"][:, :3] == [255, 0, 0]).all()
+    assert (painted["other"][:, :3] == [0, 0, 255]).all()

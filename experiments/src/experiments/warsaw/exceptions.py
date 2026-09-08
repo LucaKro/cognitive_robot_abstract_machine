@@ -32,7 +32,9 @@ class WarsawSceneNotFoundError(DataclassException, FileNotFoundError):
     def suggest_correction(self) -> str:
         return (
             "Point the loader at a scene directory, which holds the one mesh the scene "
-            "is written as."
+            "is written as. The dataset is not in the repository, so a fresh checkout "
+            "has none: put the scan under 'experiments/src/experiments/warsaw/dataset/' "
+            "as that package's README describes."
         )
 
 
@@ -404,4 +406,27 @@ class CameraHasNoDirectionError(DataclassException, ValueError):
         return (
             "Place the camera away from what it looks at, and off the axis running "
             "straight up through it."
+        )
+
+
+@dataclass
+class BlankRenderError(DataclassException, RuntimeError):
+    """
+    Raised when the renderer hands back a picture of one flat color.
+    """
+
+    viewpoint: str
+    """
+    The viewpoint the picture was taken from.
+    """
+
+    def error_message(self) -> str:
+        return f"The render from '{self.viewpoint}' is a single flat color."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Renders are drawn into a hidden window, which many graphics drivers refuse "
+            "to draw into at all and hand back blank. Run the pipeline under "
+            "'xvfb-run -a', or set PipelineSettings.headless to False on a machine with "
+            "a display."
         )

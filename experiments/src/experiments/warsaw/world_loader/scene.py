@@ -201,11 +201,12 @@ class WarsawScene:
         # faces and would leave every label pointing at another face than the one it
         # was written for.
         mesh = trimesh.load(scene_mesh_path, process=False)
-        return cls(
-            mesh_path=scene_mesh_path,
-            mesh=mesh,
-            face_labels=cls._read_face_labels(mesh, scene_mesh_path),
-        )
+        face_labels = cls._read_face_labels(mesh, scene_mesh_path)
+        # The payload is the file as it was written, which on a scan is most of what the
+        # mesh weighs. The labels are the only thing read out of it, and they are read
+        # here, so the mesh carries it no further and nothing copying the mesh copies it.
+        mesh.metadata.pop(PlyPayload.RAW.value)
+        return cls(mesh_path=scene_mesh_path, mesh=mesh, face_labels=face_labels)
 
     @staticmethod
     def _read_face_labels(

@@ -286,12 +286,21 @@ def split_world(
         Path(directory).mkdir(parents=True, exist_ok=True)
 
     to_world = world_T_source.to_np()
+    # Cut from the geometry alone: trimesh copies a mesh's metadata into every piece it
+    # cuts, and a scanned scene's metadata is the file it was read from -- on this
+    # dataset a few hundred megabytes, once per body.
+    geometry = trimesh.Trimesh(
+        vertices=mesh.vertices,
+        faces=mesh.faces,
+        visual=mesh.visual.copy(),
+        process=False,
+    )
     world = World()
     root = Body(name=PrefixedName(root_body_name))
     with world.modify_world():
         world.add_body(root)
         for name, kept in faces.items():
-            piece = mesh.submesh([kept], append=True)
+            piece = geometry.submesh([kept], append=True)
             piece.apply_transform(to_world)
             low, high = piece.bounds
             centre = (low + high) / 2.0

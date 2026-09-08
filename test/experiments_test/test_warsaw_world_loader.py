@@ -7,6 +7,7 @@ directory that holds no scene says, and where the cameras end up standing.
 """
 
 import io
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -14,9 +15,11 @@ from PIL import Image
 import pytest
 import trimesh
 from plyfile import PlyData, PlyElement
+from typing_extensions import Dict, List, Optional, Tuple
 
 from experiments.warsaw.exceptions import (
     AmbiguousWarsawSceneError,
+    BlankRenderError,
     CameraHasNoDirectionError,
     NoSegmentsGivenError,
     SceneBodyNotFoundError,
@@ -27,9 +30,14 @@ from experiments.warsaw.world_loader.loader import (
     SHARED_FACES_LABEL,
     WarsawWorldLoader,
 )
-from experiments.warsaw.world_loader.viewpoints import changed_pixels
+from experiments.warsaw.world_loader.viewpoints import (
+    Viewpoint,
+    changed_pixels,
+    is_one_color,
+)
 from experiments.warsaw.world_loader.scene import (
     LabelSegment,
+    PlyPayload,
     WarsawScene,
     segment_label,
 )
@@ -149,6 +157,18 @@ def test_the_classes_are_read_in_the_order_the_file_declares_them(two_class_scen
         "cabinet",
         "drawer",
     ]
+
+
+def test_the_file_s_own_payload_is_let_go_of_once_the_labels_are_read(two_class_scene):
+    """
+    The raw payload is the file itself, hundreds of megabytes on a scan, and the labels
+    are the only thing read out of it. A mesh that has been read carries it no further,
+    so nothing that copies the mesh copies the file with it.
+    """
+    scene = WarsawScene.from_directory(two_class_scene)
+
+    assert PlyPayload.RAW.value not in scene.mesh.metadata
+    assert list(scene.face_labels) == ["cabinet", "drawer"]
 
 
 # %% a file that is not a scene
@@ -304,6 +324,18 @@ def test_the_segments_index_the_faces_of_the_loaded_mesh(two_class_scene):
         assert segment.face_indices.max() < len(loader.scene_mesh.faces)
 
 
+def test_the_mesh_the_renders_cut_from_carries_no_file_payload(two_class_scene):
+    """
+    The body reads the scan's own file, so the mesh it loads carries that file the way
+    the scene's did. Every render cuts a piece out of this one -- once or more per
+    question, a thousand questions to a run -- and trimesh copies a mesh's metadata into
+    every piece it cuts.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+
+    assert PlyPayload.RAW.value not in loader.scene_mesh.metadata
+
+
 # %% looking at it
 
 
@@ -351,6 +383,20 @@ def rendered(color, size=(4, 3)) -> bytes:
     return kept.getvalue()
 
 
+def rendered_with_a_mark(color, mark, size=(4, 3)) -> bytes:
+    """
+    :param color: What to paint the picture.
+    :param mark: What to paint one of its pixels, so it is not one flat color.
+    :param size: How large the picture is.
+    :return: The picture, as PNG bytes.
+    """
+    painted = Image.new("RGB", size, color)
+    painted.putpixel((0, 0), mark)
+    kept = io.BytesIO()
+    painted.save(kept, format="PNG")
+    return kept.getvalue()
+
+
 def test_two_identical_renders_differ_nowhere():
     """
     How much of an object is visible is counted as the pixels a highlight changed, so
@@ -384,6 +430,143 @@ def test_renders_of_different_sizes_are_not_compared():
     nothing to count.
     """
     assert changed_pixels(rendered((0, 0, 0)), rendered((0, 0, 0), size=(8, 6))) == 0
+
+
+# %% a renderer that draws nothing
+
+
+@dataclass
+class PlacedCamera:
+    """
+    Stands in for the camera a scene is looked at through.
+    """
+
+    name: str = "camera"
+    """
+    What the scene's graph holds its pose under.
+    """
+
+    fov: Optional[Tuple[float, float]] = None
+    """
+    How wide it sees.
+    """
+
+
+@dataclass
+class RendersWhatItWasGiven:
+    """
+    Stands in for a renderer, handing back the pictures a test decided on.
+    """
+
+    renders: List[bytes]
+    """
+    The pictures to hand back, one per pose, in order.
+    """
+
+    camera: PlacedCamera = field(default_factory=PlacedCamera)
+    """
+    The camera the poses are written to.
+    """
+
+    graph: Dict[str, np.ndarray] = field(default_factory=dict)
+    """
+    Where a pose is put for the camera to be moved by it.
+    """
+
+    def save_image(self, **kwargs) -> bytes:
+        """
+        :return: The next picture this was given.
+        """
+        return self.renders.pop(0)
+
+
+def test_a_render_of_one_flat_color_is_recognized():
+    """
+    A picture with nothing drawn in it is one color and no other.
+    """
+    assert is_one_color(rendered((0, 0, 0)))
+
+
+def test_a_render_with_something_drawn_in_it_is_not_one_flat_color():
+    """
+    One pixel of anything else is enough to say the renderer drew.
+    """
+    assert not is_one_color(rendered_with_a_mark((0, 0, 0), (255, 0, 0)))
+
+
+def test_a_renderer_that_draws_nothing_is_reported(two_class_scene):
+    """
+    Drawing into a hidden window is refused outright by many drivers, which hand back a
+    picture of one flat color rather than failing. Every later step then measures nothing
+    and asks a model about nothing, so the first such picture stops the run.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    renderer = RendersWhatItWasGiven(renders=[rendered((0, 0, 0))])
+
+    with pytest.raises(BlankRenderError):
+        loader._render_from_poses(renderer, {"front_left": np.eye(4)})
+
+
+def test_a_renderer_that_has_drawn_is_not_doubted_again(two_class_scene):
+    """
+    A driver that refuses to draw refuses from the first picture onwards, so once one
+    has come back with something in it the rest are taken as they are: a later view that
+    happens to be one flat color is a view, not a broken renderer.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    renderer = RendersWhatItWasGiven(
+        renders=[rendered_with_a_mark((0, 0, 0), (255, 0, 0)), rendered((0, 0, 0))]
+    )
+
+    drawn = loader._render_from_poses(
+        renderer, {"front_left": np.eye(4), "back_right": np.eye(4)}
+    )
+
+    assert list(drawn) == ["front_left", "back_right"]
+
+
+def test_the_predefined_poses_are_drawn_through_the_checked_renderer(
+    two_class_scene, tmp_path, monkeypatch
+):
+    """
+    Every render the loader takes goes through the one place that checks the renderer
+    drew something, so no way of asking for a picture quietly skips the check.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    monkeypatch.setattr(
+        loader,
+        "_render_scene",
+        lambda: RendersWhatItWasGiven(renders=[rendered((0, 0, 0))]),
+    )
+
+    with pytest.raises(BlankRenderError):
+        loader.render_scene_from_predefined_poses(tmp_path, "scene", headless=True)
+
+
+def test_a_render_of_the_whole_scene_is_named_for_the_viewpoint_it_was_taken_from(
+    two_class_scene, tmp_path, monkeypatch
+):
+    """
+    A viewpoint says where the camera stood; the position it happens to hold in a list
+    says nothing a reader of the filename could use.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    monkeypatch.setattr(
+        loader,
+        "_render_scene",
+        lambda: RendersWhatItWasGiven(
+            renders=[rendered_with_a_mark((0, 0, 0), (255, 0, 0)) for _ in Viewpoint]
+        ),
+    )
+
+    written_to = tmp_path / "renders"
+    written_to.mkdir()
+
+    loader.render_scene_from_predefined_poses(written_to, "scene", headless=True)
+
+    assert sorted(written.name for written in written_to.iterdir()) == sorted(
+        f"scene_{viewpoint}.png" for viewpoint in Viewpoint
+    )
 
 
 # %% a scene body the world does not carry

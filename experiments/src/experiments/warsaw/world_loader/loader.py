@@ -41,6 +41,7 @@ from typing_extensions import (
 )
 
 from experiments.warsaw.exceptions import (
+    BlankRenderError,
     CameraHasNoDirectionError,
     NoSegmentsGivenError,
     SceneBodyNotFoundError,
@@ -48,6 +49,7 @@ from experiments.warsaw.exceptions import (
 )
 from experiments.warsaw.world_loader.scene import (
     LabelSegment,
+    PlyPayload,
     WarsawScene,
     segment_label,
 )
@@ -57,6 +59,7 @@ from experiments.warsaw.world_loader.viewpoints import (
     Viewpoint,
     ViewpointChoice,
     changed_pixels,
+    is_one_color,
 )
 
 
@@ -169,6 +172,15 @@ class WarsawWorldLoader:
     The color of each of the scene body's faces before anything was highlighted.
     """
 
+    _renderer_has_drawn: bool = field(init=False, default=False)
+    """
+    Whether the renderer has handed back a picture with anything in it.
+
+    A driver that refuses to draw into a hidden window refuses from the first picture
+    onwards, so the renders are checked until one of them proves it draws and taken as
+    they come afterwards.
+    """
+
     _plain_views: Dict[Tuple[str, ...], Dict[str, bytes]] = field(
         init=False, default_factory=dict
     )
@@ -193,6 +205,12 @@ class WarsawWorldLoader:
             self._original_face_colors = np.asarray(
                 self.scene_mesh.visual.face_colors
             ).copy()
+            # The body reads the scan's own file, so this mesh carries that file the way
+            # the scene's mesh did. Every render cuts a piece out of it and trimesh
+            # copies a mesh's metadata into every piece it cuts, which on a scan is a few
+            # hundred megabytes per picture. A world given directly may hold a body read
+            # from a format that keeps no such payload, so there may be none to let go of.
+            self.scene_mesh.metadata.pop(PlyPayload.RAW.value, None)
 
     @staticmethod
     def _world_from_scene(scene: WarsawScene, scene_body_name: str = "scene") -> World:
@@ -384,12 +402,11 @@ class WarsawWorldLoader:
         :param filename_prefix: Prefix for image filenames.
         :param headless: Whether to render without opening a window.
         """
-        for index, pose in enumerate(self._predefined_camera_transforms):
-            self.render_scene_from_camera_pose(
-                pose,
-                Path(output_path) / f"{filename_prefix}_{index}.png",
-                headless=headless,
-            )
+        output_path = Path(output_path)
+        for pose_name, image in self.render_scene_from_camera_poses(
+            self.compute_camera_poses(), headless=headless
+        ).items():
+            (output_path / f"{filename_prefix}_{pose_name}.png").write_bytes(image)
 
     def render_scene_from_camera_poses(
         self,
@@ -439,28 +456,28 @@ class WarsawWorldLoader:
                 # while the handle on it stays.
                 flags={"cull": False},
             )
+            self._verify_the_renderer_draws(pose_name, images[pose_name])
         return images
 
-    def render_scene_from_camera_pose(
-        self,
-        camera_transform: np.ndarray,
-        output_filepath: Optional[Path] = None,
-        headless: bool = False,
-    ) -> bytes:
+    def _verify_the_renderer_draws(self, viewpoint: str, render: bytes) -> None:
         """
-        Render the world from a single camera pose.
+        Check that the renderer draws at all, until one render proves that it does.
 
-        :param camera_transform: Where the camera stands and what it faces.
-        :param output_filepath: Where to write the image, or None to only return it.
-        :param headless: Whether to render without opening a window.
-        :return: The rendered image as PNG bytes.
+        A blank render fails nothing on its own: what follows measures no difference
+        between two of them and puts them to a model as though they showed something, so
+        a run against a renderer that draws nothing costs what a real one costs and
+        concludes whatever the model says about black pictures.
+
+        :param viewpoint: The viewpoint the render was taken from.
+        :param render: The render, as PNG bytes.
+        :raises BlankRenderError: If the renderer has not yet drawn and this render is a
+            single flat color.
         """
-        scene = self._render_scene()
-        scene.graph[scene.camera.name] = camera_transform
-        png = scene.save_image(resolution=self.render_sizes.kept, visible=not headless)
-        if output_filepath:
-            Path(output_filepath).write_bytes(png)
-        return png
+        if self._renderer_has_drawn:
+            return
+        if is_one_color(render):
+            raise BlankRenderError(viewpoint=viewpoint)
+        self._renderer_has_drawn = True
 
     @cached_property
     def _ray_tracer(self) -> RayTracer:
@@ -519,13 +536,6 @@ class WarsawWorldLoader:
         transform[:3, 2] = -forward
         transform[:3, 3] = eye
         return transform
-
-    @cached_property
-    def _predefined_camera_transforms(self) -> List[np.ndarray]:
-        """
-        :return: The camera poses of :meth:`compute_camera_poses`, in viewpoint order.
-        """
-        return list(self.compute_camera_poses().values())
 
     def compute_camera_poses(
         self, points: Optional[np.ndarray] = None

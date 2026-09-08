@@ -151,6 +151,20 @@ class RenderSizes:
     """
 
 
+# %% a render with nothing in it
+
+
+def is_one_color(render: bytes) -> bool:
+    """
+    Say whether a render came back a single flat color.
+
+    :param render: A render, as PNG bytes.
+    :return: Whether every one of its pixels is the same color.
+    """
+    pixels = np.asarray(Image.open(io.BytesIO(render)).convert("RGB"))
+    return len(np.unique(pixels.reshape(-1, pixels.shape[-1]), axis=0)) == 1
+
+
 # %% telling two renders apart
 
 
