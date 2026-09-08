@@ -43,6 +43,7 @@ from coraplex.plans.failures import (
     PlanCancelled,
     PlanFailure,
     RepetitionsExhausted,
+    RECOVERABLE_FAILURES,
 )
 from coraplex.plans.motion_state_chart_building import BuildsMotionStateChart
 from coraplex.plans.plan_node import PlanNode
@@ -259,7 +260,7 @@ class TryInOrderNode(ExecutesSequentially):
         for child in self.children:
             try:
                 child.perform()
-            except PlanFailure:
+            except RECOVERABLE_FAILURES:
                 continue
         failed = all(
             [child.status == LifeCycleValues.FAILED for child in self.children]

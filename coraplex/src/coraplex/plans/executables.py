@@ -352,13 +352,13 @@ class UnderspecifiedExecutable(Executable):
     """
 
     def execute(self) -> None:
-        from coraplex.plans.failures import PlanFailure, EmptyUnderspecified
+        from coraplex.plans.failures import RECOVERABLE_FAILURES, EmptyUnderspecified
 
         while self.node.advance():
             try:
                 self.node.current_candidate.parse().execute()
                 self.node.stop_grounding()
                 return
-            except PlanFailure:
+            except RECOVERABLE_FAILURES:
                 continue
         raise EmptyUnderspecified()
