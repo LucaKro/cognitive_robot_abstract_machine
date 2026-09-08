@@ -325,6 +325,7 @@ class PerceptionSourceUnavailable(PerceptionException):
     def suggest_correction(self) -> str:
         return "start the perception pipeline before running the plan."
 
+
 @dataclass
 class NotOnASingleLevelException(DataclassException):
     """
