@@ -21,6 +21,7 @@ from coraplex.robot_plans import MoveToolCenterPointMotion
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from semantic_digital_twin.spatial_types import Point3
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
@@ -448,3 +449,37 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
     [stall_monitor] = msc.get_nodes_by_type(ProgressStalled)
     [sequence] = msc.get_nodes_by_type(Sequence)
     assert stall_monitor.monitored_node is sequence
+
+
+# %% a reach is probed the way it is performed
+
+
+def test_a_reach_is_probed_with_a_violated_collision_counting_as_failure(
+    immutable_model_world,
+):
+    """
+    Execution aborts a motion whose collision is violated, so a probe that tolerates one
+    approves a stand the robot cannot then use.
+    """
+    world, view, context = immutable_model_world
+    end_effector = ViewManager().get_end_effector_view(Arms.LEFT, context.robot)
+    validator = AreReachableBy(
+        pose_sequence=[
+            Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+        ],
+        tip_link=end_effector.tool_frame,
+        context=context,
+    )
+
+    with ExecutionEnvironment(
+        execution_type=ExecutionType.SIMULATED, collision_avoidance=True
+    ):
+        chart = validator.create_msc()
+
+    avoidance = [
+        node
+        for node in chart.nodes
+        if isinstance(node, (ExternalCollisionAvoidance, SelfCollisionAvoidance))
+    ]
+    assert avoidance
+    assert all(node.cancel_if_collision_violated for node in avoidance)

@@ -19,12 +19,12 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.world import World
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.alternative_motion_mapping import AlternativeMotion
 
 logger = logging.getLogger(__name__)
-
 
 T = TypeVar("T", bound=AbstractRobot)
 
@@ -45,40 +45,6 @@ class BaseMotion(Designator):
         Will be overwritten by each motion.
         """
         pass
-
-    @property
-    def drives_the_base(self) -> bool:
-        """
-        Whether this motion moves the robot's base rather than leaving it where it
-        stands.
-        """
-        return False
-
-    def base_standing_still(self) -> Optional[CartesianPose]:
-        """
-        Build the task keeping the base of a robot that may not drive while it moves
-        where that base stands.
-
-        A reach is expressed against the robot's own root for such a robot, so no goal
-        of it refers to where the base stands, and collision avoidance is free to drive
-        the whole robot to carry a link out of a buffer zone. Holding the base is what
-        makes it actually stand still, rather than only being left out of the reach.
-
-        :return: The task holding the base, and nothing while that base is free to
-            drive.
-        """
-        robot = self.robot
-        if not isinstance(robot, HasMobileBase):
-            return None
-        if robot.mobile_base.full_body_controlled:
-            return None
-        return CartesianPose(
-            root_link=self.world.root,
-            tip_link=robot.root,
-            goal_pose=Pose(reference_frame=robot.root),
-            weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
-            name="BaseStandsStill",
-        )
 
     @property
     def motion_chart(self) -> Task:

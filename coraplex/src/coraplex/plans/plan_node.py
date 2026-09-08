@@ -10,7 +10,6 @@ from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
 from typing_extensions import Union
 
 from coraplex.plans.designator import Designator
-from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.graph_node import Goal
 from krrood.entity_query_language.query.match import Match
 from coraplex.datastructures.enums import TaskStatus
@@ -729,16 +728,8 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
         """
         Add this motion's giskard task below `parent_goal` and record it on
         `executable`.
-
-        A base that may not drive while the robot moves is held alongside the motion,
-        for as long as that motion runs.
         """
         task = self.motion.motion_chart
-        holding = (
-            None if self.motion.drives_the_base else self.motion.base_standing_still()
-        )
-        if holding is not None:
-            task = Parallel([task, holding], name=type(self.motion).__name__)
         parent_goal.add_node(task)
         executable.motion_mappings[self] = task
         return task

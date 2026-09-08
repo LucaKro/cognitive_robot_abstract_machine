@@ -51,13 +51,6 @@ class StretchMoveToolCenterPoint(MoveToolCenterPointMotion, AlternativeMotion[St
         return
 
     @property
-    def drives_the_base(self) -> bool:
-        """
-        True, since this motion turns the base towards the goal before reaching for it.
-        """
-        return True
-
-    @property
     def _motion_chart(self) -> Sequence:
         tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
         goal_copy = deepcopy(self.target)

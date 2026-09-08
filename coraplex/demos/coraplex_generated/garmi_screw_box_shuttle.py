@@ -34,10 +34,7 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
-from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
-from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
+from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import (
     BodySpecification,
@@ -46,7 +43,9 @@ from semantic_digital_twin.api import (
     SemanticAnnotationWithRootSpecification,
     WorldSpecification,
 )
-from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowCollisionBetweenGroups,
+)
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.garmi import Garmi
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
@@ -55,10 +54,15 @@ from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.geometry import Color
+from semantic_digital_twin.world_description.geometry import Color, Mesh
 
 _HERE = os.path.dirname(__file__)
 _OBJECTS = os.path.join(_HERE, "..", "..", "resources", "objects")
+
+GROUND_MODEL = "aws_robomaker_warehouse_GroundB_01"
+"""
+The model whose mesh is the hall floor, which the robot drives on rather than avoids.
+"""
 
 ENV_URI = (
     "package://aws_robomaker_small_warehouse_world/worlds/no_roof_small_warehouse/"
@@ -258,7 +262,9 @@ PARTS = (
         mesh=PartMesh.SCREW_BOX,
         color=Color(),
         storage_pose=Pose.from_xyz_rpy(STORAGE_X, 5.80, STORAGE_TOP + 0.088, yaw=np.pi),
-        storage_stand=Pose.from_xyz_rpy(STORAGE_X + STANDING_DISTANCE, 5.80, 0.0, yaw=np.pi),
+        storage_stand=Pose.from_xyz_rpy(
+            STORAGE_X + STANDING_DISTANCE, 5.80, 0.0, yaw=np.pi
+        ),
         delivery_pose=Pose.from_xyz_rpy(2.60, 7.85, LOWER_PLATEAU + 0.088),
         delivery_stand=Pose.from_xyz_rpy(2.60 - STANDING_DISTANCE, 7.85, 0.0),
         # standing upright, so the fingers close on its 0.065 m side
@@ -274,9 +280,9 @@ PARTS = (
         ),
         storage_stand=Pose.from_xyz_rpy(2.64 - 0.85, 8.65, 0.0),
         delivery_pose=Pose.from_xyz_rpy(
-            0.72, 8.35, CONTAINER_FLOOR - 0.007, roll=LYING_ON_ITS_SIDE, yaw=math.pi/2
+            0.9, 8.3, CONTAINER_FLOOR - 0.007, roll=LYING_ON_ITS_SIDE, yaw=-math.pi / 2
         ),
-        delivery_stand=Pose.from_xyz_rpy(0.72, 7.55, 0.0, yaw=math.pi/2),
+        delivery_stand=Pose.from_xyz_rpy(0.72, 7.55, 0.0, yaw=math.pi / 2),
         # lying flat and taken from above, since it is delivered into a container whose
         # walls leave no way in from the side. Flat rather than standing, because a hand
         # descending on a wrench stood on end brings the wrist down beside it, and the
@@ -337,6 +343,42 @@ class PartsCollectionDemonstration(RobotDemonstration):
     """
 
     def build_simulated_world(self) -> World:
+        world = self._hall_with_the_robot_in_it()
+        self._let_the_base_rest_on_the_floor(world)
+        return world
+
+    @staticmethod
+    def _let_the_base_rest_on_the_floor(world: World) -> None:
+        """
+        Stop the floor being an obstacle to the base that drives on it.
+
+        A robot on wheels rests on the floor, so its base touches it wherever it stands
+        and every pose it could be sent to counts as a collision otherwise. Only the
+        base is freed; an arm still has to stay off the floor.
+
+        :param world: The world holding the hall and the robot.
+        """
+        ground = [
+            body
+            for body in world.bodies
+            if any(
+                isinstance(shape, Mesh) and GROUND_MODEL in shape.filename
+                for shape in body.collision
+            )
+        ]
+        robot = world.get_semantic_annotations_by_type(Garmi)[0]
+        with world.modify_world():
+            world.collision_manager.add_ignore_collision_rule(
+                AllowCollisionBetweenGroups(
+                    body_group_a=ground,
+                    body_group_b=list(robot.mobile_base.bodies_with_collision),
+                )
+            )
+
+    def _hall_with_the_robot_in_it(self) -> World:
+        """
+        :return: The warehouse with the robot standing in its aisle.
+        """
         return WorldSpecification.from_gazebo(
             ENV_URI,
             # The hall collides as a handful of boxes standing in for shapes drawn in
@@ -378,12 +420,12 @@ class PartsCollectionDemonstration(RobotDemonstration):
         with world.modify_world():
             WorldReasoner(world).reason()
         robot = world.get_semantic_annotations_by_type(self.used_robot)[0]
-        if isinstance(robot, HasMobileBase):
-            robot.mobile_base.full_body_controlled = BASE_MAY_DRIVE_WHILE_REACHING
+        # if isinstance(robot, HasMobileBase):
+        #     robot.mobile_base.full_body_controlled = BASE_MAY_DRIVE_WHILE_REACHING
         context = Context(
             world=world,
             robot=robot,
-            _debug=False,
+            _debug=True,
             ros_node=self.ros_node,
             ticks_per_motion=TICKS_PER_MOTION,
         )
@@ -393,18 +435,15 @@ class PartsCollectionDemonstration(RobotDemonstration):
     def build_plan(self, context: Context) -> PlanNode:
         world = context.world  # bodies/poses below are resolved against it
         end_effector = ViewManager.get_end_effector_view(CARRYING_ARM, context.robot)
-        steps = []
-        for part in PARTS:
-            steps.extend(
-                self.carry(
-                    context,
-                    self.annotation_of(world, part.mesh),
-                    part.grasp(end_effector),
-                    part.storage_stand,
-                    part.delivery_pose,
-                    part.delivery_stand,
-                )
+        steps = [
+            self.carry(
+                context,
+                self.annotation_of(world, part.mesh),
+                part.grasp(end_effector),
+                part.delivery_pose,
             )
+            for part in PARTS
+        ]
         return sequential(steps, context=context).plan
 
     @staticmethod
@@ -427,37 +466,25 @@ class PartsCollectionDemonstration(RobotDemonstration):
         context: Context,
         part: HasRootBody,
         grasp: GraspDescription,
-        stand_to_pick: Pose,
         destination: Pose,
-        stand_to_place: Pose,
-    ) -> list:
+    ) -> TransportAction:
         """
         One leg: fetch a part from where it lies and put it down at ``destination``.
 
-        Both base poses are passed in rather than derived, so the same leg carries a
-        part back to its rack by swapping them.
+        The base pose for either end is left to the transport, which searches the floor
+        around the part and around where it is going for somewhere the arm reaches from.
 
-        :param context: The plan context the actions are built against.
+        :param context: The plan context the action is built against.
         :param part: The annotation of the part being carried.
         :param grasp: How the part is taken hold of.
-        :param stand_to_pick: Base pose the part is picked up from.
         :param destination: Where the part is put down.
-        :param stand_to_place: Base pose the part is put down from.
         """
-        return [
-            # Parked before driving, not after: the arms swing wide as they tuck, so they
-            # are brought in while the robot still stands clear of the station.
-            ParkArmsAction(Arms.BOTH),
-            NavigateAction(self.against_world_root(context, stand_to_pick)),
-            MoveTorsoAction(TorsoState.HIGH),
-            PickUpAction(part, CARRYING_ARM, grasp),
-            ParkArmsAction(Arms.BOTH),
-            NavigateAction(self.against_world_root(context, stand_to_place)),
-            PlaceAction(
-                part.root, self.against_world_root(context, destination), CARRYING_ARM
-            ),
-            ParkArmsAction(Arms.BOTH),
-        ]
+        return TransportAction(
+            object_designator=part,
+            target_location=self.against_world_root(context, destination),
+            arm=CARRYING_ARM,
+            grasp_description=grasp,
+        )
 
     @staticmethod
     def against_world_root(context: Context, pose: Pose) -> Pose:

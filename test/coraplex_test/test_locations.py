@@ -24,6 +24,7 @@ from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types import Point3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
@@ -333,3 +334,35 @@ def test_location_validates_with_the_motion_policy_of_its_own_context(
 
     assert recorder.context.ticks_per_motion == context.ticks_per_motion
     assert recorder.context.motion_tolerances is context.motion_tolerances
+
+
+# %% the order the poses are reached in
+
+
+def test_a_stand_for_putting_down_is_probed_in_the_order_a_place_reaches_them(
+    immutable_model_world,
+):
+    """
+    A place goes down onto its target from above and retreats to the front, which is the
+    grasp's three poses reversed. Probed in the picking order, the stand is approved for
+    a reach that comes in from the other end and drives the base somewhere else.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_body_by_name("milk.stl")
+    grasp = GraspDescription(
+        ApproachDirection.FRONT,
+        VerticalAlignment.NoAlignment,
+        ViewManager().get_end_effector_view(Arms.LEFT, context.robot),
+    )
+    target = Pose(Point3.from_iterable([1.0, 1.0, 1.0]), reference_frame=world.root)
+
+    putting_down = reachability_location(
+        target, context, Arms.LEFT, grasp, putting_down=True
+    )
+
+    expected = grasp.pose_sequence(target, None, reverse=True)
+    probed = putting_down.validators[0].pose_sequence
+    np.testing.assert_allclose(
+        [pose.to_position().to_np().flatten() for pose in probed],
+        [pose.to_position().to_np().flatten() for pose in expected],
+    )

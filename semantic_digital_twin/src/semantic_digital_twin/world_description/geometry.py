@@ -549,6 +549,11 @@ class Mesh(Shape):
             mesh.convert_units("meters")
         return mesh
 
+    UNIT_DECLARING_SUFFIXES: ClassVar[Tuple[str, ...]] = (".dae", ".collada")
+    """
+    The file types that state the unit their coordinates are written in.
+    """
+
     @staticmethod
     def _declared_units(filename: str) -> Optional[str]:
         """
@@ -556,10 +561,14 @@ class Mesh(Shape):
 
         Joining a file's geometries into a single mesh keeps no unit, so a file holding
         more than one geometry is read as unitless and has to be asked again as a scene.
+        Only the file types that can carry a unit at all are re-read, since the answer
+        costs a second pass over the file.
 
         :param filename: The path of the mesh file.
         :return: The unit the file declares, or nothing while it declares none.
         """
+        if not filename.lower().endswith(Mesh.UNIT_DECLARING_SUFFIXES):
+            return None
         return trimesh.load(filename, process=False).units
 
     def to_json(self) -> Dict[str, Any]:

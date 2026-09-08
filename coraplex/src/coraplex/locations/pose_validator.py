@@ -291,8 +291,11 @@ class AreReachableBy(PoseValidator):
         msc = MotionStatechart()
         msc.add_node(sequence_node := Sequence(sequence))
         if GiskardExecutable.collision_avoidance:
-            msc.add_node(ExternalCollisionAvoidance(cancel_if_collision_violated=False))
-            msc.add_node(SelfCollisionAvoidance(cancel_if_collision_violated=False))
+            # A reach is carried out with a violated collision counting as a failure, so
+            # it is probed the same way: tolerated here, a stand is approved on a reach
+            # that the robot then aborts when it is asked to perform it.
+            msc.add_node(ExternalCollisionAvoidance())
+            msc.add_node(SelfCollisionAvoidance())
             msc.add_nodes(self._gripper_allowance_of_the_reach())
         msc.add_node(EndMotion.when_true(sequence_node))
         msc.add_node(stalled := ProgressStalled(monitored_node=sequence_node))

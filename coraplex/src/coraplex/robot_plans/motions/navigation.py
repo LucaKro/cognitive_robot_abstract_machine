@@ -31,13 +31,6 @@ class MoveMotion(BaseMotion):
         return
 
     @property
-    def drives_the_base(self) -> bool:
-        """
-        True, since driving the base to the target is the whole of this motion.
-        """
-        return True
-
-    @property
     def _motion_chart(self):
         return (
             SetOdometry(

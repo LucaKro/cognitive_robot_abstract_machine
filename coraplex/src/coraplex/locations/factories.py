@@ -68,6 +68,7 @@ def reachability_location(
     context: Context,
     arm: Arms,
     grasp_description: GraspDescription = None,
+    putting_down: bool = False,
 ) -> Location:
     """
     Factory method that creates a Location for robot poses from which the target can be
@@ -77,6 +78,10 @@ def reachability_location(
     :param context: The context in which to create the location
     :param arm: The arm with which to reach the target
     :param grasp_description: The grasp description with which to grasp the target
+    :param putting_down: Whether the target is reached to put something down rather than
+        to pick it up, which is the same three poses in the opposite order: down onto
+        the target from above and out to the front, rather than in from the front and
+        up.
     :returns: A location that is reachable from the target pose.
     """
     target_pose, target_body = (
@@ -110,6 +115,7 @@ def reachability_location(
                     target_pose,
                     _get_object_in_hand(context.robot, context.world, arm)
                     or target_body,
+                    reverse=putting_down,
                 ),
                 tip_link=man.tool_frame,
                 context=Context(

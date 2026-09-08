@@ -171,14 +171,24 @@ class TransportAction(ActionDescription):
 
     def _make_navigate_action_for_placing(self, grasp_description: GraspDescription):
         """
+        The place is searched for once the robot has hold of the object, the way the
+        pick-up is: an object in the hand is part of what has to fit, so a stand found
+        for an empty gripper is not one the robot can put the object down from.
+
         :param grasp_description: The grasp description that should be used for placing the object.
         :return: The navigate action that will be used to place the object.
         """
         return a(NavigateAction)(
             target_location=variable(
                 Pose,
-                domain=reachability_location(
-                    self.target_location, self.context, self.arm, grasp_description
+                domain=DeferredLocation(
+                    lambda: reachability_location(
+                        self.target_location,
+                        self.context,
+                        self.arm,
+                        grasp_description,
+                        putting_down=True,
+                    )
                 ),
             ),
             keep_joint_states=True,

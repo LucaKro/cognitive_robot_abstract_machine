@@ -9,8 +9,12 @@ import pytest
 from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import execute_single
 from coraplex.plans.plan_node import ActionNode, PlanNode, UnderspecifiedNode
+from unittest.mock import Mock
+
+from coraplex.robot_plans.actions.composite import transporting
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
-from coraplex.robot_plans.actions.core.navigation import LookAtAction
+from coraplex.locations.base import DeferredLocation
+from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -83,3 +87,29 @@ def test_a_looking_transport_looks_at_the_object_and_then_at_the_target(
         Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root).to_np(),
         atol=1e-6,
     )
+
+
+# %% where the robot stands to put something down
+
+
+def test_neither_stand_is_searched_for_while_the_plan_is_built(
+    immutable_model_world, monkeypatch
+):
+    """
+    A stand for putting an object down is searched for with that object in hand.
+
+    Searched while the plan is still being built, the probe answers for a gripper that
+    is still empty, and the object the robot turns up holding is then in the way of the
+    stand that was approved without it.
+    """
+    world, view, context = immutable_model_world
+    searches = []
+    monkeypatch.setattr(
+        transporting,
+        "reachability_location",
+        lambda *args, **kwargs: searches.append(args) or Mock(),
+    )
+
+    transport_plan(world, context, False)
+
+    assert searches == []
