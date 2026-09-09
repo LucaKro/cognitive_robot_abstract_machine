@@ -42,7 +42,7 @@ Next, we will write a simple plan where the robot parks its arms, moves somewher
 from coraplex.robot_plans import *
 from coraplex.execution_environment import simulated_robot
 from coraplex.robot_plans.actions.composite.transporting import TransportAction, MoveTorsoAction
-from coraplex.datastructures.enums import Arms, Grasp
+from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import *
 from coraplex.testing import setup_world
 from semantic_digital_twin.robots.pr2 import PR2, TorsoState

@@ -282,6 +282,14 @@ from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from coraplex.robot_plans.actions.core.container import OpenAction
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
+
+# Opening reaches for a handle, so it is named by the handle's annotation rather than by
+# its body. The apartment carries none, so we register one for the drawer we want.
+with world.modify_world():
+    world.add_semantic_annotation_recursively(
+        handle := Handle(root=world.get_body_by_name("handle_cab10_t"))
+    )
 
 with simulated_robot:
     sequential([
@@ -290,7 +298,7 @@ with simulated_robot:
         NavigateAction(Pose.from_xyz_quaternion(1.7074915981292725, 2.6873629093170166, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                                 reference_frame=world.root)),
-        OpenAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)], context=context).perform()
+        OpenAction(handle, Arms.RIGHT)], context=context).perform()
 ```
 
 ## Closing
@@ -313,5 +321,5 @@ with simulated_robot:
         NavigateAction(Pose.from_xyz_quaternion(1.72, 2.65, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                                 reference_frame=world.root)),
-        CloseAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)], context=context).perform()
+        CloseAction(handle, Arms.RIGHT)], context=context).perform()
 ```
