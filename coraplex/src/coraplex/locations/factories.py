@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 
-from typing_extensions import List, Union, Optional
+from typing_extensions import Iterable, Iterator, List, Union, Optional
 
 from krrood.adapters.json_serializer import list_like_classes
 from coraplex.datastructures.dataclasses import Context
@@ -199,6 +200,62 @@ def grasping_location(
             )
         ],
     )
+
+
+@dataclass
+class ReachableGrasps(Iterable[Pose]):
+    """
+    The grasps of an object that some standing pose reaches, worked out when they are
+    asked for rather than when the plan is built.
+
+    Which grasps qualify depends on where the robot may stand and on where everything
+    else has got to, so answering while the plan is still being built answers about a
+    world the action will not run in. Used as the domain of a ``grasp_pose`` variable,
+    this is asked once the underspecified action grounds, during execution.
+
+    .. warning::
+        :meth:`__iter__` must stay a generator. The domain is wrapped rather than
+        consumed by :func:`~krrood.entity_query_language.factories.variable`, so a
+        generator is what defers the search to the first ``next``; building the grasps
+        eagerly would put the staleness straight back.
+    """
+
+    graspable: HasGraspPoses
+    """
+    The annotation of the object that should be grasped.
+    """
+
+    context: Context
+    """
+    The context the reaching is judged in.
+    """
+
+    arm: Arms
+    """
+    The arm that should do the grasping.
+    """
+
+    approach_clearance: float = ActionConfig.approach_clearance
+    """
+    The gap left between the object and the gripper before the final approach.
+    """
+
+    retreat_distance: float = ActionConfig.retreat_distance
+    """
+    How far the gripper rises after closing on the object.
+    """
+
+    def __iter__(self) -> Iterator[Pose]:
+        location = grasping_location(
+            self.graspable,
+            self.context,
+            self.arm,
+            approach_clearance=self.approach_clearance,
+            retreat_distance=self.retreat_distance,
+        )
+        (validator,) = location.validators
+        for _ in location:
+            yield validator.reachable_grasp
 
 
 def accessing_location(

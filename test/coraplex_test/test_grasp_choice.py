@@ -2,10 +2,16 @@
 How a pick-up settles on the grasp it takes.
 """
 
-import numpy as np
+from dataclasses import dataclass
+from types import SimpleNamespace
 
-from krrood.entity_query_language.factories import evaluate_condition
+import numpy as np
+import pytest
+
+from krrood.entity_query_language.factories import evaluate_condition, variable
 from coraplex.datastructures.enums import Arms
+from coraplex.locations import factories
+from coraplex.exceptions import GraspPoseMissing, OffersNoGrasp
 from coraplex.locations.pose_validator import AreReachableBy
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
@@ -39,13 +45,16 @@ def test_pick_up_takes_the_grasp_it_is_given(immutable_model_world):
     pick_up = PickUpAction(milk, Arms.LEFT, grasp_pose=given)
     sequential([pick_up], context=context)
 
-    assert pick_up.chosen_grasp_pose is given
+    assert pick_up.grasp_pose is given
 
 
-def test_pick_up_lets_the_gripper_choose_when_given_none(immutable_model_world):
+def test_pick_up_takes_the_objects_first_grasp_when_given_none(immutable_model_world):
     """
-    Without a grasp the pick-up takes the one the gripper ranks first, which is what a
-    caller that does not know where the object may be held wants.
+    Without a grasp the pick-up takes the first one the object offers, which depends on
+    the object alone.
+
+    Nothing about the robot may enter into it, or the same description would mean
+    different things depending on where the robot stands.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
@@ -53,12 +62,30 @@ def test_pick_up_lets_the_gripper_choose_when_given_none(immutable_model_world):
     pick_up = PickUpAction(milk, Arms.LEFT)
     sequential([pick_up], context=context)
 
-    expected = ViewManager.get_end_effector_view(
-        Arms.LEFT, context.robot
-    ).grasp_poses_by_distance(milk)[0]
     np.testing.assert_allclose(
-        pick_up.chosen_grasp_pose.to_homogeneous_matrix().to_np(),
-        expected.to_homogeneous_matrix().to_np(),
+        pick_up.grasp_pose.to_homogeneous_matrix().to_np(),
+        next(iter(milk.grasp_poses())).to_homogeneous_matrix().to_np(),
+    )
+
+
+def test_the_default_grasp_does_not_depend_on_where_the_robot_stands(
+    immutable_model_world,
+):
+    """
+    Moving the robot must not change the grasp an otherwise identical description takes.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+
+    from_here = PickUpAction(milk, Arms.LEFT).grasp_pose
+    view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        1.9, 1.4, 0
+    )
+    from_there = PickUpAction(milk, Arms.LEFT).grasp_pose
+
+    np.testing.assert_allclose(
+        from_here.to_homogeneous_matrix().to_np(),
+        from_there.to_homogeneous_matrix().to_np(),
     )
 
 
@@ -103,11 +130,13 @@ def test_pre_condition_checks_only_the_grasp_it_was_given(immutable_model_world)
     )
 
 
-def test_pre_condition_takes_any_grasp_when_given_none(immutable_model_world):
+def test_pre_condition_judges_the_default_grasp_only(immutable_model_world):
     """
-    A caller that named no grasp is asking for the object to be picked up however it can
-    be, so the pre-condition holds as long as some grasp is reachable -- even when the
-    one the gripper ranks first is not.
+    The pre-condition asks about the grasp the action takes, which without a named one
+    is the object's first.
+
+    That the object offers others that could be reached is not the question, because the
+    action would not take them.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
@@ -117,37 +146,153 @@ def test_pre_condition_takes_any_grasp_when_given_none(immutable_model_world):
 
     pick_up = PickUpAction(milk, Arms.LEFT)
     sequential([pick_up], context=context)
-
-    assert evaluate_condition(
-        PickUpAction.pre_condition(
-            pick_up.bound_variables, context, pick_up.designator_parameter
-        )
-    )
-
-
-def test_pick_up_reaches_for_a_grasp_it_can_perform(immutable_model_world):
-    """
-    The grasp the plan is built around is the one the pre-condition accepted, so a pick-
-    up does not set off towards a grasp its own check just rejected.
-    """
-    world, view, context = immutable_model_world
-    milk = world.get_semantic_annotations_by_type(Milk)[0]
-    view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-        1.9, 1.4, 0
-    )
     end_effector = ViewManager.get_end_effector_view(Arms.LEFT, view)
-    ranked_first = end_effector.grasp_poses_by_distance(milk)[0]
+    reaches_its_grasp = AreReachableBy.for_grasp(
+        pick_up.grasp_pose, end_effector, pick_up.grasp_pose, context=context
+    )()
+
+    assert (
+        evaluate_condition(
+            PickUpAction.pre_condition(
+                pick_up.bound_variables, context, pick_up.designator_parameter
+            )
+        )
+        is reaches_its_grasp
+    )
+
+
+def test_pick_up_keeps_its_grasp_even_when_it_cannot_be_reached(immutable_model_world):
+    """
+    The action takes the grasp it resolved and no other.
+
+    Quietly swapping in one that works would perform a different action than the one
+    described, and whether the grasp can be reached is the pre-condition's question.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        1.9, 1.4, 0
+    )
 
     pick_up = PickUpAction(milk, Arms.LEFT)
     sequential([pick_up], context=context)
 
-    assert not np.allclose(
-        pick_up.chosen_grasp_pose.to_homogeneous_matrix().to_np(),
-        ranked_first.to_homogeneous_matrix().to_np(),
-    ), "the best-ranked grasp is unreachable here, so it must not be the one chosen"
-    assert AreReachableBy.for_grasp(
-        pick_up.chosen_grasp_pose,
-        end_effector,
-        pick_up.chosen_grasp_pose,
-        context=context,
-    )()
+    np.testing.assert_allclose(
+        _reach_of(pick_up).grasp_pose.to_homogeneous_matrix().to_np(),
+        next(iter(milk.grasp_poses())).to_homogeneous_matrix().to_np(),
+    )
+
+
+# %% objects that offer nothing to hold
+
+
+@dataclass(eq=False)
+class GraspableOfferingNoGrasp(Milk):
+    """
+    A graspable whose geometry admits no grip, as an annotation with an empty rim would.
+    """
+
+    def grasp_poses(self):
+        return iter(())
+
+
+def test_an_object_offering_no_grasp_is_refused(immutable_model_world):
+    """
+    An action with nothing to take hold by says so where it is described, rather than
+    carrying a missing grasp into the motions.
+    """
+    world, view, context = immutable_model_world
+    ungraspable = GraspableOfferingNoGrasp(
+        root=world.get_semantic_annotations_by_type(Milk)[0].root
+    )
+
+    with pytest.raises(OffersNoGrasp):
+        PickUpAction(ungraspable, Arms.LEFT)
+
+
+def test_a_reach_with_neither_a_grasp_nor_an_object_is_refused(immutable_model_world):
+    """
+    A reach onto a bare pose has to name the grasp it aims at, since there is no object
+    to take one from.
+    """
+    with pytest.raises(GraspPoseMissing):
+        ReachAction(arm=Arms.LEFT)
+
+
+# %% the grasp domain is asked at execution, not at plan build
+
+
+def test_reachable_grasps_searches_at_execution_not_construction(monkeypatch):
+    """
+    Handing the domain to a variable must not start the search.
+
+    The domain is wrapped rather than consumed, so a generator is what defers the work
+    to the first ``next``. Searching eagerly would answer about the world the plan was
+    built in rather than the one the transport runs in.
+    """
+    searches = []
+
+    def record_and_refuse(*args, **kwargs):
+        searches.append(True)
+        raise AssertionError("the search must not run before the domain is consumed")
+
+    monkeypatch.setattr(factories, "grasping_location", record_and_refuse)
+
+    variable(Pose, domain=factories.ReachableGrasps(object(), object(), Arms.LEFT))
+
+    assert searches == []
+
+
+def test_reachable_grasps_sees_the_world_as_it_is_when_consumed(monkeypatch):
+    """
+    The grasps are the ones of the world at the moment they are asked for, not of the
+    world the domain was built in.
+    """
+    moved = {"value": "before"}
+    observed = []
+
+    class LocationStandingIn:
+        """
+        A location yielding one pose, whose validator kept a grasp.
+        """
+
+        validators = [SimpleNamespace(reachable_grasp=None)]
+
+        def __iter__(self):
+            observed.append(moved["value"])
+            self.validators[0].reachable_grasp = Pose.from_xyz_rpy(1.0, 0.0, 0.0)
+            yield Pose.from_xyz_rpy(0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(
+        factories, "grasping_location", lambda *args, **kwargs: LocationStandingIn()
+    )
+
+    grasps = factories.ReachableGrasps(object(), object(), Arms.LEFT)
+    moved["value"] = "after"
+    next(iter(grasps), None)
+
+    assert observed == ["after"]
+
+
+def test_reachable_grasps_yields_grasps_the_object_offers(immutable_model_world):
+    """
+    Every grasp handed out is one of the object's own, so a caller naming one names
+    something the object actually admits.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    # Where test_pose_validator establishes the right arm can reach it.
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        1.7, 1.4, 1.0, reference_frame=world.root
+    )
+
+    grasp = next(iter(factories.ReachableGrasps(milk, context, Arms.RIGHT)), None)
+
+    assert grasp is not None, "the milk is reachable, so a grasp must be found"
+    assert any(
+        np.allclose(
+            grasp.to_homogeneous_matrix().to_np(),
+            offered.to_homogeneous_matrix().to_np(),
+        )
+        for offered in milk.grasp_poses()
+    )

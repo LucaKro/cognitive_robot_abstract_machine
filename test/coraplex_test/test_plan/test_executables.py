@@ -49,9 +49,9 @@ def reach_action_executable(immutable_model_world):
     )
     plan = execute_single(
         ReachAction(
-            Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-            Arms.RIGHT,
-            world.get_semantic_annotations_by_type(Milk)[0],
+            grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
+            arm=Arms.RIGHT,
+            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -256,9 +256,9 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     out_of_reach = Pose.from_xyz_rpy(2, 1.5, 50, reference_frame=world.root)
     plan = execute_single(
         ReachAction(
-            out_of_reach,
-            Arms.RIGHT,
-            world.get_semantic_annotations_by_type(Milk)[0],
+            grasp_pose=out_of_reach,
+            arm=Arms.RIGHT,
+            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )

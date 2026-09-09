@@ -53,7 +53,10 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import (
     Parallel,
     RepeatOnStall,
-    Sequence, TryAll, TryInOrder, CancelledWhenTrue,
+    Sequence,
+    TryAll,
+    TryInOrder,
+    CancelledWhenTrue,
 )
 from giskardpy.motion_statechart.graph_node import CancelMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
@@ -306,9 +309,9 @@ def test_merge_motions(immutable_model_world, rclpy_node):
 
     plan = execute_single(
         ReachAction(
-            Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-            Arms.RIGHT,
-            world.get_semantic_annotations_by_type(Milk)[0],
+            grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
+            arm=Arms.RIGHT,
+            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -653,7 +656,9 @@ def test_a_pick_up_passes_perceiving_on_to_its_reach(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = execute_single(
-        PickUpAction(milk, Arms.RIGHT,
+        PickUpAction(
+            milk,
+            Arms.RIGHT,
             perceive_before_grasp=True,
         ),
         context=context,
@@ -697,7 +702,9 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
     milk_body = milk.root
 
     plan = execute_single(
-        PickUpAction(milk, Arms.RIGHT,
+        PickUpAction(
+            milk,
+            Arms.RIGHT,
         ),
         context=context,
     )

@@ -3,13 +3,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from typing_extensions import Any, Dict, List, Optional
+from typing_extensions import Any, Dict, Optional
 
-from coraplex.locations.pose_validator import (
-    AreReachableBy,
-    IsGraspReachableBy,
-    IsObjectReachableBy,
-)
+from coraplex.locations.pose_validator import AreReachableBy, IsGraspReachableBy
 from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.core.misc import DetectAction
@@ -30,7 +26,11 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.plans.factories import sequential
 from coraplex.querying.predicates import GripperIsFree
-from coraplex.exceptions import PerceptionTargetMissing
+from coraplex.exceptions import (
+    GraspPoseMissing,
+    OffersNoGrasp,
+    PerceptionTargetMissing,
+)
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
     HasApproachesGraspPoses,
@@ -48,7 +48,6 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_gripped
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
@@ -80,98 +79,51 @@ class HasGraspChoice:
     """
     The grasp frame to take hold by, in the object's own frame.
 
-    ``None`` lets the gripper choose one of the grasps the object offers, which is what
-    a caller who does not know where the object may be held wants. A caller that has
-    settled on one passes it, and gets that one.
-    """
-
-    candidate_grasp_poses: List[Pose] = field(init=False, default_factory=list)
-    """
-    The grasps this action may take, in the object's own frame.
-
-    Not a parameter: it is what the parameters amount to, worked out once at
-    construction rather than re-derived wherever it is needed.
+    ``None`` takes the first grasp the object offers. A caller that wants a particular
+    one -- because it worked out which is reachable from where the robot will stand --
+    passes it, and gets that one.
     """
 
     def __post_init__(self):
-        self.candidate_grasp_poses = self.grasp_domain(
+        self.grasp_pose = self.resolve_grasp_pose(
             self.grasp_pose, self.object_designator
         )
 
     @staticmethod
-    def grasp_domain(
+    def resolve_grasp_pose(
         grasp_pose: Optional[Pose], object_designator: HasGraspPoses
-    ) -> List[Pose]:
+    ) -> Pose:
         """
-        The grasps an action described this way is allowed to take.
+        The grasp an action described this way takes.
 
-        A caller that named a grasp is asking for that one, so it is the only candidate;
-        one that named none is asking for the object to be taken hold of however it can
-        be, so every grasp the object offers is a candidate.
+        A caller that named a grasp gets that one. A caller that named none gets the
+        first grasp the object offers, which depends on the object alone -- deciding it
+        by where the robot happens to stand would make the same description mean
+        different things at different times. A caller wanting a considered choice makes
+        it outside the action and passes it in.
 
         ..note:: Also reached statically, because a pre-condition is built from an
             action's parameters rather than from the action.
 
         :param grasp_pose: The grasp a caller settled on, or ``None``.
         :param object_designator: The annotation of the object being grasped.
-        :return: The candidate grasps, in the object's own frame.
-        """
-        if grasp_pose is not None:
-            return [grasp_pose]
-        return list(object_designator.grasp_poses())
-
-    @staticmethod
-    def choose_grasp_pose(
-        grasp_pose: Optional[Pose],
-        object_designator: HasGraspPoses,
-        arm: Arms,
-        robot: AbstractRobot,
-        context: Context,
-    ) -> Pose:
-        """
-        Settle on the grasp an object is taken hold of by.
-
-        A caller that named a grasp gets that grasp, unexamined: it is not this method's
-        place to overrule the action it was asked to build, and whether it can be
-        reached is the pre-condition's question. So a named grasp that cannot be reached
-        fails the action rather than being quietly swapped for one that works.
-
-        Choosing is only done for a caller that named none, and then it is the first
-        grasp of the object's own that can be reached from where the robot stands.
-
-        ..note:: The gripper ranks the grasps from where its tool frame currently is, so
-            the order they are tried in is only as good as that pose. See
-            :meth:`~semantic_digital_twin.robots.robot_parts.EndEffector.grasp_poses_by_distance`.
-
-        :param grasp_pose: The grasp a caller settled on, or ``None`` to let the gripper
-            choose.
-        :param object_designator: The annotation of the object being grasped.
-        :param arm: The arm doing the grasping.
-        :param robot: The robot the arm belongs to.
-        :param context: The context the reachability of a grasp is judged in.
+        :raises OffersNoGrasp: When no grasp was named and the object offers none.
         :return: The grasp frame, in the object's own frame.
         """
         if grasp_pose is not None:
             return grasp_pose
-        reachable = IsObjectReachableBy(
-            context=context, arm=arm, graspable=object_designator
-        )
-        if reachable():
-            return reachable.reachable_grasp
-        # None of them can be reached from here. The pre-condition says so and the
-        # action will not run, but the plan is still built around something, so it is
-        # built around the grasp the gripper is closest to.
-        return ViewManager.get_end_effector_view(arm, robot).grasp_poses_by_distance(
-            object_designator
-        )[0]
+        first_grasp = next(iter(object_designator.grasp_poses()), None)
+        if first_grasp is None:
+            raise OffersNoGrasp(object_designator)
+        return first_grasp
 
     @staticmethod
     def can_take_hold(
         variables: Dict[str, Any], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper needs to be free, and a grasp the action is allowed to take needs to
-        be reachable.
+        The gripper needs to be free, and the grasp the action takes needs to be
+        reachable.
 
         :param variables: The action's bound variables.
         :param context: The context the check runs in.
@@ -182,40 +134,18 @@ class HasGraspChoice:
             GripperIsFree(
                 ViewManager.get_end_effector_view(variables["arm"], context.robot)
             ),
-            IsObjectReachableBy(
+            IsGraspReachableBy(
                 context=Context(
                     robot=context.robot,
                     world=context.world,
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
                 arm=variables["arm"],
-                graspable=kwargs["object_designator"],
-                grasp_poses=HasGraspChoice.grasp_domain(
+                grasp_pose=HasGraspChoice.resolve_grasp_pose(
                     kwargs["grasp_pose"], kwargs["object_designator"]
                 ),
+                object_designator=kwargs["object_designator"].root,
             ),
-        )
-
-    @property
-    def chosen_grasp_pose(self) -> Pose:
-        """
-        The grasp this action takes, whether it was given one or chose it.
-
-        ..note:: Answered afresh on every read rather than settled on once, because a
-            plan is built before it runs and the robot moves in between; a grasp chosen
-            at build time and held onto would aim the reach at where the object was
-            reachable from, not where it is reachable from now. One expansion of the
-            plan reads it once and passes it on, so that expansion is internally
-            consistent.
-
-        :return: The grasp frame, in the object's own frame.
-        """
-        return self.choose_grasp_pose(
-            self.grasp_pose,
-            self.object_designator,
-            self.arm,
-            self.robot,
-            self.context,
         )
 
 
@@ -231,34 +161,45 @@ class ReachAction(
     Let the robot reach a specific pose.
     """
 
-    grasp_pose: Pose
-    """
-    The grasp frame that should be reached, as
-    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
-    defines it.
-    """
-
     arm: Arms
     """
     The arm that should be used for pick up.
     """
 
+    grasp_pose: Optional[Pose] = None
+    """
+    The grasp frame that should be reached, as
+    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
+    defines it.
+
+    ``None`` takes the first grasp :attr:`object_designator` offers, so a reach onto a
+    bare pose has to name one.
+    """
+
     object_designator: Optional[HasGraspPoses] = None
     """
     The annotation of the object that should be picked up.
+
+    ``None`` reaches a pose with no object around it, a handle being pulled, say.
     """
+
+    def __post_init__(self):
+        if self.grasp_pose is None:
+            if self.object_designator is None:
+                raise GraspPoseMissing(self)
+            self.grasp_pose = HasGraspChoice.resolve_grasp_pose(
+                self.grasp_pose, self.object_designator
+            )
 
     reverse_reach_order: bool = False
     """
     Whether the grasp pose sequence should be approached in reverse order.
     """
-
     open_gripper_at_pre_pose: bool = False
     """
     Whether to open the gripper once the pre-pose is reached, used by
     :class:`PickUpAction` to open before its slower final approach.
     """
-
     perceive_before_grasp: bool = False
     """
     Whether to look at the target and detect the object before the final approach.
@@ -436,7 +377,7 @@ class PickUpAction(
 
     @property
     def _action_plan(self) -> PlanNode:
-        grasp_pose = self.chosen_grasp_pose
+        grasp_pose = self.grasp_pose
         _, _, lift_to_pose = self.grasp_pose_sequence(
             grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
@@ -526,7 +467,7 @@ class GraspingAction(
                 # The grasp is defined relative to the object, so it stays correct even
                 # if the object's pose is updated after the goal was defined.
                 ReachAction(
-                    grasp_pose=self.chosen_grasp_pose,
+                    grasp_pose=self.grasp_pose,
                     object_designator=self.object_designator,
                     arm=self.arm,
                     approach_clearance=self.approach_clearance,

@@ -23,10 +23,9 @@ from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import HasGraspChoice, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
@@ -56,19 +55,19 @@ class TransportAction(ActionDescription, HasApproachesGraspPoses):
     Arm that should be used.
     """
 
-    @property
-    def grasp_pose(self) -> Pose:
-        """
-        The grasp frame the object is carried by.
+    grasp_pose: Optional[Pose] = None
+    """
+    The grasp frame the object is carried by, in its own frame.
 
-        The navigation this action plans has to aim at the same grasp the pick-up will
-        take, and both let the gripper choose it from what the object offers.
+    ``None`` takes the first grasp the object offers. The navigation this action plans
+    aims at the same grasp the pick-up takes, so a caller that worked out which grasp is
+    reachable passes it here and both follow it.
+    """
 
-        :return: The grasp of :attr:`object_designator` the gripper is closest to.
-        """
-        return ViewManager.get_end_effector_view(
-            self.arm, self.robot
-        ).grasp_poses_by_distance(self.object_designator)[0]
+    def __post_init__(self):
+        self.grasp_pose = HasGraspChoice.resolve_grasp_pose(
+            self.grasp_pose, self.object_designator
+        )
 
     def inside_container(self) -> List[Body]:
         bodies = []
@@ -134,6 +133,7 @@ class TransportAction(ActionDescription, HasApproachesGraspPoses):
                 a(PickUpAction)(
                     object_designator=self.object_designator,
                     arm=self.arm,
+                    grasp_pose=self.grasp_pose,
                     approach_clearance=self.approach_clearance,
                     retreat_distance=self.retreat_distance,
                 ),
@@ -159,13 +159,15 @@ class TransportAction(ActionDescription, HasApproachesGraspPoses):
         return a(NavigateAction)(
             target_location=variable(
                 Pose,
-                domain=reachability_location(
-                    self.target_location,
-                    self.context,
-                    self.arm,
-                    grasp_pose,
-                    approach_clearance=self.approach_clearance,
-                    retreat_distance=self.retreat_distance,
+                domain=DeferredLocation(
+                    lambda: reachability_location(
+                        self.target_location,
+                        self.context,
+                        self.arm,
+                        grasp_pose,
+                        approach_clearance=self.approach_clearance,
+                        retreat_distance=self.retreat_distance,
+                    )
                 ),
             ),
             keep_joint_states=True,
