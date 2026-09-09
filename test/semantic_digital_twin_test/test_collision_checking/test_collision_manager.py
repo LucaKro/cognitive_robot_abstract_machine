@@ -1,10 +1,14 @@
 import numpy as np
 import pytest
+from dataclasses import dataclass, field
 
 from krrood.symbolic_math.float_variable_data import (
     FloatVariableData,
 )
 from krrood.symbolic_math.symbolic_math import Vector, VariableParameters, FloatVariable
+from semantic_digital_twin.collision_checking.collision_manager import (
+    CollisionConsumer,
+)
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
 )
@@ -358,3 +362,38 @@ def test_robot_is_not_in_collision_when_nothing_is_checked(cylinder_bot_world):
     collision_manager.update_collision_matrix()
 
     assert not robot.is_in_collision
+
+
+# %% consumers stay out of the serialized model
+
+
+@dataclass
+class ConsumerHoldingSomethingUnserializable(CollisionConsumer):
+    """
+    A consumer carrying a value no JSON serializer knows, as a live ROS publisher does.
+    """
+
+    live_handle: object = field(default_factory=object)
+    """
+    Stands in for the node a visualization publisher keeps hold of.
+    """
+
+    def on_compute_collisions(self, collision_results):
+        pass
+
+    def on_world_model_update(self, world):
+        pass
+
+    def on_collision_matrix_update(self):
+        pass
+
+
+def test_a_consumer_does_not_have_to_be_serializable(pr2_world_copy):
+    """
+    Consumers are live observers, not part of the model, so attaching one must not make
+    the world's modification history unserializable.
+    """
+    collision_manager = pr2_world_copy.collision_manager
+    collision_manager.add_collision_consumer(ConsumerHoldingSomethingUnserializable())
+
+    assert "collision_consumers" not in collision_manager.to_json()
