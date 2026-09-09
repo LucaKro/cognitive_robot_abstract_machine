@@ -305,3 +305,31 @@ def test_image_parts_are_identified_without_copying_base64_payloads() -> None:
     assert written["text"] is None
     assert written["image_sha256"] == sha256(image).hexdigest()
     assert written["image_bytes"] == len(image)
+
+
+# %% preserving the existing public interface
+
+
+def test_existing_positional_questioner_arguments_keep_their_meaning(
+    tmp_path, question
+):
+    """Adding trace settings does not shift the established positional arguments."""
+    model = ScriptedAnswers(replies=['{"name": "sink"}', '{"name": "cabinet"}'])
+
+    answered = Questioner(model, tmp_path, 0).answer(question)
+
+    assert answered.attempts == 1
+    assert not answered.is_usable
+
+
+def test_respond_to_still_returns_a_model_response(tmp_path, question):
+    """Callers of the public response method retain its original return type."""
+    questioner = Questioner(
+        model=ScriptedAnswers(replies=['{"name": "drawer"}']),
+        answers_directory=tmp_path,
+    )
+
+    response = questioner.respond_to(question, [])
+
+    assert isinstance(response, ModelResponse)
+    assert response.text == '{"name": "drawer"}'

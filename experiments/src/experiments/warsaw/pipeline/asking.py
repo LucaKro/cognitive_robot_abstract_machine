@@ -305,12 +305,6 @@ class Questioner(HasLogger):
     Where the replies are kept, as they came back.
     """
 
-    traces_directory: Path | None = None
-    """Where every individual request and response is kept, when requested."""
-
-    requested_model: str = ""
-    """The configured model identifier written into every trace."""
-
     corrections: int = 1
     """
     How often an unusable answer is put back to the model with what was wrong with it.
@@ -332,6 +326,12 @@ class Questioner(HasLogger):
     How that correction ends.
     """
 
+    traces_directory: Path | None = None
+    """Where every individual request and response is kept, when requested."""
+
+    requested_model: str = ""
+    """The configured model identifier written into every trace."""
+
     def answer(self, question: Question[AnswerType]) -> Answered[AnswerType]:
         """
         Put one question, correcting an unusable answer while it is worth doing.
@@ -342,7 +342,7 @@ class Questioner(HasLogger):
         problems: Sequence[str] = ()
         answered = None
         for attempt in range(1 + self.corrections):
-            exchange = self.respond_to(question, problems)
+            exchange = self._exchange_with(question, problems)
             try:
                 answer = question.read(exchange.response)
             except ModelRefusedError as refused:
@@ -361,13 +361,24 @@ class Questioner(HasLogger):
 
     def respond_to(
         self, question: Question[AnswerType], problems: Sequence[str]
-    ) -> QuestionExchange:
+    ) -> ModelResponse:
         """
         Ask one question, or read back what the model already said about it.
 
         :param question: What to ask.
         :param problems: What was wrong with the answer to the same question, when this is
             another attempt at it.
+        :return: The reply.
+        """
+        return self._exchange_with(question, problems).response
+
+    def _exchange_with(
+        self, question: Question[AnswerType], problems: Sequence[str]
+    ) -> QuestionExchange:
+        """Ask one question while retaining request and timing metadata.
+
+        :param question: What to ask.
+        :param problems: What was wrong with an earlier answer to the question.
         :return: The reply together with the request and its timing.
         """
         kept = self.kept_path(question)
