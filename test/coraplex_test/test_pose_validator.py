@@ -3,10 +3,7 @@ import pytest
 
 from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import (
-    Arms,
-)
-from coraplex.datastructures.enums import ExecutionType
+from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.execution_environment import ExecutionEnvironment, simulated_robot
 from coraplex.locations.pose_validator import (
@@ -14,11 +11,11 @@ from coraplex.locations.pose_validator import (
     IsObjectReachableBy,
     IsReachableBy,
     AreReachableBy,
-    IsObjectReachableBy,
 )
 from coraplex.robot_plans import MoveToolCenterPointMotion
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
@@ -445,9 +442,9 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
 
     msc = validator.create_msc()
 
-    [stall_monitor] = msc.get_nodes_by_type(ProgressStalled)
+    [progress_monitor] = msc.get_nodes_by_type(StillProgressing)
     [sequence] = msc.get_nodes_by_type(Sequence)
-    assert stall_monitor.monitored_node is sequence
+    assert progress_monitor.monitored_node is sequence
 
 
 def test_validation_gives_back_the_collision_rules_it_found(immutable_model_world):
@@ -536,3 +533,28 @@ def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world
         assert not validator()
 
     assert validator.reachable_grasp is None
+
+
+def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model_world):
+    """
+    The stall monitor is what ends a hopeless probe, so the validator does not need a
+    tick budget of its own to stop one.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = AreReachableBy(
+        context=Context(
+            world=world,
+            robot=robot_view,
+            alternative_motion_mappings=context.alternative_motion_mappings,
+        ),
+        pose_sequence=[
+            Pose(Point3.from_iterable([2.3, 2, 1]), reference_frame=world.root)
+        ],
+        tip_link=world.get_body_by_name("r_gripper_tool_frame"),
+    )
+
+    with world.reset_state_context():
+        executor = validator.create_executor(validator.create_msc())
+
+        with pytest.raises(NoProgressError):
+            executor.tick_until_end()

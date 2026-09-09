@@ -14,7 +14,7 @@ from coraplex.datastructures.enums import (
     MovementType,
 )
 from coraplex.execution_environment import simulated_robot, real_robot
-from coraplex.plans.executables import ModelChangeExecutable
+from coraplex.plans.executables import MoveBranchExecutable
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import MotionNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -552,7 +552,7 @@ def test_move_tool_center_point_motion_frees_what_the_manipulator_grasps_later(
     execute_single(motion, context=context)
     (rule,) = _collision_rule_nodes(motion.motion_chart)[0].temporary_rules
 
-    ModelChangeExecutable(
+    MoveBranchExecutable(
         context=context, body=held_body, new_parent=end_effector.tool_frame
     ).execute()
     rule.update(world)
@@ -795,7 +795,30 @@ def test_opening_motion_yields_to_collision_avoidance(immutable_model_world):
     motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
     execute_single(motion, context=context)
 
-    assert motion.motion_chart.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+    assert (
+        motion.motion_chart.mechanism_weight
+        == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+    )
+
+
+def test_opening_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
+    """
+    Only the container's own degree of freedom yields to collision avoidance.
+
+    The goal holding the gripper on the handle stays above it, because at a lower weight
+    the solver buys clearance by letting the gripper drift off the handle, and handle
+    and container move independently.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab3_door_top")
+
+    motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
+    execute_single(motion, context=context)
+
+    assert (
+        motion.motion_chart.grasp_weight
+        == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+    )
 
 
 def test_closing_motion_yields_to_collision_avoidance(immutable_model_world):
@@ -808,7 +831,26 @@ def test_closing_motion_yields_to_collision_avoidance(immutable_model_world):
     motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
     execute_single(motion, context=context)
 
-    assert motion.motion_chart.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+    assert (
+        motion.motion_chart.mechanism_weight
+        == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
+    )
+
+
+def test_closing_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
+    """
+    Closing holds the handle the same way opening does.
+    """
+    world, view, context = immutable_model_world
+    handle = world.get_body_by_name("handle_cab3_door_top")
+
+    motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
+    execute_single(motion, context=context)
+
+    assert (
+        motion.motion_chart.grasp_weight
+        == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+    )
 
 
 def test_grasping_action_frees_the_gripper_for_its_whole_approach(

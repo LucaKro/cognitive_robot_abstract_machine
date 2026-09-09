@@ -36,7 +36,7 @@ from krrood.class_diagrams.attribute_introspector import DataclassOnlyIntrospect
 from krrood.entity_query_language.predicate import Symbol
 from krrood.symbolic_math.symbolic_math import Matrix
 from krrood.utils import get_full_class_name
-from krrood.utils import memoize
+from krrood.patterns.caching import memoize
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
@@ -1143,6 +1143,26 @@ class Connection(WorldEntity, HasSimulatorProperties, SubclassJSONSerializer, AB
             self.child = child
         self.parent_T_connection_expression.reference_frame = self.parent
         self.parent_T_connection_expression.child_frame = self.child
+
+    def _calculate_local_kinematics(
+        self, transformation: HomogeneousTransformationMatrix
+    ) -> HomogeneousTransformationMatrix:
+        """
+        Un-compose an origin with this connection's constant offsets, leaving the part a
+        degree of freedom can carry.
+
+        :param transformation: The desired origin, already expressed in the parent
+            frame. Callers accepting other frames convert first.
+        :return: The local kinematics producing that origin.
+        """
+        if isinstance(transformation, np.ndarray):
+            transformation = HomogeneousTransformationMatrix(data=transformation)
+        local_kinematics = (
+            self.parent_T_connection_expression.inverse()
+            @ transformation
+            @ self.connection_T_child_expression.inverse()
+        )
+        return local_kinematics
 
 
 GenericConnection = TypeVar("GenericConnection", bound=Connection)
