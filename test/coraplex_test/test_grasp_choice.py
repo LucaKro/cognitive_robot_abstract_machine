@@ -18,8 +18,12 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 def _reach_of(pick_up: PickUpAction) -> ReachAction:
     """
     :return: The reach the pick-up's plan performs.
+
+    A pick-up reaches through the grasp it is built from, so the reach only appears
+    once the plan below it has been expanded.
     """
-    [reach_node] = pick_up._action_plan.plan.get_nodes_by_designator_type(ReachAction)
+    pick_up.plan_node.notify()
+    [reach_node] = pick_up.plan_node.plan.get_nodes_by_designator_type(ReachAction)
     return reach_node.designator
 
 
@@ -101,9 +105,9 @@ def test_pre_condition_checks_only_the_grasp_it_was_given(immutable_model_world)
 
 def test_pre_condition_takes_any_grasp_when_given_none(immutable_model_world):
     """
-    A caller that named no grasp is asking for the object to be picked up however it
-    can be, so the pre-condition holds as long as some grasp is reachable -- even when
-    the one the gripper ranks first is not.
+    A caller that named no grasp is asking for the object to be picked up however it can
+    be, so the pre-condition holds as long as some grasp is reachable -- even when the
+    one the gripper ranks first is not.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
@@ -123,8 +127,8 @@ def test_pre_condition_takes_any_grasp_when_given_none(immutable_model_world):
 
 def test_pick_up_reaches_for_a_grasp_it_can_perform(immutable_model_world):
     """
-    The grasp the plan is built around is the one the pre-condition accepted, so a
-    pick-up does not set off towards a grasp its own check just rejected.
+    The grasp the plan is built around is the one the pre-condition accepted, so a pick-
+    up does not set off towards a grasp its own check just rejected.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]

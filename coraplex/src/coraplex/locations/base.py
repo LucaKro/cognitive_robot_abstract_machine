@@ -125,7 +125,6 @@ class Location(Iterable[Pose]):
                 robot=test_robot,
                 alternative_motion_mappings=self.context.alternative_motion_mappings,
                 motion_tolerances=self.context.motion_tolerances,
-                ticks_per_motion=self.context.ticks_per_motion,
             )
 
         if self.context.debug:

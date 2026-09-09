@@ -7,9 +7,11 @@ from krrood.entity_query_language.factories import (
     ConditionType,
 )
 from coraplex.datastructures.enums import Arms
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
+from coraplex.exceptions import ConditionNotSatisfied
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -55,9 +57,9 @@ def test_get_bound_variables(immutable_model_world):
         "retreat_distance",
         "object_designator",
         "arm",
+        "grasp_pose",
         "tolerate_grasp_stall",
         "perceive_before_grasp",
-        "grasp_pose",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms
