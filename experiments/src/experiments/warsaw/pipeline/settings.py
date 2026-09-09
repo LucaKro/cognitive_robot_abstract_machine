@@ -136,7 +136,7 @@ class PipelineSettings:
     How often an unusable answer is put back to the model with what was wrong with it.
     """
 
-    headless: bool = True
+    headless: bool = False
     """
     Whether to render without opening a window. False shows the renders as they are made.
     """
