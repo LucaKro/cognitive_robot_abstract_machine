@@ -102,6 +102,9 @@ class PipelineStep(HasLogger, ABC):
         return Questioner(
             model=VisionLanguageModel(model=self.settings.model.value),
             answers_directory=self.run.path(answers),
+            traces_directory=self.run.directory_for(RunFile.MODEL_CALLS)
+            / answers.value,
+            requested_model=self.settings.model.value,
             corrections=self.settings.corrections,
             reuse_answers=self.settings.reuse_answers,
         )

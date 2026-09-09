@@ -22,12 +22,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from typing_extensions import List
 
 from krrood.exceptions import DataclassException
 from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.pipeline.provenance import record_run_provenance
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.adjudicate.step import AdjudicateOverlaps
@@ -107,6 +109,11 @@ class WarsawPipeline(HasLogger):
         :raises SubprocessStepFailedError: If a step the run depends on fails.
         """
         run = Run.create(self.settings.runs_directory)
+        record_run_provenance(
+            settings=self.settings,
+            run=run,
+            repository=Path(__file__).resolve().parents[5],
+        )
         schema = RunSchema.for_run(run.directory)
 
         self.announce("preparing")

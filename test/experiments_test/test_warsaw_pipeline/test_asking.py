@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from hashlib import sha256
 
 import pytest
 
@@ -22,10 +23,13 @@ from semantic_digital_twin.adapters.vision_language_model.exceptions import (
     ModelRefusedError,
 )
 from semantic_digital_twin.adapters.vision_language_model.message import (
+    ImagePart,
     MessagePart,
     TextPart,
 )
 from typing_extensions import Sequence, Any, Dict, List
+
+from experiments.warsaw.pipeline.model_calls import ModelCallPart
 
 
 @dataclass
@@ -248,3 +252,56 @@ def test_a_correction_is_asked_rather_than_read_back(tmp_path, question):
     ).answer(question)
     assert answered.is_usable
     assert len(model.asked) == 1
+
+
+# %% preserving every attempt
+
+
+def test_each_attempt_keeps_its_request_response_and_validation(tmp_path, question):
+    """A corrected response remains auditable after the next one is written."""
+    model = ScriptedAnswers(replies=['{"name": "sink"}', '{"name": "cabinet"}'])
+    traces = tmp_path / "model_calls"
+
+    Questioner(
+        model=model,
+        answers_directory=tmp_path / "answers",
+        traces_directory=traces,
+        requested_model="scripted/model",
+    ).answer(question)
+
+    first = json.loads((traces / "the-one-question" / "attempt_1.json").read_text())
+    second = json.loads((traces / "the-one-question" / "attempt_2.json").read_text())
+    assert first["question"] == "the-one-question"
+    assert first["attempt"] == 1
+    assert first["requested_model"] == "scripted/model"
+    assert first["system_prompt"] == "Name one of them."
+    assert first["message_parts"] == [
+        {
+            "__json_type__": "experiments.warsaw.pipeline.model_calls.ModelCallPart",
+            "kind": "text",
+            "text": "Which one is it?",
+            "image_sha256": None,
+            "image_bytes": None,
+        }
+    ]
+    assert first["response"]["choices"][0]["message"]["content"] == '{"name": "sink"}'
+    assert first["problems"] == ["'sink' is not one of drawer, cabinet"]
+    assert first["reused"] is False
+    assert first["elapsed_seconds"] >= 0.0
+    assert second["attempt"] == 2
+    assert second["problems"] == []
+    assert second["message_parts"][-1]["text"].startswith(
+        "Your previous answer could not be used:"
+    )
+
+
+def test_image_parts_are_identified_without_copying_base64_payloads() -> None:
+    """A digest joins a trace to its render without inflating every trace file."""
+    image = b"some-png-bytes"
+
+    written = ModelCallPart.of(ImagePart(image=image)).to_json()
+
+    assert written["kind"] == "image_url"
+    assert written["text"] is None
+    assert written["image_sha256"] == sha256(image).hexdigest()
+    assert written["image_bytes"] == len(image)

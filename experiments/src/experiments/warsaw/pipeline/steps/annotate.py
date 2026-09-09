@@ -41,6 +41,7 @@ from semantic_digital_twin.world_description.world_entity import SemanticAnnotat
 from typing_extensions import Dict, List, Type
 
 from experiments.warsaw.exceptions import NoWorldRecordedError
+from experiments.warsaw.evaluation.graph import EvaluationGraph
 from experiments.warsaw.pipeline.records import (
     Classifications,
     RefusedMount,
@@ -162,6 +163,12 @@ class MountAnnotations(HasLogger):
             split.world_id,
         )
         self.run.write_record(RunFile.SPLIT, split)
+        graph = EvaluationGraph.from_run_products(
+            split=split,
+            classifications=classifications,
+            annotated_names=set(annotations),
+        )
+        self.run.write_record(RunFile.EVALUATION_GRAPH, graph)
 
         report = RunReport(run=self.run)
         report.write_inspector()

@@ -17,8 +17,10 @@ import json
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from time import perf_counter
 
 from semantic_digital_twin.adapters.vision_language_model.client import (
     ModelResponse,
@@ -36,6 +38,7 @@ from typing_extensions import Any, Dict, Generic, List, Sequence, Type, TypeVar
 from krrood.ormatic.utils import classproperty
 
 from experiments.warsaw.bases import HasLogger
+from experiments.warsaw.pipeline.model_calls import ModelCallPart, ModelCallTrace
 from experiments.warsaw.pipeline.templates import PipelineTemplates
 
 AnswerType = TypeVar("AnswerType")
@@ -266,6 +269,26 @@ class Answered(Generic[AnswerType]):
 # %% putting a question, and putting it again
 
 
+@dataclass(frozen=True)
+class QuestionExchange:
+    """One response together with the request and timing that produced it."""
+
+    response: ModelResponse
+    """The raw response returned or loaded from a kept answer."""
+
+    message: List[MessagePart]
+    """The exact ordered message parts used for this attempt."""
+
+    reused: bool
+    """Whether the response came from a kept answer."""
+
+    started_at: str
+    """The UTC time at which the attempt began."""
+
+    elapsed_seconds: float
+    """Wall-clock time spent waiting for the response."""
+
+
 @dataclass
 class Questioner(HasLogger):
     """
@@ -281,6 +304,12 @@ class Questioner(HasLogger):
     """
     Where the replies are kept, as they came back.
     """
+
+    traces_directory: Path | None = None
+    """Where every individual request and response is kept, when requested."""
+
+    requested_model: str = ""
+    """The configured model identifier written into every trace."""
 
     corrections: int = 1
     """
@@ -313,13 +342,14 @@ class Questioner(HasLogger):
         problems: Sequence[str] = ()
         answered = None
         for attempt in range(1 + self.corrections):
-            response = self.respond_to(question, problems)
+            exchange = self.respond_to(question, problems)
             try:
-                answer = question.read(response)
+                answer = question.read(exchange.response)
             except ModelRefusedError as refused:
                 answer, problems = question.refusal(refused), [str(refused)]
             else:
                 problems = question.problems_with(answer)
+            self.keep_trace(question, attempt + 1, exchange, problems)
             answered = Answered(
                 answer=answer, problems=list(problems), attempts=attempt + 1
             )
@@ -331,26 +361,75 @@ class Questioner(HasLogger):
 
     def respond_to(
         self, question: Question[AnswerType], problems: Sequence[str]
-    ) -> ModelResponse:
+    ) -> QuestionExchange:
         """
         Ask one question, or read back what the model already said about it.
 
         :param question: What to ask.
         :param problems: What was wrong with the answer to the same question, when this is
             another attempt at it.
-        :return: The reply.
+        :return: The reply together with the request and its timing.
         """
         kept = self.kept_path(question)
-        if self.reuse_answers and kept.exists() and not problems:
-            return ModelResponse.from_json(json.loads(kept.read_text()))
-
         message = list(question.message())
         if problems:
             message.append(TextPart(self.correction_of(problems)))
+        started_at = datetime.now(UTC).isoformat()
+        if self.reuse_answers and kept.exists() and not problems:
+            return QuestionExchange(
+                response=ModelResponse.from_json(json.loads(kept.read_text())),
+                message=message,
+                reused=True,
+                started_at=started_at,
+                elapsed_seconds=0.0,
+            )
+
+        start = perf_counter()
         response = self.model.ask(message, question.system_prompt)
+        elapsed_seconds = perf_counter() - start
         self.answers_directory.mkdir(parents=True, exist_ok=True)
         kept.write_text(json.dumps(response.to_json(), indent=2))
-        return response
+        return QuestionExchange(
+            response=response,
+            message=message,
+            reused=False,
+            started_at=started_at,
+            elapsed_seconds=elapsed_seconds,
+        )
+
+    def keep_trace(
+        self,
+        question: Question[AnswerType],
+        attempt: int,
+        exchange: QuestionExchange,
+        problems: Sequence[str],
+    ) -> None:
+        """Keep one attempt without overwriting another.
+
+        :param question: The question this attempt answers.
+        :param attempt: Its one-based attempt number.
+        :param exchange: The request, response, and timing.
+        :param problems: Validation problems found in the response.
+        """
+        if self.traces_directory is None:
+            return
+        directory = self.traces_directory / question.key
+        directory.mkdir(parents=True, exist_ok=True)
+        trace = ModelCallTrace(
+            question=question.key,
+            attempt=attempt,
+            requested_model=self.requested_model,
+            system_prompt=question.system_prompt,
+            message_parts=[ModelCallPart.of(part) for part in exchange.message],
+            response=exchange.response.to_json(),
+            problems=list(problems),
+            reused=exchange.reused,
+            started_at=exchange.started_at,
+            elapsed_seconds=exchange.elapsed_seconds,
+        )
+        (directory / f"attempt_{attempt}.json").write_text(
+            json.dumps(trace.to_json(), indent=2)
+        )
 
     def kept_path(self, question: Question[AnswerType]) -> Path:
         """

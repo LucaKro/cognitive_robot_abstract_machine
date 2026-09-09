@@ -141,6 +141,21 @@ class RunFile(StrEnum):
     The replies to the amendment questions, as they came back.
     """
 
+    MODEL_CALLS = "model_calls"
+    """Every individual model request, response, timing, and validation result."""
+
+    EVALUATION_GRAPH = "evaluation_graph.json"
+    """The final semantic nodes and relation outcomes, independent of the database."""
+
+    PROVENANCE = "provenance.json"
+    """Settings, input hashes, interpreter identity, and source revision for the run."""
+
+    PYTHON_ENVIRONMENT = "python_environment.txt"
+    """Installed Python distribution versions at the start of the run."""
+
+    SOURCE_PATCH = "source.patch"
+    """Tracked local source changes relative to the recorded Git commit."""
+
 
 # %% the directory a run is
 
