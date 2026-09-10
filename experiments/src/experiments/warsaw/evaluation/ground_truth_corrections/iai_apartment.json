@@ -115,6 +115,17 @@
         "field_name": "counter_top"
       },
       "reason": "The island's worktop, which in turn carries the sink and the cooktop."
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.RelationCorrection",
+      "edge": {
+        "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+        "whole": "apartment/island_countertop",
+        "part": "apartment/sink",
+        "relation": "part",
+        "field_name": "sink"
+      },
+      "reason": "The URDF already hangs the sink off the island countertop, and a CounterTop carries a sink field, but the kinematic parenthood was never inferred as the semantic relation. Without it a run that puts the sink on the countertop -- which is where the URDF puts it -- is charged for a relation the modelled world does hold."
     }
   ]
 }
