@@ -180,6 +180,10 @@ class MountAnnotations(HasLogger):
             self.run.path(RunFile.PUBLISHER),
         )
 
+        # Last, because it paints the world on the way out and because a run whose every
+        # other product is already written loses nothing if this fails.
+        self.logger.info("written as a scene to %s", report.write_world_mesh(world))
+
     def annotate(
         self, world: World, classifications: Classifications
     ) -> Dict[str, SemanticAnnotation]:

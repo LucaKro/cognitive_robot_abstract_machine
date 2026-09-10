@@ -9,6 +9,7 @@ that proposed them.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -331,3 +332,34 @@ def test_rebuilding_for_a_taken_over_class_is_refused_before_anything_is_touched
 
     assert "KitchenIsland" in str(raised.value)
     assert generated.interface.read_text() == written_before
+
+
+# %% what the annotate step has imported by the time it starts
+
+
+def test_reaching_the_annotate_step_does_not_import_the_orm():
+    """
+    The step puts this run's generated classes in place before anything reaches the ORM,
+    so an ORM imported while the step itself is being imported is one built for whatever
+    ran last -- and an interpreter holds the first one it imported however carefully it
+    imports again.
+
+    This is a property of everything the step pulls in rather than of the step, so it is
+    worth pinning rather than remembering.
+    """
+    finished = subprocess.run(
+        [
+            sys.executable,
+            str(
+                Path(__file__).resolve().parents[1]
+                / "dataset"
+                / "warsaw_pipeline"
+                / "orm_modules_after_importing_the_annotate_step.py"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert finished.returncode == 0, finished.stderr
+    assert finished.stdout == ""

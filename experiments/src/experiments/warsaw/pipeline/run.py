@@ -100,6 +100,16 @@ class RunFile(StrEnum):
     The script the run leaves behind so its bodies can be picked apart in RViz.
     """
 
+    WORLD_MESH = "world_mesh"
+    """
+    The annotated world as a scene a modelling tool can open, one named object per body.
+
+    Kept because the world itself lives only in the database, reachable only through an
+    ORM built for the classes this run generated. Once one of those classes is taken into
+    the ontology the two cannot be told apart and the run can no longer be read, so this
+    is what is left of it.
+    """
+
     REPORT = "report.md"
     """
     What the run made, gathered from what its steps wrote.

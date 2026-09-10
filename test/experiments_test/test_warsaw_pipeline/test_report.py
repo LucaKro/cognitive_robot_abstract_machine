@@ -8,11 +8,16 @@ what any one step said. A run that stopped early is worth reporting on too.
 
 from __future__ import annotations
 
+import trimesh
 
 from experiments.warsaw.pipeline.records import RefusedMount, SplitRecord
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.scene_split import Pairing
 from experiments.warsaw.pipeline.run import Run, RunFile
+
+from ..test_warsaw_evaluation.test_export_world_mesh import (
+    world_with_a_drawer_and_an_unnamed_body,
+)
 
 # %% a run that finished
 
@@ -250,3 +255,38 @@ def test_the_publisher_paints_the_bodies_it_publishes(tmp_path, split):
 
     assert "coloring: Coloring = Coloring.BY_CLASS" in written
     assert "Coloring.UNCHANGED" in written
+
+
+# %% the scene a run leaves behind
+
+
+def test_the_scene_is_written_into_the_run_it_is_of(tmp_path):
+    """
+    A run's world is otherwise only in the database, reachable only through an ORM built
+    for the classes that run generated.
+
+    Once one of those classes is taken into the ontology the run cannot be read at all,
+    so the scene is what is left of it.
+    """
+    run = Run.create(tmp_path)
+
+    written = RunReport(run=run).write_world_mesh(
+        world_with_a_drawer_and_an_unnamed_body()
+    )
+
+    assert written.parent == run.path(RunFile.WORLD_MESH)
+    assert written.exists()
+
+
+def test_the_scene_names_each_body_by_what_it_is(tmp_path):
+    """
+    The scene is opened to find out what the run decided an object was, which is the one
+    thing the geometry alone cannot say.
+    """
+    run = Run.create(tmp_path)
+
+    written = RunReport(run=run).write_world_mesh(
+        world_with_a_drawer_and_an_unnamed_body()
+    )
+
+    assert "drawer_1 [Drawer]" in set(trimesh.load(written).graph.nodes)

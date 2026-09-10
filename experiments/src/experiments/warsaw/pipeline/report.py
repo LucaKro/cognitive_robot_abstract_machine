@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from semantic_digital_twin.world import World
 from typing_extensions import Any, Dict, List
 
+from experiments.warsaw.evaluation.export_world_mesh import write_world_mesh
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     Classifications,
@@ -153,6 +156,16 @@ class RunReport:
         Leave behind the script that publishes the run's bodies for RViz.
         """
         self._write_script(RunFile.PUBLISHER, self.publisher_template)
+
+    def write_world_mesh(self, world: World) -> Path:
+        """
+        Leave behind the run's world as a scene, so the run outlives the database.
+
+        :param world: The annotated world, already written to the database. It is
+            painted on the way out, so this is done once nothing will store it again.
+        :return: The scene that was written.
+        """
+        return write_world_mesh(world, self.run.directory_for(RunFile.WORLD_MESH))
 
     def _write_script(self, run_file: RunFile, template: str) -> None:
         """
