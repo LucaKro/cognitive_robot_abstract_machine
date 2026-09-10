@@ -1,0 +1,51 @@
+# {{ run }}
+
+Judged against `{{ scene }}`.
+
+## Relations the run asserted
+
+{{ parenthood.relations | length }} relations, **{{ parenthood.relations_of_a_kind_the_modelled_world_holds }}** of a kind the modelled world also holds.
+
+{% if unmodelled %}
+Of a kind it does not hold:
+
+| relation | objects |
+| --- | --- |
+{% for one in unmodelled -%}
+| `{{ one.pattern }}` | `{{ one.whole }}` -> `{{ one.part }}` |
+{% endfor %}{% endif %}
+
+## Parts that were given no whole
+
+{{ parenthood.missing | length }} of them. A class the modelled world holds as a part is not
+always held: a cabinet standing on the floor belongs to nothing, so *never offered* is a
+list to read rather than a count of mistakes.
+
+| how many | what became of the whole |
+| ---: | --- |
+{% for reason, count in parenthood.missing_by_reason.items() -%}
+| {{ count }} | {{ reason.value }} |
+{% endfor %}
+{% if lost %}
+
+Lost in the split -- the part took every face of the object that would have held it, so
+that object was dropped and the relation stopped being expressible:
+
+| part | the object it consumed |
+| --- | --- |
+{% for one in lost -%}
+| `{{ one.part }}` | `{{ one.whole }}` |
+{% endfor %}{% endif %}
+
+## What the graphs are made of
+
+{{ structure.relation_totals.modelled }} relations modelled, {{ structure.relation_totals.predicted }} predicted (F {{ "%.2f" | format(structure.relation_totals.f_score) }}).
+{{ structure.class_totals.modelled }} objects modelled, {{ structure.class_totals.predicted }} predicted (F {{ "%.2f" | format(structure.class_totals.f_score) }}).
+
+## What was left out
+
+| comparison | why |
+| --- | --- |
+{% for one in left_out -%}
+| {{ one.comparison }} | {{ one.because }} |
+{% endfor %}
