@@ -29,7 +29,7 @@ import semantic_digital_twin
 from typing_extensions import List, Optional
 
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
+    declared_annotation_classes,
 )
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
@@ -124,11 +124,17 @@ class GeneratedClasses:
 
     def taken_over_by_the_ontology(self) -> List[str]:
         """
-        :return: The classes this run generated that the ontology has since gained, empty
-            where its classes are still its own.
+        Say which of this run's own classes the ontology has since gained.
+
+        Read from the classes the ontology *declares*, not from every class below the
+        annotation root: composing a proposed class registers it there for the rest of the
+        process, and the steps of a run share one, so the live root would report a class
+        this very run invented a moment ago and refuse the run its own classes.
+
+        :return: Those names, empty where its classes are still its own.
         """
-        known = annotation_classes(SemanticAnnotation)
-        return sorted(name for name in self.class_names if name in known)
+        declared = declared_annotation_classes(SemanticAnnotation)
+        return sorted(name for name in self.class_names if name in declared)
 
     def rebuild_orm(self) -> None:
         """

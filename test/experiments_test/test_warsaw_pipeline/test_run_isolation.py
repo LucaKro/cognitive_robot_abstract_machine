@@ -21,6 +21,12 @@ from experiments.warsaw.exceptions import (
     RunClassTakenOverByTheOntologyError,
     RunOutputAlreadyWrittenError,
 )
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+    compose_class,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
@@ -363,3 +369,26 @@ def test_reaching_the_annotate_step_does_not_import_the_orm():
 
     assert finished.returncode == 0, finished.stderr
     assert finished.stdout == ""
+
+
+def test_a_class_only_composed_in_this_process_is_not_one_the_ontology_has_gained(
+    tmp_path,
+):
+    """
+    Composing a proposed class registers it below the annotation root for the rest of
+    the process, and every step of a run shares one.
+
+    Asked the live process, a step is told that a class an earlier step invented for
+    this very scene is part of the ontology -- which would refuse the run its own
+    classes.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass AClassOnlyThisProcessHas: ...\n"
+    )
+    composed = compose_class("AClassOnlyThisProcessHas", SemanticAnnotation)
+
+    assert composed.__name__ in annotation_classes(SemanticAnnotation)
+    assert generated.taken_over_by_the_ontology() == []

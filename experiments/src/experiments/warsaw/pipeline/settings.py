@@ -88,7 +88,8 @@ class PipelineSettings:
     scene_directory: Path = field(
         default_factory=lambda: Path(__file__).resolve().parents[1]
         / "dataset"
-        / "kitchenlab_new_mesh_agreement_dataset"
+        / "kitchen2_meshes_out_20260908_better_handles"
+        # / "kitchenlab_new_mesh_agreement_dataset"
     )
     """
     The directory holding the scene's labelled mesh.

@@ -15,6 +15,8 @@ mount through the wrong channel raises rather than building the wrong world quie
 
 from __future__ import annotations
 
+import importlib
+
 import inspect
 import json
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
@@ -348,6 +350,16 @@ def _summary_of(annotation_class: Type) -> Optional[str]:
 # %% finding the classes there are
 
 
+ONTOLOGY_MODULES = (
+    "semantic_digital_twin.semantic_annotations.mixins",
+    "semantic_digital_twin.semantic_annotations.semantic_annotations",
+)
+"""
+The modules the taxonomy is declared in, and the only place a class being *the ontology's*
+can be told from a class merely deriving from its root.
+"""
+
+
 def load_annotation_modules() -> None:
     """
     Import the modules declaring the taxonomy.
@@ -360,8 +372,8 @@ def load_annotation_modules() -> None:
     Classes generated at run time are picked up as well, once whoever generated them has
     imported them.
     """
-    import semantic_digital_twin.semantic_annotations.mixins  # noqa: F401
-    import semantic_digital_twin.semantic_annotations.semantic_annotations  # noqa: F401
+    for name in ONTOLOGY_MODULES:
+        importlib.import_module(name)
 
 
 def _walk_subclasses(root_class: Type) -> Iterator[Type]:
@@ -391,6 +403,31 @@ def annotation_classes(root_class: Type) -> Dict[str, Type]:
     return {
         annotation_class.__name__: annotation_class
         for annotation_class in _walk_subclasses(root_class)
+    }
+
+
+def declared_annotation_classes(root_class: Type) -> Dict[str, Type]:
+    """
+    The classes the ontology itself declares, as against every class below the root.
+
+    :func:`annotation_classes` reports whatever this process has imported or composed, and
+    :func:`compose_class` registers a proposed class below the root for the rest of the
+    process. Asked which classes the ontology *has*, that answer says yes to a class this
+    very process invented a moment ago.
+
+    Walked rather than filtered out of :func:`annotation_classes`, which is keyed by name
+    and so keeps only one class per name. A composed class deriving from a deep one is
+    reached after the class it shadows, so filtering afterwards drops the ontology's own
+    class instead of the composed one.
+
+    :param root_class: The root of the hierarchy, normally ``SemanticAnnotation``.
+    :return: Those of its subclasses declared in the ontology's own modules, by name.
+    """
+    load_annotation_modules()
+    return {
+        annotation_class.__name__: annotation_class
+        for annotation_class in _walk_subclasses(root_class)
+        if annotation_class.__module__ in ONTOLOGY_MODULES
     }
 
 

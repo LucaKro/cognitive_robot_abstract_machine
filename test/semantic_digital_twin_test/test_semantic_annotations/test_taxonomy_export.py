@@ -32,6 +32,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     MountKind,
     annotation_classes,
     compose_class,
+    declared_annotation_classes,
     in_base_order,
     mounted_relations_of,
 )
@@ -309,3 +310,34 @@ def test_a_kitchen_island_can_be_built_and_mounted_into():
         for relation in mounted_relations_of(island)
     }
     assert held == {("units", "Cabinet"), ("counter_top", "CounterTop")}
+
+
+# %% the ontology's own classes against everything below its root
+
+
+def test_a_composed_class_is_below_the_root_without_the_ontology_declaring_it():
+    """
+    Composing a class registers it below the annotation root for the rest of the
+    process.
+
+    Anything asking which classes the ontology *has* would otherwise be told yes about a
+    class this process invented a moment ago.
+    """
+    composed = compose_class("AClassNoModuleDeclares", SemanticAnnotation)
+
+    assert composed.__name__ in annotation_classes(SemanticAnnotation)
+    assert composed.__name__ not in declared_annotation_classes(SemanticAnnotation)
+
+
+def test_the_ontology_declares_fewer_classes_than_derive_from_its_root():
+    """
+    The declared classes are what the ontology is; the classes below its root are those
+    plus whatever else this process has imported or composed.
+
+    Reading the second for the first is what makes an answer depend on import order.
+    """
+    declared = declared_annotation_classes(SemanticAnnotation)
+    below_the_root = annotation_classes(SemanticAnnotation)
+
+    assert "KitchenIsland" in declared
+    assert set(declared) <= set(below_the_root)
