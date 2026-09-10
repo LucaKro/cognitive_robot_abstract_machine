@@ -42,6 +42,17 @@ that object was dropped and the relation stopped being expressible:
 {{ structure.relation_totals.modelled }} relations modelled, {{ structure.relation_totals.predicted }} predicted (F {{ "%.2f" | format(structure.relation_totals.f_score) }}).
 {{ structure.class_totals.modelled }} objects modelled, {{ structure.class_totals.predicted }} predicted (F {{ "%.2f" | format(structure.class_totals.f_score) }}).
 
+## How much of each class is held by something
+
+The share of a class that is part of something else, counted in each world. It needs no
+correspondence between them, and unlike agreement on the *kind* of a relation it does not
+saturate once the two vocabularies match.
+
+| class | modelled | run | run objects per modelled object |
+| --- | ---: | ---: | ---: |
+{% for one in held -%}
+| {{ one.semantic_class }} | {{ one.modelled_held }}/{{ one.modelled_objects }}{% if one.modelled_share_held is not none %} ({{ "%.0f" | format(one.modelled_share_held * 100) }}%){% endif %} | {{ one.predicted_held }}/{{ one.predicted_objects }}{% if one.predicted_share_held is not none %} ({{ "%.0f" | format(one.predicted_share_held * 100) }}%){% endif %} | {% if one.granularity is not none %}{{ "%.2f" | format(one.granularity) }}{% else %}-{% endif %} |
+{% endfor %}
 ## What was left out
 
 | comparison | why |

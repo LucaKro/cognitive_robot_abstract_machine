@@ -21,6 +21,7 @@ from pathlib import Path
 from typing_extensions import List, Optional
 
 from experiments.warsaw.bases import JsonRecord
+from experiments.warsaw.evaluation.composition import CompositionComparison
 from experiments.warsaw.evaluation.graph import EvaluationGraph
 from experiments.warsaw.evaluation.ground_truth import GroundTruthGraph
 from experiments.warsaw.evaluation.parenthood import (
@@ -92,6 +93,12 @@ class Evaluation(JsonRecord):
     none.
     """
 
+    composition: CompositionComparison
+    """
+    How much structure each graph has per class, and how much of it is held by
+    something.
+    """
+
     left_out: List[LeftOut] = field(default_factory=list)
     """
     The comparisons that were not made.
@@ -137,6 +144,12 @@ class Evaluation(JsonRecord):
                 modelled_objects=modelled_nodes,
                 modelled_relations=modelled_edges,
                 split=split,
+            ),
+            composition=CompositionComparison.between(
+                predicted_objects=predicted_nodes,
+                predicted_relations=predicted_edges,
+                modelled_objects=modelled_nodes,
+                modelled_relations=modelled_edges,
             ),
             left_out=[
                 LeftOut(comparison="object matching", because=NEEDS_AN_ALIGNMENT),
@@ -187,6 +200,18 @@ class Evaluation(JsonRecord):
             if one.reason is MissingParentReason.LOST_IN_THE_SPLIT
         ]
 
+    @property
+    def classes_worth_reporting(self) -> List:
+        """
+        :return: The classes either graph holds as a part of something, which are the ones
+            whose share held says anything.
+        """
+        return [
+            one
+            for one in self.composition.by_class.values()
+            if one.modelled_held or one.predicted_held
+        ]
+
     def markdown(self) -> str:
         """
         :return: The numbers as one page, carrying what was left out.
@@ -199,6 +224,8 @@ class Evaluation(JsonRecord):
             scene=self.scene,
             structure=self.structure,
             parenthood=self.parenthood,
+            composition=self.composition,
+            held=self.classes_worth_reporting,
             unmodelled=self.relations_of_an_unmodelled_kind,
             lost=self.parts_lost_in_the_split,
             left_out=self.left_out,
