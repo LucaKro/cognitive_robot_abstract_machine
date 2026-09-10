@@ -37,6 +37,10 @@ from krrood.class_diagrams.class_diagram import WrappedClass
 from semantic_digital_twin.semantic_annotations.part_whole import (
     part_whole_fields,
 )
+from semantic_digital_twin.world_description.world_entity import (
+    SemanticAnnotation,
+    WorldEntity,
+)
 
 # %% the vocabulary a mount is described in
 
@@ -246,6 +250,61 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
             )
         )
     return relations
+
+
+# %% what an annotation actually holds
+
+
+@dataclass(frozen=True)
+class MountedRelation:
+    """
+    One relation an annotation instance currently stands in.
+
+    Where :func:`relations_of` reports what a class *may* hold, this reports what one
+    annotation *does* hold, read through the same fields, so a world's semantics can be
+    written out without knowing which class declared which field.
+    """
+
+    kind: MountKind
+    """
+    What the relation means.
+    """
+
+    field_name: str
+    """
+    The field the related entity is held in.
+    """
+
+    target: WorldEntity
+    """
+    The entity at the other end of the relation.
+    """
+
+
+def mounted_relations_of(annotation: SemanticAnnotation) -> List[MountedRelation]:
+    """
+    Report the relations an annotation currently stands in.
+
+    A field holding a single entity and a field holding several are reported alike, and
+    an empty field is not reported at all.
+
+    :param annotation: The annotation instance to read.
+    :return: One entry per entity mounted into one of its relation fields.
+    """
+    mounted = []
+    for relation in relations_of(type(annotation)):
+        held = getattr(annotation, relation.field_name)
+        targets = held if relation.holds_many else [held]
+        mounted.extend(
+            MountedRelation(
+                kind=relation.kind,
+                field_name=relation.field_name,
+                target=target,
+            )
+            for target in targets
+            if target is not None
+        )
+    return mounted
 
 
 def describe_class(annotation_class: Type) -> str:

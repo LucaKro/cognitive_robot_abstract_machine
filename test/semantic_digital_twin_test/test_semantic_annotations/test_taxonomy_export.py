@@ -14,13 +14,28 @@ from semantic_digital_twin.semantic_annotations.mixins import (
     HasRootBody,
     IsStorageSpace,
 )
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Furniture
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.semantic_annotations.part_whole import field_holding
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Cabinet,
+    Drawer,
+    Furniture,
+    Handle,
+    Mug,
+)
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    MountKind,
     annotation_classes,
     compose_class,
     in_base_order,
+    mounted_relations_of,
 )
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    SemanticAnnotation,
+)
 
 # %% ordering the bases a proposal names
 
@@ -79,3 +94,137 @@ def test_every_annotation_class_is_reported_under_its_own_name():
     assert classes["Furniture"] is Furniture
     assert classes["HasDrawers"] is HasDrawers
     assert all(name == found.__name__ for name, found in classes.items())
+
+
+# %% what an annotation holds
+
+
+def annotated_cabinet_world() -> World:
+    """
+    Build a cabinet holding one drawer, that drawer holding one handle, and a mug
+    standing on the cabinet.
+    """
+    world = World.create_with_root_body("root")
+    cabinet_body = Body(name=PrefixedName("cabinet"))
+    drawer_body = Body(name=PrefixedName("drawer"))
+    handle_body = Body(name=PrefixedName("handle"))
+    mug_body = Body(name=PrefixedName("mug"))
+    with world.modify_world():
+        for parent, child in (
+            (world.root, cabinet_body),
+            (cabinet_body, drawer_body),
+            (drawer_body, handle_body),
+            (world.root, mug_body),
+        ):
+            world.add_connection(FixedConnection(parent=parent, child=child))
+        handle = Handle(name=PrefixedName("drawer_handle"), root=handle_body)
+        drawer = Drawer(
+            name=PrefixedName("top_drawer"), root=drawer_body, handle=handle
+        )
+        cabinet = Cabinet(
+            name=PrefixedName("tall_cabinet"), root=cabinet_body, drawers=[drawer]
+        )
+        world.add_semantic_annotation_recursively(cabinet)
+        mug = Mug(name=PrefixedName("blue_mug"), root=mug_body)
+        world.add_semantic_annotation_recursively(mug)
+    with world.modify_world():
+        cabinet.add_object(mug)
+    return world
+
+
+def test_a_mounted_part_is_reported_through_the_field_holding_it():
+    """
+    What a world actually holds is read through the same fields a mount routes by.
+    """
+    world = annotated_cabinet_world()
+    [cabinet] = world.get_semantic_annotations_by_type(Cabinet)
+
+    parts = [
+        relation
+        for relation in mounted_relations_of(cabinet)
+        if relation.kind is MountKind.PART
+    ]
+
+    assert [(relation.field_name, type(relation.target)) for relation in parts] == [
+        ("drawers", Drawer)
+    ]
+
+
+def test_a_field_holding_one_part_is_reported_like_a_field_holding_many():
+    """
+    A caller reads both through one list rather than by knowing which field is which.
+    """
+    world = annotated_cabinet_world()
+    [drawer] = world.get_semantic_annotations_by_type(Drawer)
+    [handle] = world.get_semantic_annotations_by_type(Handle)
+
+    [relation] = mounted_relations_of(drawer)
+
+    assert relation.kind is MountKind.PART
+    assert relation.field_name == "handle"
+    assert relation.target is handle
+
+
+def test_an_occupant_is_reported_as_contained_rather_than_as_a_part():
+    """
+    A mug standing in a cabinet is not a structural part of it.
+    """
+    world = annotated_cabinet_world()
+    [cabinet] = world.get_semantic_annotations_by_type(Cabinet)
+    [mug] = world.get_semantic_annotations_by_type(Mug)
+
+    contained = [
+        relation
+        for relation in mounted_relations_of(cabinet)
+        if relation.kind is MountKind.CONTAINS
+    ]
+
+    assert [(relation.field_name, relation.target) for relation in contained] == [
+        ("objects", mug)
+    ]
+
+
+def test_an_annotation_holding_nothing_reports_no_relations():
+    """
+    An empty field says the world does not hold that relation, not that it might.
+    """
+    world = annotated_cabinet_world()
+    [handle] = world.get_semantic_annotations_by_type(Handle)
+
+    assert mounted_relations_of(handle) == []
+
+
+# %% which field a mount goes through
+
+
+def test_the_field_a_whole_holds_a_part_in_is_reported():
+    """
+    A mount carried out without naming a field can be told afterwards which it used.
+    """
+    assert field_holding(Cabinet, Drawer).field_name == "drawers"
+    assert field_holding(Drawer, Handle).field_name == "handle"
+
+
+def test_a_part_the_whole_cannot_hold_has_no_field():
+    """
+    Nothing to report is not the same as reporting the wrong field.
+    """
+    assert field_holding(Handle, Cabinet) is None
+
+
+def test_the_field_reported_is_the_one_a_mount_actually_routes_to():
+    """
+    Asserted against the mount itself rather than a second copy of the answer, so the
+    two cannot drift apart.
+    """
+    world = annotated_cabinet_world()
+    [cabinet] = world.get_semantic_annotations_by_type(Cabinet)
+    [drawer] = world.get_semantic_annotations_by_type(Drawer)
+
+    [mounted] = [
+        relation
+        for relation in mounted_relations_of(cabinet)
+        if relation.target is drawer
+    ]
+
+    assert mounted.field_name == field_holding(Cabinet, Drawer).field_name

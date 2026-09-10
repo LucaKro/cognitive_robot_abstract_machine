@@ -21,7 +21,15 @@ from pathlib import Path
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 
-GeneratedClasses(directory=Path(__file__).resolve().parent).use()
+_generated = GeneratedClasses(directory=Path(__file__).resolve().parent)
+# The ORM is one file for the whole repository while these classes belong to this run, so
+# anything that rebuilt it since -- another run, or the test suite -- left it unable to
+# read this world. Rebuilding takes about fifteen seconds and is the only way back.
+if _generated.were_generated:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger(__name__).info("rebuilding the ORM for this run's classes ...")
+    _generated.rebuild_orm()
+_generated.use()
 RunSchema.for_run(Path(__file__).resolve().parent).use()
 
 from experiments.warsaw.pipeline.database.world_store import WorldStore  # noqa: E402

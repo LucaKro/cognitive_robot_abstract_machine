@@ -95,6 +95,11 @@ class RunFile(StrEnum):
     The script the run leaves behind so its world can be opened without knowing anything.
     """
 
+    PUBLISHER = "publish_world.py"
+    """
+    The script the run leaves behind so its bodies can be picked apart in RViz.
+    """
+
     REPORT = "report.md"
     """
     What the run made, gathered from what its steps wrote.

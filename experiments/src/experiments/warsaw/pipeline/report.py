@@ -82,6 +82,11 @@ class RunReport:
     The script that opens the run's world, with the world ids left to fill in.
     """
 
+    publisher_template: str = "publish_world.py.jinja"
+    """
+    What the script publishing the run's bodies for RViz is written from.
+    """
+
     # %% what each step wrote
 
     @property
@@ -141,10 +146,25 @@ class RunReport:
         """
         Leave behind the script that opens the run's world without knowing anything.
         """
+        self._write_script(RunFile.INSPECTOR, self.inspector_template)
+
+    def write_publisher(self) -> None:
+        """
+        Leave behind the script that publishes the run's bodies for RViz.
+        """
+        self._write_script(RunFile.PUBLISHER, self.publisher_template)
+
+    def _write_script(self, run_file: RunFile, template: str) -> None:
+        """
+        Write one of the scripts a run leaves behind, told the worlds it wrote.
+
+        :param run_file: Where it is written.
+        :param template: What it is written from.
+        """
         split = self.split
-        self.run.path(RunFile.INSPECTOR).write_text(
+        self.run.path(run_file).write_text(
             self.templates.render(
-                self.inspector_template,
+                template,
                 annotated=split.annotated_world_id,
                 split=split.world_id,
             )

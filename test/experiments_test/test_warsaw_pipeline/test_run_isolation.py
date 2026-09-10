@@ -249,3 +249,21 @@ def test_a_schema_with_no_uri_and_no_environment_is_reported(monkeypatch):
     monkeypatch.delenv(schema.variable, raising=False)
     with pytest.raises(DatabaseNotConfiguredError):
         schema.base_uri
+
+
+def test_the_script_that_rebuilds_the_orm_is_where_a_run_looks_for_it(tmp_path):
+    """
+    The rebuild happens in a new interpreter, so a moved or renamed generator would fail
+    there rather than here, in output nobody reads until a run is already expensive.
+    """
+    assert GeneratedClasses(directory=tmp_path).orm_generator.is_file()
+
+
+def test_a_run_that_generated_no_classes_still_names_the_generator(tmp_path):
+    """
+    Where the generator lives does not depend on what a run happened to generate.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+
+    assert not generated.were_generated
+    assert generated.orm_generator.name == "generate_orm.py"

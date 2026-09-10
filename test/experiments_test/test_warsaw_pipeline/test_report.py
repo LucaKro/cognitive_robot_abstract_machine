@@ -167,3 +167,86 @@ def test_the_report_says_exactly_what_it_said_before_a_template_wrote_it(
     """
     expected = (dataset / "expected" / "report.md").read_text()
     assert RunReport(run=finished_run).markdown() == expected
+
+
+def test_the_inspector_rebuilds_the_orm_before_it_reaches_a_world(tmp_path, split):
+    """
+    The ORM is one file for the whole repository while a run's generated classes belong
+    to that run, so another run or a test suite rebuilding it leaves this run's world
+    unreadable.
+
+    The inspector has to put that right before importing anything that reads a world,
+    because an interpreter holding a stale ORM goes on holding it.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+
+    assert "rebuild_orm()" in written
+    assert written.index("rebuild_orm()") < written.index("world_store")
+
+
+def test_the_publisher_is_written_with_the_worlds_this_run_wrote(tmp_path, split):
+    """
+    The two scripts a run leaves behind open the same worlds, so both are told the ids
+    the run wrote under.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert f"annotated_world: int = {split.annotated_world_id}" in written
+    assert f"split_world: int = {split.world_id}" in written
+
+
+def test_the_publisher_reads_a_world_without_rebuilding_the_orm(tmp_path, split):
+    """
+    It is started and stopped while looking at something, and a fifteen-second rebuild
+    each time would make that useless.
+
+    It says instead which script does rebuild, since reading a world fails outright
+    until one has.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "rebuild_orm" not in written
+    assert RunFile.INSPECTOR.value in written
+
+
+def test_the_publisher_keeps_publishing_rather_than_publishing_once(tmp_path, split):
+    """
+    A world read from the database never changes again, so a publisher that only sends
+    its markers when the world changes sends them once.
+
+    A viewer started afterwards would then stay empty with nothing to show it is
+    working.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "republish_every_seconds" in written
+    assert "create_timer" in written
+
+
+def test_the_publisher_paints_the_bodies_it_publishes(tmp_path, split):
+    """
+    A world published in one colour cannot be picked apart, which is what it is
+    published for.
+
+    Painting is a setting, since a world already carrying the colours someone wants
+    should keep them.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "coloring: Coloring = Coloring.BY_CLASS" in written
+    assert "Coloring.UNCHANGED" in written

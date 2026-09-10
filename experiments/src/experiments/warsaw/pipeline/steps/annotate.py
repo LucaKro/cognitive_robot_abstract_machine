@@ -26,7 +26,6 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import semantic_digital_twin
 from semantic_digital_twin.exceptions import UsageError
 from semantic_digital_twin.world import World
 from semantic_digital_twin.semantic_annotations.in_memory_builder import (
@@ -167,16 +166,18 @@ class MountAnnotations(HasLogger):
             split=split,
             classifications=classifications,
             annotated_names=set(annotations),
-        )
+        ).with_fields_resolved(annotation_classes(SemanticAnnotation))
         self.run.write_record(RunFile.EVALUATION_GRAPH, graph)
 
         report = RunReport(run=self.run)
         report.write_inspector()
+        report.write_publisher()
         report.write()
         self.logger.info(
-            "written to %s and %s",
+            "written to %s, %s and %s",
             self.run.path(RunFile.REPORT),
             self.run.path(RunFile.INSPECTOR),
+            self.run.path(RunFile.PUBLISHER),
         )
 
     def annotate(
@@ -312,14 +313,6 @@ class AnnotateAndMount(PipelineStep):
         """
         return "dataclass_template.py.jinja"
 
-    @property
-    def orm_generator(self) -> Path:
-        """
-        :return: The script that rebuilds the ORM.
-        """
-        root = Path(semantic_digital_twin.__file__).resolve().parent
-        return root.parent.parent / "scripts" / "generate_orm.py"
-
     def carry_out(self) -> None:
         """
         Generate what the ontology lacks, rebuild the ORM, then annotate in a new one.
@@ -445,24 +438,6 @@ class AnnotateAndMount(PipelineStep):
         """
         Rebuild the ORM so the database knows the classes this run generated.
 
-        Run in a new interpreter with the run's directory at the front of the
-        annotations package's search path: the generator finds classes by walking that
-        path, so the run's file is the one it maps, without the generator being told
-        anything and without the classes ever being written into the ontology's own
-        package.
-
         :raises SubprocessStepFailedError: If the rebuild fails.
         """
-        self.in_new_interpreter(
-            "import importlib.util, sys\n"
-            "from pathlib import Path\n"
-            "from experiments.warsaw.pipeline.run_classes import GeneratedClasses\n"
-            "GeneratedClasses(directory=Path(sys.argv[1])).use()\n"
-            "specification = importlib.util.spec_from_file_location("
-            "'generate_orm', sys.argv[2])\n"
-            "generator = importlib.util.module_from_spec(specification)\n"
-            "specification.loader.exec_module(generator)\n"
-            "generator.generate_orm()\n",
-            [str(self.run.directory.resolve()), str(self.orm_generator)],
-            what="rebuilding the ORM with the run's generated classes",
-        )
+        GeneratedClasses(directory=self.run.directory).rebuild_orm()
