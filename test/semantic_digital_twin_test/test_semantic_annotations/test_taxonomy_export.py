@@ -249,24 +249,29 @@ def test_a_kitchen_island_holds_the_units_it_is_built_from():
     assert field_holding(KitchenIsland, Dishwasher).field_name == "units"
 
 
-def test_a_dishwasher_stands_in_a_run_although_it_is_not_a_cabinet():
+def test_a_dishwasher_is_a_cabinet_so_that_it_can_stand_in_a_run():
     """
-    What a dishwasher and a cabinet share is the case, not the furniture, which is why
-    the units field is bounded by the case rather than by Cabinet.
+    Bounding the units by the case a dishwasher and a cabinet share does not survive
+    being stored: a stored class inherits from one parent only, and a cabinet's is its
+    furniture rather than its case, so a stored cabinet is not a stored case.
+
+    A dishwasher is therefore a cabinet, as a fridge already is.
     """
-    assert not issubclass(Dishwasher, Cabinet)
+    assert issubclass(Dishwasher, Cabinet)
     assert issubclass(Dishwasher, HasCaseAsRootBody)
+    assert field_holding(KitchenIsland, Dishwasher).field_name == "units"
 
 
-def test_a_drawer_built_into_an_island_is_held_the_same_way_a_cabinet_is():
+def test_a_drawer_built_into_an_island_is_held_as_a_drawer_rather_than_a_unit():
     """
-    A drawer is a case too, so a scan that never resolved the carcass around it still
-    says something true by reporting the drawer.
+    A scan that never resolved the carcass around a drawer still says something true by
+    reporting the drawer, so an island holds one directly.
 
-    Held through a field of its own it would match both, which is the ambiguity ``add``
-    refuses.
+    It is not a unit: a drawer is not a cabinet, which is also what keeps the two fields
+    from both matching it and making the mount the ambiguity ``add`` refuses.
     """
-    assert field_holding(KitchenIsland, Drawer).field_name == "units"
+    assert field_holding(KitchenIsland, Drawer).field_name == "drawers"
+    assert not issubclass(Drawer, Cabinet)
 
 
 def test_an_island_holds_its_counter_top_as_a_thing_rather_than_a_surface():

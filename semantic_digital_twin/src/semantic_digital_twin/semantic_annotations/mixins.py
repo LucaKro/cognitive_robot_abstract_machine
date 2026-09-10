@@ -97,6 +97,7 @@ if TYPE_CHECKING:
         ShelfLayer,
         Wall,
         CounterTop,
+        Cabinet,
     )
     from semantic_digital_twin.world import World
     from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
@@ -1348,13 +1349,13 @@ class HasUnits(PartWholeRelationship):
     under a shared worktop. The whole is what a person names -- the island, the counter
     along that wall -- while the carcasses are what opens and holds things.
 
-    The parts are :class:`HasCaseAsRootBody` rather than
-    :class:`~semantic_digital_twin.semantic_annotations.semantic_annotations.Cabinet`
-    because a dishwasher stands in such a run exactly as a cabinet does without being
-    one: what they share is the case.
+    The parts are cabinets, and a dishwasher is one: it stands in such a run exactly as a
+    cabinet does, as a fridge does. Bounding them by a mixin they share instead would not
+    survive being stored, because a stored class inherits from one parent only and a
+    cabinet's is its furniture rather than its case.
     """
 
-    units: List[HasCaseAsRootBody] = field(
+    units: List[Cabinet] = field(
         default_factory=list,
         hash=False,
         kw_only=True,

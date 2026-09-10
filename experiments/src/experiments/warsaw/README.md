@@ -14,6 +14,10 @@ rather than from someone's shell history.
 On some machines the renders come back blank and the run stops with a
 `BlankRenderError`; see below for what to do about that.
 
+`ASKING_ABOUT_PHOTOGRAPHS.md` records an idea that is not built: showing a model the
+source photographs with the faces in question drawn over them, rather than renders of a
+scan whose handles are nineteen triangles.
+
 ## Where the scan goes
 
     experiments/src/experiments/warsaw/dataset/<scene name>/<anything>.ply

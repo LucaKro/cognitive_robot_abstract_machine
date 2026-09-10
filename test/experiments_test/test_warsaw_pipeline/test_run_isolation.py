@@ -17,6 +17,7 @@ import pytest
 from experiments.warsaw.exceptions import (
     DatabaseNotConfiguredError,
     GeneratedClassesAlreadyImportedError,
+    RunClassTakenOverByTheOntologyError,
     RunOutputAlreadyWrittenError,
 )
 from experiments.warsaw.pipeline.run import Run, RunFile
@@ -267,3 +268,66 @@ def test_a_run_that_generated_no_classes_still_names_the_generator(tmp_path):
 
     assert not generated.were_generated
     assert generated.orm_generator.name == "generate_orm.py"
+
+
+def test_the_classes_a_run_generated_are_read_without_importing_them(tmp_path):
+    """
+    Asking what a run generated must not put those classes into this interpreter, which
+    is what deciding whether they can be used has to happen before.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass Ceiling: ...\n\n\n"
+        "@dataclass(eq=False)\nclass Faucet: ...\n"
+    )
+
+    assert generated.class_names == ["Ceiling", "Faucet"]
+    assert sys.modules.get(generated.module_name) is None
+
+
+def test_a_run_that_generated_nothing_names_no_classes(tmp_path):
+    """
+    A scene needing nothing the ontology lacks generates nothing to be asked about.
+    """
+    assert GeneratedClasses(directory=tmp_path).class_names == []
+
+
+def test_a_class_the_ontology_has_since_gained_is_reported(tmp_path):
+    """
+    Two classes of one name are two tables of one name, and an ORM holding both cannot
+    be imported at all -- so rebuilding for such a run would leave every other run
+    unable to read anything.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass KitchenIsland: ...\n\n\n"
+        "@dataclass(eq=False)\nclass NothingIsCalledThis: ...\n"
+    )
+
+    assert generated.taken_over_by_the_ontology() == ["KitchenIsland"]
+
+
+def test_rebuilding_for_a_taken_over_class_is_refused_before_anything_is_touched(
+    tmp_path,
+):
+    """
+    Refused rather than attempted, because the damage is to the one interface every run
+    shares and undoing it means rebuilding from a repository nobody has broken yet.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass KitchenIsland: ...\n"
+    )
+    written_before = generated.interface.read_text()
+
+    with pytest.raises(RunClassTakenOverByTheOntologyError) as raised:
+        generated.rebuild_orm()
+
+    assert "KitchenIsland" in str(raised.value)
+    assert generated.interface.read_text() == written_before

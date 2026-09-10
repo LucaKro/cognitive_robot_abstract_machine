@@ -18,6 +18,7 @@ call at the top of a step rather than something a step can opt into later.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -25,10 +26,16 @@ from pathlib import Path
 from types import ModuleType
 
 import semantic_digital_twin
-from typing_extensions import Optional
+from typing_extensions import List, Optional
+
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 from experiments.warsaw.exceptions import (
     GeneratedClassesAlreadyImportedError,
+    RunClassTakenOverByTheOntologyError,
     SubprocessStepFailedError,
 )
 
@@ -94,6 +101,35 @@ class GeneratedClasses:
         root = Path(semantic_digital_twin.__file__).resolve().parent
         return root.parent.parent / "scripts" / "generate_orm.py"
 
+    @property
+    def interface(self) -> Path:
+        """
+        :return: The generated file that says how everything mapped is stored.
+        """
+        return (
+            Path(semantic_digital_twin.__file__).resolve().parent
+            / "orm"
+            / "ormatic_interface.py"
+        )
+
+    @property
+    def class_names(self) -> List[str]:
+        """
+        :return: The names of the classes this run generated, read out of the file rather
+            than by importing it, so asking costs nothing and changes nothing.
+        """
+        if not self.were_generated:
+            return []
+        return re.findall(r"^class (\w+)", self.path.read_text(), re.MULTILINE)
+
+    def taken_over_by_the_ontology(self) -> List[str]:
+        """
+        :return: The classes this run generated that the ontology has since gained, empty
+            where its classes are still its own.
+        """
+        known = annotation_classes(SemanticAnnotation)
+        return sorted(name for name in self.class_names if name in known)
+
     def rebuild_orm(self) -> None:
         """
         Build the ORM anew so it maps the classes this run generated.
@@ -106,20 +142,51 @@ class GeneratedClasses:
         answering, and an interpreter that has imported a stale one holds it however
         carefully it imports again.
 
+        The standing interface is moved aside first, because the generator reads the one
+        it is about to replace and a stale interface therefore kills the rebuild run to
+        cure it. It is put back when the rebuild writes nothing, so a failure costs
+        nothing.
+
+        :raises RunClassTakenOverByTheOntologyError: If the ontology has since gained a
+            class this run generated, which would leave two classes of one name and an
+            ORM nothing can import.
         :raises SubprocessStepFailedError: If the rebuild fails.
         """
-        self._in_new_interpreter(
-            "import importlib, sys\n"
-            "from pathlib import Path\n"
-            "from experiments.warsaw.pipeline.run_classes import GeneratedClasses\n"
-            "GeneratedClasses(directory=Path(sys.argv[1])).use()\n"
-            "specification = importlib.util.spec_from_file_location("
-            "'generate_orm', sys.argv[2])\n"
-            "generator = importlib.util.module_from_spec(specification)\n"
-            "specification.loader.exec_module(generator)\n"
-            "generator.generate_orm()\n",
-            what="rebuilding the ORM with the run's generated classes",
-        )
+        taken_over = self.taken_over_by_the_ontology()
+        if taken_over:
+            raise RunClassTakenOverByTheOntologyError(
+                directory=str(self.directory), class_names=taken_over
+            )
+
+        aside = self.interface.with_suffix(".py.aside")
+        if self.interface.exists():
+            self.interface.replace(aside)
+        rebuilt = False
+        try:
+            self._in_new_interpreter(
+                "import importlib, sys\n"
+                "from pathlib import Path\n"
+                "from experiments.warsaw.pipeline.run_classes import GeneratedClasses\n"
+                "GeneratedClasses(directory=Path(sys.argv[1])).use()\n"
+                "specification = importlib.util.spec_from_file_location("
+                "'generate_orm', sys.argv[2])\n"
+                "generator = importlib.util.module_from_spec(specification)\n"
+                "specification.loader.exec_module(generator)\n"
+                "generator.generate_orm()\n",
+                what="rebuilding the ORM with the run's generated classes",
+            )
+            rebuilt = self.interface.exists()
+        finally:
+            if rebuilt:
+                aside.unlink(missing_ok=True)
+            elif aside.exists():
+                aside.replace(self.interface)
+
+        if not rebuilt:
+            raise SubprocessStepFailedError(
+                what="rebuilding the ORM with the run's generated classes",
+                output=f"the generator finished but wrote no {self.interface}",
+            )
 
     def _in_new_interpreter(self, program: str, what: str) -> str:
         """

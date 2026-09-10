@@ -558,3 +558,39 @@ class WorldProviderNotFoundError(DataclassException, ValueError):
             "Name it as 'module.path:ClassName', where the class can be built with no "
             "arguments and answers get_world(), as the predetermined maps do."
         )
+
+
+@dataclass
+class RunClassTakenOverByTheOntologyError(DataclassException, ValueError):
+    """
+    Raised when the ontology has gained a class an earlier run had to generate.
+
+    Two classes of one name are two tables of one name, and an ORM holding both cannot
+    be imported at all -- so rebuilding for that run would leave every other run unable
+    to read anything. The run's world stays where it is; it is only no longer reachable
+    through an ORM that now means something else by the name.
+    """
+
+    directory: str
+    """
+    The run whose classes were read.
+    """
+
+    class_names: List[str]
+    """
+    The ones the ontology has since gained.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The ontology now has {', '.join(self.class_names)}, which the run in "
+            f"'{self.directory}' generated for itself."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Read that run through the files it wrote rather than through the database: "
+            "evaluation_graph.json holds its bodies and relations and needs no ORM. A "
+            "run made since the ontology gained the class does not generate it and opens "
+            "normally."
+        )

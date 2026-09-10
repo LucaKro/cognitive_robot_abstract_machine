@@ -198,3 +198,6 @@ experiments/src/experiments/warsaw/pipeline_runs/
 # commit; the matrices the project keeps live in
 # semantic_digital_twin/resources/collision_configs/ under the robot's own name.
 test.srdf
+
+# The ground-truth mesh picked over to choose landmarks, rebuilt from the URDF export.
+experiments/src/experiments/warsaw/evaluation/landmarks/*.ply

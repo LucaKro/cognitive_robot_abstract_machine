@@ -153,21 +153,6 @@ class Handle(HasRootBody):
 
 
 @dataclass(eq=False)
-class Dishwasher(HasCaseAsRootBody, HasDoors, HasDrawers):
-    """
-    A dishwasher is a kitchen appliance used for cleaning dishes, utensils, and
-    cookware.
-
-    It typically has a front door that opens to reveal racks for loading dirty items and
-    a control panel for selecting wash cycles.
-    """
-
-    @classproperty
-    def _hole_direction_axis(cls) -> Vector3:
-        return Vector3.NEGATIVE_X()
-
-
-@dataclass(eq=False)
 class Aperture(HasRootRegion):
     """
     An opening in a physical entity.
@@ -743,7 +728,9 @@ class CounterTop(Furniture, HasSupportingSurface, HasSink):
 
 
 @dataclass(eq=False)
-class KitchenIsland(Furniture, HasRootBody, HasUnits, HasCounterTop, HasDoors):
+class KitchenIsland(
+    Furniture, HasRootBody, HasUnits, HasCounterTop, HasDoors, HasDrawers
+):
     """
     A run of fitted kitchen units standing free of the walls, under one counter top.
 
@@ -759,6 +746,21 @@ class KitchenIsland(Furniture, HasRootBody, HasUnits, HasCounterTop, HasDoors):
 
 @dataclass(eq=False)
 class Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers):
+    @classproperty
+    def _hole_direction_axis(cls) -> Vector3:
+        return Vector3.NEGATIVE_X()
+
+
+@dataclass(eq=False)
+class Dishwasher(Cabinet):
+    """
+    A dishwasher is a kitchen appliance used for cleaning dishes, utensils, and
+    cookware.
+
+    It typically has a front door that opens to reveal racks for loading dirty items and
+    a control panel for selecting wash cycles.
+    """
+
     @classproperty
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.NEGATIVE_X()
