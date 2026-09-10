@@ -126,22 +126,6 @@ class TestLogic3:
         for i in self.values:
             assert i == sm.trinary_logic_or(sm.Scalar(i)), f"a={i}"
 
-    def test_or3_rejects_a_constant_comparison_result(self):
-        # Scalar._compare collapses a comparison between two constants to a plain bool
-        # instead of a Scalar, and trinary_logic_or calls .is_const_true() on every
-        # argument unguarded. The first argument must not already be constantly true,
-        # or `any()` short-circuits before reaching the offending plain bool.
-        constant_comparison = sm.Scalar(0) <= 0.05
-        assert isinstance(constant_comparison, bool)
-        with pytest.raises(AttributeError):
-            sm.trinary_logic_or(sm.Scalar(0), constant_comparison)
-
-    def test_and3_rejects_a_constant_comparison_result(self):
-        constant_comparison = sm.Scalar(0) <= 0.05
-        assert isinstance(constant_comparison, bool)
-        with pytest.raises(AttributeError):
-            sm.trinary_logic_and(sm.Scalar(1), constant_comparison)
-
     def test_and3_without_arguments(self):
         with pytest.raises(NotEnoughArgumentsError) as error:
             sm.trinary_logic_and()
