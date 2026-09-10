@@ -224,23 +224,27 @@ def build_plan() -> Plan:
                     code(_failing_step),
                     TransportAction(
                         world.get_semantic_annotations_by_type(Milk)[0],
-                        Pose.from_xyz_rpy(
+                        Arms.LEFT,
+                        target_location=Pose.from_xyz_rpy(
                             4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                         ),
-                        Arms.LEFT,
                     ),
                 ],
                 context=context,
             ),
             TransportAction(
                 bowl_annotation,
-                Pose.from_xyz_rpy(5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
                 Arms.LEFT,
+                target_location=Pose.from_xyz_rpy(
+                    5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root
+                ),
             ),
             TransportAction(
                 spoon_annotation,
-                Pose.from_xyz_rpy(5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
                 Arms.LEFT,
+                target_location=Pose.from_xyz_rpy(
+                    5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root
+                ),
             ),
         ],
         context=context,

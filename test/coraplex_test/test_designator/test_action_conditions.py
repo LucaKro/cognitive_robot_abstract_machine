@@ -97,7 +97,7 @@ def test_pick_up_pre_conditions(mutable_model_world):
     false_statements = get_false_statements(pre_condition)
 
     assert len(false_statements) == 1
-    assert false_statements[0]._name_ == "IsObjectReachableBy"
+    assert false_statements[0]._name_ == "IsGraspReachableBy"
 
     with pytest.raises(ConditionNotSatisfied):
         _construct_and_evaluate_condition(pick_action, pick_action.pre_condition)

@@ -115,8 +115,8 @@ def test_transporting_a_bowl_grasps_it_at_its_rim(pr2_and_bowl):
     context.evaluate_conditions = False
     transport = TransportAction(
         bowl,
-        Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
         Arms.LEFT,
+        target_location=Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
     )
 
     sequential([transport], context=context)

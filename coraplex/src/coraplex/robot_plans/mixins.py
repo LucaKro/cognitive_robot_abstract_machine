@@ -262,6 +262,25 @@ class HasTcpGoalThresholds:
 
 
 @dataclass
+class TargetGraspFrames:
+    """
+    The grasp frame a location factory reaches for, and the grasp on whatever body
+    its approach must avoid.
+    """
+
+    grasp_frame: Pose
+    """
+    The grasp frame, placed at the target.
+    """
+
+    body_T_grasp: Pose
+    """
+    The grasp, in its own body's frame, on whatever body the approach must avoid. An
+    identity grasp with no reference frame when there is no such body.
+    """
+
+
+@dataclass
 class HasApproachesGraspPoses:
     """
     Turns a grasp frame into the tool center point goals that reach it and withdraw again.
@@ -288,9 +307,9 @@ class HasApproachesGraspPoses:
     """
 
     @staticmethod
-    def _grasp_in_body_frame(grasp_pose: Pose, body: Optional[Body]) -> Optional[Pose]:
+    def _grasp_in_body_frame(grasp_pose: Pose, body: Optional[Body]) -> Pose:
         """
-        The grasp in the frame of the body whose geometry the gripper has to clear.
+        The grasp in the frame of the body the gripper's pre-grasp pose must avoid.
 
         A grasp that
         :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
@@ -299,13 +318,63 @@ class HasApproachesGraspPoses:
 
         :param grasp_pose: The grasp frame to reach.
         :param body: The body being grasped, or ``None`` when there is none.
-        :return: The grasp in ``body``'s frame, or ``None``.
+        :return: The grasp in ``body``'s frame, or an identity grasp with no reference
+            frame when there is no body.
         """
         if body is None:
-            return None
+            return Pose()
         if grasp_pose.reference_frame is body:
             return grasp_pose
         return body._world.transform(grasp_pose.to_homogeneous_matrix(), body).to_pose()
+
+    @staticmethod
+    def _grasp_frame_at(target_pose: Pose, target_T_grasp: Pose) -> Pose:
+        """
+        Place a grasp frame, given relative to a target, at that target's own pose.
+
+        :param target_pose: Where the grasped object is, or is going to be.
+        :param target_T_grasp: The grasp frame relative to that object. An identity
+            grasp places it at the object's own origin.
+        :return: The grasp frame, in ``target_pose``'s own frame.
+        """
+        return (
+            target_pose.to_homogeneous_matrix() @ target_T_grasp.to_homogeneous_matrix()
+        ).to_pose()
+
+    @staticmethod
+    def resolve_target_grasp_frames(
+        target_pose: Pose,
+        target_body: Optional[Body],
+        grasp_pose: Optional[Pose],
+        end_effector: EndEffector,
+    ) -> TargetGraspFrames:
+        """
+        The grasp frame at a target, and the grasp on whatever body the approach to
+        it must avoid.
+
+        Reaching for something reads that grasp off the target itself. Carrying
+        something to a place instead reads the grasp on the object already in the
+        gripper, since the approach must avoid that object, not the target.
+
+        :param target_pose: Where the target is, or is going to be.
+        :param target_body: The body being reached for, when there is one.
+        :param grasp_pose: The grasp frame relative to the target, or ``None`` to
+            grasp the target at its own origin.
+        :param end_effector: The end effector that is to reach it.
+        :return: The grasp frame at ``target_pose``, and the grasp on whatever body
+            the approach must avoid.
+        """
+        grasp_frame = HasApproachesGraspPoses._grasp_frame_at(
+            target_pose, grasp_pose or Pose()
+        )
+        if target_body is None:
+            fallback = Pose()
+        elif grasp_pose is None:
+            fallback = Pose(reference_frame=target_body)
+        else:
+            fallback = grasp_pose
+        body_T_grasp = end_effector.held_body_T_grasp_if() or fallback
+        return TargetGraspFrames(grasp_frame=grasp_frame, body_T_grasp=body_T_grasp)
 
     def grasp_pose_sequence(
         self,
@@ -324,14 +393,15 @@ class HasApproachesGraspPoses:
         :param grasp_pose: The grasp frame to reach.
         :param end_effector: The end effector that is to reach it.
         :param body_T_grasp: The same grasp written in the grasped body's own frame,
-            which is what says how much of the body the pre-grasp pose has to clear
-            (see :meth:`_grasp_in_body_frame`). It is passed rather than derived because
+            which is what the pre-grasp pose must avoid (see
+            :meth:`_grasp_in_body_frame`). It is passed rather than derived because
             a body being placed is still in the gripper, nowhere near the grasp being
             aimed at, so a release passes the grasp it is held by instead. Without it
             only :attr:`approach_clearance` separates the two poses.
         :param reverse: Whether to withdraw from the grasp rather than move onto it.
         :return: The pre-grasp pose, the grasp pose and the retreat pose.
         """
+        body_T_grasp = body_T_grasp if body_T_grasp is not None else Pose()
         tool_goal = end_effector.tool_frame_goal(grasp_pose)
         pre_grasp_pose = translate_pose_along_local_axis(
             tool_goal,
@@ -347,7 +417,7 @@ class HasApproachesGraspPoses:
             sequence.reverse()
         return sequence
 
-    def _approach_distance(self, body_T_grasp: Optional[Pose]) -> float:
+    def _approach_distance(self, body_T_grasp: Pose) -> float:
         """
         How far ahead of the grasp the gripper waits before its final approach.
 
@@ -357,11 +427,11 @@ class HasApproachesGraspPoses:
         such as one on the rim of a bowl, therefore needs barely more than the
         clearance, while a grasp at the object's center needs to clear half of it.
 
-        :param body_T_grasp: The grasp in the grasped body's frame, or ``None`` when
-            there is no body to clear.
+        :param body_T_grasp: The grasp in the grasped body's frame, with no reference
+            frame when there is no body to avoid.
         :return: The distance in meters.
         """
-        body = body_T_grasp.reference_frame if body_T_grasp is not None else None
+        body = body_T_grasp.reference_frame
         if not isinstance(body, Body) or not body.has_collision():
             return self.approach_clearance
         return self._distance_to_boundary(body_T_grasp) + self.approach_clearance

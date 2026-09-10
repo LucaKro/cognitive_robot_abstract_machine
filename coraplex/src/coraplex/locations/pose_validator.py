@@ -187,7 +187,8 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         cls,
         grasp_pose: Pose,
         end_effector: EndEffector,
-        body_T_grasp: Optional[Pose],
+        *,
+        body_T_grasp: Optional[Pose] = None,
         context: Context,
         **clearances,
     ) -> Self:
@@ -333,31 +334,34 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             f"Hash of input for pose_sequence_reachability_validator: {hash((*self.pose_sequence, self.tip_link, self.robot))}"
         )
 
-        with (
-            self.world.reset_state_context(),
-            self.world.collision_manager.reset_temporary_rules_context(),
-        ):
-
-            executor = self.create_executor(self.create_msc())
-
+        collision_manager = self.world.collision_manager
+        entered_temporary_rules = list(collision_manager.temporary_rules)
+        with self.world.reset_state_context():
             try:
-                executor.tick_until_end()
-            except TimeoutError:
-                logger.debug(
-                    f"Timeout while executing pose sequence: {self.pose_sequence}"
-                )
-                return False
-            except NoProgressError as no_progress:
-                logger.debug(
-                    f"Stopped approaching pose sequence {self.pose_sequence}: "
-                    f"{no_progress.error_message()}"
-                )
-                return False
-            return True
+                executor = self.create_executor(self.create_msc())
+
+                try:
+                    executor.tick_until_end()
+                except TimeoutError:
+                    logger.debug(
+                        f"Timeout while executing pose sequence: {self.pose_sequence}"
+                    )
+                    return False
+                except NoProgressError as no_progress:
+                    logger.debug(
+                        f"Stopped approaching pose sequence {self.pose_sequence}: "
+                        f"{no_progress.error_message()}"
+                    )
+                    return False
+                return True
+            finally:
+                collision_manager.clear_temporary_rules()
+                collision_manager.extend_temporary_rule(entered_temporary_rules)
+                collision_manager.update_collision_matrix()
 
 
 @dataclass
-class WorldCopy:
+class ReachabilityProbeWorld:
     """
     A throwaway copy of a world, with the robot and gripper found again inside it.
 
@@ -404,13 +408,13 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
     The arm whose end effector should do the reaching.
     """
 
-    def _copied_world(self) -> WorldCopy:
+    def _copied_world(self) -> ReachabilityProbeWorld:
         """
         :return: A copy of the world to try the reach in.
         """
         world = deepcopy(self.world)
         robot = world.get_semantic_annotation_by_id(self.robot.id)
-        return WorldCopy(
+        return ReachabilityProbeWorld(
             world=world,
             robot=robot,
             end_effector=ViewManager.get_end_effector_view(self.arm, robot),
@@ -419,7 +423,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
     def _reaches(
         self,
         grasp_pose: Pose,
-        copied_world: WorldCopy,
+        copied_world: ReachabilityProbeWorld,
         body: Optional[Body],
         reverse: bool = False,
     ) -> bool:
@@ -428,7 +432,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
 
         :param grasp_pose: The grasp frame to reach, in ``copied_world``'s frames.
         :param copied_world: The copy to try it in.
-        :param body: The body being grasped, whose geometry the approach has to clear.
+        :param body: The body being grasped, that the approach must avoid.
         :param reverse: Whether to withdraw from the grasp rather than move onto it.
         :return: Whether the whole sequence was reached.
         """
@@ -498,7 +502,7 @@ class IsObjectReachableBy(GraspReachabilityValidator):
         )
 
     def _candidates_in(
-        self, copied_world: WorldCopy, graspable: HasGraspPoses
+        self, copied_world: ReachabilityProbeWorld, graspable: HasGraspPoses
     ) -> List[Tuple[Pose, Pose]]:
         """
         The grasps to try, best first.
@@ -554,7 +558,7 @@ class IsGraspReachableBy(GraspReachabilityValidator):
 
     object_designator: Optional[Body] = field(default=None)
     """
-    The body being grasped, whose geometry the approach has to clear.
+    The body being grasped, that the approach must avoid.
 
     ``None`` when no body is being reached around.
     """

@@ -148,7 +148,10 @@ def test_pre_condition_judges_the_default_grasp_only(immutable_model_world):
     sequential([pick_up], context=context)
     end_effector = ViewManager.get_end_effector_view(Arms.LEFT, view)
     reaches_its_grasp = AreReachableBy.for_grasp(
-        pick_up.grasp_pose, end_effector, pick_up.grasp_pose, context=context
+        pick_up.grasp_pose,
+        end_effector,
+        body_T_grasp=pick_up.grasp_pose,
+        context=context,
     )()
 
     assert (

@@ -17,6 +17,7 @@ from coraplex.locations.pose_validator import (
     IsObjectReachableBy,
     IsVisibleBy,
 )
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
@@ -38,52 +39,6 @@ def occupancy_location(target_pose: Pose, context: Context) -> Location:
     return Location(
         context, target_pose, OccupancyCostmap.default_map(context, target_pose), []
     )
-
-
-def _grasp_to_clear(
-    target_T_grasp: Optional[Pose],
-    target_body: Optional[Body],
-    context: Context,
-    arm: Arms,
-) -> Optional[Pose]:
-    """
-    The grasp whose geometry the robot has to reach around, in its body's own frame.
-
-    Reaching for something reads the grasp off the target itself; carrying something to
-    a place instead reads the grasp the gripper already has on it, which is what will
-    have to clear the target.
-
-    :param target_T_grasp: The grasp relative to the target, or ``None`` to grasp the
-        target at its own origin.
-    :param target_body: The body being reached for, when there is one.
-    :param context: The context holding the robot and world.
-    :param arm: The arm doing the reaching.
-    :return: The grasp in its body's frame, or ``None`` when no body is involved.
-    """
-    end_effector = ViewManager.get_end_effector_view(arm, context.robot)
-    if end_effector.held_body is not None:
-        return end_effector.held_body_T_grasp
-    if target_body is None:
-        return None
-    if target_T_grasp is None:
-        return Pose(reference_frame=target_body)
-    return target_T_grasp
-
-
-def _grasp_frame_at(target_pose: Pose, target_T_grasp: Optional[Pose]) -> Pose:
-    """
-    Place a grasp frame at a target pose.
-
-    :param target_pose: Where the grasped object is, or is going to be.
-    :param target_T_grasp: The grasp frame relative to that object. ``None`` grasps the
-        object at its own origin.
-    :return: The grasp frame, in ``target_pose``'s own frame.
-    """
-    if target_T_grasp is None:
-        return target_pose
-    return (
-        target_pose.to_homogeneous_matrix() @ target_T_grasp.to_homogeneous_matrix()
-    ).to_pose()
 
 
 def reachability_location(
@@ -111,9 +66,10 @@ def reachability_location(
     target_pose, target_body = (
         (target.global_pose, target) if isinstance(target, Body) else (target, None)
     )
-    man = ViewManager.get_end_effector_view(arm, context.robot)
-    grasp_frame = _grasp_frame_at(target_pose, grasp_pose)
-    body_T_grasp = _grasp_to_clear(grasp_pose, target_body, context, arm)
+    end_effector = ViewManager.get_end_effector_view(arm, context.robot)
+    target_grasp = HasApproachesGraspPoses.resolve_target_grasp_frames(
+        target_pose, target_body, grasp_pose, end_effector
+    )
 
     costmap = OccupancyCostmap.default_map(context, target_pose) & RingCostmap(
         resolution=0.02,
@@ -131,9 +87,9 @@ def reachability_location(
         costmap,
         [
             AreReachableBy.for_grasp(
-                grasp_frame,
-                man,
-                body_T_grasp,
+                target_grasp.grasp_frame,
+                end_effector,
+                body_T_grasp=target_grasp.body_T_grasp,
                 context=Context(
                     world=context.world,
                     robot=context.robot,
@@ -341,14 +297,15 @@ def giskard_reachability_location(
         (target.global_pose, target) if isinstance(target, Body) else (target, None)
     )
 
-    man = ViewManager.get_end_effector_view(arm, context.robot)
-    grasp_frame = _grasp_frame_at(target_pose, grasp_pose)
-    body_T_grasp = _grasp_to_clear(grasp_pose, target_body, context, arm)
+    end_effector = ViewManager.get_end_effector_view(arm, context.robot)
+    target_grasp = HasApproachesGraspPoses.resolve_target_grasp_frames(
+        target_pose, target_body, grasp_pose, end_effector
+    )
 
     backend = GiskardLocationBackend(
         target,
         arm,
-        grasp_frame,
+        target_grasp.grasp_frame,
         context.robot,
         context.world,
         approach_clearance=approach_clearance,
@@ -361,9 +318,9 @@ def giskard_reachability_location(
         backend,
         [
             AreReachableBy.for_grasp(
-                grasp_frame,
-                man,
-                body_T_grasp,
+                target_grasp.grasp_frame,
+                end_effector,
+                body_T_grasp=target_grasp.body_T_grasp,
                 context=Context(
                     robot=context.robot,
                     world=context.world,

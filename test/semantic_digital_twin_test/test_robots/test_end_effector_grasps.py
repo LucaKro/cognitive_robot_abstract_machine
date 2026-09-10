@@ -210,6 +210,30 @@ def test_the_held_grasp_is_the_offset_the_body_hangs_at(pr2_gripper):
     )
 
 
+def test_held_body_T_grasp_if_is_none_when_nothing_is_held(pr2_gripper):
+    assert pr2_gripper.held_body_T_grasp_if() is None
+
+
+def test_held_body_T_grasp_if_returns_the_grasp_when_any_body_is_accepted(pr2_gripper):
+    body = hold_body(pr2_gripper)
+
+    np.testing.assert_allclose(
+        pr2_gripper.held_body_T_grasp_if().to_np(),
+        pr2_gripper.held_body_T_grasp.to_np(),
+        atol=1e-9,
+    )
+    assert pr2_gripper.held_body_T_grasp_if().reference_frame is body
+
+
+def test_held_body_T_grasp_if_returns_none_when_the_held_body_is_not_the_expected_one(
+    pr2_gripper,
+):
+    hold_body(pr2_gripper)
+    other_body = Body(name=PrefixedName("some_other_body"))
+
+    assert pr2_gripper.held_body_T_grasp_if(other_body) is None
+
+
 # %% ranking the grasps an object offers
 
 

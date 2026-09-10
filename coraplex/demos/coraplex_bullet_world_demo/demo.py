@@ -158,10 +158,10 @@ class BulletWorldDemonstration(RobotDemonstration):
                             entity(variable(Milk, domain=world.semantic_annotations))
                         ).evaluate()
                     ),
-                    Pose.from_xyz_rpy(
+                    Arms.LEFT,
+                    target_location=Pose.from_xyz_rpy(
                         4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                     ),
-                    Arms.LEFT,
                 ),
                 a(TransportAction)(
                     object_designator=bowl,
@@ -179,10 +179,10 @@ class BulletWorldDemonstration(RobotDemonstration):
                             entity(variable(Spoon, domain=world.semantic_annotations))
                         ).evaluate()
                     ),
-                    Pose.from_xyz_rpy(
+                    Arms.LEFT,
+                    target_location=Pose.from_xyz_rpy(
                         5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root
                     ),
-                    Arms.LEFT,
                 ),
             ],
             context=context,

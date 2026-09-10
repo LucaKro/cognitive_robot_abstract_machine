@@ -102,15 +102,15 @@ class PlaceAction(
         :return: The grasp frame, in :attr:`object_designator`'s frame.
         """
         end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
-        if end_effector.held_body is self.object_designator:
-            return end_effector.held_body_T_grasp
-
         previous_pick = self.plan_node.get_previous_node_by_designator_type(
             PickUpAction
         )
-        if previous_pick is None:
-            return Pose(reference_frame=self.object_designator)
-        return previous_pick.designator.grasp_pose
+        fallback = (
+            previous_pick.designator.grasp_pose
+            if previous_pick is not None
+            else Pose(reference_frame=self.object_designator)
+        )
+        return end_effector.held_body_T_grasp_if(self.object_designator) or fallback
 
     def _grasp_pose_at(self, target_location: Pose) -> Pose:
         """
@@ -120,10 +120,7 @@ class PlaceAction(
         :param target_location: Where the object should end up.
         :return: The grasp frame, in ``target_location``'s frame.
         """
-        return (
-            target_location.to_homogeneous_matrix()
-            @ self._grasp_on_the_held_object().to_homogeneous_matrix()
-        ).to_pose()
+        return self._grasp_frame_at(target_location, self._grasp_on_the_held_object())
 
     @property
     def _action_plan(self) -> PlanNode:

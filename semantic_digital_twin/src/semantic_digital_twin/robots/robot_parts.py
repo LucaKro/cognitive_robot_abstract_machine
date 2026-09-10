@@ -625,6 +625,22 @@ class EndEffector(AbstractRobotPart, ABC):
             reference_frame=body,
         ).to_pose()
 
+    def held_body_T_grasp_if(
+        self, expected_body: Optional[Body] = None
+    ) -> Optional[Pose]:
+        """
+        The grasp on the held body, if there is one and it matches ``expected_body``.
+
+        :param expected_body: The body the caller cares about, or ``None`` to accept
+            whichever body is held.
+        :return: :attr:`held_body_T_grasp`, or ``None`` when nothing suitable is held.
+        """
+        if self.held_body is None:
+            return None
+        if expected_body is not None and self.held_body is not expected_body:
+            return None
+        return self.held_body_T_grasp
+
     def distance_to_grasp(
         self,
         grasp_pose: Pose,

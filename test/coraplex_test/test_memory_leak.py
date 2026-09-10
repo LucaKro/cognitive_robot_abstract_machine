@@ -63,8 +63,10 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
     milk = copy_world.get_semantic_annotations_by_type(Milk)[0]
     description = TransportAction(
         milk,
-        Pose.from_xyz_quaternion(3.1, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root),
         Arms.RIGHT,
+        target_location=Pose.from_xyz_quaternion(
+            3.1, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root
+        ),
     )
     plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], copy_context)
     with simulated_robot:

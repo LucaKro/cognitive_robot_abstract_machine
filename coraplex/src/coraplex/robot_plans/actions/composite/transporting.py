@@ -35,39 +35,19 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class TransportAction(ActionDescription, HasApproachesGraspPoses):
+class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses):
     """
     Transports an object to a position using an arm.
     """
 
-    object_designator: HasGraspPoses = field(repr=False)
-    """
-    The annotation of the object that should be transported.
-    """
-
-    target_location: Pose
+    target_location: Pose = field(kw_only=True)
     """
     Target Location to which the object should be transported.
-    """
 
-    arm: Arms
+    The navigation this action plans aims at the same grasp the pick-up takes, so a
+    caller that worked out which grasp is reachable passes it as :attr:`grasp_pose` and
+    both follow it.
     """
-    Arm that should be used.
-    """
-
-    grasp_pose: Optional[Pose] = None
-    """
-    The grasp frame the object is carried by, in its own frame.
-
-    ``None`` takes the first grasp the object offers. The navigation this action plans
-    aims at the same grasp the pick-up takes, so a caller that worked out which grasp is
-    reachable passes it here and both follow it.
-    """
-
-    def __post_init__(self):
-        self.grasp_pose = HasGraspChoice.resolve_grasp_pose(
-            self.grasp_pose, self.object_designator
-        )
 
     def inside_container(self) -> List[Body]:
         bodies = []
