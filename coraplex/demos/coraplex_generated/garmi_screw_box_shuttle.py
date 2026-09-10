@@ -56,7 +56,7 @@ from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.geometry import Color, Mesh
+from semantic_digital_twin.world_description.geometry import Color, Mesh, Scale
 
 _HERE = os.path.dirname(__file__)
 _OBJECTS = os.path.join(_HERE, "..", "..", "resources", "objects")
@@ -169,6 +169,11 @@ class Part:
     What the part is painted, since an STL carries no color of its own.
     """
 
+    scale: Scale
+    """
+    The scale of the mesh of the part
+    """
+
     storage_pose: Pose
     """
     Where the part lies on the storage rack at the start of the run.
@@ -232,7 +237,7 @@ LOWER_PLATEAU = 0.727
 The step of the storage stack the parcel is set down on, below the one it is taken from.
 """
 
-CONTAINER_FLOOR = 0.55
+CONTAINER_FLOOR = 0.65
 """
 Inside of the container the wrench is delivered into.
 
@@ -241,62 +246,65 @@ Its floor runs from 0.50 to 1.00 across and 8.55 to 8.95 along, well below the r
 """
 
 PARTS = (
-    # Part(
-    #     mesh=PartMesh.SCREW_BOX,
-    #     color=Color(),
-    #     storage_pose=Pose.from_xyz_rpy(
-    #         STORAGE_X, 5.80, STORAGE_TOP + 0.088, yaw=math.pi
-    #     ),
-    #     delivery_pose=Pose.from_xyz_rpy(2.60, 7.85, LOWER_PLATEAU + 0.088),
-    #     # standing upright, so the fingers close on its 0.065 m side
-    #     approach_direction=ApproachDirection.FRONT,
-    #     vertical_alignment=VerticalAlignment.NoAlignment,
-    #     rotate_gripper=False,
-    # ),
-    # Part(
-    #     mesh=PartMesh.WRENCH,
-    #     color=Color(0.55, 0.57, 0.60),
-    #     storage_pose=Pose.from_xyz_rpy(
-    #         2.64, 8.65, WRENCH_SHELF - 0.007, roll=LYING_ON_ITS_SIDE
-    #     ),
-    #     delivery_pose=Pose.from_xyz_rpy(
-    #         0.9, 8.3, CONTAINER_FLOOR - 0.007, roll=LYING_ON_ITS_SIDE, yaw=-math.pi / 2
-    #     ),
-    #     # lying flat and taken from above, since it is delivered into a container whose
-    #     # walls leave no way in from the side. Flat rather than standing, because a hand
-    #     # descending on a wrench stood on end brings the wrist down beside it, and the
-    #     # arm is held its buffer distance clear of whatever it reaches for.
-    #     approach_direction=ApproachDirection.LEFT,
-    #     vertical_alignment=VerticalAlignment.NoAlignment,
-    #     rotate_gripper=False,
-    # ),
-    # Part(
-    #     mesh=PartMesh.AXLE,
-    #     color=Color(0.45, 0.47, 0.50),
-    #     storage_pose=Pose.from_xyz_rpy(2.50, 2.60, 0.693, roll=LYING_ON_ITS_SIDE),
-    #     delivery_pose=Pose.from_xyz_rpy(6.75, -3.20, 0.743, roll=LYING_ON_ITS_SIDE),
-    #     # lying across the shelf front: the hand comes down along the rack and closes
-    #     # across the 0.025 m rod rather than along its 0.845 m length
-    #     approach_direction=ApproachDirection.LEFT,
-    #     vertical_alignment=VerticalAlignment.NoAlignment,
-    #     rotate_gripper=False,
-    # ),
     Part(
-        mesh=PartMesh.PLATE,
-        color=Color(0.72, 0.70, 0.66),
-        storage_pose=Pose.from_xyz_rpy(-0.6, 4.90, 0.47, roll=LYING_ON_ITS_SIDE/2, yaw=np.pi),
-        # a third of a metre closer in than the other parts are fetched from: the rolled
-        # wrist costs reach, and from their distance the arm stalls short of the plate
-        delivery_pose=Pose.from_xyz_rpy(6.60, -2.40, 0.83, roll=LYING_ON_ITS_SIDE),
-        # squared up on the drop rather than offset to the hand's side like the others,
-        # which is the difference between putting the plate down and stalling in front
-        # of it
-        # standing on its rim, with the hand rolled a quarter turn so the fingers close
-        # on the 0.02 m thickness instead of the 0.2 m the gripper cannot span
+        mesh=PartMesh.SCREW_BOX,
+        color=Color(),
+        scale=Scale(1, 1, 1),
+        storage_pose=Pose.from_xyz_rpy(
+            STORAGE_X, 5.80, STORAGE_TOP + 0.088, yaw=math.pi
+        ),
+        delivery_pose=Pose.from_xyz_rpy(2.60, 7.85, LOWER_PLATEAU + 0.088),
+        # standing upright, so the fingers close on its 0.065 m side
         approach_direction=ApproachDirection.FRONT,
         vertical_alignment=VerticalAlignment.NoAlignment,
-        rotate_gripper=True,
+        rotate_gripper=False,
     ),
+    Part(
+        mesh=PartMesh.WRENCH,
+        color=Color(0.55, 0.57, 0.60),
+        scale=Scale(1, 1, 1),
+        storage_pose=Pose.from_xyz_rpy(
+            2.64, 8.65, WRENCH_SHELF - 0.007, roll=LYING_ON_ITS_SIDE
+        ),
+        delivery_pose=Pose.from_xyz_rpy(
+            0.9, 8.3, CONTAINER_FLOOR - 0.007, roll=LYING_ON_ITS_SIDE, yaw=-math.pi / 2
+        ),
+        # lying flat and taken from above, since it is delivered into a container whose
+        # walls leave no way in from the side. Flat rather than standing, because a hand
+        # descending on a wrench stood on end brings the wrist down beside it, and the
+        # arm is held its buffer distance clear of whatever it reaches for.
+        approach_direction=ApproachDirection.LEFT,
+        vertical_alignment=VerticalAlignment.NoAlignment,
+        rotate_gripper=False,
+    ),
+    Part(
+        mesh=PartMesh.AXLE,
+        color=Color(0.45, 0.47, 0.50),
+        scale=Scale(1, 1, 0.5),
+        storage_pose=Pose.from_xyz_rpy(-0.6, 4.935, 0.24, roll=LYING_ON_ITS_SIDE/8),
+        delivery_pose=Pose.from_xyz_rpy( 0.925, 8.45, CONTAINER_FLOOR + 0.2, roll=np.pi/4, yaw=np.pi/1.35 ),
+        # lying across the shelf front: the hand comes down along the rack and closes
+        # across the 0.025 m rod rather than along its 0.845 m length
+        approach_direction=ApproachDirection.LEFT,
+        vertical_alignment=VerticalAlignment.NoAlignment,
+        rotate_gripper=False,
+    ),
+    # Part(
+    #     mesh=PartMesh.PLATE,
+    #     color=Color(0.72, 0.70, 0.66),
+    #     storage_pose=Pose.from_xyz_rpy(-0.6, 4.90, 0.47, roll=LYING_ON_ITS_SIDE/2, yaw=np.pi),
+    #     # a third of a metre closer in than the other parts are fetched from: the rolled
+    #     # wrist costs reach, and from their distance the arm stalls short of the plate
+    #     delivery_pose=Pose.from_xyz_rpy(6.60, -2.40, 0.83, roll=LYING_ON_ITS_SIDE),
+    #     # squared up on the drop rather than offset to the hand's side like the others,
+    #     # which is the difference between putting the plate down and stalling in front
+    #     # of it
+    #     # standing on its rim, with the hand rolled a quarter turn so the fingers close
+    #     # on the 0.02 m thickness instead of the 0.2 m the gripper cannot span
+    #     approach_direction=ApproachDirection.FRONT,
+    #     vertical_alignment=VerticalAlignment.NoAlignment,
+    #     rotate_gripper=True,
+    # ),
 )
 """
 The parts the run collects, in the order they are fetched.
@@ -388,6 +396,7 @@ class PartsCollectionDemonstration(RobotDemonstration):
                     color=part.color,
                     parent_T_self=part.storage_pose.to_homogeneous_matrix(),
                     connection_specification=Connection6DoFSpecification(),
+                    scale=part.scale,
                 ),
             ).spawn(world)
 
