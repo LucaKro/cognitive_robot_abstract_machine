@@ -31,6 +31,13 @@ SCENE = (
 A cabinet with one drawer and a handle, small enough to export in a test.
 """
 
+PROVIDER = (
+    "semantic_digital_twin.predetermined_maps.kitchen_environment:KitchenEnvironment"
+)
+"""
+A modelled world written as Python rather than as a file.
+"""
+
 
 def exported(tmp_path: Path) -> Path:
     """
@@ -86,3 +93,54 @@ def test_the_command_infers_the_classes_a_urdf_does_not_carry():
     assert classes["cabinet/handle"] == ["Handle"]
     assert classes["cabinet/drawer"] == ["Drawer"]
     assert classes["cabinet/cabinet"] == ["Cabinet"]
+
+
+# %% a world written as Python rather than as a file
+
+
+def test_the_command_reads_a_world_from_what_builds_it(tmp_path: Path):
+    """
+    One of the two scenes is modelled as a URDF and the other as a class that builds a
+    world, so the command that writes a ground truth has to take either.
+    """
+    written = tmp_path / "ground_truth.json"
+    finished = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "experiments.warsaw.evaluation.export_ground_truth",
+            "--world-provider",
+            PROVIDER,
+            "--output",
+            str(written),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert finished.returncode == 0, finished.stderr
+    graph = GroundTruthGraph.from_json(json.loads(written.read_text()))
+    assert graph.scene == PROVIDER
+    assert {"Drawer", "Handle"} <= {
+        one for node in graph.nodes for one in node.semantic_classes
+    }
+
+
+def test_naming_neither_a_urdf_nor_a_provider_is_refused(tmp_path: Path):
+    """
+    A ground truth of nothing would be written as an empty graph, which reads as a
+    modelled world that holds nothing rather than as a command given no world.
+    """
+    finished = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "experiments.warsaw.evaluation.export_ground_truth",
+            "--output",
+            str(tmp_path / "ground_truth.json"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert finished.returncode != 0

@@ -20,6 +20,7 @@ from typing_extensions import List, Optional
 from experiments.warsaw.evaluation.ground_truth import (
     GroundTruthCorrections,
     GroundTruthGraph,
+    world_from_provider,
     world_from_urdf,
 )
 from experiments.warsaw.pipeline.provenance import inspect_source
@@ -34,7 +35,13 @@ def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Write a modelled world's semantic graph for evaluation."
     )
-    parser.add_argument("urdf", type=Path, help="The URDF file to read")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("urdf", type=Path, nargs="?", help="The URDF file to read")
+    source.add_argument(
+        "--world-provider",
+        help="What builds the world, as module.path:ClassName, for a scene modelled as "
+        "Python rather than as a file",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -70,11 +77,16 @@ def main(arguments: Optional[List[str]] = None) -> int:
     :return: Zero after the output is written.
     """
     parsed = argument_parser().parse_args(arguments)
-    world = world_from_urdf(parsed.urdf, infer_semantics=parsed.infer_semantics)
+    if parsed.urdf is not None:
+        world = world_from_urdf(parsed.urdf, infer_semantics=parsed.infer_semantics)
+        scene = str(parsed.urdf.expanduser().resolve())
+    else:
+        # A world built by a class names its own classes as it builds, so there is
+        # nothing to infer and the reference is what identifies the scene.
+        world = world_from_provider(parsed.world_provider)
+        scene = parsed.world_provider
     graph = GroundTruthGraph.from_world(
-        world,
-        scene=str(parsed.urdf.expanduser().resolve()),
-        geometry_source=parsed.geometry_source,
+        world, scene=scene, geometry_source=parsed.geometry_source
     )
     if parsed.corrections is not None:
         graph = GroundTruthCorrections.read(parsed.corrections).applied_to(graph)

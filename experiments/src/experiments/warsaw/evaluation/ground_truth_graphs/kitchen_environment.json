@@ -1,0 +1,8279 @@
+{
+  "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthGraph",
+  "scene": "semantic_digital_twin.predetermined_maps.kitchen_environment:KitchenEnvironment",
+  "frame": "root",
+  "geometry_source": "visual_with_collision_fallback",
+  "nodes": [
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "bed_room_floor",
+      "source_id": "31dfa7df-329c-4b8f-95a8-c2a6a4aafbc4",
+      "parent": "root",
+      "semantic_classes": [
+        "Floor"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.96
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.96
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.29000000000000004,
+          3.625,
+          -0.0025
+        ],
+        [
+          2.21,
+          6.295,
+          0.0025
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.67,
+          2.5,
+          0.005
+        ],
+        "surface_area": 13.4017
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table",
+      "source_id": "3baa1a9d-8bf9-40c4-ac10-30ecdb0ea3d8",
+      "parent": "root",
+      "semantic_classes": [
+        "Table"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.22
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          2.621
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.44
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.034999997615814,
+          2.165999986886978,
+          0.4300000002235174
+        ],
+        [
+          4.4050000023841855,
+          3.076000013113022,
+          0.4499999997764826
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9100000262260437,
+          0.3700000047683716,
+          0.019999999552965164
+        ],
+        "surface_area": 0.7246000281810763
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table_floor",
+      "source_id": "d6e9f655-0a81-41ab-a03b-820482c0756e",
+      "parent": "coffee_table",
+      "semantic_classes": [
+        "ShelfLayer"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.22
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          2.621
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.010000000000000009
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.034999997615814,
+          2.165999986886978,
+          2.2351742678949904e-10
+        ],
+        [
+          4.4050000023841855,
+          3.076000013113022,
+          0.01999999977648259
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9100000262260437,
+          0.3700000047683716,
+          0.019999999552965164
+        ],
+        "surface_area": 0.7246000281810763
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table_shelf",
+      "source_id": "c9a24462-fe08-4570-b5ad-d232c523fdc1",
+      "parent": "coffee_table",
+      "semantic_classes": [
+        "ShelfLayer"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.22
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          2.621
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.22
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.034999997615814,
+          2.165999986886978,
+          0.2150000001117587
+        ],
+        [
+          4.4050000023841855,
+          3.076000013113022,
+          0.2249999998882413
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9100000262260437,
+          0.3700000047683716,
+          0.009999999776482582
+        ],
+        "surface_area": 0.6990000281333926
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table_wall_long_left_body",
+      "source_id": "83b2c9d9-b0db-482e-8da7-055dc2af0a1d",
+      "parent": "coffee_table",
+      "semantic_classes": [],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.395
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          2.3176666666666668
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.22
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.385,
+          2.166,
+          0.0
+        ],
+        [
+          4.404999999999999,
+          2.4693333333333336,
+          0.44
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.44,
+          0.30333333333333334,
+          0.02
+        ],
+        "surface_area": 0.2966666666666667
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table_wall_long_right_body",
+      "source_id": "dc2b9edc-abe1-4631-a155-e22c3eb5ed02",
+      "parent": "coffee_table",
+      "semantic_classes": [],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.045
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          2.3176666666666668
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.22
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.035,
+          2.166,
+          0.0
+        ],
+        [
+          4.055,
+          2.4693333333333336,
+          0.44
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.44,
+          0.30333333333333334,
+          0.02
+        ],
+        "surface_area": 0.2966666666666667
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table_wall_short_0_body",
+      "source_id": "c4acb6f5-f223-4b0c-a1cd-3fdb55671435",
+      "parent": "coffee_table",
+      "semantic_classes": [],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.22
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          3.066
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.22
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.035,
+          3.0559999999999996,
+          0.0
+        ],
+        [
+          4.404999999999999,
+          3.076,
+          0.44
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.44,
+          0.37,
+          0.02
+        ],
+        "surface_area": 0.358
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "coffee_table_wall_short_1_body",
+      "source_id": "0c8d030c-010f-4359-9ee0-ea11a8075bec",
+      "parent": "coffee_table",
+      "semantic_classes": [],
+      "faces": 12,
+      "world_transform": [
+        [
+          -1.0,
+          -1.2246467991473532e-16,
+          0.0,
+          4.22
+        ],
+        [
+          1.2246467991473532e-16,
+          -1.0,
+          0.0,
+          2.176
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.22
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.035,
+          2.166,
+          0.0
+        ],
+        [
+          4.404999999999999,
+          2.1860000000000004,
+          0.44
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.44,
+          0.37,
+          0.02
+        ],
+        "surface_area": 0.358
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_drawer_handle_left",
+      "source_id": "dfca993a-9c15-48df-ba48-dbf4e2e92dbf",
+      "parent": "cooking_drawer_left",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 36,
+      "world_transform": [
+        [
+          -3.673205103346572e-06,
+          -0.9999999999932532,
+          0.0,
+          0.7275009825823652
+        ],
+        [
+          0.9999999999932532,
+          -3.673205103346572e-06,
+          0.0,
+          5.722500000001806
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.595
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.6316676512364999,
+          5.682499648880664,
+          0.5750000004470348
+        ],
+        [
+          0.8233344608564312,
+          5.7225003520172875,
+          0.6149999995529651
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.19166666269302368,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.056866664211452034
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_drawer_handle_right",
+      "source_id": "dd22d153-3af3-4fac-ba99-264c67134bb9",
+      "parent": "cooking_drawer_right",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 36,
+      "world_transform": [
+        [
+          -3.673205103346572e-06,
+          -0.9999999999932532,
+          0.0,
+          1.8325009825823653
+        ],
+        [
+          0.9999999999932532,
+          -3.673205103346572e-06,
+          0.0,
+          5.722500000001805
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.595
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.7366676512365,
+          5.682499648880663,
+          0.5750000004470348
+        ],
+        [
+          1.9283344608564315,
+          5.722500352017287,
+          0.6149999995529651
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.19166666269302368,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.056866664211452034
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_drawer_left",
+      "source_id": "919cfa96-c0e8-4efc-b0ce-63840ba11310",
+      "parent": "cooking_drawer_left_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          -3.673205103346573e-06,
+          -0.9999999999932535,
+          0.0,
+          0.7275
+        ],
+        [
+          0.9999999999932535,
+          -3.673205103346573e-06,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.595
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.41749901503549236,
+          5.722498848195192,
+          0.5049999964237213
+        ],
+        [
+          1.0375009849645078,
+          6.257501151804808,
+          0.6850000035762787
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6200000047683716,
+          0.5350000262260437,
+          0.18000000715255737
+        ],
+        "surface_area": 1.506350077518821
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_drawer_left_slider",
+      "source_id": "e2fa69de-1f32-4118-931b-063c1104d18c",
+      "parent": "cooking_mod_left",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          -3.6732051033465735e-06,
+          -0.9999999999932536,
+          0.0,
+          0.7275
+        ],
+        [
+          0.9999999999932536,
+          -3.6732051033465735e-06,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.595
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_drawer_right",
+      "source_id": "4402a327-989d-4676-87c3-47d249b0b330",
+      "parent": "cooking_drawer_right_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          -3.673205103346573e-06,
+          -0.9999999999932535,
+          0.0,
+          1.8325
+        ],
+        [
+          0.9999999999932535,
+          -3.673205103346573e-06,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.595
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.5224990150354922,
+          5.722498848195192,
+          0.5049999964237213
+        ],
+        [
+          2.142500984964508,
+          6.257501151804808,
+          0.6850000035762787
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6200000047683716,
+          0.5350000262260437,
+          0.18000000715255737
+        ],
+        "surface_area": 1.506350077518821
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_drawer_right_slider",
+      "source_id": "3b347ff9-c12e-4283-b63d-b06f17345564",
+      "parent": "cooking_mod_right",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          -3.6732051033465735e-06,
+          -0.9999999999932536,
+          0.0,
+          1.8325
+        ],
+        [
+          0.9999999999932536,
+          -3.6732051033465735e-06,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.595
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_mod_left",
+      "source_id": "6d0370bf-3281-469a-a293-78321fdd3c31",
+      "parent": "cooking_table",
+      "semantic_classes": [
+        "Cupboard"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          -3.673205103346574e-06,
+          -0.9999999999932537,
+          0.0,
+          0.7275
+        ],
+        [
+          0.9999999999932537,
+          -3.673205103346574e-06,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.39499999999999996
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.4074989511082709,
+          5.702498830536798,
+          0.08000000238418575
+        ],
+        [
+          1.0475010488917291,
+          6.277501169463203,
+          0.7099999976158142
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6399999856948853,
+          0.6299999952316284,
+          0.574999988079071
+        ],
+        "surface_area": 3.7398998595237742
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_mod_right",
+      "source_id": "81e25eef-04dc-4af9-9a87-159206194db8",
+      "parent": "cooking_table",
+      "semantic_classes": [
+        "Cupboard"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          -3.673205103346574e-06,
+          -0.9999999999932537,
+          0.0,
+          1.8325
+        ],
+        [
+          0.9999999999932537,
+          -3.673205103346574e-06,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.39499999999999996
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.512498951108271,
+          5.702498830536798,
+          0.08000000238418575
+        ],
+        [
+          2.1525010488917293,
+          6.277501169463203,
+          0.7099999976158142
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6399999856948853,
+          0.6299999952316284,
+          0.574999988079071
+        ],
+        "surface_area": 3.7398998595237742
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_table",
+      "source_id": "0284c27c-a2ac-46be-ba87-595d41f56f6c",
+      "parent": "root",
+      "semantic_classes": [
+        "Table"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          1.28
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.71
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.405,
+          5.670000007152558,
+          0.6900000004470348
+        ],
+        [
+          2.1550000000000002,
+          6.309999992847443,
+          0.7299999995529651
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.75,
+          0.6399999856948853,
+          0.03999999910593033
+        ],
+        "surface_area": 2.431199944514036
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooking_table_bottom",
+      "source_id": "5ccdfad2-22c6-486d-9f90-c5d9a5f59402",
+      "parent": "cooking_table",
+      "semantic_classes": [
+        "ShelfLayer"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          1.28
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.040000000000000036
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.405,
+          5.670000007152558,
+          0.02000000044703487
+        ],
+        [
+          2.1550000000000002,
+          6.309999992847443,
+          0.0599999995529652
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.75,
+          0.6399999856948853,
+          0.03999999910593033
+        ],
+        "surface_area": 2.431199944514036
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cooktop",
+      "source_id": "4c05b9ef-370b-4d33-be77-37f5301d726e",
+      "parent": "cooking_table",
+      "semantic_classes": [
+        "Cooktop"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          1.28
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.99
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.735
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.03,
+          5.74,
+          0.7300000001117587
+        ],
+        [
+          1.53,
+          6.24,
+          0.7399999998882413
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5,
+          0.5,
+          0.009999999776482582
+        ],
+        "surface_area": 0.5199999995529652
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_base_facing",
+      "source_id": "5f404294-ab3b-44fa-b3bd-ab8c7f0eaec6",
+      "parent": "counter_top",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.125
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.9220000000000004
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0495000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.1030000448226929,
+          -1.931999999776483,
+          2.682210009652408e-10
+        ],
+        [
+          3.146999955177307,
+          -1.9120000002235178,
+          0.0989999997317792
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.0439999103546143,
+          0.0989999994635582,
+          0.019999999552965164
+        ],
+        "surface_area": 0.49043197453397536
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_0",
+      "source_id": "97660323-e7bf-4e48-94d3-c4a0fd0cf5e9",
+      "parent": "counter_drawer_0_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.0020000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24400000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3229999899864198,
+          -2.1520000059604647,
+          0.10049999976158144
+        ],
+        [
+          3.1270000100135804,
+          -1.8519999940395357,
+          0.3875000002384186
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8040000200271606,
+          0.30000001192092896,
+          0.28700000047683716
+        ],
+        "surface_area": 1.7606320427351
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_0_handle",
+      "source_id": "b253dd3e-7bd9-466a-9782-89bce69b8053",
+      "parent": "counter_drawer_0",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8520000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.35750000000000004
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3725000083446504,
+          -1.8520000000000005,
+          0.3500000001676381
+        ],
+        [
+          3.07749999165535,
+          -1.7839999963045126,
+          0.364999999832362
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7049999833106995,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.11907000203274179
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_0_slider",
+      "source_id": "8eddc2f1-bcd3-46c6-a4a9-93baf4330848",
+      "parent": "module_3_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.0020000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24400000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_1",
+      "source_id": "5b22b247-3de9-4431-a427-922295fe0aa0",
+      "parent": "counter_drawer_1_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.0020000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.534
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3229999899864198,
+          -2.1520000059604647,
+          0.39049999976158145
+        ],
+        [
+          3.1270000100135804,
+          -1.8519999940395357,
+          0.6775000002384186
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8040000200271606,
+          0.30000001192092896,
+          0.28700000047683716
+        ],
+        "surface_area": 1.7606320427351
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_1_handle",
+      "source_id": "ff71a434-be90-4cc3-b2dc-d5af1497e88d",
+      "parent": "counter_drawer_1",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8520000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.6475
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3725000083446504,
+          -1.8520000000000005,
+          0.640000000167638
+        ],
+        [
+          3.07749999165535,
+          -1.7839999963045126,
+          0.6549999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7049999833106995,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.11907000203274179
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_1_slider",
+      "source_id": "a2db1dd0-4e16-49c9-bfbc-cc3ffe5fcd07",
+      "parent": "module_3_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.0020000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.534
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_2",
+      "source_id": "8d2ef237-0097-4255-b010-8e8c1917e649",
+      "parent": "counter_drawer_2_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.0020000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7515000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3229999899864198,
+          -2.1520000059604647,
+          0.67999999666214
+        ],
+        [
+          3.1270000100135804,
+          -1.8519999940395357,
+          0.8230000033378602
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8040000200271606,
+          0.30000001192092896,
+          0.14300000667572021
+        ],
+        "surface_area": 1.1247280764431964
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_2_handle",
+      "source_id": "16c60f29-59f1-45d8-b553-36681f8b28ea",
+      "parent": "counter_drawer_2",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8520000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.793
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3725000083446504,
+          -1.8520000000000005,
+          0.7855000001676381
+        ],
+        [
+          3.07749999165535,
+          -1.7839999963045126,
+          0.800499999832362
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7049999833106995,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.11907000203274179
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_drawer_2_slider",
+      "source_id": "a01dea55-b06c-4009-a287-934ae6224eb2",
+      "parent": "module_3_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.0020000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7515000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "counter_top",
+      "source_id": "883ec409-4dd4-4411-8dc8-f6f5a853b1dd",
+      "parent": "root",
+      "semantic_classes": [
+        "CounterTop"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.125
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.837
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.1030000448226929,
+          -2.509999996185303,
+          0.8239999997317791
+        ],
+        [
+          3.146999955177307,
+          -1.8520000038146973,
+          0.8500000002682209
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.0439999103546143,
+          0.6579999923706055,
+          0.026000000536441803
+        ],
+        "surface_area": 2.8304078486783517
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard",
+      "source_id": "dce5ba0b-bfa4-4355-99ec-41e4e2883ccd",
+      "parent": "root",
+      "semantic_classes": [
+        "Cupboard"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          4.55
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.72
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.01
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.334999996423721,
+          4.319999994039535,
+          9.536743172944284e-09
+        ],
+        [
+          4.7650000035762785,
+          5.120000005960464,
+          2.0199999904632566
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.0199999809265137,
+          0.800000011920929,
+          0.4300000071525574
+        ],
+        "surface_area": 8.138000137925147
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_door_left",
+      "source_id": "15f22161-74a4-4bb8-abb1-38f9248f43fe",
+      "parent": "cupboard_hinge_left",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.325
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.52
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.315000000223518,
+          4.319999997019767,
+          2.622604367008563e-08
+        ],
+        [
+          4.334999999776483,
+          4.720000002980232,
+          1.0549999737739562
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.0549999475479126,
+          0.4000000059604645,
+          0.019999999552965164
+        ],
+        "surface_area": 0.9021999674543733
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_door_left_entry_way",
+      "source_id": "96226f0d-b0a5-4fe9-8df4-81a8ff18b42c",
+      "parent": "cupboard_door_left",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.325
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.52
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_door_right",
+      "source_id": "f1a3cc77-66ad-499b-a564-208b44b0ab14",
+      "parent": "cupboard_hinge_right",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.325
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.92
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.315000000223518,
+          4.719999997019768,
+          2.622604367008563e-08
+        ],
+        [
+          4.334999999776483,
+          5.120000002980232,
+          1.0549999737739562
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.0549999475479126,
+          0.4000000059604645,
+          0.019999999552965164
+        ],
+        "surface_area": 0.9021999674543733
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_door_right_entry_way",
+      "source_id": "1f2b4501-e576-4995-84bb-f140d94a341d",
+      "parent": "cupboard_door_right",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.325
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.92
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_handle_left",
+      "source_id": "d04caccc-75d0-45f9-b51b-a498901d728e",
+      "parent": "cupboard_door_left",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 36,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.295
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.47
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.25500000089407,
+          4.450000000447035,
+          0.5075000004470348
+        ],
+        [
+          4.295,
+          4.489999999552965,
+          0.5474999995529651
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.03999999910593033,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.014399999356269844
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_handle_right",
+      "source_id": "8a210f34-32f7-4f03-9274-39d97d8a40bb",
+      "parent": "cupboard_door_right",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 36,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.295
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.97
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.25500000089407,
+          4.950000000447035,
+          0.5075000004470348
+        ],
+        [
+          4.295,
+          4.989999999552965,
+          0.5474999995529651
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.03999999910593033,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.014399999356269844
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_hinge_left",
+      "source_id": "141d332f-d87d-4015-b2d5-2c44f6cd475e",
+      "parent": "cupboard",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.325
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.319999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_hinge_right",
+      "source_id": "e2217aed-efaf-457e-bc8f-8ed3ab65132a",
+      "parent": "cupboard",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          4.325
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.12
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5275
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_shelf_0",
+      "source_id": "904af1c8-5624-4dd4-bb4f-288083b6d47e",
+      "parent": "cupboard",
+      "semantic_classes": [
+        "ShelfLayer"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          4.55
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.72
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.51
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.349999997019768,
+          4.340000004768371,
+          0.5000000002235174
+        ],
+        [
+          4.750000002980232,
+          5.099999995231628,
+          0.5199999997764826
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7599999904632568,
+          0.4000000059604645,
+          0.019999999552965164
+        ],
+        "surface_area": 0.6544000002503394
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "cupboard_shelf_1",
+      "source_id": "a7343384-74d3-46fe-99b0-61571b9511af",
+      "parent": "cupboard",
+      "semantic_classes": [
+        "ShelfLayer"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          4.55
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.72
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.51
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.349999997019768,
+          4.340000004768371,
+          1.5000000002235174
+        ],
+        [
+          4.750000002980232,
+          5.099999995231628,
+          1.5199999997764826
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7599999904632568,
+          0.4000000059604645,
+          0.019999999552965164
+        ],
+        "surface_area": 0.6544000002503394
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "desk",
+      "source_id": "bdbb4cff-2849-4c09-bfb9-7f436a307450",
+      "parent": "root",
+      "semantic_classes": [
+        "Desk"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.05
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          1.28
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.75
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.25000001192092897,
+          0.6799999761581421,
+          0.7350000003352761
+        ],
+        [
+          0.35000001192092894,
+          1.880000023841858,
+          0.7649999996647239
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.2000000476837158,
+          0.6000000238418579,
+          0.029999999329447746
+        ],
+        "surface_area": 1.5480001163184665
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "desk_leg_0",
+      "source_id": "cc5dc5a3-1529-4e8f-9d91-0d688b4b5333",
+      "parent": "desk",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.32999999999999996
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          1.8599999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.375
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.3100000004470348,
+          1.8400000004470347,
+          0.014999985694885254
+        ],
+        [
+          0.3499999995529651,
+          1.879999999552965,
+          0.7350000143051147
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.11840000185966482
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "desk_leg_1",
+      "source_id": "7b4f63cc-b5c0-437f-85a5-78060a7ef7df",
+      "parent": "desk",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.32999999999999996
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.7000000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.375
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.3100000004470348,
+          0.6800000004470349,
+          0.014999985694885254
+        ],
+        [
+          0.3499999995529651,
+          0.7199999995529652,
+          0.7350000143051147
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.11840000185966482
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "desk_leg_2",
+      "source_id": "91b23ecb-ae08-4630-9e31-3aee96b50ec7",
+      "parent": "desk",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.22999999999999998
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          1.8599999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.375
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.24999999955296515,
+          1.8400000004470347,
+          0.014999985694885254
+        ],
+        [
+          -0.21000000044703482,
+          1.879999999552965,
+          0.7350000143051147
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.11840000185966482
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "desk_leg_3",
+      "source_id": "2a61ee2f-ba83-46dd-80bb-2bd8d1e9a8f8",
+      "parent": "desk",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.22999999999999998
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.7000000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.375
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.24999999955296515,
+          0.6800000004470349,
+          0.014999985694885254
+        ],
+        [
+          -0.21000000044703482,
+          0.7199999995529652,
+          0.7350000143051147
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.03999999910593033,
+          0.03999999910593033
+        ],
+        "surface_area": 0.11840000185966482
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dining_table",
+      "source_id": "b2c3b81e-e09f-499e-84ab-48400901879e",
+      "parent": "root",
+      "semantic_classes": [
+        "DiningTable"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.59975
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.705
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.76
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.2347499904632566,
+          5.115000026226044,
+          0.7400000004470348
+        ],
+        [
+          2.964750009536743,
+          6.294999973773956,
+          0.7799999995529652
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.1799999475479126,
+          0.7300000190734863,
+          0.03999999910593033
+        ],
+        "surface_area": 1.875599962347744
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dining_table_leg_0",
+      "source_id": "001d6602-03ba-45ee-a653-9f0ea62ef0a9",
+      "parent": "dining_table",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.9347499999999997
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          6.265
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.38
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.904750000670552,
+          6.235000000670552,
+          0.01999998569488526
+        ],
+        [
+          2.9647499993294475,
+          6.294999999329447,
+          0.7400000143051148
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.05999999865889549,
+          0.05999999865889549
+        ],
+        "surface_area": 0.18000000268220887
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dining_table_leg_1",
+      "source_id": "25b5b74d-5b31-4ff9-91c8-3d88075f4d01",
+      "parent": "dining_table",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.9347499999999997
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.1450000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.38
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.904750000670552,
+          5.115000000670553,
+          0.01999998569488526
+        ],
+        [
+          2.9647499993294475,
+          5.174999999329448,
+          0.7400000143051148
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.05999999865889549,
+          0.05999999865889549
+        ],
+        "surface_area": 0.18000000268220887
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dining_table_leg_2",
+      "source_id": "48a444bf-5b3f-4802-a231-70c5bbb77e63",
+      "parent": "dining_table",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.26475
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          6.265
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.38
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.234750000670552,
+          6.235000000670552,
+          0.01999998569488526
+        ],
+        [
+          2.2947499993294476,
+          6.294999999329447,
+          0.7400000143051148
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.05999999865889549,
+          0.05999999865889549
+        ],
+        "surface_area": 0.18000000268220887
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dining_table_leg_3",
+      "source_id": "9ece6949-5c24-4aeb-9560-bdc17766c90d",
+      "parent": "dining_table",
+      "semantic_classes": [
+        "Leg"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.26475
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.1450000000000005
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.38
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.234750000670552,
+          5.115000000670553,
+          0.01999998569488526
+        ],
+        [
+          2.2947499993294476,
+          5.174999999329448,
+          0.7400000143051148
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.05999999865889549,
+          0.05999999865889549
+        ],
+        "surface_area": 0.18000000268220887
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dishwasher",
+      "source_id": "729e7eda-c375-4e50-9a8a-f58d261c015a",
+      "parent": "root",
+      "semantic_classes": [
+        "Dishwasher"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.003
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4615
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.7029999880790712,
+          -2.509999996185303,
+          0.09899998807907107
+        ],
+        [
+          2.303000011920929,
+          -1.8520000038146973,
+          0.824000011920929
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7250000238418579,
+          0.6579999923706055,
+          0.6000000238418579
+        ],
+        "surface_area": 4.383100278639795
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dishwasher_door",
+      "source_id": "47fc59c4-8111-4b7c-9067-22386cdb9a11",
+      "parent": "dishwasher_hinge",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          2.003
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8620000000000003
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.459
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.7029999880790712,
+          -1.871999999776483,
+          0.09899998569488527
+        ],
+        [
+          2.303000011920929,
+          -1.8520000002235177,
+          0.8190000143051148
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7200000286102295,
+          0.6000000238418579,
+          0.019999999552965164
+        ],
+        "surface_area": 0.9168000695824636
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dishwasher_door_entry_way",
+      "source_id": "5e50a0f8-1459-433f-8c70-f22e351f070a",
+      "parent": "dishwasher_door",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          2.003
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8620000000000003
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.459
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dishwasher_handle",
+      "source_id": "67d91aa1-c22a-4c4c-8481-6b7f332c3ec6",
+      "parent": "dishwasher_door",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          2.003
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.852
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7889999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.732999989271164,
+          -1.852,
+          0.781500000167638
+        ],
+        [
+          2.273000010728836,
+          -1.7839999963045121,
+          0.7964999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5400000214576721,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.0916800072562696
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "dishwasher_hinge",
+      "source_id": "d8c6010c-cde7-4b12-85f2-c51eeca8a2dd",
+      "parent": "dishwasher",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          2.003
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8620000000000003
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.09900000000000003
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "east_wall",
+      "source_id": "27c8527b-15ae-4921-b600-427543a06ab2",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.462
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.535
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.0681152362579382e-07,
+          -2.560000000372529,
+          0.0
+        ],
+        [
+          4.923999893188476,
+          -2.509999999627471,
+          3.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          4.923999786376953,
+          3.0,
+          0.05000000074505806
+        ],
+        "surface_area": 30.336398708707094
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_base_facing",
+      "source_id": "4e1e1838-5223-4fc4-aa18-f91cfa6bff70",
+      "parent": "refrigerator",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.951
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.07250000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.502999988079071,
+          -1.9609999997764826,
+          2.086162576020456e-09
+        ],
+        [
+          1.103000011920929,
+          -1.9410000002235175,
+          0.14499999791383744
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6000000238418579,
+          0.14499999582767487,
+          0.019999999552965164
+        ],
+        "surface_area": 0.20380000202804782
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_door",
+      "source_id": "bfd28e19-90fb-4a52-9af5-e904ea29468a",
+      "parent": "fridge_door_hinge",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.881
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.9844999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.5054999856948852,
+          -1.8909999997764826,
+          0.5020000131130218
+        ],
+        [
+          1.1005000143051147,
+          -1.8710000002235174,
+          1.466999986886978
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9649999737739563,
+          0.5950000286102295,
+          0.019999999552965164
+        ],
+        "surface_area": 1.2107500227093682
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_door_entry_way",
+      "source_id": "54ef3cb3-d55f-46e0-98ed-3285b84d0664",
+      "parent": "fridge_door",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.881
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.9844999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_door_handle",
+      "source_id": "8670de3f-8774-4a5b-a4a5-f9fa6e2d72f3",
+      "parent": "fridge_door",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          6.123233995736766e-17,
+          -1.0,
+          1.0705
+        ],
+        [
+          -1.0,
+          3.749399456654644e-33,
+          -6.123233995736766e-17,
+          -1.871
+        ],
+        [
+          0.0,
+          1.0,
+          6.123233995736766e-17,
+          0.9844999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.063000000167638,
+          -1.871,
+          0.5569999904632568
+        ],
+        [
+          1.077999999832362,
+          -1.802999996304512,
+          1.412000009536743
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8550000190734863,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.1439700089774282
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_door_hinge",
+      "source_id": "55dec94b-b60a-4bff-9446-8b24f78ec582",
+      "parent": "refrigerator",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.5055
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.881
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.9844999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_drawer",
+      "source_id": "279ce33a-8988-4236-88aa-fbba79e6948e",
+      "parent": "fridge_drawer_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.121
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.322
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.5054999856948852,
+          -2.371,
+          0.1449999989271164
+        ],
+        [
+          1.1005000143051147,
+          -1.871,
+          0.4990000010728836
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.5,
+          0.3540000021457672
+        ],
+        "surface_area": 2.1562701103496558
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_drawer_handle",
+      "source_id": "a3139dde-cbbe-4da4-a923-f1b9f0ef6645",
+      "parent": "fridge_drawer",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.871
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.469
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.5529999999999999,
+          -1.871,
+          0.46150000016763804
+        ],
+        [
+          1.053,
+          -1.802999996304512,
+          0.4764999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08504000342547893
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_drawer_slider",
+      "source_id": "eeb8abef-8027-41e0-8e4d-470a65def0ae",
+      "parent": "refrigerator",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.121
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.322
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_top_gap_facing",
+      "source_id": "7f1a12b2-d4bf-46f4-adf7-504e870cdc1d",
+      "parent": "refrigerator",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.9040000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.471
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.502999988079071,
+          -1.9139999997764827,
+          1.4669999998100103
+        ],
+        [
+          1.103000011920929,
+          -1.8940000002235176,
+          1.47500000018999
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6000000238418579,
+          0.019999999552965164,
+          0.00800000037997961
+        ],
+        "surface_area": 0.033920001262724396
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "fridge_top_plate",
+      "source_id": "ef76f973-eed6-42bc-8e15-c6a2e25699d8",
+      "parent": "refrigerator",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.881
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.4875
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.502999988079071,
+          -1.8909999997764826,
+          1.4749999998137355
+        ],
+        [
+          1.103000011920929,
+          -1.8710000002235174,
+          1.5000000001862646
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6000000238418579,
+          0.02500000037252903,
+          0.019999999552965164
+        ],
+        "surface_area": 0.05500000204890966
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "kitchen_floor",
+      "source_id": "53da416e-b2a4-4f51-ab9b-392b9b4872a8",
+      "parent": "root",
+      "semantic_classes": [
+        "Floor"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.317
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.843
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.29000000000000004,
+          -2.51,
+          -0.0025
+        ],
+        [
+          4.924,
+          0.8240000000000001,
+          0.0025
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          5.214,
+          3.334,
+          0.005
+        ],
+        "surface_area": 34.852432
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "living_room_floor",
+      "source_id": "885d94d1-2559-4c52-a59d-1a8dd2f0ec8c",
+      "parent": "root",
+      "semantic_classes": [
+        "Floor"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.317
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          2.3095
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.29000000000000004,
+          0.8239999999999998,
+          -0.0025
+        ],
+        [
+          4.924,
+          3.795,
+          0.0025
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          5.214,
+          2.971,
+          0.005
+        ],
+        "surface_area": 31.063438
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "middle_wall",
+      "source_id": "ddac2fbc-c4ca-4852-b561-a00986297dbf",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          2.20975
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.184749999627471,
+          3.6649999618530273,
+          0.0
+        ],
+        [
+          2.234750000372529,
+          6.335000038146973,
+          1.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.6700000762939453,
+          1.0,
+          0.050000000745058226
+        ],
+        "surface_area": 5.707000165686011
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_1_cabinet",
+      "source_id": "b95e896f-fd59-41e7-92e9-2b7b645285d9",
+      "parent": "root",
+      "semantic_classes": [
+        "Cabinet"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.403
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4615
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.102999988079071,
+          -2.509999996185303,
+          0.09899998807907107
+        ],
+        [
+          1.703000011920929,
+          -1.8520000038146973,
+          0.824000011920929
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.7250000238418579,
+          0.6579999923706055,
+          0.6000000238418579
+        ],
+        "surface_area": 4.383100278639795
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_1_door",
+      "source_id": "d102d34d-c8f9-4931-bb90-139721958cbf",
+      "parent": "module_1_hinge",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.403
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.862
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.3875
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.1054999856948853,
+          -1.8719999997764827,
+          0.09899998903274537
+        ],
+        [
+          1.7005000143051148,
+          -1.8520000002235175,
+          0.6760000109672546
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.5770000219345093,
+          0.019999999552965164
+        ],
+        "surface_area": 0.733510060092212
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_1_door_entry_way",
+      "source_id": "dbf99ff2-5a27-45d3-ad67-59c8acf5825b",
+      "parent": "module_1_door",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.403
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.862
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.3875
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_1_face_plate",
+      "source_id": "5896adb8-6e59-4244-899f-65a23e06f42f",
+      "parent": "root",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.403
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.862
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7525
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.1054999856948853,
+          -1.8719999997764827,
+          0.6809999966621398
+        ],
+        [
+          1.7005000143051148,
+          -1.8520000002235175,
+          0.82400000333786
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.14300000667572021,
+          0.019999999552965164
+        ],
+        "surface_area": 0.1996900168782476
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_1_handle",
+      "source_id": "31dc5bb7-78d2-43ae-bfad-95a1fd623062",
+      "parent": "module_1_door",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.403
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.852
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.6285
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.1354999868869782,
+          -1.852,
+          0.621000000167638
+        ],
+        [
+          1.6705000131130219,
+          -1.7839999963045121,
+          0.6359999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5350000262260437,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.09085000801421719
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_1_hinge",
+      "source_id": "37e50cbb-09aa-4a00-a658-6ae4780b1f84",
+      "parent": "module_1_cabinet",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.1055000000000001
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.862
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.3875
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "module_3_cabinet",
+      "source_id": "2205368f-7b13-499d-9cc9-58de39222dba",
+      "parent": "counter_top",
+      "semantic_classes": [
+        "Cabinet"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          2.725
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4615
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.303000009059906,
+          -2.509999996185303,
+          0.09899998807907107
+        ],
+        [
+          3.146999990940094,
+          -1.8520000038146973,
+          0.824000011920929
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.843999981880188,
+          0.7250000238418579,
+          0.6579999923706055
+        ],
+        "surface_area": 5.383988128339766
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "north_wall",
+      "source_id": "adf48bc7-6f96-48f0-b2ee-ca2893f5c69a",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          4.949
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          1.51
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.923999999627471,
+          -2.509999980926514,
+          0.0
+        ],
+        [
+          4.974000000372529,
+          5.5299999809265135,
+          3.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          8.039999961853027,
+          3.0,
+          0.05000000074505806
+        ],
+        "surface_area": 49.34399978375435
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "north_west_wall_body",
+      "source_id": "d435c462-335c-4b54-92d3-537c0b876f2d",
+      "parent": "root",
+      "semantic_classes": [],
+      "faces": 64,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          4.924
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          6.295
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.159000000000001,
+          5.53,
+          0.0
+        ],
+        [
+          5.689,
+          7.06,
+          3.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          3.0,
+          1.5006014790169426,
+          1.5006014790169424
+        ],
+        "surface_area": 17.910727836158213
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "office_floor",
+      "source_id": "42e17c54-26e1-4227-9f05-21404e166b1d",
+      "parent": "root",
+      "semantic_classes": [
+        "Floor"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          3.56
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          4.96
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.205,
+          3.625,
+          -0.0025
+        ],
+        [
+          4.915,
+          6.295,
+          0.0025
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.71,
+          2.67,
+          0.005
+        ],
+        "surface_area": 14.525200000000002
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven",
+      "source_id": "81deea64-0e85-421b-a33e-98b282eaf56a",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "Oven"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.1680000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.4479999880790713,
+          -2.509999996185303,
+          0.8670000009536745
+        ],
+        [
+          4.048000011920929,
+          -1.8520000038146973,
+          1.4689999990463258
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6579999923706055,
+          0.6019999980926514,
+          0.6000000238418579
+        ],
+        "surface_area": 2.304232036941528
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_base_facing",
+      "source_id": "01242015-060c-4ff7-b44b-97406fd7b42e",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.9319999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.07250000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.1479999761581423,
+          -1.9419999997764823,
+          2.086162576020456e-09
+        ],
+        [
+          4.348000023841858,
+          -1.9220000002235171,
+          0.14499999791383744
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.2000000476837158,
+          0.14499999582767487,
+          0.019999999552965164
+        ],
+        "surface_area": 0.40180000435262875
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_cabinet_door",
+      "source_id": "6aeb3515-6409-4771-83a2-a0bbb0795d59",
+      "parent": "oven_cabinet_hinge",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.7480000000000007
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4335
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.450499985694886,
+          -1.8619999997764825,
+          0.14499998903274536
+        ],
+        [
+          4.045500014305116,
+          -1.8420000002235173,
+          0.7220000109672546
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.5770000219345093,
+          0.019999999552965164
+        ],
+        "surface_area": 0.733510060092212
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_cabinet_door_entry_way",
+      "source_id": "1e754c31-e63b-430f-85e9-729f0cdebbe4",
+      "parent": "oven_cabinet_door",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.7480000000000007
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4335
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_cabinet_handle",
+      "source_id": "36b1cc80-6cae-42c0-a3ff-aad1b8bc675a",
+      "parent": "oven_cabinet_door",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.7480000000000007
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.842
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.6719999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.4955000023841865,
+          -1.842,
+          0.664500000167638
+        ],
+        [
+          4.000499997615815,
+          -1.773999996304512,
+          0.6794999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5049999952316284,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08587000266753134
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_cabinet_hinge",
+      "source_id": "89866007-46cd-410d-bdb0-5aab9ccd98c7",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          4.0455000000000005
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4335
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_center_drawer",
+      "source_id": "3fbf90fe-37aa-4ea9-814c-312a5b971649",
+      "parent": "oven_center_drawer_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.9919999999999998
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7955
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.4504999856948855,
+          -2.1420000059604645,
+          0.7239999966621399
+        ],
+        [
+          4.045500014305115,
+          -1.8419999940395353,
+          0.8670000033378601
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.30000001192092896,
+          0.14300000667572021
+        ],
+        "surface_area": 0.8776900913542529
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_center_drawer_handle",
+      "source_id": "cb10d911-4488-413e-b69f-22a1f34766a7",
+      "parent": "oven_center_drawer",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.842
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.817
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.495500002384186,
+          -1.842,
+          0.809500000167638
+        ],
+        [
+          4.000499997615814,
+          -1.773999996304512,
+          0.8244999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5049999952316284,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08587000266753134
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_center_drawer_slider",
+      "source_id": "959a1947-e8eb-4bf1-a969-961f468f3a7a",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.9919999999999998
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7955
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_door",
+      "source_id": "d04727cf-5be8-4f23-9f7d-1f11469c671f",
+      "parent": "oven_hinge",
+      "semantic_classes": [
+        "Door"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.1680000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.4479999880790713,
+          -1.8619999997764825,
+          0.8670000009536745
+        ],
+        [
+          4.048000011920929,
+          -1.8420000002235173,
+          1.4689999990463258
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.6019999980926514,
+          0.6000000238418579,
+          0.019999999552965164
+        ],
+        "surface_area": 0.7704800262194871
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_door_entry_way",
+      "source_id": "d017d7b1-7bdd-4117-b049-d5c2ce038f8d",
+      "parent": "oven_door",
+      "semantic_classes": [
+        "EntryWay"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.1680000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_handle",
+      "source_id": "3d45472c-42f5-4739-b957-f4f797fc3944",
+      "parent": "oven_door",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.832
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.3265000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.495500002384186,
+          -1.832,
+          1.3139999998137357
+        ],
+        [
+          4.000499997615814,
+          -1.7920000008940697,
+          1.3390000001862647
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5049999952316284,
+          0.03999999910593033,
+          0.02500000037252903
+        ],
+        "surface_area": 0.06764999883845449
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_hinge",
+      "source_id": "4c4716aa-1995-4e8a-b04a-9d0213ad65f6",
+      "parent": "oven",
+      "semantic_classes": [
+        "Hinge"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          -0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.8670000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_side_drawer_left",
+      "source_id": "71e3a437-967d-480e-8172-d10dbc1c07d6",
+      "parent": "oven_side_drawer_left_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.298
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.1809999999999996
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.807
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.1510000001192093,
+          -2.5099999961853023,
+          0.1449999995231629
+        ],
+        [
+          3.4449999998807908,
+          -1.8520000038146969,
+          1.469000000476837
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.3240000009536743,
+          0.6579999923706055,
+          0.2939999997615814
+        ],
+        "surface_area": 5.438015948387623
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_side_drawer_left_slider",
+      "source_id": "f69bd232-3b58-44ed-b388-1f6004f9ef50",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.298
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.1809999999999996
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.807
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_side_drawer_right",
+      "source_id": "6e8e9ada-8197-4ae6-b892-4955345472a8",
+      "parent": "oven_side_drawer_right_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          4.198
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.807
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.05100000011921,
+          -2.509999996185303,
+          0.1449999995231629
+        ],
+        [
+          4.344999999880791,
+          -1.8520000038146973,
+          1.469000000476837
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.3240000009536743,
+          0.6579999923706055,
+          0.2939999997615814
+        ],
+        "surface_area": 5.438015948387623
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_side_drawer_right_slider",
+      "source_id": "cdccece7-0420-43c2-b7b2-9cadabcf7c37",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          4.198
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.807
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_side_handle_left",
+      "source_id": "01e9d362-aed4-41de-a25f-f1c71550ffde",
+      "parent": "oven_side_drawer_left",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          6.123233995736766e-17,
+          -1.0,
+          3.298
+        ],
+        [
+          -1.0,
+          3.749399456654644e-33,
+          -6.123233995736766e-17,
+          -1.8520000000000003
+        ],
+        [
+          0.0,
+          1.0,
+          6.123233995736766e-17,
+          0.807
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.290500000167638,
+          -1.8520000000000003,
+          0.185000020980835
+        ],
+        [
+          3.305499999832362,
+          -1.7839999963045123,
+          1.428999979019165
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.24399995803833,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.20854400145983668
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_side_handle_right",
+      "source_id": "e3aad741-5dba-4093-888f-75123e12b15a",
+      "parent": "oven_side_drawer_right",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          6.123233995736766e-17,
+          -1.0,
+          4.198
+        ],
+        [
+          -1.0,
+          3.749399456654644e-33,
+          -6.123233995736766e-17,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          1.0,
+          6.123233995736766e-17,
+          0.807
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.1905000001676385,
+          -1.8519999999999999,
+          0.185000020980835
+        ],
+        [
+          4.205499999832362,
+          -1.783999996304512,
+          1.428999979019165
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.24399995803833,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.20854400145983668
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_top_gap_facing",
+      "source_id": "81352cc1-f61a-450e-9e91-a7ddf182c662",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8749999999999998
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.4729999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.1479999761581423,
+          -1.8849999997764824,
+          1.46899999981001
+        ],
+        [
+          4.348000023841858,
+          -1.8650000002235172,
+          1.4770000001899897
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.2000000476837158,
+          0.019999999552965164,
+          0.00800000037997961
+        ],
+        "surface_area": 0.06752000251740217
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_top_plate",
+      "source_id": "e9cc9f3e-c8f0-4496-b520-05d29a685aad",
+      "parent": "oven_tower",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.8519999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.4895
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.1479999761581423,
+          -1.8619999997764825,
+          1.4769999998137355
+        ],
+        [
+          4.348000023841858,
+          -1.8420000002235173,
+          1.5020000001862646
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.2000000476837158,
+          0.02500000037252903,
+          0.019999999552965164
+        ],
+        "surface_area": 0.10900000410526989
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "oven_tower",
+      "source_id": "f21f231f-8768-4eab-9a41-0d078bd527a8",
+      "parent": "root",
+      "semantic_classes": [
+        "Cupboard"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          3.748
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.751
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.1479999761581423,
+          -2.509999996185303,
+          1.2874603272372553e-08
+        ],
+        [
+          4.348000023841858,
+          -1.8520000038146973,
+          1.5019999871253966
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.5019999742507935,
+          1.2000000476837158,
+          0.6579999923706055
+        ],
+        "surface_area": 10.769704205986017
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "refrigerator",
+      "source_id": "906ee0a4-aed6-46b1-8c42-46ca3e54ffeb",
+      "parent": "root",
+      "semantic_classes": [
+        "Fridge"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          0.8029999999999999
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.75
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.502999988079071,
+          -2.481000011920929,
+          0.0
+        ],
+        [
+          1.103000011920929,
+          -1.880999988079071,
+          1.5
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.5,
+          0.6000000238418579,
+          0.6000000238418579
+        ],
+        "surface_area": 6.881200271892549
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "root",
+      "source_id": "3d2c1ad2-b53e-47cf-ac25-c2ce77dec8dc",
+      "parent": null,
+      "semantic_classes": [],
+      "faces": 0,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard",
+      "source_id": "039bf813-339b-4b09-a678-46d27b45556b",
+      "parent": "root",
+      "semantic_classes": [
+        "Table"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.5455
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.506
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.838
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.3219999866485597,
+          0.10799999809265132,
+          0.8249999997317791
+        ],
+        [
+          4.769000013351441,
+          0.9040000019073486,
+          0.8510000002682209
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.447000026702881,
+          0.7960000038146973,
+          0.026000000536441803
+        ],
+        "surface_area": 4.064260066246391
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_base_facing",
+      "source_id": "646e06da-55fc-494d-8b09-1741720cea24",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.2830000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.04949999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.4299999904632568,
+          0.27300000022351745,
+          2.6822088994293836e-10
+        ],
+        [
+          4.660000009536743,
+          0.2929999997764827,
+          0.09899999973177909
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.2300000190734863,
+          0.0989999994635582,
+          0.019999999552965164
+        ],
+        "surface_area": 0.5347000000432134
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_cabinet",
+      "source_id": "03a87104-5b6e-41cc-b5be-e66d80e45ff7",
+      "parent": "root",
+      "semantic_classes": [
+        "Cabinet"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.5015000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4125
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.42,
+          0.20299999856948853,
+          5.960464455334602e-09
+        ],
+        [
+          4.67,
+          0.8000000014305115,
+          0.8249999940395355
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.25,
+          0.824999988079071,
+          0.597000002861023
+        ],
+        "surface_area": 11.116299895715713
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_cooktop",
+      "source_id": "76245ac5-5bcd-4e34-a98e-cb14699b1d8c",
+      "parent": "sideboard",
+      "semantic_classes": [
+        "Cooktop"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.343999999999999
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.5039999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.8534999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.057999986648559,
+          0.25300001287460316,
+          0.8510000000558793
+        ],
+        [
+          4.63000001335144,
+          0.7549999871253966,
+          0.8559999999441206
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5720000267028809,
+          0.5019999742507935,
+          0.004999999888241291
+        ],
+        "surface_area": 0.5850279971220778
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_0_0",
+      "source_id": "3881df2f-a37c-4e89-b392-c700784c2587",
+      "parent": "sideboard_drawer_0_0_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.403
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24299999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.049999985694885,
+          0.20299999701976776,
+          0.09900000619888302
+        ],
+        [
+          4.645000014305115,
+          0.6030000029802323,
+          0.38699999380111694
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.4000000059604645,
+          0.2879999876022339
+        ],
+        "surface_area": 1.6319900279736501
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_0_0_handle",
+      "source_id": "d3c8371d-cccb-47be-b486-4d299ec2055d",
+      "parent": "sideboard_drawer_0_0",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.203
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.33699999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.099999997615814,
+          0.13499999630451204,
+          0.32950000016763803
+        ],
+        [
+          4.595000002384186,
+          0.20300000000000004,
+          0.3444999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.4950000047683716,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08421000418342653
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_0_0_slider",
+      "source_id": "1d3c3bda-82ae-4490-8f14-d9886f8ffc4e",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.403
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24299999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_0_1",
+      "source_id": "cf93d5db-bf70-45bc-9ad2-1383a92fc6ac",
+      "parent": "sideboard_drawer_0_1_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.403
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5309999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.049999985694885,
+          0.20299999701976776,
+          0.387000006198883
+        ],
+        [
+          4.645000014305115,
+          0.6030000029802323,
+          0.6749999938011169
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.4000000059604645,
+          0.2879999876022339
+        ],
+        "surface_area": 1.6319900279736501
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_0_1_handle",
+      "source_id": "1060ad4d-59ae-4892-8005-f578fe2254fa",
+      "parent": "sideboard_drawer_0_1",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.203
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.6249999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.099999997615814,
+          0.13499999630451204,
+          0.617500000167638
+        ],
+        [
+          4.595000002384186,
+          0.20300000000000004,
+          0.6324999998323618
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.4950000047683716,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08421000418342653
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_0_1_slider",
+      "source_id": "2bd4ccea-b627-4cdb-9264-37995d230823",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.403
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5309999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_1_0",
+      "source_id": "b6afd4fa-3d09-45ac-af0f-58a63fe4a722",
+      "parent": "sideboard_drawer_1_0_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.4030000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24299999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.0479999911785125,
+          0.2029999970197678,
+          0.09900000619888302
+        ],
+        [
+          4.042000008821487,
+          0.6030000029802324,
+          0.38699999380111694
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9940000176429749,
+          0.4000000059604645,
+          0.2879999876022339
+        ],
+        "surface_area": 2.4148279538841244
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_1_0_handle",
+      "source_id": "6375bdfc-205b-4ae3-aa51-d4e88eca96db",
+      "parent": "sideboard_drawer_1_0",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.20300000000000007
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.33699999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.0980000030994415,
+          0.13499999630451207,
+          0.32950000016763803
+        ],
+        [
+          3.9919999969005584,
+          0.2030000000000001,
+          0.3444999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8939999938011169,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.15044400504431124
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_1_0_slider",
+      "source_id": "cafe1c39-f5e8-475a-8914-5e9ae440cc3e",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.4030000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24299999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_1_1",
+      "source_id": "02320771-2ad3-4a1c-bcbf-505181287f67",
+      "parent": "sideboard_drawer_1_1_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.4030000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5309999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.0479999911785125,
+          0.2029999970197678,
+          0.387000006198883
+        ],
+        [
+          4.042000008821487,
+          0.6030000029802324,
+          0.6749999938011169
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9940000176429749,
+          0.4000000059604645,
+          0.2879999876022339
+        ],
+        "surface_area": 2.4148279538841244
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_1_1_handle",
+      "source_id": "2104b7e2-3354-4b3e-ac1c-f09e88794740",
+      "parent": "sideboard_drawer_1_1",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.20300000000000007
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.6249999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.0980000030994415,
+          0.13499999630451207,
+          0.617500000167638
+        ],
+        [
+          3.9919999969005584,
+          0.2030000000000001,
+          0.6324999998323618
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8939999938011169,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.15044400504431124
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_1_1_slider",
+      "source_id": "c19ddf9c-401c-444d-9513-229025ba0965",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.4030000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5309999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_2_0",
+      "source_id": "7be6cc8d-cd4d-40ee-9677-b0bcab76d6e6",
+      "parent": "sideboard_drawer_2_0_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.40300000000000014
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24299999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.444999985694885,
+          0.20299999701976787,
+          0.09900000619888302
+        ],
+        [
+          3.0400000143051145,
+          0.6030000029802324,
+          0.38699999380111694
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.4000000059604645,
+          0.2879999876022339
+        ],
+        "surface_area": 1.6319900279736501
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_2_0_handle",
+      "source_id": "b7136352-c441-48f6-8b60-ebc28632e058",
+      "parent": "sideboard_drawer_2_0",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.20300000000000012
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.33699999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.494999997615814,
+          0.13499999630451215,
+          0.32950000016763803
+        ],
+        [
+          2.9900000023841855,
+          0.20300000000000015,
+          0.3444999998323619
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.4950000047683716,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08421000418342653
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_2_0_slider",
+      "source_id": "94904362-c8b8-48aa-a0fe-f531b6039fc0",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.40300000000000014
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.24299999999999997
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_2_1",
+      "source_id": "a950eab9-e46a-4c6e-b23c-047e85be478f",
+      "parent": "sideboard_drawer_2_1_slider",
+      "semantic_classes": [
+        "Drawer"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.40300000000000014
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5309999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.444999985694885,
+          0.20299999701976787,
+          0.387000006198883
+        ],
+        [
+          3.0400000143051145,
+          0.6030000029802324,
+          0.6749999938011169
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.4000000059604645,
+          0.2879999876022339
+        ],
+        "surface_area": 1.6319900279736501
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_2_1_handle",
+      "source_id": "71159322-b037-4e48-bb90-e94e80e12451",
+      "parent": "sideboard_drawer_2_1",
+      "semantic_classes": [
+        "Handle"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.20300000000000012
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.6249999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.494999997615814,
+          0.13499999630451215,
+          0.617500000167638
+        ],
+        [
+          2.9900000023841855,
+          0.20300000000000015,
+          0.6324999998323618
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.4950000047683716,
+          0.06800000369548798,
+          0.014999999664723873
+        ],
+        "surface_area": 0.08421000418342653
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_drawer_2_1_slider",
+      "source_id": "c65904ee-9411-4950-a9bd-afb09f04c9bc",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "Slider"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.40300000000000014
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.5309999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_upper_face_plate_0",
+      "source_id": "8b7b8faa-33c6-46fe-b8e4-b0b2d957977d",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          4.3475
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.21300000000000002
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7469999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          4.049999985694885,
+          0.2030000002235174,
+          0.6759999976754187
+        ],
+        [
+          4.645000014305115,
+          0.22299999977648263,
+          0.818000002324581
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.1420000046491623,
+          0.019999999552965164
+        ],
+        "surface_area": 0.19846001432925486
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_upper_face_plate_1",
+      "source_id": "e150835b-d69c-4ca9-bf15-b2dcae629af4",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.21300000000000008
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7469999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          3.0479999911785125,
+          0.20300000022351747,
+          0.6759999976754187
+        ],
+        [
+          4.042000008821487,
+          0.2229999997764827,
+          0.818000002324581
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.9940000176429749,
+          0.1420000046491623,
+          0.019999999552965164
+        ],
+        "surface_area": 0.327736014129162
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sideboard_upper_face_plate_2",
+      "source_id": "23793c47-ed6c-47d0-ae21-869ef5a137b9",
+      "parent": "sideboard_cabinet",
+      "semantic_classes": [
+        "WallPanel"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          2.7424999999999997
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.21300000000000013
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.7469999999999999
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.444999985694885,
+          0.20300000022351752,
+          0.6759999976754187
+        ],
+        [
+          3.0400000143051145,
+          0.22299999977648274,
+          0.818000002324581
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.5950000286102295,
+          0.1420000046491623,
+          0.019999999552965164
+        ],
+        "surface_area": 0.19846001432925486
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sink",
+      "source_id": "1a6f0bdf-a5f4-4d4c-bdb0-39dff34a10b7",
+      "parent": "counter_top",
+      "semantic_classes": [
+        "Sink"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          1.0,
+          0.0,
+          1.6479999999999997
+        ],
+        [
+          -1.0,
+          6.123233995736766e-17,
+          0.0,
+          -2.181
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.855
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          1.2179999928474423,
+          -2.431,
+          0.8525000000558793
+        ],
+        [
+          2.078000007152557,
+          -1.931,
+          0.8574999999441206
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.8600000143051147,
+          0.5,
+          0.004999999888241291
+        ],
+        "surface_area": 0.8736000141441822
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "sofa",
+      "source_id": "90e36bd8-a7c2-4eff-b9ef-68eb88ac7256",
+      "parent": "root",
+      "semantic_classes": [
+        "Sofa"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.1019615309619434e-05,
+          0.999999999939284,
+          0.0,
+          3.6
+        ],
+        [
+          -0.999999999939284,
+          1.1019615309619434e-05,
+          0.0,
+          1.601
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.34
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          2.759994847057863,
+          1.1309907447440584,
+          -3.576278662098531e-09
+        ],
+        [
+          4.440005152942137,
+          2.071009255255942,
+          0.6800000035762788
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.6799999475479126,
+          0.9399999976158142,
+          0.6800000071525574
+        ],
+        "surface_area": 6.72159985628128
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall1",
+      "source_id": "ac250ca3-a538-4c57-8b35-430fba9097fc",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -2.01
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.02500000037252903,
+          -2.51,
+          0.0
+        ],
+        [
+          0.02500000037252903,
+          -1.5099999999999998,
+          3.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          3.0,
+          1.0,
+          0.05000000074505806
+        ],
+        "surface_area": 6.4000000059604645
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall2",
+      "source_id": "1bf361cb-2f8b-495a-843e-4cf86bf5dfed",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          -0.145
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          -1.45
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.2899999958276749,
+          -1.475000000372529,
+          0.0
+        ],
+        [
+          -4.1723251242853365e-09,
+          -1.424999999627471,
+          3.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          3.0,
+          0.28999999165534973,
+          0.05000000074505806
+        ],
+        "surface_area": 2.068999954000115
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall3",
+      "source_id": "80e29495-2d74-42bd-bda0-760d434897e2",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.29
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.9925
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.315000000372529,
+          -1.5350000190734865,
+          0.0
+        ],
+        [
+          -0.26499999962747095,
+          -0.4499999809265137,
+          1.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.0850000381469727,
+          1.0,
+          0.05000000074505806
+        ],
+        "surface_area": 2.3785000832155347
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall4",
+      "source_id": "8b818046-85e5-4e34-a408-a135178bae87",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          -0.145
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          -0.45
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.2899999958276749,
+          -0.47500000037252904,
+          0.0
+        ],
+        [
+          -4.1723251242853365e-09,
+          -0.424999999627471,
+          1.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.0,
+          0.28999999165534973,
+          0.05000000074505806
+        ],
+        "surface_area": 0.7089999843984842
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall5",
+      "source_id": "54bfa0b1-7336-48c8-bc8d-28513808bc13",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          -0.145
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.45
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.2899999958276749,
+          0.424999999627471,
+          0.0
+        ],
+        [
+          -4.1723251242853365e-09,
+          0.47500000037252904,
+          1.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          1.0,
+          0.28999999165534973,
+          0.05000000074505806
+        ],
+        "surface_area": 0.7089999843984842
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall6",
+      "source_id": "43e77df5-885c-4ac7-992b-95f5cd875c6e",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.29025
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          1.8
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.31525000037252904,
+          0.42500000000000004,
+          0.0
+        ],
+        [
+          -0.265249999627471,
+          3.175,
+          1.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.75,
+          1.0,
+          0.050000000745058226
+        ],
+        "surface_area": 5.8750000055879354
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "south_wall7",
+      "source_id": "b5457313-72d3-4949-9124-7447672063ed",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.29025
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.16
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.31525000037252904,
+          4.025000009536743,
+          0.0
+        ],
+        [
+          -0.265249999627471,
+          6.294999990463257,
+          1.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          2.2699999809265137,
+          1.0,
+          0.0500000007450582
+        ],
+        "surface_area": 4.866999964818358
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "trash_can",
+      "source_id": "3d676f83-5dac-4d2b-86a5-3848f30f9070",
+      "parent": "root",
+      "semantic_classes": [
+        "TrashCan"
+      ],
+      "faces": 60,
+      "world_transform": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.416
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          5.5
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.2
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          0.2659999940395355,
+          5.3499999940395355,
+          -2.980232227667301e-09
+        ],
+        [
+          0.5660000059604644,
+          5.6500000059604645,
+          0.40000000298023225
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          0.4000000059604645,
+          0.30000001192092896,
+          0.30000001192092896
+        ],
+        "surface_area": 1.151200072813035
+      },
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "west_wall",
+      "source_id": "66fb3fe2-2e99-4d42-b285-5da139877f72",
+      "parent": "root",
+      "semantic_classes": [
+        "Wall"
+      ],
+      "faces": 12,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          1.9345
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          6.32
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": [
+        [
+          -0.2899999408721923,
+          6.294999999627471,
+          0.0
+        ],
+        [
+          4.158999940872192,
+          6.345000000372529,
+          3.0
+        ]
+      ],
+      "size": {
+        "__json_type__": "experiments.warsaw.evaluation.size.ObjectSize",
+        "extents": [
+          4.448999881744385,
+          3.0,
+          0.05000000074505806
+        ],
+        "surface_area": 27.438899289740622
+      },
+      "correction": null
+    }
+  ],
+  "edges": [
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "coffee_table",
+      "part": "coffee_table_floor",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "coffee_table",
+      "part": "coffee_table_shelf",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_drawer_left",
+      "part": "cooking_drawer_handle_left",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_drawer_left",
+      "part": "cooking_drawer_left_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_drawer_right",
+      "part": "cooking_drawer_handle_right",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_drawer_right",
+      "part": "cooking_drawer_right_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_mod_left",
+      "part": "cooking_drawer_left",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_mod_right",
+      "part": "cooking_drawer_right",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_table",
+      "part": "cooking_mod_left",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_table",
+      "part": "cooking_mod_right",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_table",
+      "part": "cooking_table_bottom",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cooking_table",
+      "part": "cooktop",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_drawer_0",
+      "part": "counter_drawer_0_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_drawer_0",
+      "part": "counter_drawer_0_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_drawer_1",
+      "part": "counter_drawer_1_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_drawer_1",
+      "part": "counter_drawer_1_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_drawer_2",
+      "part": "counter_drawer_2_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_drawer_2",
+      "part": "counter_drawer_2_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_top",
+      "part": "counter_base_facing",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_top",
+      "part": "module_3_cabinet",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "counter_top",
+      "part": "sink",
+      "relation": "part",
+      "field_name": "sink"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard",
+      "part": "cupboard_door_left",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard",
+      "part": "cupboard_door_right",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard",
+      "part": "cupboard_shelf_0",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard",
+      "part": "cupboard_shelf_1",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard_door_left",
+      "part": "cupboard_door_left_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard_door_left",
+      "part": "cupboard_handle_left",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard_door_left",
+      "part": "cupboard_hinge_left",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard_door_right",
+      "part": "cupboard_door_right_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard_door_right",
+      "part": "cupboard_handle_right",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "cupboard_door_right",
+      "part": "cupboard_hinge_right",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "desk",
+      "part": "desk_leg_0",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "desk",
+      "part": "desk_leg_1",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "desk",
+      "part": "desk_leg_2",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "desk",
+      "part": "desk_leg_3",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dining_table",
+      "part": "dining_table_leg_0",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dining_table",
+      "part": "dining_table_leg_1",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dining_table",
+      "part": "dining_table_leg_2",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dining_table",
+      "part": "dining_table_leg_3",
+      "relation": "part",
+      "field_name": "legs"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dishwasher",
+      "part": "dishwasher_door",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dishwasher_door",
+      "part": "dishwasher_door_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dishwasher_door",
+      "part": "dishwasher_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "dishwasher_door",
+      "part": "dishwasher_hinge",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "fridge_door",
+      "part": "fridge_door_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "fridge_door",
+      "part": "fridge_door_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "fridge_door",
+      "part": "fridge_door_hinge",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "fridge_drawer",
+      "part": "fridge_drawer_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "fridge_drawer",
+      "part": "fridge_drawer_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_1_cabinet",
+      "part": "module_1_door",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_1_door",
+      "part": "module_1_door_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_1_door",
+      "part": "module_1_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_1_door",
+      "part": "module_1_hinge",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_3_cabinet",
+      "part": "counter_drawer_0",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_3_cabinet",
+      "part": "counter_drawer_1",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "module_3_cabinet",
+      "part": "counter_drawer_2",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven",
+      "part": "oven_door",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_cabinet_door",
+      "part": "oven_cabinet_door_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_cabinet_door",
+      "part": "oven_cabinet_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_cabinet_door",
+      "part": "oven_cabinet_hinge",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_center_drawer",
+      "part": "oven_center_drawer_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_center_drawer",
+      "part": "oven_center_drawer_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_door",
+      "part": "oven_door_entry_way",
+      "relation": "part",
+      "field_name": "entry_way"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_door",
+      "part": "oven_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_door",
+      "part": "oven_hinge",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_side_drawer_left",
+      "part": "oven_side_drawer_left_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_side_drawer_left",
+      "part": "oven_side_handle_left",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_side_drawer_right",
+      "part": "oven_side_drawer_right_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_side_drawer_right",
+      "part": "oven_side_handle_right",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_base_facing",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_cabinet_door",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_center_drawer",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_side_drawer_left",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_side_drawer_right",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_top_gap_facing",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "oven_tower",
+      "part": "oven_top_plate",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "refrigerator",
+      "part": "fridge_base_facing",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "refrigerator",
+      "part": "fridge_door",
+      "relation": "part",
+      "field_name": "doors"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "refrigerator",
+      "part": "fridge_drawer",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "refrigerator",
+      "part": "fridge_top_gap_facing",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "refrigerator",
+      "part": "fridge_top_plate",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard",
+      "part": "sideboard_cooktop",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_base_facing",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_drawer_0_0",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_drawer_0_1",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_drawer_1_0",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_drawer_1_1",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_drawer_2_0",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_drawer_2_1",
+      "relation": "part",
+      "field_name": "drawers"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_upper_face_plate_0",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_upper_face_plate_1",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_cabinet",
+      "part": "sideboard_upper_face_plate_2",
+      "relation": "contains",
+      "field_name": "objects"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_0_0",
+      "part": "sideboard_drawer_0_0_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_0_0",
+      "part": "sideboard_drawer_0_0_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_0_1",
+      "part": "sideboard_drawer_0_1_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_0_1",
+      "part": "sideboard_drawer_0_1_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_1_0",
+      "part": "sideboard_drawer_1_0_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_1_0",
+      "part": "sideboard_drawer_1_0_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_1_1",
+      "part": "sideboard_drawer_1_1_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_1_1",
+      "part": "sideboard_drawer_1_1_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_2_0",
+      "part": "sideboard_drawer_2_0_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_2_0",
+      "part": "sideboard_drawer_2_0_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_2_1",
+      "part": "sideboard_drawer_2_1_handle",
+      "relation": "part",
+      "field_name": "handle"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "sideboard_drawer_2_1",
+      "part": "sideboard_drawer_2_1_slider",
+      "relation": "part",
+      "field_name": "mechanical_joint"
+    }
+  ],
+  "corrections": null,
+  "source_commit": "1b90a49764ab813572739dc3bcb307c6b548afec",
+  "source_dirty": true
+}
