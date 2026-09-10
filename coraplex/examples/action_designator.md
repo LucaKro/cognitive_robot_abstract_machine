@@ -259,10 +259,13 @@ from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
-description = TransportAction(world.get_semantic_annotations_by_type(Milk)[0],
-                              Pose.from_xyz_quaternion(2.9, 2.2, 0.99,
-                                                       0.0, 0.0, 1.0, 0.0, reference_frame=world.root),
-                              Arms.LEFT)
+description = TransportAction(
+    world.get_semantic_annotations_by_type(Milk)[0],
+    Arms.LEFT,
+    target_location=Pose.from_xyz_quaternion(
+        2.9, 2.2, 0.99, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root
+    ),
+)
 with simulated_robot:
     sequential([MoveTorsoAction(TorsoState.HIGH),
                 description], context=context).perform()
