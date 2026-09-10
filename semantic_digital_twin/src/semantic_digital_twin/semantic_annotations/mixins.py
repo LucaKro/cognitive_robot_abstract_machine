@@ -96,6 +96,7 @@ if TYPE_CHECKING:
         Sink,
         ShelfLayer,
         Wall,
+        CounterTop,
     )
     from semantic_digital_twin.world import World
     from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
@@ -1333,3 +1334,53 @@ class HasCaseAsRootBody(HasSupportingSurface):
             cls._create_container_event(scale, wall_thickness),
             connection_specification=connection_specification,
         )
+
+
+# %% furniture built from other furniture
+
+
+@dataclass(eq=False)
+class HasUnits(PartWholeRelationship):
+    """
+    A mixin class for semantic annotations built from fitted furniture units.
+
+    A kitchen is not one piece of furniture but a run of carcasses standing side by side
+    under a shared worktop. The whole is what a person names -- the island, the counter
+    along that wall -- while the carcasses are what opens and holds things.
+
+    The parts are :class:`HasCaseAsRootBody` rather than
+    :class:`~semantic_digital_twin.semantic_annotations.semantic_annotations.Cabinet`
+    because a dishwasher stands in such a run exactly as a cabinet does without being
+    one: what they share is the case.
+    """
+
+    units: List[HasCaseAsRootBody] = field(
+        default_factory=list,
+        hash=False,
+        kw_only=True,
+        metadata=IsPartWholeRelationship().as_dict(),
+    )
+    """
+    The fitted units the semantic annotation is built from.
+    """
+
+
+@dataclass(eq=False)
+class HasCounterTop(PartWholeRelationship):
+    """
+    A mixin class for semantic annotations that carry a counter top.
+
+    Distinct from :class:`HasSupportingSurface`, which is the bare region something can
+    be put on: this is the worktop as a thing in its own right, which is what a scan
+    sees and what in turn carries the sink.
+    """
+
+    counter_top: CounterTop = field(
+        default=None,
+        hash=False,
+        kw_only=True,
+        metadata=IsPartWholeRelationship().as_dict(),
+    )
+    """
+    The counter top of the semantic annotation.
+    """

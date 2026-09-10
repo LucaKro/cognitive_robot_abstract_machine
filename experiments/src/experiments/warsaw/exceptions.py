@@ -446,14 +446,13 @@ class RelationHasNoEntityError(DataclassException, TypeError):
     incomplete.
     """
 
-    held: object
-    """
-    What the relation reached.
-    """
-
     held_type: str
     """
-    The class of what it reached.
+    The class of what the relation reached.
+
+    The thing itself is deliberately not kept: an exception is a mapped dataclass here,
+    and a field typed loosely enough to hold any of them has no column the database
+    could store it in.
     """
 
     def error_message(self) -> str:

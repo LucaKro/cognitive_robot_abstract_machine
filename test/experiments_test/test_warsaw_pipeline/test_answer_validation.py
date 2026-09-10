@@ -128,12 +128,16 @@ def test_a_proposal_composed_from_a_name_that_is_no_mixin_is_refused(label_quest
 
 def test_a_well_formed_proposal_is_usable(label_question):
     """
-    The proposal a real run made for its kitchen island.
+    A proposal shaped like the one a real run made for its kitchen island: a name the
+    ontology lacks, a superclass it has, and a mixin it has.
+
+    Named for what it stands for rather than after a class, so that the ontology gaining
+    one does not turn this into a test of something else.
     """
     assert (
         label_question.problems_with(
             LabelAnswer(
-                class_name="KitchenIsland",
+                class_name="AClassTheOntologyLacks",
                 is_new_class=True,
                 superclass="Table",
                 mixins=["HasDrawers"],
@@ -141,6 +145,23 @@ def test_a_well_formed_proposal_is_usable(label_question):
         )
         == []
     )
+
+
+def test_a_class_the_ontology_already_has_is_not_proposed_as_new(label_question):
+    """
+    Inventing a class beside one that already means the same thing splits a scene's
+    vocabulary in two, and the run then names some bodies one and some the other.
+    """
+    problems = label_question.problems_with(
+        LabelAnswer(
+            class_name="KitchenIsland",
+            is_new_class=True,
+            superclass="Table",
+            mixins=["HasDrawers"],
+        )
+    )
+
+    assert any("already in the taxonomy" in one for one in problems)
 
 
 # %% what an overlap may be answered with

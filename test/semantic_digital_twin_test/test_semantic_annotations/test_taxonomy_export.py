@@ -9,6 +9,7 @@ bases are the ones it really derives from.
 from __future__ import annotations
 
 from semantic_digital_twin.semantic_annotations.mixins import (
+    HasCaseAsRootBody,
     HasDoors,
     HasDrawers,
     HasRootBody,
@@ -18,10 +19,14 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.semantic_annotations.part_whole import field_holding
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
+    CounterTop,
+    Dishwasher,
     Drawer,
     Furniture,
     Handle,
+    KitchenIsland,
     Mug,
+    Sink,
 )
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     MountKind,
@@ -228,3 +233,74 @@ def test_the_field_reported_is_the_one_a_mount_actually_routes_to():
     ]
 
     assert mounted.field_name == field_holding(Cabinet, Drawer).field_name
+
+
+# %% furniture built from other furniture
+
+
+def test_a_kitchen_island_holds_the_units_it_is_built_from():
+    """
+    A kitchen is a run of carcasses under one worktop.
+
+    Without a field for them the carcasses can only be mounted as something they are
+    not, or not at all.
+    """
+    assert field_holding(KitchenIsland, Cabinet).field_name == "units"
+    assert field_holding(KitchenIsland, Dishwasher).field_name == "units"
+
+
+def test_a_dishwasher_stands_in_a_run_although_it_is_not_a_cabinet():
+    """
+    What a dishwasher and a cabinet share is the case, not the furniture, which is why
+    the units field is bounded by the case rather than by Cabinet.
+    """
+    assert not issubclass(Dishwasher, Cabinet)
+    assert issubclass(Dishwasher, HasCaseAsRootBody)
+
+
+def test_a_drawer_built_into_an_island_is_held_the_same_way_a_cabinet_is():
+    """
+    A drawer is a case too, so a scan that never resolved the carcass around it still
+    says something true by reporting the drawer.
+
+    Held through a field of its own it would match both, which is the ambiguity ``add``
+    refuses.
+    """
+    assert field_holding(KitchenIsland, Drawer).field_name == "units"
+
+
+def test_an_island_holds_its_counter_top_as_a_thing_rather_than_a_surface():
+    """
+    A supporting surface is the bare region something can be put on.
+
+    The worktop is what a scan sees and what carries the sink, so it is held as itself.
+    """
+    assert field_holding(KitchenIsland, CounterTop).field_name == "counter_top"
+    assert field_holding(CounterTop, Sink).field_name == "sink"
+
+
+def test_a_kitchen_island_can_be_built_and_mounted_into():
+    """
+    The relations are only real if a world will carry them out.
+    """
+    world = World.create_with_root_body("root")
+    island_body = Body(name=PrefixedName("island"))
+    cabinet_body = Body(name=PrefixedName("a_cabinet"))
+    top_body = Body(name=PrefixedName("a_counter_top"))
+    with world.modify_world():
+        for child in (island_body, cabinet_body, top_body):
+            world.add_connection(FixedConnection(parent=world.root, child=child))
+        island = KitchenIsland(name=PrefixedName("the_island"), root=island_body)
+        cabinet = Cabinet(name=PrefixedName("a_unit"), root=cabinet_body)
+        counter_top = CounterTop(name=PrefixedName("the_top"), root=top_body)
+        for annotation in (island, cabinet, counter_top):
+            world.add_semantic_annotation_recursively(annotation)
+    with world.modify_world():
+        island.add(cabinet)
+        island.add(counter_top)
+
+    held = {
+        (relation.field_name, type(relation.target).__name__)
+        for relation in mounted_relations_of(island)
+    }
+    assert held == {("units", "Cabinet"), ("counter_top", "CounterTop")}

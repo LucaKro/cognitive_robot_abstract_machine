@@ -436,7 +436,7 @@ def entity_name_of(held: WorldEntity) -> str:
         return str(held.name)
     if isinstance(held, HasRootKinematicStructureEntity):
         return str(held.root.name)
-    raise RelationHasNoEntityError(held=held, held_type=type(held).__name__)
+    raise RelationHasNoEntityError(held_type=type(held).__name__)
 
 
 # %% reading a modelled world
