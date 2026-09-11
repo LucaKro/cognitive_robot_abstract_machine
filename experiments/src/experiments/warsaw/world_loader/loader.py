@@ -767,6 +767,19 @@ class WarsawWorldLoader:
             raise NoSegmentsGivenError()
         return np.concatenate(gathered)
 
+    @property
+    def world_T_scene_mesh(self) -> np.ndarray:
+        """
+        :return: Where the world places the coordinates :attr:`scene_mesh` is written
+            in.
+
+        Loading centres the scene body's geometry on itself and carries the difference
+        in the body's pose, so a point read straight off that mesh is not where the
+        world holds it, and a camera placed from one is not standing where it says.
+        """
+        shape = self.scene_body.collision[0]
+        return self.world.transform(shape.origin, self.world.root).to_np()
+
     def points_of(self, segments: Iterable[LabelSegment]) -> np.ndarray:
         """
         :param segments: The segments to take the geometry of.
@@ -774,7 +787,44 @@ class WarsawWorldLoader:
         :raises NoSegmentsGivenError: If no segments were given.
         """
         faces = self.face_indices_of(segments)
-        return self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
+        return trimesh.transform_points(
+            self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()],
+            self.world_T_scene_mesh,
+        )
+
+    def poses_framing(
+        self,
+        segments: Iterable[LabelSegment],
+        viewpoints: Optional[Sequence[str]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """
+        :param segments: The segments a camera is to frame.
+        :param viewpoints: Which named viewpoints to stand at, defaulting to all of
+            them.
+        :return: Where the camera stands for each of them, in the world's frame.
+        :raises NoSegmentsGivenError: If no segments were given.
+        """
+        return self._chosen_viewpoints(
+            self.compute_camera_poses(self.points_of(segments)), viewpoints
+        )
+
+    def segments_alone(
+        self, segments: Iterable[LabelSegment], face_colors: np.ndarray
+    ) -> trimesh.Trimesh:
+        """
+        Cut some segments' geometry out of the scene, leaving the rest of it out.
+
+        :param segments: The segments to cut out.
+        :param face_colors: The color of every face of the whole scene, of which the
+            segments' own are taken.
+        :return: Their geometry by itself, where the world holds it.
+        :raises NoSegmentsGivenError: If no segments were given.
+        """
+        faces = np.unique(self.face_indices_of(segments))
+        alone = self.scene_mesh.submesh([faces], append=True)
+        alone.visual.face_colors = face_colors[faces]
+        alone.apply_transform(self.world_T_scene_mesh)
+        return alone
 
     def render_segments_alone(
         self,
@@ -799,16 +849,9 @@ class WarsawWorldLoader:
         :param headless: Whether to render without opening a window.
         :return: Per viewpoint, its render and the pose it was taken from.
         """
-        faces = np.unique(self.face_indices_of(segments))
-        alone = self.scene_mesh.submesh([faces], append=True)
-        alone.visual.face_colors = face_colors[faces]
-
-        poses = self._chosen_viewpoints(
-            self.compute_camera_poses(
-                self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
-            ),
-            viewpoints,
-        )
+        segments = list(segments)
+        alone = self.segments_alone(segments, face_colors)
+        poses = self.poses_framing(segments, viewpoints)
         return self._pictures(
             self._render_from_poses(trimesh.Scene(alone), poses, headless), poses
         )
@@ -1043,18 +1086,11 @@ class WarsawWorldLoader:
         """
         segments = list(segments)
         faces = np.unique(self.face_indices_of(segments))
-        poses = self._chosen_viewpoints(
-            self.compute_camera_poses(
-                self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
-            ),
-            viewpoints,
-        )
+        poses = self.poses_framing(segments, viewpoints)
 
         # Ranked by the segment each viewpoint shows worst, so that a handle is not
         # outvoted by the door it is screwed to.
-        middle = self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()].mean(
-            axis=0
-        )
+        middle = self.points_of(segments).mean(axis=0)
         ranked = sorted(
             poses,
             key=lambda name: min(
@@ -1071,9 +1107,8 @@ class WarsawWorldLoader:
         if len(looked_at) == 1:
             return next(iter(looked_at))
 
-        alone = self.scene_mesh.submesh([faces], append=True)
         dimmed = self._dimmed_face_colors[faces]
-        alone.visual.face_colors = dimmed
+        alone = self.segments_alone(segments, self._dimmed_face_colors)
         rooms = self._render_from_poses(
             trimesh.Scene(alone), looked_at, headless, self.render_sizes.deciding
         )

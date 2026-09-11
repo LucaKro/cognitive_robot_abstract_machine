@@ -369,6 +369,84 @@ def test_framing_a_part_of_the_scene_stands_closer_than_framing_all_of_it(
         )
 
 
+# %% the frame a camera is placed in
+
+
+@pytest.fixture
+def off_centre_scene(tmp_path) -> Path:
+    """
+    :return: A directory holding a scene of one cabinet standing well away from the
+        origin, which is what makes centring the body's own geometry move it.
+    """
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    box.apply_translation((4.0, -3.0, 2.0))
+    faces = box.faces[:4]
+    write_scene(
+        tmp_path / "scene.ply",
+        box.vertices,
+        faces,
+        {"cabinet": [1] * len(faces)},
+    )
+    return tmp_path
+
+
+def where_the_world_holds(
+    loader: WarsawWorldLoader, segments: List[LabelSegment]
+) -> np.ndarray:
+    """
+    :param loader: The loaded scene.
+    :param segments: The segments to take the geometry of.
+    :return: The points their faces are drawn from, where the world places them, which
+        is what a pose recorded as the world's has to agree with.
+    """
+    held = loader.scene_body.collision[0].mesh_in_frame(loader.world.root)
+    return held.vertices[held.faces[loader.face_indices_of(segments)].ravel()]
+
+
+def test_a_segment_s_points_are_where_the_world_holds_them(off_centre_scene):
+    """
+    Loading centres a body's geometry on itself and carries the difference in the body's
+    pose, so a point read straight off the mesh is not where the world holds it.
+    """
+    loader = WarsawWorldLoader(input_directory=off_centre_scene)
+
+    assert np.allclose(
+        loader.points_of(loader.label_segments),
+        where_the_world_holds(loader, loader.label_segments),
+    )
+
+
+def test_a_close_up_is_framed_on_the_segment_where_the_world_holds_it(off_centre_scene):
+    """
+    A pose is recorded as the world's, so a camera framed on the same geometry read from
+    the body's own centred coordinates points beside the object rather than at it.
+    """
+    loader = WarsawWorldLoader(input_directory=off_centre_scene)
+    held = where_the_world_holds(loader, loader.label_segments)
+    middle = (held.min(axis=0) + held.max(axis=0)) / 2
+
+    for pose in loader.poses_framing(loader.label_segments).values():
+        towards = -pose[:3, 2]
+        beside = middle - pose[:3, 3]
+        assert np.allclose(beside - (beside @ towards) * towards, 0, atol=1e-6)
+
+
+def test_a_close_up_draws_the_segment_where_the_world_holds_it(off_centre_scene):
+    """
+    The picture and the pose have to be in one frame: a camera standing in the world's
+    looking at geometry drawn in the body's own sees whatever happens to lie that way.
+    """
+    loader = WarsawWorldLoader(input_directory=off_centre_scene)
+    held = where_the_world_holds(loader, loader.label_segments)
+
+    alone = loader.segments_alone(
+        loader.label_segments, np.asarray(loader.scene_mesh.visual.face_colors)
+    )
+
+    assert np.allclose(alone.bounds[0], held.min(axis=0))
+    assert np.allclose(alone.bounds[1], held.max(axis=0))
+
+
 # %% telling two renders apart
 
 
