@@ -10,21 +10,26 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
-from coraplex.locations.factories import (
-    reachability_location,
-)
+from coraplex.locations.costmaps import RingCostmap
+from coraplex.locations.factories import reachability_location
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowSelfCollisions,
     CollisionRule,
 )
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.geometry import Box, Scale
+from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.world_entity import Body
 
 # %% test doubles
 
@@ -221,12 +226,18 @@ CANDIDATES_TO_SAMPLE = 20
 Number of candidates whose distance to the target is asserted.
 """
 
+REACH_FRACTION = 0.5
+"""
+The fraction of the arm's length the sampled ring is asked to stand off by, chosen away
+from the default so the parameter is what the sampling follows.
+"""
 
-def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target(
+
+def test_a_ring_from_the_arm_reach_distance_samples_at_the_reach_fraction(
     single_robot_world,
 ):
     """
-    The standing distance follows the constant, so tuning it moves the robot.
+    The standing distance follows the reach fraction, so tuning it moves the robot.
 
     Standing too close puts the arms inside whatever the target rests on, which the
     collision check on candidate poses then rejects.
@@ -238,13 +249,16 @@ def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target
     # approximate_length returns a symbolic scalar, which compares as unequal to a float
     # under pytest.approx no matter the tolerance.
     expected_distance = (
-        float(ViewManager.get_arm_view(Arms.RIGHT, robot).approximate_length()) * 0.66
+        float(ViewManager.get_arm_view(Arms.RIGHT, robot).approximate_length())
+        * REACH_FRACTION
     )
     target_position = target.to_position().to_np()[:2]
 
     candidates = list(
         islice(
-            reachability_location(target, context, Arms.RIGHT).generator,
+            RingCostmap.from_arm_reach_distance(
+                context, Arms.RIGHT, target, reach_fraction=REACH_FRACTION
+            ),
             CANDIDATES_TO_SAMPLE,
         )
     )
@@ -259,6 +273,74 @@ def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target
     )
 
 
+# %% a reachability location for a body that is going to be somewhere else
+
+
+def _box_in(world: World) -> Body:
+    """
+    A box with collision geometry, standing away from the robot.
+    """
+    body = Body(
+        name=PrefixedName("box"),
+        collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.2))]),
+    )
+    with world.modify_world():
+        world.add_connection(
+            FixedConnection(
+                parent=world.root,
+                child=body,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=-1.0, y=-1.0, z=0.9
+                ),
+            )
+        )
+    return body
+
+
+def test_a_reachability_location_for_a_body_stands_around_its_destination(
+    single_robot_world,
+):
+    world, robot, context = single_robot_world
+    body = _box_in(world)
+    destination = Pose.from_xyz_rpy(
+        *REACHABILITY_TARGET_POSITION, reference_frame=world.root
+    )
+
+    location = reachability_location(body, context, Arms.RIGHT, destination=destination)
+
+    assert location.target_pose is destination
+
+
+def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination(
+    single_robot_world,
+):
+    """
+    The grasp is carried to the destination with the body, and the approach still clears
+    the body itself.
+    """
+    world, robot, context = single_robot_world
+    body = _box_in(world)
+    destination = Pose.from_xyz_rpy(
+        *REACHABILITY_TARGET_POSITION, reference_frame=world.root
+    )
+    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
+
+    (validator,) = reachability_location(
+        body, context, Arms.RIGHT, grasp_pose=grasp, destination=destination
+    ).validators
+
+    expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
+        HasApproachesGraspPoses.grasp_frame_at(destination, grasp),
+        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        grasp,
+    )
+    np.testing.assert_allclose(
+        [pose.to_np() for pose in validator.pose_sequence],
+        [pose.to_np() for pose in expected_sequence],
+        atol=1e-9,
+    )
+
+
 # %% the giskard backend reports the pose it placed the robot at
 
 
@@ -268,7 +350,7 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
     world, robot, context = single_robot_world
     candidate = _candidate(world)
     backend = GiskardLocationBackend(
-        target=candidate,
+        target_pose=candidate,
         arm=Arms.RIGHT,
         grasp_pose=candidate,
         robot=robot,
@@ -287,6 +369,52 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
 
     assert len(yielded_poses) == 1
     np.testing.assert_allclose(yielded_poses[0].to_np(), candidate.to_np(), atol=1e-9)
+
+
+def test_giskard_backend_solves_the_reach_its_location_validates(
+    single_robot_world, monkeypatch
+):
+    """
+    The backend steers the robot onto the same approach the location's validator then
+    checks, including how far that approach stays off the grasped body.
+    """
+    world, robot, context = single_robot_world
+    body = _box_in(world)
+    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
+    grasp_frame = HasApproachesGraspPoses.grasp_frame_at(body.global_pose, grasp)
+    backend = GiskardLocationBackend(
+        target_pose=body.global_pose,
+        arm=Arms.RIGHT,
+        grasp_pose=grasp_frame,
+        robot=robot,
+        world=world,
+        body_T_grasp=grasp,
+    )
+    solved_sequences = []
+
+    def record_the_solved_sequence(self, pose_sequence, *args, **kwargs):
+        solved_sequences.append(pose_sequence)
+        return MotionlessExecutor()
+
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_costmap",
+        lambda self, pose: [_candidate(world)],
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend, "setup_giskard_executor", record_the_solved_sequence
+    )
+
+    list(backend)
+
+    expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
+        grasp_frame, ViewManager.get_end_effector_view(Arms.RIGHT, robot), grasp
+    )
+    np.testing.assert_allclose(
+        [pose.to_np() for pose in solved_sequences[0]],
+        [pose.to_np() for pose in expected_sequence],
+        atol=1e-9,
+    )
 
 
 def test_location_validates_against_the_rules_the_plan_runs_with(single_robot_world):

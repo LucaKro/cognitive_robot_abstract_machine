@@ -1,7 +1,7 @@
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from typing_extensions import List, Union, Iterable
+from typing_extensions import List, Iterable
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -35,14 +35,11 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     """
     Pose generator backend that uses full-body control to steer the robot to a base pose
     from which the target should be reachable.
-
-    .. warning:: This backend uses collision avoidance, so if you use the global_pose of a body instead of the body itself
-    the backend will fail because the collision avoidance will keep the gripper and body apart.
     """
 
-    target: Union[Pose, Body]
+    target_pose: Pose
     """
-    The target pose or body which should be reachable by the end effector 
+    The pose the base poses are searched around.
     """
 
     arm: Arms
@@ -63,6 +60,20 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     world: World
     """
     The world in which to sample.
+    """
+
+    body_T_grasp: Pose = field(default_factory=Pose, kw_only=True)
+    """
+    The same grasp in the frame of the body the approach must avoid, which sets how far
+    ahead of the grasp the approach begins.
+
+    An identity grasp with no reference frame when there is no such body.
+    """
+
+    contact_bodies: List[Body] = field(default_factory=list, kw_only=True)
+    """
+    The bodies the gripper may touch while reaching, since collision avoidance would
+    otherwise keep it from closing on them.
     """
 
     distance_to_obstacle: float = 0.1
@@ -148,9 +159,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                     temporary_rules=[
                         AllowCollisionBetweenGroups(
                             body_group_a=end_effector.bodies_with_collision,
-                            body_group_b=(
-                                [self.target] if isinstance(self.target, Body) else []
-                            ),
+                            body_group_b=self.contact_bodies,
                         )
                     ]
                 ),
@@ -177,18 +186,16 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         with self.world.modify_world():
             self.robot._setup_collision_rules()
 
-        target_pose = (
-            self.target if isinstance(self.target, Pose) else self.target.global_pose
-        )
-
         test_ee = ViewManager.get_end_effector_view(self.arm, self.robot)
-        target_sequence = self.grasp_pose_sequence(self.grasp_pose, test_ee)
+        target_sequence = self.grasp_pose_sequence(
+            self.grasp_pose, test_ee, self.body_T_grasp
+        )
 
         executor = self.setup_giskard_executor(
             target_sequence, self.world, self.robot, test_ee
         )
 
-        for pose_candidate in self.setup_costmap(target_pose):
+        for pose_candidate in self.setup_costmap(self.target_pose):
             self.robot.set_root_pose(pose_candidate)
 
             try:

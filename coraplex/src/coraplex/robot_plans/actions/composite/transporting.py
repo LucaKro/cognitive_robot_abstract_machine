@@ -14,7 +14,7 @@ from krrood.entity_query_language.factories import (
 )
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms
-from coraplex.locations.base import DeferredLocation
+from coraplex.locations.base import DeferredLocation, Location
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
@@ -26,6 +26,7 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import HasGraspChoice, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
+from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
@@ -96,18 +97,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
         children.extend(
             [
                 ParkArmsAction(Arms.BOTH),
-                # Tries to find a pick-up position for the robot that uses the given arm
                 a(NavigateAction)(
                     target_location=variable(
-                        Pose,
-                        domain=DeferredLocation(
-                            lambda: reachability_location(
-                                self.object_designator.root,
-                                self.context,
-                                self.arm,
-                                self.grasp_pose,
-                            )
-                        ),
+                        Pose, domain=DeferredLocation(self._pick_up_location)
                     ),
                     keep_joint_states=True,
                 ),
@@ -132,20 +124,42 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
 
         return sequential(children)
 
+    def _pick_up_location(self) -> Location:
+        """
+        :return: The standing poses from which the arm reaches :attr:`grasp_pose` on
+            the object where it is.
+        """
+        return reachability_location(
+            self.object_designator.root,
+            self.context,
+            self.arm,
+            self.grasp_pose,
+            approach_clearance=self.approach_clearance,
+            retreat_distance=self.retreat_distance,
+        )
+
     def _make_navigate_action_for_placing(self, grasp_pose: Pose):
         """
-        :param grasp_pose: The grasp frame the object is held at, in its own frame.
+        :param grasp_pose: The grasp frame the pick-up was told to take, in the
+            object's own frame. The grasp the gripper actually holds the object by
+            is preferred once the navigation runs, since the pick-up may have
+            corrected it.
         :return: The navigate action that will be used to place the object.
         """
+        object_body = self.object_designator.root
         return a(NavigateAction)(
             target_location=variable(
                 Pose,
                 domain=DeferredLocation(
                     lambda: reachability_location(
-                        self.target_location,
+                        object_body,
                         self.context,
                         self.arm,
-                        grasp_pose,
+                        grasp_pose=ViewManager.get_end_effector_view(
+                            self.arm, self.robot
+                        ).grasp_on(object_body)
+                        or grasp_pose,
+                        destination=self.target_location,
                         approach_clearance=self.approach_clearance,
                         retreat_distance=self.retreat_distance,
                     )

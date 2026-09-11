@@ -186,7 +186,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses, KeepsBaseStill):
     def for_grasp(
         cls,
         grasp_pose: Pose,
-        end_effector: EndEffector,
+        arm: Arms,
         *,
         body_T_grasp: Optional[Pose] = None,
         context: Context,
@@ -199,12 +199,13 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses, KeepsBaseStill):
         know whether a grasp is within reach.
 
         :param grasp_pose: The grasp frame to reach.
-        :param end_effector: The end effector that is to reach it.
+        :param arm: The arm that is to reach it.
         :param body_T_grasp: The same grasp in the grasped body's frame, or ``None``.
         :param context: The context the check runs in.
         :param clearances: Overrides for :class:`HasApproachesGraspPoses`' distances.
         :return: A validator for the poses reaching that grasp.
         """
+        end_effector = ViewManager.get_end_effector_view(arm, context.robot)
         approach = HasApproachesGraspPoses(**clearances)
         return cls(
             pose_sequence=approach.grasp_pose_sequence(
