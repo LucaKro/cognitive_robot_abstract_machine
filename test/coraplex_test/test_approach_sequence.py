@@ -49,6 +49,20 @@ def grasp_at_origin(body) -> Pose:
     return Pose(reference_frame=body)
 
 
+def grasp_from_above(body) -> Pose:
+    """
+    :param body: The body to grasp.
+    :return: A grasp frame at the body's origin that approaches it from above, so the
+        grasp frame's own z-axis lies horizontal.
+    """
+    return Pose(
+        orientation=RotationMatrix.from_vectors(
+            x=Vector3.NEGATIVE_Z(), y=Vector3.X()
+        ).to_quaternion(),
+        reference_frame=body,
+    )
+
+
 # %% approach sequences
 
 
@@ -133,6 +147,31 @@ def test_retreat_pose_rises_along_the_world_z_axis(boxed_pr2_world):
     ).to_np()
     np.testing.assert_allclose(
         world_P_retreat[:3, 3] - world_P_grasp[:3, 3],
+        [0, 0, action.retreat_distance],
+        atol=1e-9,
+    )
+
+
+def test_a_grasp_from_above_is_lifted_straight_up(boxed_pr2_world):
+    """
+    A grasp approached from above has its own z-axis lying horizontal, so the lift has to
+    follow the world's z-axis rather than the grasp frame's, or it drags the object
+    sideways across its support instead of raising it.
+    """
+    world, robot, box = boxed_pr2_world
+    action = HasApproachesGraspPoses()
+    grasp = grasp_from_above(box)
+
+    _, _, retreat = action.grasp_pose_sequence(
+        grasp,
+        robot.left_arm.end_effector,
+        grasp,
+    )
+
+    world_T_grasp = world.transform(grasp.to_homogeneous_matrix(), world.root)
+    world_T_retreat = world.transform(retreat.to_homogeneous_matrix(), world.root)
+    np.testing.assert_allclose(
+        world_T_retreat.to_np()[:3, 3] - world_T_grasp.to_np()[:3, 3],
         [0, 0, action.retreat_distance],
         atol=1e-9,
     )

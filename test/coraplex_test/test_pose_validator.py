@@ -406,6 +406,48 @@ def test_validation_frees_the_gripper_like_the_reach_it_validates(
     )
 
 
+def test_validation_holds_the_base_of_a_robot_that_stands_still(immutable_model_world):
+    """
+    A robot that does not move its whole body stands still while it reaches, so the probe
+    holds its base exactly as the executed motion does.
+
+    A probe that lets the base drive judges a standing pose by a reach the execution
+    cannot perform, and its own goal is bound to a base that then moves, so it answers
+    about a goal that travelled with the robot.
+    """
+    world, robot_view, context = immutable_model_world
+    assert not robot_view.mobile_base.full_body_controlled
+    validator = _reachability_validator(world, robot_view, context)
+
+    msc = validator.create_msc()
+
+    [hold_base] = [
+        node
+        for node in msc.get_nodes_by_type(CartesianPose)
+        if node.tip_link == robot_view.root
+    ]
+    assert hold_base.root_link == world.root
+    assert hold_base.goal_pose.reference_frame == robot_view.root
+
+
+def test_validation_leaves_a_full_body_controlled_base_free(mutable_model_world):
+    """
+    A robot that may drive while it reaches is probed that way too.
+    """
+    world, robot_view, context = mutable_model_world
+    with world.modify_world():
+        robot_view.mobile_base.full_body_controlled = True
+    validator = _reachability_validator(world, robot_view, context)
+
+    msc = validator.create_msc()
+
+    assert [
+        node
+        for node in msc.get_nodes_by_type(CartesianPose)
+        if node.tip_link == robot_view.root
+    ] == []
+
+
 def test_validation_uses_the_same_goal_tolerances_the_motions_do(
     immutable_model_world,
 ):

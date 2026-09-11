@@ -5,10 +5,54 @@ from typing_extensions import List, Optional
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.utils import translate_pose_along_local_axis
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Vector3
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.world_description.world_entity import Body
+
+
+@dataclass
+class KeepsBaseStill:
+    """
+    Holds the base of a robot that does not move its whole body.
+
+    Shared by the motions that reach for something and by the probe that judges whether
+    they can, so a standing pose is judged under the conditions the reach is performed
+    in.
+    """
+
+    def keep_base_still(self) -> List[MotionStatechartNode]:
+        """
+        :return: The task holding the robot's base where it stands, empty when the robot
+            may move its whole body.
+
+        A base that is not full body controlled stands still while an arm moves, so it is
+        held rather than left for another task to command. The goal of a reach is
+        expressed relative to the robot's own root and bound when the motion starts, so a
+        base that moves afterwards carries the goal with it and the arm arrives where the
+        object no longer is.
+
+        Weighted above collision avoidance, because at a lower weight the solver buys
+        clearance by drifting the base, which is the motion this prevents.
+        """
+        robot = self.robot
+        if (
+            not isinstance(robot, HasMobileBase)
+            or robot.mobile_base.full_body_controlled
+        ):
+            return []
+        return [
+            CartesianPose(
+                name="hold base",
+                root_link=self.world.root,
+                tip_link=robot.root,
+                goal_pose=Pose(reference_frame=robot.root),
+                weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
+            )
+        ]
 
 
 @dataclass
@@ -477,18 +521,22 @@ class HasApproachesGraspPoses:
         """
         The tool frame goal that lifts the object straight up off its support.
 
+        The lift follows the world's z-axis rather than the grasp frame's. A grasp
+        approached from above has its own z-axis lying horizontal, so following it would
+        drag the object across its support instead of raising it.
+
         :param grasp_pose: The grasp frame that was reached.
         :param tool_goal: The tool frame goal at the grasp, whose orientation is kept.
         :return: The retreat pose, in ``grasp_pose``'s frame.
         """
         target = grasp_pose.reference_frame
         world = target._world
-        world_T_grasp = world.transform(grasp_pose.to_homogeneous_matrix(), world.root)
-        grasp_T_retreat = HomogeneousTransformationMatrix.from_xyz_rpy(
-            z=self.retreat_distance
+        world_P_grasp = world.transform(grasp_pose.to_position(), world.root)
+        world_V_lift = Vector3(
+            x=0, y=0, z=self.retreat_distance, reference_frame=world.root
         )
         return Pose(
-            world.transform((world_T_grasp @ grasp_T_retreat).to_position(), target),
+            world.transform(world_P_grasp + world_V_lift, target),
             tool_goal.to_quaternion(),
             reference_frame=target,
         )

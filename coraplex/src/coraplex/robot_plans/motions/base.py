@@ -18,6 +18,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from coraplex.alternative_motion_mapping import AlternativeMotion
+from coraplex.robot_plans.mixins import KeepsBaseStill
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ T = TypeVar("T", bound=AbstractRobot)
 
 
 @dataclass
-class BaseMotion(Designator):
+class BaseMotion(Designator, KeepsBaseStill):
     """
     Base class for all motions.
 

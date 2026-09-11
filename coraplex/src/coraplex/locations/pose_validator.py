@@ -26,7 +26,7 @@ from coraplex.plans.plan_node import ActionNode, MotionNode
 from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
-from coraplex.robot_plans.mixins import HasApproachesGraspPoses
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses, KeepsBaseStill
 
 if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -160,7 +160,7 @@ class IsReachableBy(PoseValidator):
 
 
 @dataclass
-class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
+class AreReachableBy(PoseValidator, HasApproachesGraspPoses, KeepsBaseStill):
     """
     Validator that checks if a sequence of poses is reachable with the given robot link.
 
@@ -300,6 +300,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
 
         msc = MotionStatechart()
         msc.add_node(sequence_node := Sequence(sequence))
+        msc.add_nodes(self.keep_base_still())
         if GiskardExecutable.collision_avoidance:
             msc.add_node(ExternalCollisionAvoidance(cancel_if_collision_violated=False))
             msc.add_node(SelfCollisionAvoidance(cancel_if_collision_violated=False))

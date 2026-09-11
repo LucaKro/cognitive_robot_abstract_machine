@@ -149,9 +149,10 @@ def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_worl
         target, Arms.LEFT, movement_type=MovementType.CARTESIAN
     )
     execute_single(cartesian_motion, context=context)
-    assert isinstance(cartesian_motion.motion_chart, CartesianPose)
+    cartesian_task = _motion_task(cartesian_motion.motion_chart, view)
+    assert isinstance(cartesian_task, CartesianPose)
     assert (
-        cartesian_motion.motion_chart.translation_threshold
+        cartesian_task.translation_threshold
         == context.motion_tolerances.default_tcp_position_threshold
     )
 
@@ -160,7 +161,7 @@ def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_worl
     )
     execute_single(translation_motion, context=context)
     assert (
-        translation_motion.motion_chart.threshold
+        _motion_task(translation_motion.motion_chart, view).threshold
         == context.motion_tolerances.default_tcp_position_threshold
     )
 
@@ -181,7 +182,7 @@ def test_move_tcp_waypoints_motion_forwards_thresholds(immutable_model_world):
     )
     execute_single(motion, context=context)
 
-    nodes = motion.motion_chart.nodes
+    nodes = _motion_task(motion.motion_chart, view).nodes
     assert len(nodes) == 1
     assert isinstance(nodes[0], CartesianPose)
     assert nodes[0].translation_threshold == 0.001
@@ -202,7 +203,7 @@ def test_move_tcp_waypoints_motion_uses_giskard_defaults_when_unset(
     motion = MoveTCPWaypointsMotion(waypoints, Arms.LEFT)
     execute_single(motion, context=context)
 
-    nodes = motion.motion_chart.nodes
+    nodes = _motion_task(motion.motion_chart, view).nodes
     assert isinstance(nodes[0], CartesianPose)
     assert (
         nodes[0].translation_threshold
@@ -238,7 +239,79 @@ def test_move_tcp_waypoints_aligned_motion_forwards_position_threshold(
     assert trajectory.threshold == 0.001
 
 
-def test_move_tool_center_point_motion_without_max_velocity_returns_bare_task(
+# %% a robot that does not move its whole body stands still while it moves an arm
+
+
+def _base_holding_tasks(motion_chart, robot):
+    """
+    :return: The tasks of ``motion_chart`` that aim at the robot's own root, which is
+        what holding its base in place amounts to.
+    """
+    nodes = motion_chart.nodes if type(motion_chart) is Parallel else []
+    return [
+        node
+        for node in nodes
+        if isinstance(node, CartesianPose) and node.tip_link == robot.root
+    ]
+
+
+def _motion_task(motion_chart, robot):
+    """
+    :return: The task the motion is built around, set apart from the one holding the
+        robot's base in place.
+
+    Only a chart that is exactly a :class:`Parallel` is looked into, since a
+    :class:`CartesianPose` is one too and its own halves accompany nothing.
+    """
+    holding = _base_holding_tasks(motion_chart, robot)
+    if not holding:
+        return motion_chart
+    [task] = [node for node in motion_chart.nodes if node not in holding]
+    return task
+
+
+def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(mutable_model_world):
+    """
+    A base that is not full body controlled stands still while an arm moves, so the
+    motion has to hold it there rather than leave it for another task to command.
+
+    An arm goal is expressed relative to the robot's own root and bound when the motion
+    starts, so a base that moves afterwards carries the goal away from the object.
+    """
+    world, view, context = mutable_model_world
+    assert not view.mobile_base.full_body_controlled
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+    )
+    execute_single(motion, context=context)
+
+    [hold_base] = _base_holding_tasks(motion.motion_chart, view)
+    assert hold_base.root_link == world.root
+    assert hold_base.goal_pose.reference_frame == view.root
+    assert hold_base.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+
+
+def test_an_arm_motion_leaves_a_full_body_controlled_base_free(mutable_model_world):
+    """
+    A robot that may move its whole body drives while it reaches, so its base is not
+    held.
+    """
+    world, view, context = mutable_model_world
+    with world.modify_world():
+        view.mobile_base.full_body_controlled = True
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+    )
+    execute_single(motion, context=context)
+
+    assert _base_holding_tasks(motion.motion_chart, view) == []
+
+
+def test_move_tool_center_point_motion_without_max_velocity_adds_no_velocity_limit(
     immutable_model_world,
 ):
     """
@@ -253,7 +326,16 @@ def test_move_tool_center_point_motion_without_max_velocity_returns_bare_task(
         target, Arms.LEFT, movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
-    assert isinstance(motion.motion_chart, CartesianPose)
+
+    chart = motion.motion_chart
+    nodes = chart.nodes if isinstance(chart, Parallel) else [chart]
+    assert not [
+        node
+        for node in nodes
+        if isinstance(
+            node, (CartesianPositionVelocityLimit, CartesianRotationVelocityLimit)
+        )
+    ]
 
 
 def test_move_tool_center_point_motion_max_linear_velocity_adds_real_limit(
