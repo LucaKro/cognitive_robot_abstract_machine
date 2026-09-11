@@ -695,6 +695,22 @@ class EndEffector(AbstractRobotPart, ABC):
             ),
         )
 
+    @property
+    def held_bodies(self) -> list[Body]:
+        """
+        :return: The bodies with collision attached below the tool frame, where a grasped
+            object hangs after a pick-up.
+        """
+        return [
+            entity
+            for entity in self._world.get_kinematic_structure_entities_of_branch(
+                self.tool_frame
+            )
+            if entity != self.tool_frame
+            and isinstance(entity, Body)
+            and entity.has_collision()
+        ]
+
 
 @dataclass(eq=False)
 class Torso(KinematicChain, ABC):
