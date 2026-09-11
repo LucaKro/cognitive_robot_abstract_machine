@@ -41,25 +41,25 @@ def can_take_hold(variables, context, kwargs):
         GripperIsFree(
             ViewManager.get_end_effector_view(variables["arm"], context.robot)
         ),
-        IsObjectReachableBy(
+        IsGraspReachableBy(
             context=Context(
                 robot=context.robot,
                 world=context.world,
                 alternative_motion_mappings=context.alternative_motion_mappings,
             ),
             arm=variables["arm"],
-            graspable=kwargs["object_designator"],
-            grasp_poses=HasGraspChoice.grasp_domain(
+            grasp_pose=HasGraspChoice.resolve_grasp_pose(
                 kwargs["grasp_pose"], kwargs["object_designator"]
             ),
+            object_designator=kwargs["object_designator"].root,
         ),
     )
 ```
 
 This condition is comprised of two conditions, the first is that the gripper that should pick up the object is free and
-not holding anything ({class}`~coraplex.querying.predicates.GripperIsFree`) and the second is that one of the grasps the
-action may take is reachable ({class}`~coraplex.locations.pose_validator.IsObjectReachableBy`). The grasps it may take
-are the object's own when the caller named none, and the single named one otherwise. The arm is the queried variable
+not holding anything ({class}`~coraplex.querying.predicates.GripperIsFree`) and the second is that the grasp the action
+will take is reachable ({class}`~coraplex.locations.pose_validator.IsGraspReachableBy`). That grasp is the one the
+caller named, or the first the object offers when they named none. The arm is the queried variable
 here, since querying over other parameter (like the object to be picked up) would result in very unexpected behaviour of
 the plan.
 

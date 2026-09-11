@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from coraplex.alternative_motion_mapping import AlternativeMotion
-from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.execution_environment import ExecutionEnvironment, simulated_robot
@@ -491,6 +491,49 @@ def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model
 
         with pytest.raises(NoProgressError):
             executor.tick_until_end()
+
+
+def test_validation_is_run_with_the_motion_settings_of_the_plan(
+    immutable_model_world, monkeypatch
+):
+    """
+    The probe answers about the motion the plan will execute, so the copy it runs in is
+    addressed by a context carrying the plan's own motion settings: the alternatives a
+    motion is replaced by, and the tolerances a reach counts as finished at.
+
+    A probe given the defaults instead simulates a motion the plan never runs.
+    """
+    world, robot_view, _ = immutable_model_world
+    milk = world.get_body_by_name("milk.stl")
+    context = Context(
+        world=world,
+        robot=robot_view,
+        alternative_motion_mappings=[_MoveTcpAlternativeForPr2],
+        motion_tolerances=MotionToleranceConfig(
+            default_tcp_position_threshold=0.05, tool_orientation_threshold=0.5
+        ),
+    )
+    validator = IsGraspReachableBy(
+        context=context,
+        arm=Arms.RIGHT,
+        grasp_pose=Pose(reference_frame=milk),
+        object_designator=milk,
+    )
+
+    probe_contexts = []
+    monkeypatch.setattr(
+        AreReachableBy,
+        "__call__",
+        lambda self, *a, **k: probe_contexts.append(self.context) or True,
+    )
+
+    assert validator()
+
+    [probe_context] = probe_contexts
+    assert (
+        probe_context.alternative_motion_mappings == context.alternative_motion_mappings
+    )
+    assert probe_context.motion_tolerances == context.motion_tolerances
 
 
 # %% grasping from a standing pose

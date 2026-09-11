@@ -186,3 +186,25 @@ class Context(PlanEntity):
         if plan:
             plan.add_plan_entity(result)
         return result
+
+    def for_world(self, world: World, robot: AbstractRobot) -> Context:
+        """
+        The same settings, addressing another world.
+
+        Anything run against a copy of the world -- a probe, a what-if -- has to be run
+        the way the plan itself is, or it answers about something the plan never does.
+
+        :param world: The world the new context addresses.
+        :param robot: The robot of ``world`` that acts in it.
+        :return: A context over ``world``, belonging to no plan.
+        """
+        return Context(
+            world=world,
+            robot=robot,
+            ros_node=self.ros_node,
+            evaluate_conditions=self.evaluate_conditions,
+            query_backend=self.query_backend,
+            alternative_motion_mappings=self.alternative_motion_mappings,
+            _debug=self._debug,
+            motion_tolerances=self.motion_tolerances,
+        )

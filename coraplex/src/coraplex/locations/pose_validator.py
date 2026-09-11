@@ -391,12 +391,17 @@ class ReachabilityProbeWorld:
     The end effector of :attr:`robot` that is to do the reaching.
     """
 
+    source_context: Context
+    """
+    The context of the world that was copied, whose settings the reach is run with.
+    """
+
     @property
     def context(self) -> Context:
         """
         :return: A context addressing this copy, for validators that run inside it.
         """
-        return Context(world=self.world, robot=self.robot)
+        return self.source_context.for_world(self.world, self.robot)
 
 
 @dataclass
@@ -425,6 +430,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
             world=world,
             robot=robot,
             end_effector=ViewManager.get_end_effector_view(self.arm, robot),
+            source_context=self.context,
         )
 
     def _reaches(

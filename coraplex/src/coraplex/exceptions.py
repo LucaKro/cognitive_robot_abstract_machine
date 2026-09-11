@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing_extensions import TYPE_CHECKING, Type, List
+from typing_extensions import TYPE_CHECKING, Type
 
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import Arms, ExecutionType
@@ -197,26 +196,6 @@ class ConditionNotSatisfied(PlanFailure):
             return f"{prefix}-Condition for Action '{self.action.__name__}' is not satisfied"
         false_statements = get_false_statements(self.condition)
         return f"{prefix}-Condition for Action '{self.action.__name__}' is not satisfied, following statements are false: {[s._name_ for s in false_statements]}"
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class MotionDidNotFinish(PlanFailure):
-
-    unfinished_motions: List[MotionStatechartNode]
-    """
-    The nodes that did not succeed, whether they failed, were interrupted or never
-    ended.
-    """
-
-    def error_message(self) -> str:
-        reports = ", ".join(
-            f"{motion.unique_name} ({motion.life_cycle_state.name})"
-            for motion in self.unfinished_motions
-        )
-        return f"Motion did not finish, following motions did not succeed: {reports}"
 
     def suggest_correction(self) -> str:
         return ""

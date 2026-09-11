@@ -7,7 +7,6 @@ import time
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
-import numpy as np
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
