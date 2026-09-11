@@ -580,6 +580,39 @@ def test_any_grasp_validator_keeps_the_grasp_it_reached(immutable_model_world):
     ), "the grasp handed back must be one of the grasps the object offers"
 
 
+def test_any_grasp_validator_tries_the_nearest_grasps_first(
+    immutable_model_world, monkeypatch
+):
+    """
+    The order the grasps are tried in is the gripper's own ranking, so the grasp that is
+    accepted is the nearest one that can be reached rather than whichever the object
+    happened to generate first.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    validator = IsObjectReachableBy(context=context, arm=Arms.RIGHT, graspable=milk)
+
+    tried = []
+    monkeypatch.setattr(
+        IsObjectReachableBy,
+        "_reaches",
+        lambda self, grasp_pose, *a, **k: tried.append(grasp_pose) or False,
+    )
+
+    assert not validator()
+
+    expected = ViewManager.get_end_effector_view(
+        Arms.RIGHT, robot_view
+    ).grasp_poses_by_distance(milk)
+    assert len(tried) == len(expected)
+    for actual, wanted in zip(tried, expected):
+        np.testing.assert_allclose(
+            actual.to_homogeneous_matrix().to_np(),
+            wanted.to_homogeneous_matrix().to_np(),
+            atol=1e-9,
+        )
+
+
 def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world):
     """
     The recorded grasp belongs to the pose the validator was last asked about, so a

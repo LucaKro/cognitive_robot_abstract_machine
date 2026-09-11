@@ -209,31 +209,6 @@ def test_reversing_turns_the_grasp_into_a_release(boxed_pr2_world):
         np.testing.assert_allclose(expected.to_np(), actual.to_np(), atol=1e-9)
 
 
-def test_a_grasp_given_in_another_frame_still_clears_the_body(boxed_pr2_world):
-    """
-    The clearance is read off the body the grasp is aimed at, so a caller who wrote the
-    grasp in the world's frame gets the same stand-off as one who wrote it in the box's.
-    """
-    world, robot, box = boxed_pr2_world
-    action = HasApproachesGraspPoses()
-    origin_grasp = grasp_at_origin(box)
-    world_grasp = world.transform(
-        origin_grasp.to_homogeneous_matrix(), world.root
-    ).to_pose()
-
-    pre_grasp, _, _ = action.grasp_pose_sequence(
-        world_grasp,
-        robot.left_arm.end_effector,
-        action._grasp_in_body_frame(world_grasp, box),
-    )
-
-    np.testing.assert_allclose(
-        world.transform(pre_grasp.to_homogeneous_matrix(), box).to_np()[:3, 3],
-        [-(BOX_SCALE.x / 2 + action.approach_clearance), 0, 0],
-        atol=1e-9,
-    )
-
-
 def test_sequence_without_a_body_stands_off_by_the_clearance_alone(boxed_pr2_world):
     _, robot, box = boxed_pr2_world
     action = HasApproachesGraspPoses()

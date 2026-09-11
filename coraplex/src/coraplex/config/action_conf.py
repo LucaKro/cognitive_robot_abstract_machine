@@ -17,7 +17,7 @@ class ActionConfig:
     The gap in meters between an object and the gripper once it has let go of it.
     """
 
-    reach_fraction = 0.5
+    reach_fraction = 0.6
     """
     The fraction of an arm's length the robot stands off what it reaches for.
     """

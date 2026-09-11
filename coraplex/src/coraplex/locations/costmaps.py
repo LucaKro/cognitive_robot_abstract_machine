@@ -172,9 +172,14 @@ class Costmap(PoseGeneratorBackend):
     """
     vis_ids: List[int] = field(default_factory=list, init=False)
 
-    number_of_samples: int = field(kw_only=True, default=200)
+    number_of_samples: int = field(kw_only=True, default=2000)
     """
-    Number of samples to return at max
+    How many candidates this map offers at most, the ones it rates highest.
+
+    A caller throws most of them out before judging them properly -- a standing pose
+    inside the furniture costs nothing to refuse -- so the map has to offer far more
+    than the caller intends to act on, or a target hemmed in on every side runs out of
+    candidates before one of its reachable poses is ever reached.
     """
 
     sample_randomly: bool = field(kw_only=True, default=False)
@@ -359,9 +364,14 @@ class Costmap(PoseGeneratorBackend):
 
     def __iter__(self) -> Iterator[Pose]:
         """
-        A generator that crates pose candidates from a given locations. The generator
-        selects the highest 100 values and returns the corresponding positions.
-        Orientations are calculated such that the Robot faces the center of the locations.
+        A generator that creates pose candidates from a given locations. The generator
+        selects the highest values and returns the corresponding positions, the one the
+        map rates highest first. Orientations are calculated such that the Robot faces
+        the center of the locations.
+
+        ..note:: The order is what makes the map's shape decide anything, since a caller
+            takes the first candidate that passes its own checks rather than weighing
+            them all.
 
         :Yield: A tuple of position and orientation
         """
@@ -385,9 +395,10 @@ class Costmap(PoseGeneratorBackend):
             if self.sample_randomly:
                 indices = np.random.choice(seg_map.size, samples_per_map, replace=False)
             else:
-                indices = np.argpartition(seg_map.flatten(), -samples_per_map)[
-                    -samples_per_map:
-                ]
+                values = seg_map.flatten()
+                indices = np.argpartition(values, -samples_per_map)[-samples_per_map:]
+                # sorted for "best" samples first
+                indices = indices[np.argsort(values[indices])[::-1]]
 
             indices = np.dstack(np.unravel_index(indices, self.map.shape)).reshape(
                 samples_per_map, 2

@@ -865,16 +865,22 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
     @property
     def is_in_collision(self) -> bool:
         """
-        :return: Whether any body of this robot touches something under the collision
-            rules currently in force.
+        :return: Whether any body of this robot has come closer to something than the
+            collision rules currently in force allow.
 
-        The rules the question is asked under are the caller's to set, so that the same
-        robot can be asked about the clearances of a plan or of a standing pose.
+        A pair is watched from further away than it may approach, so a contact being
+        reported at all says only that the two are being watched; what makes it a
+        collision is its distance falling to the rules' violated distance. The rules the
+        question is asked under are the caller's to set, so that the same robot can be
+        asked about the clearances of a plan or of a standing pose.
         """
         own_bodies = set(self.bodies_with_collision)
+        collision_manager = self._world.collision_manager
         return any(
-            contact.body_a in own_bodies or contact.body_b in own_bodies
-            for contact in self._world.collision_manager.compute_collisions().contacts
+            contact.distance
+            <= collision_manager.get_violated_distance(contact.body_a, contact.body_b)
+            for contact in collision_manager.compute_collisions().contacts
+            if contact.body_a in own_bodies or contact.body_b in own_bodies
         )
 
     @classmethod

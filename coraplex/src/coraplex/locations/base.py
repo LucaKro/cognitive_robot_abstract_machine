@@ -83,6 +83,16 @@ class Location(Iterable[Pose]):
     before that pose counts as in collision.
     """
 
+    candidates_to_validate: int = 50
+    """
+    How many candidates are checked for reachability before the location gives up.
+
+    Only candidates that got that far count: judging one drives the robot to see whether
+    it arrives, while a pose standing in collision is thrown out cheaply beforehand. A
+    budget spent on the cheap refusals would leave a target hemmed in by furniture with
+    none of its reachable poses ever tried.
+    """
+
     @property
     def world(self):
         return self.context.world
@@ -159,6 +169,7 @@ class Location(Iterable[Pose]):
                 _world=test_world, node=self.context.ros_node
             ).with_collision_visualization()
 
+        validated = 0
         for pose_candidate in self.generator:
 
             # A candidate says where to stand and which way to look, which is the
@@ -175,11 +186,19 @@ class Location(Iterable[Pose]):
                 logger.debug(f"Candidate pose in collision, skipping")
                 continue
 
+            validated += 1
             if all(
                 validator(pose_candidate=pose_candidate)
                 for validator in self.validators
             ):
                 yield pose_candidate
+
+            if validated >= self.candidates_to_validate:
+                logger.debug(
+                    f"Validated {validated} candidates without another one to offer, "
+                    f"giving up"
+                )
+                return
 
     def merge(self, other: Location) -> Location:
         """

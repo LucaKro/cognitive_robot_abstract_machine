@@ -332,27 +332,6 @@ class HasApproachesGraspPoses:
     """
 
     @staticmethod
-    def _grasp_in_body_frame(grasp_pose: Pose, body: Optional[Body]) -> Pose:
-        """
-        The grasp in the frame of the body the gripper's pre-grasp pose must avoid.
-
-        A grasp that
-        :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
-        produced is already written in that body's frame and is passed on unchanged; one
-        a caller aimed at the body from somewhere else has to be rewritten first.
-
-        :param grasp_pose: The grasp frame to reach.
-        :param body: The body being grasped, or ``None`` when there is none.
-        :return: The grasp in ``body``'s frame, or an identity grasp with no reference
-            frame when there is no body.
-        """
-        if body is None:
-            return Pose()
-        if grasp_pose.reference_frame is body:
-            return grasp_pose
-        return body._world.transform(grasp_pose.to_homogeneous_matrix(), body).to_pose()
-
-    @staticmethod
     def grasp_frame_at(target_pose: Pose, target_T_grasp: Pose) -> Pose:
         """
         Place a grasp frame, given relative to a target, at that target's own pose.
@@ -383,11 +362,11 @@ class HasApproachesGraspPoses:
         :param grasp_pose: The grasp frame to reach.
         :param end_effector: The end effector that is to reach it.
         :param body_T_grasp: The same grasp written in the grasped body's own frame,
-            which is what the pre-grasp pose must avoid (see
-            :meth:`_grasp_in_body_frame`). It is passed rather than derived because
-            a body being placed is still in the gripper, nowhere near the grasp being
-            aimed at, so a release passes the grasp it is held by instead. Without it
-            only :attr:`approach_clearance` separates the two poses.
+            which is what the pre-grasp pose must avoid. It is passed rather than
+            derived because a body being placed is still in the gripper, nowhere near
+            the grasp being aimed at, so a release passes the grasp it is held by
+            instead. ``None`` leaves only :attr:`approach_clearance` between the two
+            poses.
         :param reverse: Whether to withdraw from the grasp rather than move onto it.
         :return: The pre-grasp pose, the grasp pose and the retreat pose.
         """
