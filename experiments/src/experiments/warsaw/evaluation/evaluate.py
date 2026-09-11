@@ -24,13 +24,19 @@ from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.evaluation.composition import CompositionComparison
 from experiments.warsaw.evaluation.graph import EvaluationGraph
 from experiments.warsaw.evaluation.ground_truth import GroundTruthGraph
+from experiments.warsaw.evaluation.matching import HowToCompare, ObjectCorrespondences
 from experiments.warsaw.evaluation.parenthood import (
     JudgedRelation,
     MissingParent,
     MissingParentReason,
     ParenthoodComparison,
 )
+from experiments.warsaw.evaluation.placement import (
+    placed_modelled_objects,
+    placed_run_bodies,
+)
 from experiments.warsaw.evaluation.scope import ComparisonRole, ComparisonScope
+from experiments.warsaw.evaluation.siblings import SiblingAgreement
 from experiments.warsaw.evaluation.structure import StructuralComparison
 from experiments.warsaw.pipeline.records import SplitRecord
 from experiments.warsaw.pipeline.run import Run, RunFile
@@ -61,6 +67,18 @@ NEEDS_AN_ALIGNMENT = (
 )
 """
 What every comparison naming one object against another is waiting on.
+"""
+
+HOW_TO_PAIR_PLACED_OBJECTS = HowToCompare(distance_apart=1.0, size_difference=0.3)
+"""
+What counts as the same object once an alignment puts both worlds in one frame.
+
+Where a thing sits is the only evidence that separates one drawer of a run of drawers
+from the next, so it is worth as much as everything else put together. Size is worth
+less here than it is between two graphs that share no frame: the scan sees the front of
+a cabinet and the modelled world is a solid box, so their extents do not compare for
+anything with a carcass, and size is left as a tie-breaker between candidates in the
+same place rather than as grounds to refuse one.
 """
 
 # %% everything a run was judged by
@@ -99,6 +117,17 @@ class Evaluation(JsonRecord):
     something.
     """
 
+    siblings: Optional[SiblingAgreement] = None
+    """
+    Whether parts that belong together ended up together, where an alignment let the two
+    worlds be related object by object.
+    """
+
+    matching: Optional[ObjectCorrespondences] = None
+    """
+    Which reconstructed object is which modelled one, where that could be decided.
+    """
+
     left_out: List[LeftOut] = field(default_factory=list)
     """
     The comparisons that were not made.
@@ -110,6 +139,7 @@ class Evaluation(JsonRecord):
         run: Run,
         ground_truth: GroundTruthGraph,
         scope: Optional[ComparisonScope] = None,
+        alignment: Optional[List[List[float]]] = None,
     ) -> Evaluation:
         """
         Judge one finished run against a modelled world.
@@ -117,6 +147,8 @@ class Evaluation(JsonRecord):
         :param run: The run to judge.
         :param ground_truth: The modelled world to judge it against.
         :param scope: What the comparison covers, or nothing to compare everything.
+        :param alignment: The transform landmarks fitted from the scene file to the
+            modelled world, without which nothing can be said about placement.
         :return: The numbers, and what was left out.
         """
         predicted = run.read_record(RunFile.EVALUATION_GRAPH, EvaluationGraph)
@@ -129,6 +161,9 @@ class Evaluation(JsonRecord):
         )
         modelled_edges = cls._between(scope, ground_truth.edges, ground_truth.nodes)
 
+        matching, siblings = cls._placement(
+            run, ground_truth, scope, alignment, predicted_edges, modelled_edges
+        )
         return cls(
             run=run.directory.name,
             scene=ground_truth.scene,
@@ -151,10 +186,50 @@ class Evaluation(JsonRecord):
                 modelled_objects=modelled_nodes,
                 modelled_relations=modelled_edges,
             ),
-            left_out=[
-                LeftOut(comparison="object matching", because=NEEDS_AN_ALIGNMENT),
-                LeftOut(comparison="sibling agreement", because=NEEDS_AN_ALIGNMENT),
-            ],
+            siblings=siblings,
+            matching=matching,
+            left_out=(
+                []
+                if alignment is not None
+                else [
+                    LeftOut(comparison="object matching", because=NEEDS_AN_ALIGNMENT),
+                    LeftOut(comparison="sibling agreement", because=NEEDS_AN_ALIGNMENT),
+                ]
+            ),
+        )
+
+    @classmethod
+    def _placement(
+        cls,
+        run: Run,
+        ground_truth: GroundTruthGraph,
+        scope: Optional[ComparisonScope],
+        alignment: Optional[List[List[float]]],
+        predicted_edges: List,
+        modelled_edges: List,
+    ) -> tuple:
+        """
+        Relate the two worlds object by object, where an alignment allows it.
+
+        :param run: The run to judge.
+        :param ground_truth: The modelled world to judge it against.
+        :param scope: What the comparison covers, or nothing.
+        :param alignment: The fitted transform, or nothing where none was picked.
+        :param predicted_edges: The relations the run asserted, in scope.
+        :param modelled_edges: The relations the modelled world holds, in scope.
+        :return: The correspondence and the sibling agreement, or nothing for each.
+        """
+        if alignment is None:
+            return None, None
+        matching = ObjectCorrespondences.between(
+            predicted=cls._in_scope(scope, placed_run_bodies(run, alignment)),
+            modelled=cls._in_scope(scope, placed_modelled_objects(ground_truth)),
+            how_compared=HOW_TO_PAIR_PLACED_OBJECTS,
+        )
+        return matching, SiblingAgreement.between(
+            predicted_relations=predicted_edges,
+            modelled_relations=modelled_edges,
+            correspondences=matching,
         )
 
     @staticmethod
@@ -225,6 +300,8 @@ class Evaluation(JsonRecord):
             structure=self.structure,
             parenthood=self.parenthood,
             composition=self.composition,
+            siblings=self.siblings,
+            matching=self.matching,
             held=self.classes_worth_reporting,
             unmodelled=self.relations_of_an_unmodelled_kind,
             lost=self.parts_lost_in_the_split,
@@ -245,6 +322,11 @@ def argument_parser() -> argparse.ArgumentParser:
         "--ground-truth", type=Path, required=True, help="The modelled world's graph"
     )
     parser.add_argument("--scope", type=Path, help="What the comparison covers")
+    parser.add_argument(
+        "--alignment",
+        type=Path,
+        help="The fitted landmark transform, without which placement cannot be judged",
+    )
     parser.add_argument(
         "--output", type=Path, help="Where to write, by default into the run"
     )
@@ -267,6 +349,11 @@ def main(arguments: Optional[List[str]] = None) -> int:
             json.loads(parsed.ground_truth.read_text())
         ),
         scope=ComparisonScope.read(parsed.scope) if parsed.scope else None,
+        alignment=(
+            json.loads(parsed.alignment.read_text())["matrix"]
+            if parsed.alignment
+            else None
+        ),
     )
 
     output = parsed.output or parsed.run

@@ -10,7 +10,7 @@ never be measured.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from typing_extensions import List, Optional
 
@@ -44,6 +44,16 @@ class Object:
     How big it is, where it was measured.
     """
 
+    placed: Optional[List[float]] = None
+    """
+    Where its middle is, where both graphs are in one frame.
+    """
+
+    spans: Optional[List[List[float]]] = None
+    """
+    What it spans, as low and high corners, where it was measured.
+    """
+
     @property
     def classes(self) -> List[str]:
         """
@@ -57,6 +67,20 @@ class Object:
         :return: How big it is.
         """
         return self.measured
+
+    @property
+    def centre(self) -> Optional[List[float]]:
+        """
+        :return: Where its middle is, or nothing where the two graphs share no frame.
+        """
+        return self.placed
+
+    @property
+    def bounds(self) -> Optional[List[List[float]]]:
+        """
+        :return: What it spans, or nothing where that was never measured.
+        """
+        return self.spans
 
 
 def sized(*extents: float) -> ObjectSize:
@@ -314,3 +338,62 @@ def test_a_pairing_that_was_the_only_one_on_offer_leads_by_nothing():
     ).matched
 
     assert paired.better_than_the_next_by == 0.0
+
+
+# %% pairing by where things are
+
+
+def test_where_an_object_is_decides_between_two_that_are_otherwise_alike():
+    """
+    Two drawers of one size are indistinguishable by class and size, which is the case
+    every run of a kitchen is full of.
+
+    Once an alignment puts both worlds in one frame, where each sits is the only
+    evidence that tells them apart.
+    """
+    how_compared = HowToCompare(distance_apart=1.0)
+    near = replace(drawer("apartment/drawer_near"), placed=[0.0, 0.0, 0.6])
+    far = replace(drawer("apartment/drawer_far"), placed=[0.0, 0.0, 2.6])
+
+    correspondences = ObjectCorrespondences.between(
+        [replace(drawer("drawer_1"), placed=[0.02, 0.0, 0.6])],
+        [far, near],
+        how_compared,
+    )
+
+    assert [one.modelled for one in correspondences.matched] == [
+        "apartment/drawer_near"
+    ]
+
+
+def test_two_graphs_that_share_no_frame_are_not_charged_for_being_apart():
+    """
+    Where nothing has been aligned there is no such evidence, and charging for its
+    absence would refuse every pairing in a scene that has no landmarks picked yet.
+    """
+    correspondences = ObjectCorrespondences.between(
+        [drawer("drawer_1")], [drawer("apartment/drawer_a")], HowToCompare()
+    )
+
+    assert correspondences.matched[0].cost.far_apart == 0.0
+    assert correspondences.matched[0].cost.total == 0.0
+
+
+def test_a_scanned_front_counts_as_being_at_the_object_it_lies_on():
+    """
+    A scan sees the front of a cabinet and the modelled world is a solid box, so their
+    middles sit half a carcass apart while the front lies flat against the box.
+
+    Measuring to the box rather than between the middles is what stops that being read
+    as a pairing between two different objects.
+    """
+    how_compared = HowToCompare(distance_apart=1.0)
+    carcass = Object(
+        name="apartment/cabinet1",
+        semantic_class="Cabinet",
+        placed=[0.0, 0.3, 1.0],
+        spans=[[-0.3, 0.0, 0.0], [0.3, 0.6, 2.0]],
+    )
+    front = Object(name="cabinet_1", semantic_class="Cabinet", placed=[0.0, 0.0, 1.0])
+
+    assert how_compared.cost_of(front, carcass).far_apart == 0.0

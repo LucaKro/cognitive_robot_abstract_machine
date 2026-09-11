@@ -50,6 +50,20 @@ class MatchableObject(Protocol):
         :return: How big it is, where it was measured.
         """
 
+    @property
+    def centre(self) -> Optional[List[float]]:
+        """
+        :return: Where its middle is, where both graphs have been brought into one frame,
+            and nothing where they have not.
+        """
+
+    @property
+    def bounds(self) -> Optional[List[List[float]]]:
+        """
+        :return: What it spans, as low and high corners, or nothing where it spans
+            nothing.
+        """
+
 
 # %% what a pairing cost is made of
 
@@ -74,12 +88,17 @@ class MatchCost(JsonRecord):
     What their difference in size contributed.
     """
 
+    far_apart: float = 0.0
+    """
+    What the distance between them contributed, where both worlds are in one frame.
+    """
+
     @property
     def total(self) -> float:
         """
         :return: What the pairing costs altogether.
         """
-        return self.disagreeing_class + self.differing_size
+        return self.disagreeing_class + self.differing_size + self.far_apart
 
 
 @dataclass(frozen=True)
@@ -106,6 +125,21 @@ class HowToCompare(JsonRecord):
     Above this a pairing is refused, leaving both objects unmatched.
     """
 
+    distance_apart: float = 0.0
+    """
+    What standing too far apart to be the same object costs.
+
+    Nought by default, because two worlds in unrelated frames do not agree on where
+    anything is, and charging for evidence nobody has would refuse every pairing in a
+    scene whose landmarks have not been picked. An alignment is what makes it worth
+    anything, and a caller that has one says so.
+    """
+
+    too_far_apart: float = 0.5
+    """
+    How far from a modelled object, in metres, before nothing else can save the pairing.
+    """
+
     def cost_of(
         self, predicted: MatchableObject, modelled: MatchableObject
     ) -> MatchCost:
@@ -130,6 +164,50 @@ class HowToCompare(JsonRecord):
                 if both_measured
                 else self.size_difference
             ),
+            far_apart=self.distance_apart * self._how_far_apart(predicted, modelled),
+        )
+
+    def _how_far_apart(
+        self, predicted: MatchableObject, modelled: MatchableObject
+    ) -> float:
+        """
+        How far a reconstructed object stands from a modelled one, from nought for on it
+        to one for elsewhere.
+
+        Measured to the modelled object rather than between the two middles, because a
+        scan sees the front of a cabinet while the modelled world is a solid box: their
+        middles sit half a carcass apart even where the front lies flat against the box.
+
+        Bounded like the size difference, so being far away refuses a pairing on its own
+        without letting one object on the other side of the room outweigh everything the
+        rest of the assignment is settled on.
+
+        :param predicted: The reconstructed object.
+        :param modelled: The modelled object.
+        :return: Their distance, between nought and one, and one where either is unplaced.
+        """
+        if predicted.centre is None:
+            return 1.0
+        return min(
+            1.0, self._distance_to(predicted.centre, modelled) / self.too_far_apart
+        )
+
+    @staticmethod
+    def _distance_to(point: List[float], modelled: MatchableObject) -> float:
+        """
+        :param point: Where a reconstructed object sits.
+        :param modelled: The modelled object to measure to.
+        :return: How far the point lies outside what the modelled object spans, or from
+            its middle where it spans nothing recorded, in metres.
+        """
+        where = np.asarray(point, dtype=np.float64)
+        if modelled.bounds is None:
+            if modelled.centre is None:
+                return np.inf
+            return float(np.linalg.norm(where - np.asarray(modelled.centre)))
+        low, high = np.asarray(modelled.bounds, dtype=np.float64)
+        return float(
+            np.linalg.norm(np.maximum(np.maximum(low - where, where - high), 0.0))
         )
 
 

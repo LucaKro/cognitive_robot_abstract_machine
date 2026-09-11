@@ -15,11 +15,10 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-import numpy as np
-import trimesh
 from typing_extensions import Dict, List, Optional
 
 from experiments.warsaw.evaluation.graph import EvaluationGraph
+from experiments.warsaw.evaluation.placement import bodies_of_a_run
 from experiments.warsaw.evaluation.size import ObjectSize
 from experiments.warsaw.pipeline.run import Run, RunFile
 
@@ -33,13 +32,8 @@ def sizes_of_run_bodies(run: Run) -> Dict[str, ObjectSize]:
     :param run: The finished run to measure.
     :return: The size of each body that has any faces, by the name the run gave it.
     """
-    scene_path = Path(run.read_json(RunFile.PROVENANCE)["settings"]["scene_directory"])
-    [scene_mesh] = sorted(scene_path.glob("*.ply"))
-    scene = trimesh.load(scene_mesh, process=False)
-    faces_of = np.load(run.path(RunFile.SPLIT_FACES))
     measured = {}
-    for name in faces_of.files:
-        body = scene.submesh([faces_of[name]], append=True, repair=False)
+    for name, body in bodies_of_a_run(run):
         size = ObjectSize.of(body)
         if size is not None:
             measured[name] = size
