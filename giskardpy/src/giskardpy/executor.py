@@ -232,7 +232,7 @@ class Executor:
                 self.context.world.state, self.time
             )
 
-    def tick_until_end(self, timeout: int = 1_000):
+    def tick_until_end(self, timeout: int = 3_000):
         """
         Calls tick until is_end_motion() returns True.
 

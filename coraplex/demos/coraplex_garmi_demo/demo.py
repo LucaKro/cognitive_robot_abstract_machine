@@ -121,7 +121,7 @@ The spoon only becomes a body collisions are checked against once it is grasped,
 placement that reaches through a wall goes unnoticed until the pick-up aborts on it.
 """
 
-SPOON_TARGET_POINT = Point3.from_iterable([1.6, 5.3, 0.8])
+SPOON_TARGET_POINT = Point3.from_iterable([1.6, 5.4, 0.8])
 """
 Where the spoon is carried to.
 """
@@ -208,6 +208,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             ros_node=self.ros_node,
             evaluate_conditions=True,
             alternative_motion_mappings=self.alternative_motion_mappings,
+            _debug=True
         )
 
     def build_plan(self, context: Context) -> PlanNode:
