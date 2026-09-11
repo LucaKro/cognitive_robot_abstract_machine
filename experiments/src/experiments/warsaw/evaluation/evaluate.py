@@ -152,6 +152,7 @@ class Evaluation(JsonRecord):
         ground_truth: GroundTruthGraph,
         scope: Optional[ComparisonScope] = None,
         alignment: Optional[List[List[float]]] = None,
+        predicted: Optional[EvaluationGraph] = None,
     ) -> Evaluation:
         """
         Judge one finished run against a modelled world.
@@ -161,9 +162,13 @@ class Evaluation(JsonRecord):
         :param scope: What the comparison covers, or nothing to compare everything.
         :param alignment: The transform landmarks fitted from the scene file to the
             modelled world, without which nothing can be said about placement.
+        :param predicted: What to judge instead of what the run wrote, which is how a
+            run with one part of it left out is scored the same way as the run itself.
         :return: The numbers, and what was left out.
         """
-        predicted = run.read_record(RunFile.EVALUATION_GRAPH, EvaluationGraph)
+        predicted = predicted or run.read_record(
+            RunFile.EVALUATION_GRAPH, EvaluationGraph
+        )
         split = run.read_record(RunFile.SPLIT, SplitRecord)
 
         predicted_nodes = cls._in_scope(scope, predicted.nodes)
