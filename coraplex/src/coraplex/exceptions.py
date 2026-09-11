@@ -123,6 +123,45 @@ class PerceptionTargetMissing(DataclassException):
 
 
 @dataclass
+class OffersNoGrasp(DataclassException):
+    """
+    Raised when an action has to take hold of an object that offers no grasp.
+    """
+
+    graspable: SemanticAnnotation
+    """
+    The annotation that generated no grasp frame.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.graspable} offers no grasp to take hold by."
+
+    def suggest_correction(self) -> str:
+        return (
+            "name a grasp_pose on the action, or give the annotation a grasp_poses "
+            "implementation that yields at least one frame."
+        )
+
+
+@dataclass
+class GraspPoseMissing(DataclassException):
+    """
+    Raised when a reach names neither a grasp to aim at nor an object offering one.
+    """
+
+    instance: Designator
+    """
+    The action that has nothing to reach for.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.instance} names neither a grasp_pose nor an object_designator."
+
+    def suggest_correction(self) -> str:
+        return "provide a grasp_pose, or an object_designator whose grasps it can take."
+
+
+@dataclass
 class MissingToolFrame(DataclassException):
     """
     Raised when no tool frame is available for the requested arm.
@@ -166,10 +205,18 @@ class ConditionNotSatisfied(PlanFailure):
 @dataclass
 class MotionDidNotFinish(PlanFailure):
 
-    failed_motions: List[MotionStatechartNode]
+    unfinished_motions: List[MotionStatechartNode]
+    """
+    The nodes that did not succeed, whether they failed, were interrupted or never
+    ended.
+    """
 
     def error_message(self) -> str:
-        return f"Motion did not finish, following motions failed: {self.failed_motions}"
+        reports = ", ".join(
+            f"{motion.unique_name} ({motion.life_cycle_state.name})"
+            for motion in self.unfinished_motions
+        )
+        return f"Motion did not finish, following motions did not succeed: {reports}"
 
     def suggest_correction(self) -> str:
         return ""
@@ -316,3 +363,18 @@ class PerceptionSourceUnavailable(PerceptionException):
 
     def suggest_correction(self) -> str:
         return "start the perception pipeline before running the plan."
+
+
+@dataclass
+class NotOnASingleLevelException(DataclassException):
+    """
+    Raised when an entity is detected to be on None or multiple levels at the same time.
+    """
+
+    message: str
+
+    def error_message(self) -> str:
+        return self.message
+
+    def suggest_correction(self) -> str:
+        return f"Move the robot to a recognized level"

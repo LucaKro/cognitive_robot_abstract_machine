@@ -7,8 +7,7 @@ import pytest
 from typing_extensions import Iterator, List
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.locations.factories import (
@@ -239,8 +238,7 @@ def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target
     # approximate_length returns a symbolic scalar, which compares as unequal to a float
     # under pytest.approx no matter the tolerance.
     expected_distance = (
-        float(ViewManager.get_arm_view(Arms.RIGHT, robot).approximate_length())
-        * 0.66
+        float(ViewManager.get_arm_view(Arms.RIGHT, robot).approximate_length()) * 0.66
     )
     target_position = target.to_position().to_np()[:2]
 
@@ -269,13 +267,10 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
 ):
     world, robot, context = single_robot_world
     candidate = _candidate(world)
-    end_effector = ViewManager.get_end_effector_view(Arms.RIGHT, robot)
     backend = GiskardLocationBackend(
         target=candidate,
         arm=Arms.RIGHT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT, VerticalAlignment.NoAlignment, end_effector
-        ),
+        grasp_pose=candidate,
         robot=robot,
         world=world,
     )
@@ -313,3 +308,22 @@ def test_location_validates_against_the_rules_the_plan_runs_with(single_robot_wo
         isinstance(rule, AllowSelfCollisions)
         for rule in recorder.temporary_rules_seen[0]
     )
+
+
+def test_location_validates_with_the_motion_policy_of_its_own_context(
+    single_robot_world,
+):
+    """
+    Validators run against a copy of the world and so are handed a context of their own.
+
+    That context has to carry the tolerances of the run, or a candidate is judged by
+    defaults the plan itself is never held to.
+    """
+    world, robot, context = single_robot_world
+    context.motion_tolerances.default_tcp_position_threshold = 0.123
+    candidate = _candidate(world)
+    recorder = RecordsEvaluatedRobot()
+
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+
+    assert recorder.context.motion_tolerances is context.motion_tolerances

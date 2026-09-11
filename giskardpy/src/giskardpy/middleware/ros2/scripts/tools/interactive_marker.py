@@ -144,7 +144,7 @@ class InteractiveMarkerNode:
             found.
         """
         self.giskard = GiskardWrapper(
-            node_handle=rospy.node, giskard_node_name="giskard"
+            node_handle=rospy.get_node(), giskard_node_name="giskard"
         )
         self.markers = {}
         self.server = None
@@ -218,7 +218,7 @@ class InteractiveMarkerNode:
         Creates the server, configures each marker with controls, and registers feedback
         callbacks.
         """
-        self.server = InteractiveMarkerServer(rospy.node, "cartesian_goals")
+        self.server = InteractiveMarkerServer(rospy.get_node(), "cartesian_goals")
 
         for marker in self.markers.values():
             marker.create_marker()

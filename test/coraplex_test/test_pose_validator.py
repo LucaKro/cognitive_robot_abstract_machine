@@ -3,31 +3,37 @@ import pytest
 
 from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import (
-    Arms,
-    ApproachDirection,
-    VerticalAlignment,
-)
-from coraplex.datastructures.enums import ExecutionType
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.execution_environment import ExecutionEnvironment, simulated_robot
 from coraplex.locations.pose_validator import (
+    IsGraspReachableBy,
+    IsObjectReachableBy,
     IsReachableBy,
     AreReachableBy,
-    IsObjectReachableBy,
 )
 from coraplex.robot_plans import MoveToolCenterPointMotion
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
     UpdateTemporaryCollisionRules,
 )
+from krrood.entity_query_language.factories import evaluate_condition
+from coraplex.plans.factories import sequential
+from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.view_manager import ViewManager
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowSelfCollisions,
+)
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Handle,
+    Milk,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
 
@@ -155,15 +161,7 @@ def test_pose_sequence_one_not_reachable(immutable_model_world):
     )
 
 
-def _right_front_grasp(view):
-    return GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.right_arm.end_effector,
-    )
-
-
-def test_is_object_reachable_by_copies_current_world_lazily(
+def test_is_grasp_reachable_by_copies_current_world_lazily(
     immutable_model_world, monkeypatch
 ):
     """
@@ -184,14 +182,14 @@ def test_is_object_reachable_by_copies_current_world_lazily(
 
     monkeypatch.setattr(AreReachableBy, "__call__", fake_call)
 
-    predicate = IsObjectReachableBy(
+    predicate = IsGraspReachableBy(
         context=Context(
             robot=view,
             world=world,
         ),
         arm=Arms.RIGHT,
+        grasp_pose=Pose(reference_frame=milk),
         object_designator=milk,
-        grasp_description=_right_front_grasp(view),
     )
 
     # Move the object *after* the predicate has been constructed.
@@ -215,11 +213,11 @@ def test_is_object_reachable_by_copies_current_world_lazily(
     assert captured["tip_link"]._world is captured["world"]
 
 
-def test_is_object_reachable_by_uses_target_pose_sequence(
+def test_is_grasp_reachable_by_uses_the_grasp_pose_sequence(
     immutable_model_world, monkeypatch
 ):
     """
-    With a target pose set, the reach pose sequence is checked.
+    With a grasp pose set, the reach pose sequence is checked.
     """
     world, view, context = immutable_model_world
     milk = world.get_body_by_name("milk.stl")
@@ -232,60 +230,61 @@ def test_is_object_reachable_by_uses_target_pose_sequence(
         lambda self, *a, **k: captured.setdefault("seq", self.pose_sequence) or True,
     )
 
-    assert IsObjectReachableBy(
+    assert IsGraspReachableBy(
         context=Context(
             robot=view,
             world=world,
         ),
         arm=Arms.RIGHT,
+        grasp_pose=target,
         object_designator=milk,
-        grasp_description=_right_front_grasp(view),
-        target_pose=target,
     )()
 
     assert len(captured["seq"]) == 3
 
 
-def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
+def test_opening_a_container_checks_reaching_its_handle(
     immutable_model_world, monkeypatch
 ):
     """
-    ``as_single_grasp`` checks a single grasp pose at the object's pose.
+    A handle is reached for, not grasped around: there is one pose to arrive at and no
+    approach to clear the body's geometry, so opening a container asks
+    :class:`IsReachableBy` about the handle rather than a grasp sequence.
     """
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
+    handle_body = world.get_body_by_name("milk.stl")
+    with world.modify_world():
+        world.add_semantic_annotation_recursively(handle := Handle(root=handle_body))
 
-    seq_calls = []
+    sequence_calls = []
     single_calls = []
     monkeypatch.setattr(
-        AreReachableBy, "__call__", lambda self, *a, **k: seq_calls.append(self) or True
+        AreReachableBy,
+        "__call__",
+        lambda self, *a, **k: sequence_calls.append(self) or True,
     )
     monkeypatch.setattr(
         IsReachableBy,
         "__call__",
         lambda self, *a, **k: single_calls.append(self.pose) or True,
     )
-
-    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-        2, 1.5, 0.7, 0, 0, 0, reference_frame=milk.parent_connection.parent
+    handle_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        2, 1.5, 0.7, 0, 0, 0, reference_frame=handle_body.parent_connection.parent
     )
 
-    assert IsObjectReachableBy(
-        context=Context(
-            robot=view,
-            world=world,
-        ),
-        arm=Arms.RIGHT,
-        object_designator=milk,
-        as_single_grasp=True,
-    )()
+    open_action = OpenAction(handle, Arms.RIGHT)
+    sequential([open_action], context=context)
+    assert evaluate_condition(
+        OpenAction.pre_condition(
+            open_action.bound_variables, context, open_action.designator_parameter
+        )
+    )
 
-    # Only the single-pose validator is used, against the current object pose.
-    assert not seq_calls
+    assert not sequence_calls
     assert len(single_calls) == 1
     assert np.allclose(
-        single_calls[0].to_position().to_np()[:3],
-        milk.global_pose.to_position().to_np()[:3],
+        world.transform(single_calls[0], world.root).to_position().to_np()[:3],
+        handle_body.global_pose.to_position().to_np()[:3],
     )
 
 
@@ -305,8 +304,7 @@ def test_is_object_reachable_by_reachable(immutable_model_world):
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
-        grasp_description=_right_front_grasp(view),
+        graspable=world.get_semantic_annotations_by_type(Milk)[0],
     )
 
 
@@ -326,8 +324,7 @@ def test_is_object_reachable_by_not_reachable(immutable_model_world):
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
-        grasp_description=_right_front_grasp(view),
+        graspable=world.get_semantic_annotations_by_type(Milk)[0],
     )
 
 
@@ -445,6 +442,119 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
 
     msc = validator.create_msc()
 
-    [stall_monitor] = msc.get_nodes_by_type(ProgressStalled)
+    [progress_monitor] = msc.get_nodes_by_type(StillProgressing)
     [sequence] = msc.get_nodes_by_type(Sequence)
-    assert stall_monitor.monitored_node is sequence
+    assert progress_monitor.monitored_node is sequence
+
+
+def test_validation_gives_back_the_collision_rules_it_found(immutable_model_world):
+    """
+    A location judges every candidate against one world copy, so a validation run must
+    leave the collision rules exactly as it found them.
+
+    The reach installs a gripper allowance of its own while it runs, and that allowance
+    outranks the rules of the run it was probing, so a candidate evaluated after another
+    would otherwise be judged against the previous candidate's rules.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = _reachability_validator(world, robot_view, context)
+    rule_of_the_run = AllowSelfCollisions(robot=robot_view)
+    world.collision_manager.clear_temporary_rules()
+    world.collision_manager.add_temporary_rule(rule_of_the_run)
+
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
+        validator()
+
+    assert world.collision_manager.temporary_rules == [rule_of_the_run]
+
+
+def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model_world):
+    """
+    The stall monitor is what ends a hopeless probe, so the validator does not need a
+    tick budget of its own to stop one.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = AreReachableBy(
+        context=Context(
+            world=world,
+            robot=robot_view,
+            alternative_motion_mappings=context.alternative_motion_mappings,
+        ),
+        pose_sequence=[
+            Pose(Point3.from_iterable([2.3, 2, 1]), reference_frame=world.root)
+        ],
+        tip_link=world.get_body_by_name("r_gripper_tool_frame"),
+    )
+
+    with world.reset_state_context():
+        executor = validator.create_executor(validator.create_msc())
+
+        with pytest.raises(NoProgressError):
+            executor.tick_until_end()
+
+
+# %% grasping from a standing pose
+
+
+def _milk_within_reach(world):
+    """
+    Put the milk where :func:`test_pose_reachable` establishes the right arm can reach.
+
+    :return: The milk annotation, moved.
+    """
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        1.7, 1.4, 1.0, reference_frame=world.root
+    )
+    return milk
+
+
+def test_any_grasp_validator_keeps_the_grasp_it_reached(immutable_model_world):
+    """
+    The pose that is accepted and the grasp it was accepted for belong together, so the
+    validator hands back the grasp rather than only a verdict.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    validator = IsObjectReachableBy(context=context, arm=Arms.RIGHT, graspable=milk)
+
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
+        assert validator()
+
+    assert validator.reachable_grasp is not None
+    assert validator.reachable_grasp.reference_frame is milk.root
+    reachable_grasps = [
+        grasp
+        for grasp in ViewManager.get_end_effector_view(
+            Arms.RIGHT, robot_view
+        ).grasp_poses_by_distance(milk)
+    ]
+    assert any(
+        np.allclose(
+            validator.reachable_grasp.to_homogeneous_matrix().to_np(),
+            grasp.to_homogeneous_matrix().to_np(),
+        )
+        for grasp in reachable_grasps
+    ), "the grasp handed back must be one of the grasps the object offers"
+
+
+def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world):
+    """
+    The recorded grasp belongs to the pose the validator was last asked about, so a
+    failed call must not leave the previous answer behind for a caller to read.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    validator = IsObjectReachableBy(context=context, arm=Arms.RIGHT, graspable=milk)
+
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
+        assert validator()
+        assert validator.reachable_grasp is not None
+        milk.root.parent_connection.origin = (
+            HomogeneousTransformationMatrix.from_xyz_rpy(
+                20, 20, 0.8, reference_frame=world.root
+            )
+        )
+        assert not validator()
+
+    assert validator.reachable_grasp is None

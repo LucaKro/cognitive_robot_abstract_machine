@@ -170,9 +170,8 @@ To start we need an environment in which we can pick up and place things as well
 
 ```python
 from coraplex.execution_environment import simulated_robot
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
+from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.actions.composite.transporting import NavigateAction, PickUpAction, PlaceAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -190,13 +189,9 @@ with simulated_robot:
              Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
          ),
          PickUpAction(
-             object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+             object_designator=(milk := world.get_semantic_annotations_by_type(Milk)[0]),
              arm=arm,
-             grasp_description=GraspDescription(
-                 ApproachDirection.FRONT,
-                 VerticalAlignment.NoAlignment,
-                 context.robot.right_arm.end_effector,
-             ),
+             grasp_pose=next(iter(milk.grasp_poses())),
          ),
          PlaceAction(
              object_designator=world.get_body_by_name("milk.stl"),
@@ -264,10 +259,13 @@ from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
-description = TransportAction(world.get_semantic_annotations_by_type(Milk)[0],
-                              Pose.from_xyz_quaternion(2.9, 2.2, 0.99,
-                                                       0.0, 0.0, 1.0, 0.0, reference_frame=world.root),
-                              Arms.LEFT)
+description = TransportAction(
+    world.get_semantic_annotations_by_type(Milk)[0],
+    Arms.LEFT,
+    target_location=Pose.from_xyz_quaternion(
+        2.9, 2.2, 0.99, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root
+    ),
+)
 with simulated_robot:
     sequential([MoveTorsoAction(TorsoState.HIGH),
                 description], context=context).perform()
@@ -287,6 +285,14 @@ from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from coraplex.robot_plans.actions.core.container import OpenAction
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
+
+# Opening reaches for a handle, so it is named by the handle's annotation rather than by
+# its body. The apartment carries none, so we register one for the drawer we want.
+with world.modify_world():
+    world.add_semantic_annotation_recursively(
+        handle := Handle(root=world.get_body_by_name("handle_cab10_t"))
+    )
 
 with simulated_robot:
     sequential([
@@ -295,7 +301,7 @@ with simulated_robot:
         NavigateAction(Pose.from_xyz_quaternion(1.7074915981292725, 2.6873629093170166, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                                 reference_frame=world.root)),
-        OpenAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)], context=context).perform()
+        OpenAction(handle, Arms.RIGHT)], context=context).perform()
 ```
 
 ## Closing
@@ -318,5 +324,5 @@ with simulated_robot:
         NavigateAction(Pose.from_xyz_quaternion(1.72, 2.65, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                                 reference_frame=world.root)),
-        CloseAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)], context=context).perform()
+        CloseAction(handle, Arms.RIGHT)], context=context).perform()
 ```

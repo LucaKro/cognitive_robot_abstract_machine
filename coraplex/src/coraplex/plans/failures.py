@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, TypeAlias, Union, get_args
 
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -30,6 +31,24 @@ class PlanFailure(DataclassException):
         return ""
 
 
+# %% what a plan can recover from
+
+RecoverableFailure: TypeAlias = Union[PlanFailure, NoProgressError]
+"""
+A failure a plan may respond to by trying something else.
+
+A motion that stops approaching its goal is one: the chart cancels itself with a
+:class:`~giskardpy.motion_statechart.exceptions.NoProgressError`, which says this attempt
+did not work rather than that the plan cannot go on. It does not descend from
+:class:`PlanFailure`, so anything choosing between alternatives has to name it alongside.
+"""
+
+RECOVERABLE_FAILURES = get_args(RecoverableFailure)
+"""
+:data:`RecoverableFailure` as a tuple, for use in an ``except`` clause.
+"""
+
+
 @dataclass
 class EmptyUnderspecified(PlanFailure):
     """
@@ -53,6 +72,56 @@ class AllChildrenFailed(PlanFailure):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class RepetitionsExhausted(PlanFailure):
+    """
+    Thrown when a repeating plan node ran out of attempts.
+    """
+
+    language_node: LanguageNode
+    """
+    The repeating node whose children never succeeded.
+    """
+
+    maximum_repetitions: int
+    """
+    How many attempts were allowed.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.language_node} attempted its children {self.maximum_repetitions} "
+            f"times without succeeding."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Allow more repetitions, or check whether the children can succeed at all "
+            "from the state each attempt starts in."
+        )
+
+
+@dataclass
+class PlanCancelled(PlanFailure):
+    """
+    Thrown when a monitor cancelled the plan it was watching.
+    """
+
+    language_node: LanguageNode
+    """
+    The node whose monitor cancelled the plan.
+    """
+
+    def error_message(self) -> str:
+        return f"The monitor of {self.language_node} cancelled the plan."
+
+    def suggest_correction(self) -> str:
+        return (
+            "The world is no longer in the state the rest of the plan assumed, so plan "
+            "again from the state the robot is in now."
+        )
 
 
 @dataclass

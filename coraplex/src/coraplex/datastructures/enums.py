@@ -2,8 +2,9 @@
 Module holding all enums of CoraPlex.
 """
 
+from __future__ import annotations
+
 from enum import Enum, auto, IntEnum
-from functools import cached_property
 
 
 class VisualizationLayout(Enum):
@@ -104,33 +105,6 @@ class Arms(IntEnum):
         return self.name
 
 
-class TaskStatus(int, Enum):
-    """
-    Enum for readable descriptions of a tasks' status.
-    """
-
-    CREATED = 0
-    RUNNING = 1
-    SUCCEEDED = 2
-    FAILED = 3
-    INTERRUPTED = 4
-    PAUSE = 5
-
-    @cached_property
-    def color(self) -> str:
-        """
-        :return: The color used to render this status in visualizations.
-        """
-        return {
-            TaskStatus.CREATED: "blue",
-            TaskStatus.RUNNING: "light-green",
-            TaskStatus.SUCCEEDED: "green",
-            TaskStatus.FAILED: "red",
-            TaskStatus.INTERRUPTED: "orange",
-            TaskStatus.PAUSE: "yellow",
-        }[self]
-
-
 class JointType(Enum):
     """
     Enum for readable joint types.
@@ -159,56 +133,6 @@ class AxisIdentifier(Enum):
     @classmethod
     def from_tuple(cls, axis_tuple):
         return next((axis for axis in cls if axis.value == axis_tuple), None)
-
-
-class Grasp(Enum):
-    """
-    Base class for grasp enums.
-    """
-
-    def __hash__(self):
-        return [index for index, value in enumerate(self.__class__) if self == value][0]
-
-    @classmethod
-    def from_axis_direction(cls, axis: AxisIdentifier, direction: int):
-        """
-        Get the Grasp face from an axis-index tuple.
-        """
-        return next((grasp for grasp in cls if grasp.value == (axis, direction)), None)
-
-
-class ApproachDirection(Grasp):
-    """
-    Enum for the approach direction of a gripper.
-
-    The AxisIdentifier is used to identify the axis of the gripper, and the int is used
-    to identify the direction along  that axis.
-    """
-
-    FRONT = (AxisIdentifier.X, -1)
-    BACK = (AxisIdentifier.X, 1)
-    RIGHT = (AxisIdentifier.Y, -1)
-    LEFT = (AxisIdentifier.Y, 1)
-
-    @property
-    def axis(self) -> AxisIdentifier:
-        """
-        Returns the axis of the approach direction.
-        """
-        return self.value[0]
-
-
-class VerticalAlignment(Grasp):
-    """
-    Enum for the vertical alignment of a gripper.
-
-    The AxisIdentifier is used to identify the axis of the gripper, and the int is used
-    to identify the direction along  that axis.
-    """
-
-    NoAlignment = (AxisIdentifier.Undefined, 0)
-    TOP = (AxisIdentifier.Z, -1)
-    BOTTOM = (AxisIdentifier.Z, 1)
 
 
 class GripperType(Enum):
@@ -302,27 +226,6 @@ class FilterConfig(Enum):
     """
 
     butterworth = 1
-
-
-class MonitorBehavior(Enum):
-    """
-    Enum for the different monitor behaviors.
-    """
-
-    INTERRUPT = auto()
-    """
-    Interrupt the task when the condition is met.
-    """
-
-    PAUSE = auto()
-    """
-    Pause the task when the condition is met.
-    """
-
-    RESUME = auto()
-    """
-    Resume the task when the condition is met.
-    """
 
 
 class CuttingTechnique(Enum):

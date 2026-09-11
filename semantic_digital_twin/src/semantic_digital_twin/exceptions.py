@@ -1,6 +1,7 @@
 from __future__ import annotations, absolute_import
 
 from dataclasses import dataclass, field, Field
+from datetime import timedelta
 from pathlib import Path
 from typing import Dict, Set
 from uuid import UUID
@@ -16,23 +17,26 @@ from typing_extensions import (
     Any,
 )
 
-from krrood.adapters.exceptions import JSONSerializationError
+from krrood.adapters.exceptions import JSONSerializationError, UntrackedObjectError
+from krrood.symbolic_math.exceptions import SymbolicMathNotJsonSerializableError
 from krrood.exceptions import DataclassException
-from krrood.symbolic_math.symbolic_math import SymbolicMathType
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
+    from semantic_digital_twin.adapters.ros.messages import MetaData
     from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
     from semantic_digital_twin.robots.robot_parts import (
         AbstractRobot,
         AbstractRobotPart,
+        EndEffector,
     )
     from semantic_digital_twin.world import World
     from semantic_digital_twin.world_description.geometry import Scale
     from semantic_digital_twin.world_description.world_entity import (
         SemanticAnnotation,
         WorldEntity,
+        WorldEntityWithID,
         KinematicStructureEntity,
     )
     from semantic_digital_twin.spatial_types.spatial_types import (
@@ -62,6 +66,28 @@ class NoJointStateWithType(DataclassException):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class MalformedHexColor(DataclassException):
+    """
+    Raised when a string meant to name a color is not written as hex digits.
+    """
+
+    hex_color: str
+    """
+    The string that was read as a color.
+    """
+
+    def error_message(self) -> str:
+        return f"'{self.hex_color}' does not name a color."
+
+    def suggest_correction(self) -> str:
+        return (
+            "write the color as two hex digits per channel, red first, optionally "
+            "preceded by a '#' and followed by a fourth pair for the opacity, for "
+            "example '#4080C0' or '#4080C020'."
+        )
 
 
 @dataclass
@@ -248,6 +274,48 @@ class UsageError(LogicalError):
 
 
 @dataclass
+class InvalidCameraResolutionError(UsageError):
+    """
+    Raised when a camera resolution cannot describe an image.
+    """
+
+    width: int
+    """
+    The invalid image width.
+    """
+
+    height: int
+    """
+    The invalid image height.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Camera resolution width and height must be positive, "
+            f"got width={self.width} and height={self.height}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "provide positive width and height values."
+
+
+@dataclass
+class ROSNodeNotRegisteredError(UsageError, RuntimeError):
+    """
+    Raised when shared ROS node access is requested before registration.
+    """
+
+    def error_message(self) -> str:
+        return "No shared ROS node is registered in this process."
+
+    def suggest_correction(self) -> str:
+        return (
+            "register the application-owned ROS node before constructing components "
+            "that require ROS access. Please check out the ROSNodeRegistry class and its register() method."
+        )
+
+
+@dataclass
 class WorldValidationError(LogicalError):
     """
     Raised when the world fails validation, e.g., when the kinematic structure is not a
@@ -300,6 +368,59 @@ class BrokenWorldModificationHistoryError(WorldValidationError):
 
 
 @dataclass
+class InsufficientModificationHistoryError(WorldValidationError):
+    """
+    Raised when attempting to roll back more modification blocks than the world's
+    history contains.
+    """
+
+    requested_count: int
+    """
+    The number of modification blocks that were requested to be rolled back.
+    """
+
+    available_count: int
+    """
+    The number of modification blocks actually available in the world's history.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Cannot roll back {self.requested_count} modification block(s): the "
+            f"world's history only contains {self.available_count}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "reduce the requested count to at most the number of available modification blocks."
+
+
+@dataclass
+class InvalidRollbackVersionError(WorldValidationError):
+    """
+    Raised when attempting to roll back to a version the world has not (yet) reached.
+    """
+
+    target_version: int
+    """
+    The version that was requested.
+    """
+
+    current_version: int
+    """
+    The version the world is currently at.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Cannot roll back to version {self.target_version}: the world is "
+            f"currently at version {self.current_version}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "pass a version between 0 and the world's current version."
+
+
+@dataclass
 class WorldContainsOrphanedDegreeOfFreedom(WorldValidationError):
     """
     Raised when the kinematic structure of the world contains orphaned degrees of
@@ -319,6 +440,37 @@ class WorldContainsOrphanedDegreeOfFreedom(WorldValidationError):
 
     def suggest_correction(self) -> str:
         return "did you forget to call self.delete_orphaned_dofs()?"
+
+
+@dataclass
+class WorldEntityWithIDBelongsToAnotherWorld(WorldValidationError):
+    """
+    Raised when looking an id up in a world answers with an entity that reports
+    belonging to a different world.
+
+    A world's lookup tables are meant to hold only its own entities, so this means one
+    was left registered here after being added elsewhere. Only a
+    :class:`~semantic_digital_twin.world_description.world_entity.WorldEntityWithID` is
+    looked up by id, which is why an entity without one cannot reach this.
+    """
+
+    world_entity: WorldEntityWithID
+    """
+    The entity that was found under this world but reports another one.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Looking up id {self.world_entity.id} in world '{self.world.name}' returned "
+            f"'{self.world_entity.name}', which belongs to world "
+            f"'{self.world_entity._world.name if self.world_entity._world else None}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "The entity was left registered in this world after being added to another "
+            "one; remove it from this world before adding it elsewhere."
+        )
 
 
 @dataclass
@@ -859,6 +1011,76 @@ class WorldHasNoSynchronizerError(UsageError):
 
 
 @dataclass
+class SynchronizerNotConnectedError(UsageError):
+    """
+    Raised when a synchronizer was created but its topic never became usable, so that
+    whatever it publishes would be dropped.
+    """
+
+    topic_name: str
+    """
+    The topic the synchronizer publishes on and listens to.
+    """
+
+    timeout: timedelta
+    """
+    The time that was spent waiting for the topic.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The synchronizer of '{self.topic_name}' did not reach a single subscriber "
+            f"within {self.timeout.total_seconds()}s, not even its own."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Check that the ros node of the synchronizer is alive and its middleware is running."
+
+
+@dataclass
+class WorldUpdateReferencesUnknownEntityError(UsageError):
+    """
+    Raised when an update refers to an entity this world never received, which leaves
+    everything the missing update carried out of reach.
+    """
+
+    publisher: MetaData
+    """
+    The synchronizer whose update could not be applied.
+    """
+
+    entity_id: UUID
+    """
+    The entity the update refers to.
+
+    Only its id is known, because the update that created it never arrived.
+    """
+
+    entity_name: Optional[PrefixedName]
+    """
+    The name the update calls that entity, or ``None`` where it carries none.
+    """
+
+    def error_message(self) -> str:
+        named_entity = (
+            f"'{self.entity_name}' ({self.entity_id})"
+            if self.entity_name is not None
+            else f"'{self.entity_id}'"
+        )
+        return (
+            f"The update of '{self.publisher.node_name}' refers to the entity "
+            f"{named_entity}, which this world never received."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Create the synchronizer of a world before modifying that world: changes made "
+            "before it exists reach nobody, and every later change that builds on them "
+            "cannot be applied."
+        )
+
+
+@dataclass
 class WorldHasMultipleSynchronizersError(UsageError):
     """
     Raised when the synchronizer of a world is asked for, but several of them publish
@@ -1227,28 +1449,42 @@ class NotJsonSerializable(JSONSerializationError): ...
 
 
 @dataclass
-class SpatialTypeNotJsonSerializable(NotJsonSerializable):
-    spatial_object: SymbolicMathType
-
-    def error_message(self) -> str:
-        return (
-            f"Object of type '{self.spatial_object.__class__.__name__}' is not JSON serializable, because it has "
-            f"free variables: {self.spatial_object.free_variables()}"
-        )
-
-    def suggest_correction(self) -> str:
-        return ""
+class SpatialTypeNotJsonSerializable(
+    NotJsonSerializable, SymbolicMathNotJsonSerializableError
+):
+    """
+    Raised when a spatial type that depends on variables is serialized to JSON.
+    """
 
 
 @dataclass
-class WorldEntityWithIDNotInKwargs(JSONSerializationError):
-    world_entity_id: UUID
+class WorldEntityWithIDNotInKwargs(UntrackedObjectError):
+    """
+    Raised when a JSON document refers to a world entity that was neither deserialized
+    from it nor is part of the world it is deserialized into.
+    """
+
+    key: UUID
+    """
+    The id of the world entity the document refers to.
+    """
+
+    world_entity_name: Optional[PrefixedName] = None
+    """
+    The name the reference to that entity went by when it was written.
+
+    Says which entity is meant where the id alone says nothing. ``None`` where the
+    reference carries no name, and never used to look an entity up: the id is its
+    identity.
+    """
 
     def error_message(self) -> str:
-        return (
-            f"World entity '{self.world_entity_id}' is not in the kwargs of the "
-            f"method that created it."
+        named_entity = (
+            f"World entity '{self.world_entity_name}' ({self.key})"
+            if self.world_entity_name is not None
+            else f"World entity '{self.key}'"
         )
+        return f"{named_entity} is not in the kwargs of the method that created it."
 
     def suggest_correction(self) -> str:
         return ""
@@ -1634,4 +1870,55 @@ class DriveVelocityLimitsOnUndrivenRobot(UsageError):
         return (
             "leave the drive velocity limits unset, or give the robot a mobile base "
             "whose drive can carry them."
+        )
+
+
+@dataclass
+class NothingHeld(UsageError):
+    """
+    Raised when the grasp of a gripper that holds nothing is asked for.
+    """
+
+    end_effector: EndEffector
+    """
+    The end effector that holds nothing.
+    """
+
+    def error_message(self) -> str:
+        return f"The end effector '{self.end_effector.name}' holds no body."
+
+    def suggest_correction(self) -> str:
+        return (
+            "check that a body is attached below the end effector's tool frame before "
+            "reading the grasp it is held by."
+        )
+
+
+@dataclass
+class MoreThanOneBodyHeld(UsageError):
+    """
+    Raised when a gripper's tool frame has more than one body attached to it.
+    """
+
+    end_effector: EndEffector
+    """
+    The end effector whose tool frame carries them.
+    """
+
+    held_bodies: List[KinematicStructureEntity]
+    """
+    The entities attached to that tool frame.
+    """
+
+    def error_message(self) -> str:
+        names = [str(body.name) for body in self.held_bodies]
+        return (
+            f"The end effector '{self.end_effector.name}' has more than one body "
+            f"attached to its tool frame: {names}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "detach everything but the grasped body from the tool frame, so that the "
+            "body the gripper holds is unambiguous."
         )

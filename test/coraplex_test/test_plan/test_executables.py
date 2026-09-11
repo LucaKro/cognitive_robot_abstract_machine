@@ -1,35 +1,43 @@
 """
-Tests for the REAL/SIMULATED branch of ``GiskardExecutable.motion_state_chart`` (see
+Tests for the motion state chart a ``GiskardExecutable`` owns (see
 ``coraplex/src/coraplex/plans/executables.py``).
 
-On the real robot, tasks are wrapped in a single ``Sequence`` + ``EndMotion``; in
-simulation, tasks are added individually and get pause/interrupt monitors and pre-/post-
-condition monitors wired in.
+The chart is created once while the plan is parsed and only extended afterwards: parsing
+adds a goal per plan node and a task per motion, and ``prepare_for_execution`` adds the
+nodes that terminate the chart, which depend on the execution type.
 """
 
 import pytest
+from typing_extensions import List
 
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion
+from giskardpy.motion_statechart.graph_node import (
+    CancelMotion,
+    EndMotion,
+    Goal,
+    MotionStatechartNode,
+    Task,
+)
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
 )
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
-from coraplex.datastructures.enums import ExecutionType
+from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.execution_environment import (
     ExecutionEnvironment,
     real_robot,
     simulated_robot,
 )
-from coraplex.plans.condition_nodes import PlanNodeStatusMonitor
+from coraplex.exceptions import ConditionNotSatisfied
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -48,14 +56,9 @@ def reach_action_executable(immutable_model_world):
     )
     plan = execute_single(
         ReachAction(
-            Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
-            world.get_semantic_annotations_by_type(Milk)[0],
+            grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
+            arm=Arms.RIGHT,
+            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -63,54 +66,160 @@ def reach_action_executable(immutable_model_world):
     return plan.parse()
 
 
-def test_motion_state_chart_simulated_execution_adds_tasks_directly(
-    reach_action_executable,
-):
+# %% the chart is created once and extended
+
+
+def test_motion_state_chart_is_created_once(reach_action_executable):
+    """
+    The chart is a field populated during parsing, not a property rebuilt per access.
+    """
+    assert (
+        reach_action_executable.motion_state_chart
+        is reach_action_executable.motion_state_chart
+    )
+
+
+def _nodes_below(goal: Goal) -> List[MotionStatechartNode]:
+    """
+    :return: Every node held by `goal` or by a goal below it.
+    """
+    return [
+        descendant
+        for child in goal.nodes
+        for descendant in [
+            child,
+            *(_nodes_below(child) if isinstance(child, Goal) else []),
+        ]
+    ]
+
+
+def test_parsing_populates_the_chart_with_the_motions(reach_action_executable):
+    """
+    Every task is below the executable's root goal before execution begins, and the root
+    goal is in the chart.
+    """
     tasks = list(reach_action_executable.motion_mappings.values())
+    chart = reach_action_executable.motion_state_chart
 
-    with simulated_robot:
-        chart = reach_action_executable.motion_state_chart
-
-    assert chart.get_nodes_by_type(Sequence) == []
+    assert len(tasks) == 2
+    assert reach_action_executable.root_node in chart.nodes
     for task in tasks:
-        assert task in chart.nodes
+        assert task in _nodes_below(reach_action_executable.root_node)
+        # A reach that frees its gripper carries its Cartesian goal alongside the
+        # collision rules, so the mapped node is the pair rather than the goal itself.
+        assert (
+            len([node for node in task.nodes if isinstance(node, CartesianPose)]) == 1
+        )
 
 
-def test_motion_state_chart_real_execution_wraps_tasks_in_sequence(
-    reach_action_executable,
-):
+def test_parsing_mirrors_the_plan_tree_as_nested_goals(reach_action_executable):
+    """
+    The action's motions live in a goal below the executable's root goal rather than
+    directly in the root goal.
+    """
     tasks = list(reach_action_executable.motion_mappings.values())
+    root_goal = reach_action_executable.root_node
 
+    assert isinstance(root_goal, Sequence)
+    assert root_goal.parent_node is None
+    for task in tasks:
+        assert task not in root_goal.nodes
+        [parent_goal] = [
+            goal
+            for goal in root_goal.nodes
+            if isinstance(goal, Goal) and task in goal.nodes
+        ]
+
+
+def test_parsing_does_not_terminate_the_chart(reach_action_executable):
+    """
+    The nodes that end the motion are added by ``prepare_for_execution``, because they
+    depend on the execution type.
+    """
+    chart = reach_action_executable.motion_state_chart
+
+    assert chart.get_nodes_by_type(EndMotion) == []
+    assert chart.get_nodes_by_type(CancelMotion) == []
+
+
+# %% execution-type dependent extension
+
+
+def test_prepare_for_execution_adds_a_single_end_motion(reach_action_executable):
     with real_robot:
-        chart = reach_action_executable.motion_state_chart
+        reach_action_executable.prepare_for_execution()
 
-    sequences = chart.get_nodes_by_type(Sequence)
-    assert len(sequences) == 1
-    assert sequences[0].nodes == tasks
+    chart = reach_action_executable.motion_state_chart
     assert len(chart.get_nodes_by_type(EndMotion)) == 1
-    # simulation-only machinery must not be present on the real-robot path
-    for task in tasks:
-        assert task not in chart.nodes
 
 
-def test_motion_state_chart_simulated_execution_adds_condition_and_pause_interrupt_monitors(
-    reach_action_executable,
+@pytest.mark.parametrize("execution_environment", [real_robot, simulated_robot])
+def test_execution_does_not_add_condition_monitors(
+    reach_action_executable, execution_environment
 ):
-    task_count = len(reach_action_executable.motion_mappings)
+    """
+    Conditions are carried on the executable but stay out of the chart, whichever
+    execution type the chart is prepared for.
+    """
     assert reach_action_executable.pre_condition_node
     assert reach_action_executable.post_condition_node
 
-    with simulated_robot:
-        chart = reach_action_executable.motion_state_chart
+    with execution_environment:
+        reach_action_executable.prepare_for_execution()
 
-    # one pause + one interrupt monitor per task
-    assert len(chart.get_nodes_by_type(PlanNodeStatusMonitor)) == 2 * task_count
+    chart = reach_action_executable.motion_state_chart
+    assert chart.get_nodes_by_type(ThreadedPredicateMonitor) == []
+    assert [
+        cancel
+        for cancel in chart.get_nodes_by_type(CancelMotion)
+        if isinstance(cancel.exception, ConditionNotSatisfied)
+    ] == []
+
+
+# %% wiring conditions into a chart
+
+# Nothing calls _add_condition_monitors while conditions are kept out of the chart. These
+# tests keep its wiring covered for whenever it is switched back on.
+
+
+def test_condition_monitors_bring_their_own_abort_paths(reach_action_executable):
+    assert reach_action_executable.pre_condition_node
+    assert reach_action_executable.post_condition_node
+
+    reach_action_executable._add_condition_monitors(
+        reach_action_executable.root_node.observation_variable
+    )
+
+    chart = reach_action_executable.motion_state_chart
+    # pre- and post-condition monitors
+    assert len(chart.get_nodes_by_type(ThreadedPredicateMonitor)) == 2
+    # abort paths for pre- and post-condition failing
+    assert len(chart.get_nodes_by_type(CancelMotion)) == 2
+
+
+def test_pre_condition_monitor_gates_the_root_goal(reach_action_executable):
+    """
+    The pre-condition monitor gates the whole motion, so it starts the root goal rather
+    than an individual task.
+    """
+    reach_action_executable._add_condition_monitors(
+        reach_action_executable.root_node.observation_variable
+    )
+
+    chart = reach_action_executable.motion_state_chart
+    [pre_monitor, _] = chart.get_nodes_by_type(ThreadedPredicateMonitor)
+    root_goal = reach_action_executable.root_node
+
+    assert pre_monitor.name == "pre_condition"
+    assert root_goal.start_condition.free_variables() == [
+        pre_monitor.observation_variable
+    ]
 
 
 # %% collision avoidance
 
 
-def test_motion_state_chart_avoids_the_robot_colliding_with_itself(
+def test_prepare_for_execution_avoids_the_robot_colliding_with_itself(
     reach_action_executable,
 ):
     """
@@ -120,20 +229,67 @@ def test_motion_state_chart_avoids_the_robot_colliding_with_itself(
     becomes a constraint on its own.
     """
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-        chart = reach_action_executable.motion_state_chart
+        reach_action_executable.prepare_for_execution()
 
+    chart = reach_action_executable.motion_state_chart
     assert len(chart.get_nodes_by_type(ExternalCollisionAvoidance)) == 1
     assert len(chart.get_nodes_by_type(SelfCollisionAvoidance)) == 1
 
 
-def test_motion_state_chart_leaves_out_collision_avoidance_when_not_asked_for(
+def test_prepare_for_execution_leaves_out_collision_avoidance_when_not_asked_for(
     reach_action_executable,
 ):
     """
     A run that does not ask for collision avoidance gets neither goal.
     """
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=False):
-        chart = reach_action_executable.motion_state_chart
+        reach_action_executable.prepare_for_execution()
 
+    chart = reach_action_executable.motion_state_chart
     assert chart.get_nodes_by_type(ExternalCollisionAvoidance) == []
     assert chart.get_nodes_by_type(SelfCollisionAvoidance) == []
+
+
+# %% giving up on a motion that stops progressing
+
+
+def test_prepare_for_execution_watches_the_whole_motion_for_progress(
+    reach_action_executable,
+):
+    """
+    A stalled run has to end by itself, so the chart carries a monitor watching the root
+    goal and an abort path wired to it.
+    """
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=False):
+        reach_action_executable.prepare_for_execution()
+
+    chart = reach_action_executable.motion_state_chart
+    [progress_monitor] = chart.get_nodes_by_type(StillProgressing)
+
+    assert progress_monitor.monitored_node is reach_action_executable.root_node
+    assert len(chart.get_nodes_by_type(CancelMotion)) == 1
+
+
+def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
+    immutable_model_world,
+):
+    """
+    Nothing bounds the tick loop but the monitor, so a reach the arm cannot close on has
+    to end the run rather than tick forever.
+    """
+    world, view, context = immutable_model_world
+    out_of_reach = Pose.from_xyz_rpy(2, 1.5, 50, reference_frame=world.root)
+    plan = execute_single(
+        ReachAction(
+            grasp_pose=out_of_reach,
+            arm=Arms.RIGHT,
+            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+        ),
+        context=context,
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    with simulated_robot:
+        with pytest.raises(NoProgressError):
+            executable.execute()

@@ -1,13 +1,18 @@
 import numpy as np
+from dataclasses import dataclass, field
 
 from krrood.symbolic_math.float_variable_data import (
     FloatVariableData,
 )
 from krrood.symbolic_math.symbolic_math import Vector, VariableParameters, FloatVariable
+from semantic_digital_twin.collision_checking.collision_manager import (
+    CollisionConsumer,
+)
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
 )
 from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowAllCollisions,
     AvoidCollisionBetweenGroups,
     AvoidSelfCollisions,
 )
@@ -275,3 +280,77 @@ def test_collision_rules_survive_merge(pr2_world_copy):
     with world.modify_world():
         world.merge_world(pr2_world_copy)
     assert len(world.collision_manager.rules) == expected
+
+
+# %% whether a robot touches anything
+
+
+def test_robot_is_in_collision_reports_a_contact_of_its_own(cylinder_bot_world):
+    """
+    The robot answers for its own bodies, under whichever rules the caller set.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+    environment = cylinder_bot_world.get_kinematic_structure_entity_by_name(
+        "environment"
+    )
+    collision_manager = cylinder_bot_world.collision_manager
+    collision_manager.extend_temporary_rule(
+        [
+            AvoidCollisionBetweenGroups(
+                buffer_zone_distance=10,
+                violated_distance=0.0,
+                body_group_a=[robot.root],
+                body_group_b=[environment],
+            )
+        ]
+    )
+    collision_manager.update_collision_matrix()
+
+    assert robot.is_in_collision
+
+
+def test_robot_is_not_in_collision_when_nothing_is_checked(cylinder_bot_world):
+    """
+    With every collision of the robot allowed, no contact is reported for it.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+    collision_manager = cylinder_bot_world.collision_manager
+    collision_manager.extend_temporary_rule([AllowAllCollisions()])
+    collision_manager.update_collision_matrix()
+
+    assert not robot.is_in_collision
+
+
+# %% consumers stay out of the serialized model
+
+
+@dataclass
+class ConsumerHoldingSomethingUnserializable(CollisionConsumer):
+    """
+    A consumer carrying a value no JSON serializer knows, as a live ROS publisher does.
+    """
+
+    live_handle: object = field(default_factory=object)
+    """
+    Stands in for the node a visualization publisher keeps hold of.
+    """
+
+    def on_compute_collisions(self, collision_results):
+        pass
+
+    def on_world_model_update(self, world):
+        pass
+
+    def on_collision_matrix_update(self):
+        pass
+
+
+def test_a_consumer_does_not_have_to_be_serializable(pr2_world_copy):
+    """
+    Consumers are live observers, not part of the model, so attaching one must not make
+    the world's modification history unserializable.
+    """
+    collision_manager = pr2_world_copy.collision_manager
+    collision_manager.add_collision_consumer(ConsumerHoldingSomethingUnserializable())
+
+    assert "collision_consumers" not in collision_manager.to_json()

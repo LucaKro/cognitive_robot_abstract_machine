@@ -4,10 +4,11 @@ import itertools
 import logging
 import math
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, Field
 from functools import cached_property
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from random_events.interval import SimpleInterval, Bound, closed
 from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.datastructures.variables import SpatialVariables
+from semantic_digital_twin.exceptions import MalformedHexColor
 from semantic_digital_twin.mixin import HasSimulatorProperties
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -95,11 +97,26 @@ class Color:
         self.B = float(self.B)
         self.A = float(self.A)
 
+    def __hash__(self):
+        return hash((self.R, self.G, self.B, self.A))
+
     def to_rgba(self) -> Tuple[float, float, float, float]:
         return (self.R, self.G, self.B, self.A)
 
     def to_rgb(self) -> Tuple[float, float, float]:
         return (self.R, self.G, self.B)
+
+    def to_hex(self, prefix: str = "#") -> str:
+        """
+        :param prefix: The characters the digits are written behind.
+        :return: The color written as ``#RRGGBB``, two hex digits per channel.
+
+        ..note:: The opacity is not part of it, the same way it is not part of
+            :meth:`to_rgb`.
+        """
+        return prefix + "".join(
+            f"{round(channel * 255):02X}" for channel in self.to_rgb()
+        )
 
     @classmethod
     def RED(self):
@@ -176,6 +193,36 @@ class Color:
         :param rgba: The list of RGBA values
         """
         return cls(*rgba)
+
+    @classmethod
+    def from_hex(
+        cls,
+        hex_color: str,
+        prefix: str = "#",
+        pattern: str = "(?:[0-9a-fA-F]{2}){3,4}",
+    ) -> Self:
+        """
+        Read a color written as two hex digits per channel, red first.
+
+        A fourth pair of digits sets the opacity; without it the color is fully opaque.
+
+        :param hex_color: The color, optionally preceded by a ``#`` and written in
+            either case.
+        :param prefix: The characters the digits may be written behind.
+        :param pattern: What the digits have to look like, by default three or four
+            channels of two hex digits each.
+        :raises MalformedHexColor: If the string is not written that way.
+        :return: The color it names.
+        """
+        digits = hex_color.removeprefix(prefix)
+        if re.fullmatch(pattern, digits) is None:
+            raise MalformedHexColor(hex_color)
+        return cls.from_list(
+            [
+                int(digits[index : index + 2], 16) / 255
+                for index in range(0, len(digits), 2)
+            ]
+        )
 
     @classmethod
     def PINK(cls) -> Self:
@@ -349,6 +396,10 @@ class Scale:
     def to_np(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
 
+    @property
+    def xy(self) -> Scale:
+        return Scale(self.x, self.y, 0)
+
 
 @dataclass
 class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
@@ -410,13 +461,31 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
         world_mesh.apply_transform(world.transform(self.origin, target_frame).to_np())
         return world_mesh
 
+    @classmethod
+    def _serialized_fields(cls) -> List[Field]:
+        """
+        The fields a shape carries in its json: everything its constructor takes.
+        """
+        return [field_ for field_ in fields(cls) if field_.init]
+
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "origin": to_json(self.origin),
-            "color": to_json(self.color),
-            "texture": to_json(self.texture) if self.texture is not None else None,
+            **{
+                field_.name: to_json(getattr(self, field_.name))
+                for field_ in self._serialized_fields()
+            },
         }
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        return cls(
+            **{
+                field_.name: from_json(data[field_.name], **kwargs)
+                for field_ in cls._serialized_fields()
+                if field_.name in data
+            }
+        )
 
     def __eq__(self, other: Shape) -> bool:
         """
@@ -542,6 +611,18 @@ class Mesh(Shape):
         if mesh.units is not None:
             mesh.convert_units("meters")
         return mesh
+
+    @classmethod
+    def _serialized_fields(cls) -> List[Field]:
+        """
+        A mesh carries its geometry rather than the file it was read from, which the
+        process reading the json may not have.
+        """
+        return [
+            field_
+            for field_ in super()._serialized_fields()
+            if field_.name != "filename"
+        ]
 
     def to_json(self) -> Dict[str, Any]:
         # Serialize the unscaled geometry and the scale separately. This is the same
@@ -987,19 +1068,6 @@ class Sphere(Shape):
             self.origin,
         )
 
-    def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "radius": self.radius}
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        texture = data.get("texture")
-        return cls(
-            radius=data["radius"],
-            origin=from_json(data["origin"], **kwargs),
-            color=from_json(data["color"], **kwargs),
-            texture=from_json(texture, **kwargs) if texture is not None else None,
-        )
-
 
 @dataclass(eq=False)
 class Cylinder(Shape):
@@ -1051,20 +1119,6 @@ class Cylinder(Shape):
             self.origin,
         )
 
-    def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "width": self.width, "height": self.height}
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        texture = data.get("texture")
-        return cls(
-            width=data["width"],
-            height=data["height"],
-            origin=from_json(data["origin"], **kwargs),
-            color=from_json(data["color"], **kwargs),
-            texture=from_json(texture, **kwargs) if texture is not None else None,
-        )
-
 
 @dataclass(eq=False)
 class Box(Shape):
@@ -1109,19 +1163,6 @@ class Box(Shape):
             half_y,
             half_z,
             self.origin,
-        )
-
-    def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "scale": to_json(self.scale)}
-
-    @classmethod
-    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        texture = data.get("texture")
-        return cls(
-            scale=from_json(data["scale"], **kwargs),
-            origin=from_json(data["origin"], **kwargs),
-            color=from_json(data["color"], **kwargs),
-            texture=from_json(texture, **kwargs) if texture is not None else None,
         )
 
 

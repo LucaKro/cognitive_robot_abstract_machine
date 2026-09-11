@@ -15,8 +15,8 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveSim
 from coraplex.datastructures.dataclasses import Context
 
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import (
     reachability_location,
@@ -325,9 +325,7 @@ def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
     assert len(pose.to_quaternion().to_list()) == 4
 
 
-def test_visibility_reachability_merge(
-    immutable_multiple_robot_simple_apartment, rclpy_node
-):
+def test_visibility_reachability_merge(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
@@ -403,11 +401,6 @@ def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
             world.get_body_by_name("milk.stl"),
             context,
             Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                ViewManager.get_end_effector_view(Arms.RIGHT, robot),
-            ),
         )
 
         pose = next(iter(location))
@@ -437,11 +430,12 @@ def test_accessing_location_validates_the_poses_the_grasp_will_reach(
         )
 
     [validator] = accessing_location(drawer, context=context, arm=Arms.RIGHT).validators
-    reached = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        ViewManager.get_end_effector_view(Arms.BOTH, robot),
-    ).grasp_pose_sequence(drawer.handle.root)
+    handle_body = drawer.handle.root
+    reached = HasApproachesGraspPoses().grasp_pose_sequence(
+        handle_body.global_pose,
+        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        Pose(reference_frame=handle_body),
+    )
 
     def in_world(pose):
         """

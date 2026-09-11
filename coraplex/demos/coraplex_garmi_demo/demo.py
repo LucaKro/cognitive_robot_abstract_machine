@@ -22,13 +22,7 @@ from ament_index_python.packages import get_package_share_directory
 from typing_extensions import ClassVar
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import (
-    ApproachDirection,
-    Arms,
-    ExecutionType,
-    VerticalAlignment,
-)
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
@@ -221,7 +215,6 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         Carry the bowl and then the spoon to the table.
         """
         world = context.world
-        end_effector = context.robot.get_right_arm_if_specified().end_effector
 
         return sequential(
             [
@@ -230,12 +223,6 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 TransportAction(
                     object_designator=world.get_semantic_annotations_by_type(Bowl)[0],
                     arm=Arms.RIGHT,
-                    grasp_description=GraspDescription(
-                        ApproachDirection.RIGHT,
-                        VerticalAlignment.TOP,
-                        end_effector,
-                        rotate_gripper=True,
-                    ),
                     target_location=Pose(
                         position=BOWL_TARGET_POINT, reference_frame=world.root
                     ),
@@ -243,12 +230,6 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 TransportAction(
                     object_designator=world.get_semantic_annotations_by_type(Spoon)[0],
                     arm=Arms.RIGHT,
-                    grasp_description=GraspDescription(
-                        ApproachDirection.RIGHT,
-                        VerticalAlignment.TOP,
-                        rotate_gripper=True,
-                        end_effector=end_effector,
-                    ),
                     target_location=Pose(
                         position=SPOON_TARGET_POINT, reference_frame=world.root
                     ),

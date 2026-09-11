@@ -6,20 +6,24 @@ from typing_extensions import List
 
 from coraplex.datastructures.enums import (
     Arms,
-    ApproachDirection,
     DetectionTechnique,
-    VerticalAlignment,
 )
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.attachment_nodes import ModelChangeNode
+from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.perception import PerceptionQuery
 from coraplex.plans.executables import (
     Executable,
     GiskardExecutable,
-    ModelChangeExecutable,
+    MoveBranchExecutable,
 )
-from coraplex.plans.factories import execute_single, sequential
+from coraplex.plans.factories import (
+    cancel_when,
+    execute_single,
+    pause_until,
+    pause_while,
+    repeat,
+    sequential,
+)
 from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.plans.plan_node import (
     ActionNode,
@@ -34,7 +38,32 @@ from coraplex.robot_plans.actions.core.pick_up import ReachAction, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from coraplex.robot_plans.motions.misc import DetectingMotion, PerceptionTask
+from coraplex.language import (
+    ParallelNode,
+    SequentialNode,
+    TryAllNode,
+    TryInOrderNode,
+)
+from giskardpy.motion_statechart.monitors.templates import (
+    PausedUntilTrue,
+    PausedWhileTrue,
+)
 from coraplex.utils import split_list_by_type
+from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.goals.templates import (
+    Parallel,
+    RepeatOnStall,
+    Sequence,
+    TryAll,
+    TryInOrder,
+    CancelledWhenTrue,
+)
+from giskardpy.motion_statechart.graph_node import CancelMotion
+from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
+from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
+    ConstFalseNode,
+)
+from giskardpy.ros_executor import Ros2Executor
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
@@ -63,6 +92,213 @@ def test_parse_simple_action(immutable_model_world):
     assert type(list(executable.motion_mappings.values())[0]) == JointPositionList
 
 
+# %% the chart mirrors the plan tree
+
+
+def test_language_nodes_create_a_goal_of_their_template():
+    """
+    Each language node contributes a goal of the template it declares, which is what
+    gives the motion state chart the plan's sequential/parallel/try semantics.
+    """
+    assert type(SequentialNode().create_goal()) is Sequence
+    assert type(ParallelNode().create_goal()) is Parallel
+    assert type(TryAllNode().create_goal()) is TryAll
+    assert type(TryInOrderNode().create_goal()) is TryInOrder
+
+
+def test_sequential_plan_nests_a_goal_per_plan_node(immutable_model_world):
+    """
+    Parsing a sequential plan builds a goal per language and action node, with the
+    motions as tasks at the leaves, rather than one flat list of tasks.
+    """
+    world, view, context = immutable_model_world
+
+    plan = sequential(
+        [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)],
+        context=context,
+    )
+    plan.notify()
+    executable = plan.parse()
+
+    root_goal = executable.root_node
+    assert type(root_goal) is Sequence
+    assert root_goal.name == "SequentialNode"
+
+    action_goals = root_goal.nodes
+    assert len(action_goals) == 2
+    assert [type(goal) for goal in action_goals] == [Sequence, Sequence]
+    assert [goal.name for goal in action_goals] == ["ActionNode", "ActionNode"]
+
+    tasks = list(executable.motion_mappings.values())
+    assert [goal.nodes for goal in action_goals] == [[tasks[0]], [tasks[1]]]
+
+
+# %% monitored subtrees
+
+
+def _monitored_goal_of(executable):
+    """
+    :return: The single monitored goal below the executable's root goal.
+    """
+    [monitored_goal] = executable.root_node.nodes
+    return monitored_goal
+
+
+def _parse_and_compile(plan, world, context):
+    """
+    Parse `plan` and compile its motion state chart.
+
+    Compiling is what expands the goals, so it is required before any condition wired by
+    a template can be observed.
+    """
+    plan.notify()
+    executable = plan.parse()
+    with simulated_robot:
+        executable.prepare_for_execution()
+    executor = Ros2Executor(
+        context=MotionStatechartContext(world=world), ros_node=context.ros_node
+    )
+    executor.compile(executable.motion_state_chart)
+    return executable
+
+
+def test_pause_monitor_pauses_the_children_goal(immutable_model_world, rclpy_node):
+    """
+    The monitor and the children's goal are siblings inside the monitored goal, which is
+    what makes the pause condition legal: it may only reference a sibling.
+    """
+    world, view, context = immutable_model_world
+    monitor = ConstFalseNode(name="never")
+
+    plan = pause_while(
+        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    )
+    executable = _parse_and_compile(plan, world, context)
+
+    monitored_goal = _monitored_goal_of(executable)
+    assert type(monitored_goal) is PausedWhileTrue
+    assert monitored_goal.nodes == [monitor, monitored_goal.monitored_node]
+    assert monitored_goal.monitored_node.pause_condition.free_variables() == [
+        monitor.observation_variable
+    ]
+
+
+def test_pause_until_monitor_pauses_the_children_goal(
+    immutable_model_world, rclpy_node
+):
+    """
+    The children's goal is paused on the negated monitor observation, so it is held
+    until the monitor turns True rather than while it is True.
+    """
+    world, view, context = immutable_model_world
+    monitor = ConstFalseNode(name="never")
+
+    plan = pause_until(
+        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    )
+    executable = _parse_and_compile(plan, world, context)
+
+    monitored_goal = _monitored_goal_of(executable)
+    assert type(monitored_goal) is PausedUntilTrue
+    assert monitored_goal.nodes == [monitor, monitored_goal.monitored_node]
+    assert monitored_goal.monitored_node.pause_condition.free_variables() == [
+        monitor.observation_variable
+    ]
+
+
+def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node):
+    world, view, context = immutable_model_world
+    monitor = ConstFalseNode(name="never")
+
+    plan = cancel_when(
+        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    )
+    executable = _parse_and_compile(plan, world, context)
+
+    monitored_goal = _monitored_goal_of(executable)
+    assert type(monitored_goal) is CancelledWhenTrue
+    assert monitored_goal.nodes[:2] == [monitor, monitored_goal.monitored_node]
+    assert monitored_goal.monitored_node.end_condition.free_variables() == [
+        monitor.observation_variable
+    ]
+
+
+def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
+    immutable_model_world, rclpy_node
+):
+    """
+    The monitored goal holds a node that ends the motion, so giving up on the subtree
+    gives up on the plan rather than leaving the rest of it waiting.
+    """
+    world, view, context = immutable_model_world
+    monitor = ConstFalseNode(name="never")
+
+    plan = cancel_when(
+        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    )
+    executable = _parse_and_compile(plan, world, context)
+
+    monitored_goal = _monitored_goal_of(executable)
+    [cancelled] = [
+        node for node in monitored_goal.nodes if isinstance(node, CancelMotion)
+    ]
+    assert cancelled.exception == monitored_goal.exception
+    assert cancelled.start_condition.free_variables() == [monitor.observation_variable]
+
+
+def test_monitored_subtree_nested_in_a_sequence_compiles(
+    immutable_model_world, rclpy_node
+):
+    """
+    A monitored subtree is a node like any other in the surrounding sequence.
+
+    Compiling is the real assertion: it runs the condition scope validation that this
+    structure exists to satisfy.
+    """
+    world, view, context = immutable_model_world
+
+    plan = sequential(
+        [
+            MoveTorsoAction(TorsoState.LOW),
+            cancel_when(
+                [MoveTorsoAction(TorsoState.HIGH)], monitor=ConstFalseNode(name="never")
+            ),
+        ],
+        context=context,
+    )
+    executable = _parse_and_compile(plan, world, context)
+
+    assert len(executable.motion_state_chart.get_nodes_by_type(CancelledWhenTrue)) == 1
+
+
+# %% repeating a subtree
+
+
+def test_repeat_node_wraps_its_children_in_a_repeating_goal(
+    immutable_model_world, rclpy_node
+):
+    """
+    A repeat contributes a goal that holds the children, the attempt counter and the
+    node that reports running out of attempts, all as siblings so the wiring between
+    them is legal.
+    """
+    world, view, context = immutable_model_world
+
+    plan = repeat(
+        [MoveTorsoAction(TorsoState.HIGH)], maximum_repetitions=3, context=context
+    )
+    executable = _parse_and_compile(plan, world, context)
+
+    [loop] = executable.root_node.nodes
+    assert type(loop) is RepeatOnStall
+    assert loop.task in loop.nodes
+    [counter] = [node for node in loop.nodes if isinstance(node, CountNodeResets)]
+    assert counter.target == 3
+    assert counter is loop.stop_retry_monitor
+    [exhausted] = [node for node in loop.nodes if isinstance(node, CancelMotion)]
+    assert exhausted.start_condition.free_variables() == [counter.observation_variable]
+
+
 def test_merge_motions(immutable_model_world, rclpy_node):
     world, view, context = immutable_model_world
 
@@ -73,14 +309,9 @@ def test_merge_motions(immutable_model_world, rclpy_node):
 
     plan = execute_single(
         ReachAction(
-            Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
-            world.get_semantic_annotations_by_type(Milk)[0],
+            grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
+            arm=Arms.RIGHT,
+            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -101,16 +332,9 @@ def test_merge_motions(immutable_model_world, rclpy_node):
 def test_parse_pick_up(immutable_model_world):
     world, view, context = immutable_model_world
 
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan = execute_single(
-        PickUpAction(
-            world.get_semantic_annotations_by_type(Milk)[0],
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
-        ),
+        PickUpAction(milk, Arms.RIGHT),
         context=context,
     )
 
@@ -122,7 +346,7 @@ def test_parse_pick_up(immutable_model_world):
 
     assert len(executable.execution_list) == 3
     assert type(executable.execution_list[0]) == GiskardExecutable
-    assert type(executable.execution_list[1]) == ModelChangeExecutable
+    assert type(executable.execution_list[1]) == MoveBranchExecutable
     assert type(executable.execution_list[2]) == GiskardExecutable
 
 
@@ -134,16 +358,9 @@ def test_parse_pick_up_merges_motions_around_model_change(immutable_model_world)
     """
     world, view, context = immutable_model_world
 
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan = execute_single(
-        PickUpAction(
-            world.get_semantic_annotations_by_type(Milk)[0],
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
-        ),
+        PickUpAction(milk, Arms.RIGHT),
         context=context,
     )
 
@@ -163,16 +380,11 @@ def test_parse_complex_plan(immutable_model_world):
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
-                target_pose=Pose(
+                grasp_pose=Pose(
                     Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root
                 ),
                 object_designator=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    view.right_arm.end_effector,
-                ),
             ),
         ],
         context=context,
@@ -191,16 +403,11 @@ def test_parsing_two_actions_into_one_exec(immutable_model_world):
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
-                target_pose=Pose(
+                grasp_pose=Pose(
                     Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root
                 ),
                 object_designator=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    view.right_arm.end_effector,
-                ),
             ),
         ],
         context=context,
@@ -216,17 +423,10 @@ def test_parsing_two_actions_into_one_exec(immutable_model_world):
 def test_parse_pick_place(immutable_model_world):
     world, view, context = immutable_model_world
 
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan = sequential(
         [
-            PickUpAction(
-                world.get_semantic_annotations_by_type(Milk)[0],
-                Arms.RIGHT,
-                GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    view.right_arm.end_effector,
-                ),
-            ),
+            PickUpAction(milk, Arms.RIGHT),
             PlaceAction(
                 world.get_body_by_name("milk.stl"),
                 Pose(reference_frame=world.root),
@@ -256,8 +456,10 @@ def test_parse_transport_plan(mutable_model_world, rclpy_node):
             ParkArmsAction(Arms.BOTH),
             TransportAction(
                 world.get_semantic_annotations_by_type(Milk)[0],
-                Pose.from_xyz_rpy(2.37, 2.5, 1.05, reference_frame=world.root),
                 Arms.RIGHT,
+                target_location=Pose.from_xyz_rpy(
+                    2.37, 2.5, 1.05, reference_frame=world.root
+                ),
             ),
         ],
         context=context,
@@ -407,13 +609,8 @@ def reach_action(milk: Milk, view, **kwargs) -> ReachAction:
     :return: A reach at the object's own frame.
     """
     return ReachAction(
-        target_pose=Pose(reference_frame=milk.root),
+        grasp_pose=Pose(reference_frame=milk.root),
         arm=Arms.RIGHT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
-        ),
         object_designator=milk,
         **kwargs,
     )
@@ -464,11 +661,6 @@ def test_a_pick_up_passes_perceiving_on_to_its_reach(immutable_model_world):
         PickUpAction(
             milk,
             Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
             perceive_before_grasp=True,
         ),
         context=context,
@@ -487,13 +679,8 @@ def test_perceiving_without_an_object_to_detect_is_rejected(immutable_model_worl
     world, view, context = immutable_model_world
 
     reach = ReachAction(
-        target_pose=Pose(reference_frame=world.root),
+        grasp_pose=Pose(reference_frame=world.root),
         arm=Arms.RIGHT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
-        ),
         perceive_before_grasp=True,
     )
 
@@ -520,11 +707,6 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
         PickUpAction(
             milk,
             Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
         ),
         context=context,
     )
@@ -564,11 +746,11 @@ def test_split_by_type(immutable_model_world):
 
     split_list = [
         MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        ModelChangeNode(body=world.get_body_by_name("milk.stl"), new_parent=world.root),
+        ReAttachNode(body=world.get_body_by_name("milk.stl"), new_parent=world.root),
         MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
     ]
 
-    splitted_list = split_list_by_type(split_list, ModelChangeNode)
+    splitted_list = split_list_by_type(split_list, ReAttachNode)
 
     assert len(splitted_list) == 3
     assert len(splitted_list[0]) == 1
@@ -577,7 +759,7 @@ def test_split_by_type(immutable_model_world):
 
 
 def test_split_by_type_empty_list():
-    assert split_list_by_type([], ModelChangeNode) == []
+    assert split_list_by_type([], ReAttachNode) == []
 
 
 def test_split_by_type_without_match_stays_one_group():
@@ -586,7 +768,7 @@ def test_split_by_type_without_match_stays_one_group():
         MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
     ]
 
-    splitted_list = split_list_by_type(no_model_change, ModelChangeNode)
+    splitted_list = split_list_by_type(no_model_change, ReAttachNode)
 
     assert len(splitted_list) == 1
     assert splitted_list[0] == no_model_change
@@ -594,7 +776,7 @@ def test_split_by_type_without_match_stays_one_group():
 
 def test_split_by_type_groups_consecutive_elements(immutable_model_world):
     world, view, context = immutable_model_world
-    model_change = ModelChangeNode(
+    model_change = ReAttachNode(
         body=world.get_body_by_name("milk.stl"), new_parent=world.root
     )
 
@@ -605,19 +787,19 @@ def test_split_by_type_groups_consecutive_elements(immutable_model_world):
         MoveToolCenterPointMotion(Pose(), Arms.LEFT),
     ]
 
-    splitted_list = split_list_by_type(split_list, ModelChangeNode)
+    splitted_list = split_list_by_type(split_list, ReAttachNode)
 
     assert [len(group) for group in splitted_list] == [2, 1, 1]
     assert splitted_list[1] == [model_change]
-    assert all(not isinstance(element, ModelChangeNode) for element in splitted_list[0])
+    assert all(not isinstance(element, ReAttachNode) for element in splitted_list[0])
 
 
 def test_split_by_type_leading_and_trailing_match(immutable_model_world):
     world, view, context = immutable_model_world
-    first_model_change = ModelChangeNode(
+    first_model_change = ReAttachNode(
         body=world.get_body_by_name("milk.stl"), new_parent=world.root
     )
-    last_model_change = ModelChangeNode(
+    last_model_change = ReAttachNode(
         body=world.get_body_by_name("milk.stl"), new_parent=world.root
     )
 
@@ -627,7 +809,7 @@ def test_split_by_type_leading_and_trailing_match(immutable_model_world):
         last_model_change,
     ]
 
-    splitted_list = split_list_by_type(split_list, ModelChangeNode)
+    splitted_list = split_list_by_type(split_list, ReAttachNode)
 
     assert [len(group) for group in splitted_list] == [1, 1, 1]
     assert splitted_list[0] == [first_model_change]

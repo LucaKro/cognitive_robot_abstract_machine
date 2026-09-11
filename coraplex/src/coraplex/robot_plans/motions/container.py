@@ -33,7 +33,7 @@ class OpeningMotion(BaseMotion):
         return Open(
             tip_link=tip,
             environment_link=self.object_part,
-            weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
+            mechanism_weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
         )
 
 
@@ -63,5 +63,5 @@ class ClosingMotion(BaseMotion):
             tip_link=tip,
             environment_link=self.object_part,
             goal_joint_state=0.01,
-            weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
+            mechanism_weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
         )

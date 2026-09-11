@@ -13,52 +13,40 @@ from krrood.entity_query_language.factories import (
     variable,
 )
 from coraplex.config.action_conf import ActionConfig
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import Arms
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import HasGraspChoice, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class TransportAction(ActionDescription):
+class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses):
     """
     Transports an object to a position using an arm.
     """
 
-    object_designator: HasRootBody = field(repr=False)
-    """
-    The annotation of the object that should be transported.
-    """
-
-    target_location: Pose
+    target_location: Pose = field(kw_only=True)
     """
     Target Location to which the object should be transported.
-    """
 
-    arm: Arms
-    """
-    Arm that should be used.
-    """
-
-    grasp_description: Optional[GraspDescription] = None
-    """
-    Grasp Description that should be used for picking up the object.
+    The navigation this action plans aims at the same grasp the pick-up takes, so a
+    caller that worked out which grasp is reachable passes it as :attr:`grasp_pose` and
+    both follow it.
     """
 
     def inside_container(self) -> List[Body]:
@@ -84,13 +72,13 @@ class TransportAction(ActionDescription):
         drawer_annotation = list(drawer_annotation.evaluate())
         if len(drawer_annotation) == 0:
             return []
-        handle = drawer_annotation[0].handle.root
+        handle = drawer_annotation[0].handle
 
         return [
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
-                    domain=reachability_location(handle, self.context, self.arm),
+                    domain=reachability_location(handle.root, self.context, self.arm),
                 ),
                 keep_joint_states=True,
             ),
@@ -100,11 +88,6 @@ class TransportAction(ActionDescription):
 
     @property
     def _action_plan(self) -> PlanNode:
-        self.grasp_description = self.grasp_description or GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            ViewManager.get_end_effector_view(self.arm, self.robot),
-        )
 
         children = []
         for container in self.inside_container():
@@ -122,7 +105,7 @@ class TransportAction(ActionDescription):
                                 self.object_designator.root,
                                 self.context,
                                 self.arm,
-                                self.grasp_description,
+                                self.grasp_pose,
                             )
                         ),
                     ),
@@ -131,11 +114,13 @@ class TransportAction(ActionDescription):
                 a(PickUpAction)(
                     object_designator=self.object_designator,
                     arm=self.arm,
-                    grasp_description=self.grasp_description,
+                    grasp_pose=self.grasp_pose,
+                    approach_clearance=self.approach_clearance,
+                    retreat_distance=self.retreat_distance,
                 ),
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
-                self._make_navigate_action_for_placing(self.grasp_description),
+                self._make_navigate_action_for_placing(self.grasp_pose),
                 a(PlaceAction)(
                     object_designator=self.object_designator.root,
                     target_location=self.target_location,
@@ -147,16 +132,23 @@ class TransportAction(ActionDescription):
 
         return sequential(children)
 
-    def _make_navigate_action_for_placing(self, grasp_description: GraspDescription):
+    def _make_navigate_action_for_placing(self, grasp_pose: Pose):
         """
-        :param grasp_description: The grasp description that should be used for placing the object.
+        :param grasp_pose: The grasp frame the object is held at, in its own frame.
         :return: The navigate action that will be used to place the object.
         """
         return a(NavigateAction)(
             target_location=variable(
                 Pose,
-                domain=reachability_location(
-                    self.target_location, self.context, self.arm, grasp_description
+                domain=DeferredLocation(
+                    lambda: reachability_location(
+                        self.target_location,
+                        self.context,
+                        self.arm,
+                        grasp_pose,
+                        approach_clearance=self.approach_clearance,
+                        retreat_distance=self.retreat_distance,
+                    )
                 ),
             ),
             keep_joint_states=True,
@@ -170,7 +162,7 @@ class PickAndPlaceAction(ActionDescription):
     the robot.
     """
 
-    object_designator: HasRootBody
+    object_designator: HasGraspPoses
     """
     The annotation of the object that should be transported.
     """
@@ -184,21 +176,13 @@ class PickAndPlaceAction(ActionDescription):
     """
     Arm that should be used.
     """
-    grasp_description: GraspDescription
-    """
-    Description of the grasp to pick up the target.
-    """
 
     @property
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
                 ParkArmsAction(Arms.BOTH),
-                PickUpAction(
-                    self.object_designator,
-                    self.arm,
-                    grasp_description=self.grasp_description,
-                ),
+                PickUpAction(self.object_designator, self.arm),
                 ParkArmsAction(Arms.BOTH),
                 PlaceAction(
                     self.object_designator.root, self.target_location, self.arm
@@ -259,7 +243,7 @@ class MoveAndPickUpAction(ActionDescription):
     """
     The pose to stand before trying to pick up the object.
     """
-    object_designator: HasRootBody
+    object_designator: HasGraspPoses
     """
     The annotation of the object to pick up.
     """
@@ -267,11 +251,6 @@ class MoveAndPickUpAction(ActionDescription):
     """
     The arm to use.
     """
-    grasp_description: GraspDescription
-    """
-    The grasp to use.
-    """
-
     keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
     """
     Keep the joint states of the robot the same during the navigation.
@@ -285,6 +264,6 @@ class MoveAndPickUpAction(ActionDescription):
                 FaceAtAction(
                     self.object_designator.root.global_pose, self.keep_joint_states
                 ),
-                PickUpAction(self.object_designator, self.arm, self.grasp_description),
+                PickUpAction(self.object_designator, self.arm),
             ]
         )
