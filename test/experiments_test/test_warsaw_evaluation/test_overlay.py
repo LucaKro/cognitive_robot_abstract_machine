@@ -8,18 +8,22 @@ one frame, with every body still telling you which world it came from and what i
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import trimesh
 
 from experiments.warsaw.evaluation.overlay import (
     MODELLED,
     RECONSTRUCTION,
+    ReconstructionNotUprightError,
     overlaid,
 )
 
 # %% two small scenes
 
 
-def scene_of(name: str, at: float) -> trimesh.Scene:
+def scene_of(
+    name: str, at: float, extents: tuple[float, float, float] = (1.0, 1.0, 1.0)
+) -> trimesh.Scene:
     """
     A scene holding one box whose node is named and whose geometry is not.
 
@@ -28,7 +32,7 @@ def scene_of(name: str, at: float) -> trimesh.Scene:
     the same would hide the difference.
     """
     scene = trimesh.Scene()
-    box = trimesh.creation.box(extents=(1.0, 1.0, 1.0))
+    box = trimesh.creation.box(extents=extents)
     scene.add_geometry(
         box,
         node_name=name,
@@ -99,3 +103,35 @@ def test_the_two_worlds_are_told_apart_by_more_than_their_names():
     assert tuple(painted) != tuple(
         together.geometry[f"{RECONSTRUCTION}/drawer_1"].visual.main_color
     )
+
+
+# %% a fit applied in the wrong frame
+
+
+def test_a_reconstruction_standing_taller_than_the_world_is_refused():
+    """
+    A fit applied in the frame it was picked in rather than the run's lands the scan a
+    quarter turn out, which reads as a badly picked landmark set.
+
+    Both are rooms, so a reconstruction standing far taller than what it is overlaid on
+    is the frame.
+    """
+    lying_down = scene_of("kitchen", 0.0, extents=(1.0, 8.0, 1.0))
+    room = scene_of("apartment", 0.0, extents=(4.0, 4.0, 3.0))
+    quarter_turn = trimesh.transformations.rotation_matrix(np.pi / 2, (1, 0, 0))
+
+    with pytest.raises(ReconstructionNotUprightError):
+        overlaid(lying_down, room, quarter_turn)
+
+
+def test_a_reconstruction_that_fits_under_the_ceiling_is_kept():
+    """
+    Reaching a little past what was modelled is ordinary; only a quarter turn shows up
+    as metres.
+    """
+    upright = scene_of("kitchen", 0.0, extents=(1.0, 8.0, 1.0))
+    room = scene_of("apartment", 0.0, extents=(4.0, 4.0, 3.0))
+
+    together = overlaid(upright, room, np.eye(4))
+
+    assert f"{RECONSTRUCTION}/kitchen" in set(together.graph.nodes)
