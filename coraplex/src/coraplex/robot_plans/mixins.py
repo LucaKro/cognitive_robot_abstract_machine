@@ -262,25 +262,6 @@ class HasTcpGoalThresholds:
 
 
 @dataclass
-class TargetGraspFrames:
-    """
-    The grasp frame a location factory reaches for, and the grasp on whatever body
-    its approach must avoid.
-    """
-
-    grasp_frame: Pose
-    """
-    The grasp frame, placed at the target.
-    """
-
-    body_T_grasp: Pose
-    """
-    The grasp, in its own body's frame, on whatever body the approach must avoid. An
-    identity grasp with no reference frame when there is no such body.
-    """
-
-
-@dataclass
 class HasApproachesGraspPoses:
     """
     Turns a grasp frame into the tool center point goals that reach it and withdraw again.
@@ -328,7 +309,7 @@ class HasApproachesGraspPoses:
         return body._world.transform(grasp_pose.to_homogeneous_matrix(), body).to_pose()
 
     @staticmethod
-    def _grasp_frame_at(target_pose: Pose, target_T_grasp: Pose) -> Pose:
+    def grasp_frame_at(target_pose: Pose, target_T_grasp: Pose) -> Pose:
         """
         Place a grasp frame, given relative to a target, at that target's own pose.
 
@@ -340,41 +321,6 @@ class HasApproachesGraspPoses:
         return (
             target_pose.to_homogeneous_matrix() @ target_T_grasp.to_homogeneous_matrix()
         ).to_pose()
-
-    @staticmethod
-    def resolve_target_grasp_frames(
-        target_pose: Pose,
-        target_body: Optional[Body],
-        grasp_pose: Optional[Pose],
-        end_effector: EndEffector,
-    ) -> TargetGraspFrames:
-        """
-        The grasp frame at a target, and the grasp on whatever body the approach to
-        it must avoid.
-
-        Reaching for something reads that grasp off the target itself. Carrying
-        something to a place instead reads the grasp on the object already in the
-        gripper, since the approach must avoid that object, not the target.
-
-        :param target_pose: Where the target is, or is going to be.
-        :param target_body: The body being reached for, when there is one.
-        :param grasp_pose: The grasp frame relative to the target, or ``None`` to
-            grasp the target at its own origin.
-        :param end_effector: The end effector that is to reach it.
-        :return: The grasp frame at ``target_pose``, and the grasp on whatever body
-            the approach must avoid.
-        """
-        grasp_frame = HasApproachesGraspPoses._grasp_frame_at(
-            target_pose, grasp_pose or Pose()
-        )
-        if target_body is None:
-            fallback = Pose()
-        elif grasp_pose is None:
-            fallback = Pose(reference_frame=target_body)
-        else:
-            fallback = grasp_pose
-        body_T_grasp = end_effector.held_body_T_grasp_if() or fallback
-        return TargetGraspFrames(grasp_frame=grasp_frame, body_T_grasp=body_T_grasp)
 
     def grasp_pose_sequence(
         self,

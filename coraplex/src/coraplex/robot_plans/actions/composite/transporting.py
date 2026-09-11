@@ -26,6 +26,7 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import HasGraspChoice, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
+from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
@@ -133,18 +134,26 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
 
     def _make_navigate_action_for_placing(self, grasp_pose: Pose):
         """
-        :param grasp_pose: The grasp frame the object is held at, in its own frame.
+        :param grasp_pose: The grasp frame the pick-up was told to take, in the
+            object's own frame. The grasp the gripper actually holds the object by
+            is preferred once the navigation runs, since the pick-up may have
+            corrected it.
         :return: The navigate action that will be used to place the object.
         """
+        object_body = self.object_designator.root
         return a(NavigateAction)(
             target_location=variable(
                 Pose,
                 domain=DeferredLocation(
                     lambda: reachability_location(
-                        self.target_location,
+                        object_body,
                         self.context,
                         self.arm,
-                        grasp_pose,
+                        grasp_pose=ViewManager.get_end_effector_view(
+                            self.arm, self.robot
+                        ).grasp_on(object_body)
+                        or grasp_pose,
+                        destination=self.target_location,
                         approach_clearance=self.approach_clearance,
                         retreat_distance=self.retreat_distance,
                     )

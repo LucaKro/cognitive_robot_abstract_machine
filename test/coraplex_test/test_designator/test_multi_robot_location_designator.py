@@ -19,6 +19,7 @@ from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import (
+    pose_reachability_location,
     reachability_location,
     visibility_location,
     accessing_location,
@@ -240,7 +241,7 @@ def test_new_reachability_location_pose(
 
         world.notify_state_change()
 
-        location = reachability_location(
+        location = pose_reachability_location(
             world.get_body_by_name("milk.stl").global_pose, context, Arms.RIGHT
         )
 
@@ -288,7 +289,7 @@ def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
             world.get_body_by_name("milk.stl"), context, Arms.RIGHT
         )
 
-        location_pose = reachability_location(
+        location_pose = pose_reachability_location(
             world.get_body_by_name("milk.stl").global_pose, context, Arms.RIGHT
         )
 

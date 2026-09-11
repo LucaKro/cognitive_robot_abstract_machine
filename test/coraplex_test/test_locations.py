@@ -11,20 +11,27 @@ from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.locations.factories import (
+    pose_reachability_location,
     reachability_location,
 )
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowSelfCollisions,
     CollisionRule,
 )
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.geometry import Box, Scale
+from semantic_digital_twin.world_description.shape_collection import ShapeCollection
+from semantic_digital_twin.world_description.world_entity import Body
 
 # %% test doubles
 
@@ -244,7 +251,7 @@ def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target
 
     candidates = list(
         islice(
-            reachability_location(target, context, Arms.RIGHT).generator,
+            pose_reachability_location(target, context, Arms.RIGHT).generator,
             CANDIDATES_TO_SAMPLE,
         )
     )
@@ -259,6 +266,74 @@ def test_reachability_location_stands_at_the_arm_length_fraction_from_its_target
     )
 
 
+# %% a reachability location for a body that is going to be somewhere else
+
+
+def _box_in(world: World) -> Body:
+    """
+    A box with collision geometry, standing away from the robot.
+    """
+    body = Body(
+        name=PrefixedName("box"),
+        collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.2))]),
+    )
+    with world.modify_world():
+        world.add_connection(
+            FixedConnection(
+                parent=world.root,
+                child=body,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=-1.0, y=-1.0, z=0.9
+                ),
+            )
+        )
+    return body
+
+
+def test_a_reachability_location_for_a_body_stands_around_its_destination(
+    single_robot_world,
+):
+    world, robot, context = single_robot_world
+    body = _box_in(world)
+    destination = Pose.from_xyz_rpy(
+        *REACHABILITY_TARGET_POSITION, reference_frame=world.root
+    )
+
+    location = reachability_location(body, context, Arms.RIGHT, destination=destination)
+
+    assert location.target_pose is destination
+
+
+def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination(
+    single_robot_world,
+):
+    """
+    The grasp is carried to the destination with the body, and the approach still clears
+    the body itself.
+    """
+    world, robot, context = single_robot_world
+    body = _box_in(world)
+    destination = Pose.from_xyz_rpy(
+        *REACHABILITY_TARGET_POSITION, reference_frame=world.root
+    )
+    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
+
+    (validator,) = reachability_location(
+        body, context, Arms.RIGHT, grasp_pose=grasp, destination=destination
+    ).validators
+
+    expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
+        HasApproachesGraspPoses.grasp_frame_at(destination, grasp),
+        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        grasp,
+    )
+    np.testing.assert_allclose(
+        [pose.to_np() for pose in validator.pose_sequence],
+        [pose.to_np() for pose in expected_sequence],
+        atol=1e-9,
+    )
+
+
 # %% the giskard backend reports the pose it placed the robot at
 
 
@@ -268,7 +343,7 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
     world, robot, context = single_robot_world
     candidate = _candidate(world)
     backend = GiskardLocationBackend(
-        target=candidate,
+        target_pose=candidate,
         arm=Arms.RIGHT,
         grasp_pose=candidate,
         robot=robot,
