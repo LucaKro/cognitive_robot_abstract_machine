@@ -312,6 +312,40 @@ class AllowCollisionForEndEffector(AllowCollisionRule):
 
 
 @dataclass
+class AllowCollisionBetweenGripperAndHeldBody(AllowCollisionRule):
+    """
+    Allows each of a robot's end effectors to touch the body it holds.
+
+    A gripper holding something is in contact with it, so the grip itself is never a
+    collision to avoid. The held body hangs off the tool frame and therefore counts as
+    part of the robot, which would otherwise make every grip a self-collision of the arm
+    holding it.
+
+    Only the grip is freed: the held body still has to keep its distance from everything
+    else, and so does the rest of the gripper.
+    """
+
+    robot: AbstractRobot = field(kw_only=True)
+    """
+    The robot whose grips are freed.
+    """
+
+    def _update(self, world: World):
+        for end_effector in self.robot.end_effectors:
+            held_body = end_effector.held_body
+            if held_body is None or not held_body.has_collision():
+                continue
+            for gripper_body in end_effector.bodies_with_collision:
+                if gripper_body is held_body:
+                    continue
+                self.allowed_collision_pairs.add(
+                    CollisionCheck.create_for_bodies_with_collision(
+                        body_a=gripper_body, body_b=held_body, distance=0
+                    )
+                )
+
+
+@dataclass
 class AllowNonRobotCollisions(AllowCollisionRule):
     """
     Allows collision checks between all bodies that do not belong to any robot.
