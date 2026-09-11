@@ -317,6 +317,9 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
     """
     The grasp is carried to the destination with the body, and the approach still clears
     the body itself.
+
+    A body reached at a destination is released there, and a release runs the sequence
+    backwards, so the probe has to run it backwards too.
     """
     world, robot, context = single_robot_world
     body = _box_in(world)
@@ -331,6 +334,34 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
         HasApproachesGraspPoses.grasp_frame_at(destination, grasp),
+        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        grasp,
+        reverse=True,
+    )
+    np.testing.assert_allclose(
+        [pose.to_np() for pose in validator.pose_sequence],
+        [pose.to_np() for pose in expected_sequence],
+        atol=1e-9,
+    )
+
+
+def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_it(
+    single_robot_world,
+):
+    """
+    Without a destination the body is picked up where it stands, which approaches the
+    grasp rather than withdrawing from it.
+    """
+    world, robot, context = single_robot_world
+    body = _box_in(world)
+    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
+
+    (validator,) = reachability_location(
+        body, context, Arms.RIGHT, grasp_pose=grasp
+    ).validators
+
+    expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
+        HasApproachesGraspPoses.grasp_frame_at(body.global_pose, grasp),
         ViewManager.get_end_effector_view(Arms.RIGHT, robot),
         grasp,
     )

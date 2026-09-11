@@ -76,6 +76,12 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     otherwise keep it from closing on them.
     """
 
+    reverse: bool = field(default=False, kw_only=True)
+    """
+    Whether the gripper withdraws from :attr:`grasp_pose` rather than moving onto it,
+    which is how a body is released where it is placed.
+    """
+
     distance_to_obstacle: float = 0.1
     """
     Distance by which the obstacles should be inflated, is set to the radius of the
@@ -188,7 +194,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
 
         test_ee = ViewManager.get_end_effector_view(self.arm, self.robot)
         target_sequence = self.grasp_pose_sequence(
-            self.grasp_pose, test_ee, self.body_T_grasp
+            self.grasp_pose, test_ee, self.body_T_grasp, reverse=self.reverse
         )
 
         executor = self.setup_giskard_executor(

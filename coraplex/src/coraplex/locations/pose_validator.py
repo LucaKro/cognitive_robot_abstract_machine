@@ -190,6 +190,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses, KeepsBaseStill):
         *,
         body_T_grasp: Optional[Pose] = None,
         context: Context,
+        reverse: bool = False,
         **clearances,
     ) -> Self:
         """
@@ -202,6 +203,10 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses, KeepsBaseStill):
         :param arm: The arm that is to reach it.
         :param body_T_grasp: The same grasp in the grasped body's frame, or ``None``.
         :param context: The context the check runs in.
+        :param reverse: Whether the gripper withdraws from the grasp rather than moving
+            onto it. Each pose of the sequence is where the next one is reached from, so
+            a probe running them in the other order answers about a motion that is not
+            the one executed.
         :param clearances: Overrides for :class:`HasApproachesGraspPoses`' distances.
         :return: A validator for the poses reaching that grasp.
         """
@@ -209,7 +214,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses, KeepsBaseStill):
         approach = HasApproachesGraspPoses(**clearances)
         return cls(
             pose_sequence=approach.grasp_pose_sequence(
-                grasp_pose, end_effector, body_T_grasp
+                grasp_pose, end_effector, body_T_grasp, reverse=reverse
             ),
             tip_link=end_effector.tool_frame,
             context=context,
