@@ -21,6 +21,7 @@ version from before that cannot do the work however carefully it re-imports.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from typing_extensions import List
 
 from krrood.exceptions import DataclassException
 from experiments.warsaw.bases import HasLogger
+from experiments.warsaw.pipeline.records import StepDuration, StepDurations
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.provenance import record_run_provenance
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
@@ -132,9 +134,16 @@ class WarsawPipeline(HasLogger):
             schema.name,
         )
 
+        durations: List[StepDuration] = []
         for number, step in enumerate(planned, start=1):
             self.announce(f"{number}/{len(planned)}  {step.name}")
-            self.carry_out_step(step)
+            durations.append(self.carry_out_step(step))
+            run.write_record(
+                RunFile.STEP_DURATIONS,
+                StepDurations(
+                    scene=str(self.settings.scene_directory), steps=durations
+                ),
+            )
 
         self.announce("done")
         for made in (RunFile.REPORT, RunFile.INSPECTOR):
@@ -142,10 +151,24 @@ class WarsawPipeline(HasLogger):
                 self.logger.info("  %s", run.path(made))
         return run
 
-    def carry_out_step(self, step: PipelineStep) -> None:
+    def carry_out_step(self, step: PipelineStep) -> StepDuration:
         """
-        Carry out one step, letting an optional one fail.
+        Carry out one step, letting an optional one fail, and time it.
 
+        A step the run carried on from is timed like any other: it spent the time it
+        spent, and a run that lost an hour to one should say so.
+
+        :param step: The step to carry out.
+        :return: How long it took.
+        :raises DataclassException: Whatever the step raised, when the run depends on
+            it.
+        """
+        started = time.monotonic()
+        self.let_the_step_work(step)
+        return StepDuration(step=step.name, seconds=time.monotonic() - started)
+
+    def let_the_step_work(self, step: PipelineStep) -> None:
+        """
         :param step: The step to carry out.
         :raises DataclassException: Whatever the step raised, when the run depends on
             it.

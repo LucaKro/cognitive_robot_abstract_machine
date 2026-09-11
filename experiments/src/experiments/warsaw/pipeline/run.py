@@ -162,6 +162,11 @@ class RunFile(StrEnum):
     EVALUATION_GRAPH = "evaluation_graph.json"
     """The final semantic nodes and relation outcomes, independent of the database."""
 
+    STEP_DURATIONS = "step_durations.json"
+    """
+    How long each step of the run took.
+    """
+
     PROVENANCE = "provenance.json"
     """Settings, input hashes, interpreter identity, and source revision for the run."""
 

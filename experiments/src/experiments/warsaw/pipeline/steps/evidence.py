@@ -234,8 +234,7 @@ class MeasureScene(PipelineStep):
 
         loader = self.loader()
         segments = {str(segment.name): segment for segment in loader.label_segments}
-        self.logger.info("%s segments; measuring how they meet ...", len(segments))
-        measured = segment_evidence(loader, nearest=self.settings.nearest)
+        measured = self.measured_scene(loader)
         self.logger.info(
             "%s pairs stand in some measurable relation", len(measured.pairs)
         )
@@ -310,6 +309,33 @@ class MeasureScene(PipelineStep):
         if view.admissible:
             return replace(view, status=RelationStatus.RELATION_AMBIGUOUS)
         return view
+
+    def measured_scene(self, loader: WarsawWorldLoader) -> SegmentRelations:
+        """
+        Measure how the scene's labelled objects meet, or take the measurement an
+        earlier step of this run already made.
+
+        The measurement is geometry and nothing else, so a scene measured twice in one
+        run is measured to meet itself the same way twice. On a scanned room it is most
+        of what the run costs, and the two steps that need it differ in what they know
+        about the labels rather than in the geometry.
+
+        :param loader: The loaded scene.
+        :return: Every segment, and every pair standing in some measurable relation.
+        """
+        already = self.run.read_record_if_written(
+            RunFile.RELATIONS, Relations(scene="")
+        )
+        if already.segments:
+            self.logger.info(
+                "%s segments; taking the measurement this run already made",
+                len(already.segments),
+            )
+            return already.as_measured()
+        self.logger.info(
+            "%s segments; measuring how they meet ...", len(loader.label_segments)
+        )
+        return segment_evidence(loader, nearest=self.settings.nearest)
 
     def relations_of(
         self,
