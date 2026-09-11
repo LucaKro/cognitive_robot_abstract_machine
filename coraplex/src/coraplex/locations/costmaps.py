@@ -13,7 +13,9 @@ from matplotlib import colors
 from skimage.measure import label
 from typing_extensions import Tuple, List, Optional, Iterator, Callable, TYPE_CHECKING
 
+from coraplex.datastructures.enums import Arms
 from coraplex.locations.base import PoseGeneratorBackend
+from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.camera_resolution import CameraResolution
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
@@ -867,6 +869,36 @@ class RingCostmap(Costmap):
 
     def __post_init__(self):
         self.map = self.ring()
+
+    @classmethod
+    def from_arm_reach_distance(
+        cls,
+        context: Context,
+        arm: Arms,
+        origin: Pose,
+        reach_fraction: float = 0.66,
+    ) -> RingCostmap:
+        """
+        Creates a ring costmap around a target the robot is to reach with one arm.
+
+        :param context: The context holding the robot and world.
+        :param arm: The arm that is to do the reaching.
+        :param origin: The target the ring is drawn around.
+        :param reach_fraction: The fraction of the arm's length the ring stands off
+            the target by. That needs to be replaced with an estimate of the
+            reachability space of the robot arms.
+        :returns: The ring costmap.
+        """
+        return cls(
+            resolution=0.02,
+            width=200,
+            height=200,
+            std=15,
+            distance=ViewManager.get_arm_view(arm, context.robot).approximate_length()
+            * reach_fraction,
+            world=context.world,
+            origin=origin,
+        )
 
     def ring(self) -> np.ndarray:
         radius_in_pixels = self.distance / self.resolution

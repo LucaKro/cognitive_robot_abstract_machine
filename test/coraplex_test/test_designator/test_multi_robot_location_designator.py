@@ -19,7 +19,6 @@ from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import (
-    pose_reachability_location,
     reachability_location,
     visibility_location,
     accessing_location,
@@ -227,29 +226,6 @@ def test_deferred_location_reflects_state_changed_after_construction():
     assert observed_positions == [[3.1, 2.2, 0.95, 1.0]]
 
 
-def test_new_reachability_location_pose(
-    immutable_multiple_robot_simple_apartment, rclpy_node
-):
-    world, robot, context = immutable_multiple_robot_simple_apartment
-
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
-    with simulated_robot:
-        plan.perform()
-
-        world.notify_state_change()
-
-        location = pose_reachability_location(
-            world.get_body_by_name("milk.stl").global_pose, context, Arms.RIGHT
-        )
-
-        pose = next(iter(location))
-    assert len(pose.to_position().to_list()) == 4
-    assert len(pose.to_quaternion().to_list()) == 4
-
-
 def test_new_reachability_location_body(
     immutable_multiple_robot_simple_apartment, rclpy_node
 ):
@@ -289,11 +265,14 @@ def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
             world.get_body_by_name("milk.stl"), context, Arms.RIGHT
         )
 
-        location_pose = pose_reachability_location(
-            world.get_body_by_name("milk.stl").global_pose, context, Arms.RIGHT
+        location_destination = reachability_location(
+            world.get_body_by_name("milk.stl"),
+            context,
+            Arms.RIGHT,
+            destination=world.get_body_by_name("milk.stl").global_pose,
         )
 
-        merged_location = location_body & location_pose
+        merged_location = location_body & location_destination
         pose = next(iter(merged_location))
 
     assert len(pose.to_position().to_list()) == 4
