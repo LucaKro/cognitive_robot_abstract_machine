@@ -263,7 +263,7 @@ description = TransportAction(
     world.get_semantic_annotations_by_type(Milk)[0],
     Arms.LEFT,
     target_location=Pose.from_xyz_quaternion(
-        2.9, 2.2, 0.99, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root
+        3.0, 2.2, 1.04, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root
     ),
 )
 with simulated_robot:
