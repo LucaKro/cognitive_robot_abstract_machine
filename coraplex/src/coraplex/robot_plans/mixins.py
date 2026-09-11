@@ -393,10 +393,8 @@ class HasApproachesGraspPoses:
         """
         body_T_grasp = body_T_grasp if body_T_grasp is not None else Pose()
         tool_goal = end_effector.tool_frame_goal(grasp_pose)
-        pre_grasp_pose = translate_pose_along_local_axis(
-            tool_goal,
-            end_effector.front_facing_axis.to_np()[:3].astype(float),
-            -self._approach_distance(body_T_grasp),
+        pre_grasp_pose = self.standoff_pose(
+            tool_goal, end_effector, self._approach_distance(body_T_grasp)
         )
         sequence = [
             pre_grasp_pose,
@@ -406,6 +404,24 @@ class HasApproachesGraspPoses:
         if reverse:
             sequence.reverse()
         return sequence
+
+    @staticmethod
+    def standoff_pose(
+        tool_goal: Pose, end_effector: EndEffector, distance: float
+    ) -> Pose:
+        """
+        Stand a tool frame goal off along the direction the gripper approaches from.
+
+        :param tool_goal: The tool frame goal at the grasp.
+        :param end_effector: The end effector that reaches it.
+        :param distance: How far back along the approach direction to stand, in meters.
+        :return: The stood off pose, in ``tool_goal``'s frame.
+        """
+        return translate_pose_along_local_axis(
+            tool_goal,
+            end_effector.front_facing_axis.to_np()[:3].astype(float),
+            -distance,
+        )
 
     def _approach_distance(self, body_T_grasp: Pose) -> float:
         """

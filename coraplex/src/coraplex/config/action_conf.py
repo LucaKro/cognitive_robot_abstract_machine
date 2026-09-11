@@ -12,6 +12,11 @@ class ActionConfig:
     The height in meters the gripper rises by once it holds an object.
     """
 
+    release_clearance = 0.05
+    """
+    The gap in meters between an object and the gripper once it has let go of it.
+    """
+
     navigate_keep_joint_states = True
 
     face_at_keep_joint_states = True
