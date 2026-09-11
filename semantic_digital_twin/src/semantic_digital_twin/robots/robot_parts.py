@@ -30,9 +30,6 @@ from krrood.class_diagrams.attribute_introspector import (
 from krrood.entity_query_language.factories import variable, contains, a, entity
 from krrood.ormatic.utils import classproperty
 from krrood.utils import get_generic_type_parameters
-from semantic_digital_twin.collision_checking.collision_rules import (
-    AllowCollisionBetweenGripperAndHeldBody,
-)
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
@@ -698,6 +695,22 @@ class EndEffector(AbstractRobotPart, ABC):
             ),
         )
 
+    @property
+    def held_bodies(self) -> list[Body]:
+        """
+        :return: The bodies with collision attached below the tool frame, where a grasped
+            object hangs after a pick-up.
+        """
+        return [
+            entity
+            for entity in self._world.get_kinematic_structure_entities_of_branch(
+                self.tool_frame
+            )
+            if entity != self.tool_frame
+            and isinstance(entity, Body)
+            and entity.has_collision()
+        ]
+
 
 @dataclass(eq=False)
 class Torso(KinematicChain, ABC):
@@ -942,9 +955,6 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
                 robot_part.setup_hardware_interfaces()
                 robot_part.add_joint_states(robot_part.setup_joint_states())
             self._setup_collision_rules()
-            world.collision_manager.add_ignore_collision_rule(
-                AllowCollisionBetweenGripperAndHeldBody(robot=self)
-            )
             self._setup_velocity_limits()
             return self
 
@@ -1170,17 +1180,6 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             if isinstance(robot_part, Camera) and robot_part.default_camera:
                 return robot_part
         raise MissingDefaultCameraError(type(self))
-
-    @property
-    def end_effectors(self) -> List[EndEffector]:
-        """
-        :return: Every end effector of this robot.
-        """
-        return [
-            robot_part
-            for robot_part in self._robot_parts
-            if isinstance(robot_part, EndEffector)
-        ]
 
     @abstractmethod
     def _setup_collision_rules(self):

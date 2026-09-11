@@ -21,6 +21,7 @@ from semantic_digital_twin.collision_checking.collision_matrix import (
 )
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowAllCollisions,
+    AllowCollisionBetweenEndEffectorsAndHeldBodies,
     AllowCollisionForBodies,
     AllowCollisionForEndEffector,
     AvoidCollisionBetweenGroups,
@@ -36,7 +37,6 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowAlwaysInCollision,
     AllowNeverInCollision,
     AllowCollisionForAdjacentPairs,
-    AllowCollisionBetweenGripperAndHeldBody,
 )
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
     ExternalCollisionVariableManager,
@@ -307,13 +307,16 @@ class TestCollisionRules:
         rule.update(pr2_world_copy)
         assert grasped_body in rule.allowed_collision_bodies
 
-    def test_a_gripper_may_touch_the_body_it_holds(self, pr2_world_copy):
-        """
-        A gripper holding something is in contact with it, so the grip itself must never
-        be reported as a collision.
+    def test_a_robot_holding_nothing_has_no_held_body_pairs(self, pr2_world_copy):
+        rule = AllowCollisionBetweenEndEffectorsAndHeldBodies()
+        rule.update(pr2_world_copy)
+        assert rule.allowed_collision_pairs == set()
 
-        The held body hangs off the tool frame and so counts as part of the robot, which
-        would otherwise make every grip a self-collision of the arm holding it.
+    def test_a_held_body_may_touch_the_end_effector_holding_it(self, pr2_world_copy):
+        """
+        A body attached below a tool frame is freed against the end effector holding it,
+        and only against that end effector, so it stays checked against the rest of the
+        robot.
         """
         pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
         end_effector = pr2.right_arm.end_effector
@@ -325,56 +328,15 @@ class TestCollisionRules:
             pr2_world_copy.add_connection(
                 FixedConnection(parent=end_effector.tool_frame, child=held_body)
             )
-        rule = AllowCollisionBetweenGripperAndHeldBody(robot=pr2)
 
+        rule = AllowCollisionBetweenEndEffectorsAndHeldBodies()
         rule.update(pr2_world_copy)
 
         assert rule.allowed_collision_pairs == {
-            CollisionCheck.create_for_bodies_with_collision(
-                body_a=gripper_body, body_b=held_body, distance=0
-            )
-            for gripper_body in end_effector.bodies_with_collision
-            if gripper_body is not held_body
+            CollisionCheck.create_and_validate(held_body, body)
+            for body in end_effector.bodies_with_collision
+            if body != held_body
         }
-
-    def test_a_gripper_frees_only_its_own_grip(self, pr2_world_copy):
-        """
-        Only the grip is freed: the held body still has to keep its distance from the
-        rest of the robot, the other arm included.
-        """
-        pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
-        end_effector = pr2.right_arm.end_effector
-        with pr2_world_copy.modify_world():
-            held_body = Body(
-                name=PrefixedName("held"),
-                collision=ShapeCollection(shapes=[Sphere(radius=0.05)]),
-            )
-            pr2_world_copy.add_connection(
-                FixedConnection(parent=end_effector.tool_frame, child=held_body)
-            )
-        rule = AllowCollisionBetweenGripperAndHeldBody(robot=pr2)
-
-        rule.update(pr2_world_copy)
-
-        freed_bodies = {
-            body
-            for collision_check in rule.allowed_collision_pairs
-            for body in (collision_check.body_a, collision_check.body_b)
-        }
-        assert freed_bodies - {held_body} <= set(end_effector.bodies_with_collision)
-        assert pr2.left_arm.end_effector.tool_frame not in freed_bodies
-
-    def test_a_gripper_that_holds_nothing_frees_no_pairs(self, pr2_world_copy):
-        """
-        The rule only speaks about a grip that exists, so an empty gripper leaves the
-        matrix as it was.
-        """
-        pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
-        rule = AllowCollisionBetweenGripperAndHeldBody(robot=pr2)
-
-        rule.update(pr2_world_copy)
-
-        assert rule.allowed_collision_pairs == set()
 
     def test_AvoidExternalCollisions_with_attached_body(self, pr2_apartment_world):
         pr2 = pr2_apartment_world.get_semantic_annotations_by_type(PR2)[0]
