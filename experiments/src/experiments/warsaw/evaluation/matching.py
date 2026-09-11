@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-from typing_extensions import List, Optional, Protocol, Sequence
+from typing_extensions import List, Optional, Protocol, Sequence, Tuple
 
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.evaluation.size import ObjectSize
@@ -138,6 +138,17 @@ class HowToCompare(JsonRecord):
     too_far_apart: float = 0.5
     """
     How far from a modelled object, in metres, before nothing else can save the pairing.
+    """
+
+    several_may_stand_for_one: bool = False
+    """
+    Whether more than one reconstructed object may stand for the same modelled one.
+
+    A run that finds one cabinet as five fragments has five objects for the modelled
+    world's one, and a pairing that lets only one of them have it leaves four unmatched.
+    An unmatched object takes every relation it is an end of down with it, so keeping the
+    pairing one to one punishes the fragmentation twice: once as segmentation, and again
+    as everything that can no longer be judged.
     """
 
     def cost_of(
@@ -312,7 +323,7 @@ class ObjectCorrespondences(JsonRecord):
             for one in predicted
         ]
         totals = np.array([[cost.total for cost in row] for row in costs])
-        chosen_rows, chosen_columns = linear_sum_assignment(totals)
+        chosen_rows, chosen_columns = cls._chosen(totals, how_compared)
         matched = [
             Correspondence(
                 predicted=predicted[row].name,
@@ -337,6 +348,21 @@ class ObjectCorrespondences(JsonRecord):
                 one.name for one in modelled if one.name not in paired_modelled
             ],
         )
+
+    @staticmethod
+    def _chosen(
+        totals: np.ndarray, how_compared: HowToCompare
+    ) -> Tuple[Sequence[int], Sequence[int]]:
+        """
+        Decide which reconstructed object is paired with which modelled one.
+
+        :param totals: What pairing each with each would cost.
+        :param how_compared: What counts as alike.
+        :return: The rows and the columns of the pairings chosen.
+        """
+        if not how_compared.several_may_stand_for_one:
+            return linear_sum_assignment(totals)
+        return range(len(totals)), totals.argmin(axis=1)
 
     @staticmethod
     def _lead_over_the_next_best(costs_for_one: np.ndarray, chosen: int) -> float:

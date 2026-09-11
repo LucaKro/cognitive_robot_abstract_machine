@@ -172,6 +172,10 @@ class SiblingAgreement(JsonRecord):
 
         together_in_both, put_together, left_apart = 0, [], []
         for one, other in combinations(considered, 2):
+            if stands_for[one] == stands_for[other]:
+                # Two pieces of one modelled object: asking whether they ended up
+                # together is asking whether a thing is with itself.
+                continue
             run_holds = cls._same_whole(predicted_whole, one, other)
             model_holds = cls._same_whole(
                 modelled_whole, stands_for[one], stands_for[other]

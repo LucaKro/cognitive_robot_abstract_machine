@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import trimesh
 from numpy.typing import NDArray
-from typing_extensions import Dict, Iterator, List, Optional, Tuple
+from typing_extensions import Dict, Iterator, List, Optional, Set, Tuple
 
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.evaluation.graph import EvaluationGraph
@@ -144,16 +144,70 @@ def placed_modelled_objects(ground_truth: GroundTruthGraph) -> List[PlacedObject
     :param ground_truth: The modelled world's graph.
     :return: Its objects, placed where the export recorded what they span.
     """
+    reaching = _what_each_whole_spans(ground_truth)
     return [
         PlacedObject(
             name=node.name,
             classes=node.classes,
-            centre=_middle_of(node.bounds),
+            centre=_middle_of(node.bounds or reaching.get(node.name)),
             size=node.size,
-            bounds=node.bounds,
+            bounds=node.bounds or reaching.get(node.name),
         )
         for node in ground_truth.nodes
     ]
+
+
+def _what_each_whole_spans(
+    ground_truth: GroundTruthGraph,
+) -> Dict[str, List[List[float]]]:
+    """
+    Work out an extent for the wholes that carry no geometry of their own.
+
+    A modelled world groups its furniture under nodes with no faces and no bounds -- the
+    apartment holds the island's cabinets under ``side_B``. Nothing can be paired with
+    an object that has no position, so every relation naming one as the whole would be
+    thrown away, and the extent of a grouping is the extent of what it groups.
+
+    :param ground_truth: The modelled world's graph.
+    :return: Per whole that has no bounds, what everything inside it spans together.
+    """
+    own = {node.name: node.bounds for node in ground_truth.nodes}
+    inside: Dict[str, List[str]] = {}
+    for edge in ground_truth.edges:
+        inside.setdefault(edge.whole, []).append(edge.part)
+
+    spans: Dict[str, List[List[float]]] = {}
+
+    def reaching(name: str, seen: Set[str]) -> Optional[List[List[float]]]:
+        """
+        :param name: The object to measure.
+        :param seen: What is already being measured, so a world holding a part in a
+            circle is walked once rather than forever.
+        :return: What it and everything inside it span, or nothing where none of it has
+            geometry.
+        """
+        if own.get(name):
+            return own[name]
+        if name in seen:
+            return None
+        corners = [
+            found
+            for part in inside.get(name, [])
+            if (found := reaching(part, seen | {name})) is not None
+        ]
+        if not corners:
+            return None
+        low = np.min([one[0] for one in corners], axis=0)
+        high = np.max([one[1] for one in corners], axis=0)
+        return [[float(one) for one in low], [float(one) for one in high]]
+
+    for whole in inside:
+        if own.get(whole):
+            continue
+        found = reaching(whole, set())
+        if found is not None:
+            spans[whole] = found
+    return spans
 
 
 def _middle_of(bounds: Optional[List[List[float]]]) -> Optional[List[float]]:

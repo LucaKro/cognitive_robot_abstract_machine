@@ -70,7 +70,9 @@ NEEDS_AN_ALIGNMENT = (
 What every comparison naming one object against another is waiting on.
 """
 
-HOW_TO_PAIR_PLACED_OBJECTS = HowToCompare(distance_apart=1.0, size_difference=0.3)
+HOW_TO_PAIR_PLACED_OBJECTS = HowToCompare(
+    distance_apart=1.0, size_difference=0.3, several_may_stand_for_one=True
+)
 """
 What counts as the same object once an alignment puts both worlds in one frame.
 
@@ -80,6 +82,11 @@ less here than it is between two graphs that share no frame: the scan sees the f
 a cabinet and the modelled world is a solid box, so their extents do not compare for
 anything with a carcass, and size is left as a tie-breaker between candidates in the
 same place rather than as grounds to refuse one.
+
+Several reconstructed objects may stand for one modelled object, because that is what a
+run finding one cabinet as five fragments produced. Holding the pairing to one apiece
+leaves four of them unmatched, and an unmatched object takes every relation it is an end
+of out of the reckoning with it.
 """
 
 # %% everything a run was judged by

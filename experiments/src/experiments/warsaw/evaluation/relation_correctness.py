@@ -47,6 +47,12 @@ class RelationVerdict(StrEnum):
     other.
     """
 
+    ONE_OBJECT = "both ends are the same modelled object"
+    """
+    The run found one modelled object as several, and this relation is between two of
+    them. The modelled world holds no opinion about the inside of one of its own objects.
+    """
+
     NOT_JUDGED = "an end has no counterpart"
     """
     One or both ends were paired with nothing modelled, so the relation can be called
@@ -163,6 +169,14 @@ class RelationCorrectness(JsonRecord):
                 field_name=asserted.field_name,
                 verdict=RelationVerdict.NOT_JUDGED,
             )
+        if whole == part:
+            return JudgedAssertion(
+                whole=asserted.whole,
+                part=asserted.part,
+                field_name=asserted.field_name,
+                verdict=RelationVerdict.ONE_OBJECT,
+                modelled_whole=whole,
+            )
         inside = cls._everything_holding(part, held_by)
         directly = held_by.get(part) == whole
         return JudgedAssertion(
@@ -210,7 +224,9 @@ class RelationCorrectness(JsonRecord):
             be called right or wrong at all.
         """
         return sum(
-            1 for one in self.judged if one.verdict is not RelationVerdict.NOT_JUDGED
+            1
+            for one in self.judged
+            if one.verdict in (RelationVerdict.CORRECT, RelationVerdict.WRONG_WHOLE)
         )
 
     @property

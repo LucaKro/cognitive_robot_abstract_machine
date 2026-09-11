@@ -11,7 +11,11 @@ from __future__ import annotations
 import numpy as np
 import trimesh
 
-from experiments.warsaw.evaluation.ground_truth import GroundTruthGraph, GroundTruthNode
+from experiments.warsaw.evaluation.ground_truth import (
+    GroundTruthEdge,
+    GroundTruthGraph,
+    GroundTruthNode,
+)
 from experiments.warsaw.evaluation.placement import (
     PlacedObject,
     placed_modelled_objects,
@@ -122,3 +126,98 @@ def test_an_object_carries_what_it_spans_and_not_only_where_its_middle_is():
     placed = PlacedObject.of("cabinet_1", ["Cabinet"], box)
 
     assert placed.bounds == [[4.0, -0.5, 0.0], [6.0, 0.5, 1.0]]
+
+
+# %% a whole that is only a grouping
+
+
+def test_a_grouping_that_carries_no_geometry_takes_the_extent_of_what_it_holds():
+    """
+    A modelled world groups its furniture under nodes with no faces, no bounds and no
+    class of their own -- the apartment holds its island's cabinets under `side_B`.
+
+    An object with no position cannot be paired with anything, so every relation naming
+    one as the whole is thrown away; and the extent of a grouping really is the extent
+    of what it groups.
+    """
+    graph = GroundTruthGraph(
+        scene="apartment",
+        frame="apartment/root",
+        geometry_source="visual",
+        nodes=[
+            modelled_node("apartment/side_B", None),
+            modelled_node("apartment/cabinet_8", [[0.0, 0.0, 0.0], [1.0, 1.0, 2.0]]),
+            modelled_node("apartment/cabinet_9", [[2.0, 0.0, 0.0], [3.0, 1.0, 2.0]]),
+        ],
+        edges=[
+            GroundTruthEdge(
+                whole="apartment/side_B",
+                part="apartment/cabinet_8",
+                relation="part",
+                field_name="units",
+            ),
+            GroundTruthEdge(
+                whole="apartment/side_B",
+                part="apartment/cabinet_9",
+                relation="part",
+                field_name="units",
+            ),
+        ],
+    )
+
+    placed = {one.name: one for one in placed_modelled_objects(graph)}
+
+    assert placed["apartment/side_B"].bounds == [[0.0, 0.0, 0.0], [3.0, 1.0, 2.0]]
+    assert placed["apartment/side_B"].centre == [1.5, 0.5, 1.0]
+
+
+def test_a_grouping_reaches_what_is_held_below_what_it_holds():
+    """
+    The apartment nests: a side holds cabinets and each cabinet holds its drawers, so a
+    grouping whose own children carry no geometry either still has an extent.
+    """
+    graph = GroundTruthGraph(
+        scene="apartment",
+        frame="apartment/root",
+        geometry_source="visual",
+        nodes=[
+            modelled_node("apartment/side_B", None),
+            modelled_node("apartment/cabinet_8", None),
+            modelled_node("apartment/drawer_1", [[0.0, 0.0, 0.0], [1.0, 1.0, 2.0]]),
+        ],
+        edges=[
+            GroundTruthEdge(
+                whole="apartment/side_B",
+                part="apartment/cabinet_8",
+                relation="part",
+                field_name="units",
+            ),
+            GroundTruthEdge(
+                whole="apartment/cabinet_8",
+                part="apartment/drawer_1",
+                relation="part",
+                field_name="drawers",
+            ),
+        ],
+    )
+
+    placed = {one.name: one for one in placed_modelled_objects(graph)}
+
+    assert placed["apartment/side_B"].bounds == [[0.0, 0.0, 0.0], [1.0, 1.0, 2.0]]
+
+
+def test_a_grouping_holding_nothing_with_geometry_is_still_placed_nowhere():
+    """
+    A joint holds no surface anywhere beneath it, and giving it a position would pair it
+    with whatever happens to sit there.
+    """
+    graph = GroundTruthGraph(
+        scene="apartment",
+        frame="apartment/root",
+        geometry_source="visual",
+        nodes=[modelled_node("apartment/hinge_1", None)],
+    )
+
+    [placed] = placed_modelled_objects(graph)
+
+    assert placed.centre is None

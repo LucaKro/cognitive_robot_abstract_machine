@@ -209,3 +209,37 @@ def test_a_relation_held_in_another_field_than_the_modelled_one_is_not_counted_a
 
     assert judged.correct == 1
     assert judged.same_field == 0
+
+
+# %% two ends that are one object
+
+
+def test_a_relation_between_two_pieces_of_one_modelled_object_is_not_judged():
+    """
+    Where a run found one cabinet as several pieces, both ends of a relation between two
+    of them stand for the same modelled object.
+
+    The modelled world holds no opinion about the inside of one of its own objects, so
+    calling that relation wrong would score the run against something nobody modelled.
+    """
+    both_are_the_cabinet = ObjectCorrespondences(
+        how_compared=HowToCompare(),
+        matched=[
+            Correspondence(
+                predicted=name,
+                modelled="apartment/cabinet_7",
+                cost=MatchCost(disagreeing_class=0.0, differing_size=0.0),
+                better_than_the_next_by=0.0,
+            )
+            for name in ("piece_1", "piece_2")
+        ],
+    )
+
+    judged = RelationCorrectness.between(
+        predicted_relations=[Relation(whole="piece_1", part="piece_2")],
+        modelled_relations=nested_kitchen(),
+        correspondences=both_are_the_cabinet,
+    )
+
+    assert [one.verdict for one in judged.judged] == [RelationVerdict.ONE_OBJECT]
+    assert judged.judgeable == 0

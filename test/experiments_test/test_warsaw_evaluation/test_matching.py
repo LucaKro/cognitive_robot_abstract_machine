@@ -397,3 +397,47 @@ def test_a_scanned_front_counts_as_being_at_the_object_it_lies_on():
     front = Object(name="cabinet_1", semantic_class="Cabinet", placed=[0.0, 0.0, 1.0])
 
     assert how_compared.cost_of(front, carcass).far_apart == 0.0
+
+
+# %% a whole the run found in pieces
+
+
+def test_several_reconstructed_objects_may_stand_for_one_modelled_object():
+    """
+    A run that finds one cabinet as five fragments has five objects for the modelled
+    world's one.
+
+    A pairing that lets only one of them have it leaves four unmatched, and an unmatched
+    object takes every relation it is an end of down with it -- so the fragmentation is
+    punished twice over, once as segmentation and again as everything that cannot then
+    be judged.
+    """
+    how_compared = HowToCompare(distance_apart=1.0, several_may_stand_for_one=True)
+    cabinet = replace(drawer("apartment/cabinet_1"), placed=[0.0, 0.0, 0.0])
+    fragments = [
+        replace(drawer("piece_1"), placed=[0.0, 0.0, 0.0]),
+        replace(drawer("piece_2"), placed=[0.05, 0.0, 0.0]),
+    ]
+
+    correspondences = ObjectCorrespondences.between(fragments, [cabinet], how_compared)
+
+    assert sorted(one.predicted for one in correspondences.matched) == [
+        "piece_1",
+        "piece_2",
+    ]
+    assert correspondences.unmatched_predicted == []
+
+
+def test_a_fragment_nothing_is_near_is_still_left_unmatched():
+    """
+    Letting several stand for one must not turn into pairing everything with whatever is
+    least unlike it; the cost limit still decides.
+    """
+    how_compared = HowToCompare(distance_apart=1.0, several_may_stand_for_one=True)
+    cabinet = replace(drawer("apartment/cabinet_1"), placed=[0.0, 0.0, 0.0])
+    far_away = replace(drawer("piece_1"), placed=[9.0, 0.0, 0.0])
+
+    correspondences = ObjectCorrespondences.between([far_away], [cabinet], how_compared)
+
+    assert correspondences.matched == []
+    assert correspondences.unmatched_predicted == ["piece_1"]

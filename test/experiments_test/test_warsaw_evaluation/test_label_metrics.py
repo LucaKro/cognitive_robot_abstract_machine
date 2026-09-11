@@ -1,4 +1,6 @@
-"""Semantic-label metrics retained from the earlier HM3D evaluation."""
+"""
+Semantic-label metrics retained from the earlier HM3D evaluation.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +10,9 @@ from experiments.warsaw.evaluation.label_metrics import compare_label_counts
 
 
 def test_label_counts_reproduce_the_previous_hm3d_metric() -> None:
-    """Repeated labels are matched by count, independently of object identity."""
+    """
+    Repeated labels are matched by count, independently of object identity.
+    """
     measured = compare_label_counts(
         predicted=["Drawer", "Drawer", "Door", "Handle"],
         ground_truth=["Drawer", "Door", "Door", "Cabinet"],
@@ -28,7 +32,9 @@ def test_label_counts_reproduce_the_previous_hm3d_metric() -> None:
 
 
 def test_empty_label_counts_have_defined_zero_metrics() -> None:
-    """An empty comparison is represented explicitly rather than divided by zero."""
+    """
+    An empty comparison is represented explicitly rather than divided by zero.
+    """
     measured = compare_label_counts(predicted=[], ground_truth=[])
 
     assert measured.true_positives == 0
@@ -42,7 +48,9 @@ def test_empty_label_counts_have_defined_zero_metrics() -> None:
 
 
 def test_per_class_counts_expose_false_positives_and_false_negatives() -> None:
-    """The atomic class counts remain available for later aggregation."""
+    """
+    The atomic class counts remain available for later aggregation.
+    """
     measured = compare_label_counts(
         predicted=["Drawer", "Drawer", "Handle"],
         ground_truth=["Drawer", "Door"],

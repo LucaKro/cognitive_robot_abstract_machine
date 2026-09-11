@@ -275,3 +275,39 @@ def test_a_part_of_something_that_is_itself_a_part_is_judged_by_the_outermost_wh
     )
 
     assert agreement.pairs.in_both == 1
+
+
+def test_two_pieces_of_one_modelled_object_are_not_a_pair():
+    """
+    Where a run found one cabinet as several pieces, two of them stand for the same
+    modelled object, so asking whether they ended up together is asking whether a thing
+    is with itself.
+
+    Counted, they would be agreement the run was never asked for.
+    """
+    both_are_the_drawer = ObjectCorrespondences(
+        how_compared=HowToCompare(),
+        matched=[
+            Correspondence(
+                predicted=name,
+                modelled="apartment/drawer_1",
+                cost=MatchCost(disagreeing_class=0.0, differing_size=0.0),
+                better_than_the_next_by=0.0,
+            )
+            for name in ("piece_1", "piece_2")
+        ],
+    )
+
+    agreement = SiblingAgreement.between(
+        predicted_relations=[
+            Relation(whole="cabinet_1", part="piece_1"),
+            Relation(whole="cabinet_1", part="piece_2"),
+        ],
+        modelled_relations=[
+            Relation(whole="apartment/cabinet_1", part="apartment/drawer_1")
+        ],
+        correspondences=both_are_the_drawer,
+    )
+
+    assert agreement.pairs.predicted == 0
+    assert agreement.pairs.in_both == 0
