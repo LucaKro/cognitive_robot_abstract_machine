@@ -236,7 +236,7 @@ class RobotDemonstration(ABC):
         if self.execution_type is not ExecutionType.REAL:
             world = self.build_simulated_world()
             viz = VizMarkerPublisher(node=self.ros_node, _world=world)
-            viz.with_collision_visualization()
+            viz.with_collision_visualization(publish_labels=True)
             return world
         world = self.ros_session.fetch_world()
         WorldSynchronizer(_world=world, node=self.ros_session.node)
