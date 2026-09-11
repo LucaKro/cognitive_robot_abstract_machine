@@ -18,7 +18,7 @@ from experiments.warsaw.evaluation.matching import (
     MatchCost,
     ObjectCorrespondences,
 )
-from experiments.warsaw.evaluation.siblings import SiblingAgreement
+from experiments.warsaw.evaluation.siblings import Depth, SiblingAgreement
 
 # %% two worlds to compare
 
@@ -201,3 +201,77 @@ def test_an_agreement_without_a_single_pair_scores_nothing_rather_than_everythin
     assert agreement.pairs.in_both == 0
     assert agreement.pairs.recall == 0.0
     assert agreement.pairs.f_score == 0.0
+
+
+# %% which of a part's wholes it is judged by
+
+
+def nested_kitchen() -> list[Relation]:
+    """
+    A modelled kitchen that nests: a side holds cabinets, and a cabinet holds its
+    drawer.
+    """
+    return [
+        Relation(whole="apartment/side_B", part="apartment/cabinet_7"),
+        Relation(whole="apartment/side_B", part="apartment/countertop_1"),
+        Relation(whole="apartment/cabinet_7", part="apartment/drawer_3"),
+    ]
+
+
+def test_a_part_is_in_the_right_furniture_even_where_the_run_did_not_nest_it():
+    """
+    The question worth answering is whether a drawer ended up in the island, not whether
+    the run reproduced the cabinet between them.
+
+    The run builds the island flat while the modelled world puts the drawer inside a
+    cabinet inside the side, so judging by the whole that directly holds each part would
+    score that flattening as misplacement.
+    """
+    agreement = SiblingAgreement.between(
+        predicted_relations=[
+            Relation(whole="kitchen_island_1", part="cabinet_7"),
+            Relation(whole="kitchen_island_1", part="drawer_3"),
+        ],
+        modelled_relations=nested_kitchen(),
+        correspondences=paired("cabinet_7", "drawer_3"),
+    )
+
+    assert agreement.depth is Depth.OUTERMOST
+    assert agreement.pairs.precision == 1.0
+    assert agreement.put_together == []
+
+
+def test_the_whole_that_directly_holds_a_part_can_still_be_asked_about():
+    """
+    Whether a single whole arrived split into pieces is a different question from where
+    its parts ended up, and it is the one the immediate whole answers.
+    """
+    agreement = SiblingAgreement.between(
+        predicted_relations=[
+            Relation(whole="kitchen_island_1", part="cabinet_7"),
+            Relation(whole="kitchen_island_1", part="drawer_3"),
+        ],
+        modelled_relations=nested_kitchen(),
+        correspondences=paired("cabinet_7", "drawer_3"),
+        depth=Depth.IMMEDIATE,
+    )
+
+    assert agreement.pairs.precision == 0.0
+
+
+def test_a_part_of_something_that_is_itself_a_part_is_judged_by_the_outermost_whole():
+    """
+    Walking has to reach the top rather than stopping one step up, or a drawer two
+    levels down would be judged against its cabinet while a countertop beside it is
+    judged against the side.
+    """
+    agreement = SiblingAgreement.between(
+        predicted_relations=[
+            Relation(whole="kitchen_island_1", part="drawer_3"),
+            Relation(whole="kitchen_island_1", part="countertop_1"),
+        ],
+        modelled_relations=nested_kitchen(),
+        correspondences=paired("drawer_3", "countertop_1"),
+    )
+
+    assert agreement.pairs.in_both == 1

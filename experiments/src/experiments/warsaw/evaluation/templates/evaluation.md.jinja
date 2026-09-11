@@ -37,30 +37,40 @@ that object was dropped and the relation stopped being expressible:
 | `{{ one.part }}` | `{{ one.whole }}` |
 {% endfor %}{% endif %}
 
-{% if siblings %}## Whether parts ended up in the right whole
+{% if placement %}## Whether each part is in the right piece of furniture
 
 Asked of pairs of parts rather than of a part and its whole, so no predicted cabinet has to
 be declared the same object as a modelled one -- a run that finds one cabinet as five
-fragments has no such answer. {{ matching.matched | length }} of {{ matching.matched | length + matching.unmatched_predicted | length }} run objects were paired with a modelled one, and {{ siblings.considered | length }} of those are parts held by something.
+fragments has no such answer. {{ matching.matched | length }} of {{ matching.matched | length + matching.unmatched_predicted | length }} run objects were paired with a modelled one, and {{ placement.considered | length }} of those are parts held by something.
 
-| | pairs |
-| --- | ---: |
-| kept together by the run | {{ siblings.pairs.predicted }} |
-| held together by the model | {{ siblings.pairs.modelled }} |
-| both | **{{ siblings.pairs.in_both }}** |
+A part is judged by the **outermost** whole it ends up in, not by the one that directly
+holds it. The modelled world nests deeper than the question does -- it puts a drawer inside
+a cabinet inside a side, while the run builds one island holding cabinets, countertop and
+drawers at a single level -- and judging by the immediate whole scores that flattening as
+misplacement.
 
-Placement **{{ "%.2f" | format(siblings.pairs.precision) }}** -- the share of pairs the run put in one whole that
-belong in one whole. Togetherness {{ "%.2f" | format(siblings.pairs.recall) }} -- the share of pairs the model holds
-together that the run kept together; this is what a whole arriving in pieces costs, and it
-is a segmentation result rather than a placement one.
-{% if siblings.put_together %}
-Put in one whole that belong in different ones:
+**Placement {{ "%.2f" | format(placement.pairs.precision) }}** -- of the {{ placement.pairs.predicted }} pairs of parts the run put in one piece of
+furniture, {{ placement.pairs.in_both }} belong in one piece of furniture.
+{% if placement.put_together %}
+The ones that do not:
 
 | parts | the run put them in |
 | --- | --- |
-{% for one in siblings.put_together -%}
+{% for one in placement.put_together -%}
 | `{{ one.one }}` + `{{ one.other }}` | `{{ one.whole }}` |
-{% endfor %}{% endif %}
+{% endfor %}{% else %}
+Every pair the run put together belongs together.
+{% endif %}
+Recall is not reported here: the outermost whole of a modelled apartment is an entire side
+of the kitchen, and keeping all of that together is not something a run is asked to do.
+{% endif %}
+{% if splitting %}## Whether a whole arrived in one piece
+
+The other question, and the one the whole that *directly* holds a part answers.
+
+**Kept together {{ "%.2f" | format(splitting.pairs.recall) }}** -- of the {{ splitting.pairs.modelled }} pairs of parts the modelled world holds in one
+whole, the run kept {{ splitting.pairs.in_both }} in one whole. What is lost here is a whole arriving in pieces,
+which is a segmentation result and not a placement one.
 {% endif %}
 ## What the graphs are made of
 

@@ -36,7 +36,7 @@ from experiments.warsaw.evaluation.placement import (
     placed_run_bodies,
 )
 from experiments.warsaw.evaluation.scope import ComparisonRole, ComparisonScope
-from experiments.warsaw.evaluation.siblings import SiblingAgreement
+from experiments.warsaw.evaluation.siblings import Depth, SiblingAgreement
 from experiments.warsaw.evaluation.structure import StructuralComparison
 from experiments.warsaw.pipeline.records import SplitRecord
 from experiments.warsaw.pipeline.run import Run, RunFile
@@ -117,10 +117,22 @@ class Evaluation(JsonRecord):
     something.
     """
 
-    siblings: Optional[SiblingAgreement] = None
+    placement: Optional[SiblingAgreement] = None
     """
-    Whether parts that belong together ended up together, where an alignment let the two
-    worlds be related object by object.
+    Whether each part ended up in the right piece of furniture, judged by the outermost
+    whole and read as a precision: of the parts the run put together, how many belong
+    together.
+
+    Its recall says nothing, because the outermost whole of a modelled apartment is a
+    whole side of a kitchen and keeping all of that together is not something a run is
+    asked to do.
+    """
+
+    splitting: Optional[SiblingAgreement] = None
+    """
+    Whether a whole arrived in one piece, judged by the whole that directly holds each
+    part and read as a recall: of the parts the modelled world holds together, how many
+    the run kept together.
     """
 
     matching: Optional[ObjectCorrespondences] = None
@@ -161,7 +173,7 @@ class Evaluation(JsonRecord):
         )
         modelled_edges = cls._between(scope, ground_truth.edges, ground_truth.nodes)
 
-        matching, siblings = cls._placement(
+        matching, placement, splitting = cls._where_the_parts_went(
             run, ground_truth, scope, alignment, predicted_edges, modelled_edges
         )
         return cls(
@@ -186,20 +198,21 @@ class Evaluation(JsonRecord):
                 modelled_objects=modelled_nodes,
                 modelled_relations=modelled_edges,
             ),
-            siblings=siblings,
+            placement=placement,
+            splitting=splitting,
             matching=matching,
             left_out=(
                 []
                 if alignment is not None
                 else [
                     LeftOut(comparison="object matching", because=NEEDS_AN_ALIGNMENT),
-                    LeftOut(comparison="sibling agreement", because=NEEDS_AN_ALIGNMENT),
+                    LeftOut(comparison="placement", because=NEEDS_AN_ALIGNMENT),
                 ]
             ),
         )
 
     @classmethod
-    def _placement(
+    def _where_the_parts_went(
         cls,
         run: Run,
         ground_truth: GroundTruthGraph,
@@ -217,20 +230,25 @@ class Evaluation(JsonRecord):
         :param alignment: The fitted transform, or nothing where none was picked.
         :param predicted_edges: The relations the run asserted, in scope.
         :param modelled_edges: The relations the modelled world holds, in scope.
-        :return: The correspondence and the sibling agreement, or nothing for each.
+        :return: The correspondence and both agreements, or nothing for each.
         """
         if alignment is None:
-            return None, None
+            return None, None, None
         matching = ObjectCorrespondences.between(
             predicted=cls._in_scope(scope, placed_run_bodies(run, alignment)),
             modelled=cls._in_scope(scope, placed_modelled_objects(ground_truth)),
             how_compared=HOW_TO_PAIR_PLACED_OBJECTS,
         )
-        return matching, SiblingAgreement.between(
-            predicted_relations=predicted_edges,
-            modelled_relations=modelled_edges,
-            correspondences=matching,
-        )
+        judged = {
+            depth: SiblingAgreement.between(
+                predicted_relations=predicted_edges,
+                modelled_relations=modelled_edges,
+                correspondences=matching,
+                depth=depth,
+            )
+            for depth in Depth
+        }
+        return matching, judged[Depth.OUTERMOST], judged[Depth.IMMEDIATE]
 
     @staticmethod
     def _in_scope(scope: Optional[ComparisonScope], nodes: List) -> List:
@@ -300,7 +318,8 @@ class Evaluation(JsonRecord):
             structure=self.structure,
             parenthood=self.parenthood,
             composition=self.composition,
-            siblings=self.siblings,
+            placement=self.placement,
+            splitting=self.splitting,
             matching=self.matching,
             held=self.classes_worth_reporting,
             unmodelled=self.relations_of_an_unmodelled_kind,
