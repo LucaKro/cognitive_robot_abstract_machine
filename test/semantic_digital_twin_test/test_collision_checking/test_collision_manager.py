@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 from krrood.symbolic_math.float_variable_data import (
@@ -14,6 +15,7 @@ from semantic_digital_twin.collision_checking.collision_matrix import (
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowAllCollisions,
     AvoidCollisionBetweenGroups,
+    AvoidExternalCollisions,
     AvoidSelfCollisions,
 )
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
@@ -21,6 +23,7 @@ from semantic_digital_twin.collision_checking.collision_variable_managers import
     SelfCollisionVariableManager,
 )
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
+from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.world import World
 
 
@@ -280,6 +283,65 @@ def test_collision_rules_survive_merge(pr2_world_copy):
     with world.modify_world():
         world.merge_world(pr2_world_copy)
     assert len(world.collision_manager.rules) == expected
+
+
+def test_a_copied_world_keeps_the_distances_its_collision_rules_were_given(
+    _pr2_world_setup,
+):
+    """
+    A copy is used to try a motion out before it is run, so a copy whose rules fell back
+    to their default distances answers for a robot that keeps less clearance than the
+    one that goes on to execute.
+    """
+    original = [
+        (type(rule), rule.buffer_zone_distance, rule.violated_distance)
+        for rule in _pr2_world_setup.collision_manager.default_rules
+    ]
+
+    copied = [
+        (type(rule), rule.buffer_zone_distance, rule.violated_distance)
+        for rule in deepcopy(_pr2_world_setup).collision_manager.default_rules
+    ]
+
+    assert copied == original
+
+
+# %% rules only name bodies that can collide
+
+
+def test_an_avoid_rule_leaves_out_subset_bodies_that_cannot_collide(pr2_world_copy):
+    """
+    A body with no geometry can never be the reason two things are kept apart, so naming
+    one in a rule only misstates what that rule covers.
+    """
+    robot = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
+    without_geometry = pr2_world_copy.get_body_by_name("l_force_torque_adapter_link")
+    with_geometry = pr2_world_copy.get_body_by_name("l_force_torque_link")
+    assert not without_geometry.has_collision()
+    assert with_geometry.has_collision()
+
+    rule = AvoidExternalCollisions(
+        robot=robot, body_subset={without_geometry, with_geometry}
+    )
+
+    assert rule.body_subset == {with_geometry}
+
+
+def test_no_collision_rule_names_a_body_that_cannot_collide(pr2_world_copy):
+    """
+    Every rule the robot installs is built from bodies that carry geometry, and stays
+    that way whichever rule is added next.
+    """
+    for rule in pr2_world_copy.collision_manager.rules:
+        rule.update(pr2_world_copy)
+
+    named = {
+        body
+        for rule in pr2_world_copy.collision_manager.rules
+        for body in rule.referenced_bodies
+    }
+
+    assert sorted(str(body.name) for body in named if not body.has_collision()) == []
 
 
 # %% whether a robot touches anything

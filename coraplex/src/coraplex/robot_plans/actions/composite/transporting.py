@@ -15,7 +15,7 @@ from krrood.entity_query_language.factories import (
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.base import DeferredLocation, Location
-from coraplex.locations.factories import reachability_location
+from coraplex.locations.factories import accessing_location, reachability_location
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
@@ -79,7 +79,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
             a(NavigateAction)(
                 target_location=variable(
                     Pose,
-                    domain=reachability_location(handle.root, self.context, self.arm),
+                    domain=accessing_location(
+                        drawer_annotation[0], self.context, self.arm
+                    ),
                 ),
                 keep_joint_states=True,
             ),

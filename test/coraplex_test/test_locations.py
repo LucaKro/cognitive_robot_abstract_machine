@@ -11,7 +11,9 @@ from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.locations.costmaps import RingCostmap
-from coraplex.locations.factories import reachability_location
+from coraplex.config.action_conf import ActionConfig
+from coraplex.locations import factories
+from coraplex.locations.factories import accessing_location, reachability_location
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
@@ -22,6 +24,10 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Drawer,
+    Handle,
+)
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -370,6 +376,34 @@ def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_i
         [pose.to_np() for pose in expected_sequence],
         atol=1e-9,
     )
+
+
+# %% opening a container is reached for from further back
+
+
+def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
+    single_robot_world, monkeypatch
+):
+    """
+    A container is pulled open towards the robot, so it is reached for from further back
+    than something that stays where it is.
+    """
+    world, robot, context = single_robot_world
+    handle_body = _box_in(world)
+    container = Drawer(root=handle_body, handle=Handle(root=handle_body))
+    asked_for = {}
+    monkeypatch.setattr(
+        factories,
+        "reachability_location",
+        lambda *args, **kwargs: asked_for.update(kwargs),
+    )
+
+    accessing_location(container, context, Arms.RIGHT)
+
+    assert asked_for["reach_fraction"] == ActionConfig.accessing_reach_fraction
+    assert (
+        ActionConfig.accessing_reach_fraction > ActionConfig.reach_fraction
+    ), "a container is reached for from further back than a grasp"
 
 
 # %% the giskard backend reports the pose it placed the robot at

@@ -17,6 +17,19 @@ class ActionConfig:
     The gap in meters between an object and the gripper once it has let go of it.
     """
 
+    reach_fraction = 0.5
+    """
+    The fraction of an arm's length the robot stands off what it reaches for.
+    """
+
+    accessing_reach_fraction = 0.66
+    """
+    The fraction of an arm's length the robot stands off a container it opens or closes.
+
+    A container is pulled open towards the robot, so it stands further back than it does
+    to reach something that stays where it is.
+    """
+
     navigate_keep_joint_states = True
 
     face_at_keep_joint_states = True

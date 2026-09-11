@@ -48,6 +48,7 @@ def reachability_location(
     destination: Optional[Pose] = None,
     approach_clearance: float = ActionConfig.approach_clearance,
     retreat_distance: float = ActionConfig.retreat_distance,
+    reach_fraction: float = ActionConfig.reach_fraction,
 ) -> Location:
     """
     Factory method that creates a Location for robot poses from which a body can be
@@ -65,6 +66,8 @@ def reachability_location(
     :param approach_clearance: The gap left between the object and the gripper before
         the final approach.
     :param retreat_distance: How far the gripper rises after closing on the object.
+    :param reach_fraction: The fraction of the arm's length the robot stands off the
+        target by.
     :returns: A location from which the grasp can be reached.
     """
     body_T_grasp = grasp_pose or Pose(reference_frame=body)
@@ -74,7 +77,9 @@ def reachability_location(
         context,
         target_pose,
         OccupancyCostmap.default_map(context, target_pose)
-        & RingCostmap.from_arm_reach_distance(context, arm, target_pose),
+        & RingCostmap.from_arm_reach_distance(
+            context, arm, target_pose, reach_fraction=reach_fraction
+        ),
         [
             AreReachableBy.for_grasp(
                 HasApproachesGraspPoses.grasp_frame_at(target_pose, body_T_grasp),
@@ -200,7 +205,12 @@ def accessing_location(
     :param arm: Arm with which to access the container
     :returns: A location that is accessible from the container.
     """
-    return reachability_location(container.handle.root, context, arm)
+    return reachability_location(
+        container.handle.root,
+        context,
+        arm,
+        reach_fraction=ActionConfig.accessing_reach_fraction,
+    )
 
 
 def visibility_location(target: Union[Pose, Body], context: Context) -> Location:
