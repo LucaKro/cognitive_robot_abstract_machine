@@ -59,7 +59,9 @@ def reachability_location(
     :param grasp_pose: The grasp frame on the body, in the body's own frame. ``None``
         grasps the body at its origin.
     :param destination: Where the body is going to be, such as where a carried body is
-        placed. ``None`` reaches the body where it is.
+        placed. ``None`` reaches the body where it is. A body reached at a destination
+        is released there, which runs the approach backwards, so the check follows it
+        backwards too.
     :param approach_clearance: The gap left between the object and the gripper before
         the final approach.
     :param retreat_distance: How far the gripper rises after closing on the object.
@@ -67,6 +69,7 @@ def reachability_location(
     """
     body_T_grasp = grasp_pose or Pose(reference_frame=body)
     target_pose = destination or body.global_pose
+    releases_the_body = destination is not None
     return Location(
         context,
         target_pose,
@@ -78,6 +81,7 @@ def reachability_location(
                 arm,
                 body_T_grasp=body_T_grasp,
                 context=context,
+                reverse=releases_the_body,
                 approach_clearance=approach_clearance,
                 retreat_distance=retreat_distance,
             )
@@ -265,6 +269,7 @@ def giskard_reachability_location(
     body_T_grasp = grasp_pose or Pose(reference_frame=body)
     target_pose = destination or body.global_pose
     grasp_frame = HasApproachesGraspPoses.grasp_frame_at(target_pose, body_T_grasp)
+    releases_the_body = destination is not None
 
     backend = GiskardLocationBackend(
         target_pose,
@@ -274,6 +279,7 @@ def giskard_reachability_location(
         context.world,
         body_T_grasp=body_T_grasp,
         contact_bodies=[body],
+        reverse=releases_the_body,
         approach_clearance=approach_clearance,
         retreat_distance=retreat_distance,
     )
@@ -288,6 +294,7 @@ def giskard_reachability_location(
                 arm,
                 body_T_grasp=body_T_grasp,
                 context=context,
+                reverse=releases_the_body,
                 approach_clearance=approach_clearance,
                 retreat_distance=retreat_distance,
             )
