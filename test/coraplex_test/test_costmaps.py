@@ -287,9 +287,12 @@ def test_sample_to_pose_gau(immutable_model_world):
 
     final_map = gaussian_map + gaussian_map2
 
+    # The merge keeps only the cells both maps cover, which is the box the first one was
+    # given: rows 120:140 and columns 90:110 of a 0.02 m grid centred on the origin.
+    tolerance = 0.01
     for pose in final_map:
-        assert -1.8 < pose.to_position().y < 2.2
-        assert 2.6 <= pose.to_position().x <= 3.6
+        assert 1.8 <= pose.to_position().y <= 2.2 + tolerance
+        assert 3.4 <= pose.to_position().x <= 3.8 + tolerance
 
 
 def test_sample_y_axis(immutable_model_world):
