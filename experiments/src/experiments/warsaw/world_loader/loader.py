@@ -63,6 +63,51 @@ from experiments.warsaw.world_loader.viewpoints import (
 )
 
 
+@dataclass(frozen=True)
+class RenderedPictures:
+    """
+    Renders of a scene, each with the camera pose it was taken from.
+    """
+
+    images: Dict[str, bytes] = field(default_factory=dict)
+    """
+    The renders as PNG bytes, by the name of each view.
+    """
+
+    camera_poses: Dict[str, np.ndarray] = field(default_factory=dict)
+    """
+    The pose each was rendered from, under the same names.
+    """
+
+    field_of_view: Tuple[float, float] = (0.0, 0.0)
+    """
+    How wide the camera saw, in degrees across and down.
+    """
+
+    frame: str = ""
+    """
+    What the poses are relative to.
+    """
+
+    def named(self, naming: Dict[str, str]) -> RenderedPictures:
+        """
+        Say what each view was written as, so its pose is recorded under that name.
+
+        :param naming: The filename each view was written as, by the name of the view.
+        :return: The same pictures, keyed by filename.
+        """
+        return RenderedPictures(
+            images={naming[view]: image for view, image in self.images.items()},
+            camera_poses={
+                naming[view]: pose
+                for view, pose in self.camera_poses.items()
+                if view in naming
+            },
+            field_of_view=self.field_of_view,
+            frame=self.frame,
+        )
+
+
 @dataclass
 class RenderedSegmentGroup:
     """
@@ -87,6 +132,11 @@ class RenderedSegmentGroup:
     images: Dict[str, bytes]
     """
     Per viewpoint, the render taken from it, as PNG bytes.
+    """
+
+    camera_poses: Dict[str, np.ndarray] = field(default_factory=dict)
+    """
+    Per viewpoint, the camera pose it was rendered from.
     """
 
     @property
@@ -357,6 +407,7 @@ class WarsawWorldLoader:
                     images=self.render_scene_from_camera_poses(
                         camera_poses, headless=headless
                     ),
+                    camera_poses=camera_poses,
                 )
         finally:
             self._reset_segment_colors()
@@ -731,7 +782,7 @@ class WarsawWorldLoader:
         face_colors: np.ndarray,
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
-    ) -> Dict[str, bytes]:
+    ) -> RenderedPictures:
         """
         Render some segments' geometry by itself, with the rest of the scene left out.
 
@@ -746,7 +797,7 @@ class WarsawWorldLoader:
             segments' own are taken.
         :param viewpoints: Which named viewpoints to render, defaulting to all of them.
         :param headless: Whether to render without opening a window.
-        :return: Per viewpoint, its render as PNG bytes.
+        :return: Per viewpoint, its render and the pose it was taken from.
         """
         faces = np.unique(self.face_indices_of(segments))
         alone = self.scene_mesh.submesh([faces], append=True)
@@ -758,7 +809,35 @@ class WarsawWorldLoader:
             ),
             viewpoints,
         )
-        return self._render_from_poses(trimesh.Scene(alone), poses, headless)
+        return self._pictures(
+            self._render_from_poses(trimesh.Scene(alone), poses, headless), poses
+        )
+
+    @property
+    def camera_field_of_view(self) -> Tuple[float, float]:
+        """
+        :return: How wide the camera sees, in degrees across and down.
+        """
+        return self._camera_field_of_view
+
+    def _pictures(
+        self,
+        images: Dict[str, bytes],
+        camera_poses: Dict[str, np.ndarray],
+    ) -> RenderedPictures:
+        """
+        Put renders together with the poses they were taken from.
+
+        :param images: The renders, by the name of each view.
+        :param camera_poses: The pose each was taken from, under the same names.
+        :return: The two together, with what else is needed to use a pose.
+        """
+        return RenderedPictures(
+            images=images,
+            camera_poses=camera_poses,
+            field_of_view=self.camera_field_of_view,
+            frame=str(self.world.root.name),
+        )
 
     def _chosen_viewpoints(
         self,
@@ -783,7 +862,7 @@ class WarsawWorldLoader:
         headless: bool = False,
         choose_viewpoint: Optional[ViewpointChoice] = None,
         context_segments: Optional[Iterable[LabelSegment]] = None,
-    ) -> Dict[str, bytes]:
+    ) -> RenderedPictures:
         """
         Render a part of the scene the three ways a question about it needs answering.
 
@@ -808,7 +887,8 @@ class WarsawWorldLoader:
             that what stands in front of the segments counts against a viewpoint;
             ``alone`` measures it on the segments by themselves, which is what a hundred
             of these can afford. None keeps every viewpoint.
-        :return: The renders, keyed ``<kind>_<viewpoint>``.
+        :return: The renders and the pose each was taken from, keyed
+            ``<kind>_<viewpoint>``.
         """
         segments = list(segments)
         frame = None if context_segments is None else self.points_of(context_segments)
@@ -829,10 +909,12 @@ class WarsawWorldLoader:
         self._apply_highlight_to_faces(highlights)
         painted = np.asarray(self.scene_mesh.visual.face_colors).copy()
         closeups = self.render_segments_alone(segments, painted, viewpoints, headless)
-        contexts = self._render_from_poses(
-            self._render_scene(),
-            self._chosen_viewpoints(self.compute_camera_poses(frame), viewpoints),
-            headless,
+        context_poses = self._chosen_viewpoints(
+            self.compute_camera_poses(frame), viewpoints
+        )
+        contexts = self._pictures(
+            self._render_from_poses(self._render_scene(), context_poses, headless),
+            context_poses,
         )
 
         self._reset_segment_colors()
@@ -840,17 +922,23 @@ class WarsawWorldLoader:
             segments, self._original_face_colors, viewpoints, headless
         )
 
-        return {
-            **{
-                f"{PictureKind.CLOSEUP}_{name}": image
-                for name, image in closeups.items()
+        of_each_kind = (
+            (PictureKind.CLOSEUP, closeups),
+            (PictureKind.CONTEXT, contexts),
+            (PictureKind.PLAIN, plains),
+        )
+        return self._pictures(
+            images={
+                f"{kind}_{name}": image
+                for kind, pictures in of_each_kind
+                for name, image in pictures.images.items()
             },
-            **{
-                f"{PictureKind.CONTEXT}_{name}": image
-                for name, image in contexts.items()
+            camera_poses={
+                f"{kind}_{name}": pose
+                for kind, pictures in of_each_kind
+                for name, pose in pictures.camera_poses.items()
             },
-            **{f"{PictureKind.PLAIN}_{name}": image for name, image in plains.items()},
-        }
+        )
 
     def viewpoint_showing_all(
         self,

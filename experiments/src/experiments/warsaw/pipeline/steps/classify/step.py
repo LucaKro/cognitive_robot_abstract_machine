@@ -36,6 +36,7 @@ from krrood.ormatic.utils import classproperty
 
 from experiments.warsaw.pipeline.asking import Prompt, Question
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
+from experiments.warsaw.pipeline.camera_poses import CameraPoses
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications, Vocabulary
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
@@ -186,8 +187,21 @@ class ClassifyBodies(PipelineStep):
             segments=bodies,
             headless=self.settings.headless,
         ):
+            named_renders = {
+                viewpoint: f"group{rendered.index}__{viewpoint}.png"
+                for viewpoint in rendered.images
+            }
             for viewpoint, image in rendered.images.items():
-                (renders / f"group{rendered.index}__{viewpoint}.png").write_bytes(image)
+                (renders / named_renders[viewpoint]).write_bytes(image)
+            CameraPoses.record(
+                directory=renders,
+                frame=str(loader.world.root.name),
+                field_of_view=loader.camera_field_of_view,
+                poses={
+                    named_renders[viewpoint]: pose
+                    for viewpoint, pose in rendered.camera_poses.items()
+                },
+            )
 
             answered = questioner.answer(
                 BodyGroupQuestion(

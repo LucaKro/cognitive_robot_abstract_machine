@@ -30,6 +30,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 from semantic_digital_twin.world_description.geometry import Color
 from typing_extensions import Dict, List, Optional, Sequence, Tuple, Type
 
+from experiments.warsaw.pipeline.camera_poses import CameraPoses
 from experiments.warsaw.pipeline.templates import PipelineTemplates
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
@@ -58,7 +59,10 @@ from experiments.warsaw.segment_relations import (
     claimant_groups,
     segment_evidence,
 )
-from experiments.warsaw.world_loader.loader import WarsawWorldLoader
+from experiments.warsaw.world_loader.loader import (
+    RenderedPictures,
+    WarsawWorldLoader,
+)
 from experiments.warsaw.world_loader.scene import LabelSegment
 from experiments.warsaw.world_loader.viewpoints import ViewpointChoice
 
@@ -469,21 +473,32 @@ class MeasureScene(PipelineStep):
 
     @staticmethod
     def write_images(
-        images: Dict[str, bytes], directory: Path, prefix: str
+        pictures: RenderedPictures, directory: Path, prefix: str
     ) -> List[str]:
         """
-        :param images: The renders to write, by viewpoint.
+        Write some renders, and record where the camera stood for each.
+
+        The pose is kept because a picture nobody can say where it was taken from cannot
+        be measured against anything afterwards, and it is worked out while rendering and
+        otherwise lost.
+
+        :param pictures: The renders to write, by viewpoint, with their camera poses.
         :param directory: Where to write them.
         :param prefix: What to name them after.
         :return: The names they were written as.
         """
         directory.mkdir(parents=True, exist_ok=True)
-        written = []
-        for name, image in images.items():
-            filename = f"{prefix}__{name}.png"
-            (directory / filename).write_bytes(image)
-            written.append(filename)
-        return sorted(written)
+        named = {name: f"{prefix}__{name}.png" for name in pictures.images}
+        for name, image in pictures.images.items():
+            (directory / named[name]).write_bytes(image)
+        by_filename = pictures.named(named)
+        CameraPoses.record(
+            directory=directory,
+            frame=by_filename.frame,
+            field_of_view=by_filename.field_of_view,
+            poses=by_filename.camera_poses,
+        )
+        return sorted(named.values())
 
     def render_exemplars(
         self,
