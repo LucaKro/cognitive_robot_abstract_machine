@@ -14,8 +14,9 @@ from experiments.warsaw.evaluation.alignment import (
     LandmarkAlignment,
     LandmarkFile,
     main,
+    run_bodies_to_ground_truth,
 )
-
+from experiments.warsaw.world_loader.scene import source_rolled_upright
 
 # %% a landmark file to read back
 
@@ -223,3 +224,29 @@ def test_setting_aside_so_many_that_none_are_left_is_refused(tmp_path: Path):
 
     with pytest.raises(InsufficientLandmarksError):
         LandmarkFile.read(written).fit()
+
+
+# %% the frame a fit is applied in
+
+
+def test_a_fit_picked_on_the_scan_file_moves_a_runs_bodies_the_same_way() -> None:
+    """
+    A run's bodies sit in the world the loader rolls the scan upright into, so a fit
+    picked on the file itself puts them a quarter turn out unless it is re-expressed.
+    """
+    picked_on_the_file = LandmarkAlignment.fit(
+        [
+            Landmark(
+                name=item["name"],
+                reconstruction=item["reconstruction"],
+                ground_truth=item["ground_truth"],
+            )
+            for item in landmark_payload()["landmarks"]
+        ]
+    ).homogeneous_matrix
+    spot_in_the_file = np.asarray([0.3, -1.2, 4.0, 1.0])
+    spot_in_a_run = source_rolled_upright().to_np() @ spot_in_the_file
+
+    moved = run_bodies_to_ground_truth(picked_on_the_file) @ spot_in_a_run
+
+    assert np.allclose(moved, picked_on_the_file @ spot_in_the_file)

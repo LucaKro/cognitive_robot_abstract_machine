@@ -120,6 +120,21 @@ class LabelSegment:
         return len(self.face_indices)
 
 
+# %% the frame a scan is written in
+
+
+def source_rolled_upright() -> HomogeneousTransformationMatrix:
+    """
+    Turn the frame a scan file is written in into the world's.
+
+    A scan measures height down its own y axis, so a floor is written at a greater y
+    than the ceiling above it. This rolls that axis onto the world's upward z.
+
+    :return: The transform from a scan file's coordinates to the world's.
+    """
+    return HomogeneousTransformationMatrix.from_xyz_rpy(roll=-np.pi / 2)
+
+
 # %% the scan itself
 
 
@@ -153,15 +168,10 @@ class WarsawScene:
     """
 
     world_T_source: HomogeneousTransformationMatrix = field(
-        default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
-            roll=-np.pi / 2
-        )
+        default_factory=source_rolled_upright
     )
     """
     Turns the scene from the frame it is written in into the world's.
-
-    The scene measures height down its own y axis, so a floor is written at a greater y
-    than the ceiling above it. This rolls that axis onto the world's upward z.
     """
 
     @classmethod

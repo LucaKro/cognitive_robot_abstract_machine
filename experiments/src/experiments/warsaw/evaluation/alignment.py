@@ -12,6 +12,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from experiments.warsaw.world_loader.scene import source_rolled_upright
+
 # %% invalid landmark sets
 
 
@@ -192,6 +194,29 @@ class LandmarkAlignment:
                 for residual in self.residuals
             ],
         }
+
+
+# %% the frame a fit is applied in
+
+
+def run_bodies_to_ground_truth(
+    scene_file_to_ground_truth: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """
+    Re-express a fit picked on a scan file so that it moves a run's bodies.
+
+    Landmarks are picked on the scan file, while a run's bodies sit in the world the
+    loader rolls that scan upright into. Applied unchanged, a fit therefore arrives a
+    quarter turn out, which reads as a badly picked landmark set rather than as the
+    frame mismatch it is.
+
+    :param scene_file_to_ground_truth: The transform the landmarks fitted.
+    :return: The same transform, for bodies in a run's world.
+    """
+    return (
+        np.asarray(scene_file_to_ground_truth, dtype=np.float64)
+        @ source_rolled_upright().inverse().to_np()
+    )
 
 
 # %% portable landmark input

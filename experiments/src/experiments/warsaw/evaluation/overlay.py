@@ -7,9 +7,10 @@ open at once, in the same frame, with each body still saying which world it came
 and what it is.
 
 The reconstruction is the one that moves: it sits in its own frame and, on the
-kitchenlab scan, is not even metric. The transform comes from landmarks picked by hand,
-so the overlay is only ever as good as that fit -- read the residuals before believing a
-mismatch you see here.
+kitchenlab scan, is not even metric. The transform comes from landmarks picked by hand
+on the scan file, and a run's bodies are a roll away from that file, so it is re-
+expressed before it is applied. The overlay is only ever as good as that fit -- read the
+residuals before believing a mismatch you see here.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from semantic_digital_twin.adapters.world_mesh_exporter import (
 )
 from typing_extensions import List, Optional
 
+from experiments.warsaw.evaluation.alignment import run_bodies_to_ground_truth
 from experiments.warsaw.evaluation.export_world_mesh import named_by_class
 from experiments.warsaw.evaluation.ground_truth import (
     world_from_provider,
@@ -189,7 +191,7 @@ def main(arguments: Optional[List[str]] = None) -> int:
     together = overlaid(
         reconstruction=scene_of_a_run(parsed.run),
         modelled=scene_of_a_modelled_world(parsed.urdf, parsed.world_provider),
-        reconstruction_to_modelled=np.asarray(fitted["matrix"], dtype=np.float64),
+        reconstruction_to_modelled=run_bodies_to_ground_truth(fitted["matrix"]),
     )
     output = parsed.output or Path(parsed.run) / RunFile.WORLD_MESH.value
     output.mkdir(parents=True, exist_ok=True)
