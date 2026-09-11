@@ -30,6 +30,7 @@ from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 
 if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import EndEffector
+    from semantic_digital_twin.world import World
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.locations.base import PoseValidator
 from coraplex.plans.executables import GiskardExecutable
@@ -436,7 +437,8 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
         """
         Whether the gripper can perform the approach onto a grasp and withdraw again.
 
-        :param grasp_pose: The grasp frame to reach, in ``copied_world``'s frames.
+        :param grasp_pose: The grasp frame to reach, in ``body``'s own frame when there
+            is one and in ``copied_world``'s frames either way.
         :param copied_world: The copy to try it in.
         :param body: The body being grasped, that the approach must avoid.
         :param reverse: Whether to withdraw from the grasp rather than move onto it.
@@ -447,7 +449,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
             pose_sequence=self.grasp_pose_sequence(
                 grasp_pose,
                 copied_world.end_effector,
-                self._grasp_in_body_frame(grasp_pose, body),
+                grasp_pose if body is not None else None,
                 reverse=reverse,
             ),
             tip_link=copied_world.end_effector.tool_frame,
@@ -471,15 +473,6 @@ class IsObjectReachableBy(GraspReachabilityValidator):
     graspable: HasGraspPoses
     """
     The annotation of the object that should be grasped.
-    """
-
-    grasp_poses: List[Pose] = field(default_factory=list)
-    """
-    The grasps that may be taken, in :attr:`graspable`'s own frame.
-
-    Empty asks the object for every grasp it offers, which is what a caller wanting the
-    object picked up however it can be means. A caller that has narrowed the choice --
-    to a single grasp, say -- passes what it will accept.
     """
 
     reachable_grasp: Optional[Pose] = field(default=None, init=False)
@@ -511,29 +504,19 @@ class IsObjectReachableBy(GraspReachabilityValidator):
         self, copied_world: ReachabilityProbeWorld, graspable: HasGraspPoses
     ) -> List[Tuple[Pose, Pose]]:
         """
-        The grasps to try, best first.
+        The grasps to try, the ones the gripper is closest to first.
 
         :param copied_world: The copy the reaches are tried in.
         :param graspable: The object, as the copy holds it.
         :return: Pairs of the grasp to try, written against the copy, and the grasp to
-            hand back for it, written against the object the caller holds. A caller that
-            named its grasps gets its own back rather than a rewritten equal.
+            hand back for it, written against the object the caller holds.
         """
-        if not self.grasp_poses:
-            return [
-                (grasp_pose, self._against(grasp_pose, self.graspable.root))
-                for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
-                    graspable
-                )
-            ]
-        candidates = [
-            (self._against(grasp_pose, graspable.root), grasp_pose)
-            for grasp_pose in self.grasp_poses
+        return [
+            (grasp_pose, self._against(grasp_pose, self.graspable.root))
+            for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
+                graspable
+            )
         ]
-        return sorted(
-            candidates,
-            key=lambda pair: copied_world.end_effector.distance_to_grasp(pair[0]),
-        )
 
     def __call__(self, *args, **kwargs) -> bool:
         self.reachable_grasp = None

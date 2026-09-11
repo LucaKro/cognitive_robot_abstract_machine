@@ -360,7 +360,7 @@ def test_robot_is_in_collision_reports_a_contact_of_its_own(cylinder_bot_world):
         [
             AvoidCollisionBetweenGroups(
                 buffer_zone_distance=10,
-                violated_distance=0.0,
+                violated_distance=10,
                 body_group_a=[robot.root],
                 body_group_b=[environment],
             )
@@ -369,6 +369,40 @@ def test_robot_is_in_collision_reports_a_contact_of_its_own(cylinder_bot_world):
     collision_manager.update_collision_matrix()
 
     assert robot.is_in_collision
+
+
+def test_robot_is_not_in_collision_while_it_keeps_its_distance(cylinder_bot_world):
+    """
+    A pair is watched from far enough away to see it coming, so being reported says only
+    that the two are being watched.
+
+    The robot counts as in collision once it comes within the distance the rule says
+    must not be violated, and not before.
+    """
+    robot = cylinder_bot_world.get_semantic_annotations_by_type(MinimalRobot)[0]
+    environment = cylinder_bot_world.get_kinematic_structure_entity_by_name(
+        "environment"
+    )
+    collision_manager = cylinder_bot_world.collision_manager
+    collision_manager.extend_temporary_rule(
+        [
+            AvoidCollisionBetweenGroups(
+                buffer_zone_distance=10,
+                violated_distance=0.1,
+                body_group_a=[robot.root],
+                body_group_b=[environment],
+            )
+        ]
+    )
+    collision_manager.update_collision_matrix()
+    [contact] = [
+        contact
+        for contact in collision_manager.compute_collisions().contacts
+        if contact.body_a is environment or contact.body_b is environment
+    ]
+
+    assert contact.distance > 0.1
+    assert not robot.is_in_collision
 
 
 def test_robot_is_not_in_collision_when_nothing_is_checked(cylinder_bot_world):

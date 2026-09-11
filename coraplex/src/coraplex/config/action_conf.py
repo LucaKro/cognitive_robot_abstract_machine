@@ -12,7 +12,7 @@ class ActionConfig:
     The height in meters the gripper rises by once it holds an object.
     """
 
-    reach_fraction = 0.5
+    reach_fraction = 0.6
     """
     The fraction of an arm's length the robot stands off what it reaches for.
     """

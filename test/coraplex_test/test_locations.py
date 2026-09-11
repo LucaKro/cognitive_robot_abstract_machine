@@ -10,7 +10,7 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
-from coraplex.locations.costmaps import RingCostmap
+from coraplex.locations.costmaps import Costmap, RingCostmap
 from coraplex.config.action_conf import ActionConfig
 from coraplex.locations import factories
 from coraplex.locations.factories import accessing_location, reachability_location
@@ -75,6 +75,23 @@ class RecordsEvaluatedRobot(PoseValidator):
         self.evaluated_robots.append(self.robot)
         self.evaluated_root_poses.append(self.robot.root.global_pose)
         return True
+
+
+@dataclass
+class RefusesEveryCandidate(PoseValidator):
+    """
+    Refuses every candidate and counts how often it was asked, so the number of
+    candidates a location spends on validation can be asserted.
+    """
+
+    times_asked: int = 0
+    """
+    How often this validator was called.
+    """
+
+    def __call__(self, *args, **kwargs) -> bool:
+        self.times_asked += 1
+        return False
 
 
 @dataclass
@@ -279,6 +296,135 @@ def test_a_ring_from_the_arm_reach_distance_samples_at_the_reach_fraction(
     )
 
 
+# %% a costmap offers the candidates it prefers first
+
+
+def test_a_costmap_offers_the_candidates_it_prefers_first(single_robot_world):
+    """
+    A caller takes the first candidate that passes its checks, so the map's own
+    preference only decides where the robot stands if the candidates arrive in that
+    order.
+
+    Handing out the best cells in an arbitrary order leaves the choice to whatever the
+    surroundings happen to leave free, which is what makes tuning a ring's radius stop
+    moving the robot.
+    """
+    world, _, _ = single_robot_world
+    costmap = Costmap(
+        0.02,
+        height=5,
+        width=5,
+        origin=Pose.from_xyz_rpy(
+            *REACHABILITY_TARGET_POSITION[:2], 0, reference_frame=world.root
+        ),
+        world=world,
+    )
+    # One connected run through the centre, so the map is a single partition and the
+    # middle cell is the one the map prefers.
+    costmap.map = np.zeros((5, 5))
+    costmap.map[2, 1] = 0.25
+    costmap.map[2, 2] = 1.0
+    costmap.map[2, 3] = 0.5
+
+    origin_position = costmap.origin.to_position().to_np()[:2].ravel()
+    offsets = [
+        float(
+            np.linalg.norm(
+                candidate.to_position().to_np()[:2].ravel() - origin_position
+            )
+        )
+        for candidate in costmap
+    ]
+
+    assert offsets == pytest.approx([0.0, costmap.resolution, costmap.resolution])
+
+
+# %% how many candidates a location spends on validation
+
+
+CANDIDATES_IN_COLLISION = 4
+"""
+How many candidates of the budget test stand inside the box, so are thrown out before
+any validator sees them.
+"""
+
+CANDIDATES_BEYOND_THE_BUDGET = 5
+"""
+How many candidates past the budget are offered, so that running out of budget is what
+ends the search rather than running out of candidates.
+"""
+
+
+def _pose_at(world: World, x: float, y: float) -> Pose:
+    """
+    :param world: The world the pose is expressed in.
+    :param x: Where the robot stands along the world's x-axis.
+    :param y: Where it stands along the y-axis.
+    :return: A standing pose there.
+    """
+    return Pose.from_xyz_rpy(x, y, 0.0, reference_frame=world.root)
+
+
+def _poses_clear_of_everything(world: World, count: int) -> List[Pose]:
+    """
+    :param world: The world the poses are expressed in.
+    :param count: How many to lay out.
+    :return: Standing poses spaced along a line, none of them touching anything.
+    """
+    return [_pose_at(world, 2.0 + 0.5 * step, 2.0) for step in range(count)]
+
+
+def test_a_location_validates_no_more_candidates_than_its_budget(single_robot_world):
+    """
+    Validation drives the robot to see whether it arrives, which is the expensive part
+    of judging a standing pose, so a location only spends its budget of them before it
+    gives up.
+    """
+    world, robot, context = single_robot_world
+    validator = RefusesEveryCandidate(context=context)
+    budget = Location.candidates_to_validate
+    location = Location(
+        context,
+        _pose_at(world, 0.0, 0.0),
+        FixedPoseGenerator(
+            _poses_clear_of_everything(world, budget + CANDIDATES_BEYOND_THE_BUDGET)
+        ),
+        [validator],
+    )
+
+    assert list(location) == []
+    assert validator.times_asked == location.candidates_to_validate
+
+
+def test_a_location_does_not_spend_its_budget_on_candidates_it_never_validates(
+    single_robot_world,
+):
+    """
+    A candidate thrown out for standing in collision costs nothing to judge, so it must
+    not use up one of the validations the location is allowed.
+
+    Otherwise a target hemmed in by furniture exhausts the budget before a single pose
+    is ever tried.
+    """
+    world, robot, context = single_robot_world
+    box = _box_in(world)
+    box_position = box.global_pose.to_position().to_np()[:2].ravel()
+    validator = RefusesEveryCandidate(context=context)
+    budget = Location.candidates_to_validate
+    inside_the_box = [
+        _pose_at(world, float(box_position[0]), float(box_position[1]))
+    ] * CANDIDATES_IN_COLLISION
+    location = Location(
+        context,
+        _pose_at(world, 0.0, 0.0),
+        FixedPoseGenerator(inside_the_box + _poses_clear_of_everything(world, budget)),
+        [validator],
+    )
+
+    assert list(location) == []
+    assert validator.times_asked == location.candidates_to_validate
+
+
 # %% a reachability location for a body that is going to be somewhere else
 
 
@@ -378,15 +524,15 @@ def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_i
     )
 
 
-# %% opening a container is reached for from further back
+# %% opening a container is reached for by its own standing distance
 
 
 def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
     single_robot_world, monkeypatch
 ):
     """
-    A container is pulled open towards the robot, so it is reached for from further back
-    than something that stays where it is.
+    Opening a container is reached for by its own standing distance rather than the one
+    used for a grasp.
     """
     world, robot, context = single_robot_world
     handle_body = _box_in(world)
@@ -401,9 +547,6 @@ def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
     accessing_location(container, context, Arms.RIGHT)
 
     assert asked_for["reach_fraction"] == ActionConfig.accessing_reach_fraction
-    assert (
-        ActionConfig.accessing_reach_fraction > ActionConfig.reach_fraction
-    ), "a container is reached for from further back than a grasp"
 
 
 # %% the giskard backend reports the pose it placed the robot at

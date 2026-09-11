@@ -170,7 +170,7 @@ class ReachAction(
     """
     The grasp frame that should be reached, as
     :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
-    defines it.
+    defines it, in :attr:`object_designator`'s own frame when there is one.
 
     ``None`` takes the first grasp :attr:`object_designator` offers, so a reach onto a
     bare pose has to name one.
@@ -212,12 +212,10 @@ class ReachAction(
     def _action_plan(self) -> PlanNode:
         if self.perceive_before_grasp and self.object_designator is None:
             raise PerceptionTargetMissing(self)
-        object_body = self.object_designator.root if self.object_designator else None
-
         target_pre_pose, target_pose, _ = self.grasp_pose_sequence(
             self.grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
-            self._grasp_in_body_frame(self.grasp_pose, object_body),
+            self.grasp_pose if self.object_designator is not None else None,
             reverse=self.reverse_reach_order,
         )
         children = [
@@ -381,7 +379,7 @@ class PickUpAction(
         _, _, lift_to_pose = self.grasp_pose_sequence(
             grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
-            self._grasp_in_body_frame(grasp_pose, self.object_designator.root),
+            grasp_pose,
         )
         return sequential(
             children=[
