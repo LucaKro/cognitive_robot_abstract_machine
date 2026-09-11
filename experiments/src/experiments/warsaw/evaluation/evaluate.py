@@ -35,6 +35,7 @@ from experiments.warsaw.evaluation.placement import (
     placed_modelled_objects,
     placed_run_bodies,
 )
+from experiments.warsaw.evaluation.relation_correctness import RelationCorrectness
 from experiments.warsaw.evaluation.scope import ComparisonRole, ComparisonScope
 from experiments.warsaw.evaluation.siblings import Depth, SiblingAgreement
 from experiments.warsaw.evaluation.structure import StructuralComparison
@@ -117,6 +118,14 @@ class Evaluation(JsonRecord):
     something.
     """
 
+    relations_correct: Optional[RelationCorrectness] = None
+    """
+    Each relation the run asserted, judged against the modelled world one at a time.
+
+    The objects a run can find are settled by the segmentation; the relations are what
+    the pipeline adds, so this is what it is judged on.
+    """
+
     placement: Optional[SiblingAgreement] = None
     """
     Whether each part ended up in the right piece of furniture, judged by the outermost
@@ -178,7 +187,7 @@ class Evaluation(JsonRecord):
         )
         modelled_edges = cls._between(scope, ground_truth.edges, ground_truth.nodes)
 
-        matching, placement, splitting = cls._where_the_parts_went(
+        matching, placement, splitting, relations_correct = cls._where_the_parts_went(
             run, ground_truth, scope, alignment, predicted_edges, modelled_edges
         )
         return cls(
@@ -203,6 +212,7 @@ class Evaluation(JsonRecord):
                 modelled_objects=modelled_nodes,
                 modelled_relations=modelled_edges,
             ),
+            relations_correct=relations_correct,
             placement=placement,
             splitting=splitting,
             matching=matching,
@@ -235,10 +245,11 @@ class Evaluation(JsonRecord):
         :param alignment: The fitted transform, or nothing where none was picked.
         :param predicted_edges: The relations the run asserted, in scope.
         :param modelled_edges: The relations the modelled world holds, in scope.
-        :return: The correspondence and both agreements, or nothing for each.
+        :return: The correspondence, both agreements and every relation judged, or
+            nothing for each.
         """
         if alignment is None:
-            return None, None, None
+            return None, None, None, None
         matching = ObjectCorrespondences.between(
             predicted=cls._in_scope(scope, placed_run_bodies(run, alignment)),
             modelled=cls._in_scope(scope, placed_modelled_objects(ground_truth)),
@@ -253,7 +264,16 @@ class Evaluation(JsonRecord):
             )
             for depth in Depth
         }
-        return matching, judged[Depth.OUTERMOST], judged[Depth.IMMEDIATE]
+        return (
+            matching,
+            judged[Depth.OUTERMOST],
+            judged[Depth.IMMEDIATE],
+            RelationCorrectness.between(
+                predicted_relations=predicted_edges,
+                modelled_relations=modelled_edges,
+                correspondences=matching,
+            ),
+        )
 
     @staticmethod
     def _in_scope(scope: Optional[ComparisonScope], nodes: List) -> List:
@@ -323,6 +343,7 @@ class Evaluation(JsonRecord):
             structure=self.structure,
             parenthood=self.parenthood,
             composition=self.composition,
+            relations_correct=self.relations_correct,
             placement=self.placement,
             splitting=self.splitting,
             matching=self.matching,

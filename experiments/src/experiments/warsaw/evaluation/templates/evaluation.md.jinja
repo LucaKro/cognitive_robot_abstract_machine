@@ -37,6 +37,29 @@ that object was dropped and the relation stopped being expressible:
 | `{{ one.part }}` | `{{ one.whole }}` |
 {% endfor %}{% endif %}
 
+{% if relations_correct %}## Whether each relation the run asserted holds
+
+The objects are settled by what the scan was segmented into; the relations are what the
+pipeline adds, so they are judged one at a time rather than counted. A relation is correct
+when the modelled world holds the part anywhere inside the matched whole: a run that hangs a
+drawer straight off the island rather than off the cabinet inside it has still put it
+somewhere it really is.
+
+**{{ relations_correct.correct }} of {{ relations_correct.judgeable }}** relations correct{% if relations_correct.share_correct is not none %} ({{ "%.2f" | format(relations_correct.share_correct) }}){% endif %}, out of {{ relations_correct.asserted }} asserted;
+{{ relations_correct.asserted - relations_correct.judgeable }} could not be judged because an end was paired with nothing modelled.
+
+Of those correct, {{ relations_correct.held_directly }} put the part in the very whole the modelled world holds it in,
+and {{ relations_correct.same_field }} did so through the same ontology field -- the finer claim, and the one the
+ontology is what makes.
+{% if relations_correct.wrongly_placed %}
+Put somewhere the part is not:
+
+| the run says | the modelled world holds the part in |
+| --- | --- |
+{% for one in relations_correct.wrongly_placed -%}
+| `{{ one.whole }}` --{{ one.field_name }}--> `{{ one.part }}` | `{{ one.modelled_whole or "nothing" }}` |
+{% endfor %}{% endif %}
+{% endif %}
 {% if placement %}## Whether each part is in the right piece of furniture
 
 Asked of pairs of parts rather than of a part and its whole, so no predicted cabinet has to
