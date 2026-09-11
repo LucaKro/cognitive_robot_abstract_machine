@@ -63,6 +63,18 @@ torso meets the cabinet doors on the other side instead.
 """
 
 
+PLACE_SETTING_Y = 3.3
+"""
+Where on the table the place setting is laid out, along the axis the robot faces.
+
+The three targets sit 20 cm apart along the table instead, which clears the widest
+footprint of the set -- the bowl's 14 cm -- plus the clearance the arm keeps while it
+reaches between them. Closer together, placing one object drives the gripper into the
+buffer zone around the one already standing there. Their heights rest each object on the
+table surface at z=0.723 rather than in it.
+"""
+
+
 @dataclass
 class BulletWorldDemonstration(RobotDemonstration):
     """
@@ -160,13 +172,13 @@ class BulletWorldDemonstration(RobotDemonstration):
                     ),
                     Arms.LEFT,
                     target_location=Pose.from_xyz_rpy(
-                        4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
+                        4.8, PLACE_SETTING_Y, 0.82, yaw=1.57, reference_frame=world.root
                     ),
                 ),
                 a(TransportAction)(
                     object_designator=bowl,
                     target_location=Pose.from_xyz_rpy(
-                        5, 3.3, 0.75, yaw=1.57, reference_frame=world.root
+                        5.0, PLACE_SETTING_Y, 0.76, yaw=1.57, reference_frame=world.root
                     ),
                     arm=Arms.LEFT,
                     grasp_pose=variable(
@@ -181,7 +193,7 @@ class BulletWorldDemonstration(RobotDemonstration):
                     ),
                     Arms.LEFT,
                     target_location=Pose.from_xyz_rpy(
-                        5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root
+                        5.2, PLACE_SETTING_Y, 0.74, yaw=1.57, reference_frame=world.root
                     ),
                 ),
             ],
