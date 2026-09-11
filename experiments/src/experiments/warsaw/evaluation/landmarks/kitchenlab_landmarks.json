@@ -80,7 +80,8 @@
         2.912281751633,
         1.126944541931,
         0.020380077884
-      ]
+      ],
+      "set_aside": "A floor corner at the base of the island, where the scan is noisy and incomplete and the spot is half occluded. It is 24 cm out where every other point is under 10 cm, and it alone accounts for the error: leaving out any other point leaves the fit at about 11 cm, leaving out this one takes it to 3.6 cm."
     },
     {
       "name": "point 7",
@@ -109,5 +110,5 @@
       ]
     }
   ],
-  "note": "estimate_scale is true because the reconstruction is not metric: the fit puts it at 2.073x metres. Fixing the scale at 1 gives an RMS error of 1.87 m; estimating it gives 0.107 m. 'point 6' is 24 cm out where every other point is under 10 cm, and dropping it takes the RMS to 3.6 cm -- it is kept here because this file records what was picked, and it is worth re-picking."
+  "note": "estimate_scale is true because the reconstruction is not metric: the fit puts it at 2.073x metres. Fixing the scale at 1 gives an RMS error of 1.87 m. One landmark is set aside; see its own reason. ICP was tried as an alternative to setting it aside and made the fit worse -- see README.md."
 }

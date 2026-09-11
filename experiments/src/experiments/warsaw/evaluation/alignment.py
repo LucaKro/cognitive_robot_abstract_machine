@@ -43,6 +43,14 @@ class Landmark:
     ground_truth: tuple[float, float, float]
     """The same physical point in ground-truth coordinates."""
 
+    set_aside: str | None = None
+    """Why this landmark is not fitted, or nothing where it is.
+
+    A point can be picked badly where the scan is noisy or incomplete, and re-picking is
+    not always possible. Recording the reason keeps the file a record of what was picked
+    rather than of what happened to fit.
+    """
+
 
 @dataclass(frozen=True)
 class LandmarkResidual:
@@ -223,6 +231,7 @@ class LandmarkFile:
                 name=item["name"],
                 reconstruction=tuple(item["reconstruction"]),
                 ground_truth=tuple(item["ground_truth"]),
+                set_aside=item.get("set_aside"),
             )
             for item in data["landmarks"]
         )
@@ -233,9 +242,19 @@ class LandmarkFile:
             estimate_scale=bool(data.get("estimate_scale", False)),
         )
 
+    @property
+    def fitted_landmarks(self) -> tuple[Landmark, ...]:
+        """The landmarks the fit uses: all of them that were not set aside.
+
+        :return: Those landmarks, in the order they were picked.
+        """
+        return tuple(one for one in self.landmarks if one.set_aside is None)
+
     def fit(self) -> LandmarkAlignment:
         """Fit the transform requested by this landmark file."""
-        return LandmarkAlignment.fit(self.landmarks, estimate_scale=self.estimate_scale)
+        return LandmarkAlignment.fit(
+            self.fitted_landmarks, estimate_scale=self.estimate_scale
+        )
 
 
 # %% command-line entry point

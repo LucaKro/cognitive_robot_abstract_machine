@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -14,6 +15,30 @@ from experiments.warsaw.evaluation.alignment import (
     LandmarkFile,
     main,
 )
+
+
+# %% a landmark file to read back
+
+
+def landmark_payload(set_aside_last: str | None = None) -> dict:
+    """
+    Four landmarks on a cube corner, optionally with the last one set aside.
+    """
+    places = [[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 2.0, 0.0], [1.0, 1.0, 2.0]]
+    landmarks = [
+        {"name": f"point_{index}", "reconstruction": place, "ground_truth": place}
+        for index, place in enumerate(places)
+    ]
+    if set_aside_last is not None:
+        landmarks[-1]["set_aside"] = set_aside_last
+    return {
+        "schema_version": 1,
+        "reconstruction_frame": "scan",
+        "ground_truth_frame": "model",
+        "estimate_scale": False,
+        "landmarks": landmarks,
+    }
+
 
 # %% recovering a coordinate-frame transform
 
@@ -108,7 +133,8 @@ def test_landmark_file_fits_and_writes_an_auditable_transform(tmp_path) -> None:
     """A small hand-picked JSON file is enough to establish the two frames."""
     input_path = tmp_path / "landmarks.json"
     output_path = tmp_path / "alignment.json"
-    input_path.write_text("""{
+    input_path.write_text(
+        """{
   "schema_version": 1,
   "reconstruction_frame": "pipeline_mesh",
   "ground_truth_frame": "iai_apartment",
@@ -119,7 +145,8 @@ def test_landmark_file_fits_and_writes_an_auditable_transform(tmp_path) -> None:
     {"name": "counter_y", "reconstruction": [0, 1, 0], "ground_truth": [9, 20, 3]},
     {"name": "shelf", "reconstruction": [0, 0, 1], "ground_truth": [10, 20, 4]}
   ]
-}""")
+}"""
+    )
 
     assert main([str(input_path), "--output", str(output_path)]) == 0
 
@@ -143,3 +170,56 @@ def test_landmark_file_rejects_an_unknown_schema_version(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="schema version"):
         LandmarkFile.read(path)
+
+
+# %% a landmark that was picked but is not used
+
+
+def test_a_landmark_set_aside_is_not_fitted(tmp_path: Path):
+    """
+    A point can be picked badly where the scan is noisy or incomplete, and re-picking is
+    not always possible. Setting it aside keeps the record of what was picked while
+    leaving it out of the fit.
+    """
+    written = tmp_path / "landmarks.json"
+    written.write_text(
+        json.dumps(
+            landmark_payload(
+                set_aside_last="picked on a floor " "corner the scan barely covers"
+            )
+        )
+    )
+
+    read = LandmarkFile.read(written)
+
+    assert len(read.landmarks) == 4
+    assert len(read.fitted_landmarks) == 3
+    assert len(read.fit().residuals) == 3
+
+
+def test_a_landmark_that_is_used_says_nothing_about_being_set_aside(tmp_path: Path):
+    """
+    The reason is what records the decision, so its absence is what says a point counts.
+    """
+    written = tmp_path / "landmarks.json"
+    written.write_text(json.dumps(landmark_payload()))
+
+    read = LandmarkFile.read(written)
+
+    assert [one.set_aside for one in read.landmarks] == [None] * 4
+    assert read.fitted_landmarks == read.landmarks
+
+
+def test_setting_aside_so_many_that_none_are_left_is_refused(tmp_path: Path):
+    """
+    Three points are the fewest a rigid fit can be made from, and silently fitting fewer
+    would return a transform nothing could be trusted from.
+    """
+    payload = landmark_payload()
+    for one in payload["landmarks"][1:]:
+        one["set_aside"] = "a reason"
+    written = tmp_path / "landmarks.json"
+    written.write_text(json.dumps(payload))
+
+    with pytest.raises(InsufficientLandmarksError):
+        LandmarkFile.read(written).fit()
