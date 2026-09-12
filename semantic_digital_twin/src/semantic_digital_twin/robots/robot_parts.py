@@ -897,6 +897,20 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
 
         connection.origin = pose.to_homogeneous_matrix()
 
+    def pose_at_root_height(self, pose: Pose) -> Pose:
+        """
+        ``pose`` moved onto the height the robot's root stands at.
+
+        A drive carries no degree of freedom for z, so the root keeps whatever height it
+        was placed at, and only a pose at that height is one the robot reaches exactly.
+
+        :param pose: The pose to move onto the root's height.
+        """
+        root_pose = self._world.transform(self.root.global_pose, pose.reference_frame)
+        raised = deepcopy(pose)
+        raised.z = root_pose.z
+        return raised
+
     @property
     def _one_dof_connections(self) -> list[ActiveConnection1DOF]:
         """

@@ -75,3 +75,39 @@ def test_pose_in_the_root_connection_parent_frame_is_applied_unchanged():
     robot.set_root_pose(target)
 
     np.testing.assert_allclose(connection.origin.to_np(), target.to_np(), atol=1e-9)
+
+
+# %% poses at the height the root drives at
+
+_RAISED_ODOM = HomogeneousTransformationMatrix.from_xyz_rpy(0.5, 0.5, 0.034)
+"""
+An odom lifted onto a floor surface, which is the height the root then drives at.
+"""
+
+
+def test_pose_at_root_height_is_reached_exactly():
+    """
+    A pose raised onto the root's height is one the drive reproduces without loss,
+    unlike the pose it was derived from.
+    """
+    world, robot = _pr2_behind_an_odom(_RAISED_ODOM)
+    target = Pose.from_xyz_rpy(1.3, 2.0, 0.0, yaw=0.25, reference_frame=world.root)
+
+    raised = robot.pose_at_root_height(target)
+    robot.set_root_pose(raised)
+
+    np.testing.assert_allclose(
+        robot.root.global_pose.to_np(), raised.to_np(), atol=1e-9
+    )
+
+
+def test_pose_at_root_height_changes_nothing_but_the_height():
+    world, robot = _pr2_behind_an_odom(_RAISED_ODOM)
+    target = Pose.from_xyz_rpy(1.3, 2.0, 0.0, yaw=0.25, reference_frame=world.root)
+
+    raised = robot.pose_at_root_height(target)
+
+    np.testing.assert_allclose(raised.to_np()[:2, :], target.to_np()[:2, :], atol=1e-9)
+    np.testing.assert_allclose(
+        raised.to_position().z.to_np(), robot.root.global_pose.to_position().z.to_np()
+    )

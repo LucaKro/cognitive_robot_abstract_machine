@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import dataclass
 
 from typing_extensions import List, Union, Iterable
@@ -80,8 +79,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         """
         Setup the reachability costmap for initial pose estimation.
         """
-        ground_pose = deepcopy(pose)
-        ground_pose.z = 0.0
+        stand_pose = self.robot.pose_at_root_height(pose)
 
         base_bb = self.robot.mobile_base.bounding_box
 
@@ -91,12 +89,12 @@ class GiskardLocationBackend(PoseGeneratorBackend):
             width=200,
             world=self.world,
             robot_view=self.robot,
-            origin=ground_pose,
+            origin=stand_pose,
             distance_to_obstacle=self.distance_to_obstacle,
         )
         gaussian_map = GaussianCostmap(
             resolution=0.02,
-            origin=ground_pose,
+            origin=stand_pose,
             mean=200,
             sigma=15,
             world=self.world,

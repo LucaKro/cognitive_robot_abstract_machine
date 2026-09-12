@@ -576,8 +576,9 @@ class OccupancyCostmap(Costmap):
         :param target: The target pose for the occupancy cost map.
         :returns: A occupancy cost map with default values.
         """
-        ground_pose = deepcopy(target)
-        ground_pose.z = 0
+        # the map's origin is the height its poses are generated at, and a stand the
+        # robot's drive cannot reach in z is one it is sent to and never arrives at
+        stand_pose = context.robot.pose_at_root_height(target)
 
         base_bb = context.robot.mobile_base.bounding_box
 
@@ -588,7 +589,7 @@ class OccupancyCostmap(Costmap):
             world=context.world,
             distance_to_obstacle=(base_bb.depth / 2 + base_bb.width / 2) / 2 + 0.1,
             robot_view=context.robot,
-            origin=ground_pose,
+            origin=stand_pose,
         )
 
 

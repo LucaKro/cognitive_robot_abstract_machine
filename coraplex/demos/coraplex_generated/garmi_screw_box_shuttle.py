@@ -412,6 +412,7 @@ class PartsCollectionDemonstration(RobotDemonstration):
             _debug=True,
             ros_node=self.ros_node,
             ticks_per_motion=TICKS_PER_MOTION,
+            teleport_as_navigation_in_simulation=False
         )
         context.evaluate_conditions = False
         return context

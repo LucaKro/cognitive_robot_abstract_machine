@@ -222,7 +222,7 @@ class CollisionVisualizationMarkerPublisher(CollisionConsumer):
         ]
         marker_array = MarkerArray()
         marker_array.markers.append(self._build_contact_marker(classified_contacts))
-        marker_array.markers.extend(self._build_label_markers(classified_contacts))
+        # marker_array.markers.extend(self._build_label_markers(classified_contacts))
         self._publisher.publish(marker_array)
 
     def _classify_proximity(self, contact: ClosestPoints) -> ContactProximity:

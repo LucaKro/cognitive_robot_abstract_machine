@@ -130,6 +130,11 @@ class Context(PlanEntity):
     rejected for running out of time sooner than the run that would perform it.
     """
 
+    teleport_as_navigation_in_simulation: bool = True
+    """
+    If True, the robot will teleport as navigate in simulation. If False, it will use giskard
+    """
+
     def __post_init__(self):
         self.debug = self._debug
 

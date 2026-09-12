@@ -503,3 +503,40 @@ def test_orientation_generator_by_axis_x(immutable_model_world):
     generated_orientation = ori_gen(target_position, origin_pose)
 
     assert generated_orientation.to_list() == pytest.approx([0, 0, 1, 0], abs=0.001)
+
+
+# %% stands the drive can reach
+
+FLOOR_SURFACE_HEIGHT = 0.05
+"""
+Height of the floor surface the robot stands on, which lifts its root off the world's
+own zero.
+"""
+
+
+def test_default_map_generates_stands_at_the_root_height(mutable_model_world):
+    """
+    A stand the map generates is one the robot arrives at exactly: its drive has no
+    degree of freedom for z, so a stand at any height but the root's own is one the
+    robot is asked to reach and never does.
+    """
+    world, robot, context = mutable_model_world
+    odom = robot.root.parent_connection.parent
+    odom.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        z=FLOOR_SURFACE_HEIGHT, reference_frame=world.root
+    )
+
+    stand = next(
+        iter(
+            OccupancyCostmap.default_map(
+                context, world.get_body_by_name("milk.stl").global_pose
+            )
+        )
+    )
+    robot.set_root_pose(robot.mobile_base.pose_facing(stand))
+
+    np.testing.assert_allclose(
+        robot.root.global_pose.to_position().to_np(),
+        stand.to_position().to_np(),
+        atol=1e-9,
+    )
