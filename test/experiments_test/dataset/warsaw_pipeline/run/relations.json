@@ -1,0 +1,754 @@
+{
+  "__json_type__": "experiments.warsaw.pipeline.records.Relations",
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "segments": [
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "floor_1",
+      "class_name": "floor",
+      "instance": 1,
+      "faces": 44607,
+      "exclusive_faces": 44607,
+      "area": 50.0174,
+      "exclusive_area": 50.0174,
+      "centroid": [
+        0.6773,
+        -0.3913,
+        -3.0902
+      ],
+      "minimum_corner": [
+        -4.8034,
+        -5.5585,
+        -3.5613
+      ],
+      "maximum_corner": [
+        4.4828,
+        5.118,
+        -2.452
+      ],
+      "components": 1,
+      "height": 0.5031
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "door_10",
+      "class_name": "door",
+      "instance": 10,
+      "faces": 3800,
+      "exclusive_faces": 2,
+      "area": 1.9822,
+      "exclusive_area": 0.0011,
+      "centroid": [
+        -0.2845,
+        2.8906,
+        -1.8706
+      ],
+      "minimum_corner": [
+        -0.4601,
+        2.1282,
+        -2.7071
+      ],
+      "maximum_corner": [
+        -0.1106,
+        3.4859,
+        -0.9774
+      ],
+      "components": 1,
+      "height": 1.7228
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "door_11",
+      "class_name": "door",
+      "instance": 11,
+      "faces": 3779,
+      "exclusive_faces": 0,
+      "area": 3.6685,
+      "exclusive_area": 0.0,
+      "centroid": [
+        -2.0675,
+        -4.2107,
+        -1.623
+      ],
+      "minimum_corner": [
+        -2.2904,
+        -4.8329,
+        -3.3135
+      ],
+      "maximum_corner": [
+        -1.8357,
+        -3.5751,
+        0.382
+      ],
+      "components": 1,
+      "height": 1.9704
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "kitchen_island_1",
+      "class_name": "kitchen_island",
+      "instance": 1,
+      "faces": 27501,
+      "exclusive_faces": 8950,
+      "area": 30.6953,
+      "exclusive_area": 10.6182,
+      "centroid": [
+        1.1584,
+        0.0859,
+        -1.9056
+      ],
+      "minimum_corner": [
+        -0.4572,
+        -2.7992,
+        -3.3605
+      ],
+      "maximum_corner": [
+        3.0834,
+        3.6938,
+        -0.8989
+      ],
+      "components": 1,
+      "height": 1.6878
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "cabinet_4",
+      "class_name": "cabinet",
+      "instance": 4,
+      "faces": 3839,
+      "exclusive_faces": 27,
+      "area": 1.997,
+      "exclusive_area": 0.0109,
+      "centroid": [
+        -0.2851,
+        2.892,
+        -1.8676
+      ],
+      "minimum_corner": [
+        -0.4651,
+        2.1282,
+        -2.7237
+      ],
+      "maximum_corner": [
+        -0.1106,
+        3.4916,
+        -0.9774
+      ],
+      "components": 1,
+      "height": 1.7257
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "cabinet_5",
+      "class_name": "cabinet",
+      "instance": 5,
+      "faces": 5694,
+      "exclusive_faces": 846,
+      "area": 5.0868,
+      "exclusive_area": 0.6742,
+      "centroid": [
+        -2.0549,
+        -4.1974,
+        -1.1552
+      ],
+      "minimum_corner": [
+        -2.324,
+        -4.933,
+        -3.3329
+      ],
+      "maximum_corner": [
+        -1.8273,
+        -3.4501,
+        1.1144
+      ],
+      "components": 1,
+      "height": 2.4382
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "cabinet_8",
+      "class_name": "cabinet",
+      "instance": 8,
+      "faces": 1589,
+      "exclusive_faces": 0,
+      "area": 1.4305,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.8884,
+        -1.6607,
+        -2.7203
+      ],
+      "minimum_corner": [
+        0.6585,
+        -2.5229,
+        -3.1611
+      ],
+      "maximum_corner": [
+        1.1138,
+        -0.7618,
+        -2.1435
+      ],
+      "components": 1,
+      "height": 0.8731
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "cabinet_10",
+      "class_name": "cabinet",
+      "instance": 10,
+      "faces": 908,
+      "exclusive_faces": 0,
+      "area": 0.9999,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.3268,
+        0.5461,
+        -2.4758
+      ],
+      "minimum_corner": [
+        0.1617,
+        -0.0622,
+        -2.9175
+      ],
+      "maximum_corner": [
+        0.4738,
+        1.2153,
+        -1.992
+      ],
+      "components": 1,
+      "height": 1.1175
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "cabinet_20",
+      "class_name": "cabinet",
+      "instance": 20,
+      "faces": 1775,
+      "exclusive_faces": 2,
+      "area": 2.0,
+      "exclusive_area": 0.0014,
+      "centroid": [
+        -0.0006,
+        1.791,
+        -2.0249
+      ],
+      "minimum_corner": [
+        -0.1446,
+        1.0005,
+        -2.8169
+      ],
+      "maximum_corner": [
+        0.1899,
+        2.3981,
+        -1.0789
+      ],
+      "components": 1,
+      "height": 1.5685
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "drawer_4",
+      "class_name": "drawer",
+      "instance": 4,
+      "faces": 612,
+      "exclusive_faces": 2,
+      "area": 0.5826,
+      "exclusive_area": 0.0004,
+      "centroid": [
+        0.8353,
+        -1.5274,
+        -1.9241
+      ],
+      "minimum_corner": [
+        0.6673,
+        -1.9628,
+        -2.2822
+      ],
+      "maximum_corner": [
+        0.9578,
+        -0.8303,
+        -1.6206
+      ],
+      "components": 1,
+      "height": 1.6693
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "drawer_5",
+      "class_name": "drawer",
+      "instance": 5,
+      "faces": 1741,
+      "exclusive_faces": 21,
+      "area": 1.5301,
+      "exclusive_area": 0.0093,
+      "centroid": [
+        0.9011,
+        -1.708,
+        -2.7269
+      ],
+      "minimum_corner": [
+        0.6564,
+        -2.5908,
+        -3.1816
+      ],
+      "maximum_corner": [
+        1.1214,
+        -0.7618,
+        -2.1306
+      ],
+      "components": 1,
+      "height": 0.8665
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "drawer_6",
+      "class_name": "drawer",
+      "instance": 6,
+      "faces": 565,
+      "exclusive_faces": 0,
+      "area": 0.6791,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.5625,
+        -0.3922,
+        -2.5476
+      ],
+      "minimum_corner": [
+        0.4588,
+        -0.8184,
+        -3.0079
+      ],
+      "maximum_corner": [
+        0.6695,
+        0.0735,
+        -2.0851
+      ],
+      "components": 1,
+      "height": 1.0458
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "drawer_7",
+      "class_name": "drawer",
+      "instance": 7,
+      "faces": 932,
+      "exclusive_faces": 16,
+      "area": 1.0048,
+      "exclusive_area": 0.0066,
+      "centroid": [
+        0.3292,
+        0.5387,
+        -2.4864
+      ],
+      "minimum_corner": [
+        0.1617,
+        -0.0622,
+        -2.9443
+      ],
+      "maximum_corner": [
+        0.4723,
+        1.2057,
+        -1.992
+      ],
+      "components": 1,
+      "height": 1.107
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "handle_13",
+      "class_name": "handle",
+      "instance": 13,
+      "faces": 69,
+      "exclusive_faces": 0,
+      "area": 0.0365,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.314,
+        0.5161,
+        -2.1903
+      ],
+      "minimum_corner": [
+        0.2885,
+        0.3541,
+        -2.2914
+      ],
+      "maximum_corner": [
+        0.358,
+        0.6567,
+        -2.1054
+      ],
+      "components": 1,
+      "height": 1.4031
+    },
+    {
+      "__json_type__": "experiments.warsaw.segment_relations.SegmentDescriptor",
+      "name": "handle_14",
+      "class_name": "handle",
+      "instance": 14,
+      "faces": 72,
+      "exclusive_faces": 0,
+      "area": 0.029,
+      "exclusive_area": 0.0,
+      "centroid": [
+        0.906,
+        -1.7816,
+        -2.4468
+      ],
+      "minimum_corner": [
+        0.8731,
+        -1.8956,
+        -2.5438
+      ],
+      "maximum_corner": [
+        0.9345,
+        -1.6413,
+        -2.3815
+      ],
+      "components": 1,
+      "height": 1.1466
+    }
+  ],
+  "pairs": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.PairRecord",
+      "evidence": {
+        "__json_type__": "experiments.warsaw.segment_relations.PairEvidence",
+        "one": "floor_1",
+        "other": "kitchen_island_1",
+        "shared_faces": 0,
+        "share_of_one": 0.0,
+        "share_of_other": 0.0,
+        "touching_edges": 0,
+        "distance": 0.0301,
+        "rank_from_one": 2,
+        "rank_from_other": null
+      },
+      "classes": {
+        "keys": [
+          "floor",
+          "kitchen_island"
+        ],
+        "values": [
+          "Floor",
+          "KitchenIsland"
+        ]
+      },
+      "view": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
+        "status": "no-legal-relation",
+        "mounts": [
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "Floor",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          },
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "KitchenIsland",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          }
+        ]
+      },
+      "prompt_block": "floor_1: 44607 faces, 50.017 m2, middle 0.50 m up, 1 piece(s), 100% of it claimed by nothing else.\nkitchen_island_1: 27501 faces, 30.695 m2, middle 1.69 m up, 1 piece(s), 33% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.030 m apart."
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.PairRecord",
+      "evidence": {
+        "__json_type__": "experiments.warsaw.segment_relations.PairEvidence",
+        "one": "floor_1",
+        "other": "cabinet_20",
+        "shared_faces": 0,
+        "share_of_one": 0.0,
+        "share_of_other": 0.0,
+        "touching_edges": 0,
+        "distance": 0.0352,
+        "rank_from_one": 3,
+        "rank_from_other": null
+      },
+      "classes": {
+        "keys": [
+          "floor",
+          "cabinet"
+        ],
+        "values": [
+          "Floor",
+          "Cabinet"
+        ]
+      },
+      "view": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
+        "status": "no-legal-relation",
+        "mounts": [
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "Floor",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          },
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "Cabinet",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          }
+        ]
+      },
+      "prompt_block": "floor_1: 44607 faces, 50.017 m2, middle 0.50 m up, 1 piece(s), 100% of it claimed by nothing else.\ncabinet_20: 1775 faces, 2.000 m2, middle 1.57 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share no faces and touch nowhere; their surfaces are 0.035 m apart."
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.PairRecord",
+      "evidence": {
+        "__json_type__": "experiments.warsaw.segment_relations.PairEvidence",
+        "one": "door_10",
+        "other": "kitchen_island_1",
+        "shared_faces": 3345,
+        "share_of_one": 0.8803,
+        "share_of_other": 0.1216,
+        "touching_edges": 5084,
+        "distance": 0.0,
+        "rank_from_one": 1,
+        "rank_from_other": 1
+      },
+      "classes": {
+        "keys": [
+          "door",
+          "kitchen_island"
+        ],
+        "values": [
+          "Door",
+          "KitchenIsland"
+        ]
+      },
+      "view": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
+        "status": "no-legal-relation",
+        "mounts": [
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "KitchenIsland",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          }
+        ]
+      },
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\nkitchen_island_1: 27501 faces, 30.695 m2, middle 1.69 m up, 1 piece(s), 33% of it claimed by nothing else.\nBetween them: they share 3345 faces, 88% of door_10 and 12% of kitchen_island_1."
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.PairRecord",
+      "evidence": {
+        "__json_type__": "experiments.warsaw.segment_relations.PairEvidence",
+        "one": "door_10",
+        "other": "cabinet_4",
+        "shared_faces": 3789,
+        "share_of_one": 0.9971,
+        "share_of_other": 0.987,
+        "touching_edges": 5626,
+        "distance": 0.0,
+        "rank_from_one": 2,
+        "rank_from_other": 1
+      },
+      "classes": {
+        "keys": [
+          "door",
+          "cabinet"
+        ],
+        "values": [
+          "Door",
+          "Cabinet"
+        ]
+      },
+      "view": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
+        "status": "relation-known",
+        "mounts": [
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "part",
+            "whole": "Cabinet",
+            "field_name": "doors",
+            "target": "Door",
+            "holds_many": true,
+            "mounted_by": "add",
+            "removes_geometry": false
+          },
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "Cabinet",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          }
+        ]
+      },
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_4: 3839 faces, 1.997 m2, middle 1.73 m up, 1 piece(s), 1% of it claimed by nothing else.\nBetween them: they share 3789 faces, 100% of door_10 and 99% of cabinet_4."
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.PairRecord",
+      "evidence": {
+        "__json_type__": "experiments.warsaw.segment_relations.PairEvidence",
+        "one": "door_10",
+        "other": "cabinet_20",
+        "shared_faces": 9,
+        "share_of_one": 0.0024,
+        "share_of_other": 0.0051,
+        "touching_edges": 44,
+        "distance": 0.0,
+        "rank_from_one": 3,
+        "rank_from_other": 1
+      },
+      "classes": {
+        "keys": [
+          "door",
+          "cabinet"
+        ],
+        "values": [
+          "Door",
+          "Cabinet"
+        ]
+      },
+      "view": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
+        "status": "relation-known",
+        "mounts": [
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "part",
+            "whole": "Cabinet",
+            "field_name": "doors",
+            "target": "Door",
+            "holds_many": true,
+            "mounted_by": "add",
+            "removes_geometry": false
+          },
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "Cabinet",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          }
+        ]
+      },
+      "prompt_block": "door_10: 3800 faces, 1.982 m2, middle 1.72 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_20: 1775 faces, 2.000 m2, middle 1.57 m up, 1 piece(s), 0% of it claimed by nothing else.\nBetween them: they share 9 faces, 0% of door_10 and 1% of cabinet_20."
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.PairRecord",
+      "evidence": {
+        "__json_type__": "experiments.warsaw.segment_relations.PairEvidence",
+        "one": "door_11",
+        "other": "cabinet_5",
+        "shared_faces": 3779,
+        "share_of_one": 1.0,
+        "share_of_other": 0.6637,
+        "touching_edges": 5746,
+        "distance": 0.0,
+        "rank_from_one": 1,
+        "rank_from_other": 1
+      },
+      "classes": {
+        "keys": [
+          "door",
+          "cabinet"
+        ],
+        "values": [
+          "Door",
+          "Cabinet"
+        ]
+      },
+      "view": {
+        "__json_type__": "experiments.warsaw.pipeline.records.OntologyView",
+        "status": "relation-known",
+        "mounts": [
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "part",
+            "whole": "Cabinet",
+            "field_name": "doors",
+            "target": "Door",
+            "holds_many": true,
+            "mounted_by": "add",
+            "removes_geometry": false
+          },
+          {
+            "__json_type__": "experiments.warsaw.pipeline.records.AdmissibleMount",
+            "kind": "contains",
+            "whole": "Cabinet",
+            "field_name": "objects",
+            "target": "HasRootBody",
+            "holds_many": true,
+            "mounted_by": "add_object",
+            "removes_geometry": false
+          }
+        ]
+      },
+      "prompt_block": "door_11: 3779 faces, 3.669 m2, middle 1.97 m up, 1 piece(s), 0% of it claimed by nothing else.\ncabinet_5: 5694 faces, 5.087 m2, middle 2.44 m up, 1 piece(s), 15% of it claimed by nothing else.\nBetween them: they share 3779 faces, 100% of door_11 and 66% of cabinet_5."
+    }
+  ],
+  "settled": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.CountedClaimants",
+      "claimants": [
+        "cabinet_5",
+        "door_11"
+      ],
+      "faces": 3779
+    }
+  ],
+  "forced": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "doors",
+      "shared_faces": 3779,
+      "touching_edges": 5746,
+      "distance": 0.0,
+      "part": "door_11",
+      "whole": "cabinet_5"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
+      "shared_faces": 69,
+      "touching_edges": 115,
+      "distance": 0.0,
+      "part": "handle_13",
+      "whole": "drawer_7"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.ForcedMembership",
+      "field_name": "handle",
+      "shared_faces": 72,
+      "touching_edges": 118,
+      "distance": 0.0,
+      "part": "handle_14",
+      "whole": "drawer_5"
+    }
+  ]
+}

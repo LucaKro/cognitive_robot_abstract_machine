@@ -82,7 +82,7 @@ class ShapeCollection(SubclassJSONSerializer):
         :param color: The color to dye the shapes with.
         """
         for shape in self.shapes:
-            shape.color = color
+            shape.dye(color)
 
     def transform_all_shapes_to_own_frame(self):
         """

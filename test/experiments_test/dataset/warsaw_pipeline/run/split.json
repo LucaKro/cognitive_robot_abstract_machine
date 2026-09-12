@@ -1,0 +1,201 @@
+{
+  "__json_type__": "experiments.warsaw.pipeline.records.SplitRecord",
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "bodies": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "cabinet_20",
+      "faces": 2,
+      "label": "cabinet",
+      "body_id": "d68f2b53-e284-4080-ad88-7d732fb92416"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "cabinet_4",
+      "faces": 27,
+      "label": "cabinet",
+      "body_id": "113b726a-b64c-45e2-960c-7cbf75ebb546"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "cabinet_5",
+      "faces": 846,
+      "label": "cabinet",
+      "body_id": "86d2c236-c5a8-4b89-90db-24d910249bc9"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "door_10",
+      "faces": 415,
+      "label": "door",
+      "body_id": "9ab1d680-07fd-4b55-bdb2-808fa687d0a1"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "door_11",
+      "faces": 3779,
+      "label": "door",
+      "body_id": "efa4d664-1014-4184-a025-a339ad16e628"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "drawer_4",
+      "faces": 497,
+      "label": "drawer",
+      "body_id": "cb2fa7e6-2103-4dd0-9563-87d91ee4e4b5"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "drawer_5",
+      "faces": 1669,
+      "label": "drawer",
+      "body_id": "64905bbe-6d98-452e-9ecd-904f35caa85c"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "drawer_6",
+      "faces": 487,
+      "label": "drawer",
+      "body_id": "0dab54b6-377a-4142-bc3d-3790ffd44c54"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "drawer_7",
+      "faces": 863,
+      "label": "drawer",
+      "body_id": "0c6090fd-4636-4c03-8fcf-6a0e7b41e2ca"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "floor_1",
+      "faces": 44607,
+      "label": "floor",
+      "body_id": "d644b8c4-ecda-47e4-ae28-572c2ddf6b7d"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "handle_13",
+      "faces": 69,
+      "label": "handle",
+      "body_id": "8b98af13-9978-4142-b96b-467a8cb3335f"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "handle_14",
+      "faces": 72,
+      "label": "handle",
+      "body_id": "f468df90-1677-4df9-9411-f0da512c8416"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.SplitBody",
+      "name": "kitchen_island_1",
+      "faces": 14646,
+      "label": "kitchen_island",
+      "body_id": "7c5d5542-2480-4ef6-bb6b-71025aa4d0cf"
+    }
+  ],
+  "emptied": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.EmptiedSegment",
+      "name": "cabinet_10",
+      "taken_by": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "drawer_7",
+          "faces": 827
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "handle_13",
+          "faces": 69
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "drawer_6",
+          "faces": 7
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "kitchen_island_1",
+          "faces": 5
+        }
+      ]
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.EmptiedSegment",
+      "name": "cabinet_8",
+      "taken_by": [
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "drawer_5",
+          "faces": 1509
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "handle_14",
+          "faces": 72
+        },
+        {
+          "__json_type__": "experiments.warsaw.pipeline.records.TakenFaces",
+          "name": "drawer_4",
+          "faces": 8
+        }
+      ]
+    }
+  ],
+  "still_contested": 0,
+  "pairings": [
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "cabinet_5",
+      "part": "door_11",
+      "field_name": "doors",
+      "kind": "part"
+    },
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "drawer_7",
+      "part": "handle_13",
+      "field_name": "handle",
+      "kind": "part"
+    },
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "drawer_5",
+      "part": "handle_14",
+      "field_name": "handle",
+      "kind": "part"
+    },
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "cabinet_4",
+      "part": "door_10",
+      "field_name": "",
+      "kind": "part"
+    },
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "kitchen_island_1",
+      "part": "drawer_4",
+      "field_name": "",
+      "kind": "part"
+    },
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "kitchen_island_1",
+      "part": "drawer_6",
+      "field_name": "",
+      "kind": "part"
+    },
+    {
+      "__json_type__": "experiments.warsaw.scene_split.Pairing",
+      "whole": "kitchen_island_1",
+      "part": "drawer_7",
+      "field_name": "",
+      "kind": "part"
+    }
+  ],
+  "refused": [],
+  "world_id": 1,
+  "annotated_world_id": 198
+}

@@ -1,0 +1,82 @@
+{
+  "__json_type__": "experiments.warsaw.pipeline.records.Vocabulary",
+  "scene": "dataset/kitchenlab_new_mesh_agreement_dataset/mesh_all_classes.ply",
+  "model": "qwen/qwen3-vl-30b-a3b-instruct",
+  "labels": [
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.LabelAnswer",
+      "label": "cabinet",
+      "class_name": "Cabinet",
+      "is_new_class": false,
+      "superclass": null,
+      "confidence": 0.95,
+      "reason": "The object labeled 'cabinet' is a furniture item with doors and drawers, matching the definition of the 'Cabinet' class in the ontology, which includes parts for doors and drawers and can contain objects.",
+      "mixins": [],
+      "problems": [],
+      "exemplar": "cabinet_5"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.LabelAnswer",
+      "label": "door",
+      "class_name": "Door",
+      "is_new_class": false,
+      "superclass": null,
+      "confidence": 0.95,
+      "reason": "The object is a rectangular vertical structure with a handle and a glass panel, matching the definition of a Door in the ontology, which includes parts for a handle and a mechanical joint, and can be part of a wall or frame.",
+      "mixins": [],
+      "problems": [],
+      "exemplar": "door_10"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.LabelAnswer",
+      "label": "drawer",
+      "class_name": "Drawer",
+      "is_new_class": false,
+      "superclass": null,
+      "confidence": 0.95,
+      "reason": "The label 'drawer' refers to a component that is part of furniture like cabinets, and the object's geometry and context confirm it is a drawer, which is already defined in the ontology as a class with relations for mechanical joints and handles.",
+      "mixins": [],
+      "problems": [],
+      "exemplar": "drawer_5"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.LabelAnswer",
+      "label": "floor",
+      "class_name": "Floor",
+      "is_new_class": false,
+      "superclass": null,
+      "confidence": 0.95,
+      "reason": "The object is a flat, horizontal surface that supports other objects and is part of the room's structure, matching the definition of a Floor in the ontology.",
+      "mixins": [],
+      "problems": [],
+      "exemplar": "floor_1"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.LabelAnswer",
+      "label": "handle",
+      "class_name": "Handle",
+      "is_new_class": false,
+      "superclass": null,
+      "confidence": 0.95,
+      "reason": "The object is a small, elongated protrusion attached to a larger structure (a door), consistent with the function and appearance of a handle; it matches the existing 'Handle' class in the ontology, which is designed for such components.",
+      "mixins": [],
+      "problems": [],
+      "exemplar": "handle_13"
+    },
+    {
+      "__json_type__": "experiments.warsaw.pipeline.records.LabelAnswer",
+      "label": "kitchen_island",
+      "class_name": "KitchenIsland",
+      "is_new_class": true,
+      "superclass": "Table",
+      "confidence": 0.95,
+      "reason": "The object is a large table-like structure with drawers and a supporting surface, matching the characteristics of a kitchen island.",
+      "mixins": [
+        "HasDrawers",
+        "HasSupportingSurface"
+      ],
+      "problems": [],
+      "exemplar": "kitchen_island_1"
+    }
+  ]
+}

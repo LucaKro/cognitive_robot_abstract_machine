@@ -407,7 +407,9 @@ class TestCollisionRules:
             == 4
         )
 
-    def test_compute_self_collision_matrix(self, pr2_world_state_reset, rclpy_node):
+    def test_compute_self_collision_matrix(
+        self, pr2_world_state_reset, rclpy_node, tmp_path
+    ):
         VizMarkerPublisher(_world=pr2_world_state_reset, node=rclpy_node)
         pr2 = pr2_world_state_reset.get_semantic_annotations_by_type(PR2)[0]
         base_link = pr2_world_state_reset.get_body_by_name("base_link")
@@ -423,7 +425,11 @@ class TestCollisionRules:
         expected_check = CollisionCheck.create_and_validate(base_link, head_pan_link)
         assert expected_check in rule.allowed_collision_pairs
         assert 0 < len(rule.allowed_collision_pairs) < len(collision_checks)
-        rule.save_self_collision_matrix(robot_name=pr2.name.name, file_name="test.srdf")
+        written = tmp_path / "pr2.srdf"
+        rule.save_self_collision_matrix(
+            robot_name=pr2.name.name, file_name=str(written)
+        )
+        assert written.exists()
 
         rule = SelfCollisionMatrixRule()
         rule.allowed_collision_bodies = {base_link}

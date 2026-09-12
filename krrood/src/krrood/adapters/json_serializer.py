@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import importlib
 import inspect
+import sys
 import uuid
 from datetime import timedelta
 from abc import ABC, abstractmethod
@@ -12,7 +13,17 @@ from types import NoneType
 from typing import List, Optional, TypeAlias, TYPE_CHECKING
 
 import numpy as np
-from typing_extensions import Dict, Any, Self, Union, Type, TypeVar
+from typing_extensions import (
+    Any,
+    ClassVar,
+    Dict,
+    Self,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from krrood.adapters.exceptions import (
     MissingTypeError,
@@ -572,6 +583,66 @@ class NumpyNDarrayJSONSerializer(ExternalClassJSONSerializer[np.ndarray]):
         return np.array(data["data"], dtype=data["type"])
 
 
+# %% rebuilding a value JSON cannot describe on its own
+
+REBUILT_CONTAINERS = (tuple, set, frozenset)
+"""
+The containers a JSON array can stand for, beside the list it already is.
+"""
+
+REBUILT_CONTAINERS_BY_NAME = {
+    container.__name__: container for container in REBUILT_CONTAINERS
+}
+"""
+The same containers, under the name an annotation writes them as.
+"""
+
+
+@dataclass(frozen=True)
+class Rebuild:
+    """
+    What a value read for one field is rebuilt into.
+
+    JSON writes a tuple and a set as the same array, and a member of a string or integer
+    enumeration as the plain string or integer it is. What the value was is recorded
+    only in the field's annotation, which may name it behind ``Optional`` or inside a
+    container.
+    """
+
+    container: Optional[type] = None
+    """
+    The container the read value is put back into, or None to leave it as it was read.
+    """
+
+    member: Optional[type] = None
+    """
+    The enumeration each read value is looked up in, or None to leave it as it was read.
+    """
+
+    def __bool__(self) -> bool:
+        """
+        :return: Whether this rebuilds anything at all.
+        """
+        return self.container is not None or self.member is not None
+
+    def apply(self, value: Any) -> Any:
+        """
+        Rebuild one read value into what its annotation named.
+
+        :param value: The value as it was read.
+        :return: The value as the annotation describes it.
+        """
+        if self.member is not None:
+            value = (
+                [self.member(item) for item in value]
+                if isinstance(value, (list, tuple, set, frozenset))
+                else self.member(value)
+            )
+        if self.container is not None and not isinstance(value, self.container):
+            value = self.container(value)
+        return value
+
+
 @dataclass
 class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
     """
@@ -579,6 +650,15 @@ class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
 
     It creates a dict where all fields are serialized using the to_json function. If
     this is not enough, you still need to implement a custom serializer.
+    """
+
+    rebuilds_by_class: ClassVar[Dict[Type, Dict[str, Rebuild]]] = {}
+    """
+    Per dataclass already read, the fields whose value is rebuilt from its annotation.
+
+    Working this out means resolving the class's annotations, which is too slow to
+    repeat for every record of a file, and the answer cannot change while the class is
+    loaded.
     """
 
     @classmethod
@@ -604,7 +684,123 @@ class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
         return is_dataclass(clazz)
 
     @classmethod
+    def rebuilds_by_field(cls, clazz: Type) -> Dict[str, Rebuild]:
+        """
+        Work out which of a dataclass's fields JSON alone does not say the type of.
+
+        A tuple and a set are both written as an array, and a member of a string or
+        integer enumeration is written as the string or integer it is, so the field's
+        annotation is the only record of what it was.
+
+        :param clazz: The dataclass being read.
+        :return: Per field that needs it, what a read value is rebuilt into.
+        """
+        if clazz not in cls.rebuilds_by_class:
+            rebuilt_by_field = {}
+            for holder in reversed(clazz.__mro__):
+                module = sys.modules.get(holder.__module__)
+                namespace = dict(vars(module)) if module is not None else {}
+                for name, hint in holder.__dict__.get("__annotations__", {}).items():
+                    rebuilt = cls.rebuilt_with(hint, namespace)
+                    if rebuilt:
+                        rebuilt_by_field[name] = rebuilt
+            cls.rebuilds_by_class[clazz] = rebuilt_by_field
+        return cls.rebuilds_by_class[clazz]
+
+    @classmethod
+    def rebuilt_with(cls, hint: Any, namespace: Dict[str, Any]) -> Rebuild:
+        """
+        Read one annotation, whether it arrives as a type or as the text of one.
+
+        A module using postponed evaluation hands over strings, and resolving those means
+        binding every name they mention -- which a class annotating a field with a name it
+        imports only for type checking does not allow. The text is read instead, so no
+        annotation can stop a class being deserialized.
+
+        An annotation names what it holds at any depth: ``Optional`` wraps it and a
+        container says it only in its argument, so both are looked through.
+
+        :param hint: What the field is annotated as.
+        :param namespace: The names in scope where the annotation was written.
+        :return: What a value read for the field is rebuilt into.
+        """
+        if isinstance(hint, str):
+            return cls._rebuilt_from_text(hint, namespace)
+        return cls._rebuilt_from_type(hint)
+
+    @classmethod
+    def _rebuilt_from_type(cls, hint: Any) -> Rebuild:
+        """
+        Read an annotation that arrived as a type.
+
+        :param hint: What the field is annotated as.
+        :return: What a value read for the field is rebuilt into.
+        """
+        origin = get_origin(hint)
+        container = origin if origin in REBUILT_CONTAINERS else None
+        if inspect.isclass(hint) and issubclass(hint, enum.Enum):
+            return Rebuild(member=hint)
+        for argument in cls._mentioned_in(hint):
+            if inspect.isclass(argument) and issubclass(argument, enum.Enum):
+                return Rebuild(container=container, member=argument)
+        return Rebuild(container=container)
+
+    @classmethod
+    def _mentioned_in(cls, hint: Any) -> List[Any]:
+        """
+        Every type an annotation names inside itself, however deeply nested.
+
+        :param hint: What the field is annotated as.
+        :return: The types the annotation names within it.
+        """
+        found = []
+        for argument in get_args(hint):
+            if argument is NoneType or argument is Ellipsis:
+                continue
+            found.append(argument)
+            found.extend(cls._mentioned_in(argument))
+        return found
+
+    @classmethod
+    def _rebuilt_from_text(cls, hint: str, namespace: Dict[str, Any]) -> Rebuild:
+        """
+        Read an annotation that arrived as the text of a type.
+
+        :param hint: The text the field is annotated as.
+        :param namespace: The names in scope where the annotation was written.
+        :return: What a value read for the field is rebuilt into.
+        """
+        written = hint.strip()
+        head = written.split("[", 1)[0].rsplit(".", 1)[-1].lower()
+        container = REBUILT_CONTAINERS_BY_NAME.get(head)
+
+        named = namespace.get(written)
+        if inspect.isclass(named) and issubclass(named, enum.Enum):
+            return Rebuild(member=named)
+
+        for name in cls._names_written_in(written):
+            mentioned = namespace.get(name)
+            if inspect.isclass(mentioned) and issubclass(mentioned, enum.Enum):
+                return Rebuild(container=container, member=mentioned)
+        return Rebuild(container=container)
+
+    @staticmethod
+    def _names_written_in(written: str) -> List[str]:
+        """
+        Every name a written annotation mentions between its brackets.
+
+        :param written: The text the field is annotated as.
+        :return: The names written inside it.
+        """
+        if "[" not in written or not written.endswith("]"):
+            return []
+        inside = written[written.index("[") + 1 : -1]
+        separated = inside.replace("[", ",").replace("]", ",").split(",")
+        return [part.strip() for part in separated if part.strip()]
+
+    @classmethod
     def from_json(cls, data: Dict[str, Any], clazz: Type, **kwargs) -> Self:
+        rebuilds = cls.rebuilds_by_field(clazz)
         introspector = DataclassOnlyIntrospector()
         discovered_attributes = {
             attr.field.name: attr.field for attr in introspector.discover(clazz)
@@ -631,6 +827,10 @@ class DataclassJSONSerializer(ExternalClassJSONSerializer[None]):
                 current_result = dict(zip(keys, values))
             else:
                 current_result = from_json(current_data, **kwargs)
+
+            rebuild = rebuilds.get(field_name)
+            if rebuild is not None:
+                current_result = rebuild.apply(current_result)
 
             if field_.init:
                 init_args[field_name] = current_result
