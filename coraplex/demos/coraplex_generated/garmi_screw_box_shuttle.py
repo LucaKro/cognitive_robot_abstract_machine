@@ -514,7 +514,7 @@ def main() -> None:
     PartsCollectionDemonstration(
         used_robot=Garmi,
         collision_avoidance=AVOIDS_COLLISIONS,
-        # default_visualization_backend=VisualizationBackend.CRAMERA,
+        default_visualization_backend=VisualizationBackend.RVIZ,
     ).run()
 
 
