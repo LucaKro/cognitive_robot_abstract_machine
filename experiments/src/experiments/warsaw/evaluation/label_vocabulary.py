@@ -178,14 +178,23 @@ class EmbeddingMatcher:
     well, so that a merely related name is not read as the same one.
     """
 
-    settles_it: float = 0.75
+    settles_it: float = 0.65
     """
     How alike two names must mean for that alone to make them one thing.
+
+    The earlier HM3D study settled a pair outright at 0.75 and this is looser, because
+    that left ``lamp`` and ``light fixture`` apart at 0.669 and they are one thing --
+    seventeen objects across three rooms, every one of them a correct answer counted
+    wrong. The rule is otherwise theirs.
     """
 
     worth_considering: float = 0.55
     """
     How alike they must mean to be one thing if their wording agrees too.
+
+    Theirs, unchanged. It carries a pair the meaning alone would not settle, which is
+    what tells ``shelving unit`` from ``shelf`` and keeps ``kitchen counter`` from
+    ``worktop``, alike in meaning and sharing no word.
     """
 
     wording: LexicalMatcher = field(default_factory=LexicalMatcher)
