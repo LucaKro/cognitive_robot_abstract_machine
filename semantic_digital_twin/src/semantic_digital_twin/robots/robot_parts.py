@@ -899,16 +899,19 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
 
     def pose_at_root_height(self, pose: Pose) -> Pose:
         """
-        ``pose`` moved onto the height the robot's root stands at.
+        ``pose`` moved onto the height the robot's root stands at, in the world's frame.
 
         A drive carries no degree of freedom for z, so the root keeps whatever height it
         was placed at, and only a pose at that height is one the robot reaches exactly.
 
-        :param pose: The pose to move onto the root's height.
+        Height is measured against the world, and the answer is given there too: a frame
+        lying on its side calls a horizontal direction z, and moving the pose along that
+        would carry it sideways rather than up.
+
+        :param pose: The pose to move onto the root's height, in any frame.
         """
-        root_pose = self._world.transform(self.root.global_pose, pose.reference_frame)
-        raised = deepcopy(pose)
-        raised.z = root_pose.z
+        raised = deepcopy(self._world.transform(pose, self._world.root))
+        raised.z = self.root.global_pose.z
         return raised
 
     @property

@@ -126,6 +126,7 @@ class Location(Iterable[Pose]):
                 alternative_motion_mappings=self.context.alternative_motion_mappings,
                 motion_tolerances=self.context.motion_tolerances,
                 ticks_per_motion=self.context.ticks_per_motion,
+                base_facing_tolerance=self.context.base_facing_tolerance,
             )
 
         if self.context.debug:

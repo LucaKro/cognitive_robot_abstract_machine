@@ -108,11 +108,6 @@ Off, because every base pose in this plan is one that was captured deliberately:
 on, a reach drives the base past the object and into the shelving.
 """
 
-CARRYING_ARM = Arms.LEFT
-"""
-The arm that picks and places, one hand throughout.
-"""
-
 TICKS_PER_MOTION = 6000
 """
 How long each motion may take before the run gives up on it.
@@ -120,6 +115,14 @@ How long each motion may take before the run gives up on it.
 Three times the default: a motion that has to hold itself off the shelving converges
 more slowly than one that may drive straight at its goal, and the run is otherwise given
 up on while it is still closing in.
+"""
+
+BASE_FACING_TOLERANCE = math.radians(10)
+"""
+How far the base's front may point off the part the hand reaches for.
+
+The base drives with the reach here, so it is turned to face what it works on rather
+than left pointing wherever the drive to the stand happened to leave it.
 """
 
 AVOIDS_COLLISIONS = True
@@ -171,7 +174,7 @@ class Part:
 
     scale: Scale
     """
-    The scale of the mesh of the part
+    The scale of the mesh of the part.
     """
 
     storage_pose: Pose
@@ -201,6 +204,11 @@ class Part:
     """
     Whether the hand is rolled a quarter turn about its approach axis, which swaps the
     two faces the fingers can close on.
+    """
+
+    arm: Arms
+    """
+    The hand this part is picked up and put down with.
     """
 
     def grasp(self, end_effector: EndEffector) -> GraspDescription:
@@ -258,6 +266,7 @@ PARTS = (
         approach_direction=ApproachDirection.FRONT,
         vertical_alignment=VerticalAlignment.NoAlignment,
         rotate_gripper=False,
+        arm=Arms.LEFT,
     ),
     Part(
         mesh=PartMesh.WRENCH,
@@ -276,18 +285,22 @@ PARTS = (
         approach_direction=ApproachDirection.LEFT,
         vertical_alignment=VerticalAlignment.NoAlignment,
         rotate_gripper=False,
+        arm=Arms.LEFT,
     ),
     Part(
         mesh=PartMesh.AXLE,
         color=Color(0.45, 0.47, 0.50),
         scale=Scale(1, 1, 0.5),
-        storage_pose=Pose.from_xyz_rpy(-0.6, 4.935, 0.24, roll=LYING_ON_ITS_SIDE/8),
-        delivery_pose=Pose.from_xyz_rpy( 0.925, 8.45, CONTAINER_FLOOR + 0.2, roll=np.pi/4, yaw=np.pi/1.35 ),
+        storage_pose=Pose.from_xyz_rpy(-0.6, 4.935, 0.24, roll=LYING_ON_ITS_SIDE / 8),
+        delivery_pose=Pose.from_xyz_rpy(
+            0.925, 8.45, CONTAINER_FLOOR + 0.2, roll=np.pi / 4, yaw=np.pi / 1.35
+        ),
         # lying across the shelf front: the hand comes down along the rack and closes
         # across the 0.025 m rod rather than along its 0.845 m length
         approach_direction=ApproachDirection.LEFT,
         vertical_alignment=VerticalAlignment.NoAlignment,
         rotate_gripper=False,
+        arm=Arms.RIGHT,
     ),
     # Part(
     #     mesh=PartMesh.PLATE,
@@ -412,20 +425,21 @@ class PartsCollectionDemonstration(RobotDemonstration):
             _debug=True,
             ros_node=self.ros_node,
             ticks_per_motion=TICKS_PER_MOTION,
-            teleport_as_navigation_in_simulation=False
+            teleport_as_navigation_in_simulation=False,
+            base_facing_tolerance=BASE_FACING_TOLERANCE,
         )
         context.evaluate_conditions = False
         return context
 
     def build_plan(self, context: Context) -> PlanNode:
         world = context.world  # bodies/poses below are resolved against it
-        end_effector = ViewManager.get_end_effector_view(CARRYING_ARM, context.robot)
         steps = [
             self.carry(
                 context,
                 self.annotation_of(world, part.mesh),
-                part.grasp(end_effector),
+                part.grasp(ViewManager.get_end_effector_view(part.arm, context.robot)),
                 part.delivery_pose,
+                part.arm,
             )
             for part in PARTS
         ]
@@ -452,6 +466,7 @@ class PartsCollectionDemonstration(RobotDemonstration):
         part: HasRootBody,
         grasp: GraspDescription,
         destination: Pose,
+        arm: Arms,
     ) -> TransportAction:
         """
         One leg: fetch a part from where it lies and put it down at ``destination``.
@@ -463,11 +478,12 @@ class PartsCollectionDemonstration(RobotDemonstration):
         :param part: The annotation of the part being carried.
         :param grasp: How the part is taken hold of.
         :param destination: Where the part is put down.
+        :param arm: The hand that carries it.
         """
         return TransportAction(
             object_designator=part,
             target_location=self.against_world_root(context, destination),
-            arm=CARRYING_ARM,
+            arm=arm,
             grasp_description=grasp,
         )
 

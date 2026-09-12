@@ -7,7 +7,10 @@ from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.world_entity import Body
 
 
 def _pr2_behind_an_odom(
@@ -111,3 +114,46 @@ def test_pose_at_root_height_changes_nothing_but_the_height():
     np.testing.assert_allclose(
         raised.to_position().z.to_np(), robot.root.global_pose.to_position().z.to_np()
     )
+
+
+def test_pose_at_root_height_answers_a_tilted_frame_at_the_world_height():
+    """
+    A pose given in a frame that lies on its side is still moved onto the height the
+    root stands at: height is measured against the world, not along whatever axis that
+    frame happens to call z.
+    """
+    world, robot = _pr2_behind_an_odom(_RAISED_ODOM)
+    lying_on_its_side = Body(name=PrefixedName("lying_on_its_side"))
+    with world.modify_world():
+        world.add_connection(
+            FixedConnection(
+                parent=world.root,
+                child=lying_on_its_side,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    1.0, 2.0, 0.9, roll=np.pi / 2
+                ),
+            )
+        )
+    target = Pose.from_xyz_rpy(0.0, 0.0, 0.0, reference_frame=lying_on_its_side)
+
+    raised = robot.pose_at_root_height(target)
+
+    np.testing.assert_allclose(
+        world.transform(raised, world.root).to_position().z.to_np(),
+        robot.root.global_pose.to_position().z.to_np(),
+        atol=1e-9,
+    )
+
+
+def test_pose_at_root_height_leaves_the_pose_it_was_given_alone():
+    """
+    The answer is a pose of its own: a caller's target must not be moved onto the base's
+    height behind its back, least of all a motion's own goal.
+    """
+    world, robot = _pr2_behind_an_odom(_RAISED_ODOM)
+    target = Pose.from_xyz_rpy(1.3, 2.0, 0.81, yaw=0.25, reference_frame=world.root)
+    as_given = target.to_np().copy()
+
+    robot.pose_at_root_height(target)
+
+    np.testing.assert_allclose(target.to_np(), as_given, atol=1e-9)

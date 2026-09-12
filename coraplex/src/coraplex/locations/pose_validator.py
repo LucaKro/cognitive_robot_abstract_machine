@@ -14,15 +14,15 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.exceptions import NoProgressError
-from giskardpy.motion_statechart.goals.templates import Sequence
+from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
 from giskardpy.motion_statechart.monitors.progress_monitors import ProgressStalled
-from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.plans.plan_node import ActionNode, MotionNode
 from coraplex.alternative_motion_mapping import AlternativeMotion
-from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
@@ -31,6 +31,7 @@ from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans import MoveToolCenterPointMotion
+from coraplex.robot_plans.motions.gripper import base_facing_nodes
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -217,6 +218,37 @@ class AreReachableBy(PoseValidator):
             )
         ]
 
+    def _reach_as_it_is_performed(
+        self,
+        pose: Pose,
+        root: KinematicStructureEntity,
+        tolerances: MotionToleranceConfig,
+    ) -> MotionStatechartNode:
+        """
+        One pose of the sequence, probed under the constraints the run reaches with.
+
+        A constraint the reach carries but the probe leaves out approves a stand the
+        robot is then unable to reach from, which is how a base asked to keep facing
+        what it works on stalls at a pose that was approved without it.
+
+        :param pose: The pose the tip is moved to.
+        :param root: The frame the reach is controlled in.
+        :param tolerances: The goal thresholds the run reaches with.
+        """
+        reach = CartesianPose(
+            root_link=root,
+            tip_link=self.tip_link,
+            goal_pose=pose,
+            translation_threshold=tolerances.default_tcp_position_threshold,
+            orientation_threshold=tolerances.tool_orientation_threshold,
+        )
+        facing = base_facing_nodes(
+            self.robot, self.world.root, pose, self.context.base_facing_tolerance
+        )
+        if not facing:
+            return reach
+        return Parallel([reach, *facing])
+
     def create_msc(self) -> MotionStatechart:
         """
         Creates the Motion state chart to reach the given pose sequence with the given
@@ -278,13 +310,7 @@ class AreReachableBy(PoseValidator):
 
             tolerances = self.context.motion_tolerances
             sequence = [
-                CartesianPose(
-                    root_link=root,
-                    tip_link=self.tip_link,
-                    goal_pose=pose,
-                    translation_threshold=tolerances.default_tcp_position_threshold,
-                    orientation_threshold=tolerances.tool_orientation_threshold,
-                )
+                self._reach_as_it_is_performed(pose, root, tolerances)
                 for pose in sequence
             ]
 

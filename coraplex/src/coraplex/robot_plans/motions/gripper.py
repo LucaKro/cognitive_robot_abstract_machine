@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Optional, List
 
@@ -18,11 +19,12 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointVelocityLimit,
 )
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
+from giskardpy.motion_statechart.tasks.pointing import PointingCone
 from semantic_digital_twin.datastructures.alignment import AlignmentPair
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.robots.justin import Justin
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
 from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
@@ -185,6 +187,62 @@ class MoveGripperMotion(BaseMotion, GripperStallToleranceParameters):
         return Parallel([done_node, *accompanying_nodes], name=name)
 
 
+# %% turning the base towards what a hand reaches for
+
+ANY_POINTING_ERROR = math.pi
+"""
+Every pointing error is within half a turn, so a task given this as its threshold
+reports its goal reached from the first tick.
+"""
+
+
+def base_facing_nodes(
+    robot: AbstractRobot,
+    world_root: Body,
+    target: Pose,
+    tolerance: Optional[float],
+) -> List[MotionStatechartNode]:
+    """
+    The task turning ``robot``'s base to face ``target``.
+
+    The target is taken at the base's own height, because a drive cannot tilt: the
+    elevation of something standing above the floor is not an angle the base could turn
+    out, and asking for it leaves an error it can only answer by driving away.
+
+    :param robot: The robot whose base is turned.
+    :param world_root: The frame the base is controlled in.
+    :param target: What the hand reaches for.
+    :param tolerance: How far the base's front may point off it, in radians, or None to
+        leave the base facing wherever it stands.
+    :return: The task, or nothing when no tolerance is given or the base stays put
+        during the reach and turning it would carry the reach's goal along.
+
+    ..note:: The task pulls the base round but never holds the motion open: a base that
+        cannot both face the target and let the hand reach it would otherwise stall the
+        reach rather than give up the facing.
+    """
+    if tolerance is None:
+        return []
+    if (
+        not isinstance(robot, HasMobileBase)
+        or not robot.mobile_base.full_body_controlled
+    ):
+        return []
+    forward_axis = robot.mobile_base.forward_axis
+    forward_axis.reference_frame = robot.root
+    return [
+        PointingCone(
+            root_link=world_root,
+            tip_link=robot.root,
+            goal_point=robot.pose_at_root_height(target).to_position(),
+            pointing_axis=forward_axis,
+            cone_theta=tolerance,
+            threshold=ANY_POINTING_ERROR,
+            name="BaseFacesTarget",
+        )
+    ]
+
+
 @dataclass
 class MoveToolCenterPointMotion(
     BaseMotion, CartesianVelocityLimitParameters, HasTcpGoalThresholds
@@ -274,6 +332,14 @@ class MoveToolCenterPointMotion(
             )
         accompanying_nodes: List[MotionStatechartNode] = list(
             self._velocity_limit_nodes(root, tip)
+        )
+        accompanying_nodes.extend(
+            base_facing_nodes(
+                self.robot,
+                self.world.root,
+                self.target,
+                self.context.base_facing_tolerance,
+            )
         )
         if self.allow_gripper_collision:
             accompanying_nodes.extend(

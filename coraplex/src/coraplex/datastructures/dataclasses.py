@@ -135,6 +135,16 @@ class Context(PlanEntity):
     If True, the robot will teleport as navigate in simulation. If False, it will use giskard
     """
 
+    base_facing_tolerance: Optional[float] = None
+    """
+    How far the base's front may point off what the hand reaches for, in radians.
+
+    None leaves the base free to face anywhere, which is how a reach is performed unless
+    the plan asks the base to keep facing what it works on. Only a base that moves with
+    the reach (:attr:`~semantic_digital_twin.robots.robot_parts.MobileBase.full_body_controlled`)
+    can be turned by it.
+    """
+
     def __post_init__(self):
         self.debug = self._debug
 

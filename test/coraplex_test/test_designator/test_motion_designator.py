@@ -1,3 +1,4 @@
+import math
 from copy import deepcopy
 
 import numpy as np
@@ -31,6 +32,7 @@ from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveTCPWaypointsMotion,
     MoveTCPWaypointsAlignedMotion,
+    MoveToolCenterPointMotion,
 )
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.data_types import DefaultWeights
@@ -52,7 +54,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointVelocityLimit,
 )
-from giskardpy.motion_statechart.tasks.pointing import Pointing
+from giskardpy.motion_statechart.tasks.pointing import Pointing, PointingCone
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import Point3, Quaternion
@@ -909,3 +911,61 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     )
     assert len(reach_nodes) == 2
     assert all(node.designator.allow_gripper_collision is True for node in reach_nodes)
+
+
+# %% turning the base towards what the hand reaches for
+
+BASE_FACING_TOLERANCE = math.radians(10)
+"""
+How far a reach in these tests lets the base's front point off its target.
+"""
+
+
+def test_reach_turns_a_driving_base_towards_the_target_at_its_own_height(
+    mutable_model_world,
+):
+    """
+    A base that drives with the reach is turned to face the target, and is asked for it
+    in the plane it drives in: the elevation of a target above the floor is not an angle
+    a drive can turn out.
+    """
+    world, robot, _ = mutable_model_world
+    robot.mobile_base.full_body_controlled = True
+    context = Context(world, robot, base_facing_tolerance=BASE_FACING_TOLERANCE)
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(target, Arms.LEFT)
+    execute_single(motion, context=context)
+
+    cone = next(
+        node for node in motion.motion_chart.nodes if isinstance(node, PointingCone)
+    )
+    assert cone.tip_link is robot.root
+    assert cone.cone_theta == BASE_FACING_TOLERANCE
+    np.testing.assert_allclose(
+        cone.goal_point.to_np()[:3],
+        np.ravel(
+            [
+                target.to_position().x.to_np(),
+                target.to_position().y.to_np(),
+                robot.root.global_pose.to_position().z.to_np(),
+            ]
+        ),
+        atol=1e-9,
+    )
+
+
+def test_reach_leaves_a_standing_base_facing_wherever_it_stands(mutable_model_world):
+    """
+    A base that stays put during the reach is not turned towards the target: the goal is
+    held relative to that base, so turning it would carry the goal along.
+    """
+    world, robot, _ = mutable_model_world
+    robot.mobile_base.full_body_controlled = False
+    context = Context(world, robot, base_facing_tolerance=BASE_FACING_TOLERANCE)
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(target, Arms.LEFT)
+    execute_single(motion, context=context)
+
+    assert isinstance(motion.motion_chart, CartesianPose)
