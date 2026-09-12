@@ -1309,7 +1309,11 @@ class Desk(Table, HasLegs):
 @dataclass(eq=False)
 class Chair(Furniture):
     """
-    Abstract class for chairs.
+    A seat for one person, with a back.
+
+    Not abstract, whatever an earlier version of this docstring said: a chair is a thing
+    a room has and an object can be annotated as one. A stool has been answered with
+    this class and is not one, having no back to it.
     """
 
 
@@ -1410,6 +1414,12 @@ class ElectricalDevice(HasRootBody):
     and runs kept inventing one under a different name each time -- ``Device`` in one,
     ``ElectronicDevice`` in the next, and in a third ``Agent``, which is meant for
     something that can act and move. Naming it once is what makes those runs comparable.
+
+    **Electricity has to run through the thing itself.** A fire extinguisher, a tap and
+    an ice maker have all been answered with this class and none of them belongs to it:
+    a fire extinguisher holds pressure, a tap holds water, and an ice maker is a
+    :class:`Fridge`. Something merely near electricity, plumbed in beside it, or
+    resembling an appliance is not one of these.
 
     ..note:: A thinner case than :class:`Lamp`, and worth revisiting. Across the four
         annotated HM3D buildings it covers some forty-seven objects against that class's
