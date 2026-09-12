@@ -1401,6 +1401,26 @@ class Lamp(HasRootBody):
 
 
 @dataclass(eq=False)
+class ElectricalDevice(HasRootBody):
+    """
+    Something that runs on electricity and is not an appliance the ontology already
+    names.
+
+    A television, a smoke detector, a thermostat. The ontology had no word between them,
+    and runs kept inventing one under a different name each time -- ``Device`` in one,
+    ``ElectronicDevice`` in the next, and in a third ``Agent``, which is meant for
+    something that can act and move. Naming it once is what makes those runs comparable.
+
+    ..note:: A thinner case than :class:`Lamp`, and worth revisiting. Across the four
+        annotated HM3D buildings it covers some forty-seven objects against that class's
+        two hundred, and they have little in common beyond their power: what matters
+        about a television is that it stands on something and about a light switch that
+        it is on a wall. Where a scene draws a distinction worth keeping, a run composes
+        it against this class.
+    """
+
+
+@dataclass(eq=False)
 class Mirror(HasRootBody):
     """
     A surface that shows what is in front of it.

@@ -29,6 +29,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Decor,
     Door,
     Drawer,
+    ElectricalDevice,
     Furniture,
     Handle,
     Lamp,
@@ -740,6 +741,19 @@ def test_a_lamp_is_a_thing_that_lights_a_room_and_not_decoration():
     lamp_body = Body(name=PrefixedName("lamp_body"))
     assert Lamp(root=lamp_body).root is lamp_body
     assert not issubclass(Lamp, Decor)
+
+
+def test_an_electrical_device_is_its_own_thing():
+    """
+    A television, a smoke detector and a thermostat had no class between them, and runs
+    kept inventing one under a different name each time -- ``Device`` in one,
+    ``ElectronicDevice`` in the next, ``Agent`` in a third.
+
+    Naming it once is what makes those runs comparable.
+    """
+    device_body = Body(name=PrefixedName("device_body"))
+    assert ElectricalDevice(root=device_body).root is device_body
+    assert not issubclass(ElectricalDevice, Decor)
 
 
 def test_a_mirror_is_its_own_thing():
