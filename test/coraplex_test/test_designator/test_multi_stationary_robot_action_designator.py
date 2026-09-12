@@ -43,6 +43,8 @@ from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
+from ...conftest import SAMPLING_SEED
+
 
 @pytest.fixture(
     scope="session",
@@ -132,7 +134,7 @@ def immutable_stationary_block_world(robot_setup):
     block_world, robot_class = robot_setup
     state = deepcopy(block_world.state._data)
     view = block_world.get_semantic_annotations_by_type(robot_class)[0]
-    yield block_world, view, Context(block_world, view)
+    yield block_world, view, Context(block_world, view, sampling_seed=SAMPLING_SEED)
     block_world.state._data[:] = state
     block_world.notify_state_change()
 
@@ -142,7 +144,11 @@ def mutable_stationary_block_world(robot_setup):
     block_world, robot_class = robot_setup
     copy_world = deepcopy(block_world)
     copy_view = copy_world.get_semantic_annotations_by_type(robot_class)[0]
-    return copy_world, copy_view, Context(copy_world, copy_view)
+    return (
+        copy_world,
+        copy_view,
+        Context(copy_world, copy_view, sampling_seed=SAMPLING_SEED),
+    )
 
 
 def test_park_arms_multi(immutable_stationary_block_world):

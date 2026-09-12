@@ -11,6 +11,8 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+from ..conftest import SAMPLING_SEED
+
 # %% fixtures
 
 HELD_AT = (0.03, -0.02, 0.05)
@@ -57,7 +59,7 @@ def test_place_derives_the_grasp_from_the_live_tool_frame_transform(pr2_holding_
     world, robot, milk = pr2_holding_milk
     target = Pose.from_xyz_rpy(1.2, 0.4, 0.9, yaw=np.pi / 4, reference_frame=world.root)
     place = PlaceAction(milk, target, Arms.LEFT)
-    sequential([place], context=Context(world, robot))
+    sequential([place], context=Context(world, robot, sampling_seed=SAMPLING_SEED))
 
     end_effector = ViewManager.get_end_effector_view(Arms.LEFT, robot)
     tool_goal = end_effector.tool_frame_goal(place._grasp_pose_at(target))

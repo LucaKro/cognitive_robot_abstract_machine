@@ -51,7 +51,9 @@ from coraplex.datastructures.dataclasses import Context
 
 world = setup_world()
 pr2_view = PR2.from_world(world)
-context = Context(world, pr2_view)
+# A location draws its candidates from a costmap, so a seed is what makes this
+# example run the same way twice.
+context = Context(world, pr2_view, sampling_seed=0)
 
 description = TransportAction(
     world.get_semantic_annotations_by_type(Milk)[0],

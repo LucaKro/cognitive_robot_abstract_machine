@@ -14,6 +14,8 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+from ..conftest import SAMPLING_SEED
+
 # %% fixtures
 
 BOWL_MESH = os.path.join(
@@ -114,7 +116,7 @@ def test_transporting_a_bowl_grasps_it_at_its_rim(pr2_and_bowl):
     the whole reason a bowl generates its own grasps.
     """
     world, robot, bowl = pr2_and_bowl
-    context = Context(world, robot)
+    context = Context(world, robot, sampling_seed=SAMPLING_SEED)
     context.evaluate_conditions = False
     transport = TransportAction(
         bowl,

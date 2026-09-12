@@ -19,6 +19,8 @@ from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
+from ..conftest import SAMPLING_SEED
+
 
 def test_ref_chain_after_copy(immutable_model_world):
     world, view, c = immutable_model_world
@@ -34,7 +36,9 @@ def test_ref_chain_after_copy_with_execute(immutable_model_world):
     copy_world.name = "copy_world"
 
     copy_context = Context(
-        copy_world, copy_world.get_semantic_annotation_by_id(view.id)
+        copy_world,
+        copy_world.get_semantic_annotation_by_id(view.id),
+        sampling_seed=SAMPLING_SEED,
     )
 
     plan = sequential(
@@ -56,7 +60,9 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
     copy_world.name = "copy_world"
 
     copy_context = Context(
-        copy_world, copy_robot := copy_world.get_semantic_annotation_by_id(view.id)
+        copy_world,
+        copy_robot := copy_world.get_semantic_annotation_by_id(view.id),
+        sampling_seed=SAMPLING_SEED,
     )
 
     milk = copy_world.get_semantic_annotations_by_type(Milk)[0]
