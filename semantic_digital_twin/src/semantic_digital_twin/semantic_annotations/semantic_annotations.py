@@ -82,9 +82,16 @@ if TYPE_CHECKING:
 
 
 @dataclass(eq=False)
-class Furniture(SemanticAnnotation, ABC):
+class Furniture(HasRootBody, ABC):
     """
     A semantic annotation that represents a piece of furniture.
+
+    Every piece of furniture stands somewhere, so it is rooted on a body here rather
+    than in each of its subclasses. Most of them reach a root anyway through a mixin of
+    their own -- a cabinet through :class:`HasCaseAsRootBody`, a table through
+    :class:`HasSupportingSurface` -- and those are unaffected, since they already
+    derived from :class:`HasRootBody` by that route and still reach their own geometry
+    first. The ones this settles are the pieces named by nothing else: a chair, a bed.
     """
 
 
