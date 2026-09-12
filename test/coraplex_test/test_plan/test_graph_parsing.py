@@ -64,7 +64,6 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
 )
 from giskardpy.ros_executor import Ros2Executor
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
@@ -556,11 +555,10 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert len(executable.motion_mappings) == 3
-    assert [type(task) for task in executable.motion_mappings.values()] == [
-        CartesianPose,
-        PerceptionTask,
-        CartesianPose,
+    assert [type(node.designator) for node in executable.motion_mappings] == [
+        MoveToolCenterPointMotion,
+        DetectingMotion,
+        MoveToolCenterPointMotion,
     ]
 
 
