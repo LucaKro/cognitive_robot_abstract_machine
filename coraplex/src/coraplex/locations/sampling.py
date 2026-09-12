@@ -21,10 +21,34 @@ class CostmapSamplingStrategy(ABC):
     for.
     """
 
-    @abstractmethod
     def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         """
         Pick which entries to offer.
+
+        Offers fewer than asked for when the map holds fewer entries this strategy can
+        reach, since an entry is only ever offered once.
+
+        :param ratings: The flattened costmap, one rating per entry.
+        :param count: How many entries to pick at most.
+        :return: The indices to offer, in the order they should be offered.
+        """
+        offerable = min(count, self.count_offerable_entries(ratings))
+        if offerable <= 0:
+            return np.empty(0, dtype=np.intp)
+        return self._pick(ratings, offerable)
+
+    def count_offerable_entries(self, ratings: NDArray[np.float64]) -> int:
+        """
+        How many of the given entries this strategy can offer.
+
+        :param ratings: The flattened costmap, one rating per entry.
+        """
+        return ratings.size
+
+    @abstractmethod
+    def _pick(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
+        """
+        Pick exactly ``count`` entries, never more than this strategy can offer.
 
         :param ratings: The flattened costmap, one rating per entry.
         :param count: How many entries to pick.
@@ -42,7 +66,7 @@ class HighestRatedFirst(CostmapSamplingStrategy):
     for a ring, that is its own radius, one angle at a time.
     """
 
-    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
+    def _pick(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         highest = np.argpartition(ratings, -count)[-count:]
         return highest[np.argsort(ratings[highest])[::-1]]
 
@@ -79,12 +103,22 @@ class WeightedByRating(RandomCostmapSamplingStrategy):
     merely likeliest and the rest of the region still comes up.
     """
 
-    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
-        total = ratings.sum()
-        if total == 0:
+    def count_offerable_entries(self, ratings: NDArray[np.float64]) -> int:
+        """
+        How many of the given entries this strategy can offer.
+
+        An entry rated zero stands no chance of being drawn, so only the rated ones can
+        be offered -- unless the map rates nothing at all, which is drawn from evenly.
+
+        :param ratings: The flattened costmap, one rating per entry.
+        """
+        return int(np.count_nonzero(ratings)) or ratings.size
+
+    def _pick(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
+        if not ratings.any():
             return self.random_generator.choice(ratings.size, count, replace=False)
         return self.random_generator.choice(
-            ratings.size, count, replace=False, p=ratings / total
+            ratings.size, count, replace=False, p=ratings / ratings.sum()
         )
 
 
@@ -97,5 +131,5 @@ class UniformlyAtRandom(RandomCostmapSamplingStrategy):
     highest.
     """
 
-    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
+    def _pick(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         return self.random_generator.choice(ratings.size, count, replace=False)
