@@ -26,10 +26,14 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import *
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
     Chair,
+    Decor,
     Door,
     Drawer,
     Furniture,
     Handle,
+    Lamp,
+    Mirror,
+    Wall,
     Wardrobe,
 )
 from semantic_digital_twin.semantic_annotations.mixins import (
@@ -720,3 +724,29 @@ def test_a_cabinet_is_still_built_as_a_hollow_case():
     """
     reached = Cabinet.__mro__
     assert reached.index(HasCaseAsRootBody) < reached.index(HasRootBody)
+
+
+# %% things a household has that the ontology had no word for
+
+
+def test_a_lamp_is_a_thing_that_lights_a_room_and_not_decoration():
+    """
+    A lamp does a job.
+
+    Filing it under decoration reads it as ornament, which is what the ontology had no
+    better word for: HM3D's four annotated buildings hold 213 lamps, light fixtures,
+    chandeliers and the like between them.
+    """
+    lamp_body = Body(name=PrefixedName("lamp_body"))
+    assert Lamp(root=lamp_body).root is lamp_body
+    assert not issubclass(Lamp, Decor)
+
+
+def test_a_mirror_is_its_own_thing():
+    """
+    A mirror is not decoration and is not always on a wall -- some stand on the floor --
+    so it hangs off nothing but the body it is.
+    """
+    mirror_body = Body(name=PrefixedName("mirror_body"))
+    assert Mirror(root=mirror_body).root is mirror_body
+    assert not issubclass(Mirror, (Decor, Wall))

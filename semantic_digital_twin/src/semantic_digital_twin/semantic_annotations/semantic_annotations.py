@@ -1374,13 +1374,39 @@ class Kettle(CookingContainer): ...
 
 
 @dataclass(eq=False)
-class Decor(HasRootBody): ...
+class Decor(HasRootBody):
+    """
+    Something a room holds for the look of it rather than for anything it does.
+    """
 
 
 @dataclass(eq=False)
 class WallDecor(Decor):
     """
     Wall decorations.
+    """
+
+
+@dataclass(eq=False)
+class Lamp(HasRootBody):
+    """
+    Something that lights a room.
+
+    Not :class:`Decor`, though it was the only word for one until now: a lamp is there
+    to do a job, and reading it as ornament loses that. Where a scene distinguishes the
+    kinds -- standing on a table, hung from a ceiling, fixed to a wall -- a run composes
+    that distinction against this class rather than the ontology guessing at it in
+    advance.
+    """
+
+
+@dataclass(eq=False)
+class Mirror(HasRootBody):
+    """
+    A surface that shows what is in front of it.
+
+    Its own thing rather than a kind of :class:`WallDecor`: a mirror is used rather than
+    looked at, and not every one of them hangs on a wall, since some stand on the floor.
     """
 
 
