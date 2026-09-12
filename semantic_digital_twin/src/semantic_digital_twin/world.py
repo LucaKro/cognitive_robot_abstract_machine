@@ -9,9 +9,10 @@ import threading
 import uuid
 from contextlib import contextmanager
 from copy import deepcopy, copy
-from dataclasses import dataclass, field
 from pathlib import Path
+from dataclasses import dataclass, field, fields, is_dataclass
 from functools import wraps, cached_property
+from itertools import chain
 from uuid import UUID
 
 import numpy as np
@@ -51,6 +52,7 @@ from semantic_digital_twin.exceptions import (
     AlreadyBelongsToAWorldError,
     MissingWorldModificationContextError,
     WorldEntityWithIDNotFoundError,
+    WorldEntityWithIDBelongsToAnotherWorld,
     MissingReferenceFrameError,
     MismatchingPublishChangesAttribute,
     AtomicWorldModificationNotAtomic,
@@ -130,6 +132,8 @@ logger = logging.getLogger("semantic_digital_twin")
 GenericSemanticAnnotation = TypeVar(
     "GenericSemanticAnnotation", bound=SemanticAnnotation
 )
+
+RelocatableType = TypeVar("RelocatableType")
 
 FunctionStack = List[Tuple[Callable, Dict[str, Any]]]
 
@@ -1147,15 +1151,10 @@ class World(HasSimulatorProperties):
 
         :param connection: The connection to be removed
 
-        .. warning::
+        .. note::
 
-            The reason self.is_connection_in_world is not checked before removing the connection, is because it is using
-            the self.connections internally, which accesses the live rustworkx kinematic_structure. The problem arises
-            if we want to remove the parent or child from the world, before removing the connection from the world.
-            In that case, rustworkx automatically removes the edge representing the connection, which results in
-            self.is_connection_in_world returning False, even though we have not cleaned up the connection properly on
-            our side. The ownership the connection itself records survives that,
-            which is what makes it usable as the check here.
+            A connection whose parent or child was removed first has already left the
+            world with it, so removing it afterwards does nothing.
         """
         if connection._world is not self:
             return
@@ -1198,9 +1197,19 @@ class World(HasSimulatorProperties):
         Do not call this function directly, use `remove_kinematic_structure_entity`
         instead.
 
+        Connections still attached to it leave the world with it, as removing its node
+        removes their edges from the kinematic structure.
+
         :param kinematic_structure_entity: The kinematic_structure_entity to remove.
         """
-        self.kinematic_structure.remove_node(kinematic_structure_entity.index)
+        index = kinematic_structure_entity.index
+        attached_edges = chain(
+            self.kinematic_structure.in_edges(index),
+            self.kinematic_structure.out_edges(index),
+        )
+        for _, _, connection in attached_edges:
+            connection.remove_from_world()
+        self.kinematic_structure.remove_node(index)
         kinematic_structure_entity.remove_from_world()
 
     def remove_degree_of_freedom(self, dof: DegreeOfFreedom) -> None:
@@ -1594,15 +1603,96 @@ class World(HasSimulatorProperties):
         return self._get_world_entity_by_hash(hash(id))
 
     def get_world_entity_with_id_by_id(self, id: UUID) -> WorldEntityWithID:
-        result = [
-            v
-            for v in self._world_entity_hash_table.values()
-            if isinstance(v, WorldEntityWithID) and v.id == id
-        ]
-        if len(result) == 0:
+        """
+        Get this world's entity with the given id.
+
+        :param id: The id of the entity to get.
+        :return: The entity of this world carrying that id.
+        :raises WorldEntityWithIDNotFoundError: If this world holds no such entity.
+        """
+        entity = self.find_world_entity_with_id(id)
+        if entity is None:
             raise WorldEntityWithIDNotFoundError(id)
-        else:
-            return result[0]
+        return entity
+
+    def find_world_entity_with_id(self, entity_id: UUID) -> Optional[WorldEntityWithID]:
+        """
+        Find this world's entity with the given id, if it holds one.
+
+        .. note:: Semantic annotations are searched in :attr:`semantic_annotations`
+            rather than in the hash table. Their hash describes their content instead
+            of their id, so annotations of the same type over the same kinematic
+            structure entities share one table key and all but the last one added are
+            missing from it.
+
+        :param entity_id: The id of the entity to find.
+        :return: The entity of this world carrying that id, or None if it holds none.
+        """
+        return next(
+            (
+                entity
+                for entity in chain(
+                    self._world_entity_hash_table.values(), self.semantic_annotations
+                )
+                if isinstance(entity, WorldEntityWithID) and entity.id == entity_id
+            ),
+            None,
+        )
+
+    def rebind_world_entities(self, obj: RelocatableType) -> RelocatableType:
+        """
+        Replace every world entity reachable from `obj` with this world's own instance
+        of it.
+
+        `obj` is typically built against a different `World`, for example the one this
+        world was :func:`~copy.deepcopy`'d from, whose bodies and connections this world
+        rebuilt as separate objects. Reading through such a foreign reference is
+        harmless, since execution reads and writes whichever world its context points
+        at, but modifying the model is not: `move_branch` and its kind require the
+        entities they are given to belong to the world being modified.
+
+        Walks `obj` recursively through dataclass fields, list like classes and dict values.
+        A :class:`~semantic_digital_twin.world_description.world_entity.WorldEntityWithID`
+        is looked up here by its id. Anything else is deep-copied, so `obj` and the
+        result never share mutable state.
+
+        An entity this world does not contain is left as it is: it is not this world's
+        state to rebind, and leaving it behaves exactly as not rebinding at all.
+
+        .. note:: An ``init=False`` field a dataclass derives from its other fields in
+            `__post_init__` is carried over as originally computed, not recomputed from
+            the rebound values.
+
+        :param obj: The object to rebind, or a value containing world entities.
+        :return: An equivalent, independent copy of `obj` referring to this world.
+        :raises WorldEntityWithIDBelongsToAnotherWorld: If this world's lookup answers with an
+            entity that reports belonging elsewhere, rather than letting it fail later
+            wherever it ends up being used.
+        """
+        if isinstance(obj, WorldEntityWithID):
+            try:
+                found = self.get_world_entity_with_id_by_id(obj.id)
+            except WorldEntityWithIDNotFoundError:
+                return obj
+            if found._world is not self:
+                raise WorldEntityWithIDBelongsToAnotherWorld(
+                    world=self, world_entity=found
+                )
+            return found
+        if isinstance(obj, list_like_classes):
+            return type(obj)(self.rebind_world_entities(item) for item in obj)
+        if isinstance(obj, dict):
+            return {
+                key: self.rebind_world_entities(value) for key, value in obj.items()
+            }
+        if is_dataclass(obj) and not isinstance(obj, type):
+            result = deepcopy(obj)
+            for f in fields(obj):
+                setattr(
+                    result, f.name, self.rebind_world_entities(getattr(obj, f.name))
+                )
+            return result
+        return deepcopy(obj)
 
     def get_kinematic_structure_entity_by_id(
         self, id: UUID
@@ -1761,6 +1851,24 @@ class World(HasSimulatorProperties):
                 self.add_connection(root_connection)
 
             other.clear()
+
+    def _replace_with(self, other: World) -> None:
+        """
+        Replace all entities, kinematic structure, and state with those of `other`,
+        preserving registered callbacks and listeners.
+
+        :param other: The world instance whose content replaces the current world.
+        """
+        model_change_callbacks = list(self._model_manager.model_change_callbacks)
+        state_change_callbacks = list(self.state.state_change_callbacks)
+
+        with self._world_lock:
+            with self.modify_world(publish_changes=False):
+                self.clear()
+            self.merge_world(other)
+            self._model_manager.model_change_callbacks.extend(model_change_callbacks)
+            self.state.state_change_callbacks.extend(state_change_callbacks)
+            self._notify_model_change(publish_changes=False)
 
     def is_kinematic_structure_entity_in_world_by_name(self, name: str) -> bool:
         """

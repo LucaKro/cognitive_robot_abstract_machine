@@ -1,6 +1,7 @@
 import json
 import uuid
 from dataclasses import dataclass, field
+from datetime import timedelta
 from enum import Enum
 from typing import Dict, Any, List, Optional, Self, Set, Tuple, TYPE_CHECKING
 
@@ -538,3 +539,33 @@ def test_enum_members_inside_a_container_come_back_as_members():
     assert all(
         member is expected for member, expected in zip(result.channels, held.channels)
     )
+
+
+# %% durations
+
+
+def test_timedelta_roundtrip():
+    duration = timedelta(seconds=5)
+    result = from_json(to_json(duration))
+    assert result == duration
+
+
+def test_timedelta_keeps_sub_second_resolution():
+    duration = timedelta(days=2, seconds=3, microseconds=4)
+    result = from_json(to_json(duration))
+    assert result == duration
+
+
+@dataclass
+class HasDuration:
+    """
+    A dataclass carrying a duration, as the statechart nodes that are sent as JSON do.
+    """
+
+    timeout: timedelta = field(default_factory=lambda: timedelta(seconds=5))
+
+
+def test_timedelta_field_of_a_dataclass_roundtrips():
+    obj = HasDuration()
+    result = from_json(to_json(obj))
+    assert result == obj
