@@ -87,6 +87,8 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.world import World
 
+from ...conftest import SAMPLING_SEED
+
 # The alternative motion mappings that should be available to the plans in this test module.
 # Resolution filters by robot type and execution type, so passing the full set is always safe.
 ALTERNATIVE_MOTION_MAPPINGS = [
@@ -266,7 +268,10 @@ def immutable_multiple_robot_apartment(
         else False
     )
     yield world, view, Context(
-        world, view, alternative_motion_mappings=ALTERNATIVE_MOTION_MAPPINGS
+        world,
+        view,
+        alternative_motion_mappings=ALTERNATIVE_MOTION_MAPPINGS,
+        sampling_seed=SAMPLING_SEED,
     )
     view.mobile_base.full_body_controlled = full_body_controlled
     world.state._data[:] = state
@@ -285,6 +290,7 @@ def mutable_multiple_robot_apartment(setup_multi_robot_apartment):
             copy_world,
             copy_view,
             alternative_motion_mappings=ALTERNATIVE_MOTION_MAPPINGS,
+            sampling_seed=SAMPLING_SEED,
         ),
     )
 
@@ -775,15 +781,15 @@ def test_move_to_reach(immutable_multiple_robot_apartment):
 
 def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
-    if not isinstance(robot, PR2):
+    if isinstance(robot, HSRB):
         return
     context.ros_node = rclpy_node
     context.debug = True
     v = VizMarkerPublisher(_world=world, node=rclpy_node)
     v.with_collision_visualization()
     target_pose = Pose.from_xyz_rpy(
-            5.1, 3.25, 0.75, yaw=1.57, reference_frame=world.root
-        )
+        5.1, 3.25, 0.75, yaw=1.57, reference_frame=world.root
+    )
     description = TransportAction(
         object_designator=world.get_semantic_annotations_by_type(Spoon)[0],
         target_location=target_pose,

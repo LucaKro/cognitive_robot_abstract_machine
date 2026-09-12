@@ -62,7 +62,9 @@ from coraplex.testing import setup_world
 world = setup_world()
 pr2 = PR2.from_world(world)
 
-context = Context(world=world, robot=pr2)
+# A location draws its candidates from a costmap, so a seed is what makes this
+# example run the same way twice.
+context = Context(world=world, robot=pr2, sampling_seed=0)
 
 
 ```

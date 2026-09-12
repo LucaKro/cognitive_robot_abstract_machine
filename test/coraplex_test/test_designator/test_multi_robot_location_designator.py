@@ -53,6 +53,8 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.world import World
 
+from ...conftest import SAMPLING_SEED
+
 # The alternative motion mappings that should be available to the plans in this test module.
 # Resolution filters by robot type and execution type, so passing the full set is always safe.
 ALTERNATIVE_MOTION_MAPPINGS = [
@@ -143,7 +145,10 @@ def immutable_multiple_robot_simple_apartment(
     world, view = setup_multi_robot_simple_apartment
     state = deepcopy(world.state._data)
     yield world, view, Context(
-        world, view, alternative_motion_mappings=ALTERNATIVE_MOTION_MAPPINGS
+        world,
+        view,
+        alternative_motion_mappings=ALTERNATIVE_MOTION_MAPPINGS,
+        sampling_seed=SAMPLING_SEED,
     )
     world.state._data[:] = state
     world.notify_state_change()
@@ -161,6 +166,7 @@ def mutable_multiple_robot_simple_apartment(setup_multi_robot_simple_apartment):
             copy_world,
             copy_view,
             alternative_motion_mappings=ALTERNATIVE_MOTION_MAPPINGS,
+            sampling_seed=SAMPLING_SEED,
         ),
     )
 
