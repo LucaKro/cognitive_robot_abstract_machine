@@ -21,6 +21,7 @@ adjudication; if any of those is wrong, this writes it faithfully into the world
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 from collections import Counter
 from dataclasses import dataclass, field
@@ -36,6 +37,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     annotation_classes,
     in_base_order,
 )
+from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Dict, List, Type
 
@@ -55,6 +57,48 @@ from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.scene_split import Pairing
+
+# %% what an annotation needs beyond the body it is about
+
+ROOT = "root"
+"""
+The field an annotation holds the body it is about in, and the one thing the step gives
+every annotation it makes.
+"""
+
+
+def fields_beyond_the_body(annotation_class: Type) -> List[str]:
+    """
+    Name what an annotation class needs that the body it is about does not supply.
+
+    Every annotation is made from that body and nothing else, so a class needing more
+    cannot be made here. Most need nothing: a cabinet is made with no drawers and has
+    them mounted into it afterwards, which is the only order the run could work in,
+    since what belongs in which cabinet is not known when the cabinet is made.
+
+    Two kinds cannot be. Some are constituted by other annotations -- a room is its
+    floor, a double door is its two doors -- and are annotations over annotations rather
+    than over a body. Others are rooted on a region rather than a body: an aperture is a
+    hole, and a hole is not a thing. Nothing refuses the body in either case, because a
+    field takes what it is given, so the second kind stays wrong and quiet until
+    something reads the area a body does not have.
+
+    :param annotation_class: The class an answer named.
+    :return: The fields it requires besides the body, with ``root`` among them where a
+        body is not the root it takes. Empty when a body is all it needs.
+    """
+    wanted = [
+        one.name
+        for one in dataclasses.fields(annotation_class)
+        if one.init
+        and one.name != ROOT
+        and one.default is dataclasses.MISSING
+        and one.default_factory is dataclasses.MISSING
+    ]
+    if not issubclass(annotation_class, HasRootBody):
+        wanted.append(ROOT)
+    return sorted(wanted)
+
 
 # %% a mount the world would not carry out
 
@@ -217,7 +261,11 @@ class MountAnnotations(HasLogger):
                 if inspect.isabstract(known[answer.class_name]):
                     left_alone[f"{answer.class_name} (abstract)"] += 1
                     continue
-                annotation = known[answer.class_name](root=body, _world=world)
+                wanted = fields_beyond_the_body(known[answer.class_name])
+                if wanted:
+                    left_alone[f"{answer.class_name} (needs {', '.join(wanted)})"] += 1
+                    continue
+                annotation = known[answer.class_name](**{ROOT: body}, _world=world)
                 # Registered as it is made, before anything is mounted into it. A mount
                 # records an attribute update against the annotation it changes, and a
                 # world replaying its modifications has to have that annotation already:
