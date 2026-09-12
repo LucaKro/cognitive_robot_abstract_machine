@@ -506,6 +506,18 @@ def _ring_map(world) -> RingCostmap:
     )
 
 
+def _sparsely_rated_map(world) -> RingCostmap:
+    """
+    :return: A map rating three entries apart from one another, the rest of it zero.
+    """
+    costmap = _ring_map(world)
+    costmap.map = np.zeros((200, 200))
+    costmap.map[40, 40] = 1
+    costmap.map[80, 80] = 2
+    costmap.map[120, 120] = 3
+    return costmap
+
+
 def _stand_off_distances(
     costmap: Costmap, sampling_strategy: CostmapSamplingStrategy, count: int
 ) -> NDArray[np.float64]:
@@ -527,11 +539,7 @@ def test_highest_rated_candidates_come_first(immutable_model_world):
     checks, so the highest rated entry has to be offered before any lower one.
     """
     world, _, _ = immutable_model_world
-    costmap = _ring_map(world)
-    costmap.map = np.zeros((200, 200))
-    costmap.map[40, 40] = 1
-    costmap.map[80, 80] = 2
-    costmap.map[120, 120] = 3
+    costmap = _sparsely_rated_map(world)
 
     poses = list(costmap.candidates(HighestRatedFirst()))
 
@@ -683,3 +691,79 @@ def _everywhere_map(world) -> RingCostmap:
     everywhere = _ring_map(world)
     everywhere.map = np.ones((200, 200))
     return everywhere
+
+
+# %% asking a map for more candidates than it can offer
+
+
+def _sparsely_rated_entries() -> NDArray[np.float64]:
+    """
+    :return: A hundred entries, all but three of them rated zero.
+    """
+    ratings = np.zeros(100)
+    ratings[[7, 13, 61]] = [1.0, 2.0, 3.0]
+    return ratings
+
+
+def test_weighted_draw_offers_every_rated_entry_when_asked_for_more():
+    """
+    A drawn entry has to be one the map rates, so a map rating fewer entries than a
+    caller asks for offers the ones it rates rather than refusing the draw.
+    """
+    ratings = _sparsely_rated_entries()
+
+    drawn = WeightedByRating(seed=0).choose(ratings, 50)
+
+    assert sorted(drawn.tolist()) == np.flatnonzero(ratings).tolist()
+
+
+def test_uniform_draw_offers_every_entry_when_asked_for_more():
+    """
+    Drawing without repeating runs out at the size of the map, so asking for more than
+    it holds offers all of it.
+    """
+    ratings = _sparsely_rated_entries()
+
+    drawn = UniformlyAtRandom(seed=0).choose(ratings, 2 * ratings.size)
+
+    assert sorted(drawn.tolist()) == list(range(ratings.size))
+
+
+def test_ranking_offers_every_entry_when_asked_for_more():
+    """
+    Ranking runs out at the size of the map too, the highest rated entries still coming
+    first.
+    """
+    ratings = _sparsely_rated_entries()
+
+    ranked = HighestRatedFirst().choose(ratings, 2 * ratings.size)
+
+    assert len(ranked) == ratings.size
+    assert ranked[:3].tolist() == np.argsort(ratings)[::-1][:3].tolist()
+
+
+def test_asking_for_no_candidates_offers_none():
+    """
+    A caller that asks for no candidates gets none, rather than the whole map or an
+    error.
+    """
+    ratings = _sparsely_rated_entries()
+
+    assert WeightedByRating(seed=0).choose(ratings, 0).size == 0
+    assert UniformlyAtRandom(seed=0).choose(ratings, 0).size == 0
+    assert HighestRatedFirst().choose(ratings, 0).size == 0
+
+
+def test_a_sparsely_rated_map_is_drawn_from_within_its_rated_entries(
+    immutable_model_world,
+):
+    """
+    A map whose rated region is a fraction of its extent is the ordinary case, and the
+    default sample budget far exceeds what such a map rates.
+    """
+    world, _, _ = immutable_model_world
+    costmap = _sparsely_rated_map(world)
+
+    poses = list(costmap.candidates(WeightedByRating(seed=0)))
+
+    assert len(poses) == int(np.count_nonzero(costmap.map))

@@ -380,7 +380,7 @@ class Costmap(PoseGeneratorBackend):
             indices = sampling_strategy.choose(seg_map.flatten(), samples_per_map)
 
             indices = np.dstack(np.unravel_index(indices, self.map.shape)).reshape(
-                samples_per_map, 2
+                -1, 2
             )
 
             height = seg_map.shape[0]
