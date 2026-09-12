@@ -2,10 +2,11 @@ import numpy as np
 import pytest
 
 from coraplex.alternative_motion_mapping import AlternativeMotion
-from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.execution_environment import ExecutionEnvironment, simulated_robot
+from coraplex.locations import pose_validator
 from coraplex.locations.pose_validator import (
     IsGraspReachableBy,
     IsObjectReachableBy,
@@ -535,6 +536,49 @@ def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model
             executor.tick_until_end()
 
 
+def test_validation_is_run_with_the_motion_settings_of_the_plan(
+    immutable_model_world, monkeypatch
+):
+    """
+    The probe answers about the motion the plan will execute, so the copy it runs in is
+    addressed by a context carrying the plan's own motion settings: the alternatives a
+    motion is replaced by, and the tolerances a reach counts as finished at.
+
+    A probe given the defaults instead simulates a motion the plan never runs.
+    """
+    world, robot_view, _ = immutable_model_world
+    milk = world.get_body_by_name("milk.stl")
+    context = Context(
+        world=world,
+        robot=robot_view,
+        alternative_motion_mappings=[_MoveTcpAlternativeForPr2],
+        motion_tolerances=MotionToleranceConfig(
+            default_tcp_position_threshold=0.05, tool_orientation_threshold=0.5
+        ),
+    )
+    validator = IsGraspReachableBy(
+        context=context,
+        arm=Arms.RIGHT,
+        grasp_pose=Pose(reference_frame=milk),
+        object_designator=milk,
+    )
+
+    probe_contexts = []
+    monkeypatch.setattr(
+        AreReachableBy,
+        "__call__",
+        lambda self, *a, **k: probe_contexts.append(self.context) or True,
+    )
+
+    assert validator()
+
+    [probe_context] = probe_contexts
+    assert (
+        probe_context.alternative_motion_mappings == context.alternative_motion_mappings
+    )
+    assert probe_context.motion_tolerances == context.motion_tolerances
+
+
 # %% grasping from a standing pose
 
 
@@ -633,3 +677,68 @@ def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world
         assert not validator()
 
     assert validator.reachable_grasp is None
+
+
+# %% watching a grasp probe happen
+
+
+class _RecordsWhatWasPublished:
+    """
+    Stands in for the marker publisher, so a test need not run a ROS node.
+    """
+
+    def __init__(self, published):
+        self.published = published
+
+    def __call__(self, _world, node):
+        self.published.append((_world, node))
+        return self
+
+    def with_collision_visualization(self):
+        return self
+
+
+def test_a_grasp_probe_is_published_while_debugging(immutable_model_world, monkeypatch):
+    """
+    A grasp probe runs in a copy of the world, so nothing of it reaches Rviz unless the
+    copy is published: a run being watched would show the robot standing still through
+    every reach it judges.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    published = []
+    monkeypatch.setattr(
+        pose_validator, "VizMarkerPublisher", _RecordsWhatWasPublished(published)
+    )
+    node = object()
+    validator = IsObjectReachableBy(
+        context=Context(world=world, robot=robot_view, ros_node=node, _debug=True),
+        arm=Arms.RIGHT,
+        graspable=milk,
+    )
+
+    probe = validator._copied_world()
+
+    assert published == [(probe.world, node)]
+
+
+def test_a_grasp_probe_is_not_published_otherwise(immutable_model_world, monkeypatch):
+    """
+    Publishing a world costs something on every candidate a location tries, so a run
+    that is not being watched does not pay it.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    published = []
+    monkeypatch.setattr(
+        pose_validator, "VizMarkerPublisher", _RecordsWhatWasPublished(published)
+    )
+    validator = IsObjectReachableBy(
+        context=Context(world=world, robot=robot_view),
+        arm=Arms.RIGHT,
+        graspable=milk,
+    )
+
+    validator._copied_world()
+
+    assert published == []

@@ -1,7 +1,8 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
+from itertools import islice
 
-from typing_extensions import List, Iterable
+from typing_extensions import List
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -18,6 +19,7 @@ from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import Location, PoseGeneratorBackend
+from coraplex.locations.sampling import HighestRatedFirst
 from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostmap
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -40,6 +42,13 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     target_pose: Pose
     """
     The pose the base poses are searched around.
+    """
+
+    number_of_candidates: int = field(default=5, kw_only=True)
+    """
+    How many base poses to draw and drive to.
+
+    Each one costs a full simulated run, so far fewer than a map is usually drawn for.
     """
 
     arm: Arms
@@ -119,7 +128,6 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         )
 
         reachability_map = occupancy_map + gaussian_map
-        reachability_map.number_of_samples = 5
 
         return reachability_map
 
@@ -201,7 +209,10 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
             target_sequence, self.world, self.robot, test_ee
         )
 
-        for pose_candidate in self.setup_costmap(self.target_pose):
+        for pose_candidate in islice(
+            self.setup_costmap(self.target_pose).candidates(HighestRatedFirst()),
+            self.number_of_candidates,
+        ):
             self.robot.set_root_pose(pose_candidate)
 
             try:

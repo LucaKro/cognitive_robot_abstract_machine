@@ -1,5 +1,4 @@
 import pytest
-import rclpy
 
 from krrood.entity_query_language.factories import (
     get_false_statements,
@@ -69,15 +68,12 @@ def test_get_bound_variables(immutable_model_world):
     assert bound_variables["object_designator"]._type_ == Milk
 
 
-def test_pick_up_pre_conditions(mutable_model_world):
+def test_pick_up_pre_conditions(mutable_model_world, rclpy_node):
     world, view, context = mutable_model_world
-    rclpy.init()
-
-    rosnode = rclpy.create_node("test_node")
-    context.ros_node = rosnode
+    context.ros_node = rclpy_node
     context.debug = True
 
-    VizMarkerPublisher(_world=world, node=rosnode)
+    VizMarkerPublisher(_world=world, node=rclpy_node)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     pick_action = PickUpAction(milk, Arms.LEFT)

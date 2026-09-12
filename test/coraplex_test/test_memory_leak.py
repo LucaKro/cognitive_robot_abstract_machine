@@ -4,7 +4,6 @@ from copy import deepcopy
 import objgraph
 
 from coraplex.datastructures.dataclasses import Context
-import numpy as np
 
 from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot

@@ -38,7 +38,6 @@ from semantic_digital_twin.adapters.robocasa_dataset.mujoco_compat import (
 with robocasa_version_assertions_relaxed():
     from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 
-import numpy as np
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms

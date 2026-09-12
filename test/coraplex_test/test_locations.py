@@ -10,7 +10,8 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
-from coraplex.locations.costmaps import Costmap, RingCostmap
+from coraplex.locations.costmaps import Costmap, OrientationGenerator, RingCostmap
+from coraplex.locations.sampling import HighestRatedFirst, WeightedByRating
 from coraplex.config.action_conf import ActionConfig
 from coraplex.locations import factories
 from coraplex.locations.factories import accessing_location, reachability_location
@@ -29,7 +30,10 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Vector3,
+)
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
@@ -53,6 +57,29 @@ class FixedPoseGenerator(PoseGeneratorBackend):
 
     def __iter__(self) -> Iterator[Pose]:
         return iter(self.poses)
+
+
+@dataclass
+class OffersFixedCandidates(Costmap):
+    """
+    Stands in for a map that has already decided what it offers, so a backend's own
+    handling of the candidates can be asserted without building a map to produce them.
+    """
+
+    offered: List[Pose] = field(default_factory=list)
+    """
+    The candidates to offer, in order.
+    """
+
+    def candidates(self, *args, **kwargs) -> Iterator[Pose]:
+        return iter(self.offered)
+
+
+def _offering(poses: List[Pose]) -> OffersFixedCandidates:
+    """
+    :return: A map that offers exactly ``poses``.
+    """
+    return OffersFixedCandidates(resolution=0.02, world=poses[0].reference_frame._world, offered=poses)
 
 
 @dataclass
@@ -281,7 +308,7 @@ def test_a_ring_from_the_arm_reach_distance_samples_at_the_reach_fraction(
         islice(
             RingCostmap.from_arm_reach_distance(
                 context, Arms.RIGHT, target, reach_fraction=REACH_FRACTION
-            ),
+            ).candidates(HighestRatedFirst()),
             CANDIDATES_TO_SAMPLE,
         )
     )
@@ -333,7 +360,7 @@ def test_a_costmap_offers_the_candidates_it_prefers_first(single_robot_world):
                 candidate.to_position().to_np()[:2].ravel() - origin_position
             )
         )
-        for candidate in costmap
+        for candidate in costmap.candidates(HighestRatedFirst())
     ]
 
     assert offsets == pytest.approx([0.0, costmap.resolution, costmap.resolution])
@@ -565,7 +592,9 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
         world=world,
     )
     monkeypatch.setattr(
-        GiskardLocationBackend, "setup_costmap", lambda self, pose: [candidate]
+        GiskardLocationBackend,
+        "setup_costmap",
+        lambda self, pose: _offering([candidate]),
     )
     monkeypatch.setattr(
         GiskardLocationBackend,
@@ -607,7 +636,7 @@ def test_giskard_backend_solves_the_reach_its_location_validates(
     monkeypatch.setattr(
         GiskardLocationBackend,
         "setup_costmap",
-        lambda self, pose: [_candidate(world)],
+        lambda self, pose: _offering([_candidate(world)]),
     )
     monkeypatch.setattr(
         GiskardLocationBackend, "setup_giskard_executor", record_the_solved_sequence
@@ -663,3 +692,175 @@ def test_location_validates_with_the_motion_policy_of_its_own_context(
     list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
 
     assert recorder.context.motion_tolerances is context.motion_tolerances
+
+
+# %% a location decides how its candidates are drawn
+
+
+@dataclass
+class RecordsHowItWasDrawn(PoseGeneratorBackend):
+    """
+    Yields one candidate and records the terms the draw was asked for on.
+    """
+
+    pose: Pose
+    """
+    The single candidate to yield.
+    """
+
+    asked_for: List[tuple] = field(default_factory=list)
+    """
+    One entry per draw: the strategy, sample count and orientation generator asked for.
+    """
+
+    def __iter__(self) -> Iterator[Pose]:
+        return iter([self.pose])
+
+    def candidates(
+        self, sampling_strategy, number_of_samples=None, orientation_generator=None
+    ) -> Iterator[Pose]:
+        self.asked_for.append(
+            (sampling_strategy, number_of_samples, orientation_generator)
+        )
+        return iter([self.pose])
+
+
+def test_a_location_draws_on_the_terms_it_was_given(single_robot_world):
+    """
+    How candidates are drawn belongs to the location rather than to any of the maps
+    that constrain it, so what it was given is what reaches the draw.
+    """
+    world, robot, context = single_robot_world
+    generator = RecordsHowItWasDrawn(pose=_candidate(world))
+    strategy = WeightedByRating(seed=3)
+    facing_y = OrientationGenerator.orientation_generator_for_axis(
+        Vector3.from_iterable([0, 1, 0])
+    )
+    location = Location(
+        context,
+        _candidate(world),
+        generator,
+        [],
+        sampling_strategy=strategy,
+        number_of_samples=17,
+        orientation_generator=facing_y,
+    )
+
+    list(islice(iter(location), 1))
+
+    assert generator.asked_for == [(strategy, 17, facing_y)]
+
+
+def test_a_location_ranks_its_candidates_unless_told_otherwise(single_robot_world):
+    """
+    Ranking is what lets a caller take the first candidate that passes, so a location
+    that says nothing gets the map's own order rather than a draw that varies per run.
+    """
+    world, robot, context = single_robot_world
+
+    location = Location(context, _candidate(world), FixedPoseGenerator([]), [])
+
+    assert isinstance(location.sampling_strategy, HighestRatedFirst)
+
+
+def test_a_backend_that_does_not_rate_its_candidates_offers_its_own_order(
+    single_robot_world,
+):
+    """
+    Only a backend that rates its candidates has anything for a strategy to decide, so
+    one that does not offers them as it always would.
+    """
+    world, robot, context = single_robot_world
+    first, second = _candidate(world), _candidate(world)
+    generator = FixedPoseGenerator([first, second])
+
+    drawn = list(generator.candidates(WeightedByRating(seed=1), number_of_samples=1))
+
+    assert drawn == [first, second]
+
+
+# %% a standing pose is drawn from the ring rather than ranked off it
+
+
+def test_a_reachability_location_draws_from_the_ring_it_builds(single_robot_world):
+    """
+    Ranking a ring offers its own radius over and over, one angle at a time, so a pose
+    needing a few centimetres more never comes up inside the budget a caller can
+    afford. Drawing from it treats the radius as likeliest rather than as the only one.
+    """
+    world, robot, context = single_robot_world
+
+    location = reachability_location(_box_in(world), context, Arms.RIGHT)
+
+    assert isinstance(location.sampling_strategy, WeightedByRating)
+
+
+def test_a_reachability_location_takes_the_draw_it_is_given(single_robot_world):
+    """
+    A caller that needs a run to repeat exactly fixes the draw, so the location has to
+    take one rather than always making its own.
+    """
+    world, robot, context = single_robot_world
+    strategy = WeightedByRating(seed=11)
+
+    location = reachability_location(
+        _box_in(world), context, Arms.RIGHT, sampling_strategy=strategy
+    )
+
+    assert location.sampling_strategy is strategy
+
+
+def test_a_giskard_backend_drives_to_no_more_candidates_than_it_says(
+    single_robot_world, monkeypatch
+):
+    """
+    Each candidate costs a full simulated run, so the backend draws far fewer of them
+    than a map is usually offered for.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    backend = GiskardLocationBackend(
+        target_pose=candidate,
+        arm=Arms.RIGHT,
+        grasp_pose=candidate,
+        robot=robot,
+        world=world,
+        number_of_candidates=2,
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_costmap",
+        lambda self, pose: _offering([candidate] * 9),
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_giskard_executor",
+        lambda self, *args, **kwargs: MotionlessExecutor(),
+    )
+
+    assert len(list(backend)) == 2
+
+
+def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_world):
+    """
+    A demonstration is only worth running as a regression test if it runs the same way
+    twice, so a plan can fix the draws made anywhere inside it.
+    """
+    world, robot, context = single_robot_world
+    context.sampling_seed = 5
+
+    location = reachability_location(_box_in(world), context, Arms.RIGHT)
+
+    assert location.sampling_strategy.seed == 5
+
+
+def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
+    """
+    Left unseeded a plan explores the region differently each run, which is what makes
+    drawing from the map worth more than ranking it.
+    """
+    world, robot, context = single_robot_world
+
+    location = reachability_location(_box_in(world), context, Arms.RIGHT)
+
+    assert location.sampling_strategy.seed is None
