@@ -1,6 +1,6 @@
 """
 Leaving a body alone when its class cannot be made from a body, rather than losing the
-run.
+run -- where the run was told to.
 
 Every annotation is made from the body it was answered about and nothing else. Most
 classes need nothing else: a cabinet is made with no drawers and has them mounted into it
@@ -18,7 +18,10 @@ from pathlib import Path
 
 import pytest
 
+from experiments.warsaw.pipeline.provenance import settings_to_json
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications
+from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.annotate import (
     MountAnnotations,
     fields_beyond_the_body,
@@ -138,25 +141,65 @@ def named(world: World, class_name: str) -> Classifications:
     )
 
 
-def test_a_body_named_as_a_room_is_left_alone(one_body_world, tmp_path: Path):
+def told_to_skip(tmp_path: Path, skipping: bool) -> MountAnnotations:
     """
-    The answer costs that one body rather than every body after it.
+    :param tmp_path: A directory for the run.
+    :param skipping: What the run was told about classes a body cannot make.
+    :return: The step, reading that back out of the run's own files.
     """
-    annotating = MountAnnotations(directory=tmp_path)
-    assert (
-        annotating.annotate(one_body_world, named(one_body_world, Room.__name__)) == {}
+    run = Run(directory=tmp_path)
+    run.write_json(
+        RunFile.PROVENANCE,
+        {
+            "settings": settings_to_json(
+                PipelineSettings(skip_classes_a_body_cannot_make=skipping)
+            )
+        },
     )
+    return MountAnnotations(directory=tmp_path)
+
+
+def test_the_scans_are_left_as_they_were(one_body_world, tmp_path: Path):
+    """
+    Skipping is not the default. A scan answers as it always has, so its numbers stay
+    comparable with the ones already reported, and an answer naming a class a body
+    cannot make still raises rather than quietly costing a body.
+    """
+    assert PipelineSettings().skip_classes_a_body_cannot_make is False
+    with pytest.raises(TypeError):
+        told_to_skip(tmp_path, skipping=False).annotate(
+            one_body_world, named(one_body_world, Room.__name__)
+        )
+
+
+def test_a_body_named_as_a_room_is_left_alone_when_the_run_was_told_to(
+    one_body_world, tmp_path: Path
+):
+    """
+    Told to skip, the answer costs that one body rather than every body after it.
+    """
+    annotated = told_to_skip(tmp_path, skipping=True).annotate(
+        one_body_world, named(one_body_world, Room.__name__)
+    )
+    assert annotated == {}
 
 
 def test_a_body_named_as_something_a_body_makes_is_still_annotated(
     one_body_world, tmp_path: Path
 ):
     """
-    The guard refuses what cannot be made and nothing else, so everything the step
+    Skipping refuses what cannot be made and nothing else, so everything the step
     annotated before it is annotated still.
     """
-    annotating = MountAnnotations(directory=tmp_path)
-    annotated = annotating.annotate(
+    annotated = told_to_skip(tmp_path, skipping=True).annotate(
         one_body_world, named(one_body_world, Handle.__name__)
     )
     assert [type(one).__name__ for one in annotated.values()] == [Handle.__name__]
+
+
+def test_a_run_that_says_nothing_does_not_skip(one_body_world, tmp_path: Path):
+    """
+    A run written before there was anything to say reads as a run that was not told to
+    skip, rather than as one that was.
+    """
+    assert MountAnnotations(directory=tmp_path).skip_classes_a_body_cannot_make is False

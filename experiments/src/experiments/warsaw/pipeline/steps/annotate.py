@@ -156,6 +156,17 @@ class MountAnnotations(HasLogger):
         """
         return Run(directory=self.directory)
 
+    @property
+    def skip_classes_a_body_cannot_make(self) -> bool:
+        """
+        :return: Whether this run was told to leave a body alone when its class cannot
+            be made from one. A run that says nothing was not.
+        """
+        written = self.run.read_json_if_written(RunFile.PROVENANCE)
+        return bool(
+            written.get("settings", {}).get("skip_classes_a_body_cannot_make", False)
+        )
+
     def carry_out(self) -> None:
         """
         Read the split world back, annotate it, mount its parts, and write it afresh.
@@ -261,7 +272,11 @@ class MountAnnotations(HasLogger):
                 if inspect.isabstract(known[answer.class_name]):
                     left_alone[f"{answer.class_name} (abstract)"] += 1
                     continue
-                wanted = fields_beyond_the_body(known[answer.class_name])
+                wanted = (
+                    fields_beyond_the_body(known[answer.class_name])
+                    if self.skip_classes_a_body_cannot_make
+                    else []
+                )
                 if wanted:
                     left_alone[f"{answer.class_name} (needs {', '.join(wanted)})"] += 1
                     continue

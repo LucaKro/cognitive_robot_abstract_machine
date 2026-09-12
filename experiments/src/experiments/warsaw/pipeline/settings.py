@@ -168,6 +168,17 @@ class PipelineSettings:
     a run deliberately made against an amended ontology needs.
     """
 
+    skip_classes_a_body_cannot_make: bool = False
+    """
+    Whether to leave a body alone when the class it was answered as cannot be made from
+    a body, instead of letting the failure out of the step.
+
+    Off, because a scan answers as it always has and its numbers stay comparable with
+    the ones already reported. On, a body whose class needs something a body is not --
+    a room is its floor, an aperture is rooted on a region -- costs that one body and is
+    reported, rather than costing the run its world, its report and its evaluation graph.
+    """
+
     reuse_answers: bool = False
     """
     Whether to read back the responses a run already kept instead of asking again, which
