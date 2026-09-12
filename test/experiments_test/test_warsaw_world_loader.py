@@ -7,6 +7,7 @@ directory that holds no scene says, and where the cameras end up standing.
 """
 
 import io
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,10 +37,14 @@ from experiments.warsaw.world_loader.viewpoints import (
     is_one_color,
 )
 from experiments.warsaw.world_loader.scene import (
+    SCENE_FRAME_FILE,
     LabelSegment,
     PlyPayload,
+    SceneFrame,
+    SourceFrame,
     WarsawScene,
     segment_label,
+    source_rolled_upright,
 )
 
 # %% a scene file written the way the dataset writes one
@@ -810,3 +815,53 @@ def test_the_area_presented_is_never_more_than_the_segment_has(two_class_scene):
     presented = loader.presented_area(segment, np.array([0.0, 0.0, 1.0]))
 
     assert 0.0 <= presented <= total + 1e-9
+
+
+# %% which way up a scene file is written
+
+
+def write_upright_scene(directory: Path) -> Path:
+    """
+    Write a scene whose file already stands the way the world does.
+
+    :param directory: Where to write it.
+    :return: That directory.
+    """
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    write_scene(
+        directory / "scene.ply",
+        box.vertices,
+        box.faces[:4],
+        {"cabinet": [1, 1, 0, 0]},
+    )
+    (directory / SCENE_FRAME_FILE).write_text(
+        json.dumps(SceneFrame(source=SourceFrame.UPRIGHT).to_json())
+    )
+    return directory
+
+
+def test_a_scene_that_says_nothing_is_read_as_a_scan(two_class_scene):
+    """
+    Every scene written before a scene could say which way up it is, is a scan, so a
+    directory that says nothing is one.
+    """
+    scene = WarsawScene.from_directory(two_class_scene)
+    assert np.allclose(scene.world_T_source.to_np(), source_rolled_upright().to_np())
+
+
+def test_a_scene_that_says_it_is_upright_is_not_rolled(tmp_path):
+    """
+    A scene written the world's way up is turned by nothing at all, and rolling it
+    would lay the room on its side.
+    """
+    scene = WarsawScene.from_directory(write_upright_scene(tmp_path))
+    assert np.allclose(scene.world_T_source.to_np(), np.eye(4))
+
+
+def test_an_upright_scene_stands_in_the_world_where_its_file_puts_it(tmp_path):
+    """
+    The frame a file says it is in is the one the world builds it in, so the loaded
+    scene spans the same heights the file wrote.
+    """
+    loader = WarsawWorldLoader(input_directory=write_upright_scene(tmp_path))
+    assert np.allclose(loader.scene_mesh.extents, loader.scene.mesh.extents, atol=1e-6)

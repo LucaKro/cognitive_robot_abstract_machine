@@ -8,6 +8,7 @@ a drawer front is labelled both as the drawer and as the cabinet holding it.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -18,6 +19,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from typing_extensions import Dict, Iterable, Iterator, List
 
+from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.exceptions import (
     AmbiguousWarsawSceneError,
     WarsawLabelsMissingError,
@@ -135,6 +137,74 @@ def source_rolled_upright() -> HomogeneousTransformationMatrix:
     return HomogeneousTransformationMatrix.from_xyz_rpy(roll=-np.pi / 2)
 
 
+class SourceFrame(StrEnum):
+    """
+    The way up a scene's file is written, of the ways a scene can be written.
+    """
+
+    SCANNED = "scanned"
+    """
+    A scan, measuring height down its own y.
+    """
+
+    UPRIGHT = "upright"
+    """
+    Already the world's way up, with z pointing up and nothing to turn.
+    """
+
+    @property
+    def world_T_source(self) -> HomogeneousTransformationMatrix:
+        """
+        :return: The transform from a file written this way up into the world's frame.
+        """
+        if self is SourceFrame.SCANNED:
+            return source_rolled_upright()
+        return HomogeneousTransformationMatrix()
+
+
+SCENE_FRAME_FILE = "scene_frame.json"
+"""
+What a scene directory says which way up its mesh is written in.
+
+A scan says nothing, because every scene predates the question and rolling one is what
+the pipeline has always done. A scene written from somewhere else says so here rather
+than being written upside down to suit that default: a frame nothing states is the one
+mistake this has already cost a week.
+"""
+
+
+@dataclass
+class SceneFrame(JsonRecord):
+    """
+    Which way up the mesh beside this record is written.
+    """
+
+    source: SourceFrame = SourceFrame.SCANNED
+    """
+    The frame the file is in.
+    """
+
+    @classmethod
+    def beside(cls, directory: Path) -> SceneFrame:
+        """
+        :param directory: The scene directory to look in.
+        :return: What it says, or a scan when it says nothing.
+        """
+        written = Path(directory) / SCENE_FRAME_FILE
+        if not written.is_file():
+            return cls()
+        return cls.from_json(json.loads(written.read_text()))
+
+    def write_beside(self, directory: Path) -> Path:
+        """
+        :param directory: The scene directory to write into.
+        :return: The file written.
+        """
+        written = Path(directory) / SCENE_FRAME_FILE
+        written.write_text(json.dumps(self.to_json(), indent=2))
+        return written
+
+
 # %% the scan itself
 
 
@@ -168,7 +238,7 @@ class WarsawScene:
     """
 
     world_T_source: HomogeneousTransformationMatrix = field(
-        default_factory=source_rolled_upright
+        default_factory=lambda: SourceFrame.SCANNED.world_T_source
     )
     """
     Turns the scene from the frame it is written in into the world's.
@@ -196,14 +266,17 @@ class WarsawScene:
             raise AmbiguousWarsawSceneError(
                 directory=directory, scene_meshes=scene_meshes
             )
-        return cls.from_file(scene_meshes[0])
+        return cls.from_file(scene_meshes[0], SceneFrame.beside(directory).source)
 
     @classmethod
-    def from_file(cls, scene_mesh_path: Path) -> WarsawScene:
+    def from_file(
+        cls, scene_mesh_path: Path, frame: SourceFrame = SourceFrame.SCANNED
+    ) -> WarsawScene:
         """
         Read the scene one mesh file holds.
 
         :param scene_mesh_path: The mesh to read.
+        :param frame: Which way up that file is written.
         :raises WarsawLabelsMissingError: If the mesh carries no per-face class labels.
         """
         scene_mesh_path = Path(scene_mesh_path)
@@ -216,7 +289,12 @@ class WarsawScene:
         # mesh weighs. The labels are the only thing read out of it, and they are read
         # here, so the mesh carries it no further and nothing copying the mesh copies it.
         mesh.metadata.pop(PlyPayload.RAW.value)
-        return cls(mesh_path=scene_mesh_path, mesh=mesh, face_labels=face_labels)
+        return cls(
+            mesh_path=scene_mesh_path,
+            mesh=mesh,
+            face_labels=face_labels,
+            world_T_source=frame.world_T_source,
+        )
 
     @staticmethod
     def _read_face_labels(
