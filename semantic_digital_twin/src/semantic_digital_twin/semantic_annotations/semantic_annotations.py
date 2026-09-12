@@ -652,6 +652,10 @@ class DoubleDoor(SemanticAnnotation):
 
 @dataclass(eq=False)
 class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint):
+    """
+    A box that slides out of a piece of furniture, opened by a handle on its front.
+    """
+
     @classproperty
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.Z()
@@ -753,6 +757,10 @@ class KitchenIsland(
 
 @dataclass(eq=False)
 class Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers):
+    """
+    A piece of furniture with a case that things are stored inside, closed by doors or drawers.
+    """
+
     @classproperty
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.NEGATIVE_X()
@@ -774,27 +782,46 @@ class Dishwasher(Cabinet):
 
 
 @dataclass(eq=False)
-class Fridge(Cabinet): ...
+class Fridge(Cabinet):
+    """
+    A cabinet that keeps what is put in it cold.
+    """
 
 
 @dataclass(eq=False)
-class Oven(HasRootBody, HasDoors): ...
+class Oven(HasRootBody, HasDoors):
+    """
+    An appliance with a door that cooks what is put inside it with heat.
+    """
 
 
 @dataclass(eq=False)
-class Dresser(Cabinet): ...
+class Dresser(Cabinet):
+    """
+    A cabinet of drawers, for clothes.
+    """
 
 
 @dataclass(eq=False)
-class Cupboard(Cabinet): ...
+class Cupboard(Cabinet):
+    """
+    A cabinet standing free of any run, whose whole inside is for storing things.
+    """
 
 
 @dataclass(eq=False)
-class Wardrobe(Cabinet): ...
+class Wardrobe(Cabinet):
+    """
+    A tall cabinet for hanging clothes in.
+    """
 
 
 @dataclass(eq=False)
 class Floor(HasSupportingSurface):
+    """
+    The surface of a room that is walked on and that everything in the room stands on.
+    """
+
     @classmethod
     def create_with_new_body_from_polytope_in_world(
         cls,
@@ -854,19 +881,31 @@ class Room(SemanticAnnotation):
 
 
 @dataclass(eq=False)
-class Kitchen(Room): ...
+class Kitchen(Room):
+    """
+    A room for preparing food.
+    """
 
 
 @dataclass(eq=False)
-class Bedroom(Room): ...
+class Bedroom(Room):
+    """
+    A room for sleeping, with a bed in it.
+    """
 
 
 @dataclass(eq=False)
-class Bathroom(Room): ...
+class Bathroom(Room):
+    """
+    A room for washing, with a bath, a shower or a toilet in it.
+    """
 
 
 @dataclass(eq=False)
-class LivingRoom(Room): ...
+class LivingRoom(Room):
+    """
+    A room for sitting in, with its seating turned towards a hearth, a television or itself.
+    """
 
 
 @dataclass(eq=False)
@@ -898,15 +937,24 @@ class Level(HasRootRegion):
 
 
 @dataclass(eq=False)
-class GroundFloor(Level): ...
+class GroundFloor(Level):
+    """
+    The level of a building that is entered from outside.
+    """
 
 
 @dataclass(eq=False)
-class FirstFloor(Level): ...
+class FirstFloor(Level):
+    """
+    The level of a building above the one entered from outside.
+    """
 
 
 @dataclass(eq=False)
-class SecondFloor(Level): ...
+class SecondFloor(Level):
+    """
+    The level of a building two above the one entered from outside.
+    """
 
 
 @dataclass(eq=False)
@@ -1012,7 +1060,10 @@ class Bottle(HasRootBody):
 
 
 @dataclass(eq=False)
-class Statue(HasRootBody): ...
+class Statue(HasRootBody):
+    """
+    A carved or cast figure of something, kept for the look of it.
+    """
 
 
 @dataclass(eq=False)
@@ -1037,7 +1088,10 @@ class MustardBottle(Bottle):
 
 
 @dataclass(eq=False)
-class DrinkingContainer(HasRootBody): ...
+class DrinkingContainer(HasRootBody):
+    """
+    A container that is drunk from, such as a cup or a glass.
+    """
 
 
 @dataclass(eq=False)
@@ -1055,11 +1109,17 @@ class Mug(DrinkingContainer):
 
 
 @dataclass(eq=False)
-class CookingContainer(HasRootBody): ...
+class CookingContainer(HasRootBody):
+    """
+    A container that food is cooked in, such as a pot or a pan.
+    """
 
 
 @dataclass(eq=False)
-class Lid(HasRootBody): ...
+class Lid(HasRootBody):
+    """
+    A cover that closes a container.
+    """
 
 
 @dataclass(eq=False)
@@ -1108,7 +1168,7 @@ class Bowl(HasSupportingSurface, IsPerceivable):
 @dataclass(eq=False)
 class Food(HasRootBody):
     """
-    A Group class for Food.
+    Something that is eaten.
     """
 
 
@@ -1374,7 +1434,10 @@ class Sink(HasRootBody):
 
 
 @dataclass(eq=False)
-class Kettle(CookingContainer): ...
+class Kettle(CookingContainer):
+    """
+    A covered container for boiling water.
+    """
 
 
 @dataclass(eq=False)
@@ -1441,7 +1504,10 @@ class Mirror(HasRootBody):
 
 
 @dataclass(eq=False)
-class Cloth(HasRootBody): ...
+class Cloth(HasRootBody):
+    """
+    A piece of fabric for wiping or covering, such as a towel.
+    """
 
 
 @dataclass(eq=False)
@@ -1459,7 +1525,10 @@ class WallPanel(HasRootBody):
 
 
 @dataclass(eq=False)
-class Potato(Vegetable): ...
+class Potato(Vegetable):
+    """
+    A firm root vegetable, roughly round.
+    """
 
 
 @dataclass(eq=False)
@@ -1519,7 +1588,10 @@ class SaltPepperShaker(HasRootBody):
 
 
 @dataclass(eq=False)
-class Cuttlery(HasRootBody): ...
+class Cuttlery(HasRootBody):
+    """
+    A hand implement for eating with.
+    """
 
 
 @dataclass(eq=False)
@@ -1537,7 +1609,10 @@ class Knife(Cuttlery):
 
 
 @dataclass(eq=False)
-class Spoon(Cuttlery, IsPerceivable): ...
+class Spoon(Cuttlery, IsPerceivable):
+    """
+    A piece of cutlery with a shallow bowl, for what a fork will not hold.
+    """
 
 
 @dataclass(eq=False)
