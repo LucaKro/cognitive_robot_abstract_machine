@@ -167,6 +167,16 @@ class RunFile(StrEnum):
     How long each step of the run took.
     """
 
+    SCENE = "scene"
+    """
+    What the scene said about itself, besides the mesh.
+
+    Copied in rather than pointed at. A converted scene carries the building and the room
+    it was cut from, and which way up it is written; an evaluation reads a run back
+    against those, and a run that only named the directory would stop meaning anything
+    the moment that directory was converted over.
+    """
+
     PROVENANCE = "provenance.json"
     """Settings, input hashes, interpreter identity, and source revision for the run."""
 

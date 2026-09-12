@@ -1,8 +1,11 @@
-"""Record everything needed to interpret and reproduce an expensive run."""
+"""
+Record everything needed to interpret and reproduce an expensive run.
+"""
 
 from __future__ import annotations
 
 import platform
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -20,24 +23,35 @@ from experiments.warsaw.pipeline.settings import PipelineSettings
 
 @dataclass(frozen=True)
 class InputArtifact:
-    """One file consumed from the reconstructed scene directory."""
+    """
+    One file consumed from the reconstructed scene directory.
+    """
 
     path: str
-    """The path relative to the configured scene directory."""
+    """
+    The path relative to the configured scene directory.
+    """
 
     bytes: int
-    """The file size in bytes."""
+    """
+    The file size in bytes.
+    """
 
     sha256: str
-    """A digest of the exact file content."""
+    """
+    A digest of the exact file content.
+    """
 
     def to_json(self) -> dict[str, Any]:
-        """Return this input as a JSON-ready record."""
+        """
+        Return this input as a JSON-ready record.
+        """
         return {"path": self.path, "bytes": self.bytes, "sha256": self.sha256}
 
     @classmethod
     def inspect(cls, root: Path, path: Path) -> InputArtifact:
-        """Read an input file's stable identity.
+        """
+        Read an input file's stable identity.
 
         :param root: The directory against which the path is recorded.
         :param path: The file to inspect.
@@ -59,25 +73,39 @@ class InputArtifact:
 
 @dataclass(frozen=True)
 class SourceState:
-    """The Git revision and local modifications used by a run."""
+    """
+    The Git revision and local modifications used by a run.
+    """
 
     repository: str
-    """The source repository inspected for this run."""
+    """
+    The source repository inspected for this run.
+    """
 
     commit: str | None
-    """The checked-out commit, when the directory is a Git work tree."""
+    """
+    The checked-out commit, when the directory is a Git work tree.
+    """
 
     dirty: bool | None
-    """Whether tracked or untracked local changes were present."""
+    """
+    Whether tracked or untracked local changes were present.
+    """
 
     status: list[str]
-    """Git porcelain status lines identifying local changes."""
+    """
+    Git porcelain status lines identifying local changes.
+    """
 
     patch_sha256: str | None
-    """A digest of the tracked source patch written beside the manifest."""
+    """
+    A digest of the tracked source patch written beside the manifest.
+    """
 
     def to_json(self) -> dict[str, Any]:
-        """Return this source state as a JSON-ready record."""
+        """
+        Return this source state as a JSON-ready record.
+        """
         return {
             "repository": self.repository,
             "commit": self.commit,
@@ -88,7 +116,8 @@ class SourceState:
 
 
 def inspect_source(repository: Path) -> tuple[SourceState, bytes]:
-    """Inspect a Git work tree without changing it.
+    """
+    Inspect a Git work tree without changing it.
 
     :param repository: The expected repository root.
     :return: Its recorded state and a binary-capable patch of tracked changes.
@@ -182,28 +211,44 @@ def inspect_source(repository: Path) -> tuple[SourceState, bytes]:
 
 @dataclass(frozen=True)
 class RunProvenance:
-    """Configuration, data, interpreter, and source identity for one run."""
+    """
+    Configuration, data, interpreter, and source identity for one run.
+    """
 
     started_at: str
-    """The UTC time at which provenance was captured."""
+    """
+    The UTC time at which provenance was captured.
+    """
 
     command: list[str]
-    """The interpreter arguments that launched the process."""
+    """
+    The interpreter arguments that launched the process.
+    """
 
     settings: dict[str, Any]
-    """Every pipeline setting in JSON-ready form."""
+    """
+    Every pipeline setting in JSON-ready form.
+    """
 
     inputs: list[InputArtifact]
-    """Every file below the configured scene directory."""
+    """
+    Every file below the configured scene directory.
+    """
 
     python: dict[str, str]
-    """The interpreter and operating-system identity."""
+    """
+    The interpreter and operating-system identity.
+    """
 
     source: SourceState
-    """The Git revision and local source modifications."""
+    """
+    The Git revision and local source modifications.
+    """
 
     def to_json(self) -> dict[str, Any]:
-        """Return the versioned manifest as JSON-ready data."""
+        """
+        Return the versioned manifest as JSON-ready data.
+        """
         return {
             "schema_version": 1,
             "started_at": self.started_at,
@@ -216,7 +261,9 @@ class RunProvenance:
 
 
 def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
-    """Write every pipeline setting without serializing process-specific objects."""
+    """
+    Write every pipeline setting without serializing process-specific objects.
+    """
     return {
         "scene_directory": str(settings.scene_directory.resolve()),
         "model": settings.model.value,
@@ -244,7 +291,9 @@ def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
 
 
 def python_environment() -> str:
-    """Return installed distribution versions in a stable text format."""
+    """
+    Return installed distribution versions in a stable text format.
+    """
     installed = {
         distribution.metadata["Name"]: distribution.version
         for distribution in distributions()
@@ -256,10 +305,39 @@ def python_environment() -> str:
     )
 
 
+def keep_what_the_scene_says(
+    scene: Path, run: Run, mesh_pattern: str = "*.ply"
+) -> list[Path]:
+    """
+    Copy into the run whatever the scene directory says about itself.
+
+    Everything but the mesh: the mesh is most of what a scan weighs and the provenance
+    records its hash, while the records beside it are a few kilobytes saying what the
+    scene is. A scan says nothing and nothing is copied.
+
+    :param scene: The scene directory the run was pointed at.
+    :param run: The run to copy into.
+    :param mesh_pattern: How the scene's mesh is named, which is what is left behind.
+    :return: The files copied.
+    """
+    kept = run.directory_for(RunFile.SCENE)
+    if not scene.is_dir():
+        return []
+    meshes = set(scene.glob(mesh_pattern))
+    copied: list[Path] = []
+    for path in sorted(scene.iterdir()):
+        if not path.is_file() or path in meshes:
+            continue
+        shutil.copy2(path, kept / path.name)
+        copied.append(kept / path.name)
+    return copied
+
+
 def record_run_provenance(
     *, settings: PipelineSettings, run: Run, repository: Path
 ) -> None:
-    """Write reproducibility evidence before the expensive work starts.
+    """
+    Write reproducibility evidence before the expensive work starts.
 
     :param settings: The exact configuration of the run.
     :param run: The newly created run directory.
@@ -275,6 +353,7 @@ def record_run_provenance(
         if scene.is_dir()
         else []
     )
+    keep_what_the_scene_says(scene, run)
     source, patch = inspect_source(repository)
     provenance = RunProvenance(
         started_at=datetime.now(UTC).isoformat(),
