@@ -1,7 +1,7 @@
 # Code Quality Rules
 
 ## Avoid Behaviour
-- Avoid using global variables
+- Avoid using global variables and global constants. If you need them, either make a module-level Enum, or expose them as an attribute or parameter of the class or method that uses them.
 - Avoid accessing any ormatic_interface.py files. if there are issues regarding the ormatic interface run the script `scripts/regenerate_all_orm.py`. If it does not fix the issue, consider consulting the developer.
 - ormatic_interface.py files are generated, never written, so the repository ignores them instead of tracking them (see the rule in `.gitignore`): the test suite builds them for its runs, and a local checkout builds them with `scripts/regenerate_all_orm.py`. Never track one again - git refuses to overwrite a tracked path a checkout has generated its own copy of, which is what used to make every branch switch fail.
 - Avoid using mutable objects as default arguments

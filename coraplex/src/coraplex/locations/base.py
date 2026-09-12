@@ -24,6 +24,10 @@ from krrood.entity_query_language.verbalization.vocabulary.parts_of_speech impor
     Noun,
 )
 from coraplex.datastructures.dataclasses import Context
+from coraplex.locations.sampling import (
+    CostmapSamplingStrategy,
+    HighestRatedFirst,
+)
 
 if TYPE_CHECKING:
     from coraplex.alternative_motion_mapping import AlternativeMotion
@@ -44,7 +48,11 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import (
+    Point3,
+    Pose,
+    Quaternion,
+)
 from semantic_digital_twin.world import World
 
 logger = logging.getLogger("coraplex")
@@ -83,6 +91,41 @@ class Location(Iterable[Pose]):
     before that pose counts as in collision.
     """
 
+    sampling_strategy: CostmapSamplingStrategy = field(
+        default_factory=HighestRatedFirst
+    )
+    """
+    What the ratings of the generated candidates are used for.
+
+    Belongs here rather than to any one of the maps that constrain this location: it
+    decides how the merged result is drawn from, which is what this location iterates.
+    """
+
+    number_of_samples: int = 2000
+    """
+    How many candidates to draw from the generated map.
+
+    Far more than :attr:`candidates_to_validate`, since most are refused cheaply before
+    any of them is judged properly.
+    """
+
+    orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = None
+    """
+    Which way a drawn candidate faces.
+
+    ``None`` faces the target.
+    """
+
+    candidates_to_validate: int = 50
+    """
+    How many candidates are checked for reachability before the location gives up.
+
+    Only candidates that got that far count: judging one drives the robot to see whether
+    it arrives, while a pose standing in collision is thrown out cheaply beforehand. A
+    budget spent on the cheap refusals would leave a target hemmed in by furniture with
+    none of its reachable poses ever tried.
+    """
+
     @property
     def world(self):
         return self.context.world
@@ -114,6 +157,33 @@ class Location(Iterable[Pose]):
             AllowSelfCollisions(robot=robot),
         ]
 
+    def _stands_in_collision(
+        self, test_world: World, test_robot: AbstractRobot
+    ) -> bool:
+        """
+        :param test_world: The world the candidate was placed in.
+        :param test_robot: The robot standing at the candidate.
+        :return: Whether the robot already touches something where it stands.
+
+        Asked under rules of its own, which are taken back down again: the reachability
+        simulation that follows has to see the rules the plan is executed with, and
+        temporary rules outrank the robot's own, so leaving these in place would answer
+        it about clearances the executed motion never has to keep.
+        """
+        collision_manager = test_world.collision_manager
+        rules_of_the_run = list(collision_manager.temporary_rules)
+
+        collision_manager.clear_temporary_rules()
+        collision_manager.extend_temporary_rule(self._standing_clearance(test_robot))
+        collision_manager.update_collision_matrix()
+
+        stands_in_collision = test_robot.is_in_collision
+
+        collision_manager.clear_temporary_rules()
+        collision_manager.extend_temporary_rule(rules_of_the_run)
+        collision_manager.update_collision_matrix()
+        return stands_in_collision
+
     def __iter__(self) -> Iterator[Pose]:
         test_world = deepcopy(self.world)
         test_robot = cast(
@@ -125,7 +195,6 @@ class Location(Iterable[Pose]):
                 robot=test_robot,
                 alternative_motion_mappings=self.context.alternative_motion_mappings,
                 motion_tolerances=self.context.motion_tolerances,
-                ticks_per_motion=self.context.ticks_per_motion,
             )
 
         if self.context.debug:
@@ -133,7 +202,12 @@ class Location(Iterable[Pose]):
                 _world=test_world, node=self.context.ros_node
             ).with_collision_visualization()
 
-        for pose_candidate in self.generator:
+        validated = 0
+        for pose_candidate in self.generator.candidates(
+            self.sampling_strategy,
+            self.number_of_samples,
+            self.orientation_generator,
+        ):
 
             # A candidate says where to stand and which way to look, which is the
             # heading NavigateAction is handed. Turning it into a base pose the same way
@@ -145,32 +219,23 @@ class Location(Iterable[Pose]):
                 else pose_candidate
             )
 
-            # Asked under rules of its own, which are taken back down again: the
-            # reachability simulation that follows has to see the rules the plan is
-            # executed with, and temporary rules outrank the robot's own.
-            collision_manager = test_world.collision_manager
-            rules_of_the_run = list(collision_manager.temporary_rules)
-            collision_manager.clear_temporary_rules()
-            collision_manager.extend_temporary_rule(
-                self._standing_clearance(test_robot)
-            )
-            collision_manager.update_collision_matrix()
-
-            stands_in_collision = test_robot.is_in_collision
-
-            collision_manager.clear_temporary_rules()
-            collision_manager.extend_temporary_rule(rules_of_the_run)
-            collision_manager.update_collision_matrix()
-
-            if stands_in_collision:
+            if self._stands_in_collision(test_world, test_robot):
                 logger.debug(f"Candidate pose in collision, skipping")
                 continue
 
+            validated += 1
             if all(
                 validator(pose_candidate=pose_candidate)
                 for validator in self.validators
             ):
                 yield pose_candidate
+
+            if validated >= self.candidates_to_validate:
+                logger.debug(
+                    f"Validated {validated} candidates without another one to offer, "
+                    f"giving up"
+                )
+                return
 
     def merge(self, other: Location) -> Location:
         """
@@ -226,6 +291,26 @@ class PoseGeneratorBackend:
     @abstractmethod
     def __iter__(self) -> Iterator[Pose]:
         pass
+
+    def candidates(
+        self,
+        sampling_strategy: CostmapSamplingStrategy,
+        number_of_samples: int = 2000,
+        orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = None,
+    ) -> Iterator[Pose]:
+        """
+        Draw pose candidates from this backend.
+
+        A backend that does not rate its candidates has nothing for a strategy to
+        decide, and offers them in its own order.
+
+        :param sampling_strategy: What the ratings of the candidates are used for.
+        :param number_of_samples: How many candidates to draw.
+        :param orientation_generator: Which way a candidate faces, or ``None`` to leave
+            it to the backend.
+        :return: The pose candidates, in the order they should be tried.
+        """
+        return iter(self)
 
     def merge(self, other: PoseGeneratorBackend) -> PoseGeneratorBackend:
         """

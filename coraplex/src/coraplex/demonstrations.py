@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from typing_extensions import ClassVar, List, Type
+from typing_extensions import List, Type
 
 from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
@@ -147,7 +147,7 @@ class RobotDemonstration(ABC):
     The robot this demonstration uses.
     """
 
-    ros_node_name: ClassVar[str] = "robot_demonstration"
+    ros_node_name: str = "robot_demonstration"
     """
     Name of the node a real run registers.
     """
@@ -236,7 +236,7 @@ class RobotDemonstration(ABC):
         if self.execution_type is not ExecutionType.REAL:
             world = self.build_simulated_world()
             viz = VizMarkerPublisher(node=self.ros_node, _world=world)
-            viz.with_collision_visualization()
+            viz.with_collision_visualization(publish_labels=True)
             return world
         world = self.ros_session.fetch_world()
         WorldSynchronizer(_world=world, node=self.ros_session.node)

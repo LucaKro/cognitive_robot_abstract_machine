@@ -171,6 +171,18 @@ The structure of fixtures in this conftest:
 """
 
 
+# %% repeatable location draws
+
+SAMPLING_SEED = 0
+"""
+The seed every plan context a test builds fixes its location draws with.
+
+Locations draw their candidates from a costmap rather than ranking it, so an unseeded
+run explores differently every time and a test that grounds one passes or fails by
+chance.
+"""
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     """
     Let a run state when it builds the ORM interfaces it reads.
@@ -427,7 +439,7 @@ def supported_abstract_robots():
         UnitreeG1,
         MMPDresden,
         DAiSy,
-        # Garmi, We dont have the ROS Package yet
+        Garmi,
     ]
 
 
@@ -482,6 +494,9 @@ def world_with_urdf_factory(
     urdf_parser = URDFParser.from_file(
         file_path=robot_semantic_annotation.get_ros_file_path(),
         path_resolver=urdf_path_resolver,
+        use_visual_as_collision_backup=(
+            robot_semantic_annotation.uses_visual_as_collision_backup
+        ),
     )
     world_with_urdf = urdf_parser.parse()
     if robot_semantic_annotation is not None:
@@ -765,6 +780,7 @@ def apartment_world_pr2_copy_with_context(_apartment_world_setup, _pr2_world_set
         Context(
             result,
             result.get_semantic_annotations_by_type(AbstractRobot)[0],
+            sampling_seed=SAMPLING_SEED,
         ),
     )
 
@@ -994,7 +1010,11 @@ def simple_pr2_world_setup(_pr2_world_setup, _simple_apartment_setup):
     pr2_copy = deepcopy(_pr2_world_setup)
     pr2_copy.merge_world(apartment_world)
     robot_view = pr2_copy.get_semantic_annotations_by_type(PR2)[0]
-    return pr2_copy, robot_view, Context(pr2_copy, robot_view)
+    return (
+        pr2_copy,
+        robot_view,
+        Context(pr2_copy, robot_view, sampling_seed=SAMPLING_SEED),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -1007,7 +1027,11 @@ def hsr_apartment_world(_hsr_world_setup, _apartment_world_setup):
         hsr_copy, HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0)
     )
 
-    return apartment_copy, robot_view, Context(apartment_copy, robot_view)
+    return (
+        apartment_copy,
+        robot_view,
+        Context(apartment_copy, robot_view, sampling_seed=SAMPLING_SEED),
+    )
 
 
 @pytest.fixture(scope="session")

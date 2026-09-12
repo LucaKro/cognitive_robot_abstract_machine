@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import (
         AbstractRobot,
         AbstractRobotPart,
+        EndEffector,
     )
     from semantic_digital_twin.world import World
     from semantic_digital_twin.world_description.geometry import Scale
@@ -1840,3 +1841,84 @@ class ExerciseVerificationFailed(UsageError):
 
     def suggest_correction(self) -> str:
         return "revisit the task description of this exercise and adjust your solution."
+
+
+@dataclass
+class DriveVelocityLimitsOnUndrivenRobot(UsageError):
+    """
+    Raised when drive velocity limits are given for a robot that is attached to its
+    localization frame rigidly rather than by a drive.
+    """
+
+    robot_type_name: str
+    """
+    The name of the robot type the limits were given for.
+    """
+
+    connection_type_name: str
+    """
+    The name of the connection type that robot attaches to its localization frame with.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.robot_type_name}' attaches to its localization frame with a "
+            f"'{self.connection_type_name}', which carries no velocity limits."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "leave the drive velocity limits unset, or give the robot a mobile base "
+            "whose drive can carry them."
+        )
+
+
+@dataclass
+class NothingHeld(UsageError):
+    """
+    Raised when the grasp of a gripper that holds nothing is asked for.
+    """
+
+    end_effector: EndEffector
+    """
+    The end effector that holds nothing.
+    """
+
+    def error_message(self) -> str:
+        return f"The end effector '{self.end_effector.name}' holds no body."
+
+    def suggest_correction(self) -> str:
+        return (
+            "check that a body is attached below the end effector's tool frame before "
+            "reading the grasp it is held by."
+        )
+
+
+@dataclass
+class MoreThanOneBodyHeld(UsageError):
+    """
+    Raised when a gripper's tool frame has more than one body attached to it.
+    """
+
+    end_effector: EndEffector
+    """
+    The end effector whose tool frame carries them.
+    """
+
+    held_bodies: List[KinematicStructureEntity]
+    """
+    The entities attached to that tool frame.
+    """
+
+    def error_message(self) -> str:
+        names = [str(body.name) for body in self.held_bodies]
+        return (
+            f"The end effector '{self.end_effector.name}' has more than one body "
+            f"attached to its tool frame: {names}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "detach everything but the grasped body from the tool frame, so that the "
+            "body the gripper holds is unambiguous."
+        )

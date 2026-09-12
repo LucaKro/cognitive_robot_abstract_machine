@@ -10,12 +10,9 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    ApproachDirection,
-    VerticalAlignment,
     Arms,
     MovementType,
 )
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot, real_robot
 from coraplex.plans.executables import MoveBranchExecutable
 from coraplex.plans.factories import sequential, execute_single
@@ -38,8 +35,10 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.goals.templates import Parallel
+from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
+    HoldPose,
     CartesianOrientation,
     CartesianPose,
     CartesianPositionTrajectory,
@@ -81,16 +80,8 @@ def _chart_nodes(motion_chart):
 def test_pick_up_motion(immutable_model_world):
     world, view, context = immutable_model_world
     test_world = deepcopy(world)
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        test_world.get_semantic_annotations_by_type(Milk)[0],
-        Arms.LEFT,
-        grasp_description,
-    )
+    milk = test_world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT)
 
     root = sequential(
         children=[
@@ -160,9 +151,10 @@ def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_worl
         target, Arms.LEFT, movement_type=MovementType.CARTESIAN
     )
     execute_single(cartesian_motion, context=context)
-    assert isinstance(cartesian_motion.motion_chart, CartesianPose)
+    cartesian_task = _motion_task(cartesian_motion.motion_chart, view)
+    assert isinstance(cartesian_task, CartesianPose)
     assert (
-        cartesian_motion.motion_chart.translation_threshold
+        cartesian_task.translation_threshold
         == context.motion_tolerances.default_tcp_position_threshold
     )
 
@@ -171,7 +163,7 @@ def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_worl
     )
     execute_single(translation_motion, context=context)
     assert (
-        translation_motion.motion_chart.threshold
+        _motion_task(translation_motion.motion_chart, view).threshold
         == context.motion_tolerances.default_tcp_position_threshold
     )
 
@@ -192,7 +184,7 @@ def test_move_tcp_waypoints_motion_forwards_thresholds(immutable_model_world):
     )
     execute_single(motion, context=context)
 
-    nodes = motion.motion_chart.nodes
+    nodes = _motion_task(motion.motion_chart, view).nodes
     assert len(nodes) == 1
     assert isinstance(nodes[0], CartesianPose)
     assert nodes[0].translation_threshold == 0.001
@@ -213,7 +205,7 @@ def test_move_tcp_waypoints_motion_uses_giskard_defaults_when_unset(
     motion = MoveTCPWaypointsMotion(waypoints, Arms.LEFT)
     execute_single(motion, context=context)
 
-    nodes = motion.motion_chart.nodes
+    nodes = _motion_task(motion.motion_chart, view).nodes
     assert isinstance(nodes[0], CartesianPose)
     assert (
         nodes[0].translation_threshold
@@ -242,14 +234,86 @@ def test_move_tcp_waypoints_aligned_motion_forwards_position_threshold(
 
     trajectory = next(
         node
-        for parallel in motion.motion_chart.nodes
-        for node in parallel.nodes
+        for group in motion.motion_chart.nodes
+        if isinstance(group, Goal)
+        for node in group.nodes
         if isinstance(node, CartesianPositionTrajectory)
     )
     assert trajectory.threshold == 0.001
 
 
-def test_move_tool_center_point_motion_without_max_velocity_returns_bare_task(
+# %% a robot that does not move its whole body stands still while it moves an arm
+
+
+def _base_holding_tasks(motion_chart, robot):
+    """
+    :return: The tasks of ``motion_chart`` that hold the robot's own root where it is,
+        which is what holding its base in place amounts to.
+    """
+    nodes = motion_chart.nodes if type(motion_chart) is Parallel else []
+    return [
+        node
+        for node in nodes
+        if isinstance(node, HoldPose) and node.tip_link == robot.root
+    ]
+
+
+def _motion_task(motion_chart, robot):
+    """
+    :return: The task the motion is built around, set apart from the one holding the
+        robot's base in place.
+
+    Only a chart that is exactly a :class:`Parallel` is looked into, since a
+    :class:`CartesianPose` is one too and its own halves accompany nothing.
+    """
+    holding = _base_holding_tasks(motion_chart, robot)
+    if not holding:
+        return motion_chart
+    [task] = [node for node in motion_chart.nodes if node not in holding]
+    return task
+
+
+def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(mutable_model_world):
+    """
+    A base that is not full body controlled stands still while an arm moves, so the
+    motion has to hold it there rather than leave it for another task to command.
+
+    An arm goal is expressed relative to the robot's own root and bound when the motion
+    starts, so a base that moves afterwards carries the goal away from the object.
+    """
+    world, view, context = mutable_model_world
+    assert not view.mobile_base.full_body_controlled
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+    )
+    execute_single(motion, context=context)
+
+    [hold_base] = _base_holding_tasks(motion.motion_chart, view)
+    assert hold_base.root_link == world.root
+    assert hold_base.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+
+
+def test_an_arm_motion_leaves_a_full_body_controlled_base_free(mutable_model_world):
+    """
+    A robot that may move its whole body drives while it reaches, so its base is not
+    held.
+    """
+    world, view, context = mutable_model_world
+    with world.modify_world():
+        view.mobile_base.full_body_controlled = True
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = MoveToolCenterPointMotion(
+        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+    )
+    execute_single(motion, context=context)
+
+    assert _base_holding_tasks(motion.motion_chart, view) == []
+
+
+def test_move_tool_center_point_motion_without_max_velocity_adds_no_velocity_limit(
     immutable_model_world,
 ):
     """
@@ -264,7 +328,16 @@ def test_move_tool_center_point_motion_without_max_velocity_returns_bare_task(
         target, Arms.LEFT, movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
-    assert isinstance(motion.motion_chart, CartesianPose)
+
+    chart = motion.motion_chart
+    nodes = chart.nodes if isinstance(chart, Parallel) else [chart]
+    assert not [
+        node
+        for node in nodes
+        if isinstance(
+            node, (CartesianPositionVelocityLimit, CartesianRotationVelocityLimit)
+        )
+    ]
 
 
 def test_move_tool_center_point_motion_max_linear_velocity_adds_real_limit(
@@ -425,6 +498,25 @@ def test_move_gripper_motion_tolerate_stall_can_be_explicitly_enabled(
     assert LocalMinimumReached in node_types
 
 
+def _close_motion_of(pick_up: PickUpAction) -> MoveGripperMotion:
+    """
+    :return: The motion that closes the gripper on what a pick-up grasps.
+
+    A pick-up closes the gripper through the grasp it is built from, and the reach
+    inside that grasp opens it first, so the closing motion is picked out of an
+    expanded plan rather than read off the pick-up's own children.
+    """
+    pick_up.plan_node.notify()
+    [close_motion] = [
+        node.designator
+        for node in pick_up.plan_node.plan.get_nodes_by_designator_type(
+            MoveGripperMotion
+        )
+        if node.designator.motion is GripperState.CLOSE
+    ]
+    return close_motion
+
+
 def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     immutable_model_world,
 ):
@@ -435,21 +527,11 @@ def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     always on (it crashes on Tracy's real-execution gripper otherwise).
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT)
     sequential([pick_up], context=context)
 
-    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
-        MoveGripperMotion
-    )
-    assert len(close_motion_nodes) == 1
-    assert close_motion_nodes[0].designator.tolerate_stall is False
+    assert _close_motion_of(pick_up).tolerate_stall is False
 
 
 def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
@@ -461,24 +543,11 @@ def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
     is correctly treated as a real grasp, not a failed motion, once explicitly enabled.
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0],
-        Arms.LEFT,
-        grasp_description,
-        tolerate_grasp_stall=True,
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT, tolerate_grasp_stall=True)
     sequential([pick_up], context=context)
 
-    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
-        MoveGripperMotion
-    )
-    assert len(close_motion_nodes) == 1
-    assert close_motion_nodes[0].designator.tolerate_stall is True
+    assert _close_motion_of(pick_up).tolerate_stall is True
 
 
 def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
@@ -489,15 +558,8 @@ def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
     physics fields are opt-in additions, not a change to the action's default behaviour.
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    pick_up = PickUpAction(milk, Arms.LEFT)
 
     assert pick_up.pre_approach_linear_velocity is None
     assert pick_up.final_approach_linear_velocity is None
@@ -649,21 +711,10 @@ def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_wor
     make: the fingers meeting the object are the grasp, not a collision to give up on.
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
-    )
+    pick_up = PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT)
     sequential([pick_up], context=context)
 
-    close_motion_nodes = pick_up._action_plan.plan.get_nodes_by_designator_type(
-        MoveGripperMotion
-    )
-    assert len(close_motion_nodes) == 1
-    assert close_motion_nodes[0].designator.allow_gripper_collision is True
+    assert _close_motion_of(pick_up).allow_gripper_collision is True
 
 
 def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
@@ -909,17 +960,12 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     at the grasp itself.
     """
     world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    grasping = GraspingAction(
-        world.get_body_by_name("milk.stl"), Arms.LEFT, grasp_description
-    )
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    grasping = GraspingAction(milk, Arms.LEFT, Pose(reference_frame=milk.root))
     sequential([grasping], context=context)
 
-    reach_nodes = grasping._action_plan.plan.get_nodes_by_designator_type(
+    grasping.plan_node.notify()
+    reach_nodes = grasping.plan_node.plan.get_nodes_by_designator_type(
         MoveToolCenterPointMotion
     )
     assert len(reach_nodes) == 2

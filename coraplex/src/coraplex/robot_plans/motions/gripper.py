@@ -38,85 +38,7 @@ from coraplex.datastructures.enums import (
     MovementType,
     WaypointsMovementType,
 )
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.view_manager import ViewManager
-from coraplex.utils import translate_pose_along_local_axis
-
-
-@dataclass
-class ReachMotion(BaseMotion, HasTcpGoalThresholds):
-    """
-    Moves the tool center point through the grasp description's pre-grasp and grasp
-    poses for an object.
-    """
-
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be picked up
-    """
-    arm: Arms
-    """
-    The arm that should be used for pick up.
-    """
-
-    grasp_description: GraspDescription
-    """
-    The grasp description that should be used for picking up the object
-    """
-    movement_type: MovementType = MovementType.CARTESIAN
-    """
-    The type of movement that should be performed.
-    """
-
-    reverse_pose_sequence: bool = False
-    """
-    Reverses the sequence of poses, i.e., moves away from the object instead of towards
-    it.
-
-    Used for placing objects.
-    """
-
-    def _calculate_pose_sequence(self) -> List[Pose]:
-        end_effector = ViewManager.get_end_effector_view(self.arm, self.robot_view)
-
-        target_pose = GraspDescription.get_grasp_pose(
-            self.grasp_description, end_effector, self.object_designator
-        )
-        target_pose.rotate_by_quaternion(
-            GraspDescription.calculate_grasp_orientation(
-                self.grasp_description,
-                end_effector.front_facing_orientation.to_np(),
-            )
-        )
-        target_pre_pose = translate_pose_along_local_axis(
-            target_pose,
-            end_effector.front_facing_axis.to_np()[:3],
-            -0.05,  # TODO: Maybe put these values in the semantic annotates
-        )
-
-        pose = self.world.transform(target_pre_pose, self.world.root)
-
-        sequence = [target_pre_pose, pose]
-        return sequence.reverse() if self.reverse_pose_sequence else sequence
-
-    def perform(self):
-        pass
-
-    @property
-    def _motion_chart(self):
-        tip = ViewManager().get_end_effector_view(self.arm, self.robot_view).tool_frame
-        nodes = [
-            CartesianPose(
-                root_link=self.robot_view.root,
-                tip_link=tip,
-                goal_pose=pose,
-                translation_threshold=self.resolved_position_threshold(),
-                orientation_threshold=self.resolved_orientation_threshold(),
-                name="Reach",
-            )
-            for pose in self._calculate_pose_sequence()
-        ]
-        return Sequence(nodes=nodes)
 
 
 @dataclass
@@ -275,6 +197,7 @@ class MoveToolCenterPointMotion(
         accompanying_nodes: List[MotionStatechartNode] = list(
             self._velocity_limit_nodes(root, tip)
         )
+        accompanying_nodes.extend(self.keep_base_still())
         if self.allow_gripper_collision:
             accompanying_nodes.extend(
                 self._only_allow_gripper_collision_rules(self.arm)
@@ -336,7 +259,11 @@ class MoveTCPWaypointsMotion(BaseMotion, HasTcpGoalThresholds):
             )
             for pose in self.waypoints
         ]
-        return Sequence(nodes=nodes)
+        waypoints = Sequence(nodes=nodes)
+        hold_base = self.keep_base_still()
+        if not hold_base:
+            return waypoints
+        return Parallel([waypoints, *hold_base])
 
 
 @dataclass
@@ -444,6 +371,7 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion, HasTcpGoalThresholds):
             if self.allow_gripper_collision
             else []
         )
+        motion_statechart_nodes.extend(self.keep_base_still())
         motion_statechart_nodes.append(Parallel(tasks))
         return Parallel(motion_statechart_nodes)
 
@@ -487,4 +415,7 @@ class MoveManipulatorMotion(BaseMotion, HasTcpGoalThresholds):
             binding_policy=GoalBindingPolicy.Bind_on_start,
             name=self.__class__.__name__,
         )
-        return task
+        hold_base = self.keep_base_still()
+        if not hold_base:
+            return task
+        return Parallel([task, *hold_base])
