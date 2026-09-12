@@ -1,0 +1,7 @@
+HM3D Semantic Annotations
+1,FF0000,"floor",1
+2,00FF00,"chair",1
+3,0000FF,"chair",1
+4,FFFF00,"table",2
+5,FF00FF,"bath mat",2
+6,00FFFF,"basket with books",0

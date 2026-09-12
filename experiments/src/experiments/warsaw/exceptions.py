@@ -594,3 +594,111 @@ class RunClassTakenOverByTheOntologyError(DataclassException, ValueError):
             "run made since the ontology gained the class does not generate it and opens "
             "normally."
         )
+
+
+@dataclass
+class HabitatAnnotationsUnreadableError(DataclassException, ValueError):
+    """
+    Raised when a file is not one of the tables an HM3D scene annotates itself with.
+    """
+
+    table: Path
+    """
+    The file that was read.
+    """
+
+    complaint: str
+    """
+    What is wrong with it.
+    """
+
+    row: str
+    """
+    The line the complaint is about.
+    """
+
+    def error_message(self) -> str:
+        return f"'{self.table}' is not an HM3D annotation table: {self.complaint}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "The table is the '.semantic.txt' beside a scene's semantic mesh. It opens "
+            "with a line naming itself and then writes one object per line as "
+            "'object_id,hex_color,\"label\",room_id'. The line read was: "
+            f"'{self.row}'."
+        )
+
+
+@dataclass
+class HabitatSceneNotFoundError(DataclassException, FileNotFoundError):
+    """
+    Raised when an HM3D release does not hold all three files a scene is written as.
+    """
+
+    root: Path
+    """
+    The release that was searched.
+    """
+
+    scene_name: str
+    """
+    The scene that was asked for.
+    """
+
+    missing: List[Path]
+    """
+    The files it does not hold.
+    """
+
+    holds: List[str]
+    """
+    The scenes it does annotate.
+    """
+
+    def error_message(self) -> str:
+        names = ", ".join(sorted(str(path) for path in self.missing))
+        return f"'{self.scene_name}' is not whole in '{self.root}': {names} missing."
+
+    def suggest_correction(self) -> str:
+        return (
+            "A scene is three files under two trees of a release: the annotation table "
+            "and the mesh painted one colour per object under the semantic annotations, "
+            "and the mesh painted in the building's own colours under the GLB tree. "
+            f"This release annotates {', '.join(self.holds) or 'no scene at all'}."
+        )
+
+
+@dataclass
+class HabitatMeshesDisagreeError(DataclassException, ValueError):
+    """
+    Raised when a scene's two meshes are not written over the same triangles.
+    """
+
+    semantic_mesh: Path
+    """
+    The mesh painted one flat colour per object.
+    """
+
+    textured_mesh: Path
+    """
+    The mesh painted in the colours the building was photographed in.
+    """
+
+    complaint: str
+    """
+    How they disagree.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.semantic_mesh.name}' and '{self.textured_mesh.name}' are not the "
+            f"same triangles: {self.complaint}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "The colours the room was seen in are read off the textured mesh by face, "
+            "which only names the same face while the two files are the same triangles. "
+            "Check that both were taken from the same release rather than mixed between "
+            "versions."
+        )
