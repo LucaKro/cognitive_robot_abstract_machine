@@ -5,9 +5,8 @@ from typing_extensions import List, Optional
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.utils import translate_pose_along_local_axis
-from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from giskardpy.motion_statechart.tasks.cartesian_tasks import HoldPose
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Vector3
 from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -33,10 +32,8 @@ class KeepsBaseStill:
         held rather than left for another task to command. The goal of a reach is
         expressed relative to the robot's own root and bound when the motion starts, so a
         base that moves afterwards carries the goal with it and the arm arrives where the
-        object no longer is.
-
-        Weighted above collision avoidance, because at a lower weight the solver buys
-        clearance by drifting the base, which is the motion this prevents.
+        object no longer is. Collision avoidance is what otherwise moves it, buying
+        clearance by drifting the base.
         """
         robot = self.robot
         if (
@@ -45,12 +42,10 @@ class KeepsBaseStill:
         ):
             return []
         return [
-            CartesianPose(
+            HoldPose(
                 name="hold base",
                 root_link=self.world.root,
                 tip_link=robot.root,
-                goal_pose=Pose(reference_frame=robot.root),
-                weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
             )
         ]
 

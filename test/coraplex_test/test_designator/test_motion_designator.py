@@ -35,8 +35,10 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.goals.templates import Parallel
+from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
+    HoldPose,
     CartesianOrientation,
     CartesianPose,
     CartesianPositionTrajectory,
@@ -232,8 +234,9 @@ def test_move_tcp_waypoints_aligned_motion_forwards_position_threshold(
 
     trajectory = next(
         node
-        for parallel in motion.motion_chart.nodes
-        for node in parallel.nodes
+        for group in motion.motion_chart.nodes
+        if isinstance(group, Goal)
+        for node in group.nodes
         if isinstance(node, CartesianPositionTrajectory)
     )
     assert trajectory.threshold == 0.001
@@ -244,14 +247,14 @@ def test_move_tcp_waypoints_aligned_motion_forwards_position_threshold(
 
 def _base_holding_tasks(motion_chart, robot):
     """
-    :return: The tasks of ``motion_chart`` that aim at the robot's own root, which is
-        what holding its base in place amounts to.
+    :return: The tasks of ``motion_chart`` that hold the robot's own root where it is,
+        which is what holding its base in place amounts to.
     """
     nodes = motion_chart.nodes if type(motion_chart) is Parallel else []
     return [
         node
         for node in nodes
-        if isinstance(node, CartesianPose) and node.tip_link == robot.root
+        if isinstance(node, HoldPose) and node.tip_link == robot.root
     ]
 
 
@@ -289,7 +292,6 @@ def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(mutable_model
 
     [hold_base] = _base_holding_tasks(motion.motion_chart, view)
     assert hold_base.root_link == world.root
-    assert hold_base.goal_pose.reference_frame == view.root
     assert hold_base.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
 
 

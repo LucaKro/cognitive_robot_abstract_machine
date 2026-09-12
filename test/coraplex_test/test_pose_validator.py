@@ -17,7 +17,7 @@ from coraplex.robot_plans import MoveToolCenterPointMotion
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose, HoldPose
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
@@ -422,13 +422,34 @@ def test_validation_holds_the_base_of_a_robot_that_stands_still(immutable_model_
 
     msc = validator.create_msc()
 
-    [hold_base] = [
-        node
-        for node in msc.get_nodes_by_type(CartesianPose)
-        if node.tip_link == robot_view.root
-    ]
+    [hold_base] = msc.get_nodes_by_type(HoldPose)
     assert hold_base.root_link == world.root
-    assert hold_base.goal_pose.reference_frame == robot_view.root
+    assert hold_base.tip_link == robot_view.root
+
+
+def test_the_base_does_not_drift_while_the_arm_reaches(immutable_model_world):
+    """
+    Collision avoidance buys clearance by driving the base wherever it is allowed to,
+    and a reach's goal is bound relative to the robot's own root, so a base that drifts
+    carries the goal away from the object and the gripper arrives where it no longer is.
+
+    The base is held rather than merely preferred to stay, so it must not have moved at
+    all, not merely ended up near where it started.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = _reachability_validator(world, robot_view, context)
+
+    with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
+        with world.reset_state_context():
+            stood_at = world.compute_forward_kinematics_np(
+                world.root, robot_view.root
+            ).copy()
+            executor = validator.create_executor(validator.create_msc())
+            executor.tick_until_end()
+            ended_at = world.compute_forward_kinematics_np(world.root, robot_view.root)
+            drift = np.linalg.norm(ended_at[:3, 3] - stood_at[:3, 3])
+
+    assert drift == pytest.approx(0, abs=1e-6)
 
 
 def test_validation_leaves_a_full_body_controlled_base_free(mutable_model_world):
@@ -442,11 +463,7 @@ def test_validation_leaves_a_full_body_controlled_base_free(mutable_model_world)
 
     msc = validator.create_msc()
 
-    assert [
-        node
-        for node in msc.get_nodes_by_type(CartesianPose)
-        if node.tip_link == robot_view.root
-    ] == []
+    assert msc.get_nodes_by_type(HoldPose) == []
 
 
 def test_validation_uses_the_same_goal_tolerances_the_motions_do(
