@@ -25,6 +25,13 @@ from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.plans.plan_node import ActionNode, MotionNode
 from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
+
+try:
+    from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+        VizMarkerPublisher,
+    )
+except ImportError:
+    VizMarkerPublisher = None
 from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 
@@ -423,9 +430,17 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
     def _copied_world(self) -> ReachabilityProbeWorld:
         """
         :return: A copy of the world to try the reach in.
+
+        Published to Rviz while debugging: the reach happens in the copy, so a run being
+        watched would otherwise show the robot standing still through every grasp it
+        judges.
         """
         world = deepcopy(self.world)
         robot = world.get_semantic_annotation_by_id(self.robot.id)
+        if self.context.debug and VizMarkerPublisher is not None:
+            VizMarkerPublisher(
+                _world=world, node=self.context.ros_node
+            ).with_collision_visualization()
         return ReachabilityProbeWorld(
             world=world,
             robot=robot,

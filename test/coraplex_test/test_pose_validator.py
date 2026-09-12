@@ -6,6 +6,7 @@ from coraplex.datastructures.dataclasses import Context, MotionToleranceConfig
 from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.exceptions import TipLinkDoesNotMatchAnyArm
 from coraplex.execution_environment import ExecutionEnvironment, simulated_robot
+from coraplex.locations import pose_validator
 from coraplex.locations.pose_validator import (
     IsGraspReachableBy,
     IsObjectReachableBy,
@@ -634,3 +635,68 @@ def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world
         assert not validator()
 
     assert validator.reachable_grasp is None
+
+
+# %% watching a grasp probe happen
+
+
+class _RecordsWhatWasPublished:
+    """
+    Stands in for the marker publisher, so a test need not run a ROS node.
+    """
+
+    def __init__(self, published):
+        self.published = published
+
+    def __call__(self, _world, node):
+        self.published.append((_world, node))
+        return self
+
+    def with_collision_visualization(self):
+        return self
+
+
+def test_a_grasp_probe_is_published_while_debugging(immutable_model_world, monkeypatch):
+    """
+    A grasp probe runs in a copy of the world, so nothing of it reaches Rviz unless the
+    copy is published: a run being watched would show the robot standing still through
+    every reach it judges.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    published = []
+    monkeypatch.setattr(
+        pose_validator, "VizMarkerPublisher", _RecordsWhatWasPublished(published)
+    )
+    node = object()
+    validator = IsObjectReachableBy(
+        context=Context(world=world, robot=robot_view, ros_node=node, _debug=True),
+        arm=Arms.RIGHT,
+        graspable=milk,
+    )
+
+    probe = validator._copied_world()
+
+    assert published == [(probe.world, node)]
+
+
+def test_a_grasp_probe_is_not_published_otherwise(immutable_model_world, monkeypatch):
+    """
+    Publishing a world costs something on every candidate a location tries, so a run
+    that is not being watched does not pay it.
+    """
+    world, robot_view, context = immutable_model_world
+    milk = _milk_within_reach(world)
+    published = []
+    monkeypatch.setattr(
+        pose_validator, "VizMarkerPublisher", _RecordsWhatWasPublished(published)
+    )
+    validator = IsObjectReachableBy(
+        context=Context(world=world, robot=robot_view),
+        arm=Arms.RIGHT,
+        graspable=milk,
+    )
+
+    validator._copied_world()
+
+    assert published == []
