@@ -285,6 +285,7 @@ def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
         "ask_about_the_ontology": settings.ask_about_the_ontology,
         "amend_the_ontology": settings.amend_the_ontology,
         "ignore_amendments": settings.ignore_amendments,
+        "describe_the_classes": settings.describe_the_classes,
         "skip_classes_a_body_cannot_make": settings.skip_classes_a_body_cannot_make,
         "reuse_answers": settings.reuse_answers,
         "runs_directory": str(settings.runs_directory.resolve()),

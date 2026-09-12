@@ -168,6 +168,17 @@ class PipelineSettings:
     a run deliberately made against an amended ontology needs.
     """
 
+    describe_the_classes: bool = False
+    """
+    Whether a class reaches the model with the first sentence of its docstring beside its
+    name, rather than with its name and its bases alone.
+
+    Off, because the runs already made were not asked that way. It is worth asking only
+    once nearly every class carries a sentence: a taxonomy where some are described and
+    some are not tells a model more about the described ones for no reason but that
+    somebody wrote about them.
+    """
+
     skip_classes_a_body_cannot_make: bool = False
     """
     Whether to leave a body alone when the class it was answered as cannot be made from

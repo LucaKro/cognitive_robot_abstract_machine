@@ -135,6 +135,28 @@ class PrepareRun(PipelineStep):
         )
         self.logger.info("  %s tables in schema %s", prepared.tables, schema.name)
 
+    def taxonomy_program(self) -> str:
+        """
+        :return: The program the exporting interpreter runs, asking for the summaries
+            this run was told to ask for.
+        """
+        return (
+            "import sys\n"
+            "from pathlib import Path\n"
+            "from semantic_digital_twin.semantic_annotations.taxonomy_export import "
+            "export_taxonomy\n"
+            "from semantic_digital_twin.world_description.world_entity import "
+            "SemanticAnnotation\n"
+            "taxonomy = export_taxonomy(SemanticAnnotation, Path(sys.argv[1]), "
+            f"include_summaries={self.settings.describe_the_classes})\n"
+            "from semantic_digital_twin.orm.ormatic_interface import Base\n"
+            "from semantic_digital_twin.orm.utils import "
+            "semantic_digital_twin_sessionmaker\n"
+            "Base.metadata.create_all(bind=semantic_digital_twin_sessionmaker()().bind)\n"
+            "print(len(taxonomy['classes']), len(taxonomy['part_whole_mixins']), "
+            "len(Base.metadata.tables))\n"
+        )
+
     def hand_written_changes(self) -> List[str]:
         """
         Report the ontology's own files a run has been left holding changes to.
@@ -233,23 +255,8 @@ class PrepareRun(PipelineStep):
         # puts all of them into the annotation hierarchy the export then walks: the same
         # ontology came out as 441 classes rather than 139, and every question would have
         # carried three hundred robot parts for a model to choose a countertop from.
-        program = (
-            "import sys\n"
-            "from pathlib import Path\n"
-            "from semantic_digital_twin.semantic_annotations.taxonomy_export import "
-            "export_taxonomy\n"
-            "from semantic_digital_twin.world_description.world_entity import "
-            "SemanticAnnotation\n"
-            "taxonomy = export_taxonomy(SemanticAnnotation, Path(sys.argv[1]))\n"
-            "from semantic_digital_twin.orm.ormatic_interface import Base\n"
-            "from semantic_digital_twin.orm.utils import "
-            "semantic_digital_twin_sessionmaker\n"
-            "Base.metadata.create_all(bind=semantic_digital_twin_sessionmaker()().bind)\n"
-            "print(len(taxonomy['classes']), len(taxonomy['part_whole_mixins']), "
-            "len(Base.metadata.tables))\n"
-        )
         printed = self.in_new_interpreter(
-            program,
+            self.taxonomy_program(),
             [str(self.run.path(RunFile.TAXONOMY))],
             what="reading the ontology out and building the run's tables",
             environment=schema.environment(),
