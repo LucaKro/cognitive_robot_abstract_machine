@@ -305,6 +305,7 @@ class BulletWorldDemonstration(RobotDemonstration):
             robot=world.get_semantic_annotations_by_type(self.used_robot)[0],
             ros_node=self.ros_node,
             _debug=True,
+            sampling_seed=0,
             alternative_motion_mappings=self.alternative_motion_mappings,
         )
 

@@ -11,10 +11,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors
 from skimage.measure import label
-from typing_extensions import Tuple, List, Optional, Iterator, Callable, TYPE_CHECKING
+from typing_extensions import (
+    Tuple,
+    List,
+    Optional,
+    Iterator,
+    Callable,
+    TYPE_CHECKING,
+)
 
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.base import PoseGeneratorBackend
+from coraplex.locations.sampling import CostmapSamplingStrategy
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.camera_resolution import CameraResolution
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -171,28 +179,6 @@ class Costmap(PoseGeneratorBackend):
     The world from which this locations was created.
     """
     vis_ids: List[int] = field(default_factory=list, init=False)
-
-    number_of_samples: int = field(kw_only=True, default=2000)
-    """
-    How many candidates this map offers at most, the ones it rates highest.
-
-    A caller throws most of them out before judging them properly -- a standing pose
-    inside the furniture costs nothing to refuse -- so the map has to offer far more
-    than the caller intends to act on, or a target hemmed in on every side runs out of
-    candidates before one of its reachable poses is ever reached.
-    """
-
-    sample_randomly: bool = field(kw_only=True, default=False)
-    """
-    If the sampling should randomly pick valid entries
-    """
-
-    orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = field(
-        kw_only=True, default=None
-    )
-    """
-    An optional orientatoin generator to use to generate the orientation for a sampled pose
-    """
 
     def _chunks(self, lst: List, n: int) -> Iterator[List]:
         """
@@ -362,43 +348,36 @@ class Costmap(PoseGeneratorBackend):
 
         return rectangles
 
-    def __iter__(self) -> Iterator[Pose]:
+    def candidates(
+        self,
+        sampling_strategy: CostmapSamplingStrategy,
+        number_of_samples: int = 2000,
+        orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = None,
+    ) -> Iterator[Pose]:
         """
-        A generator that creates pose candidates from a given locations. The generator
-        selects the highest values and returns the corresponding positions, the one the
-        map rates highest first. Orientations are calculated such that the Robot faces
-        the center of the locations.
+        Draw pose candidates from this map.
 
-        ..note:: The order is what makes the map's shape decide anything, since a caller
-            takes the first candidate that passes its own checks rather than weighing
-            them all.
-
-        :Yield: A tuple of position and orientation
+        :param sampling_strategy: What this map's ratings are used for when picking.
+        :param number_of_samples: How many candidates to draw. Far more than a
+            caller judges properly, since a standing pose inside the furniture costs
+            nothing to refuse.
+        :param orientation_generator: Which way a candidate faces, or ``None`` to face
+            this map's origin.
+        :Yield: A candidate pose.
         """
 
         ori_gen = (
-            self.orientation_generator
-            or OrientationGenerator.generate_origin_orientation
+            orientation_generator or OrientationGenerator.generate_origin_orientation
         )
-
         # Determines how many positions should be sampled from the locations
-        if (
-            self.number_of_samples == -1
-            or self.number_of_samples > self.map.flatten().shape[0]
-        ):
-            self.number_of_samples = self.map.flatten().shape[0]
+        if number_of_samples == -1 or number_of_samples > self.map.flatten().shape[0]:
+            number_of_samples = self.map.flatten().shape[0]
 
         segmented_maps = self.segment_map()
-        samples_per_map = self.number_of_samples // len(segmented_maps)
+        samples_per_map = number_of_samples // len(segmented_maps)
         for seg_map in segmented_maps:
 
-            if self.sample_randomly:
-                indices = np.random.choice(seg_map.size, samples_per_map, replace=False)
-            else:
-                values = seg_map.flatten()
-                indices = np.argpartition(values, -samples_per_map)[-samples_per_map:]
-                # sorted for "best" samples first
-                indices = indices[np.argsort(values[indices])[::-1]]
+            indices = sampling_strategy.choose(seg_map.flatten(), samples_per_map)
 
             indices = np.dstack(np.unravel_index(indices, self.map.shape)).reshape(
                 samples_per_map, 2

@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 
-from typing_extensions import Iterable, Iterator, List, Union, Optional
+from typing_extensions import Iterable, Iterator, List, Optional, Union
 
 from krrood.adapters.json_serializer import list_like_classes
 from coraplex.datastructures.dataclasses import Context
@@ -11,6 +11,7 @@ from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location
+from coraplex.locations.sampling import CostmapSamplingStrategy, WeightedByRating
 from coraplex.locations.costmaps import OccupancyCostmap, RingCostmap, VisibilityCostmap
 from coraplex.locations.pose_validator import (
     AreReachableBy,
@@ -49,6 +50,7 @@ def reachability_location(
     approach_clearance: float = ActionConfig.approach_clearance,
     retreat_distance: float = ActionConfig.retreat_distance,
     reach_fraction: float = ActionConfig.reach_fraction,
+    sampling_strategy: Optional[CostmapSamplingStrategy] = None,
 ) -> Location:
     """
     Factory method that creates a Location for robot poses from which a body can be
@@ -91,6 +93,8 @@ def reachability_location(
                 retreat_distance=retreat_distance,
             )
         ],
+        sampling_strategy=sampling_strategy
+        or WeightedByRating(seed=context.sampling_seed),
     )
 
 
@@ -100,6 +104,7 @@ def grasping_location(
     arm: Arms,
     approach_clearance: float = ActionConfig.approach_clearance,
     retreat_distance: float = ActionConfig.retreat_distance,
+    sampling_strategy: Optional[CostmapSamplingStrategy] = None,
 ) -> Location:
     """
     Factory that creates a Location for robot poses from which the object can be grasped
@@ -134,6 +139,8 @@ def grasping_location(
                 retreat_distance=retreat_distance,
             )
         ],
+        sampling_strategy=sampling_strategy
+        or WeightedByRating(seed=context.sampling_seed),
     )
 
 

@@ -110,6 +110,14 @@ class Context(PlanEntity):
     Should debug information be printed or visualized.
     """
 
+    sampling_seed: Optional[int] = field(default=None)
+    """
+    Fixes the draws the locations of this plan make, so a run repeats exactly.
+
+    ``None`` explores differently every run, which is what drawing from a map buys over
+    ranking it. A demonstration kept as a regression test pins it instead.
+    """
+
     motion_tolerances: MotionToleranceConfig = field(
         default_factory=MotionToleranceConfig
     )
