@@ -37,8 +37,14 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     annotation_classes,
     in_base_order,
 )
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+from semantic_digital_twin.semantic_annotations.mixins import (
+    HasRootBody,
+    HasRootRegion,
+)
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    SemanticAnnotation,
+)
 from typing_extensions import Dict, List, Type
 
 from experiments.warsaw.exceptions import NoWorldRecordedError
@@ -98,6 +104,57 @@ def fields_beyond_the_body(annotation_class: Type) -> List[str]:
     if not issubclass(annotation_class, HasRootBody):
         wanted.append(ROOT)
     return sorted(wanted)
+
+
+# %% turning a body into the annotation it was answered as
+
+
+@dataclass(frozen=True)
+class AnnotationFromBody:
+    """
+    How a run makes an annotation of the class a body was answered as, out of that body.
+
+    A run may be allowed to build a region from the body for a class that takes one.
+    Both what it refuses and what it builds read that permission here, so the two cannot
+    disagree about which classes a run can make.
+    """
+
+    may_make_a_region: bool = False
+    """
+    Whether a class rooted on a region is given one the size and pose of the body,
+    rather than being refused for taking no body.
+    """
+
+    def cannot_supply(self, annotation_class: Type) -> List[str]:
+        """
+        Name what this run cannot give an annotation of that class.
+
+        :param annotation_class: The class an answer named.
+        :return: The fields it needs that the run has no way to fill. Empty when it can
+            be made.
+        """
+        wanted = fields_beyond_the_body(annotation_class)
+        if self.may_make_a_region and issubclass(annotation_class, HasRootRegion):
+            return [one for one in wanted if one != ROOT]
+        return wanted
+
+    def make(
+        self, annotation_class: Type, name: str, body: Body, world: World
+    ) -> SemanticAnnotation:
+        """
+        Make one annotation of that class about that body.
+
+        :param annotation_class: The class the answer named.
+        :param name: What to call the annotation.
+        :param body: The body it is about.
+        :param world: The world the body is in.
+        :return: The annotation, already in the world where making it put it there.
+        """
+        if self.may_make_a_region and issubclass(annotation_class, HasRootRegion):
+            return annotation_class.create_with_new_region_in_world_from_body(
+                name=name, world=world, body=body
+            )
+        return annotation_class(**{ROOT: body}, _world=world)
 
 
 # %% a mount the world would not carry out
@@ -165,6 +222,28 @@ class MountAnnotations(HasLogger):
         written = self.run.read_json_if_written(RunFile.PROVENANCE)
         return bool(
             written.get("settings", {}).get("skip_classes_a_body_cannot_make", False)
+        )
+
+    @property
+    def make_a_region_where_a_class_needs_one(self) -> bool:
+        """
+        :return: Whether this run was told to build a region for a class that takes one.
+            A run that says nothing was not.
+        """
+        written = self.run.read_json_if_written(RunFile.PROVENANCE)
+        return bool(
+            written.get("settings", {}).get(
+                "make_a_region_where_a_class_needs_one", False
+            )
+        )
+
+    @property
+    def annotation_from_body(self) -> AnnotationFromBody:
+        """
+        :return: How this run turns a body into the annotation it was answered as.
+        """
+        return AnnotationFromBody(
+            may_make_a_region=self.make_a_region_where_a_class_needs_one
         )
 
     def carry_out(self) -> None:
@@ -272,15 +351,16 @@ class MountAnnotations(HasLogger):
                 if inspect.isabstract(known[answer.class_name]):
                     left_alone[f"{answer.class_name} (abstract)"] += 1
                     continue
+                making = self.annotation_from_body
                 wanted = (
-                    fields_beyond_the_body(known[answer.class_name])
+                    making.cannot_supply(known[answer.class_name])
                     if self.skip_classes_a_body_cannot_make
                     else []
                 )
                 if wanted:
                     left_alone[f"{answer.class_name} (needs {', '.join(wanted)})"] += 1
                     continue
-                annotation = known[answer.class_name](**{ROOT: body}, _world=world)
+                annotation = making.make(known[answer.class_name], name, body, world)
                 # Registered as it is made, before anything is mounted into it. A mount
                 # records an attribute update against the annotation it changes, and a
                 # world replaying its modifications has to have that annotation already:

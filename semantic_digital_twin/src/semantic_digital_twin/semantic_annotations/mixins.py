@@ -423,6 +423,40 @@ class HasRootRegion(HasRootKinematicStructureEntity[Region]):
     """
 
     @classmethod
+    def create_with_new_region_in_world_from_body(
+        cls,
+        name: str,
+        world: World,
+        body: Body,
+        parent_T_self: Optional[HomogeneousTransformationMatrix] = None,
+    ) -> Self:
+        """
+        Create this annotation over a region the size and pose of a body.
+
+        This is the bridge from a reconstruction, which gives every object a body, to an
+        annotation that is rooted on a region instead.
+
+        :param name: The name of the annotation and its region.
+        :param world: The world to add the annotation and region to.
+        :param body: The body whose extent and pose the region takes.
+        :param parent_T_self: Where to put the region. When omitted it stands where the
+            body stands, since a region derived from a body and left at the origin would
+            describe whatever happens to be there instead.
+        :return: The created semantic annotation instance.
+        """
+        world.update_forward_kinematics()
+        body_scale = (
+            body.collision.as_bounding_box_collection_in_frame(body)
+            .bounding_box()
+            .scale
+        )
+        if parent_T_self is None:
+            parent_T_self = body.global_transform
+        return cls.create_with_new_region_in_world(
+            name, world, parent_T_self, scale=body_scale
+        )
+
+    @classmethod
     def create_with_new_region_in_world(
         cls,
         name: str,

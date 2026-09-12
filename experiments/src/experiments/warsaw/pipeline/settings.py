@@ -190,6 +190,23 @@ class PipelineSettings:
     reported, rather than costing the run its world, its report and its evaluation graph.
     """
 
+    make_a_region_where_a_class_needs_one: bool = False
+    """
+    Whether a class rooted on a region is given one built from the body it was answered
+    about, instead of being left alone for having nowhere to stand.
+
+    Off, because it changes what a run asserts rather than only what it reports: the
+    annotation is real, and a mount into a field the ontology says removes the part's
+    volume cuts the whole. On, a window becomes an aperture over a region the size and
+    pose of the measured body, and the window-in-wall relation the measurement already
+    finds is carried through to the world instead of being dropped at the last step.
+
+    ..note:: What this does to a scan has not been measured. The scans label windows and
+        ceilings too, so turning it on for them would assert apertures that were never
+        asserted before and cut walls that were never cut; that is worth evaluating on
+        its own rather than folding into a comparison of something else.
+    """
+
     reuse_answers: bool = False
     """
     Whether to read back the responses a run already kept instead of asking again, which

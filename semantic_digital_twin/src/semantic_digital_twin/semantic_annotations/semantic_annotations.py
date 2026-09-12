@@ -84,7 +84,8 @@ if TYPE_CHECKING:
 @dataclass(eq=False)
 class Furniture(HasRootBody, ABC):
     """
-    A semantic annotation that represents a piece of furniture.
+    Furniture in general, a category to answer with the *kind* of rather than by name:
+    a chair, a table, a shelf, or a new subclass of this where the ontology has none.
 
     Every piece of furniture stands somewhere, so it is rooted on a body here rather
     than in each of its subclasses. Most of them reach a root anyway through a mixin of
@@ -166,24 +167,6 @@ class Aperture(HasRootRegion):
 
     An example is like a hole in a wall that can be used to enter a room.
     """
-
-    @classmethod
-    def create_with_new_region_in_world_from_body(
-        cls,
-        name: str,
-        world: World,
-        body: Body,
-        parent_T_self: Optional[HomogeneousTransformationMatrix] = None,
-    ) -> Self:
-        world.update_forward_kinematics()
-        body_scale = (
-            body.collision.as_bounding_box_collection_in_frame(body)
-            .bounding_box()
-            .scale
-        )
-        return cls.create_with_new_region_in_world(
-            name, world, parent_T_self, scale=body_scale
-        )
 
     def _mount_strategy(
         self,
