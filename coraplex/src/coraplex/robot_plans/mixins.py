@@ -326,20 +326,6 @@ class HasApproachesGraspPoses:
     The height in meters the gripper rises by after closing on the object.
     """
 
-    @staticmethod
-    def grasp_frame_at(target_pose: Pose, target_T_grasp: Pose) -> Pose:
-        """
-        Place a grasp frame, given relative to a target, at that target's own pose.
-
-        :param target_pose: Where the grasped object is, or is going to be.
-        :param target_T_grasp: The grasp frame relative to that object. An identity
-            grasp places it at the object's own origin.
-        :return: The grasp frame, in ``target_pose``'s own frame.
-        """
-        return (
-            target_pose.to_homogeneous_matrix() @ target_T_grasp.to_homogeneous_matrix()
-        ).to_pose()
-
     def grasp_pose_sequence(
         self,
         grasp_pose: Pose,

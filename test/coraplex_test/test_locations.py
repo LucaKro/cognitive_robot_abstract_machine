@@ -79,7 +79,9 @@ def _offering(poses: List[Pose]) -> OffersFixedCandidates:
     """
     :return: A map that offers exactly ``poses``.
     """
-    return OffersFixedCandidates(resolution=0.02, world=poses[0].reference_frame._world, offered=poses)
+    return OffersFixedCandidates(
+        resolution=0.02, world=poses[0].reference_frame._world, offered=poses
+    )
 
 
 @dataclass
@@ -512,7 +514,7 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
     ).validators
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
-        HasApproachesGraspPoses.grasp_frame_at(destination, grasp),
+        destination.to_homogeneous_matrix() @ grasp,
         ViewManager.get_end_effector_view(Arms.RIGHT, robot),
         grasp,
         reverse=True,
@@ -540,7 +542,7 @@ def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_i
     ).validators
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
-        HasApproachesGraspPoses.grasp_frame_at(body.global_pose, grasp),
+        body.global_pose.to_homogeneous_matrix() @ grasp,
         ViewManager.get_end_effector_view(Arms.RIGHT, robot),
         grasp,
     )
@@ -618,7 +620,7 @@ def test_giskard_backend_solves_the_reach_its_location_validates(
     world, robot, context = single_robot_world
     body = _box_in(world)
     grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
-    grasp_frame = HasApproachesGraspPoses.grasp_frame_at(body.global_pose, grasp)
+    grasp_frame = body.global_pose.to_homogeneous_matrix() @ grasp
     backend = GiskardLocationBackend(
         target_pose=body.global_pose,
         arm=Arms.RIGHT,
@@ -727,8 +729,8 @@ class RecordsHowItWasDrawn(PoseGeneratorBackend):
 
 def test_a_location_draws_on_the_terms_it_was_given(single_robot_world):
     """
-    How candidates are drawn belongs to the location rather than to any of the maps
-    that constrain it, so what it was given is what reaches the draw.
+    How candidates are drawn belongs to the location rather than to any of the maps that
+    constrain it, so what it was given is what reaches the draw.
     """
     world, robot, context = single_robot_world
     generator = RecordsHowItWasDrawn(pose=_candidate(world))
@@ -785,8 +787,9 @@ def test_a_backend_that_does_not_rate_its_candidates_offers_its_own_order(
 def test_a_reachability_location_draws_from_the_ring_it_builds(single_robot_world):
     """
     Ranking a ring offers its own radius over and over, one angle at a time, so a pose
-    needing a few centimetres more never comes up inside the budget a caller can
-    afford. Drawing from it treats the radius as likeliest rather than as the only one.
+    needing a few centimetres more never comes up inside the budget a caller can afford.
+
+    Drawing from it treats the radius as likeliest rather than as the only one.
     """
     world, robot, context = single_robot_world
 

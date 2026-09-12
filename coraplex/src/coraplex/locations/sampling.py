@@ -1,14 +1,15 @@
+"""
+How a rated set of pose candidates is drawn from.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
+from numpy.typing import NDArray
 from typing_extensions import Optional
-
-"""
-How a rated set of pose candidates is drawn from.
-"""
 
 
 @dataclass
@@ -21,7 +22,7 @@ class CostmapSamplingStrategy(ABC):
     """
 
     @abstractmethod
-    def choose(self, ratings: np.ndarray, count: int) -> np.ndarray:
+    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         """
         Pick which entries to offer.
 
@@ -41,7 +42,7 @@ class HighestRatedFirst(CostmapSamplingStrategy):
     for a ring, that is its own radius, one angle at a time.
     """
 
-    def choose(self, ratings: np.ndarray, count: int) -> np.ndarray:
+    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         highest = np.argpartition(ratings, -count)[-count:]
         return highest[np.argsort(ratings[highest])[::-1]]
 
@@ -78,7 +79,7 @@ class WeightedByRating(RandomCostmapSamplingStrategy):
     merely likeliest and the rest of the region still comes up.
     """
 
-    def choose(self, ratings: np.ndarray, count: int) -> np.ndarray:
+    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         total = ratings.sum()
         if total == 0:
             return self.random_generator.choice(ratings.size, count, replace=False)
@@ -96,5 +97,5 @@ class UniformlyAtRandom(RandomCostmapSamplingStrategy):
     highest.
     """
 
-    def choose(self, ratings: np.ndarray, count: int) -> np.ndarray:
+    def choose(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         return self.random_generator.choice(ratings.size, count, replace=False)

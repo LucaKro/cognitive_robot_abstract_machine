@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+from numpy.typing import NDArray
 import pytest
 from trimesh.proximity import closest_point
 
@@ -44,7 +45,9 @@ def bowl() -> Bowl:
     return annotation
 
 
-def distances_to_surface(bowl: Bowl, positions: np.ndarray) -> np.ndarray:
+def distances_to_surface(
+    bowl: Bowl, positions: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
     :param bowl: The bowl whose surface to measure against.
     :param positions: Points in the bowl's own frame.

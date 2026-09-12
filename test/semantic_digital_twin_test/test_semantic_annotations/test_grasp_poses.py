@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 import pytest
 import trimesh
 
@@ -18,6 +19,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Table,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Box, Mesh, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
@@ -88,7 +90,7 @@ def milk() -> Milk:
     return annotation
 
 
-def axes_of(pose) -> np.ndarray:
+def axes_of(pose: Pose) -> NDArray[np.float64]:
     """
     :param pose: The pose to read the frame axes of.
     :return: The pose's x, y and z axis as the columns of a 3x3 array.
