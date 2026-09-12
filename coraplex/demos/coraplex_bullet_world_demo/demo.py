@@ -13,10 +13,10 @@ down and the robot has moved -- rather than when the plan is built.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import ClassVar, Optional, Tuple, Type
+from typing_extensions import Optional, Tuple, Type
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ExecutionType
@@ -131,9 +131,9 @@ class PlaceSettingObject:
     rest of it.
     """
 
-    facing_yaw: ClassVar[float] = 1.57
+    facing_yaw: float = 1.57
     """
-    Which way every object of the setting faces once it has been laid down.
+    Which way the object faces once it has been laid down.
     """
 
     def spawn(self, world: World) -> None:
@@ -196,10 +196,12 @@ class BulletWorldDemonstration(RobotDemonstration):
     The PR2 transports the milk, a bowl and a spoon onto the table in the apartment.
     """
 
-    ros_node_name: ClassVar[str] = "bullet_world_demo_node"
+    ros_node_name: str = "bullet_world_demo_node"
 
-    robot_start: ClassVar[HomogeneousTransformationMatrix] = (
-        HomogeneousTransformationMatrix.from_xyz_rpy(1.1, 2.5, 0)
+    robot_start: HomogeneousTransformationMatrix = field(
+        default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
+            1.1, 2.5, 0
+        )
     )
     """
     Where the PR2 stands before the plan begins.
@@ -210,36 +212,42 @@ class BulletWorldDemonstration(RobotDemonstration):
     instead.
     """
 
-    milk: ClassVar[PlaceSettingObject] = PlaceSettingObject(
-        Milk,
-        SceneFile.MILK,
-        HomogeneousTransformationMatrix.from_xyz_rpy(2.37, 2, 1.05),
-        along_table=4.8,
-        height=0.82,
+    milk: PlaceSettingObject = field(
+        default_factory=lambda: PlaceSettingObject(
+            Milk,
+            SceneFile.MILK,
+            HomogeneousTransformationMatrix.from_xyz_rpy(2.37, 2, 1.05),
+            along_table=4.8,
+            height=0.82,
+        )
     )
     """
     The milk, which starts on the counter.
     """
 
-    bowl: ClassVar[PlaceSettingObject] = PlaceSettingObject(
-        Bowl,
-        SceneFile.BOWL,
-        HomogeneousTransformationMatrix.from_xyz_rpy(2.4, 2.2, 1),
-        along_table=5.0,
-        height=0.76,
+    bowl: PlaceSettingObject = field(
+        default_factory=lambda: PlaceSettingObject(
+            Bowl,
+            SceneFile.BOWL,
+            HomogeneousTransformationMatrix.from_xyz_rpy(2.4, 2.2, 1),
+            along_table=5.0,
+            height=0.76,
+        )
     )
     """
     The bowl, which starts on the counter and is the one whose grasp the plan chooses.
     """
 
-    spoon: ClassVar[PlaceSettingObject] = PlaceSettingObject(
-        Spoon,
-        SceneFile.SPOON,
-        HomogeneousTransformationMatrix.from_xyz_rpy(-0.05, -0.05, 0),
-        along_table=5.2,
-        height=0.74,
-        across_table=3.25,
-        starts_on=ApartmentBody.SPOON_DRAWER,
+    spoon: PlaceSettingObject = field(
+        default_factory=lambda: PlaceSettingObject(
+            Spoon,
+            SceneFile.SPOON,
+            HomogeneousTransformationMatrix.from_xyz_rpy(-0.05, -0.05, 0),
+            along_table=5.2,
+            height=0.74,
+            across_table=3.25,
+            starts_on=ApartmentBody.SPOON_DRAWER,
+        )
     )
     """
     The spoon, which starts inside the drawer it is fetched from.

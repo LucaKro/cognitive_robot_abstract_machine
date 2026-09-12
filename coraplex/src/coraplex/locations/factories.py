@@ -18,7 +18,6 @@ from coraplex.locations.pose_validator import (
     IsObjectReachableBy,
     IsVisibleBy,
 )
-from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
     Drawer,
@@ -84,7 +83,7 @@ def reachability_location(
         ),
         [
             AreReachableBy.for_grasp(
-                HasApproachesGraspPoses.grasp_frame_at(target_pose, body_T_grasp),
+                target_pose.to_homogeneous_matrix() @ body_T_grasp,
                 arm,
                 body_T_grasp=body_T_grasp,
                 context=context,
@@ -285,7 +284,7 @@ def giskard_reachability_location(
     """
     body_T_grasp = grasp_pose or Pose(reference_frame=body)
     target_pose = destination or body.global_pose
-    grasp_frame = HasApproachesGraspPoses.grasp_frame_at(target_pose, body_T_grasp)
+    grasp_frame = target_pose.to_homogeneous_matrix() @ body_T_grasp
     releases_the_body = destination is not None
 
     backend = GiskardLocationBackend(

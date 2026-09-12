@@ -2,15 +2,18 @@ from copy import deepcopy
 from itertools import islice
 
 import numpy as np
+from numpy.typing import NDArray
 import pytest
 
 from coraplex.locations.costmaps import (
+    Costmap,
     OccupancyCostmap,
     GaussianCostmap,
     OrientationGenerator,
     RingCostmap,
 )
 from coraplex.locations.sampling import (
+    CostmapSamplingStrategy,
     HighestRatedFirst,
     UniformlyAtRandom,
     WeightedByRating,
@@ -18,7 +21,6 @@ from coraplex.locations.sampling import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
-
 
 # ---- Occupancy locations tests ----
 
@@ -504,7 +506,9 @@ def _ring_map(world) -> RingCostmap:
     )
 
 
-def _stand_off_distances(costmap, sampling_strategy, count: int) -> np.ndarray:
+def _stand_off_distances(
+    costmap: Costmap, sampling_strategy: CostmapSamplingStrategy, count: int
+) -> NDArray[np.float64]:
     """
     :return: How far the first ``count`` candidates stand from the map's origin.
     """
@@ -540,21 +544,19 @@ def test_highest_rated_candidates_come_first(immutable_model_world):
 def test_weighted_sampling_reaches_the_whole_ring(immutable_model_world):
     """
     A ring says a stand-off distance is likely, not that it is the only one worth
-    trying. Ranking offers a caller the ring's own radius over and over, one angle at a
-    time, so a pose that needs a few centimetres more never comes up inside the budget
-    a caller can afford to simulate.
+    trying.
+
+    Ranking offers a caller the ring's own radius over and over, one angle at a time, so
+    a pose that needs a few centimetres more never comes up inside the budget a caller
+    can afford to simulate.
     """
     world, _, _ = immutable_model_world
     budget = 50
 
     ring = _ring_map(world)
-    ranked_spread = np.ptp(
-        _stand_off_distances(ring, HighestRatedFirst(), budget)
-    )
+    ranked_spread = np.ptp(_stand_off_distances(ring, HighestRatedFirst(), budget))
     weighted_spread = np.ptp(
-        _stand_off_distances(
-            ring, WeightedByRating(seed=0), budget
-        )
+        _stand_off_distances(ring, WeightedByRating(seed=0), budget)
     )
 
     assert ranked_spread < 0.05
@@ -569,25 +571,17 @@ def test_weighted_sampling_still_favours_what_the_map_rates_highest(
     anything and the robot is as likely to stand anywhere.
 
     A ring in the plane holds more entries the further out they sit, so the draw is
-    pulled outwards whatever the ratings say. What the rating buys is how much closer
-    to the ring the draw stays than it would without one.
+    pulled outwards whatever the ratings say. What the rating buys is how much closer to
+    the ring the draw stays than it would without one.
     """
     world, _, _ = immutable_model_world
     ring = _ring_map(world)
 
     weighted_median = float(
-        np.median(
-            _stand_off_distances(
-                ring, WeightedByRating(seed=0), 400
-            )
-        )
+        np.median(_stand_off_distances(ring, WeightedByRating(seed=0), 400))
     )
     ignored_median = float(
-        np.median(
-            _stand_off_distances(
-                ring, UniformlyAtRandom(seed=0), 400
-            )
-        )
+        np.median(_stand_off_distances(ring, UniformlyAtRandom(seed=0), 400))
     )
 
     assert abs(weighted_median - ring.distance) < abs(ignored_median - ring.distance)
@@ -603,14 +597,8 @@ def test_uniform_sampling_ignores_what_the_map_rates(immutable_model_world):
 
     ring = _ring_map(world)
 
-    assert np.ptp(
-        _stand_off_distances(
-            ring, UniformlyAtRandom(seed=0), 400
-        )
-    ) > np.ptp(
-        _stand_off_distances(
-            ring, WeightedByRating(seed=0), 400
-        )
+    assert np.ptp(_stand_off_distances(ring, UniformlyAtRandom(seed=0), 400)) > np.ptp(
+        _stand_off_distances(ring, WeightedByRating(seed=0), 400)
     )
 
 
@@ -645,9 +633,10 @@ def test_an_unseeded_draw_varies(immutable_model_world):
 
 def test_how_many_candidates_to_draw_is_the_callers_to_say(immutable_model_world):
     """
-    How many candidates a map offers belongs to whoever draws from it, not to the map:
-    a map built once is drawn from by callers that can afford to judge different
-    numbers of them.
+    How many candidates a map offers belongs to whoever draws from it, not to the map.
+
+    A map built once is drawn from by callers that can afford to judge different numbers
+    of them.
     """
     world, _, _ = immutable_model_world
     ring = _ring_map(world)

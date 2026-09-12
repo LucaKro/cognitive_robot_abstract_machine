@@ -31,7 +31,6 @@ classifying annotator to that engine removes both without changing this demo.
 from dataclasses import dataclass
 
 import numpy as np
-from typing_extensions import ClassVar
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
@@ -101,7 +100,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
     The plan ends where it started, so it can be repeated against the same scene.
     """
 
-    ros_node_name: ClassVar[str] = "stretch_demo_node"
+    ros_node_name: str = "stretch_demo_node"
 
     def build_simulated_world(self) -> World:
         """

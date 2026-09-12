@@ -120,7 +120,9 @@ class PlaceAction(
         :param target_location: Where the object should end up.
         :return: The grasp frame, in ``target_location``'s frame.
         """
-        return self.grasp_frame_at(target_location, self._grasp_on_the_held_object())
+        return (
+            target_location.to_homogeneous_matrix() @ self._grasp_on_the_held_object()
+        )
 
     @property
     def _action_plan(self) -> PlanNode:
