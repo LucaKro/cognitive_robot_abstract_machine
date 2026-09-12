@@ -128,6 +128,15 @@ Where the spoon is carried to.
 
 # %% the demonstration
 
+SAMPLING_SEED = 0
+"""
+Fixes the poses the plan's locations draw, so this run repeats the one before it.
+
+The locations draw from their costmaps rather than ranking them, so an unpinned run
+stands somewhere new every time and reaches the drawer only on the attempts whose base
+pose happens to allow it.
+"""
+
 
 @dataclass
 class GarmiApartmentDemonstration(RobotDemonstration):
@@ -208,7 +217,8 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             ros_node=self.ros_node,
             evaluate_conditions=True,
             alternative_motion_mappings=self.alternative_motion_mappings,
-            _debug=True
+            sampling_seed=SAMPLING_SEED,
+            _debug=True,
         )
 
     def build_plan(self, context: Context) -> PlanNode:
