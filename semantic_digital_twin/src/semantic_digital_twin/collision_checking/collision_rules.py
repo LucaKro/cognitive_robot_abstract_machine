@@ -54,7 +54,12 @@ class AvoidCollisionRule(CollisionRule, ABC):
     a severe collision risk requiring immediate attention.
     """
 
-    added_collision_checks: set[CollisionCheck] = field(default_factory=set, init=False)
+    added_collision_checks: set[CollisionCheck] = field(
+        default_factory=set, init=False, compare=False
+    )
+    """
+    Collision checks computed by the last update of the rule.
+    """
 
     def applies_to(self, body_a: Body, body_b: Body) -> bool:
         """
@@ -96,12 +101,14 @@ class AllowCollisionRule(CollisionRule, ABC):
     """
 
     allowed_collision_pairs: set[CollisionCheck] = field(
-        default_factory=set, init=False
+        default_factory=set, init=False, compare=False
     )
     """
     Set of collision checks that are allowed to occur.
     """
-    allowed_collision_bodies: set[Body] = field(default_factory=set, init=False)
+    allowed_collision_bodies: set[Body] = field(
+        default_factory=set, init=False, compare=False
+    )
     """
     Set of bodies that are allowed to collide.
     """
@@ -172,11 +179,11 @@ class AvoidAllCollisions(AvoidCollisionRule):
             self.added_collision_checks.add(collision_check)
 
 
-@dataclass(eq=False)
+@dataclass
 class AvoidExternalCollisions(AvoidCollisionRule, SubclassJSONSerializer):
     """
-    Adds collision checks between all bodies managed by the rule and all bodies that do not belong to the robot.
-    that are not managed by the rule.
+    Adds collision checks between the bodies managed by the rule and all bodies that do
+    not belong to the robot.
     """
 
     robot: AbstractRobot = field(kw_only=True)
@@ -203,29 +210,28 @@ class AvoidExternalCollisions(AvoidCollisionRule, SubclassJSONSerializer):
         return super().referenced_bodies | (self.body_subset or set())
 
     def _update(self, world: World):
+        robot_bodies = set(self.robot.bodies_with_collision)
+        external_bodies = set(world.bodies_with_collision) - robot_bodies
         if self.body_subset is not None:
             self.added_collision_checks = {
                 CollisionCheck.create_and_validate(
                     body_a=body_a, body_b=body_b, distance=self.buffer_zone_distance
                 )
-                for body_a, body_b in product(
-                    self.body_subset,
-                    set(world.bodies_with_collision) - set(self.body_subset),
-                )
+                for body_a, body_b in product(self.body_subset, external_bodies)
             }
             return
-        body_subset = set(self.robot.bodies_with_collision)
-        external_bodies = set(world.bodies_with_collision) - body_subset
         self.added_collision_checks = {
             CollisionCheck.create_for_bodies_with_collision(
                 body_a=body_a, body_b=body_b, distance=self.buffer_zone_distance
             )
-            for body_a, body_b in product(body_subset, external_bodies)
+            for body_a, body_b in product(robot_bodies, external_bodies)
         }
 
     def to_json(self, **kwargs) -> Dict[str, Any]:
         return {
             **super().to_json(**kwargs),
+            "buffer_zone_distance": self.buffer_zone_distance,
+            "violated_distance": self.violated_distance,
             "robot": to_json(self.robot.id, **kwargs),
             "body_subset": to_json(
                 {b.id for b in self.body_subset} if self.body_subset else None, **kwargs
