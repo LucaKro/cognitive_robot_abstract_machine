@@ -169,11 +169,23 @@ class Question(ABC, Generic[AnswerType]):
         """
 
     @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this question puts pictures to the model. A question that can be
+            asked either way answers from what it was actually given, so the instruction
+            and the message cannot disagree about whether there is anything to look at.
+        """
+        return True
+
+    @property
     def system_prompt(self) -> str:
         """
         :return: What the model is told it is doing.
         """
-        return self.templates.render_document(self.prompt_template(PromptHalf.SYSTEM))
+        return self.templates.render_document(
+            self.prompt_template(PromptHalf.SYSTEM),
+            shows_pictures=self.shows_pictures,
+        )
 
     @abstractmethod
     def message(self) -> List[MessagePart]:

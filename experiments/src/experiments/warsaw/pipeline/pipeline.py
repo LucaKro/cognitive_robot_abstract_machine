@@ -75,7 +75,11 @@ class WarsawPipeline(HasLogger):
         :return: The steps, after the preparation that had to happen first.
         """
         planned: List[PipelineStep] = [
-            MeasureScene(settings=self.settings, run=run, exemplar_renders=True),
+            MeasureScene(
+                settings=self.settings,
+                run=run,
+                exemplar_renders=self.settings.show_the_pictures,
+            ),
             MapLabelVocabulary(settings=self.settings, run=run),
             MeasureScene(
                 settings=self.settings,

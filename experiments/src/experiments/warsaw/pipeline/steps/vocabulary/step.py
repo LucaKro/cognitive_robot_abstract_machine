@@ -125,6 +125,14 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
         return self.label.label
 
     @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this label was rendered. A run told to show no pictures renders
+            none, and the question then reads as one asked from the label alone.
+        """
+        return bool(self.label.images)
+
+    @property
     def mixin_names(self) -> List[str]:
         """
         :return: The names a new class may be composed from.

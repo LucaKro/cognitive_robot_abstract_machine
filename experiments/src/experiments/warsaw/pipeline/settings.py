@@ -207,6 +207,18 @@ class PipelineSettings:
         its own rather than folding into a comparison of something else.
     """
 
+    show_the_pictures: bool = True
+    """
+    Whether a run renders its objects and puts the pictures to the model, or asks from the
+    text alone.
+
+    On, which is what every run so far was asked with. Off, nothing is rendered and the two
+    questions that would have carried pictures are asked without them -- which measures
+    what the pictures add, since the label is still given either way. Rendering is most of
+    a run's time, 44 minutes of room 13's 55, and three pictures a label is most of its
+    bill.
+    """
+
     reuse_answers: bool = False
     """
     Whether to read back the responses a run already kept instead of asking again, which

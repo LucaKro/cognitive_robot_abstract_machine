@@ -8,6 +8,3 @@ The room's labels are: cabinet, door, drawer, floor, handle, kitchen_island.
 ## What it meets, measured on the scan
 Objects of these labels are labelled onto some of the same faces: door (1).
 That is measurement only: sharing a surface says these labels cover the same geometry, not which of them holds the other.
-
-## The pictures
-They show one of them, "kitchen_island_1", chosen as the one whose faces are least shared with other labels.

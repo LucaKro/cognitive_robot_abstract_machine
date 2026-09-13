@@ -77,7 +77,12 @@ def test_the_vocabulary_question_says_what_it_always_said(
     finished_run, vocabulary_request, relations, taxonomy, expected, without_pictures
 ):
     """
-    The ontology, the label, what the pictured object meets, and what the pictures show.
+    The ontology, the label, and what the object meets.
+
+    The fixture run keeps no renders, so this label carries none and the question is the
+    one a run asking from the text alone puts: it does not announce pictures it has not
+    got. What a question with renders adds is checked in
+    ``test_asking_without_pictures``.
     """
     label = next(
         one for one in vocabulary_request.labels if one.label == "kitchen_island"
@@ -235,9 +240,10 @@ def test_every_question_is_put_with_both_halves_of_its_own_prompt():
         prompt = question.prompt
         assert prompt not in named, f"{question.__name__} shares a prompt"
         named.add(prompt)
-        assert question.prompts_directory.parent == pathlib.Path(
-            sys.modules[question.__module__].__file__
-        ).resolve().parent, f"{question.__name__} reads prompts from another step"
+        assert (
+            question.prompts_directory.parent
+            == pathlib.Path(sys.modules[question.__module__].__file__).resolve().parent
+        ), f"{question.__name__} reads prompts from another step"
         for half in PromptHalf:
             assert question.templates.render_document(
                 f"{prompt.value}/{half.value}"

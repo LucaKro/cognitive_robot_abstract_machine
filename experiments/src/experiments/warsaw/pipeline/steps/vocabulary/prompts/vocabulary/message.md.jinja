@@ -7,5 +7,6 @@ The room's labels are: {{ every_label | join(", ") }}.
 
 {{ meets }}
 
-## The pictures
+{% if shows_pictures %}## The pictures
 They show one of them, "{{ exemplar }}", chosen as the one whose faces are least shared with other labels.
+{% endif %}

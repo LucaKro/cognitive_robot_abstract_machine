@@ -377,26 +377,39 @@ class WarsawWorldLoader:
             SemanticAnnotation, output_directory / "semantic_annotations.json"
         ).export()
 
-    def render_label_segment_groups(
+    def label_segment_groups(
         self,
         group_size: int = 8,
         segments: Optional[Iterable[LabelSegment]] = None,
         headless: bool = False,
+        pictured: bool = True,
     ) -> Iterator[RenderedSegmentGroup]:
         """
-        Color the scene's objects a group at a time and render each group from every
-        viewpoint.
+        Walk the scene's objects a group at a time, colouring and drawing each group.
 
-        The scene is left in its own colors once the last group has been rendered.
+        The scene is left in its own colors once the last group has been walked.
 
-        :param group_size: How many segments to color at once.
+        :param group_size: How many segments to take at once.
         :param segments: The segments to walk through, defaulting to all of the scene's.
         :param headless: Whether to render without opening a window.
-        :return: One rendered group at a time.
+        :param pictured: Whether to draw each group. Not drawing it is what a run asking
+            from the text alone needs, and it is where such a run saves its time:
+            nothing is painted, no camera is placed, and the group carries no colour,
+            since a colour names nothing in a picture that was never made.
+        :return: One group at a time.
         """
         segments = list(self.label_segments if segments is None else segments)
-        camera_poses = self.compute_camera_poses()
+        if not pictured:
+            for index, start in enumerate(range(0, len(segments), group_size)):
+                yield RenderedSegmentGroup(
+                    index=index,
+                    segments=segments[start : start + group_size],
+                    colors={},
+                    images={},
+                )
+            return
 
+        camera_poses = self.compute_camera_poses()
         try:
             for index, start in enumerate(range(0, len(segments), group_size)):
                 group = segments[start : start + group_size]
@@ -434,7 +447,7 @@ class WarsawWorldLoader:
         ).items():
             (output_directory / f"original_{pose_name}.png").write_bytes(image)
 
-        for group in self.render_label_segment_groups(
+        for group in self.label_segment_groups(
             group_size=group_size, headless=headless
         ):
             for pose_name, image in group.images.items():
