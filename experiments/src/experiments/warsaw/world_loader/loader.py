@@ -38,6 +38,7 @@ from typing_extensions import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 from experiments.warsaw.exceptions import (
@@ -826,6 +827,49 @@ class WarsawWorldLoader:
         alone.apply_transform(self.world_T_scene_mesh)
         return alone
 
+    def segments_as_scanned(
+        self, segments: Iterable[LabelSegment]
+    ) -> Union[trimesh.Trimesh, trimesh.Scene]:
+        """
+        Build what a plain picture of some segments draws: them, looking as they look.
+
+        Where the scene ships an appearance mesh, that is what they look like -- the
+        source's own texture and normals, over the same faces. Where it ships none, as
+        every scan does, it is the mesh's own colours, which is what a plain picture has
+        always been.
+
+        :param segments: The segments to draw.
+        :return: The geometry to draw, as one mesh or as the pieces a texture comes in.
+        """
+        segments = list(segments)
+        if self.scene is None or self.scene.appearance is None:
+            return self.segments_alone(segments, self._original_face_colors)
+        return self.scene.appearance.faces_alone(
+            np.concatenate([one.face_indices for one in segments])
+            if segments
+            else np.array([], dtype=int)
+        )
+
+    def render_segments_as_scanned(
+        self,
+        segments: Iterable[LabelSegment],
+        viewpoints: Optional[Sequence[str]] = None,
+        headless: bool = False,
+    ) -> RenderedPictures:
+        """
+        Draw some segments by themselves, looking as they look.
+
+        :param segments: The segments to draw.
+        :param viewpoints: Which named viewpoints to render, defaulting to all of them.
+        :param headless: Whether to render without opening a window.
+        :return: Per viewpoint, its render and the pose it was taken from.
+        """
+        segments = list(segments)
+        drawn = self.segments_as_scanned(segments)
+        poses = self.poses_framing(segments, viewpoints)
+        scene = drawn if isinstance(drawn, trimesh.Scene) else trimesh.Scene(drawn)
+        return self._pictures(self._render_from_poses(scene, poses, headless), poses)
+
     def render_segments_alone(
         self,
         segments: Iterable[LabelSegment],
@@ -961,9 +1005,7 @@ class WarsawWorldLoader:
         )
 
         self._reset_segment_colors()
-        plains = self.render_segments_alone(
-            segments, self._original_face_colors, viewpoints, headless
-        )
+        plains = self.render_segments_as_scanned(segments, viewpoints, headless)
 
         of_each_kind = (
             (PictureKind.CLOSEUP, closeups),

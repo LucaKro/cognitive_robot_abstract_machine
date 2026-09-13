@@ -204,3 +204,40 @@ def test_an_object_the_mesh_has_no_faces_for_is_recorded_as_absent(
     written = write_room(scene=scene, room_id=1, output=tmp_path / "room")
     assert written.absent == [11]
     assert 11 not in {one.object_id for one in written.objects}
+
+
+# %% what the room says about how it looks
+
+
+def test_a_converted_room_carries_its_source_appearance(written: Path) -> None:
+    """
+    The labelled mesh cannot hold a texture, so the room is written with a second file
+    that can, over the same faces.
+    """
+    read = WarsawScene.from_directory(written)
+    assert read.appearance is not None
+
+
+def test_the_appearance_covers_exactly_the_faces_the_labelled_mesh_has(
+    written: Path,
+) -> None:
+    """
+    Every picture asks for faces by the number the labelled mesh gives them, so the two
+    have to be the same faces in the same order. A mismatch in the count is the one way
+    that can be caught without a picture.
+    """
+    read = WarsawScene.from_directory(written)
+    assert read.appearance.face_count == len(read.mesh.faces)
+
+
+def test_a_segments_faces_are_drawable_on_their_own(written: Path) -> None:
+    """
+    What a close-up needs: the faces of one object, taken out of the appearance mesh by
+    the numbers the labelled mesh gave them.
+    """
+    read = WarsawScene.from_directory(written)
+    chair = next(one for one in read.segments() if str(one.name) == "chair_7")
+    drawn = read.appearance.faces_alone(chair.face_indices)
+    assert sum(len(piece.faces) for piece in drawn.geometry.values()) == len(
+        chair.face_indices
+    )

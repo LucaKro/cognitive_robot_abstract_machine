@@ -17,7 +17,7 @@ these files give that two objects meet. ``HABITAT_HM3D.md`` has the measurements
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -300,6 +300,23 @@ class HabitatScene:
     Per face, the object it belongs to, :data:`NOTHING` where no annotation claims it.
     """
 
+    sources: List[trimesh.Trimesh] = field(default_factory=list)
+    """
+    The textured geometries the mesh was concatenated from, in the order its faces are
+    numbered, kept unwelded so that their UVs and normals still mean something.
+
+    The mesh above is welded, which is what gives two objects an edge to meet along and
+    what makes a texture unusable, since welding merges the vertices a UV seam splits.
+    """
+
+    @property
+    def first_face_of_source(self) -> np.ndarray:
+        """
+        :return: Where each source geometry's faces begin in the mesh's numbering, with
+            the total at the end.
+        """
+        return np.cumsum([0] + [len(one.faces) for one in self.sources])
+
     @classmethod
     def read(cls, files: HabitatSceneFiles) -> HabitatScene:
         """
@@ -352,6 +369,7 @@ class HabitatScene:
             annotations=annotations,
             mesh=mesh,
             face_objects=cls._objects_of(np.vstack(instances), annotations),
+            sources=[seen for _painted, seen in paired],
         )
 
     @staticmethod

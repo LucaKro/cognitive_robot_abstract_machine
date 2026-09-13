@@ -28,11 +28,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+import trimesh
 from typing_extensions import Dict, List, Optional
 
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.habitat.annotations import UNASSIGNED_ROOM
 from experiments.warsaw.habitat.scene import HabitatDataset, HabitatScene
+from experiments.warsaw.world_loader.appearance import (
+    AppearanceMesh,
+    slice_keeping_appearance,
+)
 from experiments.warsaw.world_loader.scene import SceneFrame, SourceFrame
 
 SCENE_MESH = "mesh_all_classes.ply"
@@ -149,6 +154,29 @@ class ConvertedRoom(JsonRecord):
 # %% writing a room
 
 
+def appearance_of(scene: HabitatScene, faces: np.ndarray) -> List[trimesh.Trimesh]:
+    """
+    Take a room's faces out of the scene's source geometries, keeping how they look.
+
+    The labelled mesh a room is written as is welded and carries an instance per face,
+    and a texture survives neither: welding merges the vertices a UV seam splits, and a
+    face property has nowhere to put an image. These pieces carry the same faces in the
+    same order, so a picture can ask for a segment by the numbers the labelled mesh gave
+    it.
+
+    :param scene: The scene the room is part of.
+    :param faces: The scene faces the room keeps, in the order it keeps them.
+    :return: The sliced source geometries, in face order.
+    """
+    starts = scene.first_face_of_source
+    pieces: List[trimesh.Trimesh] = []
+    for index, geometry in enumerate(scene.sources):
+        here = faces[(faces >= starts[index]) & (faces < starts[index + 1])]
+        if len(here):
+            pieces.append(slice_keeping_appearance(geometry, here - starts[index]))
+    return pieces
+
+
 def write_room(scene: HabitatScene, room_id: int, output: Path) -> ConvertedRoom:
     """
     Write one room of a scene as a directory the pipeline can be pointed at.
@@ -183,6 +211,7 @@ def write_room(scene: HabitatScene, room_id: int, output: Path) -> ConvertedRoom
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     piece.export(output / SCENE_MESH)
+    AppearanceMesh.write(appearance_of(scene, faces), output)
     SceneFrame(source=SourceFrame.UPRIGHT).write_beside(output)
 
     written = ConvertedRoom(

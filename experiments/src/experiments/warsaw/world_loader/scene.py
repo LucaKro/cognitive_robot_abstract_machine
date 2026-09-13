@@ -17,9 +17,10 @@ import numpy as np
 import trimesh
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from typing_extensions import Dict, Iterable, Iterator, List
+from typing_extensions import Dict, Iterable, Iterator, List, Optional
 
 from experiments.warsaw.bases import JsonRecord
+from experiments.warsaw.world_loader.appearance import AppearanceMesh
 from experiments.warsaw.exceptions import (
     AmbiguousWarsawSceneError,
     WarsawLabelsMissingError,
@@ -244,6 +245,12 @@ class WarsawScene:
     Turns the scene from the frame it is written in into the world's.
     """
 
+    appearance: Optional[AppearanceMesh] = None
+    """
+    What the scene looks like, over the same faces, where its source says more about that
+    than a welded and labelled mesh can carry. None for a scan, which says nothing.
+    """
+
     @classmethod
     def from_directory(
         cls, directory: Path, scene_mesh_pattern: str = "*.ply"
@@ -266,17 +273,26 @@ class WarsawScene:
             raise AmbiguousWarsawSceneError(
                 directory=directory, scene_meshes=scene_meshes
             )
-        return cls.from_file(scene_meshes[0], SceneFrame.beside(directory).source)
+        return cls.from_file(
+            scene_meshes[0],
+            SceneFrame.beside(directory).source,
+            appearance=AppearanceMesh.beside(directory),
+        )
 
     @classmethod
     def from_file(
-        cls, scene_mesh_path: Path, frame: SourceFrame = SourceFrame.SCANNED
+        cls,
+        scene_mesh_path: Path,
+        frame: SourceFrame = SourceFrame.SCANNED,
+        appearance: Optional[AppearanceMesh] = None,
     ) -> WarsawScene:
         """
         Read the scene one mesh file holds.
 
         :param scene_mesh_path: The mesh to read.
         :param frame: Which way up that file is written.
+        :param appearance: What the scene looks like, where its source says more about
+            that than this mesh can carry.
         :raises WarsawLabelsMissingError: If the mesh carries no per-face class labels.
         """
         scene_mesh_path = Path(scene_mesh_path)
@@ -294,6 +310,7 @@ class WarsawScene:
             mesh=mesh,
             face_labels=face_labels,
             world_T_source=frame.world_T_source,
+            appearance=appearance,
         )
 
     @staticmethod
