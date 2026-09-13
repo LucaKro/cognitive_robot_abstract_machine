@@ -1,11 +1,15 @@
 """
 Lay a run's answers beside the dataset's own labels, object by object.
 
-A count says how well a run did and never says where it went wrong. This writes the
-three things a disagreement has to be judged from -- what the dataset called an object,
-what the run answered, and what the vocabulary matcher made of that -- for every object
+A count says how well a run did and never says where it went wrong. This writes what a
+disagreement has to be judged from -- what the dataset called an object, what the run
+answered about that same object, and whether the two were reconciled -- for every object
 of a converted room, and gathers the disagreements so the largest is the first thing
 read.
+
+The two sides are compared pair by pair. HM3D numbers its objects and the converter names
+each body after that number, so an answer and a label are already about the same object
+and nothing has to be matched up first.
 
 Every object is carried through, including one the run left unannotated, because a body
 quietly dropped is a body the counts flatter.
@@ -77,18 +81,14 @@ class ComparedObject(JsonRecord):
     run left the body unannotated.
     """
 
-    matched: Optional[str]
+    agrees: bool = False
     """
-    What the matcher made of that answer in the dataset's vocabulary, or None where it
-    could place it nowhere.
-    """
+    Whether the answer and the label were judged to name the same kind of thing.
 
-    @property
-    def agrees(self) -> bool:
-        """
-        :return: Whether the two sides ended up naming the same thing.
-        """
-        return self.matched == self.truth
+    Judged of this pair alone. Both sides are already about this one object, since HM3D
+    numbers its objects and the converter names the body after that number, so there is
+    nothing to match up first and no other label of the room has any say.
+    """
 
 
 # %% a whole room, compared
@@ -167,12 +167,12 @@ class LabelComparison(JsonRecord):
             "",
             "## Every object",
             "",
-            "| object | called | answered | matched to | |",
-            "|---|---|---|---|---|",
+            "| object | called | answered | |",
+            "|---|---|---|---|",
         ]
         lines += [
             f"| {one.segment} | {one.truth} | {one.predicted or '--'} "
-            f"| {one.matched or '--'} | {'ok' if one.agrees else 'no'} |"
+            f"| {'ok' if one.agrees else 'no'} |"
             for one in self.objects
         ]
         return "\n".join(lines) + "\n"
@@ -212,7 +212,6 @@ def compare_a_run(
         .read_record(RunFile.CLASSIFICATIONS, Classifications)
         .bodies
     }
-    vocabulary = {one.label for one in room.objects}
     return LabelComparison(
         run=directory.name,
         scene=room.scene,
@@ -224,27 +223,29 @@ def compare_a_run(
                 object_id=one.object_id,
                 truth=one.label,
                 predicted=answered.get(one.segment),
-                matched=placed(answered.get(one.segment), vocabulary, matcher),
+                agrees=names_the_same(answered.get(one.segment), one.label, matcher),
             )
             for one in room.objects
         ],
     )
 
 
-def placed(
-    predicted: Optional[str], vocabulary: set, matcher: Optional[Matcher]
-) -> Optional[str]:
+def names_the_same(
+    predicted: Optional[str], truth: str, matcher: Optional[Matcher]
+) -> bool:
     """
-    :param predicted: What the run answered, or None where it answered nothing.
-    :param vocabulary: The dataset's own words.
-    :param matcher: What reconciles the two, or None to take the answer as it stands.
-    :return: The dataset's word for that answer, where there is one.
+    :param predicted: What the run answered about one object, or None where it answered
+        nothing.
+    :param truth: What the dataset's annotator called that same object.
+    :param matcher: What reconciles the two vocabularies, or None to compare the words as
+        they stand.
+    :return: Whether the two name the same kind of thing.
     """
     if predicted is None:
-        return None
+        return False
     if matcher is None:
-        return predicted if predicted in vocabulary else None
-    return matcher.matched(predicted, vocabulary)
+        return predicted == truth
+    return matcher.means_the_same(predicted, truth)
 
 
 # %% command-line entry point

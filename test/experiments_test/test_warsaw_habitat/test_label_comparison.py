@@ -90,15 +90,14 @@ def compared(run: Path) -> LabelComparison:
 
 def test_an_object_carries_what_each_side_called_it(compared: LabelComparison):
     """
-    The three things a disagreement has to be judged from, kept together.
+    What a disagreement has to be judged from, kept together.
     """
     one = {one.segment: one for one in compared.objects}["kitchen_cabinet_1"]
-    assert (one.truth, one.predicted, one.matched) == (
+    assert (one.truth, one.predicted, one.agrees) == (
         "kitchen cabinet",
         "cabinet",
-        "kitchen cabinet",
+        True,
     )
-    assert one.agrees
 
 
 def test_a_prediction_the_matcher_cannot_place_disagrees(compared: LabelComparison):
@@ -106,7 +105,7 @@ def test_a_prediction_the_matcher_cannot_place_disagrees(compared: LabelComparis
     The ontology answers Decor for a light fixture, and no wording makes those one.
     """
     one = {one.segment: one for one in compared.objects}["light_fixture_3"]
-    assert (one.predicted, one.matched, one.agrees) == ("decor", None, False)
+    assert (one.predicted, one.agrees) == ("decor", False)
 
 
 def test_a_body_left_unannotated_is_carried_through_as_a_disagreement(

@@ -16,6 +16,15 @@ Two things can decide it. :class:`LexicalMatcher` reads the words, which settles
 :class:`EmbeddingMatcher` reads what the names mean, which is what says a fridge is a
 refrigerator, and falls back on the wording where the likeness is only middling -- the
 rule the earlier HM3D study used, whose paper reports a threshold its code does not use.
+
+The question is asked of **one pair at a time**. The study this rule comes from could
+not do that: it compared two bags of label strings with no correspondence between them,
+so the nearest label in the whole ground-truth vocabulary was the only target available
+to it. Here each object carries HM3D's own object number, so an answer and a label are
+already about the same object. Asking which label of the room an answer most resembles
+instead loses a right answer to a neighbouring one -- a kitchen cabinet answered
+``Cabinet`` was scored against a different object's ``cabinet`` and counted wrong,
+twelve times in one room.
 """
 
 from __future__ import annotations
@@ -61,14 +70,14 @@ class Encoder(Protocol):
 
 class Matcher(Protocol):
     """
-    Something that finds what a name is called in another vocabulary.
+    Something that says whether two names mean the same kind of thing.
     """
 
-    def matched(self, name: str, vocabulary: Iterable[str]) -> Optional[str]:
+    def means_the_same(self, name: str, other: str) -> bool:
         """
-        :param name: The name to place.
-        :param vocabulary: The names it may be one of.
-        :return: The one it is, or None when it is none of them.
+        :param name: One name.
+        :param other: The other.
+        :return: Whether the two name the same kind of thing.
         """
 
 
@@ -152,17 +161,13 @@ class LexicalMatcher:
             1.0 if alike / max(len(here), len(there)) >= self.shared_beginning else 0.0
         )
 
-    def matched(self, name: str, vocabulary: Iterable[str]) -> Optional[str]:
+    def means_the_same(self, name: str, other: str) -> bool:
         """
-        Find what a name is called in another vocabulary.
-
-        :param name: The name to place.
-        :param vocabulary: The names it may be one of.
-        :return: The closest of them that agrees enough, or None when none does.
+        :param name: One name.
+        :param other: The other.
+        :return: Whether their words agree enough to be one thing.
         """
-        scored = [(self.agree(name, one), one) for one in vocabulary]
-        best = max(scored, default=(0.0, ""), key=lambda one: (one[0], -len(one[1])))
-        return best[1] if best[0] >= self.agreement else None
+        return self.agree(name, other) >= self.agreement
 
 
 # %% when two names mean the same thing
@@ -227,54 +232,22 @@ class EmbeddingMatcher:
         model = SentenceTransformer(self.model_name)
         return lambda names: model.encode(list(names), normalize_embeddings=True)
 
-    def likeness(self, name: str, vocabulary: Sequence[str]) -> np.ndarray:
+    def likeness(self, name: str, other: str) -> float:
         """
-        :param name: The name to place.
-        :param vocabulary: The names to place it among.
-        :return: How alike it means to each of them, from minus one to one.
+        :param name: One name.
+        :param other: The other.
+        :return: How alike the two mean, from minus one to one.
         """
-        placed = self.encode([name, *vocabulary])
-        return placed[1:] @ placed[0]
+        placed = self.encode([name, other])
+        return float(placed[1] @ placed[0])
 
-    def matched(self, name: str, vocabulary: Iterable[str]) -> Optional[str]:
+    def means_the_same(self, name: str, other: str) -> bool:
         """
-        :param name: The name to place.
-        :param vocabulary: The names it may be one of.
-        :return: The one it means most nearly, where that is near enough, else None.
+        :param name: One name.
+        :param other: The other.
+        :return: Whether they mean nearly enough the same to be one thing.
         """
-        vocabulary = list(vocabulary)
-        if not vocabulary:
-            return None
-        alike = self.likeness(name, vocabulary)
-        best = int(np.argmax(alike))
-        candidate, closeness = vocabulary[best], float(alike[best])
-        if closeness >= self.settles_it:
-            return candidate
-        if closeness >= self.worth_considering and self.wording.agree(name, candidate):
-            return candidate
-        return None
-
-
-# %% putting one bag of labels into the other's words
-
-
-def to_vocabulary(
-    names: Sequence[str],
-    vocabulary: Iterable[str],
-    matcher: Optional[Matcher] = None,
-) -> List[str]:
-    """
-    Say a bag of names in another vocabulary's words, keeping what it has no word for.
-
-    An unmatched name is kept as it was rather than dropped: it is still something the
-    run answered, and dropping it would quietly raise the score.
-
-    :param names: The names to move.
-    :param vocabulary: The words to move them into.
-    :param matcher: What decides that two names are one thing, defaulting to the
-        wording alone.
-    :return: Each name as the other vocabulary says it, or unchanged.
-    """
-    matcher = matcher if matcher is not None else LexicalMatcher()
-    vocabulary = list(vocabulary)
-    return [matcher.matched(one, vocabulary) or one for one in names]
+        alike = self.likeness(name, other)
+        if alike >= self.settles_it:
+            return True
+        return alike >= self.worth_considering and bool(self.wording.agree(name, other))

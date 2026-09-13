@@ -8,6 +8,10 @@ of wording as a mistake. What is checked here is that the reconciliation is the 
 alone: it closes the gap between ``kitchen cabinet`` and ``Cabinet``, and it does not
 close the gap between a light fixture and the ``Decor`` our ontology coarsens it to,
 which is a disagreement about the world and not about words.
+
+The question is asked of one pair at a time. Each object of an HM3D room carries the
+dataset's own object number, so what the run answered and what the annotator wrote are
+already about the same object and there is nothing to match up first.
 """
 
 from __future__ import annotations
@@ -23,7 +27,6 @@ from experiments.warsaw.evaluation.label_vocabulary import (
     EmbeddingMatcher,
     LexicalMatcher,
     spoken_class_name,
-    to_vocabulary,
 )
 
 # %% saying a class name the way a dataset would
@@ -54,14 +57,14 @@ def test_a_qualified_label_matches_the_class_it_qualifies(matcher):
     HM3D says ``kitchen cabinet`` where the ontology says ``Cabinet``, and counting
     those apart would measure the annotator's wording rather than the answer.
     """
-    assert matcher.matched("kitchen cabinet", ["cabinet", "sink", "oven"]) == "cabinet"
+    assert matcher.means_the_same("kitchen cabinet", "cabinet")
 
 
 def test_a_word_matches_the_same_word_inflected(matcher):
     """
     ``shelving`` and ``shelf`` are one thing said twice, which the stems settle.
     """
-    assert matcher.matched("shelving", ["shelf", "table"]) == "shelf"
+    assert matcher.means_the_same("shelving", "shelf")
 
 
 def test_sharing_one_word_of_two_is_not_enough(matcher):
@@ -71,17 +74,14 @@ def test_sharing_one_word_of_two_is_not_enough(matcher):
     Sharing a word is the commonest way a purely lexical match goes wrong, so agreement
     is measured over all the words rather than taken from any one of them.
     """
-    assert matcher.matched("coffee table", ["coffee machine"]) is None
+    assert not matcher.means_the_same("coffee table", "coffee machine")
 
 
-def test_the_closest_of_several_candidates_is_taken(matcher):
+def test_a_name_means_itself(matcher):
     """
-    Offered both, a coffee table is the coffee table.
+    The commonest case of all, and the one an exact answer has to keep scoring.
     """
-    assert (
-        matcher.matched("coffee table", ["coffee machine", "coffee table", "table"])
-        == "coffee table"
-    )
+    assert matcher.means_the_same("coffee table", "coffee table")
 
 
 def test_a_different_idea_of_the_thing_is_left_unmatched(matcher):
@@ -91,21 +91,30 @@ def test_a_different_idea_of_the_thing_is_left_unmatched(matcher):
     That is a disagreement about how coarsely the world is carved, and closing it here
     would hide exactly what the evaluation exists to show.
     """
-    assert matcher.matched("light fixture", ["decor", "wall", "floor"]) is None
+    assert not matcher.means_the_same("light fixture", "decor")
 
 
-# %% putting a whole bag into the other vocabulary
+# %% a name is judged against its own label and no other
 
 
-def test_every_label_is_kept_whether_it_matched_or_not(matcher):
+def test_a_nearer_name_elsewhere_in_the_room_does_not_take_the_answer():
     """
-    An unmatched prediction is still a prediction, and dropping it would quietly raise
-    the score.
+    The failure this replaced.
+
+    A room holding both ``kitchen cabinet`` and ``cabinet`` used to score an answer of
+    ``cabinet`` against whichever of them it resembled most, so a kitchen cabinet
+    answered ``cabinet`` was counted wrong because another object in the room happened
+    to be labelled ``cabinet``.
+
+    The two sides are already about the same object, so only that object's own label is
+    ever asked about.
     """
-    moved = to_vocabulary(
-        ["kitchen cabinet", "light fixture"], ["cabinet", "decor"], matcher
+    matcher = matching_by_meaning(
+        cabinet=turned(0), kitchen_cabinet=turned(20), sofa=turned(80)
     )
-    assert moved == ["cabinet", "light fixture"]
+    assert matcher.means_the_same("cabinet", "kitchen cabinet")
+    assert matcher.means_the_same("cabinet", "cabinet")
+    assert not matcher.means_the_same("cabinet", "sofa")
 
 
 # %% an encoder standing in for the one that has to be downloaded
@@ -162,7 +171,7 @@ def test_two_names_meaning_the_same_match_without_sharing_a_word():
     A fridge is a refrigerator, and no amount of looking at the letters says so.
     """
     matcher = matching_by_meaning(fridge=turned(0), refrigerator=turned(15))
-    assert matcher.matched("fridge", ["refrigerator"]) == "refrigerator"
+    assert matcher.means_the_same("fridge", "refrigerator")
 
 
 def test_two_names_merely_near_each_other_do_not_match():
@@ -173,7 +182,7 @@ def test_two_names_merely_near_each_other_do_not_match():
     keeps them apart.
     """
     matcher = matching_by_meaning(wall_decor=turned(0), picture=turned(75))
-    assert matcher.matched("wall decor", ["picture"]) is None
+    assert not matcher.means_the_same("wall decor", "picture")
 
 
 def test_a_middling_likeness_needs_the_wording_to_agree_as_well():
@@ -182,20 +191,25 @@ def test_a_middling_likeness_needs_the_wording_to_agree_as_well():
     is what stops a merely related word being read as the same one.
     """
     shared = matching_by_meaning(kitchen_counter=turned(0), counter_top=turned(50))
-    assert shared.matched("kitchen counter", ["counter top"]) == "counter top"
+    assert shared.means_the_same("kitchen counter", "counter top")
 
     unshared = matching_by_meaning(kitchen_counter=turned(0), worktop=turned(50))
-    assert unshared.matched("kitchen counter", ["worktop"]) is None
+    assert not unshared.means_the_same("kitchen counter", "worktop")
 
 
-def test_the_closest_meaning_is_taken():
+def test_how_near_two_meanings_are_decides_it():
     """
-    Offered several, a name is whichever of them it means most nearly.
+    Near enough is one thing; further off is another, whatever else the room holds.
+
+    The angles straddle :attr:`EmbeddingMatcher.settles_it`, which is the only thing that
+    decides a pair now: ten degrees apart is a likeness of 0.98 and seventy is 0.34.
     """
     matcher = matching_by_meaning(
-        stovetop=turned(0), cooktop=turned(10), oven=turned(40), sink=turned(80)
+        stovetop=turned(0), cooktop=turned(10), oven=turned(70), sink=turned(85)
     )
-    assert matcher.matched("stovetop", ["sink", "oven", "cooktop"]) == "cooktop"
+    assert matcher.means_the_same("stovetop", "cooktop")
+    assert not matcher.means_the_same("stovetop", "oven")
+    assert not matcher.means_the_same("stovetop", "sink")
 
 
 # %% the model itself, when it is there to be asked
@@ -210,4 +224,5 @@ def test_the_downloaded_encoder_reads_a_cooktop_as_a_stovetop():
     The same rule against the real encoder, so the stand-in above is known to stand for
     something.
     """
-    assert EmbeddingMatcher().matched("cooktop", ["stovetop", "sink"]) == "stovetop"
+    assert EmbeddingMatcher().means_the_same("cooktop", "stovetop")
+    assert not EmbeddingMatcher().means_the_same("cooktop", "sink")
