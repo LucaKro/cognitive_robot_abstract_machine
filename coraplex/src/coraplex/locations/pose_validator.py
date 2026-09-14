@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from abc import ABC
 
-from typing_extensions import List, Optional, Self, Tuple, TYPE_CHECKING
+from typing_extensions import List, Optional, Self, TYPE_CHECKING
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -507,33 +507,16 @@ class IsObjectReachableBy(GraspReachabilityValidator):
     the pose the validator was last asked about.
     """
 
-    def _candidates_in(
-        self, copied_world: ReachabilityProbeWorld, graspable: HasGraspPoses
-    ) -> List[Tuple[Pose, Pose]]:
-        """
-        The grasps to try, the ones the gripper is closest to first.
-
-        :param copied_world: The copy the reaches are tried in.
-        :param graspable: The object, as the copy holds it.
-        :return: Pairs of the grasp to try, written against the copy, and the grasp to
-            hand back for it, written against the object the caller holds.
-        """
-        return [
-            (grasp_pose, grasp_pose.copy_for_world(self.world))
-            for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
-                graspable,
-                self.context.motion_tolerances.default_tcp_position_threshold,
-            )
-        ]
-
     def __call__(self, *args, **kwargs) -> bool:
         self.reachable_grasp = None
         copied_world = self._copied_world()
         graspable = copied_world.world.get_semantic_annotation_by_id(self.graspable.id)
 
-        for grasp_pose, reported in self._candidates_in(copied_world, graspable):
+        for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
+            graspable, self.context.motion_tolerances.default_tcp_position_threshold
+        ):
             if self._reaches(grasp_pose, copied_world, graspable.root):
-                self.reachable_grasp = reported
+                self.reachable_grasp = grasp_pose.copy_for_world(self.world)
                 return True
         return False
 

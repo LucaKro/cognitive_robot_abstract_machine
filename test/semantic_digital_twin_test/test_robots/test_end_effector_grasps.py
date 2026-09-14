@@ -326,30 +326,63 @@ def test_a_grasp_facing_back_at_the_gripper_is_the_dearest_of_all(pr2_gripper):
     assert turn == pytest.approx(np.pi, abs=1e-6)
 
 
+def _grasp_the_gripper_is_already_turned_for(end_effector: EndEffector) -> Pose:
+    """
+    The grasp an end effector standing still already holds: the one whose tool frame
+    goal is the tool frame it is at.
+
+    :param end_effector: The gripper the grasp is aimed at.
+    :return: The grasp frame, in the world's frame.
+    """
+    world_T_tool = end_effector.tool_frame.global_transform
+    grasp_R_tool = RotationMatrix.from_quaternion(end_effector.front_facing_orientation)
+    return Pose(
+        position=world_T_tool.to_position(),
+        orientation=(
+            world_T_tool.to_rotation_matrix() @ grasp_R_tool.inverse()
+        ).to_quaternion(),
+        reference_frame=end_effector._world.root,
+    )
+
+
+def test_a_grasp_the_gripper_already_holds_costs_no_turn(pr2_gripper):
+    """
+    Standing on a grasp and pointing the way it is entered is as aligned as it gets.
+    """
+    held = _grasp_the_gripper_is_already_turned_for(pr2_gripper)
+
+    assert pr2_gripper._distance_to_grasp(held) == pytest.approx(0.0, abs=1e-6)
+    assert pr2_gripper._misalignment_with_grasp(held) == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.parametrize("turn", [np.pi / 4, np.pi / 2, np.pi])
 def test_the_turn_is_measured_from_where_the_gripper_points_when_it_stands_on_the_grasp(
-    pr2_gripper,
+    pr2_gripper, turn
 ):
     """
     With no distance left to close there is nowhere to measure the turn against but the
-    way the gripper points, so a grasp to be entered from the opposite side still costs
-    the whole turn rather than nothing.
+    way the gripper points, so a grasp entered from another side still costs the turn
+    onto it rather than nothing.
     """
-    world = pr2_gripper._world
     world_T_tool = pr2_gripper.tool_frame.global_transform
     world_V_facing = world_T_tool.to_rotation_matrix() @ pr2_gripper.front_facing_axis
-    from_behind = Vector3.from_iterable(-world_V_facing.to_np()[:3])
-    on_the_spot = Pose(
-        position=world_T_tool.to_position(),
-        orientation=RotationMatrix.from_vectors(
-            x=from_behind, z=Vector3.Z()
+    # Turned about an axis across the way the gripper points, so the turn is that angle
+    # whichever way the gripper happens to be held. The axis has to be a unit vector.
+    across_the_facing = np.cross(world_V_facing.to_np()[:3].ravel(), [0.0, 0.0, 1.0])
+    across = Vector3.from_iterable(
+        across_the_facing / np.linalg.norm(across_the_facing)
+    )
+    held = _grasp_the_gripper_is_already_turned_for(pr2_gripper)
+    turned = Pose(
+        position=held.to_position(),
+        orientation=(
+            RotationMatrix.from_axis_angle(across, turn) @ held.to_rotation_matrix()
         ).to_quaternion(),
-        reference_frame=world.root,
+        reference_frame=held.reference_frame,
     )
 
-    assert pr2_gripper._distance_to_grasp(on_the_spot) == pytest.approx(0.0, abs=1e-6)
-    assert pr2_gripper._misalignment_with_grasp(on_the_spot) == pytest.approx(
-        np.pi, abs=1e-6
-    )
+    assert pr2_gripper._distance_to_grasp(turned) == pytest.approx(0.0, abs=1e-6)
+    assert pr2_gripper._misalignment_with_grasp(turned) == pytest.approx(turn, abs=1e-6)
 
 
 def test_grasp_poses_by_distance_offers_every_grasp_the_object_has(

@@ -550,18 +550,16 @@ class EndEffector(AbstractRobotPart, ABC):
     describes, whose x-axis is the direction the gripper travels toward the object.
     """
 
-    front_facing_axis: Vector3 = field(init=False)
-    """
-    The direction the gripper travels toward an object, in the tool frame's own
-    coordinates.
-    """
-
-    def __post_init__(self):
-        super().__post_init__()
+    @property
+    def front_facing_axis(self):
+        """
+        :return: The direction the gripper travels toward an object, in the tool frame's own
+        coordinates.
+        """
         tool_R_grasp = RotationMatrix.from_quaternion(
             self.front_facing_orientation
         ).inverse()
-        self.front_facing_axis = Vector3.from_iterable(
+        return Vector3.from_iterable(
             (tool_R_grasp @ Vector3.X()).to_np()[:3]
         )
 
