@@ -110,6 +110,26 @@ def test_occupancy_robot_exclusion(immutable_model_world):
     assert np.sum(occupancy_map.map) == 137641
 
 
+def test_occupancy_leaves_the_floor_free(immutable_model_world):
+    """
+    The ground the robot drives on is not an obstacle: over a patch of open floor every
+    cell stays free, and only what stands on the floor occupies anything.
+    """
+    world, robot_view, context = immutable_model_world
+
+    occupancy_map = OccupancyCostmap(
+        resolution=0.02,
+        height=50,
+        width=50,
+        world=world,
+        robot_view=robot_view,
+        origin=Pose.from_xyz_quaternion(1.5, 2, 0, 0, 0, 0, 1, world.root),
+        distance_to_obstacle=0.1,
+    )
+
+    assert np.all(occupancy_map.create_ray_mask_around_origin() == 1)
+
+
 def test_gaussian_costmap(immutable_model_world):
 
     world, robot_view, context = immutable_model_world
