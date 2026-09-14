@@ -1700,3 +1700,38 @@ class ExerciseVerificationFailed(UsageError):
 
     def suggest_correction(self) -> str:
         return "revisit the task description of this exercise and adjust your solution."
+
+
+@dataclass
+class ComposedClassCannotAct(UsageError):
+    """
+    Raised when something asks a composed class for knowledge no run could have had.
+
+    A run composes a class from a name and a list of bases. Where a base demands more
+    than that -- :meth:`Tool.tool_alignment` is the normal pairs that must stay aligned
+    while a tool acts, which is motion-planning geometry rather than anything a name says
+    -- the class is written with that method stubbed, so the semantic claim the run made
+    survives and only acting on the object fails.
+    """
+
+    class_name: str
+    """
+    The class a run composed.
+    """
+
+    method: str
+    """
+    The method it could not write.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.class_name} was composed by a pipeline run, which cannot know what "
+            f"{self.method} should answer."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"implement {self.method} on {self.class_name}, in the ontology rather than "
+            f"in the run's generated classes, before using it to act."
+        )

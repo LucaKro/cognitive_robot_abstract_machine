@@ -14,6 +14,7 @@ from typing_extensions import (
     Union,
 )
 
+from semantic_digital_twin.exceptions import ComposedClassCannotAct
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 # Mapping from module name patterns to import statements for generated files
@@ -124,6 +125,40 @@ class SemanticAnnotationClassBuilder:
                 expanded.append((name, type_, default))
         return expanded
 
+    @property
+    def stubbed_methods(self) -> List[str]:
+        """
+        Name what the bases demand that a run has no way to answer.
+
+        A base declaring an abstract method asks its subclasses for knowledge a name and
+        a list of bases do not carry -- which way a tap points while it works. Composing
+        under such a base is often the right placement all the same, so the methods are
+        named here and written as stubs rather than the placement being given up.
+
+        :return: The abstract methods left unimplemented by the bases, in order.
+        """
+        demanded: Dict[str, None] = {}
+        for base in self.bases:
+            for name in getattr(base, "__abstractmethods__", frozenset()):
+                demanded[name] = None
+        return sorted(name for name in demanded if name not in self.namespace)
+
+    def _stub(self, method: str) -> Callable:
+        """
+        :param method: The method the bases demand.
+        :return: An implementation that refuses, naming the class and the method, so that
+            what a run could not know is discovered where it is needed rather than where
+            it was written.
+        """
+        class_name = self.name
+
+        def cannot_act(self, *arguments: Any, **keywords: Any) -> Any:
+            raise ComposedClassCannotAct(class_name=class_name, method=method)
+
+        cannot_act.__name__ = method
+        cannot_act.__doc__ = f"Refuse to answer {method}, which no run composing {class_name} could know."
+        return cannot_act
+
     def build(self, module: str = None):
         """
         Builds the semantic annotation class in memory as a dataclass.
@@ -138,11 +173,14 @@ class SemanticAnnotationClassBuilder:
                 "At least one base class must be a subclass of SemanticAnnotation."
             )
         expanded_fields = self._expand_fields_for_make_dataclass()
+        namespace = dict(self.namespace)
+        for method in self.stubbed_methods:
+            namespace[method] = self._stub(method)
         cls = make_dataclass(
             self.name,
             expanded_fields,
             bases=self.bases,
-            namespace=dict(self.namespace),
+            namespace=namespace,
             eq=False,
         )
         if module is not None:
@@ -180,6 +218,7 @@ class SemanticAnnotationClassBuilder:
             name=self.name,
             bases=[b.__name__ for b in self.bases],
             fields=self._fields_for_template(),
+            stubs=self.stubbed_methods,
             include_imports=include_imports,
         )
         return rendered.rstrip() + "\n"
@@ -229,6 +268,10 @@ class SemanticAnnotationClassBuilder:
             "from dataclasses import dataclass",
             "",
         ]
+        if any(builder.stubbed_methods for builder in builders):
+            import_lines.append(
+                "from semantic_digital_twin.exceptions import ComposedClassCannotAct"
+            )
 
         for source, class_names in sorted(imports_by_source.items()):
             sorted_names = ", ".join(sorted(class_names))

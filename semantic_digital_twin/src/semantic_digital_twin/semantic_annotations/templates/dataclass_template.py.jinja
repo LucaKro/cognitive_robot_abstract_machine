@@ -5,6 +5,15 @@ class {{ name }}{% if bases %}({{ bases | join(", ") }}){% endif %}:
     {{ f.name }}: {{ f.type_hint }}{% if f.default is not none %} = {{ f.default }}{% endif %}
 
 {% endfor %}
-{% else %}
+{% endif %}
+{% for stub in stubs %}
+    def {{ stub }}(self, *arguments, **keywords):
+        """
+        Refuse to answer {{ stub }}, which no run composing {{ name }} could know.
+        """
+        raise ComposedClassCannotAct(class_name="{{ name }}", method="{{ stub }}")
+
+{% endfor %}
+{% if not fields and not stubs %}
     pass
 {% endif %}
