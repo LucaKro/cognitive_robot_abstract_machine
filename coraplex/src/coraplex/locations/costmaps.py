@@ -430,10 +430,7 @@ class Costmap(PoseGeneratorBackend):
             indices = self._pick_entries(
                 segmented_map.flatten(), budget, random_generator
             )
-
-            indices = np.dstack(np.unravel_index(indices, self.map.shape)).reshape(
-                -1, 2
-            )
+            indices = np.column_stack(np.unravel_index(indices, segmented_map.shape))
 
             height = segmented_map.shape[0]
             width = segmented_map.shape[1]

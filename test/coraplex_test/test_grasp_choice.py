@@ -118,7 +118,9 @@ def test_pre_condition_checks_only_the_grasp_it_was_given(immutable_model_world)
         1.9, 1.4, 0
     )
     end_effector = ViewManager.get_end_effector_view(Arms.LEFT, view)
-    unreachable = end_effector.grasp_poses_by_distance(milk)[0]
+    unreachable = end_effector.grasp_poses_by_distance(
+        milk, context.motion_tolerances.default_tcp_position_threshold
+    )[0]
 
     pick_up = PickUpAction(milk, Arms.LEFT, grasp_pose=unreachable)
     sequential([pick_up], context=context)

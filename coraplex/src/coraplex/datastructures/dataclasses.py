@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from typing_extensions import (
     Optional,
@@ -206,13 +206,4 @@ class Context(PlanEntity):
         :param robot: The robot of ``world`` that acts in it.
         :return: A context over ``world``, belonging to no plan.
         """
-        return Context(
-            world=world,
-            robot=robot,
-            ros_node=self.ros_node,
-            evaluate_conditions=self.evaluate_conditions,
-            query_backend=self.query_backend,
-            alternative_motion_mappings=self.alternative_motion_mappings,
-            _debug=self._debug,
-            motion_tolerances=self.motion_tolerances,
-        )
+        return replace(self, world=world, robot=robot, plan=None)

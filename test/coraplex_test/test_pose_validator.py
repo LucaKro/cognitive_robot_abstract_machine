@@ -600,7 +600,9 @@ def test_any_grasp_validator_keeps_the_grasp_it_reached(immutable_model_world):
         grasp
         for grasp in ViewManager.get_end_effector_view(
             Arms.RIGHT, robot_view
-        ).grasp_poses_by_distance(milk)
+        ).grasp_poses_by_distance(
+            milk, context.motion_tolerances.default_tcp_position_threshold
+        )
     ]
     assert any(
         np.allclose(
@@ -638,7 +640,9 @@ def test_any_grasp_validator_tries_the_nearest_grasps_first(
 
     expected = ViewManager.get_end_effector_view(
         Arms.RIGHT, robot_view
-    ).grasp_poses_by_distance(milk)
+    ).grasp_poses_by_distance(
+        milk, context.motion_tolerances.default_tcp_position_threshold
+    )
     assert len(tried) == len(expected)
     for actual, wanted in zip(tried, expected):
         np.testing.assert_allclose(

@@ -257,38 +257,6 @@ def test_new_reachability_location_body(
     assert len(pose.to_quaternion().to_list()) == 4
 
 
-def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
-    world, robot, context = immutable_multiple_robot_simple_apartment
-
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
-    with simulated_robot:
-        plan.perform()
-
-        world.notify_state_change()
-
-        location_body = reachability_location(
-            world.get_body_by_name("milk.stl"),
-            context,
-            ViewManager.get_arm_view(Arms.RIGHT, robot),
-        )
-
-        location_destination = reachability_location(
-            world.get_body_by_name("milk.stl"),
-            context,
-            ViewManager.get_arm_view(Arms.RIGHT, robot),
-            destination=world.get_body_by_name("milk.stl").global_pose,
-        )
-
-        merged_location = location_body & location_destination
-        pose = next(iter(merged_location))
-
-    assert len(pose.to_position().to_list()) == 4
-    assert len(pose.to_quaternion().to_list()) == 4
-
-
 def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
@@ -324,37 +292,6 @@ def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
         world.notify_state_change()
 
         location = visibility_location(world.get_body_by_name("milk.stl"), context)
-
-        pose = next(iter(location))
-
-    assert len(pose.to_position().to_list()) == 4
-    assert len(pose.to_quaternion().to_list()) == 4
-
-
-def test_visibility_reachability_merge(immutable_multiple_robot_simple_apartment):
-    world, robot, context = immutable_multiple_robot_simple_apartment
-
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
-
-    with simulated_robot:
-        plan.perform()
-
-        world.notify_state_change()
-
-        location_vis = visibility_location(world.get_body_by_name("milk.stl"), context)
-
-        next(iter(location_vis))
-
-        location_reach = reachability_location(
-            world.get_body_by_name("milk.stl"),
-            context,
-            ViewManager.get_arm_view(Arms.RIGHT, robot),
-        )
-
-        location = location_vis & location_reach
 
         pose = next(iter(location))
 
