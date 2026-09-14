@@ -197,3 +197,53 @@ def test_the_render_step_is_told_what_the_run_was_told(tmp_path) -> None:
     # what the setting decides is that first one.
     assert measuring(showing=True) == [True, False]
     assert measuring(showing=False) == [False, False]
+
+
+# %% the third render site, which no HM3D room can reach
+
+
+def test_a_run_showing_no_pictures_renders_none_for_its_questions(tmp_path) -> None:
+    """
+    The site this missed. A question about contested faces is rendered by a step of its
+    own, and no HM3D room reaches it: those files give every face to exactly one object,
+    so a room has nought ownership and nought membership questions and the renders never
+    ran. A scan contests faces constantly, and the window opened.
+    """
+    from experiments.warsaw.pipeline.pipeline import WarsawPipeline
+    from experiments.warsaw.pipeline.run import Run
+    from experiments.warsaw.pipeline.steps.evidence import MeasureScene
+
+    def rendering(showing: bool) -> list:
+        settings = PipelineSettings(
+            scene_directory=tmp_path,
+            show_the_pictures=showing,
+            show_the_contested_faces=showing,
+        )
+        planned = WarsawPipeline(settings=settings).run_steps(Run(directory=tmp_path))
+        return [
+            one.question_renders for one in planned if isinstance(one, MeasureScene)
+        ]
+
+    assert rendering(showing=False) == [0, 0]
+    assert max(rendering(showing=True)) > 0
+
+
+def test_the_contested_faces_are_asked_about_on_their_own_terms(tmp_path) -> None:
+    """
+    A different question from what an object is, and worth a different amount: a label
+    says what a thing is and says nothing about whose a shared surface is. So a run can
+    draw the contested faces while drawing nothing else.
+    """
+    from experiments.warsaw.pipeline.pipeline import WarsawPipeline
+    from experiments.warsaw.pipeline.run import Run
+    from experiments.warsaw.pipeline.steps.evidence import MeasureScene
+
+    settings = PipelineSettings(
+        scene_directory=tmp_path,
+        show_the_pictures=False,
+        show_the_contested_faces=True,
+    )
+    planned = WarsawPipeline(settings=settings).run_steps(Run(directory=tmp_path))
+    measuring = [one for one in planned if isinstance(one, MeasureScene)]
+    assert max(one.question_renders for one in measuring) > 0
+    assert [one.exemplar_renders for one in measuring] == [False, False]

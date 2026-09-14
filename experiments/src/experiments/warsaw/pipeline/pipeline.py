@@ -85,7 +85,7 @@ class WarsawPipeline(HasLogger):
                 settings=self.settings,
                 run=run,
                 knowing_the_vocabulary=True,
-                question_renders=1000,
+                question_renders=1000 if self.settings.show_the_contested_faces else 0,
                 overwrite=True,
             ),
         ]

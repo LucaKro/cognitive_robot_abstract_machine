@@ -115,6 +115,15 @@ class OverlapDecision(Question[AnswerType], Generic[AnswerType, AskedType]):
     def key(self) -> str:
         return f"{self.prompt.value}__{self.asked.name}"
 
+    @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this question puts pictures to the model. A run told to show
+            none renders none, and the question then reads as one asked from the measured
+            shares alone.
+        """
+        return bool(self.asked.images)
+
     def pictures(self) -> List[MessagePart]:
         """
         :return: The renders as parts of a message, captioned.
