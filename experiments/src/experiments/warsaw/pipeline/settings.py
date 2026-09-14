@@ -53,6 +53,12 @@ class Model(StrEnum):
     $0.20.
     """
 
+    QWEN3_VL_235B = "qwen/qwen3-vl-235b-a22b-instruct"
+    """
+    $0.21, and $1.90 per million completion tokens. Mixture-of-experts, 22B active: the
+    same family as :attr:`QWEN3_VL_30B` with seven times its active parameters.
+    """
+
     GEMINI_2_5_FLASH = "google/gemini-2.5-flash"
     """
     $0.30.
