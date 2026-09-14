@@ -17,6 +17,13 @@ Rules:
 - Name every object you are given, once, by the name it is listed under.
 - "class" is a name from the ontology's classes, or a name you propose.
 - If you propose one, "is_new_class" is true and "superclass" is a class of the ontology.
+- A class marked "abstract" is a category, never an answer: it says what kind of thing
+  something is, not what it is. Where the object is a kind of one -- a stool is a kind of
+  Furniture, an ornament a kind of Decor, a television a kind of ElectricalDevice -- name
+  the kind, set "is_new_class" true, and give the category as the superclass.
+- A class marked "mixin" is a base to build with and is never an answer either.
+- Choose the superclass by what the thing is, not by which class is nearest to hand: a
+  fire extinguisher is not a kind of furniture.
 {% if shows_pictures %}- Judge the object, not the paint: the colors mark what to look at, nothing more.
 {% endif %}
 - A class marked "abstract" cannot be given to an object. Name one of its subclasses,
