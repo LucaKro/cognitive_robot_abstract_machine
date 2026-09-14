@@ -28,11 +28,13 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 def occupancy_location(target_pose: Pose, context: Context) -> Location:
     """
-    Factory that creates a Location for robot base poses, is not validated.
+    Where the robot can stand around a target without standing in anything.
 
-    :param target_pose: Target pose around which robot base poses should be sampled
-    :param context: Context of the plan in which the location should be created
-    :returns: The Location for robot base poses
+    Nothing else is asked of a candidate: the poses are offered as the map has them.
+
+    :param target_pose: The pose the standing poses are drawn around.
+    :param context: The context in which to create the location.
+    :returns: A location of poses clear of the surroundings.
     """
     return Location(
         context=context,
@@ -52,12 +54,11 @@ def reachability_location(
     reach_fraction: float = ActionConfig.reach_fraction,
 ) -> Location:
     """
-    Factory method that creates a Location for robot poses from which one named grasp on
-    a body can be reached, where the body is or where it is going to be.
+    Where the robot can stand to reach one named grasp on a body.
 
-    The grasp is settled on before the pose is: this asks whether that one grasp works
-    from a candidate pose. :func:`grasping_location` asks the other way round, for a
-    pose from which any of an object's grasps works.
+    The grasp is settled on beforehand, and a candidate qualifies when the gripper can
+    approach it, close on it and withdraw from there. :func:`grasping_location` asks the
+    other way round, when any grasp of the object will do.
 
     :param body: The body the gripper grasps or holds.
     :param context: The context in which to create the location
@@ -107,15 +108,13 @@ def grasping_location(
     retreat_distance: float = ActionConfig.retreat_distance,
 ) -> Location:
     """
-    Factory that creates a Location for robot poses from which the object can be grasped
-    somehow, rather than from which one particular grasp can be reached.
+    Where the robot can stand to grasp an object, by any of the grasps it offers.
 
-    A grasp is only reachable from somewhere, so settling on one before a standing pose
-    is known picks it from wherever the robot happens to be. This asks the other way
-    round: a pose qualifies when any of the object's grasps can be reached from it, and
-    the validator keeps the one that was, in
-    :attr:`~coraplex.locations.pose_validator.IsObjectReachableBy.reachable_grasp`.
-    :func:`reachability_location` is the question to ask about a grasp already chosen.
+    A candidate qualifies as soon as one of them can be reached from it, and the grasp
+    that worked is kept on the location's
+    :attr:`~coraplex.locations.pose_validator.IsObjectReachableBy.reachable_grasp`, so
+    whoever takes the pose also learns which grasp it was chosen for. Settling on a
+    grasp first is :func:`reachability_location`.
 
     :param graspable: The annotation of the object that should be grasped.
     :param context: The context in which to create the location.
@@ -200,13 +199,15 @@ def accessing_location(
     container: Union[Drawer, Cabinet], context: Context, arm: Arm
 ) -> Location:
     """
-    Factory that creates a location for robot base poses for opening and closing
-    container.
+    Where the robot can stand to open or close a container by its handle.
 
-    :param container: The container that should be accessed
-    :param context: Plan context in which to create the location
-    :param arm: Arm with which to access the container
-    :returns: A location that is accessible from the container.
+    The same question :func:`reachability_location` answers about the handle, asked from
+    the closer stand-off distance that pulling a container needs.
+
+    :param container: The container to be opened or closed.
+    :param context: The context in which to create the location.
+    :param arm: The arm that works the handle.
+    :returns: A location from which the handle can be reached.
     """
     return reachability_location(
         body=container.handle.root,
@@ -218,12 +219,11 @@ def accessing_location(
 
 def visibility_location(target: Union[Pose, Body], context: Context) -> Location:
     """
-    Factory that creates a location for robot base poses from which the target is
-    visible.
+    Where the robot can stand to see a target with its camera.
 
-    :param target: Target pose or body that should be visible
-    :param context: Plan context in which to create the location
-    :returns: A location that is visible from the target pose.
+    :param target: The pose or body that should be visible.
+    :param context: The context in which to create the location.
+    :returns: A location from which the target is in view.
     """
     target_pose, target_body = (
         (target.global_pose, target) if isinstance(target, Body) else (target, None)
@@ -261,8 +261,10 @@ def giskard_reachability_location(
     retreat_distance: float = ActionConfig.retreat_distance,
 ) -> Location:
     """
-    Factory method that creates a location with a Giskard backend, the giskard backend
-    uses the Giskard full-body control to find a robot pose.
+    Where the robot can stand to reach a grasp, found by driving there.
+
+    The question :func:`reachability_location` answers, answered instead by letting
+    full-body control steer the robot to each candidate and offering where it arrived.
 
     :param body: The body the gripper grasps or holds.
     :param context: Plan context in which to create the location
