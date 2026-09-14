@@ -761,6 +761,16 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         The axis of this base that points where the robot faces.
         """
 
+    @property
+    def base_T_front(self) -> RotationMatrix:
+        """
+        The rotation from this base's own axes to the frame whose x-axis is its front.
+
+        A heading says where the front should point as its x-axis, so this is what turns
+        one into a base pose and, inverted the other way, reads one back off a base pose.
+        """
+        return RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
+
     def pose_facing(self, heading: Pose) -> Pose:
         """
         The base pose whose :attr:`forward_axis` points along ``heading``.
@@ -769,30 +779,10 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         its x-axis, so the same heading serves bases modelled with different axes. Its
         position is kept as it is.
         """
-        base_R_forward = RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
             heading.to_position(),
-            heading.to_rotation_matrix() @ base_R_forward.inverse(),
+            heading.to_rotation_matrix() @ self.base_T_front.inverse(),
             reference_frame=heading.reference_frame,
-        ).to_pose()
-
-    def heading_of(self, base_pose: Pose) -> Pose:
-        """
-        Where a base standing at the given pose faces, written as :meth:`pose_facing`
-        reads a heading: as the x-axis of the returned pose.
-
-        A base pose is in the robot's own axes, so handing one back to a caller that
-        expects a heading would have it read the base's x-axis as the front, turning the
-        robot by whatever :attr:`forward_axis` is away from it.
-
-        :param base_pose: The pose the base stands at.
-        :return: The heading it stands at.
-        """
-        base_R_forward = RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
-        return HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            base_pose.to_position(),
-            base_pose.to_rotation_matrix() @ base_R_forward,
-            reference_frame=base_pose.reference_frame,
         ).to_pose()
 
     @classmethod

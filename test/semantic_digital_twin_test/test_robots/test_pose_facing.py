@@ -20,6 +20,7 @@ from semantic_digital_twin.api import RobotSpecification
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, MobileBase
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Vector3
 from semantic_digital_twin.world import World
 
@@ -229,14 +230,21 @@ def test_the_heading_of_a_base_pose_is_the_heading_it_was_placed_at(
 ):
     """
     A caller handed a base pose has to be able to say which heading it stands at, or
-    offering it back as one turns the robot by whatever its forward axis is.
+    offering it back as one turns the robot by whatever its forward axis is. Turning it
+    back is :attr:`base_T_front` the other way round.
     """
     mobile_base = spawn(robot_type)
     heading = Pose.from_xyz_rpy(
         1.3, 2.0, 0.0, yaw=heading_yaw, reference_frame=mobile_base.root._world.root
     )
 
-    read_back = mobile_base.heading_of(mobile_base.pose_facing(heading))
+    base_pose = mobile_base.pose_facing(heading)
+
+    read_back = HomogeneousTransformationMatrix.from_point_rotation_matrix(
+        base_pose.to_position(),
+        base_pose.to_rotation_matrix() @ mobile_base.base_T_front,
+        reference_frame=base_pose.reference_frame,
+    ).to_pose()
 
     np.testing.assert_allclose(read_back.to_np(), heading.to_np(), atol=1e-9)
 

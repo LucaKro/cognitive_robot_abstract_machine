@@ -26,6 +26,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm, EndEffector
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
@@ -43,7 +44,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     The pose the base poses are searched around.
     """
 
-    number_of_candidates: int = field(default=20, kw_only=True)
+    number_of_candidates: int = field(default=5, kw_only=True)
     """
     How many base poses to draw and drive to.
     """
@@ -104,8 +105,6 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         """
         ground_pose = deepcopy(pose)
         ground_pose.z = 0.0
-
-        base_bb = self.robot.mobile_base.bounding_box
 
         occupancy_map = OccupancyCostmap(
             resolution=0.02,
@@ -259,7 +258,12 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                     pass
 
                 # Every backend offers headings, so the pose the drive ended at is
-                # handed back as one rather than in the robot's own axes.
-                reached = robot.mobile_base.heading_of(robot.root.global_pose)
+                # turned back into one rather than handed over in the robot's own axes.
+                stood_at = robot.root.global_pose
+                reached = HomogeneousTransformationMatrix.from_point_rotation_matrix(
+                    stood_at.to_position(),
+                    stood_at.to_rotation_matrix() @ robot.mobile_base.base_T_front,
+                    reference_frame=stood_at.reference_frame,
+                ).to_pose()
 
             yield reached.copy_for_world(self.world)
