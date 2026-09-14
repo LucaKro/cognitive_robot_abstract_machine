@@ -103,6 +103,11 @@ class Prompt(StrEnum):
     What each body of a split scene is.
     """
 
+    SUPERCLASS = "superclass"
+    """
+    What a class a run proposed is a kind of.
+    """
+
     TAXONOMY_AMENDMENT = "taxonomy_amendment"
     """
     Whether a class of the ontology should be given a mixin.

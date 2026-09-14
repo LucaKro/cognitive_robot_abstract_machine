@@ -151,6 +151,11 @@ class RunFile(StrEnum):
     The replies to the classification questions, as they came back.
     """
 
+    SUPERCLASS_ANSWERS = "superclass_answers"
+    """
+    What each class a run proposed was settled to be a kind of.
+    """
+
     AMENDMENT_ANSWERS = "amendment_answers"
     """
     The replies to the amendment questions, as they came back.

@@ -541,6 +541,28 @@ class VocabularyRequest(RunArtefact):
 
 
 @dataclass
+class SuperclassAnswer(ModelAnswer):
+    """
+    What one proposed class was settled to be a kind of.
+    """
+
+    class_name: str = ""
+    """
+    The class being placed.
+    """
+
+    superclass: Optional[str] = None
+    """
+    What it is a kind of, which is what the objects *are*.
+    """
+
+    mixins: List[str] = field(default_factory=list)
+    """
+    What it can hold, which is a different question from what it is.
+    """
+
+
+@dataclass
 class LabelAnswer(ClassAnswer):
     """
     What was answered about one label.
