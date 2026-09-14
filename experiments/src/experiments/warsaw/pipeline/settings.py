@@ -222,14 +222,15 @@ class PipelineSettings:
     show_the_contested_faces: bool = True
     """
     Whether the faces two labels both claim are rendered and put to the model, which is a
-    different question from whether the objects are.
+    different question from whether the objects are. Off, the same questions are still
+    asked, from the ontology and the measurements alone.
 
-    Kept apart from :attr:`show_the_pictures` because the two are worth different amounts.
-    The other renders ask what an object *is*, and a label already says that; this one
-    asks whose a surface is, where the measurement genuinely cannot say and the label
-    cannot either. A scan contests faces constantly -- a drawer front is labelled both as
-    the drawer and as the cabinet holding it -- and a converted HM3D room never does,
-    since those files give every face to exactly one object.
+    Kept apart from :attr:`show_the_pictures` because the two answer different questions:
+    the other renders ask what an object *is*, and this one whose a surface is. On the
+    kitchenlab the text alone answered it as well, for a quarter of the run's time. A scan
+    contests faces constantly -- a drawer front is labelled both as the drawer and as the
+    cabinet holding it -- and a converted HM3D room never does, since those files give
+    every face to exactly one object.
     """
 
     settle_the_superclass: bool = False
@@ -244,16 +245,22 @@ class PipelineSettings:
     costs one text-only call per class a run wants.
     """
 
-    skip_classes_that_name_a_category: bool = False
+    skip_classes_that_name_a_category: bool = True
     """
     Whether a class the ontology declares a category -- ``Furniture``, ``Decor``,
     ``ElectricalDevice`` -- is refused as an answer about an object.
 
-    Off, which is how every run before 2026-09-14 behaved, so the scans stay comparable
-    with what was already reported. On, the taxonomy marks those classes and the annotate
-    step refuses them, which is what makes a run compose ``Stool`` and ``Ornament``
-    instead of answering the category. It is not free: the same three rooms lost between
-    20 and 39 bodies to answers the guard then refused.
+    On for every dataset, so that what the pipeline does is one rule rather than a choice
+    made per scene. It was off while the two were being compared, and the comparison is
+    what settled it: on the HM3D rooms it is what makes a run compose ``Stool`` and
+    ``Ornament`` instead of answering the category they belong to, and on a scan it
+    changes one relation of sixty-four and refuses no body at all. The scans' vocabulary
+    is furniture the ontology already names, so there is little for it to refuse; HM3D's
+    ``ornament`` and ``stool`` have no classes, so the model reaches for the category
+    constantly.
+
+    It is not free on HM3D: a body answered with a category is left unannotated rather
+    than annotated coarsely, which cost between 20 and 39 bodies a room.
 
     A class Python itself calls abstract, carrying an unimplemented method, is refused
     either way. That one is not a choice: it cannot be instantiated at all.
