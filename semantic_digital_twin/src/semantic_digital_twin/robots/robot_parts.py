@@ -637,58 +637,76 @@ class EndEffector(AbstractRobotPart, ABC):
             return None
         return self.held_body_T_grasp
 
-    def distance_to_grasp(
-        self,
-        grasp_pose: Pose,
-        misalignment_lever_arm: float = 0.1,
-    ) -> float:
+    def _distance_to_grasp(self, grasp_pose: Pose) -> float:
         """
-        How far this gripper is from being able to close on a grasp.
-
-        Distance here means the Euclidean distance from the tool frame to the grasp,
-        plus what it costs to arrive facing the right way (priced at ``misalignment_lever_arm``
-        per radian of disagreement).
-
-        Roll about that axis is not counted, as turning the wrist about the direction
-        it already travels along costs the arm little.
+        How far this gripper is from closing on a grasp.
 
         ..note:: A geometric ranking, not a reachability test.
 
         :param grasp_pose: The grasp frame to reach.
-        :param misalignment_lever_arm: How many meters of reach one radian between the
-            approach direction and the way to the grasp is worth.
         :return: The distance in meters.
+        """
+        return float(self._vector_to_grasp(grasp_pose).norm())
+
+    def _misalignment_with_grasp(self, grasp_pose: Pose) -> float:
+        """
+        How far this gripper has to turn to enter a grasp the way it must be entered.
+
+        Measured between the direction the grasp is approached from and the direction
+        of the grasp itself, or, standing on it already, the direction the gripper
+        points now. Roll about that direction is not counted, as turning the wrist about
+        the direction it approaches along costs the arm little.
+
+        :param grasp_pose: The grasp frame to reach.
+        :return: The angle in radians.
         """
         world_T_goal = self._world.transform(
             self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
         )
-        world_T_tool = self.tool_frame.global_transform
-        world_V_travel = world_T_goal.to_position() - world_T_tool.to_position()
-        travelled = float(world_V_travel.norm())
-        if not travelled:
-            return 0.0
         world_V_approach = world_T_goal.to_rotation_matrix() @ self.front_facing_axis
-        return travelled + misalignment_lever_arm * float(
-            world_V_approach.angle_between(world_V_travel)
+        world_V_to_grasp = self._vector_to_grasp(grasp_pose)
+        if not float(world_V_to_grasp.norm()):
+            world_V_to_grasp = (
+                self.tool_frame.global_transform.to_rotation_matrix()
+                @ self.front_facing_axis
+            )
+        return float(world_V_approach.angle_between(world_V_to_grasp))
+
+    def _vector_to_grasp(self, grasp_pose: Pose) -> Vector3:
+        """
+        :param grasp_pose: The grasp frame to reach.
+        :return: From the tool frame to where it has to sit to hold the grasp, whose
+            length is the distance to it and whose direction is where it lies.
+        """
+        world_T_goal = self._world.transform(
+            self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
+        )
+        return (
+            world_T_goal.to_position() - self.tool_frame.global_transform.to_position()
         )
 
     def grasp_poses_by_distance(
         self,
         graspable: HasGraspPoses,
-        misalignment_lever_arm: float = 0.1,
+        position_tolerance: float,
     ) -> List[Pose]:
         """
         The grasps an object offers, the ones this gripper is closest to first.
 
+        Grasps whose distances the robot cannot tell apart are ordered by how far the
+        gripper has to turn to enter them, which is what decides between the grasps an
+        object offers at one and the same point.
+
         :param graspable: The object to be grasped.
-        :param misalignment_lever_arm: How many meters of reach one radian between the
-            approach direction and the way to the grasp is worth.
-        :return: Its grasp frames, ordered by :meth:`distance_to_grasp`.
+        :param position_tolerance: How close two distances have to be, in meters, to
+            count as the same distance.
+        :return: Its grasp frames, nearest first.
         """
         return sorted(
             graspable.grasp_poses(),
-            key=lambda grasp_pose: self.distance_to_grasp(
-                grasp_pose, misalignment_lever_arm
+            key=lambda grasp_pose: (
+                self._distance_to_grasp(grasp_pose) // position_tolerance,
+                self._misalignment_with_grasp(grasp_pose),
             ),
         )
 

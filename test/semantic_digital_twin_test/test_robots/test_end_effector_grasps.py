@@ -21,9 +21,9 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 # %% fixtures
 
-MISALIGNMENT_LEVER_ARM = 0.1
+POSITION_TOLERANCE = 0.005
 """
-How many meters of reach one radian of misaligned approach is worth in these tests.
+How close two distances have to be, in meters, to count as the same distance here.
 """
 
 HELD_BODY_OFFSET = HomogeneousTransformationMatrix.from_xyz_rpy(0.01, 0.02, 0.03)
@@ -235,19 +235,19 @@ def test_a_gripper_has_no_grasp_on_a_body_it_does_not_hold(pr2_gripper):
 
 
 def grasp_reached_from(
-    end_effector: EndEffector, world_V_travel: Vector3, misalignment: float = 0.0
+    end_effector: EndEffector, world_V_to_grasp: Vector3, misalignment: float = 0.0
 ) -> Pose:
     """
-    A grasp the gripper reaches by travelling ``world_V_travel``.
+    A grasp that sits ``world_V_to_grasp`` away from the gripper's tool frame.
 
     :param end_effector: The gripper the grasp is aimed at.
-    :param world_V_travel: The way from the tool frame to the grasp, in world axes.
+    :param world_V_to_grasp: From the tool frame to the grasp, in world axes.
     :param misalignment: How far the grasp's approach direction is turned away from
-        that way, about the world z-axis.
+        direction, about the world z-axis.
     :return: The grasp frame, in the world's frame.
     """
     world = end_effector._world
-    world_V_approach = RotationMatrix.from_rpy(yaw=misalignment) @ world_V_travel
+    world_V_approach = RotationMatrix.from_rpy(yaw=misalignment) @ world_V_to_grasp
     world_R_grasp = RotationMatrix.from_vectors(
         x=world_V_approach,
         z=Vector3.Z() if world_V_approach.to_np()[0] else Vector3.X(),
@@ -255,44 +255,63 @@ def grasp_reached_from(
     world_P_tool = end_effector.tool_frame.global_transform.to_position()
     return Pose(
         position=Point3.from_iterable(
-            world_P_tool.to_np()[:3] + world_V_travel.to_np()[:3]
+            world_P_tool.to_np()[:3] + world_V_to_grasp.to_np()[:3]
         ),
         orientation=world_R_grasp.to_quaternion(),
         reference_frame=world.root,
     )
 
 
-def test_distance_to_grasp_counts_the_way_to_the_grasp(pr2_gripper):
+def test_distance_to_grasp_is_the_gap_to_the_grasp(pr2_gripper):
     """
-    A grasp entered straight on costs the distance to it and nothing else.
+    The distance is a distance: meters, with nothing else priced into it.
     """
     reach = 0.4
 
-    distance = pr2_gripper.distance_to_grasp(
-        grasp_reached_from(pr2_gripper, Vector3(reach, 0, 0)),
-        MISALIGNMENT_LEVER_ARM,
+    distance = pr2_gripper._distance_to_grasp(
+        grasp_reached_from(pr2_gripper, Vector3(reach, 0, 0))
     )
 
     assert distance == pytest.approx(reach, abs=1e-6)
 
 
-def test_distance_to_grasp_counts_the_turn_onto_the_approach(pr2_gripper):
+def test_a_misaligned_grasp_is_no_further_away(pr2_gripper):
     """
-    A grasp the gripper has to enter sideways costs the detour on top of the distance.
+    Turning to enter a grasp does not bring it closer or push it away, so it cannot
+    make the grasp read as further off than one entered straight on.
     """
     reach = 0.4
+
+    sideways = pr2_gripper._distance_to_grasp(
+        grasp_reached_from(pr2_gripper, Vector3(reach, 0, 0), misalignment=np.pi / 2)
+    )
+
+    assert sideways == pytest.approx(reach, abs=1e-6)
+
+
+def test_the_misalignment_is_the_turn_onto_the_approach(pr2_gripper):
+    """
+    A grasp entered sideways has to be turned onto, and by how much is what decides
+    between grasps the gripper is equally far from.
+    """
     misalignment = np.pi / 4
 
-    distance = pr2_gripper.distance_to_grasp(
-        grasp_reached_from(
-            pr2_gripper, Vector3(reach, 0, 0), misalignment=misalignment
-        ),
-        MISALIGNMENT_LEVER_ARM,
+    turn = pr2_gripper._misalignment_with_grasp(
+        grasp_reached_from(pr2_gripper, Vector3(0.4, 0, 0), misalignment=misalignment)
     )
 
-    assert distance == pytest.approx(
-        reach + MISALIGNMENT_LEVER_ARM * misalignment, abs=1e-6
+    assert turn == pytest.approx(misalignment, abs=1e-6)
+
+
+def test_a_grasp_entered_straight_on_needs_no_turn(pr2_gripper):
+    """
+    A grasp approached along the way there is already faced the right way.
+    """
+    turn = pr2_gripper._misalignment_with_grasp(
+        grasp_reached_from(pr2_gripper, Vector3(0.4, 0, 0))
     )
+
+    assert turn == pytest.approx(0.0, abs=1e-6)
 
 
 def test_a_grasp_facing_back_at_the_gripper_is_the_dearest_of_all(pr2_gripper):
@@ -300,52 +319,42 @@ def test_a_grasp_facing_back_at_the_gripper_is_the_dearest_of_all(pr2_gripper):
     A grasp whose approach runs against the way there has to be entered from behind the
     object, which is the most a misalignment can cost.
     """
-    reach = 0.4
-
-    around_the_back = pr2_gripper.distance_to_grasp(
-        grasp_reached_from(pr2_gripper, Vector3(reach, 0, 0), misalignment=np.pi),
-        MISALIGNMENT_LEVER_ARM,
+    turn = pr2_gripper._misalignment_with_grasp(
+        grasp_reached_from(pr2_gripper, Vector3(0.4, 0, 0), misalignment=np.pi)
     )
 
-    assert around_the_back == pytest.approx(
-        reach + MISALIGNMENT_LEVER_ARM * np.pi, abs=1e-6
-    )
+    assert turn == pytest.approx(np.pi, abs=1e-6)
 
 
-def test_a_lever_arm_of_zero_prices_the_misalignment_out(pr2_gripper):
+def test_the_turn_is_measured_from_where_the_gripper_points_when_it_stands_on_the_grasp(
+    pr2_gripper,
+):
     """
-    Without a lever arm the ranking is the plain distance to the grasp.
+    With no gap left there is nothing to close, so the turn is what it still costs to
+    face the grasp the way it has to be entered.
     """
-    reach = 0.4
-    sideways = grasp_reached_from(
-        pr2_gripper, Vector3(reach, 0, 0), misalignment=np.pi / 2
+    world = pr2_gripper._world
+    world_T_tool = pr2_gripper.tool_frame.global_transform
+    world_V_facing = world_T_tool.to_rotation_matrix() @ pr2_gripper.front_facing_axis
+    turned_away = RotationMatrix.from_rpy(yaw=np.pi / 2) @ world_V_facing
+    on_the_spot = Pose(
+        position=world_T_tool.to_position(),
+        orientation=RotationMatrix.from_vectors(
+            x=turned_away, z=world_V_facing
+        ).to_quaternion(),
+        reference_frame=world.root,
     )
 
-    assert pr2_gripper.distance_to_grasp(sideways, 0.0) == pytest.approx(
-        reach, abs=1e-6
+    assert pr2_gripper._distance_to_grasp(on_the_spot) == pytest.approx(0.0, abs=1e-6)
+    assert pr2_gripper._misalignment_with_grasp(on_the_spot) == pytest.approx(
+        np.pi / 2, abs=1e-6
     )
-
-
-def test_the_misalignment_is_priced_even_when_no_lever_arm_is_given(pr2_gripper):
-    """
-    The default has to price the detour, or a grasp facing back at the gripper would
-    rank level with one it can drive straight into.
-    """
-    reach = 0.4
-    straight_on = grasp_reached_from(pr2_gripper, Vector3(reach, 0, 0))
-    around_the_back = grasp_reached_from(
-        pr2_gripper, Vector3(reach, 0, 0), misalignment=np.pi
-    )
-
-    assert pr2_gripper.distance_to_grasp(
-        around_the_back
-    ) > pr2_gripper.distance_to_grasp(straight_on)
 
 
 def test_grasp_poses_by_distance_offers_every_grasp_the_object_has(
     pr2_gripper, graspable_box
 ):
-    ranked = pr2_gripper.grasp_poses_by_distance(graspable_box, MISALIGNMENT_LEVER_ARM)
+    ranked = pr2_gripper.grasp_poses_by_distance(graspable_box, POSITION_TOLERANCE)
 
     offered = [pose.to_np() for pose in graspable_box.grasp_poses()]
     assert len(ranked) == len(offered)
@@ -356,11 +365,9 @@ def test_grasp_poses_by_distance_offers_every_grasp_the_object_has(
 def test_grasp_poses_by_distance_puts_the_closest_grasp_first(
     pr2_gripper, graspable_box
 ):
-    ranked = pr2_gripper.grasp_poses_by_distance(graspable_box, MISALIGNMENT_LEVER_ARM)
+    ranked = pr2_gripper.grasp_poses_by_distance(graspable_box, POSITION_TOLERANCE)
 
-    distances = [
-        pr2_gripper.distance_to_grasp(pose, MISALIGNMENT_LEVER_ARM) for pose in ranked
-    ]
+    distances = [pr2_gripper._distance_to_grasp(pose) for pose in ranked]
     assert distances == sorted(distances)
 
 
@@ -369,13 +376,13 @@ def test_the_best_grasp_is_the_one_the_gripper_faces(pr2_gripper, graspable_box)
     The whole point of the ranking: of a ring of grasps that share one position, the one
     entered from the gripper's own side wins, never one reached around the far side.
     """
-    best = pr2_gripper.grasp_poses_by_distance(graspable_box, MISALIGNMENT_LEVER_ARM)[0]
+    best = pr2_gripper.grasp_poses_by_distance(graspable_box, POSITION_TOLERANCE)[0]
 
     world = graspable_box._world
     world_T_grasp = world.transform(best.to_homogeneous_matrix(), world.root)
-    world_V_travel = (
+    world_V_to_grasp = (
         world_T_grasp.to_position()
         - pr2_gripper.tool_frame.global_transform.to_position()
     )
     world_V_approach = world_T_grasp.to_rotation_matrix() @ Vector3.X()
-    assert float(world_V_approach.angle_between(world_V_travel)) < np.pi / 2
+    assert float(world_V_approach.angle_between(world_V_to_grasp)) < np.pi / 2

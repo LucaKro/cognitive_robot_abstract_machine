@@ -521,7 +521,8 @@ class IsObjectReachableBy(GraspReachabilityValidator):
         return [
             (grasp_pose, grasp_pose.copy_for_world(self.world))
             for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
-                graspable
+                graspable,
+                self.context.motion_tolerances.default_tcp_position_threshold,
             )
         ]
 
