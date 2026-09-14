@@ -330,24 +330,25 @@ def test_the_turn_is_measured_from_where_the_gripper_points_when_it_stands_on_th
     pr2_gripper,
 ):
     """
-    With no gap left there is nothing to close, so the turn is what it still costs to
-    face the grasp the way it has to be entered.
+    With no distance left to close there is nowhere to measure the turn against but the
+    way the gripper points, so a grasp to be entered from the opposite side still costs
+    the whole turn rather than nothing.
     """
     world = pr2_gripper._world
     world_T_tool = pr2_gripper.tool_frame.global_transform
     world_V_facing = world_T_tool.to_rotation_matrix() @ pr2_gripper.front_facing_axis
-    turned_away = RotationMatrix.from_rpy(yaw=np.pi / 2) @ world_V_facing
+    from_behind = Vector3.from_iterable(-world_V_facing.to_np()[:3])
     on_the_spot = Pose(
         position=world_T_tool.to_position(),
         orientation=RotationMatrix.from_vectors(
-            x=turned_away, z=world_V_facing
+            x=from_behind, z=Vector3.Z()
         ).to_quaternion(),
         reference_frame=world.root,
     )
 
     assert pr2_gripper._distance_to_grasp(on_the_spot) == pytest.approx(0.0, abs=1e-6)
     assert pr2_gripper._misalignment_with_grasp(on_the_spot) == pytest.approx(
-        np.pi / 2, abs=1e-6
+        np.pi, abs=1e-6
     )
 
 
