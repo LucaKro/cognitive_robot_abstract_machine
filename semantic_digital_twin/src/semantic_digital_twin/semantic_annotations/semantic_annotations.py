@@ -1510,7 +1510,7 @@ class SaltPepperShaker(HasGraspPoses):
 
 
 @dataclass(eq=False)
-class Cuttlery(HasGraspPoses):
+class Cutlery(HasGraspPoses):
     """
     A piece of cutlery.
     """
@@ -1528,7 +1528,7 @@ class Cuttlery(HasGraspPoses):
         ).bounding_box()
         along_x = bounding_box.x_interval.upper - bounding_box.x_interval.lower
         along_y = bounding_box.y_interval.upper - bounding_box.y_interval.lower
-        finger_axis = Vector3.Y() if along_x >= along_y else Vector3.X()
+        finger_axis = Vector3.NEGATIVE_Y() if along_x >= along_y else Vector3.X()
         yield Pose(
             orientation=RotationMatrix.from_vectors(
                 x=Vector3.NEGATIVE_Z(), y=finger_axis
@@ -1538,21 +1538,21 @@ class Cuttlery(HasGraspPoses):
 
 
 @dataclass(eq=False)
-class Fork(Cuttlery):
+class Fork(Cutlery):
     """
     A fork.
     """
 
 
 @dataclass(eq=False)
-class Knife(Cuttlery):
+class Knife(Cutlery):
     """
     A butter knife.
     """
 
 
 @dataclass(eq=False)
-class Spoon(Cuttlery, IsPerceivable): ...
+class Spoon(Cutlery, IsPerceivable): ...
 
 
 @dataclass(eq=False)
