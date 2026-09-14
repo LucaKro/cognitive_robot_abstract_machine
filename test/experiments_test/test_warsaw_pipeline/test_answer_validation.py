@@ -9,7 +9,14 @@ like the scene's fault rather than the answer's.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    build_taxonomy,
+    declares_itself_a_category,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 from experiments.warsaw.pipeline.records import (
     BodyAnswer,
@@ -49,6 +56,50 @@ def label_question(known, taxonomy, tmp_path):
     )
 
 
+@pytest.fixture
+def a_category(known) -> str:
+    """
+    :return: The name of a class the ontology declares a category while Python can still
+        instantiate it, which is the case a run has to decide rather than one it cannot.
+    """
+    return next(
+        name
+        for name, annotation_class in sorted(known.items())
+        if declares_itself_a_category(annotation_class)
+        and not inspect.isabstract(annotation_class)
+    )
+
+
+@pytest.fixture
+def taxonomy_refusing_categories() -> dict:
+    """
+    :return: The live ontology as a run refusing categories exports it.
+    """
+    return build_taxonomy(SemanticAnnotation, categories_are_answers=False)
+
+
+@pytest.fixture
+def taxonomy_accepting_categories() -> dict:
+    """
+    :return: The live ontology as a run accepting categories exports it.
+    """
+    return build_taxonomy(SemanticAnnotation, categories_are_answers=True)
+
+
+@pytest.fixture
+def label_question_refusing_categories(known, taxonomy_refusing_categories, tmp_path):
+    """
+    :return: A question about one label, told that categories are no answer.
+    """
+    return LabelQuestion(
+        label=LabelRequest(label="stairs", instances=32, exemplar="stairs_195"),
+        every_label=["stairs", "wall"],
+        taxonomy=taxonomy_refusing_categories,
+        known=known,
+        renders_directory=tmp_path,
+    )
+
+
 # %% what a label may be answered with
 
 
@@ -76,6 +127,58 @@ def test_a_mixin_given_as_a_class_is_refused(label_question):
     problems = label_question.problems_with(LabelAnswer(class_name="HasHandle"))
     assert len(problems) == 1
     assert "HasHandle" in problems[0]
+
+
+def test_a_category_given_as_a_class_is_refused(
+    label_question_refusing_categories, a_category
+):
+    """
+    A category says what kind of thing something is, not what it is, so a run told to
+    refuse them asks again rather than finding out when it annotates.
+
+    This is the answer that left a real run's 32 stairs as Furniture.
+    """
+    problems = label_question_refusing_categories.problems_with(
+        LabelAnswer(class_name=a_category)
+    )
+    assert len(problems) == 1
+    assert a_category in problems[0]
+
+
+def test_a_new_class_deriving_from_a_category_is_usable(
+    label_question_refusing_categories, a_category
+):
+    """
+    Naming the kind, with the category as its superclass, is exactly what a category is
+    there for.
+    """
+    assert (
+        label_question_refusing_categories.problems_with(
+            LabelAnswer(
+                class_name="AKindOfACategoryTheOntologyLacks",
+                is_new_class=True,
+                superclass=a_category,
+            )
+        )
+        == []
+    )
+
+
+def test_a_category_is_usable_where_the_run_accepts_categories(
+    known, taxonomy_accepting_categories, tmp_path, a_category
+):
+    """
+    Whether a category is an answer is the run's setting, and the question follows what
+    the model was told rather than deciding it again.
+    """
+    question = LabelQuestion(
+        label=LabelRequest(label="stairs", instances=32, exemplar="stairs_195"),
+        every_label=["stairs", "wall"],
+        taxonomy=taxonomy_accepting_categories,
+        known=known,
+        renders_directory=tmp_path,
+    )
+    assert question.problems_with(LabelAnswer(class_name=a_category)) == []
 
 
 def test_a_class_that_is_neither_in_the_ontology_nor_proposed_is_refused(
@@ -342,3 +445,44 @@ def test_a_body_given_no_class_is_refused(body_group):
         }
     )
     assert any("handle_23 was given no class" in one for one in problems)
+
+
+def test_a_body_given_a_category_is_refused(
+    body_group, taxonomy_refusing_categories, a_category
+):
+    """
+    The same holds of a body: answered with a category, it would be left unannotated by
+    the annotate step, so it is asked about again while the model is still there.
+    """
+    body_group.taxonomy = taxonomy_refusing_categories
+    problems = body_group.problems_with(
+        {
+            "drawer_19": BodyAnswer(class_name=a_category),
+            "handle_23": BodyAnswer(class_name="Handle"),
+        }
+    )
+    assert len(problems) == 1
+    assert "drawer_19" in problems[0]
+    assert a_category in problems[0]
+
+
+def test_a_body_given_a_new_class_of_a_category_is_usable(
+    body_group, taxonomy_refusing_categories, a_category
+):
+    """
+    Proposing the kind under the category is the answer the category asks for.
+    """
+    body_group.taxonomy = taxonomy_refusing_categories
+    assert (
+        body_group.problems_with(
+            {
+                "drawer_19": BodyAnswer(
+                    class_name="AClassTheOntologyLacks",
+                    is_new_class=True,
+                    superclass=a_category,
+                ),
+                "handle_23": BodyAnswer(class_name="Handle"),
+            }
+        )
+        == []
+    )

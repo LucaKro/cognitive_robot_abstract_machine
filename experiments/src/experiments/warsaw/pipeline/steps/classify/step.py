@@ -34,7 +34,7 @@ from typing_extensions import Any, Dict, List, Sequence
 
 from krrood.ormatic.utils import classproperty
 
-from experiments.warsaw.pipeline.asking import Prompt, Question
+from experiments.warsaw.pipeline.asking import Prompt, Question, TaxonomyCategories
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.camera_poses import CameraPoses
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications, Vocabulary
@@ -156,9 +156,19 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
             problems.append(
                 f"{', '.join(unknown)} were named but are not in the picture"
             )
+        categories = TaxonomyCategories(taxonomy=self.taxonomy)
         for name, one in answer.items():
-            if name in wanted and not one.class_name:
+            if name not in wanted:
+                continue
+            if not one.class_name:
                 problems.append(f"{name} was given no class")
+                continue
+            problems.extend(
+                f"{name}: {problem}"
+                for problem in categories.problems_with(
+                    one.class_name, one.is_new_class
+                )
+            )
         return problems
 
 

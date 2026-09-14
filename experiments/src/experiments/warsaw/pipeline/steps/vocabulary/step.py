@@ -39,7 +39,11 @@ from typing_extensions import Any, Dict, List, Type
 
 from krrood.ormatic.utils import classproperty
 
-from experiments.warsaw.pipeline.asking import Prompt, QuestionAboutTheOntology
+from experiments.warsaw.pipeline.asking import (
+    Prompt,
+    QuestionAboutTheOntology,
+    TaxonomyCategories,
+)
 from experiments.warsaw.pipeline.records import (
     LabelAnswer,
     LabelRequest,
@@ -201,6 +205,11 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
                 f"rather than what it is; derive a class from it instead of answering "
                 f"with it"
             )
+        problems.extend(
+            TaxonomyCategories(taxonomy=self.taxonomy).problems_with(
+                answer.class_name, answer.is_new_class
+            )
+        )
         if not answer.is_new_class:
             if answer.class_name not in self.known:
                 problems.append(
