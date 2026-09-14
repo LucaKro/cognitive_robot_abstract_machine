@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import logging
-import random
 from copy import deepcopy
 from dataclasses import dataclass, field
-from functools import partial
 from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 from matplotlib import colors
 from skimage.measure import label
 from typing_extensions import (
@@ -16,13 +15,12 @@ from typing_extensions import (
     List,
     Optional,
     Iterator,
-    Callable,
     Set,
     TYPE_CHECKING,
 )
 
 from coraplex.locations.base import PoseGeneratorBackend
-from coraplex.locations.sampling import CandidateDraw, CostmapSamplingStrategy
+from coraplex.locations.sampling import CandidateDraw
 from semantic_digital_twin.datastructures.camera_resolution import CameraResolution
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor
@@ -41,66 +39,6 @@ from coraplex.exceptions import NonPositiveNumberOfSamples
 from coraplex.datastructures.dataclasses import Context
 
 logger = logging.getLogger("coraplex")
-
-
-class OrientationGenerator:
-    """
-    Provides methods to generate orientations for pose candidates.
-    """
-
-    @staticmethod
-    def generate_origin_orientation(
-        position: Point3, origin: Pose, rotate_by_angle: float = 0
-    ) -> Quaternion:
-        """
-        Generates an orientation such that the robot faces the origin of the locations.
-
-        :param position: The position in the locations, already converted to the world coordinate frame.
-        :param origin: The origin of the locations, the point which the robot should face.
-        :param rotate_by_angle: Angle to rotate the orientation.
-        :return: A quaternion of the calculated orientation.
-        """
-        rotation_R_new_rotation = RotationMatrix.from_rpy(0, 0, rotate_by_angle)
-        angle = (
-            np.arctan2(
-                position.y - origin.y,
-                position.x - origin.x,
-            )
-            + np.pi
-        )[0]
-        world_R_rotation = RotationMatrix.from_rpy(0, 0, angle)
-        world_R_new_rotation = world_R_rotation @ rotation_R_new_rotation
-        return world_R_new_rotation.to_quaternion()
-
-    @staticmethod
-    def orientation_generator_for_axis(
-        axis: Vector3,
-    ) -> Callable[[Point3, Pose], Quaternion]:
-        """
-        Creates an orientation generator where the given axis is facing the target.
-
-        :param axis: The axis which should be facing the target
-        :return: A callable orientation generator
-        """
-        rotation = axis[1] * (np.pi / 2) * -1
-        return partial(
-            OrientationGenerator.generate_origin_orientation, rotate_by_angle=rotation
-        )
-
-    @staticmethod
-    def generate_random_orientation(
-        *_, random_generator: random.Random = random.Random(42)
-    ) -> Quaternion:
-        """
-        Generates a random orientation rotated around the z-axis (yaw).
-        A random angle is sampled using a provided RNG instance to ensure reproducibility.
-
-        :param _: Ignored parameters to maintain compatibility with other orientation generators.
-        :param random_generator: Random number generator instance for reproducible sampling.
-
-        :return: A quaternion of the randomly generated orientation.
-        """
-        return Quaternion.from_rpy(0, 0, random_generator.uniform(0, 2 * np.pi))
 
 
 @dataclass
@@ -359,8 +297,8 @@ class Costmap(PoseGeneratorBackend):
         """
         Draw pose candidates from this map.
 
-        The sample count is capped at the number of entries this map holds, and a
-        ``None`` orientation generator faces this map's origin.
+        The sample count is capped at the number of entries this map holds, and every
+        candidate faces this map's origin.
 
         :param draw: The terms to draw the candidates on.
         :return: The candidate poses, in the order they should be tried.
@@ -371,41 +309,126 @@ class Costmap(PoseGeneratorBackend):
 
         # An entry is only ever offered once, so the whole map is all there is to draw.
         return self._draw(
-            draw.sampling_strategy,
             min(draw.number_of_samples, self.map.size),
-            draw.orientation_generator,
+            np.random.default_rng(draw.seed),
+        )
+
+    def _orientation_facing_origin(self, position: Point3) -> Quaternion:
+        """
+        The orientation a candidate drawn at the given position is offered with.
+
+        A candidate faces this map's origin, so that whatever the map was built around
+        is in front of the robot standing there.
+
+        :param position: Where the candidate lies, in world frame.
+        :return: The orientation for that candidate.
+        """
+        angle = (
+            np.arctan2(
+                position.y - self.origin.y,
+                position.x - self.origin.x,
+            )
+            + np.pi
+        )[0]
+        return RotationMatrix.from_rpy(0, 0, angle).to_quaternion()
+
+    @staticmethod
+    def _offerable_entries(ratings: NDArray[np.float64]) -> int:
+        """
+        How many of the given entries can be offered at all.
+
+        An entry rated zero stands no chance of being drawn, so only the rated ones
+        count -- unless nothing is rated, which is drawn from evenly.
+
+        :param ratings: The flattened map, one rating per entry.
+        :return: How many entries are offerable.
+        """
+        return int(np.count_nonzero(ratings)) or ratings.size
+
+    def _budget_per_segment(
+        self, segments: List[np.ndarray], number_of_samples: int
+    ) -> List[int]:
+        """
+        Split a budget over this map's segments, each drawn from as much as it is rated.
+
+        A segment the map barely rates is barely drawn from, which is what makes the
+        draw follow the whole map rather than only the shape of each segment. What a
+        segment has no entries left for goes to the next best rated one instead, so a
+        budget is spent even when the best rated segment is a single entry.
+
+        :param segments: This map's segments, the best rated first.
+        :param number_of_samples: How many candidates the whole map was asked for.
+        :return: How many to draw from each segment, in the order they were given.
+        """
+        capacities = [
+            self._offerable_entries(segment.flatten()) for segment in segments
+        ]
+        ratings = np.array([segment.sum() for segment in segments], dtype=float)
+        shares = (
+            number_of_samples * ratings / ratings.sum()
+            if ratings.any()
+            else np.full(len(segments), number_of_samples / len(segments))
+        )
+        budgets = np.minimum(np.floor(shares).astype(int), capacities)
+        # segment_map offers its highest rated segments first, so whatever the shares
+        # left over is spent on the best rated segments that still hold entries.
+        unspent = number_of_samples - int(budgets.sum())
+        for index, capacity in enumerate(capacities):
+            if unspent <= 0:
+                break
+            taken = min(unspent, capacity - int(budgets[index]))
+            budgets[index] += taken
+            unspent -= taken
+        return budgets.tolist()
+
+    def _pick_entries(
+        self,
+        ratings: NDArray[np.float64],
+        count: int,
+        random_generator: np.random.Generator,
+    ) -> NDArray[np.intp]:
+        """
+        Pick which of the given entries to offer, an entry's rating being its chance of
+        being drawn.
+
+        Read that way the map is the distribution its shape describes, so what it rates
+        highest is merely likeliest and the rest of the region still comes up. An entry
+        rated zero stands no chance, so only the rated ones can be offered -- unless the
+        map rates nothing at all, which is drawn from evenly. Fewer than asked for are
+        offered when that leaves too few, since an entry is only ever offered once.
+
+        :param ratings: The flattened map, one rating per entry.
+        :param count: How many entries to pick at most.
+        :param random_generator: The source of randomness to draw from.
+        :return: The indices to offer, in the order they should be offered.
+        """
+        offerable = min(count, self._offerable_entries(ratings))
+        if offerable <= 0:
+            return np.empty(0, dtype=np.intp)
+        if not ratings.any():
+            return random_generator.choice(ratings.size, offerable, replace=False)
+        return random_generator.choice(
+            ratings.size, offerable, replace=False, p=ratings / ratings.sum()
         )
 
     def _draw(
         self,
-        sampling_strategy: CostmapSamplingStrategy,
         number_of_samples: int,
-        orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]],
+        random_generator: np.random.Generator,
     ) -> Iterator[Pose]:
         """
         Draw candidates, the given number of them spread over this map's segments.
 
-        :param sampling_strategy: What this map's ratings are used for when picking.
         :param number_of_samples: How many candidates to draw, no more than this map
             holds.
-        :param orientation_generator: Which way a candidate faces, or ``None`` to face
-            this map's origin.
+        :param random_generator: The source of randomness the draw is made with.
         :Yield: A candidate pose.
         """
-        generate_orientation = (
-            orientation_generator or OrientationGenerator.generate_origin_orientation
-        )
         segmented_maps = self.segment_map()
-        # segment_map offers its highest rated segments first, so a budget that does
-        # not divide evenly leaves its remainder with the best rated ones.
-        samples_per_map, remainder = divmod(number_of_samples, len(segmented_maps))
-        for segment_index, segmented_map in enumerate(segmented_maps):
-
-            samples_for_this_map = samples_per_map + (
-                1 if segment_index < remainder else 0
-            )
-            indices = sampling_strategy.choose(
-                segmented_map.flatten(), samples_for_this_map
+        budgets = self._budget_per_segment(segmented_maps, number_of_samples)
+        for segmented_map, budget in zip(segmented_maps, budgets):
+            indices = self._pick_entries(
+                segmented_map.flatten(), budget, random_generator
             )
 
             indices = np.dstack(np.unravel_index(indices, self.map.shape)).reshape(
@@ -423,7 +446,7 @@ class Costmap(PoseGeneratorBackend):
                 offset = (index - center) * self.resolution
                 position = self.origin.to_position() + Vector3(offset[0], offset[1], 0)
 
-                orientation: Quaternion = generate_orientation(position, self.origin)
+                orientation: Quaternion = self._orientation_facing_origin(position)
                 yield Pose(
                     position,
                     orientation,

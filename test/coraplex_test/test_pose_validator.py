@@ -131,7 +131,7 @@ def test_unmatched_tip_link_raises(immutable_model_world):
     )
 
     with simulated_robot, pytest.raises(TipLinkDoesNotMatchAnyArm):
-        validator.create_msc()
+        validator.create_motion_state_chart()
 
 
 def test_pose_sequence_one_not_reachable(immutable_model_world):
@@ -361,7 +361,7 @@ def test_validation_avoids_collisions_when_the_run_does(immutable_model_world):
     validator = _reachability_validator(world, robot_view, context)
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-        msc = validator.create_msc()
+        msc = validator.create_motion_state_chart()
 
     assert len(msc.get_nodes_by_type(ExternalCollisionAvoidance)) == 1
     assert len(msc.get_nodes_by_type(SelfCollisionAvoidance)) == 1
@@ -377,7 +377,7 @@ def test_validation_leaves_out_collision_avoidance_when_the_run_does(
     validator = _reachability_validator(world, robot_view, context)
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=False):
-        msc = validator.create_msc()
+        msc = validator.create_motion_state_chart()
 
     assert msc.get_nodes_by_type(ExternalCollisionAvoidance) == []
     assert msc.get_nodes_by_type(SelfCollisionAvoidance) == []
@@ -398,7 +398,7 @@ def test_validation_frees_the_gripper_like_the_reach_it_validates(
     validator = _reachability_validator(world, robot_view, context)
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-        msc = validator.create_msc()
+        msc = validator.create_motion_state_chart()
 
     [rules_node] = msc.get_nodes_by_type(UpdateTemporaryCollisionRules)
     (rule,) = rules_node.temporary_rules
@@ -418,7 +418,7 @@ def test_validation_uses_the_same_goal_tolerances_the_motions_do(
     world, robot_view, context = immutable_model_world
     validator = _reachability_validator(world, robot_view, context)
 
-    msc = validator.create_msc()
+    msc = validator.create_motion_state_chart()
 
     [sequence] = msc.get_nodes_by_type(Sequence)
     goals = [node for node in sequence.nodes if isinstance(node, CartesianPose)]
@@ -441,7 +441,7 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
     world, robot_view, context = immutable_model_world
     validator = _reachability_validator(world, robot_view, context)
 
-    msc = validator.create_msc()
+    msc = validator.create_motion_state_chart()
 
     [progress_monitor] = msc.get_nodes_by_type(StillProgressing)
     [sequence] = msc.get_nodes_by_type(Sequence)
@@ -513,7 +513,7 @@ def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model
     )
 
     with world.reset_state_context():
-        executor = validator.create_executor(validator.create_msc())
+        executor = validator.create_executor(validator.create_motion_state_chart())
 
         with pytest.raises(NoProgressError):
             executor.tick_until_end()

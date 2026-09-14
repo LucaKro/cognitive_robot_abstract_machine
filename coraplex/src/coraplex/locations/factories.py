@@ -10,11 +10,6 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.config.action_conf import ActionConfig
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location
-from coraplex.locations.sampling import (
-    CandidateDraw,
-    CostmapSamplingStrategy,
-    WeightedByRating,
-)
 from coraplex.locations.costmaps import OccupancyCostmap, RingCostmap, VisibilityCostmap
 from coraplex.locations.pose_validator import (
     AreReachableBy,
@@ -40,7 +35,10 @@ def occupancy_location(target_pose: Pose, context: Context) -> Location:
     :returns: The Location for robot base poses
     """
     return Location(
-        context, target_pose, OccupancyCostmap.default_map(context, target_pose), []
+        context=context,
+        target_pose=target_pose,
+        generator=OccupancyCostmap.default_map(context, target_pose),
+        validators=[],
     )
 
 
@@ -53,11 +51,14 @@ def reachability_location(
     approach_clearance: float = ActionConfig.approach_clearance,
     retreat_distance: float = ActionConfig.retreat_distance,
     reach_fraction: float = ActionConfig.reach_fraction,
-    sampling_strategy: Optional[CostmapSamplingStrategy] = None,
 ) -> Location:
     """
-    Factory method that creates a Location for robot poses from which a body can be
-    grasped where it is, or released where it is going to be.
+    Factory method that creates a Location for robot poses from which one named grasp on
+    a body can be reached, where the body is or where it is going to be.
+
+    The grasp is settled on before the pose is: this asks whether that one grasp works
+    from a candidate pose. :func:`grasping_location` asks the other way round, for a
+    pose from which any of an object's grasps works.
 
     :param body: The body the gripper grasps or holds.
     :param context: The context in which to create the location
@@ -84,13 +85,13 @@ def reachability_location(
     )
     final_costmap = occupancy_costmap & ring_costmap
     return Location(
-        context,
-        target_pose,
-        final_costmap,
-        [
+        context=context,
+        target_pose=target_pose,
+        generator=final_costmap,
+        validators=[
             AreReachableBy.for_grasp(
-                target_pose.to_homogeneous_matrix() @ body_T_grasp,
-                arm,
+                grasp_pose=target_pose.to_homogeneous_matrix() @ body_T_grasp,
+                arm=arm,
                 body_T_grasp=body_T_grasp,
                 context=context,
                 reverse=releases_the_body,
@@ -98,21 +99,10 @@ def reachability_location(
                 retreat_distance=retreat_distance,
             )
         ],
-        draw=CandidateDraw(
-            sampling_strategy=sampling_strategy
-            or WeightedByRating(seed=context.sampling_seed)
-        ),
     )
 
 
-def grasping_location(
-    graspable: HasGraspPoses,
-    context: Context,
-    arm: Arm,
-    approach_clearance: float = ActionConfig.approach_clearance,
-    retreat_distance: float = ActionConfig.retreat_distance,
-    sampling_strategy: Optional[CostmapSamplingStrategy] = None,
-) -> Location:
+def grasping_location(validator: IsObjectReachableBy) -> Location:
     """
     Factory that creates a Location for robot poses from which the object can be grasped
     somehow, rather than from which one particular grasp can be reached.
@@ -122,36 +112,26 @@ def grasping_location(
     round: a pose qualifies when any of the object's grasps can be reached from it, and
     the validator keeps the one that was, in
     :attr:`~coraplex.locations.pose_validator.IsObjectReachableBy.reachable_grasp`.
+    :func:`reachability_location` is the question to ask about a grasp already chosen.
 
-    :param graspable: The annotation of the object that should be grasped.
-    :param context: The context in which to create the location.
-    :param arm: The arm with which to grasp the object.
-    :param approach_clearance: The gap left between the object and the gripper before
-        the final approach.
-    :param retreat_distance: How far the gripper rises after closing on the object.
+    The validator belongs to the caller, so whoever wants the grasp that was found
+    already holds the validator it is kept on.
+
+    :param validator: The validator asking whether the object is graspable, which names
+        the object, the arm and the context this location is for.
     :returns: A location from which the object can be grasped.
     """
-    target_pose = graspable.root.global_pose
-    occupancy_costmap = OccupancyCostmap.default_map(context, target_pose)
-    ring_costmap = RingCostmap.from_arm_reach_distance(context, arm, target_pose)
+    target_pose = validator.graspable.root.global_pose
+    occupancy_costmap = OccupancyCostmap.default_map(validator.context, target_pose)
+    ring_costmap = RingCostmap.from_arm_reach_distance(
+        validator.context, validator.arm, target_pose
+    )
     final_costmap = occupancy_costmap & ring_costmap
     return Location(
-        context,
-        target_pose,
-        final_costmap,
-        [
-            IsObjectReachableBy(
-                context=context,
-                arm=arm,
-                graspable=graspable,
-                approach_clearance=approach_clearance,
-                retreat_distance=retreat_distance,
-            )
-        ],
-        draw=CandidateDraw(
-            sampling_strategy=sampling_strategy
-            or WeightedByRating(seed=context.sampling_seed)
-        ),
+        context=validator.context,
+        target_pose=target_pose,
+        generator=final_costmap,
+        validators=[validator],
     )
 
 
@@ -197,15 +177,14 @@ class ReachableGrasps(Iterable[Pose]):
     """
 
     def __iter__(self) -> Iterator[Pose]:
-        location = grasping_location(
-            self.graspable,
-            self.context,
-            self.arm,
+        validator = IsObjectReachableBy(
+            context=self.context,
+            arm=self.arm,
+            graspable=self.graspable,
             approach_clearance=self.approach_clearance,
             retreat_distance=self.retreat_distance,
         )
-        (validator,) = location.validators
-        for _ in location:
+        for _ in grasping_location(validator):
             yield validator.reachable_grasp
 
 
@@ -222,9 +201,9 @@ def accessing_location(
     :returns: A location that is accessible from the container.
     """
     return reachability_location(
-        container.handle.root,
-        context,
-        arm,
+        body=container.handle.root,
+        context=context,
+        arm=arm,
         reach_fraction=ActionConfig.accessing_reach_fraction,
     )
 
@@ -253,10 +232,10 @@ def visibility_location(target: Union[Pose, Body], context: Context) -> Location
         origin=target_pose,
     )
     return Location(
-        context,
-        target_pose,
-        costmap,
-        [
+        context=context,
+        target_pose=target_pose,
+        generator=costmap,
+        validators=[
             IsVisibleBy(
                 context=context,
                 target_pose=target_pose,
@@ -298,11 +277,11 @@ def giskard_reachability_location(
     releases_the_body = destination is not None
 
     backend = GiskardLocationBackend(
-        target_pose,
-        arm,
-        grasp_frame,
-        context.robot,
-        context.world,
+        target_pose=target_pose,
+        arm=arm,
+        grasp_pose=grasp_frame,
+        robot=context.robot,
+        world=context.world,
         body_T_grasp=body_T_grasp,
         contact_bodies=[body],
         reverse=releases_the_body,
@@ -311,13 +290,13 @@ def giskard_reachability_location(
     )
 
     return Location(
-        context,
-        target_pose,
-        backend,
-        [
+        context=context,
+        target_pose=target_pose,
+        generator=backend,
+        validators=[
             AreReachableBy.for_grasp(
-                grasp_frame,
-                arm,
+                grasp_pose=grasp_frame,
+                arm=arm,
                 body_T_grasp=body_T_grasp,
                 context=context,
                 reverse=releases_the_body,

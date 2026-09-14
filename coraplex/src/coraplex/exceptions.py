@@ -400,25 +400,3 @@ class NonPositiveNumberOfSamples(DataclassException):
             "ask for at least one; a map offers everything it holds when asked for "
             "more than that."
         )
-
-
-@dataclass
-class CannotOrientCandidates(DataclassException):
-    """
-    Raised when a backend that yields poses it did not build from positions is asked to
-    face them a particular way.
-    """
-
-    backend: Type
-    """
-    The kind of backend that was asked.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"{self.backend.__name__} offers the poses its robot reached, which it "
-            f"cannot turn to face a given direction."
-        )
-
-    def suggest_correction(self) -> str:
-        return "draw without an orientation generator, or draw from a costmap instead."

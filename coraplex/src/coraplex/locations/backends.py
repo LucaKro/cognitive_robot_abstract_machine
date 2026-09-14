@@ -16,7 +16,6 @@ from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from coraplex.exceptions import CannotOrientCandidates
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import Location, PoseGeneratorBackend
 from coraplex.locations.sampling import CandidateDraw
@@ -44,11 +43,9 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     The pose the base poses are searched around.
     """
 
-    number_of_candidates: int = field(default=5, kw_only=True)
+    number_of_candidates: int = field(default=20, kw_only=True)
     """
     How many base poses to draw and drive to.
-
-    Each one costs a full simulated run, so far fewer than a map is usually drawn for.
     """
 
     arm: Arm[EndEffector]
@@ -201,23 +198,19 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         Drive to the base poses its inner reachability map offers and yield where the
         robot arrived.
 
-        Draws that map on the strategy it is given. The sample count may only narrow
+        Draws that map on the terms it is given. The sample count may only narrow
         :attr:`number_of_candidates`, never raise it, since each candidate costs a full
         simulated run.
 
         :param draw: The terms to draw the candidates on.
         :return: The poses the robot reached, in the order they were tried.
-        :raises CannotOrientCandidates: If asked to face the candidates a given way.
         """
-        if draw.orientation_generator is not None:
-            raise CannotOrientCandidates(type(self))
-
         return self._drive_to(
             CandidateDraw(
-                sampling_strategy=draw.sampling_strategy,
                 number_of_samples=min(
                     self.number_of_candidates, draw.number_of_samples
                 ),
+                seed=draw.seed,
             )
         )
 
@@ -225,31 +218,48 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         """
         Steer the robot to each base pose the inner map offers on the given terms.
 
-        :param draw: The terms to draw the base poses on.
+        A candidate is judged by driving the robot, which moves it, so the driving
+        happens in a copy and the world the plan runs against is left as it was. Each
+        candidate is driven from the state the robot rests in, so one candidate cannot
+        decide what the next one is judged from.
 
-        :Yield: The pose the robot reached.
+        :param draw: The terms to draw the base poses on. :Yield: The pose the robot
+            reached.
         """
-        with self.world.modify_world():
-            self.robot._setup_collision_rules()
+        probe_world = deepcopy(self.world)
+        robot = probe_world.get_semantic_annotation_by_id(self.robot.id)
+        end_effector = probe_world.get_semantic_annotation_by_id(
+            self.arm.id
+        ).end_effector
+        with probe_world.modify_world():
+            robot._setup_collision_rules()
 
-        test_end_effector = self.arm.end_effector
         target_sequence = self.grasp_pose_sequence(
-            self.grasp_pose, test_end_effector, self.body_T_grasp, reverse=self.reverse
-        )
-
-        executor = self.setup_giskard_executor(
-            target_sequence, self.world, self.robot, test_end_effector
+            self.grasp_pose.copy_for_world(probe_world),
+            end_effector,
+            self.body_T_grasp,
+            reverse=self.reverse,
         )
 
         for pose_candidate in islice(
             self.setup_costmap(self.target_pose).candidates(draw),
             draw.number_of_samples,
         ):
-            self.robot.set_root_pose(pose_candidate)
+            with probe_world.reset_state_context():
+                robot.set_root_pose(pose_candidate.copy_for_world(probe_world))
+                # A statechart ends and cleans up when it is ticked to the end, so
+                # driving from the next candidate needs one of its own.
+                executor = self.setup_giskard_executor(
+                    target_sequence, probe_world, robot, end_effector
+                )
 
-            try:
-                executor.tick_until_end(3_000)
-            except (TimeoutError, InfeasibleException) as e:
-                pass
+                try:
+                    executor.tick_until_end(3_000)
+                except (TimeoutError, InfeasibleException):
+                    pass
 
-            yield self.robot.root.global_pose
+                # Every backend offers headings, so the pose the drive ended at is
+                # handed back as one rather than in the robot's own axes.
+                reached = robot.mobile_base.heading_of(robot.root.global_pose)
+
+            yield reached.copy_for_world(self.world)

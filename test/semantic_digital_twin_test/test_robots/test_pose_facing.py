@@ -217,6 +217,30 @@ def test_the_position_is_the_headings_own(robot_type: Type[AbstractRobot]):
     assert base_pose.reference_frame is heading.reference_frame
 
 
+# %% the heading a base stands at is read back off its pose
+
+
+@pytest.mark.parametrize(
+    "robot_type", ROBOTS_WITH_DISTINCT_FORWARD_AXES, ids=robot_name
+)
+@pytest.mark.parametrize("heading_yaw", [0.0, np.pi / 2, -np.pi / 2, np.pi, 0.3])
+def test_the_heading_of_a_base_pose_is_the_heading_it_was_placed_at(
+    robot_type: Type[AbstractRobot], heading_yaw: float
+):
+    """
+    A caller handed a base pose has to be able to say which heading it stands at, or
+    offering it back as one turns the robot by whatever its forward axis is.
+    """
+    mobile_base = spawn(robot_type)
+    heading = Pose.from_xyz_rpy(
+        1.3, 2.0, 0.0, yaw=heading_yaw, reference_frame=mobile_base.root._world.root
+    )
+
+    read_back = mobile_base.heading_of(mobile_base.pose_facing(heading))
+
+    np.testing.assert_allclose(read_back.to_np(), heading.to_np(), atol=1e-9)
+
+
 # %% a base whose front is already the x-axis needs no correction
 
 

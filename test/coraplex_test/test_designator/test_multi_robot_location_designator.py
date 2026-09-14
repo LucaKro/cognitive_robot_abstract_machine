@@ -392,7 +392,7 @@ def test_accessing_location_pose(immutable_model_world):
     assert len(pose.to_quaternion().to_list()) == 4
 
 
-def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
+def test_giskard_location_pose(immutable_multiple_robot_simple_apartment, rclpy_node):
     world, robot, context = immutable_multiple_robot_simple_apartment
     plan = sequential(
         [

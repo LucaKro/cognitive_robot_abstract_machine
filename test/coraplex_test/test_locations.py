@@ -9,14 +9,9 @@ from typing_extensions import Iterator, List
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
-from coraplex.exceptions import CannotOrientCandidates
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
-from coraplex.locations.costmaps import Costmap, OrientationGenerator, RingCostmap
-from coraplex.locations.sampling import (
-    CandidateDraw,
-    HighestRatedFirst,
-    WeightedByRating,
-)
+from coraplex.locations.costmaps import Costmap, RingCostmap
+from coraplex.locations.sampling import CandidateDraw
 from coraplex.config.action_conf import ActionConfig
 from coraplex.locations import factories
 from coraplex.locations.factories import accessing_location, reachability_location
@@ -35,10 +30,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
-from semantic_digital_twin.spatial_types import (
-    HomogeneousTransformationMatrix,
-    Vector3,
-)
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
@@ -161,6 +153,46 @@ class MotionlessExecutor:
         pass
 
 
+DRIVEN_DISTANCE = 0.4
+"""
+How far the executor standing in for a drive moves the robot, in meter.
+"""
+
+
+@dataclass
+class DrivesOnce:
+    """
+    Stands in for a Giskard executor that can only run its motion once.
+
+    A compiled statechart ends and cleans up when it is ticked to the end, so ticking the
+    same one again returns without moving anything.
+    """
+
+    robot: AbstractRobot
+    """
+    The robot the drive moves.
+    """
+
+    driven: bool = False
+    """
+    Whether this executor has already run its motion.
+    """
+
+    def tick_until_end(self, *args, **kwargs) -> None:
+        if self.driven:
+            return
+        self.driven = True
+        reached = self.robot.root.global_pose
+        self.robot.set_root_pose(
+            Pose.from_xyz_rpy(
+                float(reached.to_position().x) + DRIVEN_DISTANCE,
+                float(reached.to_position().y),
+                0.0,
+                reference_frame=reached.reference_frame,
+            )
+        )
+
+
 # %% specification-built worlds whose odom is displaced
 
 # The drive is an OmniDrive, which represents x, y and yaw only, so the odom offsets stay
@@ -274,19 +306,6 @@ REACHABILITY_TARGET_POSITION = (2.0, 2.0, 0.9)
 Position of the target a reachability location is built around, clear of the robot.
 """
 
-STANDING_DISTANCE_TOLERANCE = 0.05
-"""
-Tolerance of a sampled standing distance, in meter.
-
-Candidates land on the cell centres of a 0.02 m costmap grid, so a sample sits a
-fraction of a cell off the ring it was drawn from.
-"""
-
-CANDIDATES_TO_SAMPLE = 20
-"""
-Number of candidates whose distance to the target is asserted.
-"""
-
 REACH_FRACTION = 0.5
 """
 The fraction of the arm's length the sampled ring is asked to stand off by, chosen away
@@ -294,7 +313,7 @@ from the default so the parameter is what the sampling follows.
 """
 
 
-def test_a_ring_from_the_arm_reach_distance_samples_at_the_reach_fraction(
+def test_a_ring_from_the_arm_reach_distance_stands_off_by_the_reach_fraction(
     single_robot_world,
 ):
     """
@@ -307,74 +326,17 @@ def test_a_ring_from_the_arm_reach_distance_samples_at_the_reach_fraction(
     target = Pose.from_xyz_rpy(
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
-    # approximate_length returns a symbolic scalar, which compares as unequal to a float
-    # under pytest.approx no matter the tolerance.
+    # approximate_length returns a symbolic scalar, and so does the distance derived
+    # from it, which compares as unequal to a float under pytest.approx no matter the
+    # tolerance.
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
     expected_distance = float(arm.approximate_length()) * REACH_FRACTION
-    target_position = target.to_position().to_np()[:2]
 
-    candidates = list(
-        islice(
-            RingCostmap.from_arm_reach_distance(
-                context, arm, target, reach_fraction=REACH_FRACTION
-            ).candidates(CandidateDraw(sampling_strategy=HighestRatedFirst())),
-            CANDIDATES_TO_SAMPLE,
-        )
+    ring = RingCostmap.from_arm_reach_distance(
+        context, arm, target, reach_fraction=REACH_FRACTION
     )
 
-    assert len(candidates) == CANDIDATES_TO_SAMPLE
-    distances = [
-        np.linalg.norm(candidate.to_position().to_np()[:2] - target_position)
-        for candidate in candidates
-    ]
-    assert distances == pytest.approx(
-        [expected_distance] * len(distances), abs=STANDING_DISTANCE_TOLERANCE
-    )
-
-
-# %% a costmap offers the candidates it prefers first
-
-
-def test_a_costmap_offers_the_candidates_it_prefers_first(single_robot_world):
-    """
-    A caller takes the first candidate that passes its checks, so the map's own
-    preference only decides where the robot stands if the candidates arrive in that
-    order.
-
-    Handing out the best cells in an arbitrary order leaves the choice to whatever the
-    surroundings happen to leave free, which is what makes tuning a ring's radius stop
-    moving the robot.
-    """
-    world, _, _ = single_robot_world
-    costmap = Costmap(
-        0.02,
-        height=5,
-        width=5,
-        origin=Pose.from_xyz_rpy(
-            *REACHABILITY_TARGET_POSITION[:2], 0, reference_frame=world.root
-        ),
-        world=world,
-    )
-    # One connected run through the centre, so the map is a single partition and the
-    # middle cell is the one the map prefers.
-    costmap.map = np.zeros((5, 5))
-    costmap.map[2, 1] = 0.25
-    costmap.map[2, 2] = 1.0
-    costmap.map[2, 3] = 0.5
-
-    origin_position = costmap.origin.to_position().to_np()[:2].ravel()
-    offsets = [
-        float(
-            np.linalg.norm(
-                candidate.to_position().to_np()[:2].ravel() - origin_position
-            )
-        )
-        for candidate in costmap.candidates(
-            CandidateDraw(sampling_strategy=HighestRatedFirst())
-        )
-    ]
-
-    assert offsets == pytest.approx([0.0, costmap.resolution, costmap.resolution])
+    assert float(ring.distance) == pytest.approx(expected_distance)
 
 
 # %% how many candidates a location spends on validation
@@ -714,6 +676,46 @@ def test_location_validates_with_the_motion_policy_of_its_own_context(
     assert recorder.context.motion_tolerances is context.motion_tolerances
 
 
+def test_the_giskard_backend_drives_to_every_candidate(
+    single_robot_world, monkeypatch
+):
+    """
+    Each candidate is a different place to stand, so each has to be driven from.
+
+    An executor that has already run its motion returns without moving anything, which
+    would leave every candidate after the first wherever it was dropped.
+    """
+    world, robot, context = single_robot_world
+    candidates = [
+        Pose.from_xyz_rpy(1.3, 2.0 + offset, 0.0, reference_frame=world.root)
+        for offset in (0.0, 0.5, 1.0)
+    ]
+    backend = GiskardLocationBackend(
+        target_pose=candidates[0],
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
+        grasp_pose=candidates[0],
+        robot=robot,
+        world=world,
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_costmap",
+        lambda self, pose: _offering(candidates),
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_giskard_executor",
+        lambda self, pose_sequence, world, robot, end_effector: DrivesOnce(robot=robot),
+    )
+
+    reached = list(backend.candidates(CandidateDraw(number_of_samples=len(candidates))))
+
+    assert [float(pose.to_position().x) for pose in reached] == [
+        pytest.approx(float(candidate.to_position().x) + DRIVEN_DISTANCE)
+        for candidate in candidates
+    ]
+
+
 # %% a location decides how its candidates are drawn
 
 
@@ -745,15 +747,7 @@ def test_a_location_draws_on_the_terms_it_was_given(single_robot_world):
     """
     world, robot, context = single_robot_world
     generator = RecordsHowItWasDrawn(pose=_candidate(world))
-    strategy = WeightedByRating(seed=3)
-    facing_y = OrientationGenerator.orientation_generator_for_axis(
-        Vector3.from_iterable([0, 1, 0])
-    )
-    draw = CandidateDraw(
-        sampling_strategy=strategy,
-        number_of_samples=17,
-        orientation_generator=facing_y,
-    )
+    draw = CandidateDraw(number_of_samples=17, seed=3)
     location = Location(context, _candidate(world), generator, [], draw=draw)
 
     list(islice(iter(location), 1))
@@ -761,75 +755,23 @@ def test_a_location_draws_on_the_terms_it_was_given(single_robot_world):
     assert generator.asked_for == [draw]
 
 
-def test_a_location_ranks_its_candidates_unless_told_otherwise(single_robot_world):
-    """
-    Ranking is what lets a caller take the first candidate that passes, so a location
-    that says nothing gets the map's own order rather than a draw that varies per run.
-    """
-    world, robot, context = single_robot_world
-
-    location = Location(context, _candidate(world), FixedPoseGenerator([]), [])
-
-    assert isinstance(location.draw.sampling_strategy, HighestRatedFirst)
-
-
 def test_a_backend_that_does_not_rate_its_candidates_offers_its_own_order(
     single_robot_world,
 ):
     """
-    Only a backend that rates its candidates has anything for a strategy to decide, so
-    one that does not offers them as it always would.
+    Only a backend that rates its candidates has anything to draw weighted, so one that
+    does not offers them as it always would.
     """
     world, robot, context = single_robot_world
     first, second = _candidate(world), _candidate(world)
     generator = FixedPoseGenerator([first, second])
 
-    drawn = list(
-        generator.candidates(
-            CandidateDraw(
-                sampling_strategy=WeightedByRating(seed=1), number_of_samples=1
-            )
-        )
-    )
+    drawn = list(generator.candidates(CandidateDraw(number_of_samples=1, seed=1)))
 
     assert drawn == [first, second]
 
 
-# %% a standing pose is drawn from the ring rather than ranked off it
-
-
-def test_a_reachability_location_draws_from_the_ring_it_builds(single_robot_world):
-    """
-    Ranking a ring offers its own radius over and over, one angle at a time, so a pose
-    needing a few centimetres more never comes up inside the budget a caller can afford.
-
-    Drawing from it treats the radius as likeliest rather than as the only one.
-    """
-    world, robot, context = single_robot_world
-
-    location = reachability_location(
-        _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
-    )
-
-    assert isinstance(location.draw.sampling_strategy, WeightedByRating)
-
-
-def test_a_reachability_location_takes_the_draw_it_is_given(single_robot_world):
-    """
-    A caller that needs a run to repeat exactly fixes the draw, so the location has to
-    take one rather than always making its own.
-    """
-    world, robot, context = single_robot_world
-    strategy = WeightedByRating(seed=11)
-
-    location = reachability_location(
-        _box_in(world),
-        context,
-        ViewManager.get_arm_view(Arms.RIGHT, robot),
-        sampling_strategy=strategy,
-    )
-
-    assert location.draw.sampling_strategy is strategy
+# %% a standing pose is drawn seeded by the plan it belongs to
 
 
 def test_a_giskard_backend_drives_to_no_more_candidates_than_it_says(
@@ -875,7 +817,7 @@ def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_wo
         _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
     )
 
-    assert location.draw.sampling_strategy.seed == 5
+    assert location.draw.seed == 5
 
 
 def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
@@ -889,7 +831,7 @@ def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
         _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
     )
 
-    assert location.draw.sampling_strategy.seed is None
+    assert location.draw.seed is None
 
 
 # %% what a backend must say about the terms it is drawn on
@@ -909,18 +851,17 @@ def test_a_backend_that_does_not_say_how_it_draws_cannot_be_built():
         SaysNothingAboutTheTerms()
 
 
-def test_a_giskard_backend_draws_its_map_on_the_strategy_it_was_given(
+def test_a_giskard_backend_draws_its_map_on_the_seed_it_was_given(
     single_robot_world, monkeypatch
 ):
     """
-    The backend picks its base poses from a map of its own, so the strategy it is drawn
-    on has to reach that map rather than being replaced by one of the backend's
+    The backend picks its base poses from a map of its own, so the seed it is drawn on
+    has to reach that map rather than being replaced by a draw of the backend's
     choosing.
     """
     world, robot, context = single_robot_world
     candidate = _candidate(world)
     drawn_map = RecordsHowItWasDrawn(pose=candidate)
-    strategy = WeightedByRating(seed=4)
     backend = GiskardLocationBackend(
         target_pose=candidate,
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
@@ -937,30 +878,6 @@ def test_a_giskard_backend_draws_its_map_on_the_strategy_it_was_given(
         lambda self, *args, **kwargs: MotionlessExecutor(),
     )
 
-    list(backend.candidates(CandidateDraw(sampling_strategy=strategy)))
+    list(backend.candidates(CandidateDraw(seed=4)))
 
-    assert [terms.sampling_strategy for terms in drawn_map.asked_for] == [strategy]
-
-
-def test_a_giskard_backend_refuses_to_face_its_candidates_a_given_way(
-    single_robot_world,
-):
-    """
-    The backend offers wherever its robot came to rest, which is not a pose it can turn,
-    so a draw asking for one is refused rather than quietly answered facing elsewhere.
-    """
-    world, robot, context = single_robot_world
-    candidate = _candidate(world)
-    facing_y = OrientationGenerator.orientation_generator_for_axis(
-        Vector3.from_iterable([0, 1, 0])
-    )
-    backend = GiskardLocationBackend(
-        target_pose=candidate,
-        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
-        grasp_pose=candidate,
-        robot=robot,
-        world=world,
-    )
-
-    with pytest.raises(CannotOrientCandidates):
-        backend.candidates(CandidateDraw(orientation_generator=facing_y))
+    assert [terms.seed for terms in drawn_map.asked_for] == [4]

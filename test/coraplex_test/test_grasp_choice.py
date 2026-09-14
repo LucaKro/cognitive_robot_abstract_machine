@@ -3,7 +3,6 @@ How a pick-up settles on the grasp it takes.
 """
 
 from dataclasses import dataclass
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -12,7 +11,7 @@ from krrood.entity_query_language.factories import evaluate_condition, variable
 from coraplex.datastructures.enums import Arms
 from coraplex.locations import factories
 from coraplex.exceptions import GraspPoseMissing, OffersNoGrasp
-from coraplex.locations.pose_validator import AreReachableBy
+from coraplex.locations.pose_validator import AreReachableBy, IsObjectReachableBy
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.view_manager import ViewManager
@@ -253,20 +252,26 @@ def test_reachable_grasps_sees_the_world_as_it_is_when_consumed(monkeypatch):
     moved = {"value": "before"}
     observed = []
 
+    @dataclass
     class LocationStandingIn:
         """
         A location yielding one pose, whose validator kept a grasp.
         """
 
-        validators = [SimpleNamespace(reachable_grasp=None)]
+        validator: IsObjectReachableBy
+        """
+        The validator whose grasp the caller reads back.
+        """
 
         def __iter__(self):
             observed.append(moved["value"])
-            self.validators[0].reachable_grasp = Pose.from_xyz_rpy(1.0, 0.0, 0.0)
+            self.validator.reachable_grasp = Pose.from_xyz_rpy(1.0, 0.0, 0.0)
             yield Pose.from_xyz_rpy(0.0, 0.0, 0.0)
 
     monkeypatch.setattr(
-        factories, "grasping_location", lambda *args, **kwargs: LocationStandingIn()
+        factories,
+        "grasping_location",
+        lambda validator, **kwargs: LocationStandingIn(validator),
     )
 
     grasps = factories.ReachableGrasps(object(), object(), object())
@@ -274,6 +279,27 @@ def test_reachable_grasps_sees_the_world_as_it_is_when_consumed(monkeypatch):
     next(iter(grasps), None)
 
     assert observed == ["after"]
+
+
+def test_a_grasping_location_judges_with_the_validator_it_was_given(
+    immutable_model_world,
+):
+    """
+    The caller that wants to know which grasp was found holds the validator keeping it,
+    rather than having to find it again among the location's own.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    validator = IsObjectReachableBy(
+        context=context,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, view),
+        graspable=milk,
+    )
+
+    location = factories.grasping_location(validator)
+
+    assert len(location.validators) == 1
+    assert location.validators[0] is validator
 
 
 def test_reachable_grasps_yields_grasps_the_object_offers(immutable_model_world):

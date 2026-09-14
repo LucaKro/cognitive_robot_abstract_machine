@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import cast
 
 from typing_extensions import (
@@ -24,11 +24,7 @@ from krrood.entity_query_language.verbalization.vocabulary.parts_of_speech impor
     Copula,
     Noun,
 )
-from coraplex.locations.sampling import (
-    CandidateDraw,
-    CostmapSamplingStrategy,
-    HighestRatedFirst,
-)
+from coraplex.locations.sampling import CandidateDraw
 
 if TYPE_CHECKING:
     from coraplex.alternative_motion_mapping import AlternativeMotion
@@ -111,6 +107,18 @@ class Location(Iterable[Pose]):
     budget spent on the cheap refusals would leave a target hemmed in by furniture with
     none of its reachable poses ever tried.
     """
+
+    def __post_init__(self) -> None:
+        """
+        Fix this location's draw to the plan it belongs to.
+
+        A plan that pins its seed is asking every location inside it to repeat, so a
+        draw that names no seed of its own takes the plan's. A draw handed one already
+        keeps it.
+        """
+        if self.draw.seed is not None or self.context is None:
+            return
+        self.draw = replace(self.draw, seed=self.context.sampling_seed)
 
     @property
     def world(self):

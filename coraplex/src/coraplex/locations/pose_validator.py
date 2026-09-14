@@ -251,7 +251,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             )
         ]
 
-    def create_msc(self) -> MotionStatechart:
+    def create_motion_state_chart(self) -> MotionStatechart:
         """
         Creates the Motion state chart to reach the given pose sequence with the given
         tip link.
@@ -349,7 +349,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         :return: Whether the probe arrived at every pose of the sequence.
         """
         try:
-            self.create_executor(self.create_msc()).tick_until_end()
+            self.create_executor(self.create_motion_state_chart()).tick_until_end()
         except (TimeoutError, NoProgressError) as not_reached:
             logger.debug(
                 f"Did not reach pose sequence {self.pose_sequence}: {not_reached}"
@@ -507,23 +507,6 @@ class IsObjectReachableBy(GraspReachabilityValidator):
     the pose the validator was last asked about.
     """
 
-    def _against(self, grasp_pose: Pose, root: Body) -> Pose:
-        """
-        The same grasp, written against another copy of the body it belongs to.
-
-        A grasp is expressed in its own root's frame, so the numbers naming it on one
-        copy of a body name it on any other.
-
-        :param grasp_pose: The grasp to rewrite.
-        :param root: The body to write it against.
-        :return: The rewritten grasp.
-        """
-        return Pose(
-            position=grasp_pose.to_position(),
-            orientation=grasp_pose.to_quaternion(),
-            reference_frame=root,
-        )
-
     def _candidates_in(
         self, copied_world: ReachabilityProbeWorld, graspable: HasGraspPoses
     ) -> List[Tuple[Pose, Pose]]:
@@ -536,7 +519,7 @@ class IsObjectReachableBy(GraspReachabilityValidator):
             hand back for it, written against the object the caller holds.
         """
         return [
-            (grasp_pose, self._against(grasp_pose, self.graspable.root))
+            (grasp_pose, grasp_pose.copy_for_world(self.world))
             for grasp_pose in copied_world.end_effector.grasp_poses_by_distance(
                 graspable
             )

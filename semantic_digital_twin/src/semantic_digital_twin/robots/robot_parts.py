@@ -776,6 +776,25 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
             reference_frame=heading.reference_frame,
         ).to_pose()
 
+    def heading_of(self, base_pose: Pose) -> Pose:
+        """
+        Where a base standing at the given pose faces, written as :meth:`pose_facing`
+        reads a heading: as the x-axis of the returned pose.
+
+        A base pose is in the robot's own axes, so handing one back to a caller that
+        expects a heading would have it read the base's x-axis as the front, turning the
+        robot by whatever :attr:`forward_axis` is away from it.
+
+        :param base_pose: The pose the base stands at.
+        :return: The heading it stands at.
+        """
+        base_R_forward = RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
+        return HomogeneousTransformationMatrix.from_point_rotation_matrix(
+            base_pose.to_position(),
+            base_pose.to_rotation_matrix() @ base_R_forward,
+            reference_frame=base_pose.reference_frame,
+        ).to_pose()
+
     @classmethod
     def get_drive_connection_type(cls) -> Type[TGenericDrive]:
         """
