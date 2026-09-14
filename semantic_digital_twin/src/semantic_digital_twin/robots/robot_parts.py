@@ -645,14 +645,11 @@ class EndEffector(AbstractRobotPart, ABC):
         """
         How far this gripper is from being able to close on a grasp.
 
-        Two lengths in one: the Euclidean distance from the tool frame to the grasp,
-        plus what it costs to arrive facing the right way. A grasp is entered along its
-        own x-axis, so one whose x-axis disagrees with the line from the gripper to it
-        has to be entered from the side, and one that disagrees by more than a right
-        angle from behind the object (priced at ``misalignment_lever_arm`` per radian
-        of disagreement).
+        Distance here means the Euclidean distance from the tool frame to the grasp,
+        plus what it costs to arrive facing the right way (priced at ``misalignment_lever_arm``
+        per radian of disagreement).
 
-        Roll about that axis is not counted, since turning the wrist about the direction
+        Roll about that axis is not counted, as turning the wrist about the direction
         it already travels along costs the arm little.
 
         ..note:: A geometric ranking, not a reachability test.

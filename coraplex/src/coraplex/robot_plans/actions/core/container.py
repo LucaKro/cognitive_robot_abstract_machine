@@ -42,7 +42,7 @@ class OpenAction(ActionDescription):
     Opens a container like object.
     """
 
-    object_designator: Handle
+    handle: Handle
     """
     The handle of the container that should be opened.
     """
@@ -61,12 +61,12 @@ class OpenAction(ActionDescription):
         return sequential(
             [
                 GraspingAction(
-                    self.object_designator,
+                    self.handle,
                     self.arm,
-                    Pose(reference_frame=self.object_designator.root),
+                    Pose(reference_frame=self.handle.root),
                     approach_clearance=self.approach_clearance,
                 ),
-                OpeningMotion(self.object_designator.root, self.arm),
+                OpeningMotion(self.handle.root, self.arm),
                 MoveGripperMotion(
                     GripperState.OPEN, self.arm, allow_gripper_collision=True
                 ),
@@ -93,7 +93,7 @@ class OpenAction(ActionDescription):
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
                 pose=end_effector.tool_frame_goal(
-                    Pose(reference_frame=kwargs["object_designator"].root)
+                    Pose(reference_frame=kwargs["handle"].root)
                 ),
                 tip_link=end_effector.tool_frame,
             ),
@@ -108,14 +108,13 @@ class OpenAction(ActionDescription):
         open.
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
-        handle_body = kwargs["object_designator"].root
+        handle_body = kwargs["handle"].root
         parent_connection = handle_body.get_first_parent_connection_of_type(
             ActiveConnection1DOF
         )
         return and_(
             or_(
-                is_body_in_gripper(variable_from(handle_body), end_effector)
-                > 0.9,
+                is_body_in_gripper(variable_from(handle_body), end_effector) > 0.9,
                 allclose(
                     variable_from(handle_body).global_pose.to_position(),
                     variable_from(end_effector.tool_frame).global_pose.to_position(),
@@ -132,7 +131,7 @@ class CloseAction(ActionDescription):
     Closes a container like object.
     """
 
-    object_designator: Handle
+    handle: Handle
     """
     The handle of the container that should be closed.
     """
@@ -152,12 +151,12 @@ class CloseAction(ActionDescription):
         return sequential(
             [
                 GraspingAction(
-                    self.object_designator,
+                    self.handle,
                     self.arm,
-                    Pose(reference_frame=self.object_designator.root),
+                    Pose(reference_frame=self.handle.root),
                     approach_clearance=self.approach_clearance,
                 ),
-                ClosingMotion(self.object_designator.root, self.arm),
+                ClosingMotion(self.handle.root, self.arm),
                 MoveGripperMotion(
                     GripperState.OPEN, self.arm, allow_gripper_collision=True
                 ),
@@ -171,8 +170,8 @@ class CloseAction(ActionDescription):
         """
         The container has to be closed.
         """
-        close_connection = kwargs[
-            "object_designator"
-        ].root.get_first_parent_connection_of_type(ActiveConnection1DOF)
+        close_connection = kwargs["handle"].root.get_first_parent_connection_of_type(
+            ActiveConnection1DOF
+        )
 
         return variable_from(close_connection).position < 0.1

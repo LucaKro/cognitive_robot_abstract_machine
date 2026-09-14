@@ -65,7 +65,7 @@ class HasGraspChoice:
     goes on to do with the object afterwards.
     """
 
-    object_designator: HasGraspPoses
+    graspable_object: HasGraspPoses
     """
     The annotation of the object to take hold of.
     """
@@ -86,12 +86,12 @@ class HasGraspChoice:
 
     def __post_init__(self):
         self.grasp_pose = self.resolve_grasp_pose(
-            self.grasp_pose, self.object_designator
+            self.grasp_pose, self.graspable_object
         )
 
     @staticmethod
     def resolve_grasp_pose(
-        grasp_pose: Optional[Pose], object_designator: HasGraspPoses
+        grasp_pose: Optional[Pose], graspable_object: HasGraspPoses
     ) -> Pose:
         """
         The grasp an action described this way takes.
@@ -106,15 +106,15 @@ class HasGraspChoice:
             action's parameters rather than from the action.
 
         :param grasp_pose: The grasp a caller settled on, or ``None``.
-        :param object_designator: The annotation of the object being grasped.
+        :param graspable_object: The annotation of the object being grasped.
         :raises OffersNoGrasp: When no grasp was named and the object offers none.
         :return: The grasp frame, in the object's own frame.
         """
         if grasp_pose is not None:
             return grasp_pose
-        first_grasp = next(iter(object_designator.grasp_poses()), None)
+        first_grasp = next(iter(graspable_object.grasp_poses()), None)
         if first_grasp is None:
-            raise OffersNoGrasp(object_designator)
+            raise OffersNoGrasp(graspable_object)
         return first_grasp
 
     @staticmethod
@@ -140,11 +140,11 @@ class HasGraspChoice:
                     world=context.world,
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
-                arm=variables["arm"],
+                arm=ViewManager.get_arm_view(variables["arm"], context.robot),
                 grasp_pose=HasGraspChoice.resolve_grasp_pose(
-                    kwargs["grasp_pose"], kwargs["object_designator"]
+                    kwargs["grasp_pose"], kwargs["graspable_object"]
                 ),
-                object_designator=kwargs["object_designator"].root,
+                object_designator=kwargs["graspable_object"].root,
             ),
         )
 
@@ -170,13 +170,13 @@ class ReachAction(
     """
     The grasp frame that should be reached, as
     :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
-    defines it, in :attr:`object_designator`'s own frame when there is one.
+    defines it, in :attr:`graspable_object`'s own frame when there is one.
 
-    ``None`` takes the first grasp :attr:`object_designator` offers, so a reach onto a
+    ``None`` takes the first grasp :attr:`graspable_object` offers, so a reach onto a
     bare pose has to name one.
     """
 
-    object_designator: Optional[HasGraspPoses] = None
+    graspable_object: Optional[HasGraspPoses] = None
     """
     The annotation of the object that should be picked up.
 
@@ -185,10 +185,10 @@ class ReachAction(
 
     def __post_init__(self):
         if self.grasp_pose is None:
-            if self.object_designator is None:
+            if self.graspable_object is None:
                 raise GraspPoseMissing(self)
             self.grasp_pose = HasGraspChoice.resolve_grasp_pose(
-                self.grasp_pose, self.object_designator
+                self.grasp_pose, self.graspable_object
             )
 
     reverse_reach_order: bool = False
@@ -210,12 +210,12 @@ class ReachAction(
 
     @property
     def _action_plan(self) -> PlanNode:
-        if self.perceive_before_grasp and self.object_designator is None:
+        if self.perceive_before_grasp and self.graspable_object is None:
             raise PerceptionTargetMissing(self)
         target_pre_pose, target_pose, _ = self.grasp_pose_sequence(
             self.grasp_pose,
             ViewManager.get_end_effector_view(self.arm, self.robot),
-            self.grasp_pose if self.object_designator is not None else None,
+            self.grasp_pose if self.graspable_object is not None else None,
             reverse=self.reverse_reach_order,
         )
         children = [
@@ -238,7 +238,7 @@ class ReachAction(
                     LookAtAction(target_pose),
                     DetectAction(
                         DetectionTechnique.TYPES,
-                        object_sem_annotation=type(self.object_designator),
+                        object_sem_annotation=type(self.graspable_object),
                         accept_first_if_multiple=True,
                     ),
                 ]
@@ -266,7 +266,7 @@ class ReachAction(
         The sequence in which the robot would reach the target pose needs to be
         achievable.
         """
-        object_designator = kwargs["object_designator"]
+        graspable_object = kwargs["graspable_object"]
         return and_(
             IsGraspReachableBy(
                 context=Context(
@@ -274,9 +274,9 @@ class ReachAction(
                     world=context.world,
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
-                arm=variables["arm"],
+                arm=ViewManager.get_arm_view(variables["arm"], context.robot),
                 grasp_pose=kwargs["grasp_pose"],
-                object_designator=object_designator.root if object_designator else None,
+                object_designator=graspable_object.root if graspable_object else None,
                 reverse=kwargs["reverse_reach_order"],
             ),
         )
@@ -289,8 +289,8 @@ class ReachAction(
         The end effector needs to be close to the target pose.
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
-        object_designator = kwargs["object_designator"]
-        object_body = object_designator.root if object_designator else None
+        graspable_object = kwargs["graspable_object"]
+        object_body = graspable_object.root if graspable_object else None
         return or_(
             is_body_gripped(
                 variable_from(object_body),
@@ -341,7 +341,7 @@ class PickUpAction(
         """
         :param grasp_pose: The grasp to attempt, so the attempt and the lift that
             follows it are built around the same one.
-        :return: One attempt at grasping :attr:`object_designator`, without lifting it.
+        :return: One attempt at grasping :attr:`graspable_object`, without lifting it.
 
         A pick-up is a grasp the world is then told about: the object hangs off the tool
         frame afterwards, which is what makes it move with the arm.
@@ -349,7 +349,7 @@ class PickUpAction(
         return sequential(
             children=[
                 GraspingAction(
-                    object_designator=self.object_designator,
+                    graspable_object=self.graspable_object,
                     arm=self.arm,
                     grasp_pose=grasp_pose,
                     approach_clearance=self.approach_clearance,
@@ -365,7 +365,7 @@ class PickUpAction(
                     orientation_threshold=self.orientation_threshold,
                 ),
                 ReAttachNode(
-                    body=self.object_designator.root,
+                    body=self.graspable_object.root,
                     new_parent=ViewManager.get_end_effector_view(
                         self.arm, self.robot
                     ).tool_frame,
@@ -421,7 +421,7 @@ class PickUpAction(
         return or_(
             not_(GripperIsFree(end_effector)),
             is_body_gripped(
-                variable_from(kwargs["object_designator"].root),
+                variable_from(kwargs["graspable_object"].root),
                 end_effector,
                 threshold=kwargs["grasp_detection_threshold"],
             ),
@@ -466,7 +466,7 @@ class GraspingAction(
                 # if the object's pose is updated after the goal was defined.
                 ReachAction(
                     grasp_pose=self.grasp_pose,
-                    object_designator=self.object_designator,
+                    graspable_object=self.graspable_object,
                     arm=self.arm,
                     approach_clearance=self.approach_clearance,
                     retreat_distance=self.retreat_distance,
@@ -507,7 +507,7 @@ class GraspingAction(
         The object needs to be between the gripper's fingers.
         """
         return is_body_gripped(
-            variable_from(kwargs["object_designator"].root),
+            variable_from(kwargs["graspable_object"].root),
             ViewManager.get_end_effector_view(variables["arm"], context.robot),
             threshold=kwargs["grasp_detection_threshold"],
         )

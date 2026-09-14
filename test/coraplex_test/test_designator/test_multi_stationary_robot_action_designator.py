@@ -191,7 +191,7 @@ def test_reach_action_multi(immutable_stationary_block_world):
             ParkArmsAction(Arms.BOTH),
             ReachAction(
                 grasp_pose=grasp_pose,
-                object_designator=box,
+                graspable_object=box,
                 arm=Arms.LEFT,
             ),
         ],

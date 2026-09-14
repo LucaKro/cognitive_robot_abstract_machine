@@ -230,8 +230,6 @@ class AvoidExternalCollisions(AvoidCollisionRule, SubclassJSONSerializer):
     def to_json(self, **kwargs) -> Dict[str, Any]:
         return {
             **super().to_json(**kwargs),
-            "buffer_zone_distance": self.buffer_zone_distance,
-            "violated_distance": self.violated_distance,
             "robot": to_json(self.robot.id, **kwargs),
             "body_subset": to_json(
                 {b.id for b in self.body_subset} if self.body_subset else None, **kwargs
@@ -254,11 +252,6 @@ class AvoidExternalCollisions(AvoidCollisionRule, SubclassJSONSerializer):
             buffer_zone_distance=from_json(data["buffer_zone_distance"], **kwargs),
             violated_distance=from_json(data["violated_distance"], **kwargs),
         )
-
-    def __eq__(self, other):
-        if not isinstance(other, AvoidExternalCollisions):
-            return False
-        return self.robot == other.robot and self.body_subset == other.body_subset
 
 
 @dataclass

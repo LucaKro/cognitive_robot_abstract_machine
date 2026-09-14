@@ -490,7 +490,7 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
     milk_variable = variable_from([milk])
 
     pick_up_description = a(PickUpAction)(
-        object_designator=milk_variable,
+        graspable_object=milk_variable,
         arm=...,
         approach_clearance=0.05,
     )
@@ -652,7 +652,7 @@ def test_node_expansion(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
-        [PickUpAction(object_designator=milk, arm=Arms.RIGHT)],
+        [PickUpAction(graspable_object=milk, arm=Arms.RIGHT)],
         context=context,
     )
 

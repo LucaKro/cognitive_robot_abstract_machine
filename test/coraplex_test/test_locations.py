@@ -9,9 +9,14 @@ from typing_extensions import Iterator, List
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
+from coraplex.exceptions import CannotOrientCandidates
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.locations.costmaps import Costmap, OrientationGenerator, RingCostmap
-from coraplex.locations.sampling import HighestRatedFirst, WeightedByRating
+from coraplex.locations.sampling import (
+    CandidateDraw,
+    HighestRatedFirst,
+    WeightedByRating,
+)
 from coraplex.config.action_conf import ActionConfig
 from coraplex.locations import factories
 from coraplex.locations.factories import accessing_location, reachability_location
@@ -55,7 +60,11 @@ class FixedPoseGenerator(PoseGeneratorBackend):
     The candidates to yield, in order.
     """
 
-    def __iter__(self) -> Iterator[Pose]:
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
+        """
+        Offers every candidate it was given, in its own order, whatever terms it is
+        drawn on: it rates none of them, and a test says exactly which it expects.
+        """
         return iter(self.poses)
 
 
@@ -71,7 +80,7 @@ class OffersFixedCandidates(Costmap):
     The candidates to offer, in order.
     """
 
-    def candidates(self, *args, **kwargs) -> Iterator[Pose]:
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
         return iter(self.offered)
 
 
@@ -300,17 +309,15 @@ def test_a_ring_from_the_arm_reach_distance_samples_at_the_reach_fraction(
     )
     # approximate_length returns a symbolic scalar, which compares as unequal to a float
     # under pytest.approx no matter the tolerance.
-    expected_distance = (
-        float(ViewManager.get_arm_view(Arms.RIGHT, robot).approximate_length())
-        * REACH_FRACTION
-    )
+    arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
+    expected_distance = float(arm.approximate_length()) * REACH_FRACTION
     target_position = target.to_position().to_np()[:2]
 
     candidates = list(
         islice(
             RingCostmap.from_arm_reach_distance(
-                context, Arms.RIGHT, target, reach_fraction=REACH_FRACTION
-            ).candidates(HighestRatedFirst()),
+                context, arm, target, reach_fraction=REACH_FRACTION
+            ).candidates(CandidateDraw(sampling_strategy=HighestRatedFirst())),
             CANDIDATES_TO_SAMPLE,
         )
     )
@@ -362,7 +369,9 @@ def test_a_costmap_offers_the_candidates_it_prefers_first(single_robot_world):
                 candidate.to_position().to_np()[:2].ravel() - origin_position
             )
         )
-        for candidate in costmap.candidates(HighestRatedFirst())
+        for candidate in costmap.candidates(
+            CandidateDraw(sampling_strategy=HighestRatedFirst())
+        )
     ]
 
     assert offsets == pytest.approx([0.0, costmap.resolution, costmap.resolution])
@@ -487,7 +496,12 @@ def test_a_reachability_location_for_a_body_stands_around_its_destination(
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
 
-    location = reachability_location(body, context, Arms.RIGHT, destination=destination)
+    location = reachability_location(
+        body,
+        context,
+        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        destination=destination,
+    )
 
     assert location.target_pose is destination
 
@@ -509,13 +523,15 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
     )
     grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
 
+    arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
+
     (validator,) = reachability_location(
-        body, context, Arms.RIGHT, grasp_pose=grasp, destination=destination
+        body, context, arm, grasp_pose=grasp, destination=destination
     ).validators
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
         destination.to_homogeneous_matrix() @ grasp,
-        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        arm.end_effector,
         grasp,
         reverse=True,
     )
@@ -537,13 +553,15 @@ def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_i
     body = _box_in(world)
     grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
 
+    arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
+
     (validator,) = reachability_location(
-        body, context, Arms.RIGHT, grasp_pose=grasp
+        body, context, arm, grasp_pose=grasp
     ).validators
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
         body.global_pose.to_homogeneous_matrix() @ grasp,
-        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        arm.end_effector,
         grasp,
     )
     np.testing.assert_allclose(
@@ -573,7 +591,7 @@ def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
         lambda *args, **kwargs: asked_for.update(kwargs),
     )
 
-    accessing_location(container, context, Arms.RIGHT)
+    accessing_location(container, context, ViewManager.get_arm_view(Arms.RIGHT, robot))
 
     assert asked_for["reach_fraction"] == ActionConfig.accessing_reach_fraction
 
@@ -588,7 +606,7 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
     candidate = _candidate(world)
     backend = GiskardLocationBackend(
         target_pose=candidate,
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
         grasp_pose=candidate,
         robot=robot,
         world=world,
@@ -604,7 +622,7 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
         lambda self, *args, **kwargs: MotionlessExecutor(),
     )
 
-    yielded_poses = list(backend)
+    yielded_poses = list(backend.candidates(CandidateDraw()))
 
     assert len(yielded_poses) == 1
     np.testing.assert_allclose(yielded_poses[0].to_np(), candidate.to_np(), atol=1e-9)
@@ -623,7 +641,7 @@ def test_giskard_backend_solves_the_reach_its_location_validates(
     grasp_frame = body.global_pose.to_homogeneous_matrix() @ grasp
     backend = GiskardLocationBackend(
         target_pose=body.global_pose,
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
         grasp_pose=grasp_frame,
         robot=robot,
         world=world,
@@ -644,7 +662,7 @@ def test_giskard_backend_solves_the_reach_its_location_validates(
         GiskardLocationBackend, "setup_giskard_executor", record_the_solved_sequence
     )
 
-    list(backend)
+    list(backend.candidates(CandidateDraw()))
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
         grasp_frame, ViewManager.get_end_effector_view(Arms.RIGHT, robot), grasp
@@ -710,20 +728,13 @@ class RecordsHowItWasDrawn(PoseGeneratorBackend):
     The single candidate to yield.
     """
 
-    asked_for: List[tuple] = field(default_factory=list)
+    asked_for: List[CandidateDraw] = field(default_factory=list)
     """
-    One entry per draw: the strategy, sample count and orientation generator asked for.
+    One entry per draw: the terms it was asked on.
     """
 
-    def __iter__(self) -> Iterator[Pose]:
-        return iter([self.pose])
-
-    def candidates(
-        self, sampling_strategy, number_of_samples=None, orientation_generator=None
-    ) -> Iterator[Pose]:
-        self.asked_for.append(
-            (sampling_strategy, number_of_samples, orientation_generator)
-        )
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
+        self.asked_for.append(draw)
         return iter([self.pose])
 
 
@@ -738,19 +749,16 @@ def test_a_location_draws_on_the_terms_it_was_given(single_robot_world):
     facing_y = OrientationGenerator.orientation_generator_for_axis(
         Vector3.from_iterable([0, 1, 0])
     )
-    location = Location(
-        context,
-        _candidate(world),
-        generator,
-        [],
+    draw = CandidateDraw(
         sampling_strategy=strategy,
         number_of_samples=17,
         orientation_generator=facing_y,
     )
+    location = Location(context, _candidate(world), generator, [], draw=draw)
 
     list(islice(iter(location), 1))
 
-    assert generator.asked_for == [(strategy, 17, facing_y)]
+    assert generator.asked_for == [draw]
 
 
 def test_a_location_ranks_its_candidates_unless_told_otherwise(single_robot_world):
@@ -762,7 +770,7 @@ def test_a_location_ranks_its_candidates_unless_told_otherwise(single_robot_worl
 
     location = Location(context, _candidate(world), FixedPoseGenerator([]), [])
 
-    assert isinstance(location.sampling_strategy, HighestRatedFirst)
+    assert isinstance(location.draw.sampling_strategy, HighestRatedFirst)
 
 
 def test_a_backend_that_does_not_rate_its_candidates_offers_its_own_order(
@@ -776,7 +784,13 @@ def test_a_backend_that_does_not_rate_its_candidates_offers_its_own_order(
     first, second = _candidate(world), _candidate(world)
     generator = FixedPoseGenerator([first, second])
 
-    drawn = list(generator.candidates(WeightedByRating(seed=1), number_of_samples=1))
+    drawn = list(
+        generator.candidates(
+            CandidateDraw(
+                sampling_strategy=WeightedByRating(seed=1), number_of_samples=1
+            )
+        )
+    )
 
     assert drawn == [first, second]
 
@@ -793,9 +807,11 @@ def test_a_reachability_location_draws_from_the_ring_it_builds(single_robot_worl
     """
     world, robot, context = single_robot_world
 
-    location = reachability_location(_box_in(world), context, Arms.RIGHT)
+    location = reachability_location(
+        _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+    )
 
-    assert isinstance(location.sampling_strategy, WeightedByRating)
+    assert isinstance(location.draw.sampling_strategy, WeightedByRating)
 
 
 def test_a_reachability_location_takes_the_draw_it_is_given(single_robot_world):
@@ -807,10 +823,13 @@ def test_a_reachability_location_takes_the_draw_it_is_given(single_robot_world):
     strategy = WeightedByRating(seed=11)
 
     location = reachability_location(
-        _box_in(world), context, Arms.RIGHT, sampling_strategy=strategy
+        _box_in(world),
+        context,
+        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        sampling_strategy=strategy,
     )
 
-    assert location.sampling_strategy is strategy
+    assert location.draw.sampling_strategy is strategy
 
 
 def test_a_giskard_backend_drives_to_no_more_candidates_than_it_says(
@@ -824,7 +843,7 @@ def test_a_giskard_backend_drives_to_no_more_candidates_than_it_says(
     candidate = _candidate(world)
     backend = GiskardLocationBackend(
         target_pose=candidate,
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
         grasp_pose=candidate,
         robot=robot,
         world=world,
@@ -841,7 +860,7 @@ def test_a_giskard_backend_drives_to_no_more_candidates_than_it_says(
         lambda self, *args, **kwargs: MotionlessExecutor(),
     )
 
-    assert len(list(backend)) == 2
+    assert len(list(backend.candidates(CandidateDraw()))) == 2
 
 
 def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_world):
@@ -852,9 +871,11 @@ def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_wo
     world, robot, context = single_robot_world
     context.sampling_seed = 5
 
-    location = reachability_location(_box_in(world), context, Arms.RIGHT)
+    location = reachability_location(
+        _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+    )
 
-    assert location.sampling_strategy.seed == 5
+    assert location.draw.sampling_strategy.seed == 5
 
 
 def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
@@ -864,6 +885,82 @@ def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
     """
     world, robot, context = single_robot_world
 
-    location = reachability_location(_box_in(world), context, Arms.RIGHT)
+    location = reachability_location(
+        _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+    )
 
-    assert location.sampling_strategy.seed is None
+    assert location.draw.sampling_strategy.seed is None
+
+
+# %% what a backend must say about the terms it is drawn on
+
+
+def test_a_backend_that_does_not_say_how_it_draws_cannot_be_built():
+    """
+    A backend inherits no draw of its own, so one that leaves the terms unanswered is
+    refused where it is defined rather than silently dropping them at runtime.
+    """
+
+    @dataclass
+    class SaysNothingAboutTheTerms(PoseGeneratorBackend):
+        pass
+
+    with pytest.raises(TypeError):
+        SaysNothingAboutTheTerms()
+
+
+def test_a_giskard_backend_draws_its_map_on_the_strategy_it_was_given(
+    single_robot_world, monkeypatch
+):
+    """
+    The backend picks its base poses from a map of its own, so the strategy it is drawn
+    on has to reach that map rather than being replaced by one of the backend's
+    choosing.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    drawn_map = RecordsHowItWasDrawn(pose=candidate)
+    strategy = WeightedByRating(seed=4)
+    backend = GiskardLocationBackend(
+        target_pose=candidate,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
+        grasp_pose=candidate,
+        robot=robot,
+        world=world,
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend, "setup_costmap", lambda self, pose: drawn_map
+    )
+    monkeypatch.setattr(
+        GiskardLocationBackend,
+        "setup_giskard_executor",
+        lambda self, *args, **kwargs: MotionlessExecutor(),
+    )
+
+    list(backend.candidates(CandidateDraw(sampling_strategy=strategy)))
+
+    assert [terms.sampling_strategy for terms in drawn_map.asked_for] == [strategy]
+
+
+def test_a_giskard_backend_refuses_to_face_its_candidates_a_given_way(
+    single_robot_world,
+):
+    """
+    The backend offers wherever its robot came to rest, which is not a pose it can turn,
+    so a draw asking for one is refused rather than quietly answered facing elsewhere.
+    """
+    world, robot, context = single_robot_world
+    candidate = _candidate(world)
+    facing_y = OrientationGenerator.orientation_generator_for_axis(
+        Vector3.from_iterable([0, 1, 0])
+    )
+    backend = GiskardLocationBackend(
+        target_pose=candidate,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
+        grasp_pose=candidate,
+        robot=robot,
+        world=world,
+    )
+
+    with pytest.raises(CannotOrientCandidates):
+        backend.candidates(CandidateDraw(orientation_generator=facing_y))

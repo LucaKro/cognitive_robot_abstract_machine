@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import cast
@@ -25,6 +25,7 @@ from krrood.entity_query_language.verbalization.vocabulary.parts_of_speech impor
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.locations.sampling import (
+    CandidateDraw,
     CostmapSamplingStrategy,
     HighestRatedFirst,
 )
@@ -91,29 +92,14 @@ class Location(Iterable[Pose]):
     before that pose counts as in collision.
     """
 
-    sampling_strategy: CostmapSamplingStrategy = field(
-        default_factory=HighestRatedFirst
-    )
+    draw: CandidateDraw = field(default_factory=CandidateDraw)
     """
-    What the ratings of the generated candidates are used for.
+    The terms this location's candidates are drawn on.
 
-    Belongs here rather than to any one of the maps that constrain this location: it
-    decides how the merged result is drawn from, which is what this location iterates.
-    """
-
-    number_of_samples: int = 2000
-    """
-    How many candidates to draw from the generated map.
-
-    Far more than :attr:`candidates_to_validate`, since most are refused cheaply before
-    any of them is judged properly.
-    """
-
-    orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = None
-    """
-    Which way a drawn candidate faces.
-
-    ``None`` faces the target.
+    Belongs here rather than to any one of the maps that constrain this location: the
+    terms decide how the merged result is drawn from, which is what this location
+    iterates. Its sample count is far more than :attr:`candidates_to_validate`, since
+    most candidates are refused cheaply before any of them is judged properly.
     """
 
     candidates_to_validate: int = 50
@@ -176,11 +162,7 @@ class Location(Iterable[Pose]):
             ).with_collision_visualization()
 
         validated = 0
-        for pose_candidate in self.generator.candidates(
-            self.sampling_strategy,
-            self.number_of_samples,
-            self.orientation_generator,
-        ):
+        for pose_candidate in self.generator.candidates(self.draw):
 
             # A candidate says where to stand and which way to look, which is the
             # heading NavigateAction is handed. Turning it into a base pose the same way
@@ -272,35 +254,24 @@ class DeferredLocation(Iterable[Pose]):
 
 
 @dataclass
-class PoseGeneratorBackend:
+class PoseGeneratorBackend(ABC):
     """
     Generator backend base class for poses, generates pose candidates which are checked
     against a set of validators.
     """
 
     @abstractmethod
-    def __iter__(self) -> Iterator[Pose]:
-        pass
-
-    def candidates(
-        self,
-        sampling_strategy: CostmapSamplingStrategy,
-        number_of_samples: int = 2000,
-        orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = None,
-    ) -> Iterator[Pose]:
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
         """
         Draw pose candidates from this backend.
 
-        A backend that does not rate its candidates has nothing for a strategy to
-        decide, and offers them in its own order.
+        The only way to draw from a backend, so the terms are always named where the
+        draw is asked for: every backend says what it does with the ones it is given,
+        and none of them is chosen on a caller's behalf.
 
-        :param sampling_strategy: What the ratings of the candidates are used for.
-        :param number_of_samples: How many candidates to draw.
-        :param orientation_generator: Which way a candidate faces, or ``None`` to leave
-            it to the backend.
+        :param draw: The terms to draw the candidates on.
         :return: The pose candidates, in the order they should be tried.
         """
-        return iter(self)
 
     def merge(self, other: PoseGeneratorBackend) -> PoseGeneratorBackend:
         """

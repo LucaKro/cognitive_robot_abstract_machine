@@ -45,7 +45,7 @@ def test_opening_a_container_on_the_way_stands_where_it_is_opened_from(
             )
         )
     transport = TransportAction(
-        object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+        graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
         target_location=Pose(reference_frame=world.root),
         arm=Arms.RIGHT,
     )

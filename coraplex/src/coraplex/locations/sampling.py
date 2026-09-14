@@ -9,7 +9,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import NDArray
-from typing_extensions import Optional
+from typing_extensions import Callable, Optional
+
+from semantic_digital_twin.spatial_types import Quaternion
+from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 
 
 @dataclass
@@ -133,3 +136,33 @@ class UniformlyAtRandom(RandomCostmapSamplingStrategy):
 
     def _pick(self, ratings: NDArray[np.float64], count: int) -> NDArray[np.intp]:
         return self.random_generator.choice(ratings.size, count, replace=False)
+
+
+# %% the terms a draw is asked on
+
+
+@dataclass
+class CandidateDraw:
+    """
+    The terms a backend is asked to draw pose candidates on.
+    """
+
+    sampling_strategy: CostmapSamplingStrategy = field(
+        default_factory=HighestRatedFirst
+    )
+    """
+    What the ratings of the candidates are used for.
+    """
+
+    number_of_samples: int = 2000
+    """
+    How many candidates to draw.
+
+    Far more than a caller judges properly, since a standing pose inside the furniture
+    costs nothing to refuse.
+    """
+
+    orientation_generator: Optional[Callable[[Point3, Pose], Quaternion]] = None
+    """
+    Which way a drawn candidate faces, or ``None`` to leave it to the backend.
+    """

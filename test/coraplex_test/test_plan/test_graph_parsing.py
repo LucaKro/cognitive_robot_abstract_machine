@@ -311,7 +311,7 @@ def test_merge_motions(immutable_model_world, rclpy_node):
         ReachAction(
             grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
             arm=Arms.RIGHT,
-            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+            graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -383,7 +383,7 @@ def test_parse_complex_plan(immutable_model_world):
                 grasp_pose=Pose(
                     Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root
                 ),
-                object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+                graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
             ),
         ],
@@ -406,7 +406,7 @@ def test_parsing_two_actions_into_one_exec(immutable_model_world):
                 grasp_pose=Pose(
                     Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root
                 ),
-                object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+                graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
             ),
         ],
@@ -611,7 +611,7 @@ def reach_action(milk: Milk, view, **kwargs) -> ReachAction:
     return ReachAction(
         grasp_pose=Pose(reference_frame=milk.root),
         arm=Arms.RIGHT,
-        object_designator=milk,
+        graspable_object=milk,
         **kwargs,
     )
 

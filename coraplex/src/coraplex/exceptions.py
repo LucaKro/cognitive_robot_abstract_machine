@@ -118,7 +118,7 @@ class PerceptionTargetMissing(DataclassException):
         return f"{self.instance} perceives before grasping but names no object."
 
     def suggest_correction(self) -> str:
-        return "provide an object_designator or leave perceive_before_grasp off."
+        return "provide a graspable_object or leave perceive_before_grasp off."
 
 
 @dataclass
@@ -154,10 +154,10 @@ class GraspPoseMissing(DataclassException):
     """
 
     def error_message(self) -> str:
-        return f"{self.instance} names neither a grasp_pose nor an object_designator."
+        return f"{self.instance} names neither a grasp_pose nor a graspable_object."
 
     def suggest_correction(self) -> str:
-        return "provide a grasp_pose, or an object_designator whose grasps it can take."
+        return "provide a grasp_pose, or a graspable_object whose grasps it can take."
 
 
 @dataclass
@@ -357,3 +357,47 @@ class NotOnASingleLevelException(DataclassException):
 
     def suggest_correction(self) -> str:
         return f"Move the robot to a recognized level"
+
+
+@dataclass
+class NonPositiveNumberOfSamples(DataclassException):
+    """
+    Raised when a costmap is asked for fewer than one candidate, which no draw can
+    satisfy.
+    """
+
+    number_of_samples: int
+    """
+    The number of candidates that was asked for.
+    """
+
+    def error_message(self) -> str:
+        return f"A costmap cannot be asked for {self.number_of_samples} candidates."
+
+    def suggest_correction(self) -> str:
+        return (
+            "ask for at least one; a map offers everything it holds when asked for "
+            "more than that."
+        )
+
+
+@dataclass
+class CannotOrientCandidates(DataclassException):
+    """
+    Raised when a backend that yields poses it did not build from positions is asked to
+    face them a particular way.
+    """
+
+    backend: Type
+    """
+    The kind of backend that was asked.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.backend.__name__} offers the poses its robot reached, which it "
+            f"cannot turn to face a given direction."
+        )
+
+    def suggest_correction(self) -> str:
+        return "draw without an orientation generator, or draw from a costmap instead."

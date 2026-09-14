@@ -2,7 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import islice
 
-from typing_extensions import List
+from typing_extensions import Iterator, List
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -16,18 +16,17 @@ from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from coraplex.datastructures.enums import Arms
+from coraplex.exceptions import CannotOrientCandidates
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import Location, PoseGeneratorBackend
-from coraplex.locations.sampling import HighestRatedFirst
+from coraplex.locations.sampling import CandidateDraw
 from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostmap
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
     AllowCollisionRule,
     AllowCollisionBetweenGroups,
 )
-from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
@@ -52,9 +51,9 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     Each one costs a full simulated run, so far fewer than a map is usually drawn for.
     """
 
-    arm: Arms
+    arm: Arm[EndEffector]
     """
-    Arm of the which should be used.
+    The arm that should do the reaching.
     """
 
     grasp_pose: Pose
@@ -197,22 +196,54 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
 
         return executor
 
-    def __iter__(self):
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
+        """
+        Drive to the base poses its inner reachability map offers and yield where the
+        robot arrived.
+
+        Draws that map on the strategy it is given. The sample count may only narrow
+        :attr:`number_of_candidates`, never raise it, since each candidate costs a full
+        simulated run.
+
+        :param draw: The terms to draw the candidates on.
+        :return: The poses the robot reached, in the order they were tried.
+        :raises CannotOrientCandidates: If asked to face the candidates a given way.
+        """
+        if draw.orientation_generator is not None:
+            raise CannotOrientCandidates(type(self))
+
+        return self._drive_to(
+            CandidateDraw(
+                sampling_strategy=draw.sampling_strategy,
+                number_of_samples=min(
+                    self.number_of_candidates, draw.number_of_samples
+                ),
+            )
+        )
+
+    def _drive_to(self, draw: CandidateDraw) -> Iterator[Pose]:
+        """
+        Steer the robot to each base pose the inner map offers on the given terms.
+
+        :param draw: The terms to draw the base poses on.
+
+        :Yield: The pose the robot reached.
+        """
         with self.world.modify_world():
             self.robot._setup_collision_rules()
 
-        test_ee = ViewManager.get_end_effector_view(self.arm, self.robot)
+        test_end_effector = self.arm.end_effector
         target_sequence = self.grasp_pose_sequence(
-            self.grasp_pose, test_ee, self.body_T_grasp, reverse=self.reverse
+            self.grasp_pose, test_end_effector, self.body_T_grasp, reverse=self.reverse
         )
 
         executor = self.setup_giskard_executor(
-            target_sequence, self.world, self.robot, test_ee
+            target_sequence, self.world, self.robot, test_end_effector
         )
 
         for pose_candidate in islice(
-            self.setup_costmap(self.target_pose).candidates(HighestRatedFirst()),
-            self.number_of_candidates,
+            self.setup_costmap(self.target_pose).candidates(draw),
+            draw.number_of_samples,
         ):
             self.robot.set_root_pose(pose_candidate)
 

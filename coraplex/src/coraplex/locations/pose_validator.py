@@ -32,7 +32,6 @@ try:
     )
 except ImportError:
     VizMarkerPublisher = None
-from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 
 if TYPE_CHECKING:
@@ -50,7 +49,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm, EndEffector
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import (
@@ -194,7 +193,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
     def for_grasp(
         cls,
         grasp_pose: Pose,
-        arm: Arms,
+        arm: Arm,
         *,
         body_T_grasp: Optional[Pose] = None,
         context: Context,
@@ -218,7 +217,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         :param clearances: Overrides for :class:`HasApproachesGraspPoses`' distances.
         :return: A validator for the poses reaching that grasp.
         """
-        end_effector = ViewManager.get_end_effector_view(arm, context.robot)
+        end_effector = arm.end_effector
         approach = HasApproachesGraspPoses(**clearances)
         return cls(
             pose_sequence=approach.grasp_pose_sequence(
@@ -343,6 +342,21 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         executor.compile(msc)
         return executor
 
+    def _reaches_pose_sequence(self) -> bool:
+        """
+        Runs a probe of the reach.
+
+        :return: Whether the probe arrived at every pose of the sequence.
+        """
+        try:
+            self.create_executor(self.create_msc()).tick_until_end()
+        except (TimeoutError, NoProgressError) as not_reached:
+            logger.debug(
+                f"Did not reach pose sequence {self.pose_sequence}: {not_reached}"
+            )
+            return False
+        return True
+
     def __call__(self, *args, **kwargs) -> bool:
         logger.debug(
             f"Hash of input for pose_sequence_reachability_validator: {hash((*self.pose_sequence, self.tip_link, self.robot))}"
@@ -352,22 +366,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         entered_temporary_rules = list(collision_manager.temporary_rules)
         with self.world.reset_state_context():
             try:
-                executor = self.create_executor(self.create_msc())
-
-                try:
-                    executor.tick_until_end()
-                except TimeoutError:
-                    logger.debug(
-                        f"Timeout while executing pose sequence: {self.pose_sequence}"
-                    )
-                    return False
-                except NoProgressError as no_progress:
-                    logger.debug(
-                        f"Stopped approaching pose sequence {self.pose_sequence}: "
-                        f"{no_progress.error_message()}"
-                    )
-                    return False
-                return True
+                return self._reaches_pose_sequence()
             finally:
                 collision_manager.clear_temporary_rules()
                 collision_manager.extend_temporary_rule(entered_temporary_rules)
@@ -422,9 +421,12 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
     than as it was when the plan was built.
     """
 
-    arm: Arms
+    arm: Arm[EndEffector]
     """
     The arm whose end effector should do the reaching.
+
+    Written with its end effector type, since a bound generic is what the ORM maps a
+    field of; an unparameterized one is skipped and the arm is then not persisted.
     """
 
     def _copied_world(self) -> ReachabilityProbeWorld:
@@ -437,6 +439,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
         """
         world = deepcopy(self.world)
         robot = world.get_semantic_annotation_by_id(self.robot.id)
+        arm = world.get_semantic_annotation_by_id(self.arm.id)
         if self.context.debug and VizMarkerPublisher is not None:
             VizMarkerPublisher(
                 _world=world, node=self.context.ros_node
@@ -444,7 +447,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
         return ReachabilityProbeWorld(
             world=world,
             robot=robot,
-            end_effector=ViewManager.get_end_effector_view(self.arm, robot),
+            end_effector=arm.end_effector,
             source_context=self.context,
         )
 

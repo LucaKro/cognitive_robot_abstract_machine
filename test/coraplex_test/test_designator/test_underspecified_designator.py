@@ -254,7 +254,7 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
                 ),
                 keep_joint_states=True,
             ),
-            a(PickUpAction)(arm=..., object_designator=milk),
+            a(PickUpAction)(arm=..., graspable_object=milk),
         ],
         context=context,
     )

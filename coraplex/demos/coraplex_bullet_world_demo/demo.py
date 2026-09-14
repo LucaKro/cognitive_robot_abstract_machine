@@ -26,6 +26,7 @@ from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
+from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import a, an, entity, variable
 from semantic_digital_twin.api import (
     BodySpecification,
@@ -333,11 +334,16 @@ class BulletWorldDemonstration(RobotDemonstration):
                     target_location=self.milk.target_location(world),
                 ),
                 a(TransportAction)(
-                    object_designator=bowl,
+                    graspable_object=bowl,
                     target_location=self.bowl.target_location(world),
                     arm=Arms.LEFT,
                     grasp_pose=variable(
-                        Pose, domain=ReachableGrasps(bowl, context, Arms.LEFT)
+                        Pose,
+                        domain=ReachableGrasps(
+                            bowl,
+                            context,
+                            ViewManager.get_arm_view(Arms.LEFT, context.robot),
+                        ),
                     ),
                 ),
                 TransportAction(

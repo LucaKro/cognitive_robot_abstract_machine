@@ -140,7 +140,7 @@ class GiskardExecutable(Executable):
 
     def prepare_for_execution(self) -> None:
         """
-        Extend the motion state chart with the nodes that terminate it: one that ends
+        Extend the motion state chart with the nodes that terminate it: one that cancels
         the motion once it reaches its goal, and one that gives up on it once it stops
         approaching one.
 

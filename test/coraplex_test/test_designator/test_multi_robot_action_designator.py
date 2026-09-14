@@ -45,6 +45,7 @@ from coraplex.robot_plans.actions.core.robot_body import (
     FollowToolCenterPointPathAction,
 )
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
+from coraplex.locations.sampling import CandidateDraw
 from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from rustworkx.rustworkx import NoEdgeBetweenNodes
@@ -414,7 +415,7 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
             ParkArmsAction(Arms.BOTH),
             ReachAction(
                 grasp_pose=grasp_pose,
-                object_designator=milk,
+                graspable_object=milk,
                 arm=Arms.LEFT,
             ),
         ],
@@ -759,7 +760,7 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
 
     description = TransportAction(
-        object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+        graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
         target_location=Pose(
             Point3.from_iterable([3.1, 2.2, 0.95]),
             Quaternion.from_iterable([0.0, 0.0, 1.0, 0.0]),
@@ -803,7 +804,7 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
         5.1, 3.25, 0.75, yaw=1.57, reference_frame=world.root
     )
     description = TransportAction(
-        object_designator=world.get_semantic_annotations_by_type(Spoon)[0],
+        graspable_object=world.get_semantic_annotations_by_type(Spoon)[0],
         target_location=target_pose,
         arm=Arms.RIGHT,
     )
@@ -830,7 +831,10 @@ class SinglePoseGenerator(PoseGeneratorBackend):
 
     pose: Pose
 
-    def __iter__(self) -> Iterator[Pose]:
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
+        """
+        Offers its one candidate, whatever terms the draw asks on.
+        """
         yield self.pose
 
 

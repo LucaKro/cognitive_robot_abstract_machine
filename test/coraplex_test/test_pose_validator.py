@@ -188,7 +188,7 @@ def test_is_grasp_reachable_by_copies_current_world_lazily(
             robot=view,
             world=world,
         ),
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, view),
         grasp_pose=Pose(reference_frame=milk),
         object_designator=milk,
     )
@@ -236,7 +236,7 @@ def test_is_grasp_reachable_by_uses_the_grasp_pose_sequence(
             robot=view,
             world=world,
         ),
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, view),
         grasp_pose=target,
         object_designator=milk,
     )()
@@ -304,7 +304,7 @@ def test_is_object_reachable_by_reachable(immutable_model_world):
             robot=view,
             world=world,
         ),
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, view),
         graspable=world.get_semantic_annotations_by_type(Milk)[0],
     )
 
@@ -324,7 +324,7 @@ def test_is_object_reachable_by_not_reachable(immutable_model_world):
             robot=view,
             world=world,
         ),
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, view),
         graspable=world.get_semantic_annotations_by_type(Milk)[0],
     )
 
@@ -448,6 +448,31 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
     assert progress_monitor.monitored_node is sequence
 
 
+class _ProbeThatNeverEnds:
+    """
+    Stands in for an executor whose motion never reaches its end, so the probe runs out
+    of ticks.
+    """
+
+    def tick_until_end(self):
+        raise TimeoutError("Timeout reached while waiting for end of motion.")
+
+
+def test_validation_gives_up_on_a_pose_it_runs_out_of_ticks_for(
+    immutable_model_world, monkeypatch
+):
+    """
+    A probe that neither arrives nor stalls is stopped by its tick budget, and a
+    candidate it was spent on is unreachable rather than an error the location has to
+    handle.
+    """
+    world, robot_view, context = immutable_model_world
+    validator = _reachability_validator(world, robot_view, context)
+    monkeypatch.setattr(validator, "create_executor", lambda msc: _ProbeThatNeverEnds())
+
+    assert validator() is False
+
+
 def test_validation_gives_back_the_collision_rules_it_found(immutable_model_world):
     """
     A location judges every candidate against one world copy, so a validation run must
@@ -516,7 +541,7 @@ def test_validation_is_run_with_the_motion_settings_of_the_plan(
     )
     validator = IsGraspReachableBy(
         context=context,
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
         grasp_pose=Pose(reference_frame=milk),
         object_designator=milk,
     )
@@ -560,7 +585,11 @@ def test_any_grasp_validator_keeps_the_grasp_it_reached(immutable_model_world):
     """
     world, robot_view, context = immutable_model_world
     milk = _milk_within_reach(world)
-    validator = IsObjectReachableBy(context=context, arm=Arms.RIGHT, graspable=milk)
+    validator = IsObjectReachableBy(
+        context=context,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
+        graspable=milk,
+    )
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
         assert validator()
@@ -592,7 +621,11 @@ def test_any_grasp_validator_tries_the_nearest_grasps_first(
     """
     world, robot_view, context = immutable_model_world
     milk = _milk_within_reach(world)
-    validator = IsObjectReachableBy(context=context, arm=Arms.RIGHT, graspable=milk)
+    validator = IsObjectReachableBy(
+        context=context,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
+        graspable=milk,
+    )
 
     tried = []
     monkeypatch.setattr(
@@ -622,7 +655,11 @@ def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world
     """
     world, robot_view, context = immutable_model_world
     milk = _milk_within_reach(world)
-    validator = IsObjectReachableBy(context=context, arm=Arms.RIGHT, graspable=milk)
+    validator = IsObjectReachableBy(
+        context=context,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
+        graspable=milk,
+    )
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
         assert validator()
@@ -635,6 +672,31 @@ def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world
         assert not validator()
 
     assert validator.reachable_grasp is None
+
+
+# %% a grasp probe reaches with the copy's own gripper
+
+
+def test_a_grasp_probe_reaches_with_the_gripper_of_its_copy(immutable_model_world):
+    """
+    The probe drives a copy of the world, so it has to reach with that copy's gripper.
+
+    Reaching with the caller's own gripper would move the robot the plan runs against,
+    which is the thing copying the world avoids.
+    """
+    world, robot_view, context = immutable_model_world
+    arm = ViewManager.get_arm_view(Arms.RIGHT, robot_view)
+    validator = IsObjectReachableBy(
+        context=context, arm=arm, graspable=_milk_within_reach(world)
+    )
+
+    probe = validator._copied_world()
+
+    assert probe.end_effector is not arm.end_effector
+    assert probe.end_effector.id == arm.end_effector.id
+    assert probe.end_effector is probe.world.get_semantic_annotation_by_id(
+        arm.end_effector.id
+    )
 
 
 # %% watching a grasp probe happen
@@ -671,7 +733,7 @@ def test_a_grasp_probe_is_published_while_debugging(immutable_model_world, monke
     node = object()
     validator = IsObjectReachableBy(
         context=Context(world=world, robot=robot_view, ros_node=node, _debug=True),
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
         graspable=milk,
     )
 
@@ -693,7 +755,7 @@ def test_a_grasp_probe_is_not_published_otherwise(immutable_model_world, monkeyp
     )
     validator = IsObjectReachableBy(
         context=Context(world=world, robot=robot_view),
-        arm=Arms.RIGHT,
+        arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
         graspable=milk,
     )
 

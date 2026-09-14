@@ -62,12 +62,6 @@ class Designator:
         """
         The parameters of this designator: the fields a caller constructs it with.
 
-        Fields that are not constructible -- the plan node it is mounted on, and
-        whatever a designator works out for itself -- are not parameters and are left
-        out, which is what
-        :class:`~krrood.class_diagrams.attribute_introspector.DataclassOnlyIntrospector`
-        already means by a public field.
-
         :return: The fields of this designator.
         """
         return [

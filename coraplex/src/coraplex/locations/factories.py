@@ -8,10 +8,13 @@ from typing_extensions import Iterable, Iterator, List, Optional, Union
 from krrood.adapters.json_serializer import list_like_classes
 from coraplex.datastructures.dataclasses import Context
 from coraplex.config.action_conf import ActionConfig
-from coraplex.datastructures.enums import Arms
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location
-from coraplex.locations.sampling import CostmapSamplingStrategy, WeightedByRating
+from coraplex.locations.sampling import (
+    CandidateDraw,
+    CostmapSamplingStrategy,
+    WeightedByRating,
+)
 from coraplex.locations.costmaps import OccupancyCostmap, RingCostmap, VisibilityCostmap
 from coraplex.locations.pose_validator import (
     AreReachableBy,
@@ -22,6 +25,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
     Drawer,
 )
+from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
@@ -43,7 +47,7 @@ def occupancy_location(target_pose: Pose, context: Context) -> Location:
 def reachability_location(
     body: Body,
     context: Context,
-    arm: Arms,
+    arm: Arm,
     grasp_pose: Optional[Pose] = None,
     destination: Optional[Pose] = None,
     approach_clearance: float = ActionConfig.approach_clearance,
@@ -74,13 +78,15 @@ def reachability_location(
     body_T_grasp = grasp_pose or Pose(reference_frame=body)
     target_pose = destination or body.global_pose
     releases_the_body = destination is not None
+    occupancy_costmap = OccupancyCostmap.default_map(context, target_pose)
+    ring_costmap = RingCostmap.from_arm_reach_distance(
+        context, arm, target_pose, reach_fraction=reach_fraction
+    )
+    final_costmap = occupancy_costmap & ring_costmap
     return Location(
         context,
         target_pose,
-        OccupancyCostmap.default_map(context, target_pose)
-        & RingCostmap.from_arm_reach_distance(
-            context, arm, target_pose, reach_fraction=reach_fraction
-        ),
+        final_costmap,
         [
             AreReachableBy.for_grasp(
                 target_pose.to_homogeneous_matrix() @ body_T_grasp,
@@ -92,15 +98,17 @@ def reachability_location(
                 retreat_distance=retreat_distance,
             )
         ],
-        sampling_strategy=sampling_strategy
-        or WeightedByRating(seed=context.sampling_seed),
+        draw=CandidateDraw(
+            sampling_strategy=sampling_strategy
+            or WeightedByRating(seed=context.sampling_seed)
+        ),
     )
 
 
 def grasping_location(
     graspable: HasGraspPoses,
     context: Context,
-    arm: Arms,
+    arm: Arm,
     approach_clearance: float = ActionConfig.approach_clearance,
     retreat_distance: float = ActionConfig.retreat_distance,
     sampling_strategy: Optional[CostmapSamplingStrategy] = None,
@@ -124,11 +132,13 @@ def grasping_location(
     :returns: A location from which the object can be grasped.
     """
     target_pose = graspable.root.global_pose
+    occupancy_costmap = OccupancyCostmap.default_map(context, target_pose)
+    ring_costmap = RingCostmap.from_arm_reach_distance(context, arm, target_pose)
+    final_costmap = occupancy_costmap & ring_costmap
     return Location(
         context,
         target_pose,
-        OccupancyCostmap.default_map(context, target_pose)
-        & RingCostmap.from_arm_reach_distance(context, arm, target_pose),
+        final_costmap,
         [
             IsObjectReachableBy(
                 context=context,
@@ -138,8 +148,10 @@ def grasping_location(
                 retreat_distance=retreat_distance,
             )
         ],
-        sampling_strategy=sampling_strategy
-        or WeightedByRating(seed=context.sampling_seed),
+        draw=CandidateDraw(
+            sampling_strategy=sampling_strategy
+            or WeightedByRating(seed=context.sampling_seed)
+        ),
     )
 
 
@@ -148,11 +160,6 @@ class ReachableGrasps(Iterable[Pose]):
     """
     The grasps of an object that some standing pose reaches, worked out when they are
     asked for rather than when the plan is built.
-
-    Which grasps qualify depends on where the robot may stand and on where everything
-    else has got to, so answering while the plan is still being built answers about a
-    world the action will not run in. Used as the domain of a ``grasp_pose`` variable,
-    this is asked once the underspecified action grounds, during execution.
 
     .. warning::
         :meth:`__iter__` must stay a generator. The domain is wrapped rather than
@@ -171,9 +178,12 @@ class ReachableGrasps(Iterable[Pose]):
     The context the reaching is judged in.
     """
 
-    arm: Arms
+    arm: Arm[EndEffector]
     """
     The arm that should do the grasping.
+
+    Written with its end effector type, since a bound generic is what the ORM maps a
+    field of; an unparameterized one is skipped and the arm is then not persisted.
     """
 
     approach_clearance: float = ActionConfig.approach_clearance
@@ -200,7 +210,7 @@ class ReachableGrasps(Iterable[Pose]):
 
 
 def accessing_location(
-    container: Union[Drawer, Cabinet], context: Context, arm: Arms
+    container: Union[Drawer, Cabinet], context: Context, arm: Arm
 ) -> Location:
     """
     Factory that creates a location for robot base poses for opening and closing
@@ -234,8 +244,8 @@ def visibility_location(target: Union[Pose, Body], context: Context) -> Location
 
     camera = context.robot.get_default_camera()
     costmap = OccupancyCostmap.default_map(context, target_pose) & VisibilityCostmap(
-        min_height=camera.minimal_height,
-        max_height=camera.maximal_height,
+        minimum_height=camera.minimal_height,
+        maximum_height=camera.maximal_height,
         world=context.world,
         width=200,
         height=200,
@@ -259,7 +269,7 @@ def visibility_location(target: Union[Pose, Body], context: Context) -> Location
 def giskard_reachability_location(
     body: Body,
     context: Context,
-    arm: Arms,
+    arm: Arm,
     grasp_pose: Optional[Pose] = None,
     destination: Optional[Pose] = None,
     approach_clearance: float = ActionConfig.approach_clearance,

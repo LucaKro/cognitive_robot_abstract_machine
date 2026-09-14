@@ -90,7 +90,7 @@ def complex_plan(mutable_model_world):
 
     plan = execute_single(
         TransportAction(
-            object_designator=milk,
+            graspable_object=milk,
             target_location=Pose.from_xyz_quaternion(
                 2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root
             ),

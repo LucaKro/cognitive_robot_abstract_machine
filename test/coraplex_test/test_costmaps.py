@@ -12,7 +12,9 @@ from coraplex.locations.costmaps import (
     OrientationGenerator,
     RingCostmap,
 )
+from coraplex.exceptions import NonPositiveNumberOfSamples
 from coraplex.locations.sampling import (
+    CandidateDraw,
     CostmapSamplingStrategy,
     HighestRatedFirst,
     UniformlyAtRandom,
@@ -147,7 +149,9 @@ def test_sample_reachability(immutable_model_world):
 
     assert np.sum(reach_map.map[:200, :]) < 5
 
-    for pose in reach_map.candidates(HighestRatedFirst()):
+    for pose in reach_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert pose.to_position().x > 3
 
 
@@ -167,7 +171,9 @@ def test_position_generation(immutable_model_world):
     )
     gaussian_map.map = np_map
 
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert 0.8 <= pose.to_position().x <= 1.2
         assert 0.8 <= pose.to_position().y <= 1.2
 
@@ -229,7 +235,9 @@ def test_sample_x_axis(immutable_model_world):
 
     gaussian_map.map = np_map
 
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert -0.05 < pose.to_position().y < 0.05
 
 
@@ -248,7 +256,9 @@ def test_sample_x_axis_offset(immutable_model_world):
 
     gaussian_map.map = np_map
 
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert -0.2 <= pose.to_position().y <= 0.2
         assert 0.4 <= pose.to_position().x <= 0.8
 
@@ -268,7 +278,9 @@ def test_sample_x_axis_offset_non_id(immutable_model_world):
     gaussian_map.map = np_map
 
     tolerance = 0.01
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert 1.8 <= pose.to_position().y <= 2.2 + tolerance
         assert 3.4 <= pose.to_position().x <= 3.8 + tolerance
 
@@ -299,7 +311,9 @@ def test_sample_to_pose_gau(immutable_model_world):
     # The merge keeps only the cells both maps cover, which is the box the first one was
     # given: rows 120:140 and columns 90:110 of a 0.02 m grid centred on the origin.
     tolerance = 0.01
-    for pose in final_map.candidates(HighestRatedFirst()):
+    for pose in final_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert 1.8 <= pose.to_position().y <= 2.2 + tolerance
         assert 3.4 <= pose.to_position().x <= 3.8 + tolerance
 
@@ -317,7 +331,9 @@ def test_sample_y_axis(immutable_model_world):
     )
 
     gaussian_map.map = np_map
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert -0.05 < pose.to_position().x < 0.05
 
 
@@ -333,17 +349,39 @@ def test_sample_rotated(immutable_model_world):
         world=world,
     )
     gaussian_map.map = np_map
-    assert len(list(gaussian_map.candidates(HighestRatedFirst()))) == 2
+    assert (
+        len(
+            list(
+                gaussian_map.candidates(
+                    CandidateDraw(sampling_strategy=HighestRatedFirst())
+                )
+            )
+        )
+        == 2
+    )
 
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert -0.05 < pose.to_position().y < 0.05
         assert 0.4 <= pose.to_position().x <= 0.45
 
     gaussian_map.origin = Pose.from_xyz_quaternion(0, 0, 0, 0, 0, 1, 1, world.root)
 
-    assert len(list(gaussian_map.candidates(HighestRatedFirst()))) == 2
+    assert (
+        len(
+            list(
+                gaussian_map.candidates(
+                    CandidateDraw(sampling_strategy=HighestRatedFirst())
+                )
+            )
+        )
+        == 2
+    )
 
-    for pose in gaussian_map.candidates(HighestRatedFirst()):
+    for pose in gaussian_map.candidates(
+        CandidateDraw(sampling_strategy=HighestRatedFirst())
+    ):
         assert -0.05 < pose.to_position().y < 0.05
         assert 0.4 <= pose.to_position().x <= 0.45
 
@@ -363,7 +401,9 @@ def test_sample_to_pose(immutable_model_world):
 
     gaussian_map.map = np_map
 
-    pose = list(gaussian_map.candidates(HighestRatedFirst()))[0]
+    pose = list(
+        gaussian_map.candidates(CandidateDraw(sampling_strategy=HighestRatedFirst()))
+    )[0]
 
     assert pose.to_position().x == 1.6
     assert pose.to_position().y == 2.2
@@ -386,7 +426,9 @@ def test_sample_highest_first(immutable_model_world):
 
     gaussian_map.map = np_map
 
-    poses = list(gaussian_map.candidates(HighestRatedFirst()))
+    poses = list(
+        gaussian_map.candidates(CandidateDraw(sampling_strategy=HighestRatedFirst()))
+    )
 
     assert len(poses) == 3
 
@@ -499,7 +541,7 @@ def _ring_map(world) -> RingCostmap:
         resolution=0.02,
         width=200,
         height=200,
-        std=15,
+        standard_deviation=15,
         distance=0.6,
         world=world,
         origin=Pose.from_xyz_quaternion(0, 0, 0, 0, 0, 0, 1, world.root),
@@ -528,7 +570,10 @@ def _stand_off_distances(
     return np.array(
         [
             float(np.linalg.norm(pose.to_position().to_np()[:3] - origin))
-            for pose in islice(costmap.candidates(sampling_strategy), count)
+            for pose in islice(
+                costmap.candidates(CandidateDraw(sampling_strategy=sampling_strategy)),
+                count,
+            )
         ]
     )
 
@@ -541,7 +586,9 @@ def test_highest_rated_candidates_come_first(immutable_model_world):
     world, _, _ = immutable_model_world
     costmap = _sparsely_rated_map(world)
 
-    poses = list(costmap.candidates(HighestRatedFirst()))
+    poses = list(
+        costmap.candidates(CandidateDraw(sampling_strategy=HighestRatedFirst()))
+    )
 
     assert len(poses) == 3
     assert (
@@ -649,8 +696,16 @@ def test_how_many_candidates_to_draw_is_the_callers_to_say(immutable_model_world
     world, _, _ = immutable_model_world
     ring = _ring_map(world)
 
-    few = list(ring.candidates(HighestRatedFirst(), number_of_samples=12))
-    many = list(ring.candidates(HighestRatedFirst(), number_of_samples=300))
+    few = list(
+        ring.candidates(
+            CandidateDraw(sampling_strategy=HighestRatedFirst(), number_of_samples=12)
+        )
+    )
+    many = list(
+        ring.candidates(
+            CandidateDraw(sampling_strategy=HighestRatedFirst(), number_of_samples=300)
+        )
+    )
 
     assert len(few) == 12
     assert len(many) == 300
@@ -671,9 +726,11 @@ def test_which_way_a_candidate_faces_is_the_callers_to_say(immutable_model_world
     drawn = next(
         iter(
             merged.candidates(
-                HighestRatedFirst(),
-                number_of_samples=10,
-                orientation_generator=facing_y,
+                CandidateDraw(
+                    sampling_strategy=HighestRatedFirst(),
+                    number_of_samples=10,
+                    orientation_generator=facing_y,
+                )
             )
         )
     )
@@ -764,6 +821,77 @@ def test_a_sparsely_rated_map_is_drawn_from_within_its_rated_entries(
     world, _, _ = immutable_model_world
     costmap = _sparsely_rated_map(world)
 
-    poses = list(costmap.candidates(WeightedByRating(seed=0)))
+    poses = list(
+        costmap.candidates(CandidateDraw(sampling_strategy=WeightedByRating(seed=0)))
+    )
 
     assert len(poses) == int(np.count_nonzero(costmap.map))
+
+
+# %% how a sample budget is spread over a map's segments
+
+
+def test_a_budget_smaller_than_the_segment_count_still_offers_candidates(
+    immutable_model_world,
+):
+    """
+    A budget is spread over the segments a map falls into, and a caller that can only
+    afford a handful still has to be offered that handful.
+
+    Splitting the budget evenly leaves nothing for any segment once it is smaller than
+    the number of them, which would have the map offer nothing at all.
+    """
+    world, _, _ = immutable_model_world
+    costmap = _sparsely_rated_map(world)
+    asked_for = len(costmap.segment_map()) - 1
+
+    poses = list(
+        costmap.candidates(
+            CandidateDraw(
+                sampling_strategy=HighestRatedFirst(), number_of_samples=asked_for
+            )
+        )
+    )
+
+    assert len(poses) == asked_for
+
+
+def test_a_map_offers_no_more_candidates_than_it_holds(immutable_model_world):
+    """
+    An entry is offered once, so a budget beyond what the map holds is capped at its
+    extent rather than running up to the budget over its segments.
+    """
+    world, _, _ = immutable_model_world
+    costmap = _ring_map(world)
+    costmap.map = np.ones((3, 3))
+
+    poses = list(
+        costmap.candidates(
+            CandidateDraw(
+                sampling_strategy=HighestRatedFirst(),
+                number_of_samples=100 * costmap.map.size,
+            )
+        )
+    )
+
+    assert len(poses) == costmap.map.size
+
+
+@pytest.mark.parametrize("asked_for", [0, -1, -5])
+def test_a_map_asked_for_no_candidates_says_so(immutable_model_world, asked_for):
+    """
+    No draw satisfies a request for fewer than one candidate, so it is refused where it
+    is asked for rather than quietly answered with an empty map.
+
+    Refused at the call rather than once the draw is iterated, so a caller that hands
+    the candidates on is told where the mistake is.
+    """
+    world, _, _ = immutable_model_world
+    costmap = _ring_map(world)
+
+    with pytest.raises(NonPositiveNumberOfSamples):
+        costmap.candidates(
+            CandidateDraw(
+                sampling_strategy=HighestRatedFirst(), number_of_samples=asked_for
+            )
+        )

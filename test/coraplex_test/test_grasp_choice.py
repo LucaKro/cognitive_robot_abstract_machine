@@ -148,7 +148,7 @@ def test_pre_condition_judges_the_default_grasp_only(immutable_model_world):
     sequential([pick_up], context=context)
     reaches_its_grasp = AreReachableBy.for_grasp(
         pick_up.grasp_pose,
-        Arms.LEFT,
+        ViewManager.get_arm_view(Arms.LEFT, view),
         body_T_grasp=pick_up.grasp_pose,
         context=context,
     )()
@@ -240,7 +240,7 @@ def test_reachable_grasps_searches_at_execution_not_construction(monkeypatch):
 
     monkeypatch.setattr(factories, "grasping_location", record_and_refuse)
 
-    variable(Pose, domain=factories.ReachableGrasps(object(), object(), Arms.LEFT))
+    variable(Pose, domain=factories.ReachableGrasps(object(), object(), object()))
 
     assert searches == []
 
@@ -269,7 +269,7 @@ def test_reachable_grasps_sees_the_world_as_it_is_when_consumed(monkeypatch):
         factories, "grasping_location", lambda *args, **kwargs: LocationStandingIn()
     )
 
-    grasps = factories.ReachableGrasps(object(), object(), Arms.LEFT)
+    grasps = factories.ReachableGrasps(object(), object(), object())
     moved["value"] = "after"
     next(iter(grasps), None)
 
@@ -288,7 +288,14 @@ def test_reachable_grasps_yields_grasps_the_object_offers(immutable_model_world)
         1.7, 1.4, 1.0, reference_frame=world.root
     )
 
-    grasp = next(iter(factories.ReachableGrasps(milk, context, Arms.RIGHT)), None)
+    grasp = next(
+        iter(
+            factories.ReachableGrasps(
+                milk, context, ViewManager.get_arm_view(Arms.RIGHT, view)
+            )
+        ),
+        None,
+    )
 
     assert grasp is not None, "the milk is reachable, so a grasp must be found"
     assert any(

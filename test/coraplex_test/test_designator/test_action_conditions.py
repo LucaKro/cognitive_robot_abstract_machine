@@ -54,7 +54,7 @@ def test_get_bound_variables(immutable_model_world):
         "object_friction",
         "approach_clearance",
         "retreat_distance",
-        "object_designator",
+        "graspable_object",
         "arm",
         "grasp_pose",
         "tolerate_grasp_stall",
@@ -62,10 +62,10 @@ def test_get_bound_variables(immutable_model_world):
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms
-    assert list(bound_variables["object_designator"]._domain_) == [
+    assert list(bound_variables["graspable_object"]._domain_) == [
         world.get_semantic_annotations_by_type(Milk)[0]
     ]
-    assert bound_variables["object_designator"]._type_ == Milk
+    assert bound_variables["graspable_object"]._type_ == Milk
 
 
 def test_pick_up_pre_conditions(mutable_model_world, rclpy_node):

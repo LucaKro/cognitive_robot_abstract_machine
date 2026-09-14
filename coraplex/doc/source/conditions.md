@@ -47,11 +47,11 @@ def can_take_hold(variables, context, kwargs):
                 world=context.world,
                 alternative_motion_mappings=context.alternative_motion_mappings,
             ),
-            arm=variables["arm"],
+            arm=ViewManager.get_arm_view(variables["arm"], context.robot),
             grasp_pose=HasGraspChoice.resolve_grasp_pose(
-                kwargs["grasp_pose"], kwargs["object_designator"]
+                kwargs["grasp_pose"], kwargs["graspable_object"]
             ),
-            object_designator=kwargs["object_designator"].root,
+            object_designator=kwargs["graspable_object"].root,
         ),
     )
 ```

@@ -247,7 +247,9 @@ def test_new_reachability_location_body(
         world.notify_state_change()
 
         location = reachability_location(
-            world.get_body_by_name("milk.stl"), context, Arms.RIGHT
+            world.get_body_by_name("milk.stl"),
+            context,
+            ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
 
         pose = next(iter(location))
@@ -268,13 +270,15 @@ def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
         world.notify_state_change()
 
         location_body = reachability_location(
-            world.get_body_by_name("milk.stl"), context, Arms.RIGHT
+            world.get_body_by_name("milk.stl"),
+            context,
+            ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
 
         location_destination = reachability_location(
             world.get_body_by_name("milk.stl"),
             context,
-            Arms.RIGHT,
+            ViewManager.get_arm_view(Arms.RIGHT, robot),
             destination=world.get_body_by_name("milk.stl").global_pose,
         )
 
@@ -345,7 +349,9 @@ def test_visibility_reachability_merge(immutable_multiple_robot_simple_apartment
         next(iter(location_vis))
 
         location_reach = reachability_location(
-            world.get_body_by_name("milk.stl"), context, Arms.RIGHT
+            world.get_body_by_name("milk.stl"),
+            context,
+            ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
 
         location = location_vis & location_reach
@@ -376,7 +382,9 @@ def test_accessing_location_pose(immutable_model_world):
             )
         )
 
-    location_desig = accessing_location(drawer, context=context, arm=Arms.RIGHT)
+    location_desig = accessing_location(
+        drawer, context=context, arm=ViewManager.get_arm_view(Arms.RIGHT, robot)
+    )
     with simulated_robot:
         pose = next(iter(location_desig))
 
@@ -402,7 +410,7 @@ def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
         location = giskard_reachability_location(
             world.get_body_by_name("milk.stl"),
             context,
-            Arms.RIGHT,
+            ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
 
         pose = next(iter(location))
@@ -431,11 +439,12 @@ def test_accessing_location_validates_the_poses_the_grasp_will_reach(
             )
         )
 
-    [validator] = accessing_location(drawer, context=context, arm=Arms.RIGHT).validators
+    arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
+    [validator] = accessing_location(drawer, context=context, arm=arm).validators
     handle_body = drawer.handle.root
     reached = HasApproachesGraspPoses().grasp_pose_sequence(
         handle_body.global_pose,
-        ViewManager.get_end_effector_view(Arms.RIGHT, robot),
+        arm.end_effector,
         Pose(reference_frame=handle_body),
     )
 

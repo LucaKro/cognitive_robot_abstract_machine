@@ -191,7 +191,7 @@ with simulated_robot:
              Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
          ),
          PickUpAction(
-             object_designator=(milk := world.get_semantic_annotations_by_type(Milk)[0]),
+             graspable_object=(milk := world.get_semantic_annotations_by_type(Milk)[0]),
              arm=arm,
              grasp_pose=next(iter(milk.grasp_poses())),
          ),

@@ -52,7 +52,7 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
 
     def inside_container(self) -> List[Body]:
         bodies = []
-        object_body = self.object_designator.root
+        object_body = self.graspable_object.root
         for body in self.world.bodies:
             if body == object_body:
                 continue
@@ -80,7 +80,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                 target_location=variable(
                     Pose,
                     domain=accessing_location(
-                        drawer_annotation[0], self.context, self.arm
+                        drawer_annotation[0],
+                        self.context,
+                        ViewManager.get_arm_view(self.arm, self.robot),
                     ),
                 ),
                 keep_joint_states=True,
@@ -105,7 +107,7 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                     keep_joint_states=True,
                 ),
                 a(PickUpAction)(
-                    object_designator=self.object_designator,
+                    graspable_object=self.graspable_object,
                     arm=self.arm,
                     grasp_pose=self.grasp_pose,
                     approach_clearance=self.approach_clearance,
@@ -115,7 +117,7 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                 MoveTorsoAction(TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_pose),
                 a(PlaceAction)(
-                    object_designator=self.object_designator.root,
+                    object_designator=self.graspable_object.root,
                     target_location=self.target_location,
                     arm=self.arm,
                 ),
@@ -131,9 +133,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
             the object where it is.
         """
         return reachability_location(
-            self.object_designator.root,
+            self.graspable_object.root,
             self.context,
-            self.arm,
+            ViewManager.get_arm_view(self.arm, self.robot),
             self.grasp_pose,
             approach_clearance=self.approach_clearance,
             retreat_distance=self.retreat_distance,
@@ -147,7 +149,7 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
             corrected it.
         :return: The navigate action that will be used to place the object.
         """
-        object_body = self.object_designator.root
+        object_body = self.graspable_object.root
         return a(NavigateAction)(
             target_location=variable(
                 Pose,
@@ -155,7 +157,7 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                     lambda: reachability_location(
                         object_body,
                         self.context,
-                        self.arm,
+                        ViewManager.get_arm_view(self.arm, self.robot),
                         grasp_pose=ViewManager.get_end_effector_view(
                             self.arm, self.robot
                         ).grasp_on(object_body)
@@ -177,7 +179,7 @@ class PickAndPlaceAction(ActionDescription):
     the robot.
     """
 
-    object_designator: HasGraspPoses
+    graspable_object: HasGraspPoses
     """
     The annotation of the object that should be transported.
     """
@@ -197,11 +199,9 @@ class PickAndPlaceAction(ActionDescription):
         return sequential(
             [
                 ParkArmsAction(Arms.BOTH),
-                PickUpAction(self.object_designator, self.arm),
+                PickUpAction(self.graspable_object, self.arm),
                 ParkArmsAction(Arms.BOTH),
-                PlaceAction(
-                    self.object_designator.root, self.target_location, self.arm
-                ),
+                PlaceAction(self.graspable_object.root, self.target_location, self.arm),
                 ParkArmsAction(Arms.BOTH),
             ]
         )
@@ -258,7 +258,7 @@ class MoveAndPickUpAction(ActionDescription):
     """
     The pose to stand before trying to pick up the object.
     """
-    object_designator: HasGraspPoses
+    graspable_object: HasGraspPoses
     """
     The annotation of the object to pick up.
     """
@@ -277,8 +277,8 @@ class MoveAndPickUpAction(ActionDescription):
             [
                 NavigateAction(self.standing_position, self.keep_joint_states),
                 FaceAtAction(
-                    self.object_designator.root.global_pose, self.keep_joint_states
+                    self.graspable_object.root.global_pose, self.keep_joint_states
                 ),
-                PickUpAction(self.object_designator, self.arm),
+                PickUpAction(self.graspable_object, self.arm),
             ]
         )
