@@ -1424,9 +1424,10 @@ class Kettle(CookingContainer):
 
 
 @dataclass(eq=False)
-class Decor(HasRootBody):
+class Decor(HasRootBody, ABC):
     """
-    Something a room holds for the look of it rather than for anything it does.
+    Decoration in general, a category to answer with the *kind* of rather than by name: a
+    picture, a mirror, an ornament, or a new subclass of this where the ontology has none.
     """
 
 
@@ -1451,10 +1452,11 @@ class Lamp(HasRootBody):
 
 
 @dataclass(eq=False)
-class ElectricalDevice(HasRootBody):
+class ElectricalDevice(HasRootBody, ABC):
     """
-    Something that runs on electricity and is not an appliance the ontology already
-    names.
+    Electrically powered devices in general, a category to answer with the *kind* of
+    rather than by name: name the device, composing a new subclass of this where the
+    ontology has none.
 
     A television, a smoke detector, a thermostat. The ontology had no word between them,
     and runs kept inventing one under a different name each time -- ``Device`` in one,

@@ -219,6 +219,46 @@ class PipelineSettings:
     bill.
     """
 
+    show_the_contested_faces: bool = True
+    """
+    Whether the faces two labels both claim are rendered and put to the model, which is a
+    different question from whether the objects are.
+
+    Kept apart from :attr:`show_the_pictures` because the two are worth different amounts.
+    The other renders ask what an object *is*, and a label already says that; this one
+    asks whose a surface is, where the measurement genuinely cannot say and the label
+    cannot either. A scan contests faces constantly -- a drawer front is labelled both as
+    the drawer and as the cabinet holding it -- and a converted HM3D room never does,
+    since those files give every face to exactly one object.
+    """
+
+    settle_the_superclass: bool = False
+    """
+    Whether what a proposed class is a kind of is asked as a question of its own, once per
+    class, after its name is settled and before it is written.
+
+    Off, the step that names a class also chooses what to build it from, in the same
+    answer. The names that come back are stable and the superclasses are not, and saying
+    so in the prompt did not help -- a run composed ``Tap(Aperture)`` from a prompt that
+    named that exact pair as wrong. This asks the subsumption on its own instead, which
+    costs one text-only call per class a run wants.
+    """
+
+    skip_classes_that_name_a_category: bool = False
+    """
+    Whether a class the ontology declares a category -- ``Furniture``, ``Decor``,
+    ``ElectricalDevice`` -- is refused as an answer about an object.
+
+    Off, which is how every run before 2026-09-14 behaved, so the scans stay comparable
+    with what was already reported. On, the taxonomy marks those classes and the annotate
+    step refuses them, which is what makes a run compose ``Stool`` and ``Ornament``
+    instead of answering the category. It is not free: the same three rooms lost between
+    20 and 39 bodies to answers the guard then refused.
+
+    A class Python itself calls abstract, carrying an unimplemented method, is refused
+    either way. That one is not a choice: it cannot be instantiated at all.
+    """
+
     reuse_answers: bool = False
     """
     Whether to read back the responses a run already kept instead of asking again, which

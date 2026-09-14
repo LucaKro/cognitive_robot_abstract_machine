@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,6 +36,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     MountKind,
     annotation_classes,
     in_base_order,
+    names_a_category,
 )
 from semantic_digital_twin.semantic_annotations.mixins import (
     HasRootBody,
@@ -61,6 +62,7 @@ from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
+from experiments.warsaw.pipeline.steps.compose.step import SuperclassChoice
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.scene_split import Pairing
 
@@ -225,6 +227,17 @@ class MountAnnotations(HasLogger):
         )
 
     @property
+    def skip_classes_that_name_a_category(self) -> bool:
+        """
+        :return: Whether this run was told to refuse a class the ontology declares a
+            category. A run that says nothing was not.
+        """
+        written = self.run.read_json_if_written(RunFile.PROVENANCE)
+        return bool(
+            written.get("settings", {}).get("skip_classes_that_name_a_category", False)
+        )
+
+    @property
     def make_a_region_where_a_class_needs_one(self) -> bool:
         """
         :return: Whether this run was told to build a region for a class that takes one.
@@ -346,9 +359,14 @@ class MountAnnotations(HasLogger):
                 if answer.class_name not in known:
                     left_alone[answer.class_name] += 1
                     continue
-                # An abstract class cannot be instantiated, and one answer naming one
-                # should cost that one body rather than every body after it.
-                if inspect.isabstract(known[answer.class_name]):
+                # A category names no object, and the taxonomy told the model so. One
+                # answer naming one should cost that body rather than every body after it,
+                # and it is refused here rather than instantiated, so that what the model
+                # was told and what the run asserts are the same thing.
+                if names_a_category(
+                    known[answer.class_name],
+                    categories_are_answers=not self.skip_classes_that_name_a_category,
+                ):
                     left_alone[f"{answer.class_name} (abstract)"] += 1
                     continue
                 making = self.annotation_from_body
@@ -471,6 +489,8 @@ class AnnotateAndMount(PipelineStep):
         self.logger.info(
             "%s classes over %s bodies", len(wanted), len(classifications.bodies)
         )
+        if self.settings.settle_the_superclass:
+            wanted = self.settled_superclasses(wanted, known, classifications)
 
         generated = self.generate_missing(wanted, known)
         if generated:
@@ -496,6 +516,54 @@ class AnnotateAndMount(PipelineStep):
         )
         for line in printed.splitlines():
             self.logger.info(line)
+
+    def settled_superclasses(
+        self,
+        wanted: Dict[str, List[str]],
+        known: Dict[str, Type],
+        classifications: Classifications,
+    ) -> Dict[str, List[str]]:
+        """
+        Ask what each class this run wants is a kind of, and build it from that answer.
+
+        Asked once per class rather than once per body, and only for the classes the
+        ontology does not already have: placing a class it has is settled already.
+
+        :param wanted: Per class name, what the step that named it proposed.
+        :param known: The ontology's classes by name.
+        :param classifications: What each body was answered to be, for the labels a class
+            was proposed from.
+        :return: The same classes, built from what was settled where an answer was usable
+            and from what was proposed where none was.
+        """
+        taxonomy = self.run.read_json(RunFile.TAXONOMY)
+        labels = defaultdict(set)
+        for answer in classifications.bodies:
+            if answer.class_name and answer.label:
+                labels[answer.class_name].add(answer.label)
+
+        questioner = self.questioner(RunFile.SUPERCLASS_ANSWERS)
+        settled = dict(wanted)
+        for name, proposed in sorted(wanted.items()):
+            if name in known:
+                continue
+            question = SuperclassChoice(
+                taxonomy=taxonomy,
+                known=known,
+                class_name=name,
+                proposed_bases=proposed,
+                labels=sorted(labels.get(name, ())),
+            )
+            bases = question.bases(questioner.answer(question).answer)
+            if bases is None:
+                self.logger.info("  %s: kept %s", name, ", ".join(proposed))
+                continue
+            if bases != proposed:
+                self.logger.info(
+                    "  %s: %s -> %s", name, ", ".join(proposed), ", ".join(bases)
+                )
+            settled[name] = bases
+        return settled
 
     @staticmethod
     def wanted_classes(
@@ -572,6 +640,15 @@ class AnnotateAndMount(PipelineStep):
                 builder.add_base(base)
             builders.append(builder)
             generated.append(f"{name}({', '.join(base.__name__ for base in ordered)})")
+            # A stubbed class can be made and annotated, which is the point, and it then
+            # looks complete to everything that only asks whether it can be. Said aloud
+            # so that what a run could not know is not left for a robot to discover.
+            for stubbed in builder.stubbed_methods:
+                self.logger.warning(
+                    "  %s: %s was stubbed, since no run can know what it answers",
+                    name,
+                    stubbed,
+                )
 
         if builders:
             generated_classes = GeneratedClasses(directory=self.run.directory)
