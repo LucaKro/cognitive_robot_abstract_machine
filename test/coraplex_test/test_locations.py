@@ -164,8 +164,8 @@ class DrivesOnce:
     """
     Stands in for a Giskard executor that can only run its motion once.
 
-    A compiled statechart ends and cleans up when it is ticked to the end, so ticking the
-    same one again returns without moving anything.
+    A compiled statechart ends and cleans up when it is ticked to the end, so ticking
+    the same one again returns without moving anything.
     """
 
     robot: AbstractRobot
@@ -259,7 +259,7 @@ def test_location_places_the_robot_at_the_candidate_in_the_world_frame(
     candidate = _candidate(world)
     recorder = RecordsEvaluatedRobot()
 
-    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), recorder))
 
     np.testing.assert_allclose(
         recorder.evaluated_root_poses[0].to_np(), candidate.to_np(), atol=1e-9
@@ -272,7 +272,7 @@ def test_location_yields_the_pose_it_evaluated(single_robot_world):
     recorder = RecordsEvaluatedRobot()
 
     yielded_poses = list(
-        Location(context, candidate, FixedPoseGenerator([candidate]), [recorder])
+        Location(context, candidate, FixedPoseGenerator([candidate]), recorder)
     )
 
     assert len(yielded_poses) == 1
@@ -293,7 +293,7 @@ def test_location_evaluates_the_robot_of_its_context(two_robot_world):
     recorder = RecordsEvaluatedRobot()
     candidate = _candidate(world)
 
-    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), recorder))
 
     assert recorder.evaluated_robots[0].id == second_robot.id
 
@@ -389,7 +389,7 @@ def test_a_location_validates_no_more_candidates_than_its_budget(single_robot_wo
         FixedPoseGenerator(
             _poses_clear_of_everything(world, budget + CANDIDATES_BEYOND_THE_BUDGET)
         ),
-        [validator],
+        validator,
     )
 
     assert list(location) == []
@@ -418,7 +418,7 @@ def test_a_location_does_not_spend_its_budget_on_candidates_it_never_validates(
         context,
         _pose_at(world, 0.0, 0.0),
         FixedPoseGenerator(inside_the_box + _poses_clear_of_everything(world, budget)),
-        [validator],
+        validator,
     )
 
     assert list(location) == []
@@ -487,9 +487,9 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
 
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
 
-    (validator,) = reachability_location(
+    validator = reachability_location(
         body, context, arm, grasp_pose=grasp, destination=destination
-    ).validators
+    ).validator
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
         destination.to_homogeneous_matrix() @ grasp,
@@ -517,9 +517,7 @@ def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_i
 
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
 
-    (validator,) = reachability_location(
-        body, context, arm, grasp_pose=grasp
-    ).validators
+    validator = reachability_location(body, context, arm, grasp_pose=grasp).validator
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
         body.global_pose.to_homogeneous_matrix() @ grasp,
@@ -648,7 +646,7 @@ def test_location_validates_against_the_rules_the_plan_runs_with(single_robot_wo
     candidate = _candidate(world)
     recorder = RecordsCollisionRules()
 
-    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), recorder))
 
     assert recorder.temporary_rules_seen
     assert not any(
@@ -671,14 +669,12 @@ def test_location_validates_with_the_motion_policy_of_its_own_context(
     candidate = _candidate(world)
     recorder = RecordsEvaluatedRobot()
 
-    list(Location(context, candidate, FixedPoseGenerator([candidate]), [recorder]))
+    list(Location(context, candidate, FixedPoseGenerator([candidate]), recorder))
 
     assert recorder.context.motion_tolerances is context.motion_tolerances
 
 
-def test_the_giskard_backend_drives_to_every_candidate(
-    single_robot_world, monkeypatch
-):
+def test_the_giskard_backend_drives_to_every_candidate(single_robot_world, monkeypatch):
     """
     Each candidate is a different place to stand, so each has to be driven from.
 
@@ -748,7 +744,7 @@ def test_a_location_draws_on_the_terms_it_was_given(single_robot_world):
     world, robot, context = single_robot_world
     generator = RecordsHowItWasDrawn(pose=_candidate(world))
     draw = CandidateDraw(number_of_samples=17, seed=3)
-    location = Location(context, _candidate(world), generator, [], draw=draw)
+    location = Location(context, _candidate(world), generator, None, draw=draw)
 
     list(islice(iter(location), 1))
 

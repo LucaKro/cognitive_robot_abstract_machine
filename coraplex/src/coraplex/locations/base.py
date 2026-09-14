@@ -77,9 +77,13 @@ class Location(Iterable[Pose]):
     Backend that generates pose candidates.
     """
 
-    validators: List[PoseValidator]
+    validator: Optional[PoseValidator] = None
     """
-    Validators that are used to check if a generated pose is valid.
+    What a generated pose is checked against, or ``None`` to take every pose the
+    generator offers.
+
+    One rather than several: a location asks one question, and a caller reading the
+    answer off afterwards needs to know which validator to read it from.
     """
 
     standing_violated_distance: float = 0.05
@@ -173,8 +177,8 @@ class Location(Iterable[Pose]):
         test_robot = cast(
             AbstractRobot, test_world.get_semantic_annotation_by_id(self.robot.id)
         )
-        for validator in self.validators:
-            validator.context = Context(
+        if self.validator is not None:
+            self.validator.context = Context(
                 world=test_world,
                 robot=test_robot,
                 alternative_motion_mappings=self.context.alternative_motion_mappings,
@@ -227,10 +231,7 @@ class Location(Iterable[Pose]):
                 continue
 
             validated += 1
-            if all(
-                validator(pose_candidate=pose_candidate)
-                for validator in self.validators
-            ):
+            if self.validator is None or self.validator(pose_candidate=pose_candidate):
                 yield pose_candidate
 
             if validated >= self.candidates_to_validate:
@@ -240,31 +241,12 @@ class Location(Iterable[Pose]):
                 )
                 return
 
-    def merge(self, other: Location) -> Location:
-        """
-        Merge this location with another location, merging the generator backends and
-        validators.
-
-        :param other: The other location to merge with.
-        :return: A new location that is the merge of this location and the other
-            location.
-        """
-        return Location(
-            self.context,
-            self.target_pose,
-            self.generator.merge(other.generator),
-            self.validators + other.validators,
-        )
-
-    def __and__(self, other: Location) -> Location:
-        return self.merge(other)
-
 
 @dataclass
 class DeferredLocation(Iterable[Pose]):
     """
     Lazily rebuilds a concrete :class:`Location` from current world state on each
-    iteration, so its pose generator and validators reflect the world at the moment the
+    iteration, so its pose generator and validator reflect the world at the moment the
     location is consumed (execution time) rather than when the plan was constructed.
 
     .. warning::
@@ -288,7 +270,7 @@ class DeferredLocation(Iterable[Pose]):
 class PoseGeneratorBackend(ABC):
     """
     Generator backend base class for poses, generates pose candidates which are checked
-    against a set of validators.
+    against a validator.
     """
 
     @abstractmethod

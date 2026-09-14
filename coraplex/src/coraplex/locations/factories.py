@@ -28,7 +28,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 def occupancy_location(target_pose: Pose, context: Context) -> Location:
     """
-    Factory that creates a Location for robot base poses, does not have any validators.
+    Factory that creates a Location for robot base poses, is not validated.
 
     :param target_pose: Target pose around which robot base poses should be sampled
     :param context: Context of the plan in which the location should be created
@@ -38,7 +38,6 @@ def occupancy_location(target_pose: Pose, context: Context) -> Location:
         context=context,
         target_pose=target_pose,
         generator=OccupancyCostmap.default_map(context, target_pose),
-        validators=[],
     )
 
 
@@ -88,21 +87,25 @@ def reachability_location(
         context=context,
         target_pose=target_pose,
         generator=final_costmap,
-        validators=[
-            AreReachableBy.for_grasp(
-                grasp_pose=target_pose.to_homogeneous_matrix() @ body_T_grasp,
-                arm=arm,
-                body_T_grasp=body_T_grasp,
-                context=context,
-                reverse=releases_the_body,
-                approach_clearance=approach_clearance,
-                retreat_distance=retreat_distance,
-            )
-        ],
+        validator=AreReachableBy.for_grasp(
+            grasp_pose=target_pose.to_homogeneous_matrix() @ body_T_grasp,
+            arm=arm,
+            body_T_grasp=body_T_grasp,
+            context=context,
+            reverse=releases_the_body,
+            approach_clearance=approach_clearance,
+            retreat_distance=retreat_distance,
+        ),
     )
 
 
-def grasping_location(validator: IsObjectReachableBy) -> Location:
+def grasping_location(
+    graspable: HasGraspPoses,
+    context: Context,
+    arm: Arm,
+    approach_clearance: float = ActionConfig.approach_clearance,
+    retreat_distance: float = ActionConfig.retreat_distance,
+) -> Location:
     """
     Factory that creates a Location for robot poses from which the object can be grasped
     somehow, rather than from which one particular grasp can be reached.
@@ -114,24 +117,29 @@ def grasping_location(validator: IsObjectReachableBy) -> Location:
     :attr:`~coraplex.locations.pose_validator.IsObjectReachableBy.reachable_grasp`.
     :func:`reachability_location` is the question to ask about a grasp already chosen.
 
-    The validator belongs to the caller, so whoever wants the grasp that was found
-    already holds the validator it is kept on.
-
-    :param validator: The validator asking whether the object is graspable, which names
-        the object, the arm and the context this location is for.
+    :param graspable: The annotation of the object that should be grasped.
+    :param context: The context in which to create the location.
+    :param arm: The arm with which to grasp the object.
+    :param approach_clearance: The gap left between the object and the gripper before
+        the final approach.
+    :param retreat_distance: How far the gripper rises after closing on the object.
     :returns: A location from which the object can be grasped.
     """
-    target_pose = validator.graspable.root.global_pose
-    occupancy_costmap = OccupancyCostmap.default_map(validator.context, target_pose)
-    ring_costmap = RingCostmap.from_arm_reach_distance(
-        validator.context, validator.arm, target_pose
-    )
+    target_pose = graspable.root.global_pose
+    occupancy_costmap = OccupancyCostmap.default_map(context, target_pose)
+    ring_costmap = RingCostmap.from_arm_reach_distance(context, arm, target_pose)
     final_costmap = occupancy_costmap & ring_costmap
     return Location(
-        context=validator.context,
+        context=context,
         target_pose=target_pose,
         generator=final_costmap,
-        validators=[validator],
+        validator=IsObjectReachableBy(
+            context=context,
+            arm=arm,
+            graspable=graspable,
+            approach_clearance=approach_clearance,
+            retreat_distance=retreat_distance,
+        ),
     )
 
 
@@ -177,15 +185,15 @@ class ReachableGrasps(Iterable[Pose]):
     """
 
     def __iter__(self) -> Iterator[Pose]:
-        validator = IsObjectReachableBy(
-            context=self.context,
-            arm=self.arm,
-            graspable=self.graspable,
+        location = grasping_location(
+            self.graspable,
+            self.context,
+            self.arm,
             approach_clearance=self.approach_clearance,
             retreat_distance=self.retreat_distance,
         )
-        for _ in grasping_location(validator):
-            yield validator.reachable_grasp
+        for _ in location:
+            yield location.validator.reachable_grasp
 
 
 def accessing_location(
@@ -235,13 +243,11 @@ def visibility_location(target: Union[Pose, Body], context: Context) -> Location
         context=context,
         target_pose=target_pose,
         generator=costmap,
-        validators=[
-            IsVisibleBy(
-                context=context,
-                target_pose=target_pose,
-                target_body=target_body,
-            )
-        ],
+        validator=IsVisibleBy(
+            context=context,
+            target_pose=target_pose,
+            target_body=target_body,
+        ),
     )
 
 
@@ -293,15 +299,13 @@ def giskard_reachability_location(
         context=context,
         target_pose=target_pose,
         generator=backend,
-        validators=[
-            AreReachableBy.for_grasp(
-                grasp_pose=grasp_frame,
-                arm=arm,
-                body_T_grasp=body_T_grasp,
-                context=context,
-                reverse=releases_the_body,
-                approach_clearance=approach_clearance,
-                retreat_distance=retreat_distance,
-            )
-        ],
+        validator=AreReachableBy.for_grasp(
+            grasp_pose=grasp_frame,
+            arm=arm,
+            body_T_grasp=body_T_grasp,
+            context=context,
+            reverse=releases_the_body,
+            approach_clearance=approach_clearance,
+            retreat_distance=retreat_distance,
+        ),
     )

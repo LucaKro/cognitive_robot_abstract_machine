@@ -440,7 +440,7 @@ def test_accessing_location_validates_the_poses_the_grasp_will_reach(
         )
 
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
-    [validator] = accessing_location(drawer, context=context, arm=arm).validators
+    validator = accessing_location(drawer, context=context, arm=arm).validator
     handle_body = drawer.handle.root
     reached = HasApproachesGraspPoses().grasp_pose_sequence(
         handle_body.global_pose,

@@ -868,7 +868,7 @@ def test_a_location_validates_a_candidate_where_navigating_to_it_would_stand(
     # stand on: a candidate in collision is dropped before any validator sees it.
     heading = Pose.from_xyz_rpy(5, -2.4, 0, yaw=0.7, reference_frame=world.root)
     recorder = BasePoseRecorder()
-    location = Location(context, heading, SinglePoseGenerator(heading), [recorder])
+    location = Location(context, heading, SinglePoseGenerator(heading), recorder)
 
     assert list(location) == [heading]
     np.testing.assert_allclose(
@@ -889,7 +889,7 @@ def test_a_location_accepts_a_candidate_standing_on_the_floor(
     # An open stretch of the apartment, so the floor is the only thing any of these
     # robots touches while standing there.
     heading = Pose.from_xyz_rpy(11, 2.5, 0, yaw=0.7, reference_frame=world.root)
-    location = Location(context, heading, SinglePoseGenerator(heading), [])
+    location = Location(context, heading, SinglePoseGenerator(heading), None)
 
     assert list(location) == [heading]
 
