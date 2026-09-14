@@ -12,10 +12,25 @@ so everything else about the run stays as it was.
 
 from __future__ import annotations
 
+import json
+from dataclasses import replace
+
 import pytest
 
-from experiments.warsaw.pipeline.records import LabelRequest, Vocabulary
+from experiments.warsaw.pipeline.asking import Prompt
+from experiments.warsaw.pipeline.records import (
+    Adjudications,
+    LabelRequest,
+    OpenQuestions,
+    Vocabulary,
+)
+from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.settings import PipelineSettings
+from experiments.warsaw.pipeline.steps.adjudicate.step import (
+    AdjudicateOverlaps,
+    MembershipDecision,
+    OwnershipDecision,
+)
 from experiments.warsaw.pipeline.steps.classify.step import BodyGroupQuestion
 from experiments.warsaw.pipeline.steps.vocabulary.step import LabelQuestion
 from experiments.warsaw.world_loader.loader import RenderedSegmentGroup
@@ -247,3 +262,131 @@ def test_the_contested_faces_are_asked_about_on_their_own_terms(tmp_path) -> Non
     measuring = [one for one in planned if isinstance(one, MeasureScene)]
     assert max(one.question_renders for one in measuring) > 0
     assert [one.exemplar_renders for one in measuring] == [False, False]
+
+
+# %% the contested faces, asked from the text alone
+
+
+@pytest.fixture
+def undrawn_questions(questions):
+    """
+    :return: The fixture run's open questions as a run that drew no contested faces
+        would have written them: nothing rendered and nothing painted.
+    """
+    return OpenQuestions(
+        scene=questions.scene,
+        asked=[replace(one, images=[], legend={}) for one in questions.asked],
+    )
+
+
+@pytest.fixture
+def undrawn_ownership(undrawn_questions, relations, tmp_path) -> OwnershipDecision:
+    """
+    :return: The fixture run's ownership question, with nothing drawn for it.
+    """
+    return OwnershipDecision(
+        asked=undrawn_questions.ownership[0],
+        labels=relations.labels,
+        renders_directory=tmp_path,
+    )
+
+
+@pytest.fixture
+def undrawn_membership(undrawn_questions, relations, tmp_path) -> MembershipDecision:
+    """
+    :return: The fixture run's membership question, with nothing drawn for it.
+    """
+    return MembershipDecision(
+        asked=undrawn_questions.membership[0],
+        labels=relations.labels,
+        renders_directory=tmp_path,
+    )
+
+
+def kept_reply(answer: dict) -> dict:
+    """
+    :param answer: What the model is to have answered.
+    :return: A reply carrying it, in the shape a run keeps replies in.
+    """
+    return {"choices": [{"message": {"content": json.dumps(answer)}}]}
+
+
+def test_contested_faces_left_undrawn_are_still_adjudicated(
+    tmp_path, undrawn_questions, relations
+) -> None:
+    """
+    A question about contested faces has something to go on without its picture: the
+    ontology, the measured shares and the candidates are all text. So a run that draws
+    none asks them from that text, rather than leaving the faces to nobody -- which would
+    compare the pictures against no adjudication at all.
+    """
+    run = Run(directory=tmp_path)
+    run.write_record(RunFile.QUESTIONS, undrawn_questions)
+    run.write_record(RunFile.RELATIONS, relations)
+
+    ownership, membership = (
+        undrawn_questions.ownership[0],
+        undrawn_questions.membership[0],
+    )
+    owner = ownership.pattern[0]
+    whole = membership.candidate_names[0]
+    answers = run.directory_for(RunFile.QUESTION_ANSWERS)
+    for key, answer in (
+        (f"{Prompt.OWNERSHIP.value}__{ownership.name}", {"owner": owner}),
+        (f"{Prompt.MEMBERSHIP.value}__{membership.name}", {"whole": whole}),
+    ):
+        (answers / f"{key}.json").write_text(json.dumps(kept_reply(answer)))
+
+    settings = PipelineSettings(
+        scene_directory=tmp_path,
+        show_the_contested_faces=False,
+        reuse_answers=True,
+    )
+    AdjudicateOverlaps(settings=settings, run=run).carry_out()
+
+    adjudications = run.read_record(RunFile.ADJUDICATIONS, Adjudications)
+    assert [one.owner for one in adjudications.ownership] == [owner]
+    assert [one.whole for one in adjudications.membership] == [whole]
+
+
+def test_an_undrawn_ownership_question_carries_no_image(undrawn_ownership) -> None:
+    """
+    The message is built from what the question has.
+    """
+    kinds = {type(one).__name__ for one in undrawn_ownership.message()}
+    assert kinds == {"TextPart"}
+
+
+def test_an_undrawn_ownership_question_mentions_no_picture_or_colour(
+    undrawn_ownership,
+) -> None:
+    """
+    Its instruction describes the colours each object is painted in and its message
+    says what the pictures show. Neither was drawn, and naming what is absent invites a
+    model to describe it.
+    """
+    [text] = undrawn_ownership.message()
+    said = (undrawn_ownership.system_prompt + text.text).lower()
+    assert "picture" not in said
+    assert "color" not in said
+
+
+def test_an_undrawn_membership_question_carries_no_image(undrawn_membership) -> None:
+    """
+    The same for which whole a part belongs to.
+    """
+    kinds = {type(one).__name__ for one in undrawn_membership.message()}
+    assert kinds == {"TextPart"}
+
+
+def test_an_undrawn_membership_question_mentions_no_picture_or_colour(
+    undrawn_membership,
+) -> None:
+    """
+    Its instruction still said each candidate has its own colour after the pictures were
+    made conditional.
+    """
+    [text] = undrawn_membership.message()
+    said = (undrawn_membership.system_prompt + text.text).lower()
+    assert "picture" not in said
+    assert "color" not in said

@@ -248,3 +248,48 @@ def test_every_question_is_put_with_both_halves_of_its_own_prompt():
             assert question.templates.render_document(
                 f"{prompt.value}/{half.value}"
             ), f"{question.__name__} has no {half.value}"
+
+
+# %% what the model is told it is deciding, with the contested faces drawn
+
+
+@pytest.fixture
+def expected_instruction(dataset):
+    """
+    :return: A reader for what a question's instruction said in the kitchenlab run that
+        drew the contested faces.
+    """
+
+    def read(name: str) -> str:
+        return (dataset / "expected" / f"system_{name}.md").read_text()
+
+    return read
+
+
+def test_the_ownership_instruction_says_what_it_always_said(
+    finished_run, questions, relations, expected_instruction
+):
+    """
+    Pinned against what that run was told, so that a run asked from the text alone
+    differs from it in the pictures and nothing else.
+    """
+    question = OwnershipDecision(
+        asked=questions.ownership[0],
+        labels=relations.labels,
+        renders_directory=finished_run.path(RunFile.QUESTION_RENDERS),
+    )
+    assert question.system_prompt == expected_instruction("ownership")
+
+
+def test_the_membership_instruction_says_what_it_always_said(
+    finished_run, questions, relations, expected_instruction
+):
+    """
+    The same for which whole a part belongs to.
+    """
+    question = MembershipDecision(
+        asked=questions.membership[0],
+        labels=relations.labels,
+        renders_directory=finished_run.path(RunFile.QUESTION_RENDERS),
+    )
+    assert question.system_prompt == expected_instruction("membership")
