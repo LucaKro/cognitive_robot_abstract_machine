@@ -14,6 +14,7 @@ from experiments.warsaw.pipeline.records import RefusedMount, SplitRecord
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.scene_split import Pairing
 from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.world_graph import WorldGraph
 
 from ..test_warsaw_evaluation.test_export_world_mesh import (
     world_with_a_drawer_and_an_unnamed_body,
@@ -147,6 +148,23 @@ def test_the_inspector_is_written_with_the_worlds_this_run_wrote(tmp_path, split
     written = run.path(RunFile.INSPECTOR).read_text()
     assert f"annotated_world: int = {split.annotated_world_id}" in written
     assert f"split_world: int = {split.world_id}" in written
+
+
+def test_the_inspector_can_draw_the_world_as_a_graph_page_beside_the_run(
+    tmp_path, split
+):
+    """
+    Asked for, the world is written as a page into the run's own directory, so each
+    run's graph stays with the run it drew.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+
+    assert "graph_page: bool = False" in written
+    assert f"{WorldGraph.__name__}.from_world(world).open_page(" in written
+    assert f'parent / "{RunFile.WORLD_GRAPH_PAGE}"' in written
 
 
 def test_the_report_is_written_into_the_run_it_is_about(tmp_path):

@@ -100,6 +100,12 @@ class RunFile(StrEnum):
     The script the run leaves behind so its bodies can be picked apart in RViz.
     """
 
+    WORLD_GRAPH_PAGE = "world_graph.html"
+    """
+    The world's entities and relations as an interactive graph, written when the inspector
+    is asked for it.
+    """
+
     WORLD_MESH = "world_mesh"
     """
     The annotated world as a scene a modelling tool can open, one named object per body.

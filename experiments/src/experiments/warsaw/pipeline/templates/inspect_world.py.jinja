@@ -37,6 +37,7 @@ from semantic_digital_twin.semantic_annotations.mixins import (  # noqa: E402
     HasRootKinematicStructureEntity,
 )
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer  # noqa: E402
+from experiments.warsaw.world_graph import WorldGraph  # noqa: E402
 
 
 @dataclass
@@ -68,6 +69,12 @@ class Inspection:
     view_resolution: tuple = (1280, 960)
     """
     How large the viewer's window is.
+    """
+
+    graph_page: bool = False
+    """
+    Whether to write the world's entities and relations as an interactive graph beside
+    this script and open it in a browser.
     """
 
     plumbing: frozenset = frozenset(
@@ -156,6 +163,11 @@ class Inspection:
         # drawers, which is the thing worth seeing.
         for whole, name, part in sorted(held):
             self.logger.info("  %s.%s = %s", whole, name, self.shown(part))
+
+        if self.graph_page:
+            WorldGraph.from_world(world).open_page(
+                Path(__file__).resolve().parent / "{{ world_graph_page }}"
+            )
 
         if self.view:
             # Smoothing recomputes vertex normals for a room's worth of geometry before

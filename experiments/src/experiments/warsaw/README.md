@@ -103,7 +103,21 @@ question as it was put, every answer as it came back, the renders that went with
 the bodies' meshes, and at the end:
 
 - `report.md` — what was measured, what was asked, what was built, and what it cost.
-- `inspect_world.py` — opens the world the run wrote.
+- `inspect_world.py` — opens the world the run wrote. Set `graph_page = True` in it to
+  also write `world_graph.html` beside it and open it in a browser.
+
+The graph page draws any world, not only a run's: bodies and regions joined by their
+connections, and each annotation joined to what its fields hold, zoomable and searchable
+by name or class.
+
+```python
+from experiments.warsaw.world_graph import WorldGraph
+
+WorldGraph.from_world(world).open_page(Path("world_graph.html"))  # or write_page(...)
+```
+
+The page loads its drawing library from a CDN, so viewing it needs a network connection.
+Runs from before the setting existed can add the same line to their own `inspect_world.py`.
 
 Plus a database schema named for the same run. `RunSchema.drop` throws it away, beside
 deleting the directory.

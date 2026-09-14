@@ -180,6 +180,7 @@ class RunReport:
                 template,
                 annotated=split.annotated_world_id,
                 split=split.world_id,
+                world_graph_page=RunFile.WORLD_GRAPH_PAGE,
             )
         )
 

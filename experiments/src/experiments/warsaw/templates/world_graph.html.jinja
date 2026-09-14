@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World graph</title>
+<script src="{{ vis_network_script }}"></script>
+<style>
+  :root {
+    --ground: #f7f7f5;
+    --panel: #ffffff;
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #d9dbe0;
+    --body: #d4d7dd;
+    --region: #bfe3c6;
+    --annotation: #b9d3f5;
+    --match: #e8590c;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--ground);
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  header input[type=search] {
+    width: 260px;
+    max-width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+  }
+  header label { white-space: nowrap; }
+  button {
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+    font: inherit;
+    cursor: pointer;
+  }
+  .muted { color: var(--muted); }
+  .legend { display: flex; gap: 10px; margin-left: auto; }
+  .swatch {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    margin-right: 4px;
+    vertical-align: -1px;
+    border: 1px solid rgba(0, 0, 0, .25);
+  }
+  main { display: grid; grid-template-columns: 1fr 320px; min-height: 0; }
+  #network { min-height: 0; }
+  aside {
+    overflow: auto;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+  }
+  aside h2 { font-size: 15px; margin: 0 0 2px; word-break: break-word; }
+  aside h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin: 14px 0 4px;
+  }
+  aside ul { list-style: none; margin: 0; padding: 0; }
+  aside li { padding: 2px 0; word-break: break-word; }
+  aside a { color: #1d4ed8; cursor: pointer; text-decoration: none; }
+  aside a:hover { text-decoration: underline; }
+  code { font-size: 12px; }
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 40%; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    .legend { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <input id="search" type="search" placeholder="Search name or class (Enter: next)">
+  <span id="matches" class="muted"></span>
+  <label><input id="show-entities" type="checkbox" checked> Bodies &amp; regions</label>
+  <label><input id="show-connections" type="checkbox" checked> Connections</label>
+  <label><input id="show-annotated" type="checkbox" checked> Annotation &rarr; body</label>
+  <label>Layout
+    <select id="layout">
+      <option value="hierarchical">Tree</option>
+      <option value="force">Force</option>
+    </select>
+  </label>
+  <button id="fit" type="button">Fit</button>
+  <span class="legend">
+    <span><span class="swatch" style="background: var(--annotation)"></span>Annotation</span>
+    <span><span class="swatch" style="background: var(--body)"></span>Body</span>
+    <span><span class="swatch" style="background: var(--region)"></span>Region</span>
+  </span>
+</header>
+<main>
+  <div id="network"></div>
+  <aside id="details"><p class="muted">Click a node to see what it is and what it is related to.</p></aside>
+</main>
+<script id="{{ graph_element_id }}" type="application/json">{{ graph_json }}</script>
+<script>
+const KIND = {
+  body: "{{ node_kind.BODY.value }}",
+  region: "{{ node_kind.REGION.value }}",
+  annotation: "{{ node_kind.SEMANTIC_ANNOTATION.value }}",
+  connection: "{{ edge_kind.CONNECTION.value }}",
+  reference: "{{ edge_kind.ANNOTATION_REFERENCE.value }}",
+  annotated: "{{ edge_kind.ANNOTATED_ENTITY.value }}",
+};
+const style = getComputedStyle(document.documentElement);
+const colour = (name) => style.getPropertyValue(name).trim();
+
+const graph = JSON.parse(document.getElementById("{{ graph_element_id }}").textContent);
+const nodeById = new Map(graph.nodes.map((node) => [node.identifier, node]));
+
+function labelOf(node) {
+  if (node.kind !== KIND.annotation) return node.label;
+  if (node.label !== node.classes[0]) return `${node.classes[0]}\n${node.label}`;
+  const annotated = graph.edges.find((edge) => edge.source === node.identifier && edge.kind === KIND.annotated);
+  return annotated ? `${node.classes[0]}\n${nodeById.get(annotated.target).label}` : node.label;
+}
+
+const nodes = new vis.DataSet(graph.nodes.map((node) => ({
+  id: node.identifier,
+  label: labelOf(node),
+  group: node.kind,
+  title: node.classes.join(" → "),
+})));
+const edges = new vis.DataSet(graph.edges.map((edge, index) => ({
+  id: index,
+  from: edge.source,
+  to: edge.target,
+  label: edge.label,
+  kind: edge.kind,
+  dashes: edge.kind === KIND.annotated,
+  color: {
+    color: edge.kind === KIND.reference ? "#2563eb" : edge.kind === KIND.annotated ? "#b0b4bb" : "#4b5563",
+  },
+})));
+
+const controls = {
+  search: document.getElementById("search"),
+  matches: document.getElementById("matches"),
+  entities: document.getElementById("show-entities"),
+  connections: document.getElementById("show-connections"),
+  annotated: document.getElementById("show-annotated"),
+  layout: document.getElementById("layout"),
+  fit: document.getElementById("fit"),
+  details: document.getElementById("details"),
+};
+
+const nodeView = new vis.DataView(nodes, {
+  filter: (node) => controls.entities.checked || node.group === KIND.annotation,
+});
+const edgeView = new vis.DataView(edges, {
+  filter: (edge) =>
+    (edge.kind !== KIND.connection || controls.connections.checked) &&
+    (edge.kind !== KIND.annotated || controls.annotated.checked),
+});
+
+function options(layout) {
+  const groups = {
+    [KIND.body]: { shape: "box", color: { background: colour("--body"), border: "#9aa0a8" } },
+    [KIND.region]: { shape: "box", color: { background: colour("--region"), border: "#6fae7b" } },
+    [KIND.annotation]: { shape: "ellipse", color: { background: colour("--annotation"), border: "#5b8fd6" } },
+  };
+  const common = {
+    groups,
+    nodes: { font: { size: 14, face: "system-ui" }, borderWidth: 1, margin: 8 },
+    edges: {
+      arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+      font: { size: 10, color: "#6b7280", strokeWidth: 3, align: "middle" },
+      width: 1.2,
+    },
+    interaction: { hover: true, tooltipDelay: 150, navigationButtons: false, keyboard: false },
+  };
+  if (layout === "hierarchical") {
+    return {
+      ...common,
+      layout: {
+        hierarchical: {
+          enabled: true,
+          direction: "UD",
+          sortMethod: "directed",
+          shakeTowards: "roots",
+          nodeSpacing: 260,
+          levelSeparation: 130,
+        },
+      },
+      edges: { ...common.edges, smooth: { type: "cubicBezier", forceDirection: "vertical", roundness: 0.4 } },
+      physics: false,
+    };
+  }
+  return {
+    ...common,
+    layout: { hierarchical: false, improvedLayout: false },
+    edges: { ...common.edges, smooth: { type: "continuous" } },
+    physics: {
+      solver: "forceAtlas2Based",
+      forceAtlas2Based: { gravitationalConstant: -60, springLength: 120 },
+      stabilization: { iterations: 400 },
+    },
+  };
+}
+
+let network;
+function redraw() {
+  nodeView.refresh();
+  edgeView.refresh();
+  if (network) network.destroy();
+  network = new vis.Network(
+    document.getElementById("network"),
+    { nodes: nodeView, edges: edgeView },
+    options(controls.layout.value),
+  );
+  network.once("stabilizationIterationsDone", () => network.setOptions({ physics: false }));
+  network.on("click", (event) => {
+    if (event.nodes.length) showDetails(event.nodes[0]);
+  });
+}
+
+function link(identifier) {
+  const node = nodeById.get(identifier);
+  return `<a data-node="${escape(identifier)}">${escape(node ? node.label : identifier)}</a>`;
+}
+
+function escape(text) {
+  return String(text).replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
+}
+
+function relationList(title, relations, otherEnd) {
+  if (!relations.length) return "";
+  const items = relations
+    .map((edge) => `<li><code>${escape(edge.label)}</code> ${link(otherEnd(edge))}</li>`)
+    .join("");
+  return `<h3>${title}</h3><ul>${items}</ul>`;
+}
+
+function showDetails(identifier) {
+  const node = nodeById.get(identifier);
+  const outgoing = graph.edges.filter((edge) => edge.source === identifier);
+  const incoming = graph.edges.filter((edge) => edge.target === identifier);
+  controls.details.innerHTML = `
+    <h2>${escape(node.label)}</h2>
+    <div class="muted">${escape(node.kind.replace("_", " "))}</div>
+    <h3>Classes</h3>
+    <div>${node.classes.map(escape).join(" → ")}</div>
+    ${relationList("Points to", outgoing, (edge) => edge.target)}
+    ${relationList("Pointed to by", incoming, (edge) => edge.source)}
+    <h3>Id</h3><code>${escape(node.identifier)}</code>`;
+}
+
+controls.details.addEventListener("click", (event) => {
+  const target = event.target.closest("a[data-node]");
+  if (target) focusOn(target.dataset.node);
+});
+
+function focusOn(identifier) {
+  if (!nodeView.get(identifier)) {
+    controls.entities.checked = true;
+    redraw();
+  }
+  network.selectNodes([identifier]);
+  network.focus(identifier, { scale: 1.1, animation: { duration: 400 } });
+  showDetails(identifier);
+}
+
+let matches = [];
+let matchIndex = -1;
+function search() {
+  const query = controls.search.value.trim().toLowerCase();
+  matches = query
+    ? graph.nodes
+        .filter((node) => [node.label, ...node.classes].some((text) => text.toLowerCase().includes(query)))
+        .map((node) => node.identifier)
+    : [];
+  matchIndex = -1;
+  const matched = new Set(matches);
+  nodes.update(graph.nodes.map((node) => ({
+    id: node.identifier,
+    opacity: !query || matched.has(node.identifier) ? 1 : 0.15,
+    font: { color: !query || matched.has(node.identifier) ? colour("--ink") : colour("--line") },
+    borderWidth: matched.has(node.identifier) ? 4 : 1,
+    shadow: { enabled: matched.has(node.identifier), color: colour("--match"), size: 12, x: 0, y: 0 },
+  })));
+  controls.matches.textContent = query ? `${matches.length} match${matches.length === 1 ? "" : "es"}` : "";
+}
+
+function nextMatch() {
+  if (!matches.length) return;
+  matchIndex = (matchIndex + 1) % matches.length;
+  controls.matches.textContent = `${matchIndex + 1} / ${matches.length}`;
+  focusOn(matches[matchIndex]);
+}
+
+controls.search.addEventListener("input", search);
+controls.search.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") nextMatch();
+  if (event.key === "Escape") {
+    controls.search.value = "";
+    search();
+  }
+});
+for (const toggle of [controls.entities, controls.connections, controls.annotated, controls.layout]) {
+  toggle.addEventListener("change", redraw);
+}
+controls.fit.addEventListener("click", () => network.fit({ animation: { duration: 400 } }));
+
+// A scan hangs every body off its root, which a tree can only draw as one unreadable row.
+const MOST_CHILDREN_A_TREE_DRAWS_READABLY = 20;
+const childCounts = new Map();
+for (const edge of graph.edges.filter((edge) => edge.kind === KIND.connection)) {
+  childCounts.set(edge.source, (childCounts.get(edge.source) || 0) + 1);
+}
+controls.layout.value = Math.max(0, ...childCounts.values()) > MOST_CHILDREN_A_TREE_DRAWS_READABLY ? "force" : "hierarchical";
+redraw();
+</script>
+</body>
+</html>
