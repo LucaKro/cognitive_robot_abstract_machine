@@ -137,6 +137,5 @@ def paint(world: World, coloring: Coloring) -> Dict[str, Color]:
     painted[UNNAMED] = UNNAMED_GREY
     for body in world.bodies:
         for shapes in (body.visual, body.collision):
-            for shape in shapes:
-                shape.color = painted[key_of(body)]
+            shapes.dye_shapes(painted[key_of(body)])
     return painted

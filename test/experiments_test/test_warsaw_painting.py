@@ -9,6 +9,8 @@ was.
 
 from __future__ import annotations
 
+import numpy as np
+import trimesh
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
@@ -16,7 +18,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
-from semantic_digital_twin.world_description.geometry import Box, Color, Scale
+from semantic_digital_twin.world_description.geometry import Box, Color, Mesh, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -125,6 +127,34 @@ def test_what_was_painted_is_reported_so_it_can_be_said_afterwards():
     painted = paint(world, Coloring.BY_CLASS)
 
     assert set(painted) == {"Drawer", "Handle", UNNAMED}
+
+
+def test_a_scanned_mesh_built_before_painting_is_painted_too(tmp_path):
+    """
+    A scanned body keeps the mesh it built the first time it was looked at, colours of
+    the scan included, so painting that leaves the mesh alone leaves the scan showing.
+    """
+    scan = trimesh.creation.box(extents=(0.5, 0.5, 0.2))
+    scan.visual.vertex_colors = np.random.default_rng(0).integers(
+        0, 255, size=(len(scan.vertices), 4), dtype=np.uint8
+    )
+    world = World.create_with_root_body("root")
+    shape = Mesh.from_trimesh(mesh=scan, directory=tmp_path)
+    body = Body(name=PrefixedName("scanned_drawer"), visual=ShapeCollection([shape]))
+    with world.modify_world():
+        world.add_connection(FixedConnection(parent=world.root, child=body))
+        world.add_semantic_annotation_recursively(
+            Drawer(name=PrefixedName("a_scanned_drawer"), root=body)
+        )
+    # A run's world has built its meshes long before it is painted.
+    shape.mesh.vertices
+
+    painted = paint(world, Coloring.BY_CLASS)
+
+    np.testing.assert_array_equal(
+        np.unique(shape.mesh.visual.face_colors, axis=0),
+        [trimesh.visual.color.to_rgba(painted["Drawer"].to_rgba())],
+    )
 
 
 # %% colours that can be told apart
