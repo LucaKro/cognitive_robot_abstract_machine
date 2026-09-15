@@ -476,7 +476,7 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
     the body itself.
 
     A body reached at a destination is released there, and a release runs the sequence
-    backwards, so the probe has to run it backwards too.
+    backwards, so the check has to run it backwards too.
     """
     world, robot, context = single_robot_world
     body = _box_in(world)

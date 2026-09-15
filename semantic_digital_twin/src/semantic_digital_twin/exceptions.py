@@ -1868,6 +1868,33 @@ class NothingHeld(UsageError):
 
 
 @dataclass
+class GripperAxesNotPerpendicular(UsageError):
+    """
+    Raised when a gripper's closing axis is not perpendicular to its approach axis, so
+    the two cannot span a grasp frame.
+    """
+
+    end_effector: EndEffector
+    """
+    The end effector stating the axes.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The end effector '{self.end_effector.name}' has an approach axis "
+            f"{self.end_effector.approach_axis.to_np()[:3].tolist()} and a closing axis "
+            f"{self.end_effector.closing_axis.to_np()[:3].tolist()} that are not "
+            f"perpendicular."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "return a closing axis at a right angle to the approach axis, both in the "
+            "tool frame."
+        )
+
+
+@dataclass
 class MoreThanOneBodyHeld(UsageError):
     """
     Raised when a gripper's tool frame has more than one body attached to it.

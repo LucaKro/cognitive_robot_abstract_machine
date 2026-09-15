@@ -212,7 +212,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
         :param context: The context the check runs in.
         :param reverse: Whether the gripper withdraws from the grasp rather than moving
             onto it. Each pose of the sequence is where the next one is reached from, so
-            a probe running them in the other order answers about a motion that is not
+            a check running them in the other order answers about a motion that is not
             the one executed.
         :param clearances: Overrides for :class:`HasApproachesGraspPoses`' distances.
         :return: A validator for the poses reaching that grasp.
@@ -235,7 +235,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
             frame, since nothing is being grasped with it then.
 
         A reach onto an object ends inside the buffer zone kept around that object, so a
-        probe that does not free the manipulator never converges on the pose it is
+        check that does not free the manipulator never converges on the pose it is
         asked about.
         """
         arm = ViewManager.get_arm_by_tool_frame(self.tip_link, self.robot)
@@ -311,25 +311,30 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
                 for pose in sequence
             ]
 
-        msc = MotionStatechart()
-        msc.add_node(sequence_node := Sequence(sequence))
+        motion_state_chart = MotionStatechart()
+        motion_state_chart.add_node(sequence_node := Sequence(sequence))
         if GiskardExecutable.collision_avoidance:
-            msc.add_node(ExternalCollisionAvoidance(cancel_if_collision_violated=False))
-            msc.add_node(SelfCollisionAvoidance(cancel_if_collision_violated=False))
-            msc.add_nodes(self._gripper_allowance_of_the_reach())
-        msc.add_node(EndMotion.when_true(sequence_node))
-        msc.add_node(
+            motion_state_chart.add_node(
+                ExternalCollisionAvoidance(cancel_if_collision_violated=False)
+            )
+            motion_state_chart.add_node(
+                SelfCollisionAvoidance(cancel_if_collision_violated=False)
+            )
+            motion_state_chart.add_nodes(self._gripper_allowance_of_the_reach())
+        motion_state_chart.add_node(EndMotion.when_true(sequence_node))
+        motion_state_chart.add_node(
             still_progressing := StillProgressing(monitored_node=sequence_node)
         )
-        msc.add_node(still_progressing.cancel_motion())
+        motion_state_chart.add_node(still_progressing.cancel_motion())
 
-        return msc
+        return motion_state_chart
 
-    def create_executor(self, msc: MotionStatechart) -> Executor:
+    def create_executor(self, motion_state_chart: MotionStatechart) -> Executor:
         """
-        Creates the executor that runs a probe of this validator.
+        Creates the executor that runs a check of this validator.
 
-        :param msc: The motion statechart the executor is compiled against.
+        :param motion_state_chart: The motion statechart the executor is compiled
+            against.
         """
         executor = Executor(
             context=MotionStatechartContext(
@@ -339,14 +344,14 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
                 ),
             ),
         )
-        executor.compile(msc)
+        executor.compile(motion_state_chart)
         return executor
 
     def _reaches_pose_sequence(self) -> bool:
         """
-        Runs a probe of the reach.
+        Runs a check of the reach.
 
-        :return: Whether the probe arrived at every pose of the sequence.
+        :return: Whether the reach arrived at every pose of the sequence.
         """
         try:
             self.create_executor(self.create_motion_state_chart()).tick_until_end()
@@ -374,7 +379,7 @@ class AreReachableBy(PoseValidator, HasApproachesGraspPoses):
 
 
 @dataclass
-class ReachabilityProbeWorld:
+class ReachabilityCheckWorld:
     """
     A throwaway copy of a world, with the robot and gripper found again inside it.
 
@@ -429,7 +434,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
     field of; an unparameterized one is skipped and the arm is then not persisted.
     """
 
-    def _copied_world(self) -> ReachabilityProbeWorld:
+    def _copied_world(self) -> ReachabilityCheckWorld:
         """
         :return: A copy of the world to try the reach in.
 
@@ -444,7 +449,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
             VizMarkerPublisher(
                 _world=world, node=self.context.ros_node
             ).with_collision_visualization()
-        return ReachabilityProbeWorld(
+        return ReachabilityCheckWorld(
             world=world,
             robot=robot,
             end_effector=arm.end_effector,
@@ -454,7 +459,7 @@ class GraspReachabilityValidator(PoseValidator, HasApproachesGraspPoses, ABC):
     def _reaches(
         self,
         grasp_pose: Pose,
-        copied_world: ReachabilityProbeWorld,
+        copied_world: ReachabilityCheckWorld,
         body: Optional[Body],
         reverse: bool = False,
     ) -> bool:

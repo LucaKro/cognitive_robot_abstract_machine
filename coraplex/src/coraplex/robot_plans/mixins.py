@@ -316,7 +316,7 @@ class HasApproachesGraspPoses:
         tool_goal = end_effector.tool_frame_goal(grasp_pose)
         pre_grasp_pose = translate_pose_along_local_axis(
             tool_goal,
-            end_effector.front_facing_axis.to_np()[:3].astype(float),
+            end_effector.approach_axis.to_np()[:3].astype(float),
             -self._approach_distance(body_T_grasp),
         )
         sequence = [

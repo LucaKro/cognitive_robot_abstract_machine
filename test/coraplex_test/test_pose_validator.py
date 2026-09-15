@@ -361,10 +361,10 @@ def test_validation_avoids_collisions_when_the_run_does(immutable_model_world):
     validator = _reachability_validator(world, robot_view, context)
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-        msc = validator.create_motion_state_chart()
+        motion_state_chart = validator.create_motion_state_chart()
 
-    assert len(msc.get_nodes_by_type(ExternalCollisionAvoidance)) == 1
-    assert len(msc.get_nodes_by_type(SelfCollisionAvoidance)) == 1
+    assert len(motion_state_chart.get_nodes_by_type(ExternalCollisionAvoidance)) == 1
+    assert len(motion_state_chart.get_nodes_by_type(SelfCollisionAvoidance)) == 1
 
 
 def test_validation_leaves_out_collision_avoidance_when_the_run_does(
@@ -377,10 +377,10 @@ def test_validation_leaves_out_collision_avoidance_when_the_run_does(
     validator = _reachability_validator(world, robot_view, context)
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=False):
-        msc = validator.create_motion_state_chart()
+        motion_state_chart = validator.create_motion_state_chart()
 
-    assert msc.get_nodes_by_type(ExternalCollisionAvoidance) == []
-    assert msc.get_nodes_by_type(SelfCollisionAvoidance) == []
+    assert motion_state_chart.get_nodes_by_type(ExternalCollisionAvoidance) == []
+    assert motion_state_chart.get_nodes_by_type(SelfCollisionAvoidance) == []
 
 
 def test_validation_frees_the_gripper_like_the_reach_it_validates(
@@ -390,7 +390,7 @@ def test_validation_frees_the_gripper_like_the_reach_it_validates(
     The reach being validated allows the gripper to touch what it grasps, so the
     validation has to allow it too.
 
-    Without that, the grasp pose lies inside the buffer zone the probe keeps around the
+    Without that, the grasp pose lies inside the buffer zone the check keeps around the
     object, no trajectory ever converges on it, and every candidate is reported
     unreachable.
     """
@@ -398,9 +398,9 @@ def test_validation_frees_the_gripper_like_the_reach_it_validates(
     validator = _reachability_validator(world, robot_view, context)
 
     with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-        msc = validator.create_motion_state_chart()
+        motion_state_chart = validator.create_motion_state_chart()
 
-    [rules_node] = msc.get_nodes_by_type(UpdateTemporaryCollisionRules)
+    [rules_node] = motion_state_chart.get_nodes_by_type(UpdateTemporaryCollisionRules)
     (rule,) = rules_node.temporary_rules
     assert rule.end_effector is ViewManager.get_end_effector_view(
         Arms.RIGHT, robot_view
@@ -412,15 +412,15 @@ def test_validation_uses_the_same_goal_tolerances_the_motions_do(
 ):
     """
     A reach is only finished once it is within the tolerance its motion was given, so a
-    probe that settles for a looser one reports poses reachable that the motion would
+    check that settles for a looser one reports poses reachable that the motion would
     still be working towards.
     """
     world, robot_view, context = immutable_model_world
     validator = _reachability_validator(world, robot_view, context)
 
-    msc = validator.create_motion_state_chart()
+    motion_state_chart = validator.create_motion_state_chart()
 
-    [sequence] = msc.get_nodes_by_type(Sequence)
+    [sequence] = motion_state_chart.get_nodes_by_type(Sequence)
     goals = [node for node in sequence.nodes if isinstance(node, CartesianPose)]
     tolerances = validator.context.motion_tolerances
     assert goals
@@ -431,7 +431,7 @@ def test_validation_uses_the_same_goal_tolerances_the_motions_do(
 
 def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_world):
     """
-    A probe that cannot get any closer to its goal would otherwise hold the whole tick
+    A check that cannot get any closer to its goal would otherwise hold the whole tick
     budget before being called unreachable, and a location grounds by trying candidates
     until one works.
 
@@ -441,16 +441,16 @@ def test_validation_gives_up_on_a_pose_it_stops_approaching(immutable_model_worl
     world, robot_view, context = immutable_model_world
     validator = _reachability_validator(world, robot_view, context)
 
-    msc = validator.create_motion_state_chart()
+    motion_state_chart = validator.create_motion_state_chart()
 
-    [progress_monitor] = msc.get_nodes_by_type(StillProgressing)
-    [sequence] = msc.get_nodes_by_type(Sequence)
+    [progress_monitor] = motion_state_chart.get_nodes_by_type(StillProgressing)
+    [sequence] = motion_state_chart.get_nodes_by_type(Sequence)
     assert progress_monitor.monitored_node is sequence
 
 
-class _ProbeThatNeverEnds:
+class _ExecutorThatNeverEnds:
     """
-    Stands in for an executor whose motion never reaches its end, so the probe runs out
+    Stands in for an executor whose motion never reaches its end, so the check runs out
     of ticks.
     """
 
@@ -462,13 +462,17 @@ def test_validation_gives_up_on_a_pose_it_runs_out_of_ticks_for(
     immutable_model_world, monkeypatch
 ):
     """
-    A probe that neither arrives nor stalls is stopped by its tick budget, and a
+    A check that neither arrives nor stalls is stopped by its tick budget, and a
     candidate it was spent on is unreachable rather than an error the location has to
     handle.
     """
     world, robot_view, context = immutable_model_world
     validator = _reachability_validator(world, robot_view, context)
-    monkeypatch.setattr(validator, "create_executor", lambda msc: _ProbeThatNeverEnds())
+    monkeypatch.setattr(
+        validator,
+        "create_executor",
+        lambda motion_state_chart: _ExecutorThatNeverEnds(),
+    )
 
     assert validator() is False
 
@@ -496,7 +500,7 @@ def test_validation_gives_back_the_collision_rules_it_found(immutable_model_worl
 
 def test_an_unreachable_pose_is_given_up_on_by_the_stall_monitor(immutable_model_world):
     """
-    The stall monitor is what ends a hopeless probe, so the validator does not need a
+    The stall monitor is what ends a hopeless check, so the validator does not need a
     tick budget of its own to stop one.
     """
     world, robot_view, context = immutable_model_world
@@ -523,11 +527,11 @@ def test_validation_is_run_with_the_motion_settings_of_the_plan(
     immutable_model_world, monkeypatch
 ):
     """
-    The probe answers about the motion the plan will execute, so the copy it runs in is
+    The check answers about the motion the plan will execute, so the copy it runs in is
     addressed by a context carrying the plan's own motion settings: the alternatives a
     motion is replaced by, and the tolerances a reach counts as finished at.
 
-    A probe given the defaults instead simulates a motion the plan never runs.
+    A check given the defaults instead simulates a motion the plan never runs.
     """
     world, robot_view, _ = immutable_model_world
     milk = world.get_body_by_name("milk.stl")
@@ -546,20 +550,20 @@ def test_validation_is_run_with_the_motion_settings_of_the_plan(
         object_designator=milk,
     )
 
-    probe_contexts = []
+    check_contexts = []
     monkeypatch.setattr(
         AreReachableBy,
         "__call__",
-        lambda self, *a, **k: probe_contexts.append(self.context) or True,
+        lambda self, *a, **k: check_contexts.append(self.context) or True,
     )
 
     assert validator()
 
-    [probe_context] = probe_contexts
+    [check_context] = check_contexts
     assert (
-        probe_context.alternative_motion_mappings == context.alternative_motion_mappings
+        check_context.alternative_motion_mappings == context.alternative_motion_mappings
     )
-    assert probe_context.motion_tolerances == context.motion_tolerances
+    assert check_context.motion_tolerances == context.motion_tolerances
 
 
 # %% grasping from a standing pose
@@ -678,12 +682,12 @@ def test_any_grasp_validator_forgets_a_grasp_when_it_fails(immutable_model_world
     assert validator.reachable_grasp is None
 
 
-# %% a grasp probe reaches with the copy's own gripper
+# %% a grasp check reaches with the copy's own gripper
 
 
-def test_a_grasp_probe_reaches_with_the_gripper_of_its_copy(immutable_model_world):
+def test_a_grasp_check_reaches_with_the_gripper_of_its_copy(immutable_model_world):
     """
-    The probe drives a copy of the world, so it has to reach with that copy's gripper.
+    The check drives a copy of the world, so it has to reach with that copy's gripper.
 
     Reaching with the caller's own gripper would move the robot the plan runs against,
     which is the thing copying the world avoids.
@@ -694,16 +698,17 @@ def test_a_grasp_probe_reaches_with_the_gripper_of_its_copy(immutable_model_worl
         context=context, arm=arm, graspable=_milk_within_reach(world)
     )
 
-    probe = validator._copied_world()
+    copied_world = validator._copied_world()
 
-    assert probe.end_effector is not arm.end_effector
-    assert probe.end_effector.id == arm.end_effector.id
-    assert probe.end_effector is probe.world.get_semantic_annotation_by_id(
-        arm.end_effector.id
+    assert copied_world.end_effector is not arm.end_effector
+    assert copied_world.end_effector.id == arm.end_effector.id
+    assert (
+        copied_world.end_effector
+        is copied_world.world.get_semantic_annotation_by_id(arm.end_effector.id)
     )
 
 
-# %% watching a grasp probe happen
+# %% watching a grasp check happen
 
 
 class _RecordsWhatWasPublished:
@@ -722,9 +727,9 @@ class _RecordsWhatWasPublished:
         return self
 
 
-def test_a_grasp_probe_is_published_while_debugging(immutable_model_world, monkeypatch):
+def test_a_grasp_check_is_published_while_debugging(immutable_model_world, monkeypatch):
     """
-    A grasp probe runs in a copy of the world, so nothing of it reaches Rviz unless the
+    A grasp check runs in a copy of the world, so nothing of it reaches Rviz unless the
     copy is published: a run being watched would show the robot standing still through
     every reach it judges.
     """
@@ -741,12 +746,12 @@ def test_a_grasp_probe_is_published_while_debugging(immutable_model_world, monke
         graspable=milk,
     )
 
-    probe = validator._copied_world()
+    copied_world = validator._copied_world()
 
-    assert published == [(probe.world, node)]
+    assert published == [(copied_world.world, node)]
 
 
-def test_a_grasp_probe_is_not_published_otherwise(immutable_model_world, monkeypatch):
+def test_a_grasp_check_is_not_published_otherwise(immutable_model_world, monkeypatch):
     """
     Publishing a world costs something on every candidate a location tries, so a run
     that is not being watched does not pay it.

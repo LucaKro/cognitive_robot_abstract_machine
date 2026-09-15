@@ -1,10 +1,19 @@
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
+from typing_extensions import List
 
+from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.exceptions import MoreThanOneBodyHeld, NothingHeld
+from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.exceptions import (
+    GripperAxesNotPerpendicular,
+    MoreThanOneBodyHeld,
+    NothingHeld,
+)
 from semantic_digital_twin.robots.pr2 import PR2
-from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.robots.robot_parts import Camera, EndEffector
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -17,7 +26,10 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    KinematicStructureEntity,
+)
 
 # %% fixtures
 
@@ -85,24 +97,53 @@ def hold_body(end_effector: EndEffector, name: str = "held_body") -> Body:
     return body
 
 
-# %% the direction a gripper approaches from
+# %% the axes a gripper states in its tool frame
 
 
-def test_front_facing_axis_is_the_grasp_frames_approach_direction(pr2_gripper):
+@dataclass(eq=False)
+class EndEffectorWithSkewedAxes(EndEffector):
     """
-    Rotating the axis into the grasp frame has to yield the direction a grasp frame is
-    approached along, which is its x-axis.
+    An end effector whose closing axis is not perpendicular to its approach axis.
     """
-    grasp_R_tool = RotationMatrix.from_quaternion(pr2_gripper.front_facing_orientation)
 
-    approach_in_grasp_frame = grasp_R_tool @ pr2_gripper.front_facing_axis
+    @property
+    def approach_axis(self) -> Vector3:
+        return Vector3.X(reference_frame=self.tool_frame)
 
+    @property
+    def closing_axis(self) -> Vector3:
+        return Vector3(x=1, y=1, z=0, reference_frame=self.tool_frame)
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ):
+        raise NotImplementedError
+
+
+def test_the_approach_axis_is_the_grasp_frames_x_axis(pr2_gripper):
     np.testing.assert_allclose(
-        approach_in_grasp_frame.to_np()[:3], Vector3.X().to_np()[:3], atol=1e-9
+        (pr2_gripper.tool_R_grasp @ Vector3.X()).to_np()[:3],
+        pr2_gripper.approach_axis.to_np()[:3],
+        atol=1e-9,
     )
 
 
-def test_front_facing_axis_follows_the_grippers_own_convention(
+def test_the_closing_axis_is_the_grasp_frames_y_axis(pr2_gripper):
+    np.testing.assert_allclose(
+        (pr2_gripper.tool_R_grasp @ Vector3.Y()).to_np()[:3],
+        pr2_gripper.closing_axis.to_np()[:3],
+        atol=1e-9,
+    )
+
+
+def test_the_approach_axis_follows_the_grippers_own_convention(
     pr2_gripper, tracy_world
 ):
     """
@@ -114,11 +155,38 @@ def test_front_facing_axis_follows_the_grippers_own_convention(
     ].left_arm.end_effector
 
     np.testing.assert_allclose(
-        pr2_gripper.front_facing_axis.to_np()[:3], [1, 0, 0], atol=1e-9
+        pr2_gripper.approach_axis.to_np()[:3], Vector3.X().to_np()[:3], atol=1e-9
     )
     np.testing.assert_allclose(
-        tracy_gripper.front_facing_axis.to_np()[:3], [0, 0, 1], atol=1e-9
+        tracy_gripper.approach_axis.to_np()[:3], Vector3.Z().to_np()[:3], atol=1e-9
     )
+
+
+def test_a_gripper_whose_axes_are_not_perpendicular_is_refused(pr2_gripper):
+    with pytest.raises(GripperAxesNotPerpendicular):
+        EndEffectorWithSkewedAxes(
+            name=PrefixedName("skewed_gripper"),
+            root=pr2_gripper.root,
+            tool_frame=pr2_gripper.tool_frame,
+        )
+
+
+def test_every_robot_states_its_axes_in_the_frame_they_belong_to(
+    supported_abstract_robots,
+):
+    """
+    A gripper's axes are read in its tool frame and a camera's in its root, for every
+    robot there is.
+    """
+    for abstract_robot in supported_abstract_robots:
+        world = URDFParser.from_file(abstract_robot.get_ros_file_path()).parse()
+        abstract_robot.from_world(world)
+
+        for end_effector in world.get_semantic_annotations_by_type(EndEffector):
+            assert end_effector.approach_axis.reference_frame is end_effector.tool_frame
+            assert end_effector.closing_axis.reference_frame is end_effector.tool_frame
+        for camera in world.get_semantic_annotations_by_type(Camera):
+            assert camera.forward_facing_axis.reference_frame is camera.root
 
 
 # %% tool frame goals
@@ -143,9 +211,7 @@ def test_tool_frame_goal_applies_the_end_effectors_own_orientation(
 
     goal = pr2_gripper.tool_frame_goal(grasp)
 
-    expected = grasp.to_rotation_matrix() @ RotationMatrix.from_quaternion(
-        pr2_gripper.front_facing_orientation
-    )
+    expected = grasp.to_rotation_matrix() @ pr2_gripper.tool_R_grasp.inverse()
     np.testing.assert_allclose(
         goal.to_rotation_matrix().to_np(), expected.to_np(), atol=1e-9
     )
@@ -189,7 +255,7 @@ def test_the_held_grasp_is_turned_the_way_the_gripper_faces(pr2_gripper):
 
     body_R_grasp = pr2_gripper.held_body_T_grasp.to_rotation_matrix()
 
-    grasp_R_tool = RotationMatrix.from_quaternion(pr2_gripper.front_facing_orientation)
+    grasp_R_tool = pr2_gripper.tool_R_grasp.inverse()
     body_T_tool = pr2_gripper._world.transform(
         pr2_gripper.tool_frame.global_transform, body
     )
@@ -335,7 +401,7 @@ def _grasp_the_gripper_is_already_turned_for(end_effector: EndEffector) -> Pose:
     :return: The grasp frame, in the world's frame.
     """
     world_T_tool = end_effector.tool_frame.global_transform
-    grasp_R_tool = RotationMatrix.from_quaternion(end_effector.front_facing_orientation)
+    grasp_R_tool = end_effector.tool_R_grasp.inverse()
     return Pose(
         position=world_T_tool.to_position(),
         orientation=(
@@ -365,7 +431,7 @@ def test_the_turn_is_measured_from_where_the_gripper_points_when_it_stands_on_th
     onto it rather than nothing.
     """
     world_T_tool = pr2_gripper.tool_frame.global_transform
-    world_V_facing = world_T_tool.to_rotation_matrix() @ pr2_gripper.front_facing_axis
+    world_V_facing = world_T_tool.to_rotation_matrix() @ pr2_gripper.approach_axis
     # Turned about an axis across the way the gripper points, so the turn is that angle
     # whichever way the gripper happens to be held. The axis has to be a unit vector.
     across_the_facing = np.cross(world_V_facing.to_np()[:3].ravel(), [0.0, 0.0, 1.0])

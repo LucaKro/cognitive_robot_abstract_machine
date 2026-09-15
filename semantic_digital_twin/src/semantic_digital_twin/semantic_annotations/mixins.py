@@ -430,9 +430,11 @@ class HasGraspPoses(HasRootBody):
 
     A grasp pose is a *grasp frame* expressed in :attr:`root`'s frame: its x-axis points
     the way the gripper travels toward the object, its y-axis is the axis the fingers
-    close along, and its z-axis completes the frame. Naming the axes rather than a
-    gripper's own tool frame keeps a grasp independent of the robot performing it; the
-    robot's end effector rotates the frame into its own convention.
+    close along, and its z-axis completes the frame. Every end effector states the same
+    two axes in its own tool frame, as
+    :attr:`~semantic_digital_twin.robots.robot_parts.EndEffector.approach_axis` and
+    :attr:`~semantic_digital_twin.robots.robot_parts.EndEffector.closing_axis`, which is
+    how a grasp stays independent of the robot performing it.
 
     ..note:: The poses are expressed in :attr:`root`'s frame so that they stay correct
         when the annotated object moves.

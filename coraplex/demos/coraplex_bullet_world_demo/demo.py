@@ -340,9 +340,9 @@ class BulletWorldDemonstration(RobotDemonstration):
                     grasp_pose=variable(
                         Pose,
                         domain=ReachableGrasps(
-                            bowl,
-                            context,
-                            ViewManager.get_arm_view(Arms.LEFT, context.robot),
+                            graspable=bowl,
+                            context=context,
+                            arm=ViewManager.get_arm_view(Arms.LEFT, context.robot),
                         ),
                     ),
                 ),

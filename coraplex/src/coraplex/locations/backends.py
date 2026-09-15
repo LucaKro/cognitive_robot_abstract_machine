@@ -144,7 +144,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         :param end_effector: The end effector which should be controlled by Giskard
         :return: The Giskard executor for the pose sequence
         """
-        pose_seq = Sequence(
+        sequence_node = Sequence(
             nodes=[
                 CartesianPose(
                     root_link=world.root,
@@ -161,10 +161,10 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                     robot=robot, buffer_zone_distance=0.1, violated_distance=0.0
                 )
             )
-        msc = MotionStatechart()
-        msc.add_nodes(
+        motion_state_chart = MotionStatechart()
+        motion_state_chart.add_nodes(
             [
-                pose_seq,
+                sequence_node,
                 UpdateTemporaryCollisionRules(
                     temporary_rules=[
                         AllowCollisionBetweenGroups(
@@ -178,7 +178,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                 ),
             ]
         )
-        msc.add_node(EndMotion.when_true(pose_seq))
+        motion_state_chart.add_node(EndMotion.when_true(sequence_node))
 
         executor = Executor(
             MotionStatechartContext(
@@ -188,7 +188,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                 ),
             ),
         )
-        executor.compile(msc)
+        executor.compile(motion_state_chart)
 
         return executor
 
@@ -225,16 +225,16 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         :param draw: The terms to draw the base poses on. :Yield: The pose the robot
             reached.
         """
-        probe_world = deepcopy(self.world)
-        robot = probe_world.get_semantic_annotation_by_id(self.robot.id)
-        end_effector = probe_world.get_semantic_annotation_by_id(
+        checked_world = deepcopy(self.world)
+        robot = checked_world.get_semantic_annotation_by_id(self.robot.id)
+        end_effector = checked_world.get_semantic_annotation_by_id(
             self.arm.id
         ).end_effector
-        with probe_world.modify_world():
+        with checked_world.modify_world():
             robot._setup_collision_rules()
 
         target_sequence = self.grasp_pose_sequence(
-            self.grasp_pose.copy_for_world(probe_world),
+            self.grasp_pose.copy_for_world(checked_world),
             end_effector,
             self.body_T_grasp,
             reverse=self.reverse,
@@ -244,12 +244,12 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
             self.setup_costmap(self.target_pose).candidates(draw),
             draw.number_of_samples,
         ):
-            with probe_world.reset_state_context():
-                robot.set_root_pose(pose_candidate.copy_for_world(probe_world))
+            with checked_world.reset_state_context():
+                robot.set_root_pose(pose_candidate.copy_for_world(checked_world))
                 # A statechart ends and cleans up when it is ticked to the end, so
                 # driving from the next candidate needs one of its own.
                 executor = self.setup_giskard_executor(
-                    target_sequence, probe_world, robot, end_effector
+                    target_sequence, checked_world, robot, end_effector
                 )
 
                 try:

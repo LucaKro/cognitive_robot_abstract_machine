@@ -21,6 +21,8 @@ from typing import (
 )
 from uuid import UUID
 
+import numpy as np
+
 from typing_extensions import get_origin, get_args, Generic, TypeVar, Unpack
 
 from krrood.adapters.json_serializer import list_like_classes
@@ -34,6 +36,7 @@ from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.exceptions import (
+    GripperAxesNotPerpendicular,
     MoreThanOneBodyHeld,
     NoJointStateWithType,
     NothingHeld,
@@ -53,7 +56,6 @@ from semantic_digital_twin.robots.robot_part_mixins import (
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses, HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Agent
 from semantic_digital_twin.spatial_types import (
-    Quaternion,
     Vector3,
     RotationMatrix,
     HomogeneousTransformationMatrix,
@@ -462,11 +464,6 @@ class Camera(Sensor, ABC):
     A camera is a sensor that captures images of the environment.
     """
 
-    forward_facing_axis: Vector3 = field(kw_only=True)
-    """
-    The axis of the camera that is facing forward, expressed in the camera's root frame.
-    """
-
     field_of_view: FieldOfView = field(kw_only=True)
     """
     The field of view of the camera, defined by the vertical and horizontal angles of
@@ -490,9 +487,12 @@ class Camera(Sensor, ABC):
     The maximal height of the camera above the ground, in meters.
     """
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.forward_facing_axis.reference_frame = self.root
+    @property
+    @abstractmethod
+    def forward_facing_axis(self) -> Vector3:
+        """
+        The direction the camera looks, expressed in :attr:`root`'s frame.
+        """
 
     @property
     def root_T_forward_view(self) -> HomogeneousTransformationMatrix:
@@ -540,27 +540,44 @@ class EndEffector(AbstractRobotPart, ABC):
     Usually the point the robot tries to align with the object.
     """
 
-    front_facing_orientation: Quaternion = field(kw_only=True)
-    """
-    The orientation of the end_effector's tool frame, which is usually the front-facing
-    orientation.
-
-    Read as ``grasp_R_tool``: it rotates the tool frame into the grasp frame
-    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
-    describes, whose x-axis is the direction the gripper travels toward the object.
-    """
+    def __post_init__(self):
+        super().__post_init__()
+        if not np.isclose(float(self.approach_axis.dot(self.closing_axis)), 0.0):
+            raise GripperAxesNotPerpendicular(self)
 
     @property
-    def front_facing_axis(self):
+    @abstractmethod
+    def approach_axis(self) -> Vector3:
         """
-        :return: The direction the gripper travels toward an object, in the tool frame's own
-        coordinates.
+        The direction the gripper travels toward an object, expressed in
+        :attr:`tool_frame`.
+
+        It is the x-axis of the grasp frame
+        :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
+        describes.
         """
-        tool_R_grasp = RotationMatrix.from_quaternion(
-            self.front_facing_orientation
-        ).inverse()
-        return Vector3.from_iterable(
-            (tool_R_grasp @ Vector3.X()).to_np()[:3]
+
+    @property
+    @abstractmethod
+    def closing_axis(self) -> Vector3:
+        """
+        The axis the fingers close along, expressed in :attr:`tool_frame`.
+
+        It is the y-axis of the grasp frame
+        :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
+        describes, and has to be perpendicular to :attr:`approach_axis`.
+        """
+
+    @property
+    def tool_R_grasp(self) -> RotationMatrix:
+        """
+        The grasp frame's orientation in :attr:`tool_frame`, spanned by
+        :attr:`approach_axis` and :attr:`closing_axis`.
+        """
+        return RotationMatrix.from_vectors(
+            x=self.approach_axis,
+            y=self.closing_axis,
+            reference_frame=self.tool_frame,
         )
 
     def tool_frame_goal(self, grasp_pose: Pose) -> Pose:
@@ -573,7 +590,7 @@ class EndEffector(AbstractRobotPart, ABC):
         :param grasp_pose: The grasp frame to reach.
         :return: The pose the tool frame has to reach, in ``grasp_pose``'s frame.
         """
-        grasp_R_tool = RotationMatrix.from_quaternion(self.front_facing_orientation)
+        grasp_R_tool = self.tool_R_grasp.inverse()
         return Pose(
             position=grasp_pose.to_position(),
             orientation=(
@@ -613,10 +630,7 @@ class EndEffector(AbstractRobotPart, ABC):
         if body is None:
             raise NothingHeld(self)
         body_T_tool = self._world.transform(self.tool_frame.global_transform, body)
-        body_R_grasp = (
-            body_T_tool.to_rotation_matrix()
-            @ RotationMatrix.from_quaternion(self.front_facing_orientation).inverse()
-        )
+        body_R_grasp = body_T_tool.to_rotation_matrix() @ self.tool_R_grasp
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
             point=body_T_tool.to_position(),
             rotation_matrix=body_R_grasp,
@@ -661,12 +675,12 @@ class EndEffector(AbstractRobotPart, ABC):
         world_T_goal = self._world.transform(
             self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
         )
-        world_V_approach = world_T_goal.to_rotation_matrix() @ self.front_facing_axis
+        world_V_approach = world_T_goal.to_rotation_matrix() @ self.approach_axis
         world_V_to_grasp = self._vector_to_grasp(grasp_pose)
         if not float(world_V_to_grasp.norm()):
             world_V_to_grasp = (
                 self.tool_frame.global_transform.to_rotation_matrix()
-                @ self.front_facing_axis
+                @ self.approach_axis
             )
         return float(world_V_approach.angle_between(world_V_to_grasp))
 

@@ -80,9 +80,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                 target_location=variable(
                     Pose,
                     domain=accessing_location(
-                        drawer_annotation[0],
-                        self.context,
-                        ViewManager.get_arm_view(self.arm, self.robot),
+                        container=drawer_annotation[0],
+                        context=self.context,
+                        arm=ViewManager.get_arm_view(self.arm, self.robot),
                     ),
                 ),
                 keep_joint_states=True,
@@ -133,10 +133,10 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
             the object where it is.
         """
         return reachability_location(
-            self.graspable_object.root,
-            self.context,
-            ViewManager.get_arm_view(self.arm, self.robot),
-            self.grasp_pose,
+            body=self.graspable_object.root,
+            context=self.context,
+            arm=ViewManager.get_arm_view(self.arm, self.robot),
+            grasp_pose=self.grasp_pose,
             approach_clearance=self.approach_clearance,
             retreat_distance=self.retreat_distance,
         )
@@ -155,9 +155,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                 Pose,
                 domain=DeferredLocation(
                     lambda: reachability_location(
-                        object_body,
-                        self.context,
-                        ViewManager.get_arm_view(self.arm, self.robot),
+                        body=object_body,
+                        context=self.context,
+                        arm=ViewManager.get_arm_view(self.arm, self.robot),
                         grasp_pose=ViewManager.get_end_effector_view(
                             self.arm, self.robot
                         ).grasp_on(object_body)

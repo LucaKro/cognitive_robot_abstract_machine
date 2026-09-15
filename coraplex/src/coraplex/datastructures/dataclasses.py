@@ -199,7 +199,7 @@ class Context(PlanEntity):
         """
         The same settings, addressing another world.
 
-        Anything run against a copy of the world -- a probe, a what-if -- has to be run
+        Anything run against a copy of the world -- a check, a what-if -- has to be run
         the way the plan itself is, or it answers about something the plan never does.
 
         :param world: The world the new context addresses.

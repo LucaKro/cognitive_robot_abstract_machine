@@ -702,7 +702,9 @@ def test_looking_motion_pointing_parameters(immutable_model_world):
     assert isinstance(pointing, Pointing)
     assert pointing.root_link is view.get_torso().root
     assert pointing.tip_link is camera.root
-    assert pointing.pointing_axis is camera.forward_facing_axis
+    assert np.array_equal(
+        pointing.pointing_axis.to_np(), camera.forward_facing_axis.to_np()
+    )
     assert pointing.pointing_axis.reference_frame is camera.root
     assert pointing.goal_point.reference_frame is world.root
     assert np.array_equal(pointing.goal_point.to_np(), target.to_position().to_np())

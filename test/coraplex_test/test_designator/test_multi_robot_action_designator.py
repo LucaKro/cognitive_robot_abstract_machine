@@ -464,9 +464,7 @@ def test_follow_tcp_path_multi(immutable_multiple_robot_apartment):
         world.notify_state_change()
     # robot.full_body_controlled = True
     left_arm = ViewManager.get_arm_view(Arms.LEFT, robot)
-    front_axis = tuple(
-        int(v) for v in left_arm.end_effector.front_facing_axis.to_np()[:3]
-    )
+    front_axis = tuple(int(v) for v in left_arm.end_effector.approach_axis.to_np()[:3])
     grasp_axis = AxisIdentifier.from_tuple(front_axis)
 
     pose_T = world.get_body_by_name("milk.stl").global_transform
