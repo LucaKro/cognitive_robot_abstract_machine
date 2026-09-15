@@ -9,6 +9,7 @@ and that the disagreements are gathered so the largest is the first thing read.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,8 @@ from experiments.warsaw.pipeline.records import BodyAnswer, Classifications
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.habitat.label_comparison import (
     COMPARISON_FILE,
+    COMPARISON_RECORD,
+    ClassificationScores,
     LabelComparison,
     compare_a_run,
 )
@@ -143,6 +146,95 @@ def test_disagreements_are_gathered_largest_first(compared: LabelComparison):
     assert compared.disagreements()[0] == (("light fixture", "decor"), 1)
 
 
+# %% precision, recall and F1
+
+
+def test_scores_are_the_harmonic_mean_of_precision_and_recall():
+    """
+    Two predictions right of four made, of eight there were to find.
+    """
+    scores = ClassificationScores.from_counts(
+        true_positives=2, false_positives=2, false_negatives=6
+    )
+    assert (scores.precision, scores.recall, scores.f1_score) == (0.5, 0.25, 1 / 3)
+
+
+def test_scores_of_nothing_predicted_and_nothing_to_find_are_zero():
+    """
+    An empty ratio is defined as zero rather than raised.
+    """
+    scores = ClassificationScores.from_counts(
+        true_positives=0, false_positives=0, false_negatives=0
+    )
+    assert (scores.precision, scores.recall, scores.f1_score) == (0.0, 0.0, 0.0)
+
+
+def test_an_answer_is_known_to_mean_the_labels_of_the_room_it_names(
+    compared: LabelComparison,
+):
+    """
+    Which of the room's labels an answer names is what a false positive of another label
+    is counted from.
+    """
+    one = {one.segment: one for one in compared.objects}["kitchen_cabinet_1"]
+    assert one.means == ["kitchen cabinet"]
+
+
+def test_per_object_precision_leaves_out_the_objects_given_no_answer(
+    compared: LabelComparison,
+):
+    """
+    Two agree of the three objects answered, and of the four objects there are.
+    """
+    assert compared.per_object == ClassificationScores.from_counts(
+        true_positives=2, false_positives=1, false_negatives=2
+    )
+
+
+def test_per_label_scores_average_every_label_of_the_room(compared: LabelComparison):
+    """
+    ``kitchen cabinet`` is found both times and nothing else is taken for it; the light
+    fixture and the sink are found neither time.
+    """
+    found_every_time = ClassificationScores.from_counts(
+        true_positives=2, false_positives=0, false_negatives=0
+    )
+    found_never = ClassificationScores.from_counts(
+        true_positives=0, false_positives=0, false_negatives=1
+    )
+    assert compared.per_label == {
+        "kitchen cabinet": found_every_time,
+        "light fixture": found_never,
+        "sink": found_never,
+    }
+
+
+def test_a_label_another_objects_answer_names_counts_a_false_positive(run: Path):
+    """
+    A cabinet answered for a sink is a sink found nowhere, and a cabinet found where
+    there was none.
+    """
+    compared = compare_a_run(run, LexicalMatcher(), matcher_name="wording")
+    compared.objects[3].predicted = "cabinet"
+    compared.objects[3].means = ["kitchen cabinet"]
+    assert compared.per_label["kitchen cabinet"] == ClassificationScores.from_counts(
+        true_positives=2, false_positives=1, false_negatives=0
+    )
+
+
+def test_the_macro_average_is_the_mean_over_labels(compared: LabelComparison):
+    """
+    The mean of each score over the room's labels, so a rare label weighs as much as a
+    common one.
+    """
+    per_label = list(compared.per_label.values())
+    assert compared.per_label_average == ClassificationScores(
+        precision=sum(one.precision for one in per_label) / len(per_label),
+        recall=sum(one.recall for one in per_label) / len(per_label),
+        f1_score=sum(one.f1_score for one in per_label) / len(per_label),
+    )
+
+
 # %% the file itself
 
 
@@ -158,3 +250,15 @@ def test_the_file_holds_every_object_and_says_where_it_is(
     held = written.read_text()
     assert all(one.segment in held for one in compared.objects)
     assert "wording" in held
+
+
+def test_the_record_is_written_beside_the_page(run: Path, compared: LabelComparison):
+    """
+    The counts are kept as data too, so several rooms can be added up without reading a
+    page back.
+    """
+    compared.write_beside(run)
+    assert (
+        LabelComparison.from_json(json.loads((run / COMPARISON_RECORD).read_text()))
+        == compared
+    )

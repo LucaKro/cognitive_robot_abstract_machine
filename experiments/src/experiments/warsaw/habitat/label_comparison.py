@@ -28,7 +28,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from typing_extensions import List, Optional, Tuple
+from typing_extensions import Dict, List, Optional, Tuple
 
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.evaluation.label_vocabulary import (
@@ -46,10 +46,83 @@ COMPARISON_FILE = "label_comparison.md"
 What the comparison is written as, inside the run it is about.
 """
 
+COMPARISON_RECORD = "label_comparison.json"
+"""
+The same comparison as data, so that several rooms can be added up without reading a
+page back.
+"""
+
 SCENE_RECORDS = "scene"
 """
 Where a run keeps what its scene said about itself.
 """
+
+# %% how well a set of answers found what it was meant to
+
+
+@dataclass(frozen=True)
+class ClassificationScores(JsonRecord):
+    """
+    Precision, recall and their harmonic mean.
+
+    An empty ratio is zero: a label nothing was answered as has no precision to speak of,
+    and averaging it in as zero is what a macro average over labels does.
+    """
+
+    precision: float = 0.0
+    """
+    The share of what was answered that was right.
+    """
+
+    recall: float = 0.0
+    """
+    The share of what there was to find that was found.
+    """
+
+    f1_score: float = 0.0
+    """
+    The harmonic mean of the two.
+    """
+
+    @classmethod
+    def from_counts(
+        cls, true_positives: int, false_positives: int, false_negatives: int
+    ) -> ClassificationScores:
+        """
+        :param true_positives: Answers that were right.
+        :param false_positives: Answers that were wrong.
+        :param false_negatives: What there was to find and was not found.
+        :return: The scores those counts come to.
+        """
+        precision = cls.ratio(true_positives, true_positives + false_positives)
+        recall = cls.ratio(true_positives, true_positives + false_negatives)
+        return cls(
+            precision=precision,
+            recall=recall,
+            f1_score=cls.ratio(2 * precision * recall, precision + recall),
+        )
+
+    @classmethod
+    def mean_of(cls, scores: List[ClassificationScores]) -> ClassificationScores:
+        """
+        :param scores: Scores to average, one per label.
+        :return: Each score averaged, every label weighing the same.
+        """
+        return cls(
+            precision=cls.ratio(sum(one.precision for one in scores), len(scores)),
+            recall=cls.ratio(sum(one.recall for one in scores), len(scores)),
+            f1_score=cls.ratio(sum(one.f1_score for one in scores), len(scores)),
+        )
+
+    @staticmethod
+    def ratio(numerator: float, denominator: float) -> float:
+        """
+        :param numerator: The value above the division line.
+        :param denominator: The value below it.
+        :return: Their ratio, or zero where there is nothing to divide by.
+        """
+        return numerator / denominator if denominator else 0.0
+
 
 # %% one object, as each side has it
 
@@ -79,6 +152,14 @@ class ComparedObject(JsonRecord):
     """
     What the run answered, in the words a dataset would write it in, or None where the
     run left the body unannotated.
+    """
+
+    means: List[str] = field(default_factory=list)
+    """
+    The labels of the room the answer names the same kind of thing as.
+
+    What a false positive of another label is counted from: an answer that means
+    ``cabinet`` for an object labelled ``sink`` is a cabinet found where there was none.
     """
 
     agrees: bool = False
@@ -132,6 +213,57 @@ class LabelComparison(JsonRecord):
         """
         return sum(1 for one in self.objects if one.agrees)
 
+    @property
+    def answered(self) -> int:
+        """
+        :return: How many objects the run gave an answer at all.
+        """
+        return sum(1 for one in self.objects if one.predicted is not None)
+
+    @property
+    def per_object(self) -> ClassificationScores:
+        """
+        :return: The scores over objects: precision over the objects that were answered,
+            recall over every object. Recall is the share that agrees.
+        """
+        return ClassificationScores.from_counts(
+            true_positives=self.agreed,
+            false_positives=self.answered - self.agreed,
+            false_negatives=len(self.objects) - self.agreed,
+        )
+
+    @property
+    def per_label(self) -> Dict[str, ClassificationScores]:
+        """
+        :return: Per label of the room, the scores of finding it: an object carrying it
+            whose answer agrees is found, one whose answer does not is missed, and an
+            object carrying another label whose answer names it is a false positive.
+        """
+        return {
+            label: ClassificationScores.from_counts(
+                true_positives=sum(
+                    1 for one in self.objects if one.truth == label and one.agrees
+                ),
+                false_positives=sum(
+                    1
+                    for one in self.objects
+                    if one.truth != label and label in one.means
+                ),
+                false_negatives=sum(
+                    1 for one in self.objects if one.truth == label and not one.agrees
+                ),
+            )
+            for label in sorted({one.truth for one in self.objects})
+        }
+
+    @property
+    def per_label_average(self) -> ClassificationScores:
+        """
+        :return: The scores averaged over the room's labels, so that a rare label weighs
+            as much as a common one.
+        """
+        return ClassificationScores.mean_of(list(self.per_label.values()))
+
     def disagreements(self) -> List[Tuple[Tuple[str, Optional[str]], int]]:
         """
         :return: Per pair of what it was called and what it was answered, how many
@@ -153,6 +285,11 @@ class LabelComparison(JsonRecord):
             f"Run `{self.run}`, vocabularies reconciled by {self.matcher or 'nothing'}.",
             "",
             f"**{self.agreed} of {len(self.objects)} objects agree.**",
+            "",
+            "| | precision | recall | F1 |",
+            "|---|---:|---:|---:|",
+            self.scores_row("per object", self.per_object),
+            self.scores_row("per label, averaged", self.per_label_average),
             "",
             "## Where the disagreement is",
             "",
@@ -177,13 +314,30 @@ class LabelComparison(JsonRecord):
         ]
         return "\n".join(lines) + "\n"
 
+    @staticmethod
+    def scores_row(name: str, scores: ClassificationScores) -> str:
+        """
+        :param name: What the scores are over.
+        :param scores: The scores.
+        :return: One row of the page's table of scores.
+        """
+        return (
+            f"| {name} | {scores.precision:.3f} | {scores.recall:.3f} "
+            f"| {scores.f1_score:.3f} |"
+        )
+
     def write_beside(self, directory: Path) -> Path:
         """
+        Write the comparison into the run, as a page and as data.
+
         :param directory: The run to write into.
-        :return: The file written.
+        :return: The page written.
         """
         written = Path(directory) / COMPARISON_FILE
         written.write_text(self.as_markdown())
+        (Path(directory) / COMPARISON_RECORD).write_text(
+            json.dumps(self.to_json(), indent=2)
+        )
         return written
 
 
@@ -212,6 +366,14 @@ def compare_a_run(
         .read_record(RunFile.CLASSIFICATIONS, Classifications)
         .bodies
     }
+    labels = sorted({one.label for one in room.objects})
+    meanings = {
+        predicted: [
+            label for label in labels if names_the_same(predicted, label, matcher)
+        ]
+        for predicted in set(answered.values())
+        if predicted is not None
+    }
     return LabelComparison(
         run=directory.name,
         scene=room.scene,
@@ -223,6 +385,7 @@ def compare_a_run(
                 object_id=one.object_id,
                 truth=one.label,
                 predicted=answered.get(one.segment),
+                means=meanings.get(answered.get(one.segment), []),
                 agrees=names_the_same(answered.get(one.segment), one.label, matcher),
             )
             for one in room.objects
