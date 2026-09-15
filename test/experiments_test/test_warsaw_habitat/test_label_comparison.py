@@ -19,11 +19,18 @@ from experiments.warsaw.habitat.convert import ConvertedObject, ConvertedRoom
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.habitat.label_comparison import (
-    COMPARISON_FILE,
-    COMPARISON_RECORD,
     ClassificationScores,
+    ComparedRooms,
+    ComparisonMatcher,
     LabelComparison,
+    LabelGroup,
+    ScoreSummary,
     compare_a_run,
+)
+
+from ..test_warsaw_evaluation.test_label_vocabulary import (
+    matching_by_head_noun,
+    turned,
 )
 
 # %% a run to read back
@@ -246,7 +253,7 @@ def test_the_file_holds_every_object_and_says_where_it_is(
     says rather than somewhere a reader has to be told about.
     """
     written = compared.write_beside(run)
-    assert written == run / COMPARISON_FILE
+    assert written == run / ComparisonMatcher.WORDING.page
     held = written.read_text()
     assert all(one.segment in held for one in compared.objects)
     assert "wording" in held
@@ -259,6 +266,205 @@ def test_the_record_is_written_beside_the_page(run: Path, compared: LabelCompari
     """
     compared.write_beside(run)
     assert (
-        LabelComparison.from_json(json.loads((run / COMPARISON_RECORD).read_text()))
+        LabelComparison.from_json(
+            json.loads((run / ComparisonMatcher.WORDING.record).read_text())
+        )
         == compared
     )
+
+
+def test_each_matcher_writes_a_comparison_of_its_own(
+    run: Path, compared: LabelComparison
+):
+    """
+    Two matchers compared on one run are both kept, so every number of either can be
+    read back without scoring the run again.
+    """
+    by_head_noun = compare_a_run(
+        run, meanings(), matcher_name=ComparisonMatcher.HEAD_NOUN
+    )
+    assert compared.write_beside(run) != by_head_noun.write_beside(run)
+
+
+# %% answers too far from their label in meaning
+
+
+def meanings():
+    """
+    :return: A head-noun matcher placing every name of the fixture room: the cabinets
+        together, and the light fixture's answer far from it.
+    """
+    return matching_by_head_noun(
+        cabinet=turned(0),
+        kitchen_cabinet=turned(20),
+        decor=turned(100),
+        light_fixture=turned(180),
+        sink=turned(260),
+    )
+
+
+@pytest.fixture
+def compared_by_meaning(run: Path) -> LabelComparison:
+    """
+    :return: The fixture run, compared by the head-noun matcher.
+    """
+    return compare_a_run(run, meanings(), matcher_name=ComparisonMatcher.HEAD_NOUN)
+
+
+def test_an_answer_far_from_its_label_in_meaning_is_marked_far_apart(
+    compared_by_meaning: LabelComparison,
+):
+    """
+    Decor for a light fixture is beyond anything the matcher reads the wording for.
+    """
+    one = {one.segment: one for one in compared_by_meaning.objects}["light_fixture_3"]
+    assert one.far_apart
+
+
+def test_an_agreeing_answer_is_not_far_apart(compared_by_meaning: LabelComparison):
+    """
+    A cabinet answered for a kitchen cabinet is within what the matcher decides.
+    """
+    one = {one.segment: one for one in compared_by_meaning.objects}["kitchen_cabinet_1"]
+    assert not one.far_apart
+
+
+def test_an_unanswered_object_is_not_far_apart(compared_by_meaning: LabelComparison):
+    """
+    Nothing was answered, so there is no meaning to be far from the label.
+    """
+    one = {one.segment: one for one in compared_by_meaning.objects}["sink_4"]
+    assert not one.far_apart
+
+
+def test_the_decided_objects_leave_out_those_far_apart(
+    compared_by_meaning: LabelComparison,
+):
+    """
+    Scored only where the matcher can judge: the two cabinets agree and the sink, left
+    unanswered, is still missed.
+    """
+    decided = compared_by_meaning.decided()
+    assert [one.segment for one in decided.objects] == [
+        "kitchen_cabinet_1",
+        "kitchen_cabinet_2",
+        "sink_4",
+    ]
+    assert decided.per_object == ClassificationScores.from_counts(
+        true_positives=2, false_positives=0, false_negatives=1
+    )
+
+
+# %% several rooms added up
+
+
+@pytest.fixture
+def two_rooms(compared_by_meaning: LabelComparison) -> ComparedRooms:
+    """
+    :return: The fixture room twice over, as two rooms of one building.
+    """
+    return ComparedRooms(comparisons=[compared_by_meaning, compared_by_meaning])
+
+
+def test_rooms_add_up_their_objects(two_rooms: ComparedRooms):
+    """
+    Two rooms of four objects, two agreeing in each, and one far apart in each.
+    """
+    assert (two_rooms.agreed, two_rooms.objects, two_rooms.far_apart) == (4, 8, 2)
+
+
+def test_a_label_is_counted_across_rooms_before_it_is_scored(
+    two_rooms: ComparedRooms,
+):
+    """
+    A label seen in two rooms is one label of the vocabulary, found four times.
+    """
+    tally = two_rooms.tallies["kitchen cabinet"]
+    assert (tally.objects, tally.agreed, tally.false_positives) == (4, 4, 0)
+
+
+def test_rooms_average_their_scores_over_distinct_labels(
+    two_rooms: ComparedRooms, compared_by_meaning: LabelComparison
+):
+    """
+    The same room twice has the same labels in the same proportions, so the average over
+    the vocabulary is that room's own.
+    """
+    assert two_rooms.per_label_average == compared_by_meaning.per_label_average
+
+
+def test_rooms_score_their_objects_as_one_room_would(
+    two_rooms: ComparedRooms, compared_by_meaning: LabelComparison
+):
+    """
+    Per object, twice the counts give the same ratios.
+    """
+    assert two_rooms.per_object == compared_by_meaning.per_object
+
+
+def test_decided_rooms_leave_out_every_far_apart_object(two_rooms: ComparedRooms):
+    """
+    Adding up only what the matcher could judge drops the far-apart light fixtures, and
+    with them the label nothing else carried.
+    """
+    decided = two_rooms.decided()
+    assert (decided.objects, decided.far_apart) == (6, 0)
+    assert "light fixture" not in decided.tallies
+
+
+def test_labels_are_grouped_by_how_many_objects_carry_them(two_rooms: ComparedRooms):
+    """
+    Across both rooms the light fixture and the sink are carried by two objects each,
+    the kitchen cabinet by four.
+    """
+    carried_by_two = two_rooms.labels_carried_by(LabelGroup(fewest=2, most=2))
+    assert sorted(one.label for one in carried_by_two) == ["light fixture", "sink"]
+
+
+def test_the_most_missed_labels_come_first(two_rooms: ComparedRooms):
+    """
+    The kitchen cabinet is never missed, so it comes last.
+    """
+    assert two_rooms.most_missed(count=3)[-1].label == "kitchen cabinet"
+
+
+def test_a_group_with_no_most_holds_every_label_from_its_fewest(
+    two_rooms: ComparedRooms,
+):
+    """
+    The last group of a summary has no upper end, and still holds the most common label.
+    """
+    assert [one.label for one in two_rooms.labels_carried_by(LabelGroup(fewest=3))] == [
+        "kitchen cabinet"
+    ]
+
+
+def test_a_group_with_no_most_is_named_as_open():
+    """
+    A range with no upper end is read as one, not as a large number.
+    """
+    assert LabelGroup(fewest=21).name == "21 or more"
+
+
+# %% the page adding every run up
+
+
+def test_the_summary_scores_each_building_and_all_of_them(two_rooms: ComparedRooms):
+    """
+    Every building gets a row, and so does everything together.
+    """
+    page = ScoreSummary(
+        matcher=ComparisonMatcher.HEAD_NOUN, rooms=two_rooms
+    ).as_markdown()
+    assert "| 00808-y9hTuugGdiq |" in page
+    assert "| all |" in page
+
+
+def test_the_summary_names_its_matcher(two_rooms: ComparedRooms):
+    """
+    Two summaries of one set of runs differ by matcher, so each says which it is.
+    """
+    page = ScoreSummary(
+        matcher=ComparisonMatcher.HEAD_NOUN, rooms=two_rooms
+    ).as_markdown()
+    assert ComparisonMatcher.HEAD_NOUN.value in page.splitlines()[0]

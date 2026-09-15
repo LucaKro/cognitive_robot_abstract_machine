@@ -17,6 +17,11 @@ Two things can decide it. :class:`LexicalMatcher` reads the words, which settles
 refrigerator, and falls back on the wording where the likeness is only middling -- the
 rule the earlier HM3D study used, whose paper reports a threshold its code does not use.
 
+:class:`HeadNounMatcher` reads what the names mean as well, and refuses two names that
+share a word but not the thing they name: ``wall decor`` hangs on a ``wall`` and is not
+one. It is kept beside the others rather than replacing them, so a run can be scored
+both ways.
+
 The question is asked of **one pair at a time**. The study this rule comes from could
 not do that: it compared two bags of label strings with no correspondence between them,
 so the nearest label in the whole ground-truth vocabulary was the only target available
@@ -32,14 +37,26 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from functools import cached_property
+from itertools import takewhile
 
 import numpy as np
 from nltk.stem.snowball import SnowballStemmer
-from typing_extensions import Iterable, List, Optional, Protocol, Sequence, Set
+from typing_extensions import Dict, List, Optional, Protocol, Sequence, Set, Tuple
 
 WORDS = re.compile(r"[A-Z](?:[a-z0-9]*)|[a-z0-9]+")
 """
 What a name is made of, whether it is camel-cased or spaced.
+"""
+
+PREPOSITIONS = frozenset({"of", "on", "with", "under", "in", "for", "at"})
+"""
+The words after which a name goes on to say something other than what the thing is: a
+``tool with handle`` is a tool.
+"""
+
+CONJUNCTION = "and"
+"""
+The word joining two things one name names: an ``oven and stove`` is both.
 """
 
 
@@ -78,6 +95,14 @@ class Matcher(Protocol):
         :param name: One name.
         :param other: The other.
         :return: Whether the two name the same kind of thing.
+        """
+
+    def far_apart(self, name: str, other: str) -> bool:
+        """
+        :param name: One name.
+        :param other: The other.
+        :return: Whether the two are further apart in meaning than anything the matcher
+            reads the wording for, so that no rule of it could have matched them.
         """
 
 
@@ -169,6 +194,14 @@ class LexicalMatcher:
         """
         return self.agree(name, other) >= self.agreement
 
+    def far_apart(self, name: str, other: str) -> bool:
+        """
+        :param name: One name.
+        :param other: The other.
+        :return: False. How far apart two meanings are is not something the words say.
+        """
+        return False
+
 
 # %% when two names mean the same thing
 
@@ -218,6 +251,14 @@ class EmbeddingMatcher:
     caller has one.
     """
 
+    likenesses: Dict[Tuple[str, str], float] = field(
+        default_factory=dict, repr=False, compare=False
+    )
+    """
+    The likeness of every pair already asked about, since a room asks about the same
+    pairs many times over.
+    """
+
     @cached_property
     def encode(self) -> Encoder:
         """
@@ -238,8 +279,10 @@ class EmbeddingMatcher:
         :param other: The other.
         :return: How alike the two mean, from minus one to one.
         """
-        placed = self.encode([name, other])
-        return float(placed[1] @ placed[0])
+        if (name, other) not in self.likenesses:
+            placed = self.encode([name, other])
+            self.likenesses[(name, other)] = float(placed[1] @ placed[0])
+        return self.likenesses[(name, other)]
 
     def means_the_same(self, name: str, other: str) -> bool:
         """
@@ -251,3 +294,80 @@ class EmbeddingMatcher:
         if alike >= self.settles_it:
             return True
         return alike >= self.worth_considering and bool(self.wording.agree(name, other))
+
+    def far_apart(self, name: str, other: str) -> bool:
+        """
+        :param name: One name.
+        :param other: The other.
+        :return: Whether the two are less alike than even a shared word would make up for.
+        """
+        return self.likeness(name, other) < self.worth_considering
+
+
+# %% when two names sharing a word must also share what they name
+
+
+@dataclass
+class HeadNounMatcher:
+    """
+    Whether two names mean the same kind of thing, judged by what they mean and refusing
+    a shared word that names different things.
+
+    A word two names share settles nothing by itself: ``wall decor`` and ``wall`` share
+    one, and so do ``door`` and ``door frame``. What a name names is its head noun, the
+    last word before anything that goes on to describe it, so two names sharing a word
+    have to share their head as well -- or have heads that mean the same, as a coffee
+    maker is a coffee machine.
+    """
+
+    meaning: EmbeddingMatcher = field(default_factory=EmbeddingMatcher)
+    """
+    What judges the two names by meaning before their heads are read.
+    """
+
+    def head_nouns(self, name: str) -> List[str]:
+        """
+        :param name: A class name or a label.
+        :return: What it names, one word per thing it joins, lowercased.
+        """
+        heads: List[str] = []
+        for part in " ".join(WORDS.findall(name.lower())).split(f" {CONJUNCTION} "):
+            described = list(
+                takewhile(lambda word: word not in PREPOSITIONS, part.split())
+            )
+            if described:
+                heads.append(described[-1])
+        return heads
+
+    def means_the_same(self, name: str, other: str) -> bool:
+        """
+        :param name: One name.
+        :param other: The other.
+        :return: Whether they mean the same, and name the same thing where they share a
+            word.
+        """
+        if not self.meaning.means_the_same(name, other):
+            return False
+        wording = self.meaning.wording
+        if not wording.stems(name) & wording.stems(other):
+            return True
+        heads, other_heads = self.head_nouns(name), self.head_nouns(other)
+        if {wording.stemmer.stem(one) for one in heads} & {
+            wording.stemmer.stem(one) for one in other_heads
+        }:
+            return True
+        return any(
+            self.meaning.likeness(one, two) >= self.meaning.settles_it
+            for one in heads
+            for two in other_heads
+        )
+
+    def far_apart(self, name: str, other: str) -> bool:
+        """
+        :param name: One name.
+        :param other: The other.
+        :return: Whether the two are further apart in meaning than the matcher reads the
+            wording for. The head-noun rule only ever refuses more, so it leaves this to
+            meaning.
+        """
+        return self.meaning.far_apart(name, other)

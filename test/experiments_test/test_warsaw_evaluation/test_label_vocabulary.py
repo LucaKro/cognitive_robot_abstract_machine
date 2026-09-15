@@ -25,6 +25,7 @@ from typing_extensions import Dict, Sequence, Tuple
 
 from experiments.warsaw.evaluation.label_vocabulary import (
     EmbeddingMatcher,
+    HeadNounMatcher,
     LexicalMatcher,
     spoken_class_name,
 )
@@ -210,6 +211,111 @@ def test_how_near_two_meanings_are_decides_it():
     assert matcher.means_the_same("stovetop", "cooktop")
     assert not matcher.means_the_same("stovetop", "oven")
     assert not matcher.means_the_same("stovetop", "sink")
+
+
+# %% names far apart in meaning
+
+
+def test_a_likeness_below_every_threshold_is_far_apart():
+    """
+    A picture answered as wall decor is judged by nothing but how far apart the two
+    mean, since no rule reads the wording below the lowest threshold.
+    """
+    matcher = matching_by_meaning(wall_decor=turned(0), picture=turned(75))
+    assert matcher.far_apart("wall decor", "picture")
+
+
+def test_a_middling_likeness_is_not_far_apart():
+    """
+    Between the two thresholds the wording is still read, so the pair is not beyond what
+    the matcher can judge even where it refuses it.
+    """
+    matcher = matching_by_meaning(kitchen_counter=turned(0), worktop=turned(50))
+    assert not matcher.far_apart("kitchen counter", "worktop")
+
+
+def test_wording_alone_never_says_two_names_are_far_apart(matcher):
+    """
+    How far apart two meanings are is not something words can say, so a wording matcher
+    leaves every pair within judgement.
+    """
+    assert not matcher.far_apart("light fixture", "decor")
+
+
+# %% names sharing a word must share what they name
+
+
+def matching_by_head_noun(**placed: Tuple[float, float]) -> HeadNounMatcher:
+    """
+    :param placed: Per name, where it sits, with underscores standing for spaces.
+    :return: A head-noun matcher reading those meanings.
+    """
+    return HeadNounMatcher(meaning=matching_by_meaning(**placed))
+
+
+def test_the_head_noun_is_the_last_word_before_a_preposition():
+    """
+    A tool with a handle is a tool, and a door frame is a frame.
+    """
+    matcher = matching_by_head_noun()
+    assert matcher.head_nouns("tool with handle") == ["tool"]
+    assert matcher.head_nouns("door frame") == ["frame"]
+
+
+def test_a_name_joining_two_things_has_a_head_for_each():
+    """
+    An oven and stove is both of them.
+    """
+    assert matching_by_head_noun().head_nouns("oven and stove") == ["oven", "stove"]
+
+
+def test_a_shared_word_naming_different_things_does_not_match():
+    """
+    Wall decor hangs on a wall and is not one, however alike the two names read.
+    """
+    matcher = matching_by_head_noun(
+        wall_decor=turned(0), wall=turned(20), decor=turned(90)
+    )
+    assert matcher.meaning.means_the_same("wall decor", "wall")
+    assert not matcher.means_the_same("wall decor", "wall")
+
+
+def test_a_qualified_label_matches_the_class_it_qualifies_by_head_noun():
+    """
+    A kitchen cabinet is a cabinet, so sharing the head is sharing the thing.
+    """
+    matcher = matching_by_head_noun(cabinet=turned(0), kitchen_cabinet=turned(20))
+    assert matcher.means_the_same("cabinet", "kitchen cabinet")
+
+
+def test_different_heads_meaning_the_same_still_match():
+    """
+    A coffee maker is a coffee machine: the heads differ as words, and agree in meaning.
+    """
+    matcher = matching_by_head_noun(
+        coffee_machine=turned(0),
+        coffee_maker=turned(10),
+        machine=turned(0),
+        maker=turned(15),
+    )
+    assert matcher.means_the_same("coffee machine", "coffee maker")
+
+
+def test_names_sharing_no_word_are_left_to_meaning():
+    """
+    The head-noun rule only reads names that share a word, so a fridge stays a
+    refrigerator.
+    """
+    matcher = matching_by_head_noun(fridge=turned(0), refrigerator=turned(15))
+    assert matcher.means_the_same("fridge", "refrigerator")
+
+
+def test_the_head_noun_rule_leaves_far_apart_to_meaning():
+    """
+    Refusing more pairs never changes which pairs are beyond judgement.
+    """
+    matcher = matching_by_head_noun(wall_decor=turned(0), picture=turned(75))
+    assert matcher.far_apart("wall decor", "picture")
 
 
 # %% the model itself, when it is there to be asked

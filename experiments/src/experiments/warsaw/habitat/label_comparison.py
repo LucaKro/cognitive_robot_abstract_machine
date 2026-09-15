@@ -14,9 +14,12 @@ and nothing has to be matched up first.
 Every object is carried through, including one the run left unannotated, because a body
 quietly dropped is a body the counts flatter.
 
-python -m experiments.warsaw.habitat.label_comparison --run <run directory>
+python -m experiments.warsaw.habitat.label_comparison --runs <run directory> ...
 
-writes the comparison into that run, beside everything else it says.
+writes the comparison into each run, beside everything else it says, once per matcher --
+by default both the meaning matcher and the head-noun matcher, so either set of numbers is
+there to be read. ``--summary <file>`` adds every run up, per building and over all, into
+one page. A list of runs may be given as ``@<file>``, one run per line.
 """
 
 from __future__ import annotations
@@ -24,8 +27,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from collections import Counter
-from dataclasses import dataclass, field
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field, replace
+from enum import StrEnum
 from pathlib import Path
 
 from typing_extensions import Dict, List, Optional, Tuple
@@ -33,6 +37,7 @@ from typing_extensions import Dict, List, Optional, Tuple
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.evaluation.label_vocabulary import (
     EmbeddingMatcher,
+    HeadNounMatcher,
     LexicalMatcher,
     Matcher,
     spoken_class_name,
@@ -41,21 +46,75 @@ from experiments.warsaw.habitat.convert import CONVERTED_ROOM_FILE, ConvertedRoo
 from experiments.warsaw.pipeline.records import Classifications
 from experiments.warsaw.pipeline.run import Run, RunFile
 
-COMPARISON_FILE = "label_comparison.md"
+COMPARISON_NAME = "label_comparison"
 """
-What the comparison is written as, inside the run it is about.
-"""
-
-COMPARISON_RECORD = "label_comparison.json"
-"""
-The same comparison as data, so that several rooms can be added up without reading a
-page back.
+What a comparison is written under inside the run it is about, before the matcher that made
+it.
 """
 
 SCENE_RECORDS = "scene"
 """
 Where a run keeps what its scene said about itself.
 """
+
+# %% what may reconcile the two vocabularies
+
+
+class ComparisonMatcher(StrEnum):
+    """
+    What a comparison may reconcile the two vocabularies by.
+    """
+
+    NONE = "none"
+    """
+    Nothing: the words have to be the same.
+    """
+
+    WORDING = "wording"
+    """
+    The words, through :class:`LexicalMatcher`.
+    """
+
+    MEANING = "meaning"
+    """
+    What the names mean, through :class:`EmbeddingMatcher`.
+    """
+
+    HEAD_NOUN = "head-noun"
+    """
+    What the names mean, refusing a shared word that names different things, through
+    :class:`HeadNounMatcher`.
+    """
+
+    @property
+    def page(self) -> str:
+        """
+        :return: The file a comparison by this matcher is written as, so that two matchers
+            compared on one run keep a comparison each.
+        """
+        return f"{COMPARISON_NAME}_{self.value}.md"
+
+    @property
+    def record(self) -> str:
+        """
+        :return: The file the same comparison is kept in as data.
+        """
+        return f"{COMPARISON_NAME}_{self.value}.json"
+
+    def built(self, meaning: EmbeddingMatcher) -> Optional[Matcher]:
+        """
+        :param meaning: The meaning matcher to use wherever one is needed, so that its
+            encoder is loaded once however many matchers read meanings.
+        :return: The matcher, or None where the words are compared as they stand.
+        """
+        if self is ComparisonMatcher.NONE:
+            return None
+        if self is ComparisonMatcher.WORDING:
+            return LexicalMatcher()
+        if self is ComparisonMatcher.MEANING:
+            return meaning
+        return HeadNounMatcher(meaning=meaning)
+
 
 # %% how well a set of answers found what it was meant to
 
@@ -171,6 +230,76 @@ class ComparedObject(JsonRecord):
     nothing to match up first and no other label of the room has any say.
     """
 
+    far_apart: bool = False
+    """
+    Whether the answer is further from the label in meaning than the matcher reads the
+    wording for, so that the matcher could not have credited it however right it is.
+
+    What sets a coarse answer apart from a judged one: ``wall decor`` for a picture is
+    unrelated as words and near as a concept. An object given no answer is not far apart,
+    since there is no meaning to be far from.
+    """
+
+
+# %% one label, counted
+
+
+@dataclass(frozen=True)
+class LabelTally(JsonRecord):
+    """
+    How often one label was found, missed and taken for another object.
+    """
+
+    label: str
+    """
+    The label, as the dataset writes it.
+    """
+
+    objects: int = 0
+    """
+    How many objects carry it.
+    """
+
+    agreed: int = 0
+    """
+    How many of those were answered with something that agrees with it.
+    """
+
+    false_positives: int = 0
+    """
+    How many objects carrying another label were answered with something meaning this one.
+    """
+
+    @property
+    def missed(self) -> int:
+        """
+        :return: How many objects carrying it were not answered as it.
+        """
+        return self.objects - self.agreed
+
+    @property
+    def scores(self) -> ClassificationScores:
+        """
+        :return: The scores of finding this label.
+        """
+        return ClassificationScores.from_counts(
+            true_positives=self.agreed,
+            false_positives=self.false_positives,
+            false_negatives=self.missed,
+        )
+
+    def added_to(self, other: LabelTally) -> LabelTally:
+        """
+        :param other: The same label's tally in another room.
+        :return: Both rooms' counts together.
+        """
+        return LabelTally(
+            label=self.label,
+            objects=self.objects + other.objects,
+            agreed=self.agreed + other.agreed,
+            false_positives=self.false_positives + other.false_positives,
+        )
+
 
 # %% a whole room, compared
 
@@ -207,41 +336,32 @@ class LabelComparison(JsonRecord):
     """
 
     @property
+    def rooms(self) -> ComparedRooms:
+        """
+        :return: This room as a set of one, which is what its scores are counted over.
+        """
+        return ComparedRooms(comparisons=[self])
+
+    @property
     def agreed(self) -> int:
         """
         :return: How many objects the two sides ended up naming the same.
         """
-        return sum(1 for one in self.objects if one.agrees)
+        return self.rooms.agreed
 
     @property
-    def answered(self) -> int:
+    def tallies(self) -> Dict[str, LabelTally]:
         """
-        :return: How many objects the run gave an answer at all.
-        """
-        return sum(1 for one in self.objects if one.predicted is not None)
-
-    @property
-    def per_object(self) -> ClassificationScores:
-        """
-        :return: The scores over objects: precision over the objects that were answered,
-            recall over every object. Recall is the share that agrees.
-        """
-        return ClassificationScores.from_counts(
-            true_positives=self.agreed,
-            false_positives=self.answered - self.agreed,
-            false_negatives=len(self.objects) - self.agreed,
-        )
-
-    @property
-    def per_label(self) -> Dict[str, ClassificationScores]:
-        """
-        :return: Per label of the room, the scores of finding it: an object carrying it
-            whose answer agrees is found, one whose answer does not is missed, and an
-            object carrying another label whose answer names it is a false positive.
+        :return: Per label of the room, how often it was found, missed and taken for
+            another object: an object carrying it whose answer agrees is found, one whose
+            answer does not is missed, and an object carrying another label whose answer
+            names it is a false positive.
         """
         return {
-            label: ClassificationScores.from_counts(
-                true_positives=sum(
+            label: LabelTally(
+                label=label,
+                objects=sum(1 for one in self.objects if one.truth == label),
+                agreed=sum(
                     1 for one in self.objects if one.truth == label and one.agrees
                 ),
                 false_positives=sum(
@@ -249,12 +369,24 @@ class LabelComparison(JsonRecord):
                     for one in self.objects
                     if one.truth != label and label in one.means
                 ),
-                false_negatives=sum(
-                    1 for one in self.objects if one.truth == label and not one.agrees
-                ),
             )
             for label in sorted({one.truth for one in self.objects})
         }
+
+    @property
+    def per_object(self) -> ClassificationScores:
+        """
+        :return: The scores over objects: precision over the objects that were answered,
+            recall over every object. Recall is the share that agrees.
+        """
+        return self.rooms.per_object
+
+    @property
+    def per_label(self) -> Dict[str, ClassificationScores]:
+        """
+        :return: Per label of the room, the scores of finding it.
+        """
+        return {label: tally.scores for label, tally in self.tallies.items()}
 
     @property
     def per_label_average(self) -> ClassificationScores:
@@ -262,7 +394,14 @@ class LabelComparison(JsonRecord):
         :return: The scores averaged over the room's labels, so that a rare label weighs
             as much as a common one.
         """
-        return ClassificationScores.mean_of(list(self.per_label.values()))
+        return self.rooms.per_label_average
+
+    def decided(self) -> LabelComparison:
+        """
+        :return: The room with the objects whose answer is far from their label in meaning
+            left out, so that what is scored is only what the matcher could judge.
+        """
+        return replace(self, objects=[one for one in self.objects if not one.far_apart])
 
     def disagreements(self) -> List[Tuple[Tuple[str, Optional[str]], int]]:
         """
@@ -328,17 +467,307 @@ class LabelComparison(JsonRecord):
 
     def write_beside(self, directory: Path) -> Path:
         """
-        Write the comparison into the run, as a page and as data.
+        Write the comparison into the run, as a page and as data, under the matcher that
+        made it.
 
         :param directory: The run to write into.
         :return: The page written.
         """
-        written = Path(directory) / COMPARISON_FILE
+        matcher = ComparisonMatcher(self.matcher)
+        written = Path(directory) / matcher.page
         written.write_text(self.as_markdown())
-        (Path(directory) / COMPARISON_RECORD).write_text(
+        (Path(directory) / matcher.record).write_text(
             json.dumps(self.to_json(), indent=2)
         )
         return written
+
+
+# %% several rooms, added up
+
+
+@dataclass(frozen=True)
+class LabelGroup:
+    """
+    The labels carried by a range of object counts, for asking whether rare labels fare
+    differently from common ones.
+    """
+
+    fewest: int
+    """
+    The fewest objects a label of the group is carried by.
+    """
+
+    most: Optional[int] = None
+    """
+    The most objects a label of the group is carried by, or None where there is no most.
+    """
+
+    @property
+    def name(self) -> str:
+        """
+        :return: The range, as a reader writes it.
+        """
+        if self.most is None:
+            return f"{self.fewest} or more"
+        if self.fewest == self.most:
+            return f"{self.fewest}"
+        return f"{self.fewest} to {self.most}"
+
+
+LABEL_GROUPS = (
+    LabelGroup(fewest=1, most=1),
+    LabelGroup(fewest=2, most=5),
+    LabelGroup(fewest=6, most=20),
+    LabelGroup(fewest=21),
+)
+"""
+How the labels of a summary are grouped by how many objects carry them.
+"""
+
+MOST_MISSED_SHOWN = 10
+"""
+How many of the most-missed labels a summary lists.
+"""
+
+
+@dataclass
+class ComparedRooms:
+    """
+    Several compared rooms, added up as one vocabulary.
+
+    A label seen in several rooms is one label: its counts are added across the rooms
+    before it is scored, and the average over labels is over the distinct labels.
+    """
+
+    comparisons: List[LabelComparison] = field(default_factory=list)
+    """
+    The rooms, each compared by the same matcher.
+    """
+
+    @property
+    def objects(self) -> int:
+        """
+        :return: How many objects the rooms hold.
+        """
+        return sum(len(one.objects) for one in self.comparisons)
+
+    @property
+    def agreed(self) -> int:
+        """
+        :return: How many objects agree with their label.
+        """
+        return sum(1 for one in self.comparisons for each in one.objects if each.agrees)
+
+    @property
+    def answered(self) -> int:
+        """
+        :return: How many objects were given an answer at all.
+        """
+        return sum(
+            1
+            for one in self.comparisons
+            for each in one.objects
+            if each.predicted is not None
+        )
+
+    @property
+    def far_apart(self) -> int:
+        """
+        :return: How many objects were answered with something far from their label in
+            meaning.
+        """
+        return sum(
+            1 for one in self.comparisons for each in one.objects if each.far_apart
+        )
+
+    @property
+    def per_object(self) -> ClassificationScores:
+        """
+        :return: The scores over objects: precision over the objects that were answered,
+            recall over every object.
+        """
+        return ClassificationScores.from_counts(
+            true_positives=self.agreed,
+            false_positives=self.answered - self.agreed,
+            false_negatives=self.objects - self.agreed,
+        )
+
+    @property
+    def tallies(self) -> Dict[str, LabelTally]:
+        """
+        :return: Per distinct label, its counts added across every room.
+        """
+        added: Dict[str, LabelTally] = {}
+        for comparison in self.comparisons:
+            for label, tally in comparison.tallies.items():
+                added[label] = added[label].added_to(tally) if label in added else tally
+        return added
+
+    @property
+    def false_positives(self) -> int:
+        """
+        :return: How many times an answer was taken for a label other than its object's.
+        """
+        return sum(tally.false_positives for tally in self.tallies.values())
+
+    @property
+    def per_label_average(self) -> ClassificationScores:
+        """
+        :return: The scores averaged over the distinct labels, every label weighing the
+            same.
+        """
+        return ClassificationScores.mean_of(
+            [tally.scores for tally in self.tallies.values()]
+        )
+
+    def decided(self) -> ComparedRooms:
+        """
+        :return: The rooms with every far-apart object left out.
+        """
+        return ComparedRooms(comparisons=[one.decided() for one in self.comparisons])
+
+    def labels_carried_by(self, group: LabelGroup) -> List[LabelTally]:
+        """
+        :param group: How many objects a label may be carried by.
+        :return: The labels carried by that many objects across the rooms.
+        """
+        return [
+            tally
+            for tally in self.tallies.values()
+            if group.fewest <= tally.objects
+            and (group.most is None or tally.objects <= group.most)
+        ]
+
+    def most_missed(self, count: int) -> List[LabelTally]:
+        """
+        :param count: How many labels to return.
+        :return: The labels missed most often, the most missed first.
+        """
+        return sorted(self.tallies.values(), key=lambda tally: -tally.missed)[:count]
+
+    def by_scene(self) -> Dict[str, ComparedRooms]:
+        """
+        :return: The rooms grouped by the building each was cut from.
+        """
+        grouped: Dict[str, List[LabelComparison]] = defaultdict(list)
+        for comparison in self.comparisons:
+            grouped[comparison.scene].append(comparison)
+        return {
+            scene: ComparedRooms(comparisons=grouped[scene])
+            for scene in sorted(grouped)
+        }
+
+
+# %% every number of a set of runs, on one page
+
+
+@dataclass
+class ScoreSummary:
+    """
+    Every number a set of compared runs comes to under one matcher, per building and over
+    all of them.
+    """
+
+    matcher: ComparisonMatcher
+    """
+    What reconciled the two vocabularies.
+    """
+
+    rooms: ComparedRooms
+    """
+    Every room compared.
+    """
+
+    def as_markdown(self) -> str:
+        """
+        :return: The scores over every object and over the objects the matcher could
+            judge, then how labels fare by how many objects carry them, then the labels
+            missed most.
+        """
+        scenes = {**self.rooms.by_scene(), "all": self.rooms}
+        lines = [
+            f"# Scores by the {self.matcher.value} matcher",
+            "",
+            f"{len(self.rooms.comparisons)} rooms.",
+            "",
+            "## Over every object",
+            "",
+            "| scene | rooms | objects | agree | P / R / F1 per object | labels "
+            "| P / R / F1 per label | false positives | far apart |",
+            "|---|---:|---:|---:|---|---:|---|---:|---:|",
+        ]
+        lines += [
+            f"| {scene} | {len(rooms.comparisons)} | {rooms.objects} "
+            f"| {rooms.agreed} ({self.share(rooms.agreed, rooms.objects)}) "
+            f"| {self.scores(rooms.per_object)} | {len(rooms.tallies)} "
+            f"| {self.scores(rooms.per_label_average)} | {rooms.false_positives} "
+            f"| {rooms.far_apart} ({self.share(rooms.far_apart, rooms.objects)}) |"
+            for scene, rooms in scenes.items()
+        ]
+        lines += [
+            "",
+            "## Over the objects not far apart",
+            "",
+            "| scene | objects | agree | P / R / F1 per object | labels "
+            "| P / R / F1 per label |",
+            "|---|---:|---:|---|---:|---|",
+        ]
+        for scene, rooms in scenes.items():
+            decided = rooms.decided()
+            lines.append(
+                f"| {scene} | {decided.objects} "
+                f"| {decided.agreed} ({self.share(decided.agreed, decided.objects)}) "
+                f"| {self.scores(decided.per_object)} | {len(decided.tallies)} "
+                f"| {self.scores(decided.per_label_average)} |"
+            )
+        lines += [
+            "",
+            "## Labels by how many objects carry them",
+            "",
+            "| objects per label | labels | objects | agree |",
+            "|---|---:|---:|---:|",
+        ]
+        for group in LABEL_GROUPS:
+            tallies = self.rooms.labels_carried_by(group)
+            objects = sum(tally.objects for tally in tallies)
+            agreed = sum(tally.agreed for tally in tallies)
+            lines.append(
+                f"| {group.name} | {len(tallies)} | {objects} "
+                f"| {agreed} ({self.share(agreed, objects)}) |"
+            )
+        missed = self.rooms.objects - self.rooms.agreed
+        lines += [
+            "",
+            f"## The labels missed most, of {missed} misses",
+            "",
+            "| label | missed | of objects | share of all misses, running |",
+            "|---|---:|---:|---:|",
+        ]
+        running = 0
+        for tally in self.rooms.most_missed(MOST_MISSED_SHOWN):
+            running += tally.missed
+            lines.append(
+                f"| {tally.label} | {tally.missed} | {tally.objects} "
+                f"| {self.share(running, missed)} |"
+            )
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def share(part: int, whole: int) -> str:
+        """
+        :param part: A count.
+        :param whole: What it is a count of.
+        :return: The share, as a percentage.
+        """
+        return f"{ClassificationScores.ratio(part, whole):.1%}"
+
+    @staticmethod
+    def scores(scores: ClassificationScores) -> str:
+        """
+        :param scores: Precision, recall and F1.
+        :return: The three, as one cell.
+        """
+        return f"{scores.precision:.3f} / {scores.recall:.3f} / {scores.f1_score:.3f}"
 
 
 # %% comparing one run
@@ -387,6 +816,9 @@ def compare_a_run(
                 predicted=answered.get(one.segment),
                 means=meanings.get(answered.get(one.segment), []),
                 agrees=names_the_same(answered.get(one.segment), one.label, matcher),
+                far_apart=names_far_apart(
+                    answered.get(one.segment), one.label, matcher
+                ),
             )
             for one in room.objects
         ],
@@ -411,57 +843,80 @@ def names_the_same(
     return matcher.means_the_same(predicted, truth)
 
 
-# %% command-line entry point
+def names_far_apart(
+    predicted: Optional[str], truth: str, matcher: Optional[Matcher]
+) -> bool:
+    """
+    :param predicted: What the run answered about one object, or None where it answered
+        nothing.
+    :param truth: What the dataset's annotator called that same object.
+    :param matcher: What reconciles the two vocabularies, or None to compare the words as
+        they stand.
+    :return: Whether the answer is too far from the label in meaning for the matcher to
+        judge. Never, where nothing was answered or nothing reads meanings.
+    """
+    if predicted is None or matcher is None:
+        return False
+    return matcher.far_apart(predicted, truth)
 
-MATCHERS = {"none": None, "wording": LexicalMatcher, "meaning": EmbeddingMatcher}
-"""
-What a comparison may reconcile the two vocabularies by.
-"""
+
+# %% command-line entry point
 
 
 def argument_parser() -> argparse.ArgumentParser:
     """
-    Build the command-line interface for comparing a run against its room.
+    Build the command-line interface for comparing runs against their rooms.
     """
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, fromfile_prefix_chars="@")
     parser.add_argument(
-        "--run", type=Path, required=True, help="The run directory to compare"
+        "--runs", type=Path, nargs="+", required=True, help="The run directories"
     )
     parser.add_argument(
-        "--matcher",
-        choices=sorted(MATCHERS),
-        default="meaning",
-        help="What reconciles the two vocabularies",
+        "--matchers",
+        nargs="+",
+        choices=[one.value for one in ComparisonMatcher],
+        default=[ComparisonMatcher.MEANING.value, ComparisonMatcher.HEAD_NOUN.value],
+        help="What reconciles the two vocabularies, one comparison per matcher",
+    )
+    parser.add_argument(
+        "--summary", type=Path, help="Where to write every run added up, per matcher"
     )
     return parser
 
 
 def main(arguments: Optional[List[str]] = None) -> int:
     """
-    Compare one run against the room it was given.
+    Compare runs against the rooms they were given, once per matcher.
 
     :param arguments: Command-line arguments without the program name.
-    :return: Zero once the comparison is written.
+    :return: Zero once every comparison is written.
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    parsed = argument_parser().parse_args(arguments)
-    building = MATCHERS[parsed.matcher]
-    compared = compare_a_run(
-        parsed.run,
-        building() if building is not None else None,
-        matcher_name=parsed.matcher,
-    )
-    written = compared.write_beside(parsed.run)
     logger = logging.getLogger(__name__)
-    logger.info(
-        "%s of %s objects agree; %s ways of disagreeing",
-        compared.agreed,
-        len(compared.objects),
-        len(compared.disagreements()),
-    )
-    for (truth, predicted), count in compared.disagreements()[:5]:
-        logger.info("  %2s  %s answered %s", count, truth, predicted or "nothing")
-    logger.info("written to %s", written)
+    parsed = argument_parser().parse_args(arguments)
+    meaning = EmbeddingMatcher()
+    summaries = []
+    for chosen in [ComparisonMatcher(one) for one in parsed.matchers]:
+        matcher = chosen.built(meaning)
+        compared = []
+        for run in parsed.runs:
+            comparison = compare_a_run(run, matcher, matcher_name=chosen.value)
+            comparison.write_beside(run)
+            compared.append(comparison)
+            logger.info(
+                "%s, %s: %s of %s objects agree, %s far apart",
+                run.name,
+                chosen.value,
+                comparison.agreed,
+                len(comparison.objects),
+                comparison.rooms.far_apart,
+            )
+        summaries.append(
+            ScoreSummary(matcher=chosen, rooms=ComparedRooms(comparisons=compared))
+        )
+    if parsed.summary is not None:
+        parsed.summary.write_text("\n".join(one.as_markdown() for one in summaries))
+        logger.info("written to %s", parsed.summary)
     return 0
 
 
