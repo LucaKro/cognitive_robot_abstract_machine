@@ -7,7 +7,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "bed_room_floor",
-      "source_id": "519bc1bf-5c17-4876-9a37-6fc5b8b9b370",
+      "source_id": "e15f0ec5-2e95-4f5c-8f55-8bc12e01734d",
       "parent": "root",
       "semantic_classes": [
         "Floor"
@@ -65,7 +65,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table",
-      "source_id": "a8669680-6335-4f9d-8163-f8c33149e6a3",
+      "source_id": "804e31a7-ad0d-4e5a-aae1-2e327cdd5cf1",
       "parent": "root",
       "semantic_classes": [
         "Table"
@@ -123,7 +123,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table_floor",
-      "source_id": "c2dbcc52-6683-40ae-b309-02fed045c084",
+      "source_id": "02b96d40-1e3e-4f64-aa35-a16a2894e8bd",
       "parent": "coffee_table",
       "semantic_classes": [
         "ShelfLayer"
@@ -181,7 +181,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table_shelf",
-      "source_id": "2044ac67-b4f9-49c0-ad7e-7521ab64099b",
+      "source_id": "3fb5b6b2-9322-48c0-9e68-29b781971c3c",
       "parent": "coffee_table",
       "semantic_classes": [
         "ShelfLayer"
@@ -239,7 +239,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table_wall_long_left_body",
-      "source_id": "3f740d76-752e-4f9a-9bde-98bc0322dc7a",
+      "source_id": "dd1d1786-0cc9-4660-a337-24df4f101e94",
       "parent": "coffee_table",
       "semantic_classes": [],
       "faces": 12,
@@ -295,7 +295,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table_wall_long_right_body",
-      "source_id": "a7a84c8b-903b-41c5-9fce-7b3b10239b3e",
+      "source_id": "60e19ff2-cac0-472f-b644-e75af070c722",
       "parent": "coffee_table",
       "semantic_classes": [],
       "faces": 12,
@@ -351,7 +351,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table_wall_short_0_body",
-      "source_id": "3e1e3f7d-8fb7-426d-8dc3-64b3f512b281",
+      "source_id": "50eff4eb-b2e4-4b0e-9667-afabc91ee598",
       "parent": "coffee_table",
       "semantic_classes": [],
       "faces": 12,
@@ -407,7 +407,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "coffee_table_wall_short_1_body",
-      "source_id": "993102fe-af0f-425f-a17a-120b95190a35",
+      "source_id": "1ae41100-4b68-4a4a-b76a-2d8fe2ec1c04",
       "parent": "coffee_table",
       "semantic_classes": [],
       "faces": 12,
@@ -463,7 +463,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_drawer_handle_left",
-      "source_id": "8b94ab14-f5e5-4c61-ba9c-4427775e4f53",
+      "source_id": "90d2e653-1ebe-4dd3-923a-6cd6b58db49f",
       "parent": "cooking_drawer_left",
       "semantic_classes": [
         "Handle"
@@ -521,7 +521,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_drawer_handle_right",
-      "source_id": "43eb7b4a-37ea-461f-a9d3-09bb6310de6c",
+      "source_id": "b2f3656d-c902-4519-bfca-38ad8294b86e",
       "parent": "cooking_drawer_right",
       "semantic_classes": [
         "Handle"
@@ -579,7 +579,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_drawer_left",
-      "source_id": "18b6dd09-224e-4982-ad94-016ff49dda7c",
+      "source_id": "97675cfc-fbd1-4717-82e9-30ba2260653a",
       "parent": "cooking_drawer_left_slider",
       "semantic_classes": [
         "Drawer"
@@ -637,7 +637,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_drawer_left_slider",
-      "source_id": "8efbbef2-8665-47d9-8de8-78eb8ce6ee33",
+      "source_id": "1394b2cf-64ea-4cdc-b378-acb2bea05610",
       "parent": "cooking_mod_left",
       "semantic_classes": [
         "Slider"
@@ -676,7 +676,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_drawer_right",
-      "source_id": "7853e90d-8c4b-4f08-8203-67f0c6402e23",
+      "source_id": "bb3b5cd2-c81b-424a-b394-ee03fb265a94",
       "parent": "cooking_drawer_right_slider",
       "semantic_classes": [
         "Drawer"
@@ -734,7 +734,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_drawer_right_slider",
-      "source_id": "d3b555b8-2598-4998-a54b-1719f521f61c",
+      "source_id": "20958c89-e675-41d2-a9c7-e3bb65f877fb",
       "parent": "cooking_mod_right",
       "semantic_classes": [
         "Slider"
@@ -773,7 +773,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_mod_left",
-      "source_id": "4d028ac5-5567-4997-8eb1-eaffab743a3b",
+      "source_id": "8965d99c-23d2-4d02-8b45-0456bb40f24b",
       "parent": "cooking_table",
       "semantic_classes": [
         "Cupboard"
@@ -831,7 +831,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_mod_right",
-      "source_id": "a822e7be-a5c1-47fb-bfa1-dadc40557a1b",
+      "source_id": "95fcdc1d-9b0a-4b49-bc36-ae7ca2c41145",
       "parent": "cooking_table",
       "semantic_classes": [
         "Cupboard"
@@ -889,7 +889,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_table",
-      "source_id": "b999a873-0a15-4bbe-bc14-273310f9b882",
+      "source_id": "69ec61b0-503e-423d-b952-e2721f9f30b6",
       "parent": "root",
       "semantic_classes": [
         "Table"
@@ -947,7 +947,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooking_table_bottom",
-      "source_id": "13dc999e-2e64-4a64-b54a-522dd7e49147",
+      "source_id": "35fadff3-6238-4842-bfed-76860e8abe0c",
       "parent": "cooking_table",
       "semantic_classes": [
         "ShelfLayer"
@@ -1005,7 +1005,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cooktop",
-      "source_id": "7b0fbb5a-22bf-4e4a-a4e3-96996b88469c",
+      "source_id": "d878776e-6d87-4ed9-9a5f-16bf1c94f05b",
       "parent": "cooking_table",
       "semantic_classes": [
         "Cooktop"
@@ -1063,7 +1063,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_base_facing",
-      "source_id": "67a9d77b-dca4-4308-80c8-a8fc123d3f01",
+      "source_id": "8ce71503-8d9b-47f9-9745-ba047b2e8af0",
       "parent": "counter_top",
       "semantic_classes": [
         "WallPanel"
@@ -1121,7 +1121,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_0",
-      "source_id": "9ceda3e4-169d-4492-972d-ab71f027ae4e",
+      "source_id": "ccf43c7d-4ea4-4550-a620-7d70110c6957",
       "parent": "counter_drawer_0_slider",
       "semantic_classes": [
         "Drawer"
@@ -1179,7 +1179,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_0_handle",
-      "source_id": "3a2ba706-b8ff-48fb-bd8d-c82033a8f309",
+      "source_id": "88d87779-03c8-4d0d-b8bf-fe692c397a4f",
       "parent": "counter_drawer_0",
       "semantic_classes": [
         "Handle"
@@ -1237,7 +1237,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_0_slider",
-      "source_id": "f2623341-2800-4df7-998e-8da2f5dd5c11",
+      "source_id": "c8be3578-0174-4317-9fc5-1c7f36c8eb27",
       "parent": "module_3_cabinet",
       "semantic_classes": [
         "Slider"
@@ -1276,7 +1276,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_1",
-      "source_id": "d38e20af-5bef-49a6-b34d-5f4b652e0543",
+      "source_id": "f3dde363-d5ae-4d2e-956d-30d8d83afab5",
       "parent": "counter_drawer_1_slider",
       "semantic_classes": [
         "Drawer"
@@ -1334,7 +1334,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_1_handle",
-      "source_id": "a9bf4330-21ec-4ad5-ad95-fcf012047533",
+      "source_id": "252db512-bdc7-43e6-8728-1f15126bdf46",
       "parent": "counter_drawer_1",
       "semantic_classes": [
         "Handle"
@@ -1392,7 +1392,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_1_slider",
-      "source_id": "14bb624b-f53c-4227-a8c1-55378d467ead",
+      "source_id": "1d3968d7-be4f-4418-a81e-4abec3974f88",
       "parent": "module_3_cabinet",
       "semantic_classes": [
         "Slider"
@@ -1431,7 +1431,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_2",
-      "source_id": "1157f972-9209-4ef0-96a7-a364e58ba240",
+      "source_id": "140bb1ff-c1c9-4e9e-83aa-6108915bd519",
       "parent": "counter_drawer_2_slider",
       "semantic_classes": [
         "Drawer"
@@ -1489,7 +1489,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_2_handle",
-      "source_id": "e1e48cdf-233b-472e-b5f9-e0b6e2120033",
+      "source_id": "a5eb2338-c059-4648-a44d-195200e832cb",
       "parent": "counter_drawer_2",
       "semantic_classes": [
         "Handle"
@@ -1547,7 +1547,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_drawer_2_slider",
-      "source_id": "e3f0febd-8da4-49b9-a824-2199e7665614",
+      "source_id": "6e0ed4fc-e06d-4cd3-8ade-bd748f80cbb9",
       "parent": "module_3_cabinet",
       "semantic_classes": [
         "Slider"
@@ -1586,7 +1586,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "counter_top",
-      "source_id": "2b9a4f98-9623-4c37-92aa-5a9d3318fb2d",
+      "source_id": "7aa67245-1776-4ae8-9dd4-78cbded2db84",
       "parent": "root",
       "semantic_classes": [
         "CounterTop"
@@ -1644,7 +1644,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard",
-      "source_id": "44eeb894-c61d-4f4d-80d2-c636232ae4bb",
+      "source_id": "c77f4340-0552-4e85-9166-0353cd86bfd7",
       "parent": "root",
       "semantic_classes": [
         "Cupboard"
@@ -1702,7 +1702,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_door_left",
-      "source_id": "111f5760-e43d-4ab4-b8ee-5f4ac1c0894f",
+      "source_id": "490deaae-e83b-4110-bf78-9079db5b7e7f",
       "parent": "cupboard_hinge_left",
       "semantic_classes": [
         "Door"
@@ -1760,7 +1760,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_door_left_entry_way",
-      "source_id": "04f84055-37f1-4bb9-a719-5ab0fd18a43a",
+      "source_id": "f0e9e302-8367-477b-ba00-955e22f5889a",
       "parent": "cupboard_door_left",
       "semantic_classes": [
         "EntryWay"
@@ -1799,7 +1799,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_door_right",
-      "source_id": "4278d0ca-2ad7-43e5-aa46-aa748dfaeea6",
+      "source_id": "3ed7cb12-a0e9-4fb7-b47d-1a0efffd47f6",
       "parent": "cupboard_hinge_right",
       "semantic_classes": [
         "Door"
@@ -1857,7 +1857,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_door_right_entry_way",
-      "source_id": "39ed7759-abf0-4641-b246-d069c9e6a08e",
+      "source_id": "783fe7cf-0db7-4cb6-801c-a106dc4bc405",
       "parent": "cupboard_door_right",
       "semantic_classes": [
         "EntryWay"
@@ -1896,7 +1896,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_handle_left",
-      "source_id": "53ea971c-ca87-4f7f-ae13-e41837fe98d2",
+      "source_id": "faf28aff-ebf6-42f4-8d06-510ae37d30b6",
       "parent": "cupboard_door_left",
       "semantic_classes": [
         "Handle"
@@ -1954,7 +1954,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_handle_right",
-      "source_id": "ed44f3d2-8b30-492c-9dfb-3a9fba698148",
+      "source_id": "8f200c52-afb1-4b3a-8898-72ed0f7699ba",
       "parent": "cupboard_door_right",
       "semantic_classes": [
         "Handle"
@@ -2012,7 +2012,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_hinge_left",
-      "source_id": "00c261d5-22e2-4a65-947f-5f78eb9e43d2",
+      "source_id": "2dec2bdf-66ff-49a8-9041-0f2bdecd66ff",
       "parent": "cupboard",
       "semantic_classes": [
         "Hinge"
@@ -2051,7 +2051,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_hinge_right",
-      "source_id": "cd04001d-6ebe-409d-8059-2cd72f30a1cd",
+      "source_id": "e996ed5b-a8b0-4b07-b992-bd6f489d535f",
       "parent": "cupboard",
       "semantic_classes": [
         "Hinge"
@@ -2090,7 +2090,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_shelf_0",
-      "source_id": "af525cc5-1e5e-4933-a72e-a0da86349f12",
+      "source_id": "10e36e74-f207-41a2-bdd7-f330a112e8b6",
       "parent": "cupboard",
       "semantic_classes": [
         "ShelfLayer"
@@ -2148,7 +2148,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "cupboard_shelf_1",
-      "source_id": "e73d5c89-1b90-4846-b588-c260ff3cf600",
+      "source_id": "ad0cb77b-dcde-4bd1-8f13-ae71a01795ed",
       "parent": "cupboard",
       "semantic_classes": [
         "ShelfLayer"
@@ -2206,7 +2206,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "desk",
-      "source_id": "51ecbe5b-e456-4114-ab79-a5381617dad5",
+      "source_id": "1c11fede-b90c-4dbb-a6a6-d4b4c452a489",
       "parent": "root",
       "semantic_classes": [
         "Desk"
@@ -2264,7 +2264,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "desk_leg_0",
-      "source_id": "6603b251-ee38-4f11-93bc-441978ef6bb9",
+      "source_id": "fe34e1b7-a4e5-4a65-90c1-3e1a99ecd2a5",
       "parent": "desk",
       "semantic_classes": [
         "Leg"
@@ -2322,7 +2322,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "desk_leg_1",
-      "source_id": "1a2f7c3f-c355-4796-b559-73e461887fbc",
+      "source_id": "d5fd5723-ca34-4190-9564-3534d6e95036",
       "parent": "desk",
       "semantic_classes": [
         "Leg"
@@ -2380,7 +2380,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "desk_leg_2",
-      "source_id": "6d1dcf73-d909-4d51-aed5-2a1f49f57982",
+      "source_id": "ebce73a8-b8f8-4eaf-80cd-27b8fdf0c3bf",
       "parent": "desk",
       "semantic_classes": [
         "Leg"
@@ -2438,7 +2438,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "desk_leg_3",
-      "source_id": "cfa348a1-4e46-4d57-bbac-9f825765150e",
+      "source_id": "c766adcc-ac82-4018-802b-3f7bd1053a68",
       "parent": "desk",
       "semantic_classes": [
         "Leg"
@@ -2496,7 +2496,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dining_table",
-      "source_id": "822e1a7d-2df5-448e-971e-c687dcffe39f",
+      "source_id": "06d504f0-3f5d-46e1-9b32-71713cc9a8b3",
       "parent": "root",
       "semantic_classes": [
         "DiningTable"
@@ -2554,7 +2554,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dining_table_leg_0",
-      "source_id": "9f7bfae9-22fd-42ef-93a0-d37c485ba09b",
+      "source_id": "1fcf054f-a55a-4b8d-ae1e-dd4d2b2e0510",
       "parent": "dining_table",
       "semantic_classes": [
         "Leg"
@@ -2612,7 +2612,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dining_table_leg_1",
-      "source_id": "5bbdc069-f3e5-4566-93fc-3b26e59f814e",
+      "source_id": "bb729768-6252-4eda-a36c-bf17d0d7ead6",
       "parent": "dining_table",
       "semantic_classes": [
         "Leg"
@@ -2670,7 +2670,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dining_table_leg_2",
-      "source_id": "ae9fa954-084b-4ca8-a638-b160dd37f7c0",
+      "source_id": "d1f327c6-0de0-4152-9885-2e33c7bcfc67",
       "parent": "dining_table",
       "semantic_classes": [
         "Leg"
@@ -2728,7 +2728,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dining_table_leg_3",
-      "source_id": "1aa7c5a4-2fab-41ba-8863-0b8d9f483813",
+      "source_id": "7a7ba1f2-0f8b-462d-a89d-fe43a50f287d",
       "parent": "dining_table",
       "semantic_classes": [
         "Leg"
@@ -2786,7 +2786,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dishwasher",
-      "source_id": "cabc7dc2-a0c1-449d-a954-3fa2b5dd8fa4",
+      "source_id": "8dc34580-69a1-4d42-a845-6665ee21cb50",
       "parent": "root",
       "semantic_classes": [
         "Dishwasher"
@@ -2844,7 +2844,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dishwasher_door",
-      "source_id": "8d68e60f-d740-4311-8c55-8b7e15e11a0a",
+      "source_id": "007a6f16-bf87-4768-a30e-136c2e3d46dd",
       "parent": "dishwasher_hinge",
       "semantic_classes": [
         "Door"
@@ -2902,7 +2902,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dishwasher_door_entry_way",
-      "source_id": "c808c14c-5c2f-49b1-8754-187ec4776a72",
+      "source_id": "441c2a28-6f5f-41ca-aa0a-ba7bdeddb784",
       "parent": "dishwasher_door",
       "semantic_classes": [
         "EntryWay"
@@ -2941,7 +2941,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dishwasher_handle",
-      "source_id": "b7268fb7-8537-4051-a0bf-6fd333314193",
+      "source_id": "bf93ace6-2ed5-4335-9831-5690fa9e8cd0",
       "parent": "dishwasher_door",
       "semantic_classes": [
         "Handle"
@@ -2999,7 +2999,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "dishwasher_hinge",
-      "source_id": "b9f63a7a-2156-4522-9649-dfe7ea05d8ae",
+      "source_id": "0ae60269-caa7-4268-b34a-d0b554375302",
       "parent": "dishwasher",
       "semantic_classes": [
         "Hinge"
@@ -3038,7 +3038,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "east_wall",
-      "source_id": "72edb2fd-e5e0-4f56-ae41-4de4db05aa24",
+      "source_id": "805d42ed-8256-494a-9f62-823f9f0af1b0",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -3096,7 +3096,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_base_facing",
-      "source_id": "9e6e6031-4cb7-4334-bd00-8502b81bb118",
+      "source_id": "276b55bc-ee22-44c7-a9bf-55832579e356",
       "parent": "refrigerator",
       "semantic_classes": [
         "WallPanel"
@@ -3154,7 +3154,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_door",
-      "source_id": "5ab4c72e-721a-4b9c-9a12-35d3b0df93f4",
+      "source_id": "5a154900-2959-4b36-b997-711be1e6dbfd",
       "parent": "fridge_door_hinge",
       "semantic_classes": [
         "Door"
@@ -3212,7 +3212,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_door_entry_way",
-      "source_id": "e303509c-d66f-4384-a6dc-626a600c26af",
+      "source_id": "f087b8da-f17c-4847-9ba8-437217d0c91f",
       "parent": "fridge_door",
       "semantic_classes": [
         "EntryWay"
@@ -3251,7 +3251,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_door_handle",
-      "source_id": "bc59cc84-6dad-4980-8ace-73933576eba6",
+      "source_id": "f9063ee4-7f29-4d26-a837-13b4982894b3",
       "parent": "fridge_door",
       "semantic_classes": [
         "Handle"
@@ -3309,7 +3309,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_door_hinge",
-      "source_id": "48bcc557-4f8a-4903-8843-e79c37e271fb",
+      "source_id": "c65d3a83-7957-4230-a393-1321470ac2d7",
       "parent": "refrigerator",
       "semantic_classes": [
         "Hinge"
@@ -3348,7 +3348,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_drawer",
-      "source_id": "886ad08c-e742-4b15-83da-548a0cd6b5f5",
+      "source_id": "b04d3a16-9b90-4f7e-9e50-824b5a450c7f",
       "parent": "fridge_drawer_slider",
       "semantic_classes": [
         "Drawer"
@@ -3406,7 +3406,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_drawer_handle",
-      "source_id": "93539a7c-fe2f-46e4-a10f-48e90538e1f5",
+      "source_id": "330c400e-3d2c-4891-8a83-ddfdae6f00aa",
       "parent": "fridge_drawer",
       "semantic_classes": [
         "Handle"
@@ -3464,7 +3464,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_drawer_slider",
-      "source_id": "51c5db24-5f72-4290-b143-08093c33e064",
+      "source_id": "13f4a659-3d1f-4d41-ba63-411b214a1e31",
       "parent": "refrigerator",
       "semantic_classes": [
         "Slider"
@@ -3503,7 +3503,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_top_gap_facing",
-      "source_id": "80c3170d-1632-4bac-8188-19a87bdcce78",
+      "source_id": "4182d110-a8bb-497b-8f37-8e5e8ed1fe29",
       "parent": "refrigerator",
       "semantic_classes": [
         "WallPanel"
@@ -3561,7 +3561,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "fridge_top_plate",
-      "source_id": "f01f2783-16ee-4707-ae2c-74b95227c628",
+      "source_id": "6b5f759c-1bb4-48bc-9170-ea9d6689e690",
       "parent": "refrigerator",
       "semantic_classes": [
         "WallPanel"
@@ -3619,7 +3619,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "kitchen_floor",
-      "source_id": "1a78a7ea-b7c0-4099-9b92-f5820c2642e5",
+      "source_id": "1d1c63d9-e530-4c9b-b3e2-9b96bbb12b6e",
       "parent": "root",
       "semantic_classes": [
         "Floor"
@@ -3676,8 +3676,47 @@
     },
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
+      "name": "kitchen_island",
+      "source_id": "05a42eca-e55b-4d6f-9200-4864dbe49b9f",
+      "parent": "root",
+      "semantic_classes": [
+        "KitchenIsland"
+      ],
+      "faces": 0,
+      "world_transform": [
+        [
+          6.123233995736766e-17,
+          -1.0,
+          0.0,
+          3.545
+        ],
+        [
+          1.0,
+          6.123233995736766e-17,
+          0.0,
+          0.5015000000000001
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.4125
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "bounds": null,
+      "size": null,
+      "correction": null
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "living_room_floor",
-      "source_id": "60cc2e2b-4db5-42b2-9f5a-79543cdac1f5",
+      "source_id": "19ba1895-307d-431c-beaf-ff437ab5954c",
       "parent": "root",
       "semantic_classes": [
         "Floor"
@@ -3735,7 +3774,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "middle_wall",
-      "source_id": "e490760d-2ead-4e39-b4fc-d7ee603dc52f",
+      "source_id": "b78e558c-c267-40c4-ba8e-b386fabe86c5",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -3793,7 +3832,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_1_cabinet",
-      "source_id": "7212015a-77e2-45ec-b94a-3ccbd0f61058",
+      "source_id": "f969e89d-02a6-42fd-8825-149ea1cb1b05",
       "parent": "root",
       "semantic_classes": [
         "Cabinet"
@@ -3851,7 +3890,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_1_door",
-      "source_id": "ba22c8a8-89df-4212-834f-6a374ad7252d",
+      "source_id": "ec48f3c3-beeb-4020-ae56-c68beaed2584",
       "parent": "module_1_hinge",
       "semantic_classes": [
         "Door"
@@ -3909,7 +3948,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_1_door_entry_way",
-      "source_id": "1d7177df-142a-4cef-919f-27aaaa44d67d",
+      "source_id": "749e5c27-9340-4a6d-9c98-d6ed068d4f28",
       "parent": "module_1_door",
       "semantic_classes": [
         "EntryWay"
@@ -3948,7 +3987,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_1_face_plate",
-      "source_id": "c87d92bb-c35a-4982-92e8-2366feeabc85",
+      "source_id": "1d92b0c7-8245-402d-b332-0a237a73a3f1",
       "parent": "root",
       "semantic_classes": [
         "WallPanel"
@@ -4006,7 +4045,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_1_handle",
-      "source_id": "9ac9ae95-d45e-4110-922e-a6d78ee085ed",
+      "source_id": "801b830a-d395-4d39-baac-85cd8c6c5b39",
       "parent": "module_1_door",
       "semantic_classes": [
         "Handle"
@@ -4064,7 +4103,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_1_hinge",
-      "source_id": "d93cb56f-7391-4ad4-aa8e-8b5a3f2ec559",
+      "source_id": "09988e2a-c72e-4adf-bca8-64a30ffe31e5",
       "parent": "module_1_cabinet",
       "semantic_classes": [
         "Hinge"
@@ -4103,7 +4142,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "module_3_cabinet",
-      "source_id": "4584d2d6-6247-4a8f-893e-e42a1f4379c1",
+      "source_id": "0090d991-0e08-4162-a969-b160eb963ce9",
       "parent": "counter_top",
       "semantic_classes": [
         "Cabinet"
@@ -4161,7 +4200,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "north_wall",
-      "source_id": "4a656609-f8ea-4d9b-bf4f-314ca40f4b5e",
+      "source_id": "210c45f1-ff80-4fd6-aa5b-79e5fdd1c6b6",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -4219,7 +4258,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "north_west_wall_body",
-      "source_id": "d5c257b2-3ac2-48cf-831b-20b57945f273",
+      "source_id": "f7ca3513-bf8c-484e-89ff-5bdc603bb999",
       "parent": "root",
       "semantic_classes": [],
       "faces": 64,
@@ -4275,7 +4314,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "office_floor",
-      "source_id": "c21856da-5827-477e-b8ba-6e5db35ce46f",
+      "source_id": "1b581bd0-e678-4bdd-9a4f-cc368b98fb8d",
       "parent": "root",
       "semantic_classes": [
         "Floor"
@@ -4333,7 +4372,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven",
-      "source_id": "f57f4529-6fa1-40a7-9f05-6f7f0b816c0d",
+      "source_id": "640a800d-3d09-4a47-8b5c-de442326c5c4",
       "parent": "oven_tower",
       "semantic_classes": [
         "Oven"
@@ -4391,7 +4430,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_base_facing",
-      "source_id": "98c6afa8-5fb3-4a83-a197-69c50d2a468d",
+      "source_id": "e0e39eb4-fcf4-4058-86a8-85eb66593145",
       "parent": "oven_tower",
       "semantic_classes": [
         "WallPanel"
@@ -4449,7 +4488,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_cabinet_door",
-      "source_id": "a7c80e3d-18bb-4562-b41e-c408d42d79a8",
+      "source_id": "8452f448-946c-4d6c-8e37-48256abecfd3",
       "parent": "oven_cabinet_hinge",
       "semantic_classes": [
         "Door"
@@ -4507,7 +4546,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_cabinet_door_entry_way",
-      "source_id": "fbadff6a-8cf4-4f98-ae65-ce047926fb68",
+      "source_id": "b77fc6db-d2d8-44ac-866c-0180f1b4634f",
       "parent": "oven_cabinet_door",
       "semantic_classes": [
         "EntryWay"
@@ -4546,7 +4585,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_cabinet_handle",
-      "source_id": "cde1bdf8-165d-4881-809f-53a460904f12",
+      "source_id": "fc41ca58-f191-4b81-ac4f-286c570646b8",
       "parent": "oven_cabinet_door",
       "semantic_classes": [
         "Handle"
@@ -4604,7 +4643,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_cabinet_hinge",
-      "source_id": "75227edb-9316-4a88-96aa-c8857aa42456",
+      "source_id": "db64e5a7-8c33-49a9-b176-57be19603360",
       "parent": "oven_tower",
       "semantic_classes": [
         "Hinge"
@@ -4643,7 +4682,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_center_drawer",
-      "source_id": "16062ecf-a39b-4ff5-a8d4-d7022bad8678",
+      "source_id": "7d78c8db-893f-46cc-be2d-1b4ef4ad81ee",
       "parent": "oven_center_drawer_slider",
       "semantic_classes": [
         "Drawer"
@@ -4701,7 +4740,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_center_drawer_handle",
-      "source_id": "8ec787e7-e67f-49f3-a971-23d879c9af01",
+      "source_id": "000be3c3-2c47-4b13-ad09-c7bc387d8d71",
       "parent": "oven_center_drawer",
       "semantic_classes": [
         "Handle"
@@ -4759,7 +4798,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_center_drawer_slider",
-      "source_id": "9aa7c441-1da6-427a-9af6-fe0af00f0f9e",
+      "source_id": "832c02d2-9c7c-4632-8dd6-d5a8ea2c6bff",
       "parent": "oven_tower",
       "semantic_classes": [
         "Slider"
@@ -4798,7 +4837,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_door",
-      "source_id": "4864fb87-aa8c-41fa-a7fc-a629feb195dc",
+      "source_id": "339f9d4a-362d-450c-a1f7-3eb264ac9046",
       "parent": "oven_hinge",
       "semantic_classes": [
         "Door"
@@ -4856,7 +4895,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_door_entry_way",
-      "source_id": "a414b0d6-9d7f-4919-9d9d-d80d799efa5a",
+      "source_id": "a6bbe757-6b03-415d-8ad7-356c1101395e",
       "parent": "oven_door",
       "semantic_classes": [
         "EntryWay"
@@ -4895,7 +4934,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_handle",
-      "source_id": "cc1d73fe-098f-4774-bc91-c92f8454ff0d",
+      "source_id": "b7c5c8dd-ff5c-4855-b21d-1767ce15b37e",
       "parent": "oven_door",
       "semantic_classes": [
         "Handle"
@@ -4953,7 +4992,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_hinge",
-      "source_id": "170b2239-f562-4452-94bb-60f7f038945c",
+      "source_id": "d3dcf774-b175-4408-911a-15d1c17513a6",
       "parent": "oven",
       "semantic_classes": [
         "Hinge"
@@ -4992,7 +5031,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_side_drawer_left",
-      "source_id": "fb1fe3d3-b069-471c-aaa7-0476fbe1b47a",
+      "source_id": "4b4539fd-44e9-4605-9599-fb453f86df01",
       "parent": "oven_side_drawer_left_slider",
       "semantic_classes": [
         "Drawer"
@@ -5050,7 +5089,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_side_drawer_left_slider",
-      "source_id": "dfe5b9e3-6526-4f44-b15d-f57100c38ee6",
+      "source_id": "d9b0f6d5-34ca-4605-84b2-2198a70351fa",
       "parent": "oven_tower",
       "semantic_classes": [
         "Slider"
@@ -5089,7 +5128,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_side_drawer_right",
-      "source_id": "413a50fb-521e-4edf-9a52-ade47623268d",
+      "source_id": "0a935a36-7377-4538-81ae-593e4e92de24",
       "parent": "oven_side_drawer_right_slider",
       "semantic_classes": [
         "Drawer"
@@ -5147,7 +5186,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_side_drawer_right_slider",
-      "source_id": "e4021767-ab73-4372-bf53-e8e31d129a1a",
+      "source_id": "33aca33b-6835-4b41-ae8e-0ce20114d461",
       "parent": "oven_tower",
       "semantic_classes": [
         "Slider"
@@ -5186,7 +5225,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_side_handle_left",
-      "source_id": "d28a8cf3-cbbe-441c-81db-3730eeee0f92",
+      "source_id": "bf9254a0-bf86-4e4f-9c6d-535ac6d3e580",
       "parent": "oven_side_drawer_left",
       "semantic_classes": [
         "Handle"
@@ -5244,7 +5283,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_side_handle_right",
-      "source_id": "ba64e5a4-6528-4ac0-b296-793da1da0088",
+      "source_id": "1f40fe8f-0e58-4116-9d82-5d478d84f4d8",
       "parent": "oven_side_drawer_right",
       "semantic_classes": [
         "Handle"
@@ -5302,7 +5341,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_top_gap_facing",
-      "source_id": "81e58bbd-9f8e-4076-9ba0-d439017c62aa",
+      "source_id": "93b3c7d2-5cf5-44c5-b7d8-2593a959d981",
       "parent": "oven_tower",
       "semantic_classes": [
         "WallPanel"
@@ -5360,7 +5399,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_top_plate",
-      "source_id": "bdbda43d-fcce-4da1-90d0-47db1c038978",
+      "source_id": "f5ad0014-75b0-4ff2-8128-6fc3ad884716",
       "parent": "oven_tower",
       "semantic_classes": [
         "WallPanel"
@@ -5418,7 +5457,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "oven_tower",
-      "source_id": "6038ce07-4619-49d3-bd21-c038534068ff",
+      "source_id": "3c6ce7e5-65ea-4ff4-a704-3c696069ddbe",
       "parent": "root",
       "semantic_classes": [
         "Cupboard"
@@ -5476,7 +5515,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "refrigerator",
-      "source_id": "121ed947-d26c-4bc5-82a2-6821ae42d36a",
+      "source_id": "03301eff-f1fc-4438-a4c1-e8af1f0b735f",
       "parent": "root",
       "semantic_classes": [
         "Fridge"
@@ -5534,7 +5573,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "root",
-      "source_id": "1bdc4535-c976-4849-b667-20a2aa6991a5",
+      "source_id": "4b1463d1-8c90-46a3-aac0-3fcfd4e69bc5",
       "parent": null,
       "semantic_classes": [],
       "faces": 0,
@@ -5571,10 +5610,10 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard",
-      "source_id": "acd9be12-0a38-4e74-a81e-5ae5ce86586f",
-      "parent": "root",
+      "source_id": "d916781b-73f2-46a8-aa57-56b85258d021",
+      "parent": "kitchen_island",
       "semantic_classes": [
-        "Table"
+        "CounterTop"
       ],
       "faces": 12,
       "world_transform": [
@@ -5624,17 +5663,12 @@
         ],
         "surface_area": 4.064260066246391
       },
-      "correction": {
-        "__json_type__": "experiments.warsaw.evaluation.ground_truth.ClassCorrection",
-        "entity": "sideboard",
-        "semantic_class": "CounterTop",
-        "reason": "The worktop of that island: a slab 2.447 by 0.796 by 0.026 metres resting on the corpus. Typed Table for want of a better class, but 26 millimetres thick and carrying the cooktop, which is a counter top rather than a table."
-      }
+      "correction": null
     },
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_base_facing",
-      "source_id": "95d387e5-f811-4af4-a286-77f9a25d713d",
+      "source_id": "32bbf155-f62b-4f23-a2c3-71e6f7cd5d76",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "WallPanel"
@@ -5692,8 +5726,8 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_cabinet",
-      "source_id": "be5e4069-3475-4273-b3b6-af74a92c3cf2",
-      "parent": "root",
+      "source_id": "f85d3077-968c-4920-926e-9b54f0f93b10",
+      "parent": "kitchen_island",
       "semantic_classes": [
         "Cabinet"
       ],
@@ -5745,17 +5779,12 @@
         ],
         "surface_area": 11.116299895715713
       },
-      "correction": {
-        "__json_type__": "experiments.warsaw.evaluation.ground_truth.ClassCorrection",
-        "entity": "sideboard_cabinet",
-        "semantic_class": "KitchenIsland",
-        "reason": "The source models this as the corpus of what its own code calls the kitchen island -- the section is headed 'SIDEBOARD / KITCHEN ISLAND' -- and gives it the six drawers and the facings. It is typed Cabinet because nothing else was available when it was written; the ontology has had KitchenIsland since 2026-09-10. Nothing about the modelled world changes, only the name it goes under."
-      }
+      "correction": null
     },
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_cooktop",
-      "source_id": "abe5e807-3e77-482e-b6e3-ffa6eb6c1019",
+      "source_id": "6c910105-3eae-4809-8ced-a9939d4ebb96",
       "parent": "sideboard",
       "semantic_classes": [
         "Cooktop"
@@ -5813,7 +5842,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_0_0",
-      "source_id": "0ca58730-f934-40a5-9888-9019daca3a0d",
+      "source_id": "5b0b33ca-ff1d-42e9-beb0-e86c8e5f2de3",
       "parent": "sideboard_drawer_0_0_slider",
       "semantic_classes": [
         "Drawer"
@@ -5871,7 +5900,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_0_0_handle",
-      "source_id": "c178eeea-84a2-4382-8275-40e23f6d7160",
+      "source_id": "3bddd0c7-2ebd-4ec6-b866-de7e3ee37c9a",
       "parent": "sideboard_drawer_0_0",
       "semantic_classes": [
         "Handle"
@@ -5929,7 +5958,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_0_0_slider",
-      "source_id": "70ba90f4-cd94-457d-a49b-d3ea394314f9",
+      "source_id": "958645cb-51b7-4e3c-a69b-5d2b74044f0c",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "Slider"
@@ -5968,7 +5997,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_0_1",
-      "source_id": "28d3d727-d02c-4f11-a41f-bddb8f0d78b9",
+      "source_id": "1101bcda-4de2-4acc-86d1-a0bd6e96c263",
       "parent": "sideboard_drawer_0_1_slider",
       "semantic_classes": [
         "Drawer"
@@ -6026,7 +6055,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_0_1_handle",
-      "source_id": "9c0fa2e7-d770-4327-934b-0317c7e2bb09",
+      "source_id": "ce9e98b8-b25f-4856-9776-8297e6e5190e",
       "parent": "sideboard_drawer_0_1",
       "semantic_classes": [
         "Handle"
@@ -6084,7 +6113,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_0_1_slider",
-      "source_id": "c241c521-78e1-478e-b538-c517b8f15e34",
+      "source_id": "1f24097b-f982-46cd-a1cf-79e51f607336",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "Slider"
@@ -6123,7 +6152,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_1_0",
-      "source_id": "8a25b1d7-f42f-4cf2-bfb1-ed28106da62d",
+      "source_id": "60a5595b-4504-4e3f-a137-cc986aa9f146",
       "parent": "sideboard_drawer_1_0_slider",
       "semantic_classes": [
         "Drawer"
@@ -6181,7 +6210,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_1_0_handle",
-      "source_id": "482a75f8-a7a7-4682-80f0-ea943ffdd899",
+      "source_id": "1d4111d4-d13a-4a18-bbc4-a714328ace68",
       "parent": "sideboard_drawer_1_0",
       "semantic_classes": [
         "Handle"
@@ -6239,7 +6268,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_1_0_slider",
-      "source_id": "8a0fb407-5184-448d-92ee-9b73c4f9dadc",
+      "source_id": "ffba13bc-ae09-43cd-883d-0997dd8d4f43",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "Slider"
@@ -6278,7 +6307,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_1_1",
-      "source_id": "dd273edf-c904-48e2-a2d6-a20e23c88020",
+      "source_id": "c6c6a1c6-59cc-4e05-95d0-fdf495d1cf0c",
       "parent": "sideboard_drawer_1_1_slider",
       "semantic_classes": [
         "Drawer"
@@ -6336,7 +6365,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_1_1_handle",
-      "source_id": "3f6f753b-619b-4c6f-a87d-c0e2bc49a113",
+      "source_id": "6e653b1f-6cf9-461e-a89b-2b098a488ae8",
       "parent": "sideboard_drawer_1_1",
       "semantic_classes": [
         "Handle"
@@ -6394,7 +6423,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_1_1_slider",
-      "source_id": "6f567fa9-c642-4512-8889-5683e132c487",
+      "source_id": "bbafc639-08cf-42ab-ab78-31850e5e3c4b",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "Slider"
@@ -6433,7 +6462,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_2_0",
-      "source_id": "f1d1f08c-44d3-4925-9a4d-fdac85b192e2",
+      "source_id": "d7f32b54-6996-42ad-94a7-6926de34620d",
       "parent": "sideboard_drawer_2_0_slider",
       "semantic_classes": [
         "Drawer"
@@ -6491,7 +6520,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_2_0_handle",
-      "source_id": "6a169242-3c13-44bc-8a74-989df183c895",
+      "source_id": "401c50e6-c714-4fe5-b1ef-51c82534d8ce",
       "parent": "sideboard_drawer_2_0",
       "semantic_classes": [
         "Handle"
@@ -6549,7 +6578,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_2_0_slider",
-      "source_id": "8913fd52-37b1-45f6-af83-0a827d43ab7b",
+      "source_id": "ba002331-e014-49b9-8483-80ebbec4218d",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "Slider"
@@ -6588,7 +6617,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_2_1",
-      "source_id": "e3c48aee-bc72-4c9c-827f-5ce4480e11de",
+      "source_id": "9607346b-ac7d-4540-8b60-b370f18e4848",
       "parent": "sideboard_drawer_2_1_slider",
       "semantic_classes": [
         "Drawer"
@@ -6646,7 +6675,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_2_1_handle",
-      "source_id": "87f1b215-bac8-4188-b9e4-14550d72a516",
+      "source_id": "83c51851-a85d-450b-bf0f-716b20cf161d",
       "parent": "sideboard_drawer_2_1",
       "semantic_classes": [
         "Handle"
@@ -6704,7 +6733,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_drawer_2_1_slider",
-      "source_id": "4c90a9df-5990-44ab-b956-b4f3d9267cd9",
+      "source_id": "91765f55-ee6c-4a72-991c-f1e330a2c6c7",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "Slider"
@@ -6743,7 +6772,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_upper_face_plate_0",
-      "source_id": "2486a722-e083-4be3-a629-52697620cc2f",
+      "source_id": "d9e80d55-f2e6-42fc-9b1a-eeb7adea867b",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "WallPanel"
@@ -6801,7 +6830,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_upper_face_plate_1",
-      "source_id": "4ca47065-3c75-4dbd-a170-95b330f6c8c4",
+      "source_id": "a2629c59-9301-4872-9989-fe2c524daf96",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "WallPanel"
@@ -6859,7 +6888,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sideboard_upper_face_plate_2",
-      "source_id": "a2491040-4910-440b-a9b4-216bcb02ea4c",
+      "source_id": "3d61f1ed-085a-4af7-adf5-753e06f61cde",
       "parent": "sideboard_cabinet",
       "semantic_classes": [
         "WallPanel"
@@ -6917,7 +6946,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sink",
-      "source_id": "93552a6e-3491-40ef-8f78-933195ec9d28",
+      "source_id": "3828aba5-9dc5-4d0e-ba04-e92576678658",
       "parent": "counter_top",
       "semantic_classes": [
         "Sink"
@@ -6975,7 +7004,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "sofa",
-      "source_id": "eccd625f-e006-46c1-8f18-7c014a95e94f",
+      "source_id": "3be327bb-0911-4a83-afb9-bc79693c0b48",
       "parent": "root",
       "semantic_classes": [
         "Sofa"
@@ -7033,7 +7062,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall1",
-      "source_id": "48c29b67-3bae-4f3f-99a1-85faa9843051",
+      "source_id": "8398ccbb-12a9-4e8b-83be-9c7d0caf2573",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7091,7 +7120,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall2",
-      "source_id": "99625265-d758-4abf-bbe0-6b598025ff82",
+      "source_id": "1e1d46a3-fa3b-48c5-aca4-84ed151dcb0d",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7149,7 +7178,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall3",
-      "source_id": "18c33550-3b15-4eda-bc03-d452bf43ee7d",
+      "source_id": "cd5afb43-d0c6-46a4-ae19-33df0ac545f8",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7207,7 +7236,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall4",
-      "source_id": "6c792fdc-7349-4cde-ac0e-ee6649d02df8",
+      "source_id": "a9dcfb99-f178-496f-aa90-d383ba6f690f",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7265,7 +7294,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall5",
-      "source_id": "7e90fd72-2429-409c-9be3-0d8c57096e0e",
+      "source_id": "a4601a94-5f68-4f71-a317-7448f1660da1",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7323,7 +7352,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall6",
-      "source_id": "cd4025ea-1305-44c1-8492-01a4241524cd",
+      "source_id": "e299be95-55bb-4fe0-b115-23be5215fbea",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7381,7 +7410,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "south_wall7",
-      "source_id": "994b9cf9-2a90-4302-bc31-4c62e90c126c",
+      "source_id": "ac08df31-369d-4653-ae14-700e0f97a088",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7439,7 +7468,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "trash_can",
-      "source_id": "adc753d8-1f19-43cd-96df-11509df76b9f",
+      "source_id": "adbbdddb-8fb6-4f10-98fe-4806af13eb85",
       "parent": "root",
       "semantic_classes": [
         "TrashCan"
@@ -7497,7 +7526,7 @@
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthNode",
       "name": "west_wall",
-      "source_id": "91406fc0-f3cd-42e9-b0b0-66ac40b96226",
+      "source_id": "e05424e7-2bbc-40ed-9911-b1ca8afe1828",
       "parent": "root",
       "semantic_classes": [
         "Wall"
@@ -7892,6 +7921,20 @@
     },
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "kitchen_island",
+      "part": "sideboard",
+      "relation": "part",
+      "field_name": "counter_top"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
+      "whole": "kitchen_island",
+      "part": "sideboard_cabinet",
+      "relation": "part",
+      "field_name": "units"
+    },
+    {
+      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
       "whole": "module_1_cabinet",
       "part": "module_1_door",
       "relation": "part",
@@ -8281,46 +8324,9 @@
       "part": "sideboard_drawer_2_1_slider",
       "relation": "part",
       "field_name": "mechanical_joint"
-    },
-    {
-      "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
-      "whole": "sideboard_cabinet",
-      "part": "sideboard",
-      "relation": "part",
-      "field_name": "counter_top"
     }
   ],
-  "corrections": {
-    "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthCorrections",
-    "scene": "semantic_digital_twin.predetermined_maps.kitchen_environment:KitchenEnvironment",
-    "classes": [
-      {
-        "__json_type__": "experiments.warsaw.evaluation.ground_truth.ClassCorrection",
-        "entity": "sideboard_cabinet",
-        "semantic_class": "KitchenIsland",
-        "reason": "The source models this as the corpus of what its own code calls the kitchen island -- the section is headed 'SIDEBOARD / KITCHEN ISLAND' -- and gives it the six drawers and the facings. It is typed Cabinet because nothing else was available when it was written; the ontology has had KitchenIsland since 2026-09-10. Nothing about the modelled world changes, only the name it goes under."
-      },
-      {
-        "__json_type__": "experiments.warsaw.evaluation.ground_truth.ClassCorrection",
-        "entity": "sideboard",
-        "semantic_class": "CounterTop",
-        "reason": "The worktop of that island: a slab 2.447 by 0.796 by 0.026 metres resting on the corpus. Typed Table for want of a better class, but 26 millimetres thick and carrying the cooktop, which is a counter top rather than a table."
-      }
-    ],
-    "relations": [
-      {
-        "__json_type__": "experiments.warsaw.evaluation.ground_truth.RelationCorrection",
-        "edge": {
-          "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
-          "whole": "sideboard_cabinet",
-          "part": "sideboard",
-          "relation": "part",
-          "field_name": "counter_top"
-        },
-        "reason": "The island carries its own worktop. The source builds the two as separate children of the world root with no relation between them, so nothing in the exported graph says the slab belongs to the corpus underneath it."
-      }
-    ]
-  },
-  "source_commit": "dd115fc322bf7b8837f09501b00e0adfbf5ad18f",
+  "corrections": null,
+  "source_commit": "73280a7956199536165aceb6e70a8e1200041b5a",
   "source_dirty": true
 }
