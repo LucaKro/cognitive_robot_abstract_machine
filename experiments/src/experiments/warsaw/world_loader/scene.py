@@ -59,6 +59,17 @@ class PlyPayload(StrEnum):
     """
 
 
+class ScanLabel(StrEnum):
+    """
+    The labels of a scan the loader itself reads, rather than passing on to be asked about.
+    """
+
+    FLOOR = "floor"
+    """
+    The floor, whose plane says which way up the scan stands.
+    """
+
+
 # %% the objects a scan labels
 
 
@@ -128,14 +139,52 @@ class LabelSegment:
 
 def source_rolled_upright() -> HomogeneousTransformationMatrix:
     """
-    Turn the frame a scan file is written in into the world's.
+    Turn the frame a scan file is written in roughly into the world's.
 
-    A scan measures height down its own y axis, so a floor is written at a greater y
-    than the ceiling above it. This rolls that axis onto the world's upward z.
+    A scan measures height roughly down its own y axis, so a floor is written at a
+    greater y than the ceiling above it. This rolls that axis onto the world's upward z.
+    How far the result still leans depends on the scan, since a reconstruction has no
+    sense of gravity; :func:`stood_on_its_floor` takes out what is left.
 
-    :return: The transform from a scan file's coordinates to the world's.
+    :return: The transform from a scan file's coordinates to the world's, before
+        levelling.
     """
     return HomogeneousTransformationMatrix.from_xyz_rpy(roll=-np.pi / 2)
+
+
+def stood_on_its_floor(
+    mesh: trimesh.Trimesh,
+    floor_faces: np.ndarray,
+    world_T_source: HomogeneousTransformationMatrix,
+) -> HomogeneousTransformationMatrix:
+    """
+    Level a scene turned into the world's frame, so that its floor lies flat.
+
+    The turn left after :func:`source_rolled_upright` is the smallest rotation taking the
+    floor's plane onto the horizontal, so the scene keeps the heading the roll gave it.
+    Upward is the side of the floor most of the scene stands on.
+
+    :param mesh: The scene, in the coordinates of its file.
+    :param floor_faces: Which of its faces are floor.
+    :param world_T_source: The turn into the world's frame to level.
+    :return: That turn followed by the levelling.
+    """
+    turned = world_T_source.to_np()
+    vertices = trimesh.transform_points(mesh.vertices, turned)
+    centre, normal = trimesh.points.plane_fit(
+        vertices[np.unique(mesh.faces[floor_faces])]
+    )
+    if np.median((vertices - centre) @ normal) < 0:
+        normal = -normal
+    upward = np.array([0.0, 0.0, 1.0])
+    axis = np.cross(normal, upward)
+    if np.linalg.norm(axis) < np.finfo(np.float64).eps:
+        # A floor already flat, or flat upside down, turns about any horizontal axis.
+        axis = np.array([1.0, 0.0, 0.0])
+    levelling = trimesh.transformations.rotation_matrix(
+        angle=float(np.arccos(np.clip(normal @ upward, -1.0, 1.0))), direction=axis
+    )
+    return HomogeneousTransformationMatrix(data=levelling @ turned)
 
 
 class SourceFrame(StrEnum):
@@ -145,7 +194,8 @@ class SourceFrame(StrEnum):
 
     SCANNED = "scanned"
     """
-    A scan, measuring height down its own y.
+    A scan, measuring height roughly down its own y and levelled by its floor where it
+    labels one.
     """
 
     UPRIGHT = "upright"
@@ -156,7 +206,8 @@ class SourceFrame(StrEnum):
     @property
     def world_T_source(self) -> HomogeneousTransformationMatrix:
         """
-        :return: The transform from a file written this way up into the world's frame.
+        :return: The transform from a file written this way up into the world's frame,
+            before a scan is levelled by its floor.
         """
         if self is SourceFrame.SCANNED:
             return source_rolled_upright()
@@ -242,7 +293,8 @@ class WarsawScene:
         default_factory=lambda: SourceFrame.SCANNED.world_T_source
     )
     """
-    Turns the scene from the frame it is written in into the world's.
+    Turns the scene from the frame it is written in into the world's, standing a scan on
+    its floor.
     """
 
     appearance: Optional[AppearanceMesh] = None
@@ -309,8 +361,30 @@ class WarsawScene:
             mesh_path=scene_mesh_path,
             mesh=mesh,
             face_labels=face_labels,
-            world_T_source=frame.world_T_source,
+            world_T_source=cls._world_T_source(mesh, face_labels, frame),
             appearance=appearance,
+        )
+
+    @classmethod
+    def _world_T_source(
+        cls,
+        mesh: trimesh.Trimesh,
+        face_labels: Dict[str, np.ndarray],
+        frame: SourceFrame,
+    ) -> HomogeneousTransformationMatrix:
+        """
+        :param mesh: The scene, in the coordinates of its file.
+        :param face_labels: Per class, the instance each face belongs to.
+        :param frame: Which way up the file is written.
+        :return: The turn into the world's frame, a scan stood on its floor where it
+            labels one and a scan labelling none only rolled.
+        """
+        if frame is not SourceFrame.SCANNED or ScanLabel.FLOOR not in face_labels:
+            return frame.world_T_source
+        return stood_on_its_floor(
+            mesh,
+            face_labels[ScanLabel.FLOOR] != cls.unsegmented,
+            frame.world_T_source,
         )
 
     @staticmethod

@@ -1061,6 +1061,13 @@ class SplitRecord(RunArtefact):
     The world the split was written to.
     """
 
+    world_T_source: Optional[List[List[float]]] = None
+    """
+    The turn from the scene file's coordinates into the frame the bodies were built in.
+    Nothing in runs written before scans were stood on their floor, which turned a scene
+    by its :class:`~experiments.warsaw.world_loader.scene.SourceFrame` alone.
+    """
+
     annotated_world_id: Optional[int] = None
     """
     The world the annotations were written to, once the last step has run.

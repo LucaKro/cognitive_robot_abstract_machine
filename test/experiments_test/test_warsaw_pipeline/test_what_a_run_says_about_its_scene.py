@@ -15,14 +15,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 import trimesh
 
 from experiments.warsaw.pipeline.provenance import record_run_provenance
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.settings import PipelineSettings
+from experiments.warsaw.pipeline.steps.split import SplitScene
+from experiments.warsaw.scene_split import exclusive_faces
+from experiments.warsaw.world_loader.loader import WarsawWorldLoader
 
-from ..test_warsaw_world_loader import write_scene
+from ..test_warsaw_world_loader import write_scan_tilted_by, write_scene
 
 # %% a scene that says something about itself
 
@@ -105,3 +109,28 @@ def test_a_scene_that_says_nothing_leaves_nothing_behind(
     """
     run = run_against(scene_of_a_mesh_alone, tmp_path)
     assert list(run.path(RunFile.SCENE).iterdir()) == []
+
+
+# %% the frame a run's world is built in
+
+
+def test_the_split_records_the_frame_its_world_was_built_in(tmp_path):
+    """
+    A scan is stood on its own floor, so which way a run's bodies are turned depends on
+    the scan; whatever reads those bodies back has to be told rather than assume it.
+    """
+    scene = write_scan_tilted_by(
+        tmp_path, trimesh.transformations.rotation_matrix(np.radians(30), [1, 0, 0])
+    )
+    loader = WarsawWorldLoader(input_directory=scene)
+    step = SplitScene(
+        settings=PipelineSettings(scene_directory=scene, persist=False),
+        run=Run.create(tmp_path / "runs"),
+    )
+    faces = {str(one.name): one.face_indices for one in loader.label_segments}
+    split = exclusive_faces(faces, [])
+    labels = {str(one.name): one.class_name for one in loader.label_segments}
+
+    record = step.record_of(loader, split, [], labels, step.build_world(loader, split))
+
+    assert np.allclose(record.world_T_source, loader.scene.world_T_source.to_np())

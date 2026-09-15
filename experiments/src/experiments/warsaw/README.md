@@ -54,8 +54,12 @@ Two things about the file are easy to lose:
   unprocessed. Re-exporting the scan through most tools drops the label properties, or
   welds vertices and renumbers the faces the labels were written for. Either way the
   labels no longer describe the mesh. The pipeline checks both and says so.
-- **The scan is read y-up** and rolled onto the world's z
-  (`WarsawScene.world_T_source`). A scan written z-up arrives lying on its side.
+- **The scan is read roughly y-up**, rolled onto the world's z and then stood on its
+  floor: the plane of the faces labelled `floor` is turned flat
+  (`WarsawScene.world_T_source`). A reconstruction has no sense of gravity, so the roll
+  alone left kitchenlab 6 degrees and kitchen2 56 degrees off vertical. A scan labelling
+  no floor is only rolled, and a scan written z-up arrives lying on its side. The turn a
+  run used is recorded in its `split.json` as `world_T_source`.
 
 ## What else a run needs
 

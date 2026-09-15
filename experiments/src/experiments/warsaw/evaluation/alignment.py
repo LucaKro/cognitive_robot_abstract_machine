@@ -12,7 +12,9 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from experiments.warsaw.world_loader.scene import source_rolled_upright
+from experiments.warsaw.pipeline.records import SplitRecord
+from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.world_loader.scene import SceneFrame
 
 # %% invalid landmark sets
 
@@ -201,22 +203,38 @@ class LandmarkAlignment:
 
 def run_bodies_to_ground_truth(
     scene_file_to_ground_truth: NDArray[np.float64],
+    world_T_source: NDArray[np.float64],
 ) -> NDArray[np.float64]:
     """
     Re-express a fit picked on a scan file so that it moves a run's bodies.
 
     Landmarks are picked on the scan file, while a run's bodies sit in the world the
-    loader rolls that scan upright into. Applied unchanged, a fit therefore arrives a
-    quarter turn out, which reads as a badly picked landmark set rather than as the
-    frame mismatch it is.
+    loader turned that scan into. Applied unchanged, a fit therefore arrives turned by
+    that difference, which reads as a badly picked landmark set rather than as the frame
+    mismatch it is.
 
     :param scene_file_to_ground_truth: The transform the landmarks fitted.
+    :param world_T_source: The turn the run built its bodies with, as
+        :func:`world_T_source_of` reads it.
     :return: The same transform, for bodies in a run's world.
     """
-    return (
-        np.asarray(scene_file_to_ground_truth, dtype=np.float64)
-        @ source_rolled_upright().inverse().to_np()
+    return np.asarray(scene_file_to_ground_truth, dtype=np.float64) @ np.linalg.inv(
+        np.asarray(world_T_source, dtype=np.float64)
     )
+
+
+def world_T_source_of(run: Run) -> NDArray[np.float64]:
+    """
+    Read the turn a run built its bodies with, from the scene file into its world.
+
+    :param run: A run that got as far as the split.
+    :return: The turn its split recorded, or for a run from before that was recorded,
+        the one its scene's own frame record gave, which was all such a run applied.
+    """
+    recorded = run.read_record(RunFile.SPLIT, SplitRecord).world_T_source
+    if recorded is not None:
+        return np.asarray(recorded, dtype=np.float64)
+    return SceneFrame.beside(run.path(RunFile.SCENE)).source.world_T_source.to_np()
 
 
 # %% portable landmark input

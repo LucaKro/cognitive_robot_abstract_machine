@@ -197,5 +197,6 @@
   ],
   "refused": [],
   "world_id": 1,
+  "world_T_source": null,
   "annotated_world_id": 198
 }

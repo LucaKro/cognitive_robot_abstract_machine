@@ -15,8 +15,15 @@ from experiments.warsaw.evaluation.alignment import (
     LandmarkFile,
     main,
     run_bodies_to_ground_truth,
+    world_T_source_of,
 )
-from experiments.warsaw.world_loader.scene import source_rolled_upright
+from experiments.warsaw.pipeline.records import SplitRecord
+from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.world_loader.scene import (
+    SceneFrame,
+    SourceFrame,
+    source_rolled_upright,
+)
 
 # %% a landmark file to read back
 
@@ -247,6 +254,85 @@ def test_a_fit_picked_on_the_scan_file_moves_a_runs_bodies_the_same_way() -> Non
     spot_in_the_file = np.asarray([0.3, -1.2, 4.0, 1.0])
     spot_in_a_run = source_rolled_upright().to_np() @ spot_in_the_file
 
-    moved = run_bodies_to_ground_truth(picked_on_the_file) @ spot_in_a_run
+    moved = (
+        run_bodies_to_ground_truth(picked_on_the_file, source_rolled_upright().to_np())
+        @ spot_in_a_run
+    )
 
     assert np.allclose(moved, picked_on_the_file @ spot_in_the_file)
+
+
+def test_a_fit_moves_the_bodies_of_a_run_stood_on_its_floor() -> None:
+    """
+    A levelled run's bodies are turned by more than the roll, and the fit has to undo
+    whatever they were actually turned by.
+    """
+    picked_on_the_file = LandmarkAlignment.fit(
+        [
+            Landmark(
+                name=item["name"],
+                reconstruction=item["reconstruction"],
+                ground_truth=item["ground_truth"],
+            )
+            for item in landmark_payload()["landmarks"]
+        ]
+    ).homogeneous_matrix
+    levelled = (
+        np.array(
+            [[1, 0, 0, 0], [0, 0.8, -0.6, 0], [0, 0.6, 0.8, 0], [0, 0, 0, 1]],
+            dtype=float,
+        )
+        @ source_rolled_upright().to_np()
+    )
+    spot_in_the_file = np.asarray([0.3, -1.2, 4.0, 1.0])
+
+    moved = run_bodies_to_ground_truth(picked_on_the_file, levelled) @ (
+        levelled @ spot_in_the_file
+    )
+
+    assert np.allclose(moved, picked_on_the_file @ spot_in_the_file)
+
+
+# %% the frame a run's world was built in
+
+
+def test_a_run_that_recorded_its_frame_is_read_in_it(tmp_path) -> None:
+    """
+    What the split recorded is what the run's bodies were turned by.
+    """
+    run = Run.create(tmp_path)
+    recorded = np.diag([1.0, -1.0, -1.0, 1.0])
+    run.write_record(
+        RunFile.SPLIT, SplitRecord(scene="", world_T_source=recorded.tolist())
+    )
+
+    assert np.allclose(world_T_source_of(run), recorded)
+
+
+def test_a_scan_run_from_before_the_frame_was_recorded_was_rolled(tmp_path) -> None:
+    """
+    Before a scan was stood on its floor, a run turned it by the roll alone.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, SplitRecord(scene=""))
+    run.directory_for(RunFile.SCENE)
+
+    assert np.allclose(world_T_source_of(run), source_rolled_upright().to_np())
+
+
+def test_an_upright_run_from_before_the_frame_was_recorded_was_not_turned(
+    tmp_path,
+) -> None:
+    """
+    A run kept the scene's own record of which way up it was written, and a scene that
+    said it was upright was not turned at all.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, SplitRecord(scene=""))
+    SceneFrame(source=SourceFrame.UPRIGHT).write_beside(
+        run.directory_for(RunFile.SCENE)
+    )
+
+    assert np.allclose(
+        world_T_source_of(run), SourceFrame.UPRIGHT.world_T_source.to_np()
+    )

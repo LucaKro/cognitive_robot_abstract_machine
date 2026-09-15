@@ -865,3 +865,109 @@ def test_an_upright_scene_stands_in_the_world_where_its_file_puts_it(tmp_path):
     """
     loader = WarsawWorldLoader(input_directory=write_upright_scene(tmp_path))
     assert np.allclose(loader.scene_mesh.extents, loader.scene.mesh.extents, atol=1e-6)
+
+
+# %% standing a scan on its floor
+
+
+def write_scan_tilted_by(directory: Path, tilt: np.ndarray) -> Path:
+    """
+    Write a scan of a floor with a box standing on it, measuring height down its own y
+    and tilted away from that by a rotation.
+
+    :param directory: Where to write it.
+    :param tilt: The rotation the scan is tilted by, as a 4x4 transform.
+    :return: That directory.
+    """
+    floor = trimesh.Trimesh(
+        vertices=[[-2, -1.5, 0], [2, -1.5, 0], [2, 1.5, 0], [-2, 1.5, 0]],
+        faces=[[0, 1, 2], [0, 2, 3]],
+    )
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    box.apply_translation((0.5, 0.2, 1.5))
+    standing = trimesh.util.concatenate([floor, box])
+    standing.apply_transform(source_rolled_upright().inverse().to_np() @ tilt)
+    write_scene(
+        directory / "scene.ply",
+        standing.vertices,
+        standing.faces,
+        {"floor": [1, 1] + [0] * len(box.faces)},
+    )
+    return directory
+
+
+def floor_and_box_heights(scene: WarsawScene) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    :param scene: A scene written by :func:`write_scan_tilted_by`.
+    :return: The heights of the floor's corners and of the box's corners in the world.
+    """
+    placed = scene.mesh.copy()
+    placed.apply_transform(scene.world_T_source.to_np())
+    floor_corners = np.unique(placed.faces[scene.face_labels["floor"] == 1])
+    box_corners = np.setdiff1d(np.arange(len(placed.vertices)), floor_corners)
+    return placed.vertices[floor_corners, 2], placed.vertices[box_corners, 2]
+
+
+def test_a_tilted_scan_is_stood_on_its_floor(tmp_path):
+    """
+    A reconstruction has no sense of which way is up, so height measured down its y is
+    only as vertical as the scan happened to be. Its floor is what says which way up it
+    stands.
+    """
+    tilt = trimesh.transformations.rotation_matrix(np.radians(56), [1, 0.3, 0])
+    scene = WarsawScene.from_directory(write_scan_tilted_by(tmp_path, tilt))
+
+    floor_heights, box_heights = floor_and_box_heights(scene)
+
+    assert np.ptp(floor_heights) == pytest.approx(0, abs=1e-5)
+    assert box_heights.min() > floor_heights.max()
+
+
+def test_a_scan_already_level_is_only_rolled(tmp_path):
+    """
+    A scan whose floor already lies across its y is turned exactly as before.
+    """
+    scene = WarsawScene.from_directory(write_scan_tilted_by(tmp_path, np.eye(4)))
+
+    assert np.allclose(
+        scene.world_T_source.to_np(), source_rolled_upright().to_np(), atol=1e-6
+    )
+
+
+def test_a_levelled_scan_keeps_its_heading(tmp_path):
+    """
+    Levelling tips the scene about a horizontal axis only, so it keeps the heading the
+    roll gave it rather than being spun about the vertical as well.
+    """
+    tilt = trimesh.transformations.rotation_matrix(np.radians(56), [1, 0.3, 0])
+    scene = WarsawScene.from_directory(write_scan_tilted_by(tmp_path, tilt))
+
+    levelling = scene.world_T_source.to_np() @ source_rolled_upright().inverse().to_np()
+    angle, axis, _ = trimesh.transformations.rotation_from_matrix(levelling)
+
+    assert abs(angle) == pytest.approx(np.radians(56), abs=1e-4)
+    assert axis[2] == pytest.approx(0, abs=1e-6)
+
+
+def test_a_scene_whose_floor_is_exactly_flat_is_turned_by_nothing_more(tmp_path):
+    """
+    A floor already lying flat gives no axis to turn about, and must not turn the scene
+    into nonsense for want of one.
+    """
+    floor = trimesh.Trimesh(
+        vertices=[[-2, 0, -1.5], [2, 0, -1.5], [2, 0, 1.5], [-2, 0, 1.5]],
+        faces=[[0, 2, 1], [0, 3, 2]],
+    )
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    box.apply_translation((0.5, -1.5, 0.2))
+    standing = trimesh.util.concatenate([floor, box])
+    write_scene(
+        tmp_path / "scene.ply",
+        standing.vertices,
+        standing.faces,
+        {"floor": [1, 1] + [0] * len(box.faces)},
+    )
+
+    scene = WarsawScene.from_directory(tmp_path)
+
+    assert np.allclose(scene.world_T_source.to_np(), source_rolled_upright().to_np())

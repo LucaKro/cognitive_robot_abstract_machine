@@ -292,6 +292,7 @@ class SplitScene(PipelineStep):
             still_contested=len(split.contested),
             pairings=carried,
             world_id=world_id,
+            world_T_source=loader.scene.world_T_source.to_np().tolist(),
         )
 
     # %% saying what it cost
