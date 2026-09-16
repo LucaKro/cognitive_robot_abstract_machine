@@ -140,11 +140,12 @@ class TestTheObjectsOfACase:
         groups = case.before_groups()
         assert list(groups[CONTESTED_FACES]) == list(case.contested)
 
-    def test_before_the_split_a_claimant_holds_only_the_faces_it_alone_claims(self):
+    def test_before_the_split_a_claimant_holds_everything_it_claims(self):
         case = a_cabinet_losing_its_front()
         groups = case.before_groups()
-        assert list(groups[CABINET]) == [0, 1, 4]
-        assert list(groups[DRAWER]) == [5]
+        assert list(groups[CABINET]) == [0, 1, 2, 3, 4]
+        assert list(groups[DRAWER]) == [2, 3, 5]
+        assert list(groups[HANDLE]) == [3]
 
     def test_after_the_split_every_claimant_holds_what_it_kept(self):
         case = a_cabinet_losing_its_front()
@@ -171,4 +172,24 @@ class TestTheObjectsOfACase:
         assert set(scene.geometry) == set(case.before_groups())
         drawn = scene.geometry[CONTESTED_FACES]
         assert len(drawn.faces) == len(case.contested)
-        assert list(drawn.visual.face_colors[0]) == list(CONTESTED)
+        assert list(drawn.visual.material.baseColorFactor) == list(CONTESTED)
+
+    def test_an_object_carries_its_colour_as_a_material_as_well(self):
+        case = a_cabinet_losing_its_front()
+        scene = case_scene(trimesh.creation.box(), case.before_groups(), case.palette)
+        material = scene.geometry[CABINET].visual.material
+        assert list(material.baseColorFactor) == list(case.colour_of(CABINET))
+
+    def test_the_claims_can_be_drawn_pulled_apart_so_they_do_not_coincide(self):
+        case = a_cabinet_losing_its_front()
+        together = case_scene(
+            trimesh.creation.box(), case.before_groups(), case.palette
+        )
+        apart = case_scene(
+            trimesh.creation.box(),
+            case.before_groups(),
+            case.palette,
+            pulled_apart=0.5,
+        )
+        moved = apart.geometry[DRAWER].bounds[0] - together.geometry[DRAWER].bounds[0]
+        assert not np.allclose(moved, 0.0)

@@ -165,15 +165,13 @@ class OverlapCase:
 
     def before_groups(self) -> Dict[str, np.ndarray]:
         """
-        :return: The objects to draw the scan's labels as: per claimant the faces it
-            alone claims, and the contested faces as one object of their own.
+        :return: The objects to draw the scan's labels as: per claimant everything it
+            claims, so a handle's faces are drawn as the handle *and* as part of the
+            drawer, and the contested faces as one object of their own. The objects
+            therefore overlap, which is what the picture is about.
         """
-        contested = self.contested
-        groups = {
-            name: np.setdiff1d(claimed, contested)
-            for name, claimed in self.claims.items()
-        }
-        groups[CONTESTED_FACES] = contested
+        groups = dict(self.claims)
+        groups[CONTESTED_FACES] = self.contested
         return {name: faces for name, faces in groups.items() if len(faces)}
 
     def after_groups(self) -> Dict[str, np.ndarray]:
@@ -255,30 +253,57 @@ def case_mesh(
     return cut
 
 
+def facing(mesh: trimesh.Trimesh) -> np.ndarray:
+    """
+    :param mesh: A piece of a scan, usually a nearly flat patch.
+    :return: The direction it faces, as a unit vector, and straight up where its faces
+        point every way and cancel out.
+    """
+    average = mesh.face_normals.mean(axis=0)
+    length = float(np.linalg.norm(average))
+    if length < 1e-6:
+        return np.array([0.0, 0.0, 1.0])
+    return average / length
+
+
 def case_scene(
     scene: trimesh.Trimesh,
     groups: Dict[str, np.ndarray],
     palette: Dict[str, Tuple[int, int, int, int]],
+    pulled_apart: float = 0.0,
 ) -> trimesh.Scene:
     """
     Cut a case out of the scene as one named object per group.
 
-    A viewer shows the names and lets each be hidden on its own, and a colour per object
-    survives formats that carry no colour per face.
+    A viewer shows the names and lets each be hidden on its own, and a colour given as a
+    material survives the formats that carry no colour per face.
 
     :param scene: The scan's mesh.
     :param groups: Per object, the faces it is made of.
     :param palette: Per claimant, the colour it is drawn in. The contested faces and the
         faces that went elsewhere are drawn in their own colours.
+    :param pulled_apart: How far each object is moved along the direction it faces, in
+        metres, so that objects claiming one surface do not coincide. Zero leaves every
+        object where the scan has it.
     :return: A scene holding one coloured mesh per group.
     """
     drawn = trimesh.Scene()
-    for name, faces in groups.items():
-        colour = palette.get(name, CONTESTED if name == CONTESTED_FACES else ELSEWHERE)
-        part = scene.submesh([faces], append=True)
-        part.visual.face_colors = np.tile(
-            np.array(colour, dtype=np.uint8), (len(part.faces), 1)
+    for index, (name, faces) in enumerate(groups.items()):
+        colour = np.array(
+            palette.get(name, CONTESTED if name == CONTESTED_FACES else ELSEWHERE),
+            dtype=np.uint8,
         )
+        part = scene.submesh([faces], append=True)
+        part.visual = trimesh.visual.TextureVisuals(
+            material=trimesh.visual.material.PBRMaterial(
+                name=name,
+                baseColorFactor=colour,
+                metallicFactor=0.0,
+                roughnessFactor=0.8,
+            )
+        )
+        if pulled_apart:
+            part.apply_translation(facing(part) * pulled_apart * (index + 1))
         drawn.add_geometry(part, geom_name=name)
     return drawn
 
@@ -321,6 +346,12 @@ class CaseExport:
     The directory to write into.
     """
 
+    pulled_apart: float = 0.0
+    """
+    How far the objects of a stage are moved apart, in metres, so that two claiming one
+    surface can both be seen.
+    """
+
     @cached_property
     def case(self) -> OverlapCase:
         """
@@ -342,7 +373,9 @@ class CaseExport:
             ("after", self.case.after(), self.case.after_groups()),
         ):
             as_objects = self.output / f"{stage}.glb"
-            case_scene(scene, groups, self.case.palette).export(as_objects)
+            case_scene(scene, groups, self.case.palette, self.pulled_apart).export(
+                as_objects
+            )
             one_mesh = self.output / f"{stage}.ply"
             painted_by_vertex(case_mesh(scene, self.case.faces, colours)).export(
                 one_mesh
@@ -378,10 +411,20 @@ def main() -> None:
     parser.add_argument(
         "--output", type=Path, required=True, help="Where to write the meshes"
     )
+    parser.add_argument(
+        "--pulled-apart",
+        type=float,
+        default=0.0,
+        help="How far to move each object along its own normal, in metres, so that two "
+        "claiming one surface can both be seen",
+    )
     arguments = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     written = CaseExport(
-        run=Run(arguments.run), names=list(arguments.segments), output=arguments.output
+        run=Run(arguments.run),
+        names=list(arguments.segments),
+        output=arguments.output,
+        pulled_apart=arguments.pulled_apart,
     ).write()
     for path in written:
         logger.info("written to %s", path)
