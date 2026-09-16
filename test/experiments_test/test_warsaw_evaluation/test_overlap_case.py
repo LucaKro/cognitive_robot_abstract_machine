@@ -13,9 +13,12 @@ import trimesh
 
 from experiments.warsaw.evaluation.overlap_case import (
     CONTESTED,
+    CONTESTED_FACES,
     ELSEWHERE,
+    FACES_ELSEWHERE,
     OverlapCase,
     case_mesh,
+    case_scene,
 )
 
 # %% one overlap, small enough to count by hand
@@ -121,3 +124,51 @@ class TestTheMeshThatIsWritten:
         mesh = case_mesh(trimesh.creation.box(), case.faces, case.before())
         assert len(mesh.faces) == len(case.faces)
         assert np.array_equal(mesh.visual.face_colors, case.before())
+
+
+# %% the objects a modelling tool opens
+
+
+class TestTheObjectsOfACase:
+    """
+    A case is written as one named object per claimant, so a viewer can pick them apart
+    and each carries a colour of its own rather than a colour per face.
+    """
+
+    def test_before_the_split_the_contested_faces_are_an_object_of_their_own(self):
+        case = a_cabinet_losing_its_front()
+        groups = case.before_groups()
+        assert list(groups[CONTESTED_FACES]) == list(case.contested)
+
+    def test_before_the_split_a_claimant_holds_only_the_faces_it_alone_claims(self):
+        case = a_cabinet_losing_its_front()
+        groups = case.before_groups()
+        assert list(groups[CABINET]) == [0, 1, 4]
+        assert list(groups[DRAWER]) == [5]
+
+    def test_after_the_split_every_claimant_holds_what_it_kept(self):
+        case = a_cabinet_losing_its_front()
+        groups = case.after_groups()
+        assert list(groups[DRAWER]) == [2, 5]
+        assert list(groups[HANDLE]) == [3]
+
+    def test_after_the_split_the_faces_that_went_elsewhere_are_their_own_object(self):
+        case = OverlapCase(
+            claims={CABINET: np.array([0, 1])}, bodies={CABINET: np.array([0])}
+        )
+        assert list(case.after_groups()[FACES_ELSEWHERE]) == [1]
+
+    def test_an_emptied_claimant_is_not_written_as_an_empty_object(self):
+        case = OverlapCase(
+            claims={CABINET: np.array([0]), DRAWER: np.array([0])},
+            bodies={DRAWER: np.array([0])},
+        )
+        assert CABINET not in case.after_groups()
+
+    def test_each_object_of_the_scene_carries_its_own_colour(self):
+        case = a_cabinet_losing_its_front()
+        scene = case_scene(trimesh.creation.box(), case.before_groups(), case.palette)
+        assert set(scene.geometry) == set(case.before_groups())
+        drawn = scene.geometry[CONTESTED_FACES]
+        assert len(drawn.faces) == len(case.contested)
+        assert list(drawn.visual.face_colors[0]) == list(CONTESTED)

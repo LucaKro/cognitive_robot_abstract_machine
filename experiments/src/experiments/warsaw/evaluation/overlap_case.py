@@ -41,6 +41,16 @@ What a face several labels claim is painted before the split, in red, since it i
 thing the picture is about.
 """
 
+CONTESTED_FACES = "contested"
+"""
+What the object holding the faces several claimants claim is called.
+"""
+
+FACES_ELSEWHERE = "elsewhere"
+"""
+What the object holding the faces none of the drawn bodies kept is called.
+"""
+
 ELSEWHERE = (90, 90, 90, OPAQUE)
 """
 What a face none of the drawn objects kept is painted after the split, in grey: it went
@@ -153,6 +163,34 @@ class OverlapCase:
                 colours[self.row_of(face)] = self.colour_of(name)
         return colours
 
+    def before_groups(self) -> Dict[str, np.ndarray]:
+        """
+        :return: The objects to draw the scan's labels as: per claimant the faces it
+            alone claims, and the contested faces as one object of their own.
+        """
+        contested = self.contested
+        groups = {
+            name: np.setdiff1d(claimed, contested)
+            for name, claimed in self.claims.items()
+        }
+        groups[CONTESTED_FACES] = contested
+        return {name: faces for name, faces in groups.items() if len(faces)}
+
+    def after_groups(self) -> Dict[str, np.ndarray]:
+        """
+        :return: The objects to draw the split as: per body the faces it kept, and the
+            faces that went to an object the case does not draw as one object of their
+            own.
+        """
+        groups = dict(self.bodies)
+        kept = (
+            np.concatenate(list(self.bodies.values()))
+            if self.bodies
+            else np.array([], dtype=int)
+        )
+        groups[FACES_ELSEWHERE] = np.setdiff1d(self.faces, kept)
+        return {name: faces for name, faces in groups.items() if len(faces)}
+
     def row_of(self, face: int) -> int:
         """
         :param face: A face of the scene.
@@ -217,6 +255,51 @@ def case_mesh(
     return cut
 
 
+def case_scene(
+    scene: trimesh.Trimesh,
+    groups: Dict[str, np.ndarray],
+    palette: Dict[str, Tuple[int, int, int, int]],
+) -> trimesh.Scene:
+    """
+    Cut a case out of the scene as one named object per group.
+
+    A viewer shows the names and lets each be hidden on its own, and a colour per object
+    survives formats that carry no colour per face.
+
+    :param scene: The scan's mesh.
+    :param groups: Per object, the faces it is made of.
+    :param palette: Per claimant, the colour it is drawn in. The contested faces and the
+        faces that went elsewhere are drawn in their own colours.
+    :return: A scene holding one coloured mesh per group.
+    """
+    drawn = trimesh.Scene()
+    for name, faces in groups.items():
+        colour = palette.get(name, CONTESTED if name == CONTESTED_FACES else ELSEWHERE)
+        part = scene.submesh([faces], append=True)
+        part.visual.face_colors = np.tile(
+            np.array(colour, dtype=np.uint8), (len(part.faces), 1)
+        )
+        drawn.add_geometry(part, geom_name=name)
+    return drawn
+
+
+def painted_by_vertex(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+    """
+    Carry a mesh's face colours over to its vertices.
+
+    A PLY keeps a colour per face, but the tools that open one read colours per vertex,
+    so a mesh painted per face arrives grey. Giving every face its own vertices lets the
+    two say the same thing.
+
+    :param mesh: A mesh painted per face.
+    :return: The same, painted per vertex.
+    """
+    apart = mesh.copy()
+    apart.unmerge_vertices()
+    apart.visual.vertex_colors = np.repeat(mesh.visual.face_colors, 3, axis=0)
+    return apart
+
+
 @dataclass
 class CaseExport:
     """
@@ -254,13 +337,17 @@ class CaseExport:
         scene = OverlapCase.loader_of(self.run).scene_mesh
         self.output.mkdir(parents=True, exist_ok=True)
         written = []
-        for stage, colours in (
-            ("before", self.case.before()),
-            ("after", self.case.after()),
+        for stage, colours, groups in (
+            ("before", self.case.before(), self.case.before_groups()),
+            ("after", self.case.after(), self.case.after_groups()),
         ):
-            path = self.output / f"{stage}.ply"
-            case_mesh(scene, self.case.faces, colours).export(path)
-            written.append(path)
+            as_objects = self.output / f"{stage}.glb"
+            case_scene(scene, groups, self.case.palette).export(as_objects)
+            one_mesh = self.output / f"{stage}.ply"
+            painted_by_vertex(case_mesh(scene, self.case.faces, colours)).export(
+                one_mesh
+            )
+            written += [as_objects, one_mesh]
         self.report()
         return written
 
