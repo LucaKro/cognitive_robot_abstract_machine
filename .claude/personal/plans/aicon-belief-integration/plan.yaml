@@ -1,0 +1,226 @@
+schema_version: 1
+id: aicon-belief-integration
+title: AICON Belief Integration
+description: >-
+  Add continuously-updated, uncertainty-bearing state estimates to the stack,
+  and let the controller differentiate through them. Wave 1 stops discarding
+  uncertainty the stack already receives; wave 2 adds a belief layer as
+  motion-statechart nodes; wave 3 extends the symbolic chain rule through those
+  beliefs so the QP can see the path action to belief to goal. Ideas are drawn
+  from AICON; the framework itself is deliberately not adopted.
+default_repository: LucaKro/cognitive_robot_abstract_machine
+tracking_issue: 6
+
+waves:
+  - id: wave-1
+    name: "Wave 1: Stop discarding uncertainty"
+    description: >-
+      Three independent, shippable changes that keep information the stack
+      already receives and currently throws away. No new abstractions.
+  - id: wave-2
+    name: "Wave 2: A belief layer"
+    description: >-
+      Per-quantity Gaussian beliefs carried across ticks in a ContextExtension,
+      updated by statechart nodes, usable in constraints and transitions.
+  - id: wave-3
+    name: "Wave 3: Differentiate through the estimator"
+    description: >-
+      Extend the symbolic chain rule past joint positions into estimated
+      quantities, so epistemic action falls out of the QP rather than a plan.
+
+tracks:
+  - id: uncertainty-plumbing
+    name: Uncertainty plumbing
+    wave: wave-1
+    description: Carry existing confidence and covariance signals through instead of dropping them.
+  - id: belief-core
+    name: Belief core
+    wave: wave-2
+    description: The belief container and the estimator node base class.
+  - id: belief-application
+    name: First estimator and validation
+    wave: wave-2
+    description: A concrete grasp belief, its use in a goal, and the experiment that judges it.
+  - id: differentiable-beliefs
+    name: Differentiable beliefs
+    wave: wave-3
+    description: Symbolic estimator means, the chain rule through them, and the gradient-flow guard.
+
+items:
+  - id: grasp-likelihood-continuous
+    title: Keep the grasp likelihood continuous instead of thresholding it away
+    branch: grasp-likelihood-continuous
+    pull_request_number: null
+    track: uncertainty-plumbing
+    status: not_started
+    notes: >-
+      is_body_in_gripper (robot_predicates.py:162) already returns a float its
+      own docstring calls a marginal probability; is_body_gripped discards it
+      with > threshold on the next line. Trinary logic is already a [0,1]
+      algebra (False=0, Unknown=0.5, True=1; not=1-x, and=min, or=max), so the
+      float is type-compatible with a giskard observation today. Add a
+      continuous path without breaking the existing boolean predicate, which is
+      used in EQL preconditions. Guard is_unknown(), which tests ca.eq(x, 0.5)
+      exactly and will never fire on a continuous value.
+
+  - id: odometry-covariance-capture
+    title: Stop discarding the odometry pose covariance
+    branch: odometry-covariance-capture
+    pull_request_number: null
+    track: uncertainty-plumbing
+    status: not_started
+    notes: >-
+      OdometrySynchronizer.apply_message (input_synchronization.py:266) reads
+      message.pose.pose and never touches message.pose.covariance, dropping all
+      36 numbers on every message. Capture it into a registered FloatVariable
+      (even just its trace to begin with) so the statechart can condition on
+      base uncertainty. Enables conditions of the form "do not begin the final
+      approach while base uncertainty exceeds X".
+
+  - id: detection-confidence-field
+    title: Carry perception confidence across the process boundary
+    branch: detection-confidence-field
+    pull_request_number: null
+    track: uncertainty-plumbing
+    status: not_started
+    notes: >-
+      robokudo produces a per-classification confidence; coraplex Detection
+      (perception.py:137) has exactly two fields, semantic_annotation and pose,
+      so it dies at the action-server boundary. Note the ORM consequence:
+      ORMatic.from_package maps every dataclass it finds, so a new field
+      becomes a new column automatically.
+
+  - id: belief-context-and-gaussian
+    title: BeliefContext and a scalar/vector Gaussian belief with predict and update
+    branch: belief-context-and-gaussian
+    pull_request_number: null
+    track: belief-core
+    status: not_started
+    notes: >-
+      A ContextExtension holding per-quantity beliefs, following the shape
+      segmind already uses (SegmindContext, detectors/base.py:36, retrieved with
+      context.require_extension). Deliberately not in WorldState, whose row axis
+      is the Derivatives enum hard-coded to 4 and assumed by the ORM
+      (orm/model.py:95), the ROS sync, the FK memory binding and the trajectory
+      recorder. Write the Kalman update directly - probabilistic_model's
+      GaussianDistribution is strictly univariate, has no covariance, and its
+      conditioning is truncation or Dirac collapse, not a measurement update.
+
+  - id: estimator-node-base
+    title: EstimatorNode base class with the register/set_value tick lifecycle
+    branch: estimator-node-base
+    pull_request_number: null
+    track: belief-core
+    status: not_started
+    depends_on: [belief-context-and-gaussian]
+    notes: >-
+      A MotionStatechartNode whose build_artifacts registers a FloatVariable for
+      the mean and whose on_tick runs predict/update and writes the value with
+      float_variable_data.set_value. wiggle_insert.py:202 and :250 are the
+      working precedent for that register-then-write-per-cycle pattern. Watch
+      the critical path: notify_state_change is synchronous and already
+      triggers a full FK recompute.
+
+  - id: grasp-belief-node
+    title: First concrete estimator - a recursive grasp belief
+    branch: grasp-belief-node
+    pull_request_number: null
+    track: belief-application
+    status: not_started
+    depends_on: [estimator-node-base, grasp-likelihood-continuous]
+    notes: >-
+      Scalar Kalman update on the logit of is_body_in_gripper, with a prediction
+      step that decays toward the prior when the gripper is open. Roughly 60
+      lines following segmind/detectors/base.py. This is the first quantity in
+      the stack that has a memory - the existing predicate is a stateless
+      Monte-Carlo raycast against the point-estimate world.
+
+  - id: belief-weighted-open-goal
+    title: Scale the Open goal's hold-handle weight by the grasp belief
+    branch: belief-weighted-open-goal
+    pull_request_number: null
+    track: belief-application
+    status: not_started
+    depends_on: [grasp-belief-node]
+    notes: >-
+      goals/open_close.py:20 opens with "Assumes that the grasped part has
+      already been grasped" and pins grasp_weight to the constant
+      WEIGHT_ABOVE_COLLISION_AVOIDANCE. Make it a function of the belief so a
+      failed or degrading grasp is representable at all. Keep the change behind
+      an opt-in field so stock Open behaviour is unchanged by default.
+
+  - id: belief-drawer-experiment
+    title: Three-condition drawer sweep judging whether the belief changes outcomes
+    branch: belief-drawer-experiment
+    pull_request_number: null
+    track: belief-application
+    status: not_started
+    depends_on: [belief-weighted-open-goal]
+    notes: >-
+      Sweep initial arm configurations and cabinet yaws across (i) stock Open,
+      (ii) belief-weighted Open, (iii) belief-weighted with the grasp
+      deliberately failing. Condition (iii) is the one that matters - stock Open
+      cannot represent a failed grasp and will drive the hinge goal against a
+      drawer it is not holding until NotApproachingGoal fires. Validate against
+      simulator contact state, not against the posterior.
+
+  - id: symbolic-estimator-means
+    title: Expose estimator means as symbolic expressions with rate variables
+    branch: symbolic-estimator-means
+    pull_request_number: null
+    track: differentiable-beliefs
+    status: not_started
+    depends_on: [estimator-node-base]
+    notes: >-
+      An estimator currently contributes an opaque number. Give it a
+      mean_expression over joint positions plus a registered rate variable.
+      Where the measurement model is forward kinematics the expression is
+      already available from compose_forward_kinematics_expression and its
+      Jacobian is one .jacobian(active_variables) call - ik_solver.py:528-542 is
+      the worked precedent.
+
+  - id: chain-rule-through-beliefs
+    title: Let the error-signal chain rule see through estimated quantities
+    branch: chain-rule-through-beliefs
+    pull_request_number: null
+    track: differentiable-beliefs
+    status: not_started
+    depends_on: [symbolic-estimator-means]
+    notes: >-
+      joint_position_and_velocity_variables (error_signals.py:17) deliberately
+      treats every free variable that is not a joint position as a constant, and
+      the docstring says perception-driven goals must fall back to
+      SampledErrorSignal. total_derivative is ca.jtimes and is fully general in
+      its variables, so the restriction is one function above it. This item is
+      the single structural thing AICON has that CRAM does not.
+
+  - id: gradient-flow-guard
+    title: Decide and enforce which quantities the gradient may flow into
+    branch: gradient-flow-guard
+    pull_request_number: null
+    track: differentiable-beliefs
+    status: not_started
+    depends_on: [chain-rule-through-beliefs]
+    notes: >-
+      Once the gradient reaches a filter, "reduce the cost by becoming more
+      certain" becomes available to the optimizer. AICON hit exactly this and
+      had to detach the Kalman gain (ekf.py:41-44, with a comment naming it
+      gradient descent on inference). In a QP the failure looks different - a
+      constraint satisfied by moving confidence rather than the robot - but it
+      is the same pathology. Decide explicitly before behaviour looks odd, not
+      after.
+
+  - id: epistemic-action-demo
+    title: Demonstrate uncertainty-reducing motion emerging from the QP
+    branch: epistemic-action-demo
+    pull_request_number: null
+    track: differentiable-beliefs
+    status: not_started
+    depends_on: [gradient-flow-guard, belief-drawer-experiment]
+    notes: >-
+      The payoff and the publishable claim - an MPC controller with hard joint,
+      jerk and collision limits taking exact symbolic derivatives through a
+      recursive estimator, producing epistemic action without a planner and
+      without forced derivative signs. AICON shows the behaviour but with
+      normalized gradient steps, no limits, no collision avoidance, and
+      hand-forced signs doing load-bearing work.
