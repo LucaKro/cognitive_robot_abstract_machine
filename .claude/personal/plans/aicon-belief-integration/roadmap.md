@@ -167,12 +167,10 @@ past a tutorial.
 
 ## Conventions for sessions working this plan
 
-- Subscribe to the tracking mailbox (**PR #6** on the fork — Issues are disabled
-  there, so the plan system's draft-PR fallback applies; it carries no file
-  changes and must never be merged).
+- Subscribe to the tracking mailbox, **issue #7** on the fork.
 - Structural changes — adding a wave, deferring a track, splitting an item,
   reprioritizing — are the user's call. Ask in-session first, then edit
-  `plan.yaml` **and** comment on PR #6 describing the change.
+  `plan.yaml` **and** comment on issue #7 describing the change.
 - `status`, `notes` and `blockers` on an item you are actively working are normal
   edits; make them directly.
 - Never push anything to the `cram2` remote. `origin` is

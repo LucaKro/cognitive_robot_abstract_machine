@@ -9,7 +9,7 @@ description: >-
   beliefs so the QP can see the path action to belief to goal. Ideas are drawn
   from AICON; the framework itself is deliberately not adopted.
 default_repository: LucaKro/cognitive_robot_abstract_machine
-tracking_issue: 6
+tracking_issue: 7
 
 waves:
   - id: wave-1
