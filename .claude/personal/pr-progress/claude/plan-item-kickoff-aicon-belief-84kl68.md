@@ -1,4 +1,4 @@
-# grasp-likelihood-continuous (PR #8, draft)
+# grasp-likelihood-continuous (PR #8, ready for review)
 
 Plan item `grasp-likelihood-continuous` of `aicon-belief-integration`, wave 1,
 track *uncertainty plumbing*. Tracking mailbox: issue #7. Base: `main`.
@@ -45,7 +45,7 @@ compatible with a giskard observation today" and flagged only `is_unknown()`.
 5. pytest the touched suites, `scripts/format_docstrings.py` on modified files,
    push, keep the PR description matching.
 
-## Status
+## Status — implemented, reviewed, restacked
 
 All steps implemented and pushed as commit `b5c4a811`. PR #8 still draft.
 
@@ -87,7 +87,7 @@ observation stays one of the three trinary constants.
 - A monitor-only statechart compiles fine — `_compile_qp_controller` returns
   early when there are no constraints, so no EndMotion or DOF is needed.
 
-## First review round — one done, one open
+## First review round — both threads resolved
 
 Review arrived 2026-09-18. Two threads, both from LucaKro.
 
@@ -102,32 +102,62 @@ shared test fixture and tests. Dropped
 pinned a coupling that no longer exists; `0.9 == 0.9` would only restate a
 literal). 7 node tests now, not 8.
 
-**2. Is `trinary_logic_from_continuous` still needed? — OPEN, replied, NOT
-resolved.** Asked whether the helper earns its place given the observation
-isn't the carrier. Answered on the thread: the observation *is* used (it's the
-trinary view; it's what lets other nodes gate on this one and lets it earn a
-verdict) — the question is really where the mapping lives. One production call
-site, `grasp_monitors.py:92`. Offered two alternatives: inline the `if_cases`
-in the node and drop the krrood function + its 7 tests +
-`ThresholdsOutOfOrderError`, or drop the node's observation entirely. **Waiting
-on the user's decision** — did not remove a recorded deliverable unilaterally.
+**2. Is `trinary_logic_from_continuous` still needed? — RESOLVED, kept.** Asked
+whether the helper earns its place given the observation isn't the carrier.
+Answered on the thread: the observation *is* used (it's the trinary view; it's
+what lets other nodes gate on this one and lets it earn a verdict) — the question
+is really where the mapping lives. The author's answer was *"okay good keep it"*,
+and the thread is resolved. Both alternatives offered (inline the `if_cases`, or
+drop the observation) are declined; nothing to carry out.
+
+## Restack against `main` — DONE (`76bab6d3`)
+
+The stack maintenance pass could not integrate `main` and labelled #8
+`needs-resolution`, withholding it from promotion. That, not review, was the
+stall: CI was 23/23 green on `fece1ffd` and both review threads were resolved.
+
+Conflicts were in `symbolic_math.py` and `test_symbolic_math.py`, and were the
+same import-list collision in both: `main`'s #650 (`e87f86da`) deleted
+`SymbolicMathNotJsonSerializableError` and every use of it, while this branch had
+added `ThresholdsOutOfOrderError` to the same block. Kept the addition, dropped
+the deletion. Every other hunk of both files auto-merged, and no production code
+changed.
+
+Verified against a baseline rather than an expectation: the merged tree runs the
+symbolic-math suite at 12 failed / 283 passed, plain `origin/main` in the same
+container at 12 failed / 276 passed, and the two failure sets are *identical*
+(eleven `TestJsonSerialization` cases plus `test_jacobian_ddot` — this
+container's casadi 3.8.1, green in CI on both). The difference is exactly this
+branch's 7 `TestTrinaryLogicFromContinuous` tests, passing.
+
+The krrood suite does run in this container, which earlier rounds said it could
+not: `--noconftest` sidesteps the root conftest's ORM build, and casadi, numpy,
+scipy, typing_extensions, sqlalchemy, ordered_set and rustworkx all come from
+PyPI with `krrood/src` on the path.
 
 ## Next
 
-- Await the answer on thread 2, then either keep as-is or carry out the chosen
-  alternative.
-- `f345eacd` has not been through CI yet. Previous commit `b5c4a811` was 23/23
-  green. The new commit only deletes a constant and a test, so no new risk is
-  expected, but it is unverified.
-- PR stays draft. Un-drafting is the user's record of having reviewed; never do
-  it unasked.
+- Nothing is outstanding on the branch. Both review threads resolved, no merge
+  conflict, no PR comments awaiting a reply.
+- Watch CI on `76bab6d3`. The merge changes no production code, so 23/23 is
+  expected; if it is not, that is the restack's to answer.
+- The `needs-resolution` label is still on #8. The stack pass clears it once the
+  branch merges cleanly again, which it now does, so the next pass should drop it
+  and let the branch rejoin promotion. Nothing to do by hand.
+- `GraspLikelihoodNotBuiltError` duplicates `NodeNotBuiltError`, which is already
+  on `main` and is what `ConvergingTask.error_signal` raises for this exact case
+  — `estimator-node-base`'s roadmap section records that pointing this branch's
+  exception at it is *this* branch's change to make. Not done here: no reviewer
+  asked, and widening a conflict resolution is the wrong place for it. Worth
+  folding into this item's next code push, if there is one.
 
 Carry forward: this branch, #9 (`odometry-covariance-capture`) and #10
 (`belief-context-and-gaussian`) each append their own exception class to
 `giskardpy/.../motion_statechart/exceptions.py`. Independent work, but whichever
-land second and third will have to resolve that file. Also: both siblings
-publish a `FloatVariable` too, so whatever is decided on thread 2 is likely the
-answer for all three.
+land second and third will have to resolve that file. Also: both siblings publish a `FloatVariable` too, but
+neither ended up needing this helper — `PoseUncertainty` observes whether a
+reading arrived, and `EstimatorNode` observes whether it measured this cycle. So
+the helper's single call site is settled rather than provisional.
 
 ## Watch out
 
@@ -139,3 +169,10 @@ answer for all three.
   coerces with `bool()` so it would need the same treatment — deferred, not
   widened into this item.
 - Do not push to the `cram2` remote. `origin` is `LucaKro/...`.
+- #8 is deliberately **not** a draft. Un-drafting is the author's record of having
+  reviewed it and is what makes the branch promotable; the restack changed no
+  production code, so re-drafting it would have withdrawn it from the promotion
+  queue for a no-op merge. Confirmed in session. Do not re-draft it unasked.
+- This session was designated `claude/plan-item-resolve-aicon-belief-9dx2nz`
+  (created empty at `main`). The work belongs on this branch, where #8 is —
+  asked and confirmed, per the precedent #9 and #10 both set.
