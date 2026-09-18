@@ -11,11 +11,10 @@ import pytest
 from random_events.variable import Continuous
 
 from krrood.symbolic_math.exceptions import HasFreeVariablesError
+from probabilistic_model.exceptions import VariableNotInQuantitiesError
+from probabilistic_model.quantities import Quantities
 from semantic_digital_twin.datastructures.variables import SpatialVariables
-from semantic_digital_twin.exceptions import (
-    PoseCovarianceNotSixBySixError,
-    VariableNotInPoseError,
-)
+from semantic_digital_twin.exceptions import PoseCovarianceNotSixBySixError
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     PoseCovariance,
@@ -31,7 +30,8 @@ def test_a_pose_is_the_position_variables_followed_by_the_rotation_ones():
     halves have to cover it exactly once each and in this order.
     """
     assert (
-        SpatialVariables.pose == SpatialVariables.position + SpatialVariables.rotation
+        tuple(SpatialVariables.pose)
+        == SpatialVariables.position + SpatialVariables.rotation
     )
 
 
@@ -59,10 +59,10 @@ def test_a_variable_that_is_not_a_degree_of_freedom_of_a_pose_is_rejected():
     not_a_pose_variable = Continuous(name="gripper_opening")
     covariance = PoseCovariance.of({})
 
-    with pytest.raises(VariableNotInPoseError) as error:
+    with pytest.raises(VariableNotInQuantitiesError) as error:
         covariance.variance_of(not_a_pose_variable)
 
-    assert error.value.variable_name == not_a_pose_variable.name
+    assert error.value.variable == not_a_pose_variable
 
 
 def test_a_matrix_that_does_not_relate_all_six_degrees_of_freedom_is_rejected():
@@ -70,7 +70,7 @@ def test_a_matrix_that_does_not_relate_all_six_degrees_of_freedom_is_rejected():
     too_small = np.zeros((side - 1, side), dtype=np.float64)
 
     with pytest.raises(PoseCovarianceNotSixBySixError) as error:
-        PoseCovariance(values=too_small)
+        PoseCovariance.from_array(too_small)
 
     assert error.value.given_shape == too_small.shape
     assert error.value.expected_shape == (side, side)
@@ -105,10 +105,10 @@ def test_a_pair_that_is_not_named_is_zero():
 def test_building_with_a_variable_that_is_not_a_degree_of_freedom_of_a_pose_is_rejected():
     not_a_pose_variable = Continuous(name="gripper_opening")
 
-    with pytest.raises(VariableNotInPoseError) as error:
+    with pytest.raises(VariableNotInQuantitiesError) as error:
         PoseCovariance.of({(not_a_pose_variable, not_a_pose_variable): 1.0})
 
-    assert error.value.variable_name == not_a_pose_variable.name
+    assert error.value.variable == not_a_pose_variable
 
 
 # %% the summaries taken over it
@@ -268,7 +268,7 @@ def test_moving_a_covariance_nowhere_leaves_it_as_it_was():
 
     moved = covariance.transformed_by(HomogeneousTransformationMatrix())
 
-    np.testing.assert_allclose(moved.values, covariance.values, atol=1e-12)
+    np.testing.assert_allclose(moved.as_array, covariance.as_array, atol=1e-12)
 
 
 def test_moving_through_two_frames_is_moving_through_their_composition():
@@ -295,7 +295,7 @@ def test_moving_through_two_frames_is_moving_through_their_composition():
     )
     in_one_go = covariance.transformed_by(outer_T_middle @ middle_T_inner)
 
-    np.testing.assert_allclose(step_by_step.values, in_one_go.values, atol=1e-12)
+    np.testing.assert_allclose(step_by_step.as_array, in_one_go.as_array, atol=1e-12)
 
 
 def test_a_perturbation_of_the_pose_is_carried_into_the_new_frame():
@@ -307,7 +307,7 @@ def test_a_perturbation_of_the_pose_is_carried_into_the_new_frame():
     perturbation, and that one is the same displacement read in the new frame.
     """
     perturbation = np.array([0.1, -0.2, 0.05, 0.3, -0.15, 0.25])
-    covariance = PoseCovariance(values=np.outer(perturbation, perturbation))
+    covariance = PoseCovariance.from_array(np.outer(perturbation, perturbation))
     new_reference_T_reference = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=1.5, y=-0.5, z=2.0, roll=0.4, pitch=-0.2, yaw=0.7
     )
@@ -319,7 +319,7 @@ def test_a_perturbation_of_the_pose_is_carried_into_the_new_frame():
         @ perturbation_matrix(perturbation)
         @ new_reference_T_reference.inverse().to_np()
     )
-    np.testing.assert_allclose(moved.values, np.outer(carried, carried), atol=1e-12)
+    np.testing.assert_allclose(moved.as_array, np.outer(carried, carried), atol=1e-12)
 
 
 def test_a_transform_whose_numbers_are_not_known_is_rejected():
@@ -337,22 +337,13 @@ def test_a_transform_whose_numbers_are_not_known_is_rejected():
 # %% the row a degree of freedom occupies
 
 
-def test_each_degree_of_freedom_knows_the_row_it_occupies():
-    """
-    The ordering every array over a pose is laid out by, read from the one place that
-    holds it.
-    """
-    for row, variable in enumerate(SpatialVariables.pose):
-        assert SpatialVariables.row_in_pose(variable) == row, variable
-
-
 def test_asking_for_the_row_of_a_variable_that_is_not_a_degree_of_freedom_is_rejected():
     not_a_pose_variable = Continuous(name="gripper_opening")
 
-    with pytest.raises(VariableNotInPoseError) as error:
-        SpatialVariables.row_in_pose(not_a_pose_variable)
+    with pytest.raises(VariableNotInQuantitiesError) as error:
+        SpatialVariables.pose.index_of(not_a_pose_variable)
 
-    assert error.value.variable_name == not_a_pose_variable.name
+    assert error.value.variable == not_a_pose_variable
 
 
 # %% how a displacement is read in another frame
@@ -409,7 +400,84 @@ def test_turning_never_depends_on_where_the_frame_is():
 def test_a_map_naming_a_variable_that_is_not_a_degree_of_freedom_is_rejected():
     not_a_pose_variable = Continuous(name="gripper_opening")
 
-    with pytest.raises(VariableNotInPoseError) as error:
+    with pytest.raises(VariableNotInQuantitiesError) as error:
         PoseDisplacementMap(factors={(not_a_pose_variable, not_a_pose_variable): 1.0})
 
-    assert error.value.variable_name == not_a_pose_variable.name
+    assert error.value.variable == not_a_pose_variable
+
+
+# %% what it holds, laid out by the shared quantity layout
+
+
+def test_a_pose_is_the_layout_every_array_over_it_is_built_from():
+    """
+    The ordering and the lookup into it are one thing, so a pose covariance builds and
+    reads its numbers through the same layout a belief does.
+    """
+    assert isinstance(SpatialVariables.pose, Quantities)
+
+    for row, variable in enumerate(SpatialVariables.pose):
+        assert SpatialVariables.pose.index_of(variable) == row, variable
+
+
+def test_a_pose_covariance_holds_how_uncertain_each_pair_is_rather_than_a_matrix():
+    """
+    The numbers are kept against the pairs they describe, so a reader never counts rows.
+    """
+    x, yaw = SpatialVariables.x.value, SpatialVariables.yaw.value
+
+    covariance = PoseCovariance.of({(x, yaw): 0.25})
+
+    assert covariance.uncertainty[x, yaw] == 0.25
+    assert covariance.uncertainty[yaw, x] == 0.25
+
+
+def test_reading_a_matrix_back_keeps_both_directions_of_a_pair_apart():
+    """
+    Averaging the two directions on the way in would make symmetry true by construction
+    and hide an uncertainty that had drifted out of it.
+    """
+    x, yaw = SpatialVariables.x.value, SpatialVariables.yaw.value
+    values = SpatialVariables.pose.matrix({(x, yaw): 0.25, (yaw, x): 0.75})
+
+    covariance = PoseCovariance.from_array(values)
+
+    assert covariance.covariance_between(x, yaw) == 0.25
+    assert covariance.covariance_between(yaw, x) == 0.75
+
+
+def test_an_uncertainty_survives_the_trip_through_an_array():
+    """
+    The arithmetic works on a matrix, so what a covariance holds has to come back off
+    one unchanged - including which way round each pair sits, which an uncertainty that
+    has drifted out of symmetry is the only thing to show.
+    """
+    pose = SpatialVariables.pose
+    covariance = PoseCovariance.from_array(
+        pose.matrix(
+            {
+                (one, other): float(row * len(pose) + column)
+                for row, one in enumerate(pose)
+                for column, other in enumerate(pose)
+            }
+        )
+    )
+
+    returned = PoseCovariance.from_array(covariance.as_array)
+
+    assert returned == covariance
+
+
+def test_a_displacement_map_builds_its_matrix_through_the_same_layout():
+    """
+    Both types over a pose's degrees of freedom read one ordering, rather than each
+    laying an array out for itself.
+    """
+    lever_arm = 3.0
+    shifted = HomogeneousTransformationMatrix.from_xyz_rpy(x=lever_arm)
+
+    displacement_map = PoseDisplacementMap.of_transform(shifted)
+
+    row = SpatialVariables.pose.index_of(SpatialVariables.y.value)
+    column = SpatialVariables.pose.index_of(SpatialVariables.yaw.value)
+    assert displacement_map.as_array[row, column] == pytest.approx(-lever_arm)

@@ -67,8 +67,8 @@ def test_transforming_moves_the_uncertainty_along_with_the_pose():
     moved = uncertain_pose.transformed_by(new_reference_T_reference)
 
     np.testing.assert_allclose(
-        moved.covariance.values,
-        uncertain_pose.covariance.transformed_by(new_reference_T_reference).values,
+        moved.covariance.as_array,
+        uncertain_pose.covariance.transformed_by(new_reference_T_reference).as_array,
         atol=1e-12,
     )
 
@@ -86,8 +86,8 @@ def test_inverting_moves_the_uncertainty_by_the_pose_inverse():
         inverted.pose.to_np(), reference_T_pose_inverse.to_np(), atol=1e-12
     )
     np.testing.assert_allclose(
-        inverted.covariance.values,
-        uncertain_pose.covariance.transformed_by(reference_T_pose_inverse).values,
+        inverted.covariance.as_array,
+        uncertain_pose.covariance.transformed_by(reference_T_pose_inverse).as_array,
         atol=1e-12,
     )
 
@@ -98,7 +98,9 @@ def test_inverting_twice_gives_the_uncertainty_back():
     there_and_back = uncertain_pose.inverse().inverse()
 
     np.testing.assert_allclose(
-        there_and_back.covariance.values, uncertain_pose.covariance.values, atol=1e-12
+        there_and_back.covariance.as_array,
+        uncertain_pose.covariance.as_array,
+        atol=1e-12,
     )
 
 
@@ -150,7 +152,7 @@ def test_extending_by_a_certain_transform_leaves_the_uncertainty_as_it_is():
     bottle = drawer @ drawer_T_bottle
 
     np.testing.assert_allclose(
-        bottle.covariance.values, drawer.covariance.values, atol=1e-12
+        bottle.covariance.as_array, drawer.covariance.as_array, atol=1e-12
     )
 
 

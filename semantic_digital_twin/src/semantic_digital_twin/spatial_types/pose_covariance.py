@@ -4,22 +4,15 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
+from probabilistic_model.quantities import QuantityPair
 from random_events.variable import Continuous
-from typing_extensions import Mapping, Self, Tuple
+from typing_extensions import Dict, Mapping, Self
 
 from semantic_digital_twin.datastructures.variables import SpatialVariables
-from semantic_digital_twin.exceptions import (
-    PoseCovarianceNotSixBySixError,
-    VariableNotInPoseError,
-)
+from semantic_digital_twin.exceptions import PoseCovarianceNotSixBySixError
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
 )
-
-PoseVariablePair = Tuple[Continuous, Continuous]
-"""
-Two degrees of freedom of a pose whose joint uncertainty an entry describes.
-"""
 
 # %% how a displacement of a pose is read in another frame
 
@@ -38,7 +31,7 @@ class PoseDisplacementMap:
         used here because what the type does is readable without it.
     """
 
-    factors: Mapping[PoseVariablePair, float]
+    factors: Mapping[QuantityPair, float]
     """
     How much each degree of freedom seen in the new frame, named first, follows each one
     in the frame the pose is reported in, named second.
@@ -48,12 +41,12 @@ class PoseDisplacementMap:
 
     def __post_init__(self):
         """
-        :raises VariableNotInPoseError: If a named variable is not a degree of freedom of
-            a pose.
+        :raises VariableNotInQuantitiesError: If a named variable is not a degree of
+            freedom of a pose.
         """
         for pair in self.factors:
             for variable in pair:
-                SpatialVariables.row_in_pose(variable)
+                SpatialVariables.pose.index_of(variable)
 
     @classmethod
     def of_transform(
@@ -99,24 +92,20 @@ class PoseDisplacementMap:
         :param seen: The degree of freedom in the frame being read in.
         :param reported: The degree of freedom in the frame the pose is reported in.
         :return: How much the first follows the second.
-        :raises VariableNotInPoseError: If either is not a degree of freedom of a pose.
+        :raises VariableNotInQuantitiesError: If either is not a degree of freedom of a
+            pose.
         """
-        SpatialVariables.row_in_pose(seen)
-        SpatialVariables.row_in_pose(reported)
+        SpatialVariables.pose.index_of(seen)
+        SpatialVariables.pose.index_of(reported)
         return self.factors.get((seen, reported), 0.0)
 
+    @property
     def as_array(self) -> npt.NDArray[np.float64]:
         """
         :return: The same map as a matrix over :attr:`SpatialVariables.pose`, for the
             arithmetic that carries a covariance through it.
         """
-        return np.array(
-            [
-                [self.factor_of(seen, reported) for reported in SpatialVariables.pose]
-                for seen in SpatialVariables.pose
-            ],
-            dtype=np.float64,
-        )
+        return SpatialVariables.pose.matrix(self.factors)
 
 
 # %% how uncertain a pose is
@@ -127,32 +116,35 @@ class PoseCovariance:
     """
     How uncertain a pose is, as the covariance between its six degrees of freedom.
 
+    The numbers are kept against the pairs of degrees of freedom they describe rather
+    than as a matrix a reader indexes by row, and :attr:`as_array` lays them out over
+    :attr:`SpatialVariables.pose` where the arithmetic needs a matrix.
+
     .. note:: The covariance is expressed in the frame the pose itself is expressed in;
         this type does not carry that frame.
     """
 
-    values: npt.NDArray[np.float64]
+    uncertainty: Dict[QuantityPair, float]
     """
-    The covariance, as a matrix whose rows and columns are the degrees of freedom in
-    :attr:`SpatialVariables.pose`, in that order.
+    How much each ordered pair of degrees of freedom varies together, with one paired
+    with itself being its own variance.
+
+    Omitted pairs do not vary together at all.
     """
 
     def __post_init__(self):
         """
-        :raises PoseCovarianceNotSixBySixError: If the matrix does not relate all six
-            degrees of freedom to each other.
+        :raises VariableNotInQuantitiesError: If a named variable is not a degree of
+            freedom of a pose.
         """
-        side = len(SpatialVariables.pose)
-        expected_shape = (side, side)
-        if self.values.shape != expected_shape:
-            raise PoseCovarianceNotSixBySixError(
-                given_shape=tuple(self.values.shape), expected_shape=expected_shape
-            )
+        for pair in self.uncertainty:
+            for variable in pair:
+                SpatialVariables.pose.index_of(variable)
 
     @classmethod
-    def of(cls, covariances: Mapping[PoseVariablePair, float]) -> Self:
+    def of(cls, covariances: Mapping[QuantityPair, float]) -> Self:
         """
-        Build one from named pairs rather than from a matrix a caller lays out.
+        Build one from named pairs.
 
         Two degrees of freedom vary together by one number rather than two, so each pair
         given fills its mirror as well and a caller states it once.
@@ -160,36 +152,65 @@ class PoseCovariance:
         :param covariances: How much each pair of degrees of freedom varies together; a
             pair of one with itself is its own variance, and omitted pairs are zero.
         :return: The covariance those entries describe.
-        :raises VariableNotInPoseError: If a named variable is not a degree of freedom
-            of a pose.
+        :raises VariableNotInQuantitiesError: If a named variable is not a degree of
+            freedom of a pose.
         """
-        side = len(SpatialVariables.pose)
-        values = np.zeros((side, side), dtype=np.float64)
-        for (one, other), covariance in covariances.items():
-            row = SpatialVariables.row_in_pose(one)
-            column = SpatialVariables.row_in_pose(other)
-            values[row, column] = covariance
-            values[column, row] = covariance
-        return cls(values=values)
+        return cls.from_array(SpatialVariables.pose.symmetric_matrix(covariances))
+
+    @classmethod
+    def from_array(cls, values: npt.NDArray[np.float64]) -> Self:
+        """
+        Read an uncertainty back off the matrix the arithmetic produced.
+
+        Each direction of a pair is read on its own rather than averaged, so an
+        uncertainty that has drifted out of symmetry stays visible.
+
+        :param values: The covariance as a matrix laid out over
+            :attr:`SpatialVariables.pose`.
+        :return: The uncertainty that matrix describes.
+        :raises PoseCovarianceNotSixBySixError: If the matrix does not relate all six
+            degrees of freedom to each other.
+        """
+        pose = SpatialVariables.pose
+        expected_shape = (len(pose), len(pose))
+        if values.shape != expected_shape:
+            raise PoseCovarianceNotSixBySixError(
+                given_shape=tuple(values.shape), expected_shape=expected_shape
+            )
+        return cls(
+            uncertainty={
+                (one, other): float(values[row, column])
+                for row, one in enumerate(pose)
+                for column, other in enumerate(pose)
+            }
+        )
+
+    @property
+    def as_array(self) -> npt.NDArray[np.float64]:
+        """
+        :return: The uncertainty as a matrix over :attr:`SpatialVariables.pose`, for the
+            arithmetic that needs one.
+        """
+        return SpatialVariables.pose.matrix(self.uncertainty)
 
     def covariance_between(self, one: Continuous, other: Continuous) -> float:
         """
         :param one: The first degree of freedom.
         :param other: The second one.
         :return: How much the two vary together.
-        :raises VariableNotInPoseError: If either is not a degree of freedom of a pose.
+        :raises VariableNotInQuantitiesError: If either is not a degree of freedom of a
+            pose.
         """
-        return float(
-            self.values[
-                SpatialVariables.row_in_pose(one), SpatialVariables.row_in_pose(other)
-            ]
-        )
+        SpatialVariables.pose.index_of(one)
+        SpatialVariables.pose.index_of(other)
+        return self.uncertainty.get((one, other), 0.0)
 
     def variance_of(self, variable: Continuous) -> float:
         """
         :param variable: The degree of freedom to read.
         :return: How uncertain that one degree of freedom is.
-        :raises VariableNotInPoseError: If it is not a degree of freedom of a pose.
+        :raises VariableNotInQuantitiesError: If it is not a degree of freedom of a
+            pose.
         """
         return self.covariance_between(variable, variable)
 
@@ -218,8 +239,8 @@ class PoseCovariance:
         :raises HasFreeVariablesError: If the transform is still symbolic, so that its
             numbers are not known.
         """
-        carried = PoseDisplacementMap.of_transform(new_reference_T_reference).as_array()
-        return type(self)(values=carried @ self.values @ carried.T)
+        carried = PoseDisplacementMap.of_transform(new_reference_T_reference).as_array
+        return type(self).from_array(carried @ self.as_array @ carried.T)
 
     @property
     def position_variance(self) -> float:

@@ -275,6 +275,6 @@ class PoseWithCovarianceToSemDTConverter(
         cls, data: geometry_msgs.PoseWithCovariance, world: World
     ) -> PoseCovariance:
         side = len(SpatialVariables.pose)
-        return PoseCovariance(
-            values=np.asarray(data.covariance, dtype=np.float64).reshape(side, side)
+        return PoseCovariance.from_array(
+            np.asarray(data.covariance, dtype=np.float64).reshape(side, side)
         )

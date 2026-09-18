@@ -104,7 +104,7 @@ def odometry_message(
     message.pose.pose.orientation.w = float(quaternion[3])
     pose_variables = SpatialVariables.pose
     for variable, variance in (variance_of_variable or {}).items():
-        row = pose_variables.index(variable)
+        row = pose_variables.index_of(variable)
         message.pose.covariance[row * len(pose_variables) + row] = variance
     return message
 

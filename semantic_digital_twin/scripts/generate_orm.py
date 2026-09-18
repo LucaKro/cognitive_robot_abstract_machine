@@ -31,7 +31,6 @@ from semantic_digital_twin.spatial_computations.forward_kinematics import (
 from semantic_digital_twin.exceptions import (
     PoseCovarianceNotSixBySixError,
     UncertaintyCorrelationUnknownError,
-    VariableNotInPoseError,
 )
 from semantic_digital_twin.spatial_types import (
     PoseCovariance,
@@ -65,7 +64,6 @@ ignore_classes = {
     PoseCovariance,
     PoseCovarianceNotSixBySixError,
     PoseDisplacementMap,
-    VariableNotInPoseError,
     UncertainPose,
     UncertaintyCorrelationUnknownError,
     # A symbolic operation is a step of a query, not something a world stores, so none of
