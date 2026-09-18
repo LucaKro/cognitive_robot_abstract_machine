@@ -68,6 +68,13 @@ read yet. The pull request stays a draft until its author reviews it.
   does not build from source here — so run the test file from a copy outside
   `test/`, or `--noconftest` for a fixture-free file. ORM regeneration is blocked
   by the same package, so the ORM check stays CI's to confirm.
+- **The dashboard cannot be republished from a session on this account.** The
+  artifact the URL cache names (`WCfARob6AeALaMcNBCwmm8`) was published by a
+  different account, does not appear in this one's artifact listing, and refuses a
+  publish. Round 2's roadmap section is therefore not on the published page; the
+  item counts it shows are still right. Republish from the account that owns it,
+  or decide to mint a new one — the user chose to leave it stale rather than
+  create a second dashboard for one plan.
 - Nothing is being watched from here, per the standing note not to subscribe to
   PR activity. Subscribing to tracking issue #7 was attempted at the start of the
   round-2 resolve and denied by the permission classifier, which matches that note.
