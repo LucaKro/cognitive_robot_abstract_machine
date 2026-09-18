@@ -2622,3 +2622,94 @@ case of that. It leaves `semantic_digital_twin/exceptions.py` and
   Nothing here touches it.
 - **The two-parent merge is the structural cost.** Until #11 and #13 both land, this
   branch's diff carries both stacks, so its review reads wider than the change it makes.
+
+## `pose-covariance-on-shared-quantities` — what the implementation settled
+
+What the implementation settled that the kickoff plan did not anticipate.
+
+### The ordering became the layout, so `row_in_pose` had nowhere left to live
+
+The kickoff planned to collapse the row lookup onto `Quantities`. What that turned
+out to mean is stronger than a delegation: `SpatialVariables.pose` was an ordering
+*and* `row_in_pose` was the lookup into it, which are the two halves `Quantities`
+already is. So `pose` returns a `Quantities` and `row_in_pose` is deleted rather
+than reimplemented over it. Keeping `pose` a tuple and adding a second
+classproperty for the layout would have left two spellings of one ordering, which
+is what this item exists to remove.
+
+`Quantities` supports everything the old tuple was used for except `.index`, which
+is `index_of` and validates on the way — three test sites moved.
+
+### A covariance that omits a pair is zero, not a `KeyError`
+
+`Covariance` on #11 indexes its mapping directly, because its own builders always
+fill every pair. `PoseCovariance` is reachable through its raw constructor with a
+partial mapping, and `PoseDisplacementMap` beside it already answers `0.0` for an
+omitted pair. So `covariance_between` validates the names through the layout and
+then reads with a default of zero, which is what `of`'s docstring already promised
+and what makes the two types in this module answer the same way.
+
+`__post_init__` keeps validating, as `PoseCovariance` and `PoseDisplacementMap`
+both did before — what it checks is now that every named variable is a degree of
+freedom, since there is no shape left to check. `PoseCovarianceNotSixBySixError`
+stays on `from_array`, which is the one place a shape exists.
+
+### The round-trip test only bites on an asymmetric covariance
+
+Caught by mutation rather than by reading: transposing `as_array` left every test
+passing, because every covariance the first version of that test built was
+symmetric and a transpose of a symmetric matrix is itself. The test now round-trips
+a deliberately asymmetric matrix — which `from_array` can hold precisely because
+#11's lesson says not to symmetrize on the way in — and fails on the transpose.
+
+Each of the other new assertions was confirmed load-bearing the same way:
+symmetrizing in `from_array` fails only the both-directions test, dropping the
+mirror fill in `of` fails only the two tests about stating a pair once, and
+dropping the name check in `covariance_between` fails only the rejection test. No
+mutation took down a test that does not name it.
+
+### The layout costs 66 microseconds per read of the total variance
+
+Measured rather than assumed, because `PoseUncertainty.on_tick` reads
+`total_variance` every control cycle: 55 µs before this change, 121 µs after, so
+0.13% more of a 50 ms cycle. `SpatialVariables.pose` itself goes from 2.2 µs to
+8.3 µs, since `Quantities.of` re-validates on every access where a tuple
+concatenation did not. That is the cost `Quantities`' own `..note::` anticipates
+and states the fallback for, and it is far below the raycast already on the same
+tick.
+
+### `semantic_digital_twin` needed no declaration change
+
+#10 recorded that the first import of a workspace sibling costs a `[project]
+dependencies` plus `[dependency-groups] workspace` entry, and #11 did that work for
+giskardpy. `semantic_digital_twin` already declares `probabilistic_model` in both
+places and already imports it from `semantic_annotations`, so
+`test_imported_workspace_members_are_declared[semantic_digital_twin]` passes
+unchanged — checked by running it, not by reading the pyproject alone.
+
+### Verification
+
+The `semantic_digital_twin` spatial-type suite is 346 passed, 1 failed; the same
+suite with this diff stashed is 342 passed, 1 failed, and the failure is the same
+`TestVector3::test_length_0` every round on #13 and #9 has recorded as this
+container's casadi 3.8.1. The difference is exactly this item's four net new tests.
+
+The merged-in half is untouched by it: 109 pass across `test_quantities.py`,
+`test_multivariate_gaussian.py` and #10's `test_beliefs.py`. `test/version_test` is
+20 passed, 1 failed, the failure being the missing local `coraplex` that
+`belief-context-and-gaussian`'s restack also recorded.
+
+The converter, monitor and synchronizer tests remain CI's, for the reason #9's
+restack recorded: `test/giskardpy_test/conftest.py` imports `rclpy` through
+`GiskardTester`. The three of them that this item edits are mechanical
+(`pose.index` to `pose.index_of`).
+
+### Still open
+
+- **Regenerating the ORM remains CI's to confirm**, as on every earlier item.
+  `VariableNotInPoseError` leaves `ignore_classes` with its class; `PoseCovariance`
+  and `PoseDisplacementMap` stay in it, so no DAO changes.
+- **The covariance frame is still unchecked**, as every round on #9 and #13 has
+  recorded. Nothing here touches it.
+- **The branch carries two parents** until #11 and #13 both land, so the pull
+  request's diff reads wider than the change it makes.
