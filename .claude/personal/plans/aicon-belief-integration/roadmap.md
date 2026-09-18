@@ -572,3 +572,56 @@ import, but through giskardpy, which now declares it.
   `test/conftest.py` regenerates the ORM interfaces at collection and that needs
   the ROS message packages. `--noconftest`, or running a fixture-free test file
   from a copy outside `test/`, is the way around it.
+
+## `grasp-likelihood-continuous` — first review round
+
+The item picked up its first review. Two threads, both from the author.
+
+### The shared threshold constant is gone
+
+*"no global variables like that. if you need some default, expose the parameter
+and give it the default you think is sensible."*
+
+The kickoff had introduced `GRIPPED_LIKELIHOOD_THRESHOLD` in
+`robot_predicates.py` and pointed three call sites at it — `is_body_gripped`'s
+default, coraplex's container post-condition, and `GraspLikelihood.true_above`.
+The reasoning recorded at the time was `AGENTS.md`'s rule against magic numbers;
+the reviewer reads its rule against globals as the stronger one, and a default
+belongs on the parameter that needs it.
+
+Each site now carries its own default again (`f345eacd`). The side effect is
+worth noting: `robot_predicates.py` and `container.py` are byte-identical to
+`main` again, so this branch touches **no existing production code at all** —
+it is two new modules, two new exception classes, a shared test fixture and
+tests. A smaller blast radius than the item started with.
+
+The test asserting the node's default equalled the constant went with it. It
+existed to pin a coupling that the reviewer deliberately removed, and rewriting
+it as `0.9 == 0.9` would only restate a literal.
+
+### Whether the krrood helper earns a single call site — open
+
+*"as the observation variable is not what was ultimately used, is
+trinary_logic_from_continuous still something that is used/needed?"*
+
+Answered on the thread, left unresolved pending the author's decision, because
+removing it would drop one of the three deliverables this roadmap records.
+
+The premise needs one correction: the observation *is* used — what the design
+rejected was using it as the carrier for the continuous value. The likelihood
+rides the `FloatVariable`; the observation is a trinary view of it, and it is
+what lets another node gate on this one's `observation_variable` and lets this
+one earn a verdict. A node without an observation is a pure publisher nothing
+can branch on.
+
+So the question is where the mapping lives, not whether the node observes. The
+helper has exactly one production call site (`grasp_monitors.py:92`). It buys a
+name beside `trinary_logic_not`/`_and`/`_or`, the threshold-order guard, and one
+place holding the exact-equality hazard. Against it: new public krrood API for a
+single use. The two alternatives offered were inlining the `if_cases` in the
+node, or dropping the node's observation entirely.
+
+Worth recording for the sibling items: `odometry-covariance-capture` and
+`estimator-node-base` both publish a `FloatVariable` and will each face the same
+"what is my observation, then?" question. If the helper is kept, it is the
+answer for all three; if it is inlined here, each will decide separately.
