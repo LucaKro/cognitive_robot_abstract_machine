@@ -244,11 +244,12 @@ items:
 
   - id: grasp-belief-node
     title: First concrete estimator - a recursive grasp belief
-    branch: grasp-belief-node
-    pull_request_number: null
+    branch: claude/plan-item-kickoff-belief-integration-6uj1wv
+    pull_request_number: 14
     track: belief-application
-    status: not_started
+    status: in_progress
     depends_on: [estimator-node-base, grasp-likelihood-continuous]
+    session: https://claude.ai/code/session_01PwjdsrBhZTjeAVdZ8ThNyF
     notes: >-
       Scalar Kalman update on the logit of is_body_in_gripper, with a prediction
       step that decays toward the prior when the gripper is open. Roughly 60
