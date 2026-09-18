@@ -1302,3 +1302,103 @@ producing two filters that silently disagree for a whole run.
   `claude/plan-item-kickoff-aicon-0t046w`, rather than the `estimator-node-base` name
   the manifest carried as a placeholder — the same correction every earlier item on this
   plan made.
+
+What the implementation settled that the kickoff plan did not anticipate.
+
+### Adding types here is ORM-neutral, unlike the shared package this plan warned about
+
+`odometry-covariance-capture`'s first review round recorded a sharp lesson — adding a
+dataclass to `semantic_digital_twin` is never neutral, exceptions included, and an
+unmappable field takes down every dependent package at import — and named this item as
+one of the two that would inherit it.
+
+It does not. The ORM scans are `ORMatic.from_package([semantic_digital_twin])` and
+`ORMatic.from_package([giskardpy])`; nothing scans `probabilistic_model`. So the
+multivariate Gaussian, the layout and the three exceptions need no `ignore_classes`
+entry and cannot break a generated interface.
+
+What does still apply is the giskardpy half, and it holds for free:
+`generate_orm.py` ignores `classes_of_package(giskardpy.motion_statechart.beliefs)`,
+and that package now contains exactly `BeliefContext` and `GaussianBelief` — checked
+directly against `classes_of_package`, since regenerating the ORM still needs the ROS
+message packages this container has not got.
+
+### Symmetrizing replaces Joseph form, and covers more than Joseph form did
+
+`belief-context-and-gaussian` chose the Joseph form for `update` so the uncertainty
+would stay symmetric under rounding. Conditioning produces the shorter
+`(identity - gain @ model) @ covariance`, so that decision could not carry over as
+written.
+
+It is replaced by averaging the conditional covariance with its transpose. An
+uncertainty is symmetric by definition, so any difference there is rounding, and this
+removes it exactly rather than merely resisting it. It also applies to *every*
+conditioning rather than only to a measurement update, which Joseph form did not. The
+test that pins it uses a deliberately ill-conditioned covariance and fails without the
+symmetrization.
+
+### `predict` needed two operations the package did not have
+
+The item's `notes` say `apply_translation` and `apply_scaling` are "the prediction
+step's ingredients". They are not sufficient: a transition is a general linear map,
+which diagonal scaling cannot express, and process noise is not a transform at all.
+
+Rather than leave that arithmetic in giskardpy — which would leave `GaussianBelief`
+still doing probability — the distribution gained `apply_linear_map` and
+`apply_added_uncertainty`, beside the existing `apply_translation`/`apply_scaling`
+family. `predict` is then those three operations in order and holds no numpy of its
+own.
+
+### What later items on this plan have to change, and what they do not
+
+`GaussianBelief`'s interface held: #10's 29 belief tests pass unchanged except for
+imports and renamed exceptions, which is the evidence for the promise this item made to
+`estimator-node-base`, `grasp-belief-node` and the drawer experiment.
+
+Two mechanical changes do reach them, and `estimator-node-base` (#12) is stacked on #10
+in parallel with this item:
+
+- `Quantities`, `Mean`, `Covariance` and `Reading` are imported from
+  `probabilistic_model`, not from `giskardpy.motion_statechart.beliefs.gaussian`. A
+  re-export was rejected: it would leave two names for one thing, and
+  `pose-covariance-on-shared-quantities` will import `Quantities` from
+  `probabilistic_model` anyway, so both paths would exist at once.
+- `VariableNotInBeliefError` became `VariableNotInQuantitiesError` (its
+  `belief_variables` field is `quantities`), `RepeatedVariableInBeliefError` became
+  `RepeatedVariableError`, and `BeliefQuantitiesDisagreeError` became
+  `MeanAndCovarianceDisagreeError`.
+
+The raw `GaussianBelief(mean=..., covariance=...)` constructor is gone; `of` and
+`of_one_variable` are the builders, which is what #10's second review round established
+anyway. The test pinning a disagreeing estimate and uncertainty moved to the
+distribution, where the check now lives.
+
+Removing the three exceptions also took `List` out of
+`motion_statechart/exceptions.py`'s imports, which is worth knowing for the three
+branches already appending to that file.
+
+### Verification, for once, was not left to CI
+
+Every earlier item on this plan recorded writing code it could not run. This one runs:
+`probabilistic_model` and its dependencies install from PyPI, and the 114 pre-existing
+distribution tests pass here before any change. 266 pass across the collectible suite
+afterwards, 29 on the belief tests, and 20 on the dependency declarations including the
+giskardpy check that caught #10.
+
+The three assertions worth trusting were each confirmed load-bearing by mutating the
+implementation: dropping the correlation from the box probability fails only the two
+orthant tests, not narrowing the conditional covariance fails only the four conditioning
+and measurement tests, and removing the dependency declaration fails only
+`test_imported_workspace_members_are_declared[giskardpy]`.
+
+### Still open
+
+- **The dashboard was not republished.** The `Artifact` tool treats this account's plan
+  dashboard as a public third-party artifact, so a read returns a summary rather than
+  the page source and the publish refuses with "you haven't viewed the latest version".
+  `force: true` would discard whatever `estimator-node-base`'s session last published,
+  so it was left alone for the user to decide.
+- **The tracking-issue subscription was refused** by this session's permission mode, so
+  nothing here watched #7 for concurrent structural changes. `estimator-node-base`
+  started in parallel during this session and was picked up from the manifest instead.
+- Regenerating the ORM remains CI's to confirm, as on every earlier item.
