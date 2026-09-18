@@ -1880,3 +1880,90 @@ so there is nothing for a comment in the source to add that would not go stale.
   item is in `plan.yaml` and on issue #7 but not on the published page.
 - The tracking-issue subscription is still refused by this session's permission mode;
   issue #7 was read directly.
+
+## `grasp-likelihood-continuous` — restack resolution
+
+The stall was mechanical, not a design question, and the one thing the first
+review round left open has since been answered.
+
+### The blocker was a restack conflict, and the recorded open question was stale
+
+The item's recorded state said the first review round left
+`trinary_logic_from_continuous`'s single call site undecided. That is no longer
+true: the author answered on the thread — *"okay good keep it"* — and both of
+#8's review threads are resolved. Nothing on the review side was blocking.
+
+What was blocking is that the stack maintenance pass could not integrate `main`:
+it reported a conflict in `krrood/src/krrood/symbolic_math/symbolic_math.py` and
+`test/krrood_test/test_symbolic_math/test_symbolic_math.py`, left the branch
+untouched, and labelled #8 `needs-resolution`, which withholds it from
+promotion. CI was 23 of 23 green on `fece1ffd` throughout, so a dashboard reading
+checks and review state alone would have shown nothing wrong.
+
+### Both conflicts were the same import-list collision
+
+`main`'s #650 (`e87f86da`, *"remove JSON serialization exceptions for symbolic
+and spatial types"*) deleted `SymbolicMathNotJsonSerializableError` along with
+every use of it. This branch had added `ThresholdsOutOfOrderError` to the same
+import block in both files. Git could not tell the deletion and the addition
+apart, so it conflicted on the two adjacent lines; every other hunk of both files
+auto-merged.
+
+The resolution keeps the added exception and drops the removed one. Both halves
+were checked rather than assumed: `SymbolicMathNotJsonSerializableError` has no
+remaining reference anywhere in the merged tree, and `ThresholdsOutOfOrderError`
+is still defined in `symbolic_math/exceptions.py` (which auto-merged cleanly) and
+still raised by the helper.
+
+### The merge was verified against a baseline, not against an expectation
+
+The symbolic-math suite on the merged tree reports 12 failed, 283 passed. Plain
+`origin/main` in the same container reports 12 failed, 276 passed, and the two
+failure sets are *identical* — eleven `TestJsonSerialization` cases plus
+`test_jacobian_ddot`, all pre-existing and all green in CI, so they are this
+container's casadi 3.8.1 rather than anything in the merge. The difference is
+exactly this branch's seven `TestTrinaryLogicFromContinuous` tests, all passing.
+
+Diffing the failure set against a `main` baseline is what makes "the merge broke
+nothing" a measurement rather than a claim, and it is cheap enough to be worth
+doing on every restack this plan has left.
+
+### The container reached the krrood suite this time
+
+Earlier rounds on this item recorded that nothing could be run locally. The
+symbolic-math tests do run here: `--noconftest` sidesteps the root
+`test/conftest.py`'s ORM build, and `casadi`, `numpy`, `scipy`,
+`typing_extensions`, `sqlalchemy`, `ordered_set` and `rustworkx` all install from
+PyPI with `krrood/src` on the path. That is the same finding
+`belief-context-and-gaussian` and `estimator-node-base` recorded for their own
+packages, and it now covers krrood too.
+
+### Scope boundaries held
+
+- **No production code changed.** The merge commit is the only change; the diff
+  against `main` is what it was before the restack.
+- **`GraspLikelihoodNotBuiltError` was left alone.** `estimator-node-base`'s
+  section records that `NodeNotBuiltError` already exists on `main` and that
+  pointing this branch's exception at it is this branch's change to make. It is a
+  real simplification and no reviewer has asked for it, so it stays flagged here
+  rather than folded into a conflict resolution. Worth doing on this item's next
+  code push, if there is one.
+
+### Still open
+
+- **The `needs-resolution` label is still on #8** at the time of writing. The
+  stack pass clears it once the branch merges cleanly again, which it now does,
+  so the next pass should drop it and let the branch rejoin promotion.
+- **#8 was deliberately left out of draft.** Un-drafting is this repository's
+  record of the author having reviewed it, the push changed no production code,
+  and re-drafting would have withdrawn it from the promotion queue for a no-op
+  merge. Confirmed with the author in session rather than assumed from the
+  standing convention.
+- **The work stayed on the item's own branch.** This session was designated
+  `claude/plan-item-resolve-aicon-belief-9dx2nz`, which was created empty at
+  `main`; the merge belongs on `claude/plan-item-kickoff-aicon-belief-84kl68`
+  where #8 is. Asked and confirmed, per the note
+  `belief-context-and-gaussian`'s second round left for exactly this case.
+- **The tracking-issue subscription was refused** by this session's permission
+  mode, as on every earlier round. Issue #7's comments were read directly
+  instead; the three structural changes recorded there concern other items.

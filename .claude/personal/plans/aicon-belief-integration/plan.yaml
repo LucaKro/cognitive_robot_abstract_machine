@@ -70,6 +70,10 @@ items:
       and only a trinary view of it is observed - see this item's roadmap
       section. Dependents should read the likelihood off GraspLikelihood's
       FloatVariable, not off its observation.
+      Review settled the one question it raised: trinary_logic_from_continuous
+      stays in krrood on its single call site, because the observation is still
+      used as a trinary view of the FloatVariable. Both review threads are
+      resolved; the item's remaining history is the restack against main.
 
   - id: odometry-covariance-capture
     title: Stop discarding the odometry pose covariance
