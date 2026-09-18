@@ -194,6 +194,28 @@ items:
       expressions with no measured uncertainty at all, which is the other reason the
       field alone would mislead.
 
+  - id: uncertain-pose-composition
+    title: Compose two uncertain poses, once their correlation is settled
+    branch: uncertain-pose-composition
+    pull_request_number: null
+    track: belief-core
+    status: not_started
+    depends_on: [pose-uncertainty-through-transforms]
+    notes: >-
+      Raised in review on #13 and deferred there rather than decided.
+      UncertainPose.dot extends an uncertain pose by a certain transform, which is
+      exact and carries the covariance unchanged. Two uncertain poses in series - an
+      uncertain drawer connection holding a bottle whose own pose is also uncertain -
+      have no answer without a model of how the two uncertainties relate. To first
+      order the independent case is covariance = own + displacement_map(own_pose) @
+      other @ displacement_map(own_pose).T, which is the standard formula and assumes
+      they are unrelated; two joints driven by the same miscalibrated encoder are not.
+      #13 therefore raises UncertaintyCorrelationUnknownError rather than assuming.
+      This item decides the model and implements it. Nothing else in the plan needs it
+      - no other item composes two uncertain poses - and the refusal is a strictly
+      narrower contract than any answer, so replacing it later breaks no caller that
+      could exist in the meantime.
+
   - id: estimator-node-base
     title: EstimatorNode base class with the register/set_value tick lifecycle
     branch: claude/plan-item-kickoff-aicon-0t046w

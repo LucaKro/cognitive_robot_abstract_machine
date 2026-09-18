@@ -1809,3 +1809,74 @@ casadi 3.8.1 rather than anything in the change.
 - The tracking-issue subscription was refused by this session's permission mode, as at
   kickoff. Issue #7's comments were read directly instead; nothing there concerns this
   item beyond its creation.
+
+## `pose-uncertainty-through-transforms` — second review round
+
+One thread, and it closed a deferral rather than naming a change. Nothing else was
+blocking: CI on `ae1d92d0` is green on every completed check, `test_each_lib
+(semantic_digital_twin)` among them, with three jobs still running; the branch is level
+with its base; there are no pull request comments and no `in-review` label, so no
+upstream review to read. The first round's other thread is resolved and outdated.
+
+### The deferred half became a plan item, at the author's request
+
+The first round left `uncertain @ uncertain` raising
+`UncertaintyCorrelationUnknownError`, with the first-order independent formula and an
+offer to implement it put on the thread. The author's answer:
+
+*"hmm okay i see. Please make this a seperate plan item in case i want to get back to
+this, but for now we should be able to continue without right? or will the choice
+significantly change how we move forward?"*
+
+So `uncertain-pose-composition` is a new item in this track, depending on this one, and
+is broadcast on issue #7 per this plan's own convention for a structural change.
+
+### Why continuing without it changes nothing
+
+The answer to the author's question, recorded because it is the reason the deferral is
+safe rather than merely convenient.
+
+- **Nothing else in the plan composes two uncertain poses.**
+  `pose-covariance-on-shared-quantities` changes a matrix layout;
+  `estimator-node-base`, `grasp-belief-node` and `belief-weighted-open-goal` work on
+  scalar beliefs published as float variables; the wave-3 items differentiate estimator
+  means over joint positions. None of them multiplies one uncertain pose by another.
+- **The refusal is strictly narrower than any answer it could be replaced with.**
+  Today that call raises, so no working caller can exist. Replacing the raise with a
+  value later cannot break one. That is what makes this a deferral rather than a fork in
+  the road.
+- **The one thing that would reach further** is if the eventual model needed
+  `UncertainPose` to *carry* how its uncertainty relates to others, rather than assuming
+  independence at the call. That would change the type's shape — but still nothing built
+  in the meantime, for the first reason above.
+
+### Why it is a separate item and not folded back
+
+`scope-decision.md`'s mechanical check reports `uncertain_pose.py` absent from `main`
+and introduced by this branch, which is the shape that usually argues for folding. It
+does not here, on that document's own test: the work stands on its own once this item
+lands, because it adds an operation to a file that is then on `main`, rather than
+existing only to correct what the parent is about to ship. Folding it would also hold
+this pull request open until a design question the author has explicitly parked is
+answered, which is the opposite of what was asked.
+
+### Nothing was pushed to the branch
+
+This round changed no code. The refusal, its message and its `suggest_correction`
+already say what the new item will decide, and the item's own `notes` carry the formula,
+so there is nothing for a comment in the source to add that would not go stale.
+
+### Still open
+
+- `PoseCovariance.values` is still a bare array, as the first round recorded. Unchanged
+  and still offered.
+- Three CI jobs on `ae1d92d0` had not finished at the time of this round —
+  `test_each_lib (giskardpy)`, `test_each_lib (coraplex)` and the `coraplex_real_tracy`
+  demo. Every completed check is green.
+- **The dashboard is still not republished**, for the third round running: the
+  `Artifact` tool treats this account's plan dashboard as a third-party artifact, so the
+  publish refuses without `force`. The user chose to skip at kickoff rather than
+  force-overwrite or mint a duplicate, and that choice stands. It now also means the new
+  item is in `plan.yaml` and on issue #7 but not on the published page.
+- The tracking-issue subscription is still refused by this session's permission mode;
+  issue #7 was read directly.
