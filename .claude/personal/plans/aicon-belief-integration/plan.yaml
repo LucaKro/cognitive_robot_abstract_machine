@@ -164,7 +164,7 @@ items:
     pull_request_number: 15
     track: belief-core
     status: in_progress
-    depends_on: [probability-concepts-in-probabilistic-model, odometry-covariance-capture]
+    depends_on: [probability-concepts-in-probabilistic-model, odometry-covariance-capture, pose-uncertainty-through-transforms]
     session: https://claude.ai/code/session_0186RZZUq8orJoQjS2uK33Xi
     notes: >-
       PoseCovariance builds and reads its matrix from its own private row lookup
@@ -179,6 +179,15 @@ items:
       symmetric fill in of() and VariableNotInPoseError all collapse onto it. The
       public interface is already keyed by random_events variables, so this is
       internals only and no caller moves.
+      Two corrections from the kickoff, both settled with the user. The base is #13
+      rather than #9: #13 already moved _row_of onto SpatialVariables.row_in_pose to
+      leave this item one place to collapse rather than two, and added
+      PoseDisplacementMap as that second place, so pose-uncertainty-through-transforms
+      is now a dependency. And the collapse goes further than "no caller moves":
+      PoseCovariance stops holding a bare array and holds the uncertainty of each pair
+      of degrees of freedom with of/from_array/as_array, the shape #11's Covariance
+      took, which #11, #13 and #9 each recorded as costing least here. The one caller
+      that moves is PoseWithCovarianceToSemDTConverter, onto from_array.
 
   - id: pose-uncertainty-through-transforms
     title: Carry a pose's uncertainty through the transforms applied to it
