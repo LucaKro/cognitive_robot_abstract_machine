@@ -5,8 +5,13 @@ from dataclasses import dataclass, field
 from random_events.variable import Continuous
 from typing_extensions import Dict
 
+from typing_extensions import Self
+
 from giskardpy.motion_statechart.beliefs.gaussian import GaussianBelief
-from giskardpy.motion_statechart.context import ContextExtension
+from giskardpy.motion_statechart.context import (
+    ContextExtension,
+    MotionStatechartContext,
+)
 from giskardpy.motion_statechart.exceptions import (
     DuplicateBeliefError,
     UnknownBeliefError,
@@ -28,6 +33,18 @@ class BeliefContext(ContextExtension):
     The belief about each quantity, with a belief about several quantities listed under
     every one of them.
     """
+
+    @classmethod
+    def of(cls, context: MotionStatechartContext) -> Self:
+        """
+        :param context: The statechart context whose beliefs to read.
+        :return: The beliefs it carries, which it starts carrying now if it had none.
+        """
+        beliefs = context.extensions.get(cls)
+        if beliefs is None:
+            beliefs = cls()
+            context.add_extension(beliefs)
+        return beliefs
 
     def add(self, belief: GaussianBelief) -> None:
         """
