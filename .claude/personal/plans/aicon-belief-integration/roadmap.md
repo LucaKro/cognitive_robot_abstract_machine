@@ -247,3 +247,93 @@ generalized.
   `claude/plan-item-kickoff-aicon-belief-84kl68`, rather than the
   `grasp-likelihood-continuous` name the manifest carried as a placeholder. The
   session is constrained to develop on its designated branch.
+
+## `odometry-covariance-capture`
+
+The plan settled at kickoff, and the calls it makes beyond the item's recorded
+`notes`.
+
+### The covariance is captured where it is dropped, and published by a node
+
+The item's `notes` name one site — `OdometrySynchronizer.apply_message`, which
+reads `message.pose.pose` and never touches `message.pose.covariance` — and one
+outcome, a registered `FloatVariable` the statechart can condition on. Those are
+two different layers, and nothing joins them today:
+
+- A `FloatVariable` is registered in `MotionStatechartContext.float_variable_data`
+  during `build_artifacts`, so it exists per compile. A synchronizer outlives any
+  one compiled statechart — `robot_interface_config.sync_odometry_topic` appends
+  it to `motion_server.inputs` and `control_loop.inputs` once, at configuration
+  time — so the synchronizer cannot own the variable.
+- Therefore the synchronizer keeps the covariance, and a `MotionStatechartNode`
+  registers the variable and writes it each control cycle. That is the same split
+  `GraspLikelihood` uses, and the register-then-write-per-tick precedent is
+  `WiggleInsert` (`wiggle_insert.py:202`, `:250`).
+
+### The node depends on an abstraction, not on the synchronizer
+
+In this package `giskardpy.middleware` imports `giskardpy.motion_statechart`
+(`motion_goal.py:11`, `python_interface.py:17`) and never the reverse. A node
+holding an `OdometrySynchronizer` would invert that direction, and would also be
+untestable without a live ROS subscription.
+
+So `PoseCovarianceSource` — one read-only property answering with the most recent
+`PoseCovariance`, or nothing if none arrived — is declared in the statechart layer
+and implemented by `OdometrySynchronizer` in the middleware layer. The node holds
+the abstraction.
+
+This is a new type, and wave 1 is specified as *"no new abstractions"*. That line
+guards against introducing the estimator/belief base classes early, which
+`estimator-node-base` is explicitly where the pattern gets generalized; a
+one-property interface that keeps an existing layering rule is not that. The node
+itself introduces no base class.
+
+### An unread covariance is maximally uncertain, not zero
+
+A registered `FloatVariable` starts at zero, and zero variance means perfect
+certainty. A condition of the form the item asks for — *"do not begin the final
+approach while base uncertainty exceeds X"* — would therefore pass before any
+odometry message has been received, which is exactly backwards.
+
+The variable is primed to infinity when the node starts and is only overwritten by
+a real reading, so the condition fails closed. The node's own observation reports
+whether a reading has arrived at all, following `WaitForMessage`.
+
+### The 36 numbers become a type, not an array
+
+`message.pose.covariance` is a flat, row-major 6×6 whose positions carry meaning
+(x, y, z, then rotation about each axis). `PoseCovariance` holds it with a
+`PoseAxis` enum indexing the rows and columns, and exposes the quantity the item
+asks for — `total_variance`, the trace — alongside the position and rotation
+halves.
+
+It is deliberately frame-naive: an odometry covariance is expressed in the message's
+own frame, and a frame-aware spatial uncertainty type belongs in
+`semantic_digital_twin` under its spatial style guide rather than in wave 1. Wave 2's
+`belief-context-and-gaussian` is the item that will want one.
+
+### Scope boundaries held
+
+- **No dependency on `grasp-likelihood-continuous`.** That sibling (#8, unmerged)
+  adds `trinary_logic_from_continuous`, which would fit this node's observation.
+  This item does not declare a dependency on it, so it does not use it; the
+  observation answers the narrower question of whether a reading exists. The two
+  branches overlap on `motion_statechart/exceptions.py` only, where each appends
+  its own read-before-built exception. Generalizing that pair is
+  `estimator-node-base`'s job.
+- **No consumer is added.** The variable is published; no existing goal or
+  condition is rewritten to read it. Conditioning on base uncertainty is the
+  caller's to write, and the item asks only that it become possible.
+- **Only the diagonal is interpreted.** The full 6×6 is kept, but the published
+  quantity is its trace, which is what the item asks for ("even just its trace to
+  begin with").
+
+### Open points
+
+- **The covariance frame is not checked.** `nav_msgs/Odometry` documents the pose
+  covariance in the frame of `header.frame_id`, and the synchronizer already
+  assumes that frame matches the drive connection's parent for the pose itself.
+  This item inherits that assumption rather than fixing it.
+- **Untested locally.** This container has no `numpy`, `casadi` or `rclpy`, so
+  every test here is verified by CI rather than by the session that wrote it —
+  the same constraint #8 reported.
