@@ -2006,3 +2006,24 @@ class VariableNotInPoseError(DataclassException):
 
     def suggest_correction(self) -> str:
         return "name one of the degrees of freedom the covariance is about."
+
+
+@dataclass
+class UncertaintyCorrelationUnknownError(UsageError):
+    """
+    Raised when two uncertain poses are composed, which only has an answer once it is
+    known whether their uncertainties are related.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Composing two uncertain poses would have to assume their uncertainties "
+            "are unrelated, and nothing here says whether they are. A covariance that "
+            "is wrong is worse than one that is absent."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "extend an uncertain pose by a certain transform, or state how the two "
+            "uncertainties are related and combine them yourself."
+        )
