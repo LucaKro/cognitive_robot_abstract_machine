@@ -298,10 +298,10 @@ def test_convert_pose_covariance_reads_the_entries_row_by_row(cylinder_bot_world
     x, yaw = SpatialVariables.x.value, SpatialVariables.yaw.value
 
     assert covariance.covariance_between(x, yaw) == float(
-        pose.index(x) * side + pose.index(yaw)
+        pose.index_of(x) * side + pose.index_of(yaw)
     )
     assert covariance.covariance_between(yaw, x) == float(
-        pose.index(yaw) * side + pose.index(x)
+        pose.index_of(yaw) * side + pose.index_of(x)
     )
 
 
@@ -313,7 +313,7 @@ def test_convert_pose_covariance_puts_each_variance_on_its_own_degree_of_freedom
     side = len(pose)
     variances = {variable: float(row) + 1.0 for row, variable in enumerate(pose)}
     for variable, variance in variances.items():
-        row = pose.index(variable)
+        row = pose.index_of(variable)
         message.covariance[row * side + row] = variance
 
     covariance = Ros2ToSemDTConverter.convert(message, world=cylinder_bot_world)
