@@ -458,3 +458,59 @@ One thing to carry forward: this branch, `odometry-covariance-capture` (#9) and
 `giskardpy/src/giskardpy/motion_statechart/exceptions.py`. Different classes in
 different places, so the work is independent, but whichever two land second and
 third should expect to resolve that file.
+
+## `odometry-covariance-capture` — resolution
+
+Nothing was blocking it either. The kickoff left one gap and flagged one risk;
+the first CI run closed both, and the single red check turned out not to be this
+branch's.
+
+### The container gap is closed
+
+The kickoff recorded that `random_events` would not build in that session (an
+antlr4 runtime wheel failure) and that there was no `rclpy`, so only the seven
+`PoseCovariance` tests could be run — and those only against the module source
+with the exceptions module stubbed. Everything else was written unverified.
+
+The run on `28dc12c2` reports **823 passed, 1 failed** in
+`test_each_lib (giskardpy)`, and the one failure is not in this diff. So all
+seventeen tests this item added are verified: the seven `PoseCovariance` tests,
+the seven `PoseUncertainty` tests against the `RecordedPoseCovariance` mimic and
+the `mini_world` fixture, and the three `OdometrySynchronizer` covariance tests
+that need `nav_msgs`.
+
+### The flagged risk was unfounded
+
+The kickoff could not execute the one thing it was unsure of: `OdometrySynchronizer`
+gained a second base class, and `message_type()` resolves through
+`SubClassSafeGeneric`'s walk over `__orig_bases__`. The reasoning was that the walk
+skips a base that is not a parameterized generic, so `PoseCovarianceSource` would be
+ignored and `TopicInputSynchronizer[Odometry]` would still answer.
+
+`test_odometry_synchronizer_reads_odometry_messages` and
+`test_odometry_synchronizer_buffers_odometry_messages` both pass on that run, so
+the dependency-inversion split costs nothing at the generic-resolution layer. An
+implementing class may carry the abstraction without disturbing its own generic
+binding, which is worth knowing for `estimator-node-base`.
+
+### The one red check is a known flake
+
+`test_integration_pr2.py::TestSelfCollisionAvoidance::test_attached_self_collision_avoid_stick`
+failed. It asserts a closest-point distance of at least 0.048 after running the
+real QP controller with self-collision avoidance over an attached box — a
+tolerance-sensitive integration test, and the developer confirms it is flaky.
+
+It is not this branch's: the diff touches odometry covariance capture, two inert
+exception classes and two modules that nothing on that code path imports, and
+`test_each_lib (giskardpy)` is green on both sibling branches off the same base —
+`grasp-likelihood-continuous` (#8) and `belief-context-and-gaussian` (#10). The
+failed jobs were re-run once rather than the test being touched.
+
+### Still open
+
+- Nothing was reviewed. No review threads, no pull request comments, no
+  tracking-issue discussion, no merge conflict, and the branch is level with
+  `main`. The pull request stays a draft awaiting its author's own review.
+- The covariance frame is still unchecked, as the kickoff recorded. CI passing
+  says the code does what it says, not that the frame assumption it inherits
+  from the synchronizer is right.
