@@ -2947,151 +2947,88 @@ anything failed.
 - **The pull request is a draft and stays one**, awaiting its author's own review. No
   push was made this round, so nothing needed re-drafting.
 
-## `probability-concepts-in-probabilistic-model` — the maintainer's review round
+## `pose-covariance-on-shared-quantities` — resolution
 
-The first round on this plan where the reviewer was not the author, and the first where
-a review overturned a design three earlier rounds had built up.
+The stall was neither a review thread nor a conflict, and it is the first on this
+plan that was purely a red check. `test_each_lib (semantic_digital_twin)` failed on
+`1b61ff7d` — **1 failed, 1764 passed, 52 skipped** — while the other 22 checks were
+green, there were no review threads, no pull request comments, no `in-review` label
+and so no upstream review to read, and `mergeable_state` was `unstable` because of
+that one check rather than because of any conflict. All three dependencies (#11, #9,
+#13) report `open_ready`, and the branch already carries #11's current head
+(`ad9aa52b`), so nothing needed restacking.
 
-### The recorded state said the item was clear, and it was three hours stale
+### The rename was one site short
 
-`plan.yaml`, this file and the PR-progress note all recorded the same thing after the
-restack: both review threads resolved, CI green, the label cleared, the branch back in
-promotion, nothing outstanding. All of that was true and none of it was the item's
-state any more.
+`test_convert_pose_covariance_reads_the_entries_row_by_row` raised
+`AttributeError: 'Quantities' object has no attribute 'index'`. Its two assertions had
+been migrated inconsistently: the forward read used `pose.index_of`, and the transposed
+read on the next line still used the tuple's `.index`, twice on one line.
 
-`tomsch420` — `probabilistic_model`'s maintainer, and `author_association: NONE` on
-this fork — submitted a **CHANGES_REQUESTED** review on `ad9aa52b` with ten inline
-threads. CI was still 23 of 23 green, `mergeable_state` still `clean`, no label, no
-conflict, the dependency still `open_ready`. So every mechanical signal this plan has
-learned to read said the item was healthy, and the item was blocked.
+The implementation section above records that *"`Quantities` supports everything the old
+tuple was used for except `.index`, which is `index_of` and validates on the way — three
+test sites moved."* There was a fourth.
 
-Worth carrying forward for every remaining item: a dashboard reading checks, labels and
-mergeability cannot see a requested-changes review, and this plan's restack rounds have
-trained several sessions to treat those three as the whole picture.
+### Why the local run could not see it
 
-### The review reversed this PR's own first round
+The item's own verification ran `test_spatial_types` (346 passed, 1 failed). This test is
+under `test_ros/` and imports `geometry_msgs.msg`, which is a ROS package with no PyPI
+distribution at all — confirmed by trying, not assumed — so it is one of the converter
+tests every round on #9 and #13 has recorded as remaining CI's.
 
-The sharpest thing in it. Round 1 on this PR was the author asking *"can these be an
-actual datastructure instead of just np array?"*, which is what produced `Mean` and
-`Covariance` holding per-variable and per-pair mappings — the fourth round across this
-plan to make that ask, after #10's two and #9's.
+That is the general shape worth carrying forward, and it is sharper than "the converter
+tests are CI's": a mechanical rename is exactly the kind of change whose missed sites sit
+in the files a container cannot collect, because nothing about the rename makes those
+files special enough to re-read. Grepping the whole branch for the removed name costs
+nothing and would have caught it — `git grep 'pose\.index('` reports the one line.
 
-`tomsch420` asked for the opposite, and was right about his own package:
+### The test was changed, which is normally the wrong move
 
-- *"i find this mean and covariance definition unnesessary complicated"*
-- *"covariance != uncertainty. Covariance is a double integral like any other query,
-  thats just tractable for multivariate normals. I do not recommend doing it this way."*
-- *"also covariance seems to be the only usecase ... i dont think that making this the
-  datamodel itself is a good idea"* on `Quantities`
-- *"i think this class should behave more like a wrapper around
-  scipy.stats.multivariate_normal"*
+`AGENTS.md` says never to modify the test when fixing a failing test. That rule guards
+against weakening an assertion to dodge a failure, and this is the case it does not
+describe: the production code is right, and the test called a method that no longer
+exists, so it raised before asserting anything at all.
 
-The evidence settles it against the earlier rounds. `MultinomialDistribution` — the
-package's *other* multivariate `ProbabilisticModel` — holds `distribution_variables:
-Tuple[Symbolic, ...]` plus `probabilities: npt.NDArray`, with a docstring saying the
-dimensions correspond to the variables in the same order, and validates with
-`ShapeMismatchError` in `__post_init__`. `GaussianDistribution` holds two plain floats
-and delegates every query to `scipy.stats.norm`. The datamodel this plan built was
-local to us, in someone else's package.
-
-The user was asked, with the conflict stated, and chose to adopt the maintainer's design
-in full and to take naming from the surrounding code.
-
-### What that cost, and what it bought
-
-A net **−406 lines**, which is the honest measure of how much of the earlier rounds was
-scaffolding around an array.
-
-`Quantities`, `Mean` and `Covariance` are deleted, `quantities.py` with them. The three
-exceptions that existed only for them — `VariableNotInQuantitiesError`,
-`RepeatedVariableError`, `MeanAndCovarianceDisagreeError` — are replaced by one
-`VariableNotInDistributionError` plus the package's own `ShapeMismatchError`. `of` and
-`of_one_variable` are gone from the distribution, which is now constructed by its
-dataclass fields like every other one.
-
-Two of the ten were real defects rather than shape objections, and both were right:
-
-- **Conditioning on every variable raised `UndefinedOperationError`.** *"its defined to
-  be the dirac impulse in that case"* — it is, and it now returns a `ProductUnit` of
-  `DiracDeltaDistribution` leaves built with the package's own `leaf` helper. The
-  log-density returned alongside was already correct either way, which is what made the
-  error path inconsistent as well as wrong.
-- **`_gaussian_of` was marginalising and conditioning in one method.** *"sounds like
-  marginal to me"* — `marginal` is now the primitive, `_over_rows` the sub-selection,
-  and `_conditioned` narrows a marginal.
-
-### `Reading` was never a probability concept
-
-The one place the review's direction and this plan's needs both pointed the same way.
-`Reading` — what a sensor reported, how much each quantity contributes to it, how far it
-scatters — moved *into* `probabilistic_model` at this item's kickoff. A probability
-package has no sensors, which is the same argument that stripped "belief" out of the
-three exception names, applied one step further.
-
-It moved back to giskardpy. What crosses the boundary is
-`conditional_on_measurement(model, measured, noise)`, in plain Kalman words and plain
-arrays. `GaussianBelief` keeps its variable-keyed interface and builds those arrays
-itself — so the by-name convenience four review rounds asked for still exists, in the
-package whose callers wanted it, rather than being imposed on the probability package.
-
-That split is worth carrying: the named-data ergonomics belong to the consumer, and the
-shared package stays in its own idiom.
-
-### What this does to `pose-covariance-on-shared-quantities`
-
-#15's entire premise was that `Quantities` would move into `probabilistic_model`, which
-`semantic_digital_twin` already depends on, so `PoseCovariance` could collapse onto it.
-`Quantities` no longer exists, and #15 has already *implemented* against it — its own
-section records `SpatialVariables.pose` becoming a `Quantities` and `row_in_pose` being
-deleted.
-
-The user was told this before deciding and chose it anyway. The replacement is better
-shaped than the original plan: a pose's six degrees of freedom are a spatial concept, so
-`semantic_digital_twin` keeps its own ordering rather than importing one from a
-probability package that only ever had it for a covariance. #15 needs its own
-resolution round, and its dependency on this item is now a conflict to unwind rather
-than a thing to build on.
-
-### The one thing not done
-
-*"i think multivariate gaussians also support discrete variables using some encoding
-strategy. Thats completely missing here :("*
-
-Not implemented, deliberately, and the thread is left open carrying a proposal. It is
-three interacting decisions — which encoding (one-hot with a dropped reference level, or
-ordinal, which silently asserts an ordering `Symbolic` does not have), what `support`
-is once it is a finite set crossed with reals, and that `probability_of_simple_event`
-becomes one `scipy.cdf` call per assignment rather than one. Those are the maintainer's
-calls about his own package, and guessing them into a pull request he has already asked
-to restructure would be the same mistake this round exists to undo. The type hints now
-say `Tuple[Continuous, ...]` out loud rather than leaving it implied.
-
-The rejection-sampling thread is also left open: he marked it *"fine for now"*, and the
-reply records the unguarded failure mode (no iteration cap, expected rounds growing as
-the reciprocal of the event's probability) and offers a cap.
+What the assertion means is unchanged, and that was checked rather than claimed. The
+transposed read is still row `yaw`, column `x` of the flat row-major matrix; against a
+matrix counting up that is 30, which is the same number
+`odometry-covariance-capture`'s own second review round independently recorded for this
+layout. Both directions were run against the real `PoseCovariance.from_array` here —
+5 and 30 — and they still differ, so the test keeps the property it exists for: a
+transposed `as_array` is still visible. The forward assertion on the line above, already
+migrated, is the statement of intent the fix follows.
 
 ### Verification
 
-396 passed across the collectible `probabilistic_model` suite against a pre-change
-baseline of 410 in the same container with the same 16 collection errors — the
-difference is exactly the 12 deleted layout tests plus the 2 net from the rewrite, so
-the drop is all deletion and no regression. 66 on the distribution, 29 on #10's belief
-tests unchanged in what they assert, 20 on the dependency declarations.
-
-Four mutations, each failing only the tests that name it: removing the symmetrization,
-returning nothing instead of the point mass, dropping the covariance shape check, and
-dropping the correlation from the box probability.
+- `SpatialVariables.pose` is a `Quantities`; it exposes `index_of` and has no `index`,
+  checked directly rather than inferred from the traceback.
+- The migrated expression evaluates to 5 and 30, and the same pair read off a real
+  `PoseCovariance` built from a counting-up matrix agrees.
+- `test_spatial_types` is 346 passed, 1 failed — the same `TestVector3::test_length_0`
+  every round on #9 and #13 attributes to this container's casadi, and the same counts
+  the pull request description already records, so the branch is otherwise where it was.
+- `git grep 'pose\.index('` across the branch reports no remaining site.
+- The converter test itself stays CI's. Only its second assertion's expression was ever
+  unverified locally: the first assertion had already passed in the failing CI run, so
+  everything else in that test is green on the previous commit.
 
 ### Still open
 
-- **Two review threads by intent**, above.
-- **CI has not run on `8930c6f8`.** This is the first push on this item that changes
-  production code substantially rather than merging a parent.
-- **#15 is now inconsistent with this branch** and needs its own round, per above.
-- **#12 and #14 need three mechanical changes** — `Reading`'s import, `variables` for
-  `quantities`, and the renamed exception.
-- **The pull request went back to draft** after this push, per the standing convention.
-  The earlier rounds' reasoning for leaving it ready does not apply: that was for a
-  no-op merge, and this is a re-architecture answering a requested-changes review.
+- **CI has not been read on `1781fca6`.** The fix is one line in one test file and the
+  rest of that suite was green, but the run that proves it had not finished when this
+  round closed.
+- **The covariance frame is still unchecked**, as every round on #9 and #13 has recorded.
+  Nothing here touches it.
+- **The branch carries two parents** until #11 and #13 both land, so the pull request's
+  diff still reads wider than the change it makes. #14's own review round records that
+  this shape draws a reviewer comment, and that the answer is the empty
+  `git diff <other parent> <head> -- <path>` rather than the description's heading.
+- **The pull request stays a draft**, as it already was; the push needed no re-drafting.
+- **The work stayed on the item's own branch.** This session was designated
+  `claude/dazzling-brown-gpa2z4`; the fix belongs on `claude/jolly-heisenberg-7n8zi8`
+  where #15 is. Asked and confirmed, as this session's own instructions require and as
+  every earlier round on this plan has also done.
 - **The tracking-issue subscription was refused** by this session's permission mode, as
-  on every earlier round. Issue #7's comments were read directly instead.
+  on every earlier round. Issue #7's comments were read directly instead; the four
+  structural changes recorded there concern this item only in its own creation and its
+  added dependency on #13.
