@@ -40,11 +40,15 @@ from semantic_digital_twin.exceptions import MalformedHexColor
 from semantic_digital_twin.mixin import HasSimulatorProperties
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
+    Point,
     Point2,
     Point3,
     Vector3,
 )
-from semantic_digital_twin.world_description.mesh_file_storage import MeshFileStorage
+from semantic_digital_twin.world_description.mesh_file_storage import (
+    MeshFileSources,
+    MeshFileStorage,
+)
 
 if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_entity import (
@@ -704,11 +708,22 @@ class Mesh(Shape):
         return copy_mesh
 
     @property
+    def local_file(self) -> Path:
+        """
+        The mesh's file on this machine.
+
+        A :attr:`filename` naming a file this machine does not hold is answered by
+        whichever registered source claims it, which copies it here first. The material
+        and texture files the mesh refers to by name sit beside the answer.
+        """
+        return MeshFileSources().resolve(self.filename)
+
+    @property
     def unscaled_mesh(self) -> trimesh.Trimesh:
         """
         The mesh exactly as the file describes it, before this shape's scale is applied.
         """
-        mesh = self._load_in_meters(self.filename, process=False)
+        mesh = self._load_in_meters(str(self.local_file), process=False)
         if mesh.visual.kind != "vertex":
             # Welding duplicate vertices is what makes a mesh watertight, which volume
             # and boolean operations require; formats like STL give every face its own
@@ -1226,8 +1241,17 @@ class Bounds(Generic[T], SubClassSafeGeneric):
         return SimpleInterval.from_data(t_min, t_max, Bound.CLOSED, Bound.CLOSED)
 
 
+PointT = TypeVar("PointT", bound=Point)
+"""
+The point type an :class:`AxisAlignedBox` subclass is asked about --
+:class:`~semantic_digital_twin.spatial_types.Point3` for a box expressed over three
+axes, :class:`~semantic_digital_twin.spatial_types.Point2` for one expressed over a
+plane.
+"""
+
+
 @dataclass(eq=False)
-class AxisAlignedBox(ABC):
+class AxisAlignedBox(Generic[PointT], SubClassSafeGeneric, ABC):
     """
     Shared behaviour for an axis-aligned box expressed over a fixed set of spatial axes.
 
@@ -1280,10 +1304,19 @@ class AxisAlignedBox(ABC):
         return len(cls.axes())
 
     @abstractmethod
-    def get_points(self) -> List[Point3] | List[Point2]:
+    def contains(self, point: PointT) -> bool:
         """
-        :return: This box's corners, in its own local frame -- ``Point3`` for
-            :class:`VolumetricBoundingBox`, ``Point2`` for :class:`PlanarBoundingBox`.
+        Check whether this box contains a point.
+
+        :param point: The point to check, in any reference frame.
+        :return: True if the box contains the point.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_points(self) -> List[PointT]:
+        """
+        :return: This box's corners, in its own local frame.
         """
         raise NotImplementedError
 
@@ -1413,7 +1446,7 @@ class AxisAlignedBox(ABC):
 
 
 @dataclass(eq=False)
-class VolumetricBoundingBox(AxisAlignedBox):
+class VolumetricBoundingBox(AxisAlignedBox[Point3]):
     """
     An axis-aligned box in three-dimensional space.
     """
@@ -1724,7 +1757,7 @@ class VolumetricBoundingBox(AxisAlignedBox):
 
 
 @dataclass(eq=False)
-class PlanarBoundingBox(AxisAlignedBox):
+class PlanarBoundingBox(AxisAlignedBox[Point2]):
     """
     An axis-aligned box in the x-y plane, with no z-extent.
 
