@@ -171,11 +171,12 @@ items:
 
   - id: pose-uncertainty-through-transforms
     title: Carry a pose's uncertainty through the transforms applied to it
-    branch: pose-uncertainty-through-transforms
-    pull_request_number: null
+    branch: claude/plan-item-kickoff-belief-pose-j36vt3
+    pull_request_number: 13
     track: belief-core
-    status: not_started
+    status: in_progress
     depends_on: [odometry-covariance-capture]
+    session: https://claude.ai/code/session_013atde1a9jns6QBbyL4RQT6
     notes: >-
       Raised in review on #9: a covariance sounds like something that should be
       associated directly with a pose. Attaching it is mechanically easy - ORMatic
