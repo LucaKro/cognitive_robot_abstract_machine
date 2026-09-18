@@ -11,6 +11,8 @@ from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
 
 if TYPE_CHECKING:
+    from random_events.variable import Continuous
+
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         NodeStateVariable,
@@ -709,3 +711,42 @@ class NodeStateVariableNotSerializableError(JSONSerializationError):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class UnknownBeliefError(MotionStatechartError):
+    """
+    Raised when the belief context is asked about a quantity nothing estimates.
+    """
+
+    variable: Continuous
+    """
+    The quantity that was asked about.
+    """
+
+    def error_message(self) -> str:
+        return f"Nothing has a belief about '{self.variable.name}'."
+
+    def suggest_correction(self) -> str:
+        return "Add the node estimating it to the motion statechart."
+
+
+@dataclass
+class DuplicateBeliefError(MotionStatechartError):
+    """
+    Raised when a second belief about a quantity is added to the belief context.
+    """
+
+    variable: Continuous
+    """
+    The quantity that already has a belief.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.variable.name}' already has a belief, and two beliefs about one "
+            f"quantity would each miss what the other was told."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Update the belief that is already there instead of adding a second one."
