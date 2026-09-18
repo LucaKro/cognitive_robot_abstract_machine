@@ -1928,6 +1928,11 @@ Diffing the failure set against a `main` baseline is what makes "the merge broke
 nothing" a measurement rather than a claim, and it is cheap enough to be worth
 doing on every restack this plan has left.
 
+CI on the merge commit `76bab6d3` agrees: every completed check is green,
+`test_each_lib (krrood)` among them — the suite that covers both conflicted
+files — with `test_each_lib (giskardpy)` and `test_each_lib (coraplex)` still
+running at the time of writing.
+
 ### The container reached the krrood suite this time
 
 Earlier rounds on this item recorded that nothing could be run locally. The
@@ -1964,6 +1969,13 @@ packages, and it now covers krrood too.
   `main`; the merge belongs on `claude/plan-item-kickoff-aicon-belief-84kl68`
   where #8 is. Asked and confirmed, per the note
   `belief-context-and-gaussian`'s second round left for exactly this case.
+- **The dashboard was not republished**, for the same reason every round since
+  `probability-concepts-in-probabilistic-model` has recorded: the `Artifact` tool
+  treats this account's plan dashboard as a public artifact from outside the
+  organization, so the read returns nothing and the publish cannot proceed
+  without `force`. Forcing it would discard whatever the sessions restacking #9
+  and #10 in parallel published, so it was left alone. `plan.yaml` and this file
+  are current; the page is not.
 - **The tracking-issue subscription was refused** by this session's permission
   mode, as on every earlier round. Issue #7's comments were read directly
   instead; the three structural changes recorded there concern other items.
