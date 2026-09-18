@@ -625,3 +625,79 @@ Worth recording for the sibling items: `odometry-covariance-capture` and
 `estimator-node-base` both publish a `FloatVariable` and will each face the same
 "what is my observation, then?" question. If the helper is kept, it is the
 answer for all three; if it is inlined here, each will decide separately.
+
+## `odometry-covariance-capture` — first review round
+
+The item picked up its first review: four threads, all from the author, all on
+how the covariance was modelled rather than on what it does.
+
+### The general concept carries no ROS assumption; an adapter does
+
+Two of the four threads were the same objection in two places — `PoseAxis`'s
+docstring said its order was *"the order the ROS pose covariance stores them"*,
+and `PoseCovariance.from_row_major` encoded the flat row-major layout a ROS
+message happens to use. *"there should a general concept that we use, and an
+adapter pattern that transforms ros assumptions into ours."*
+
+The kickoff had put the type in giskardpy and recorded that a spatial
+uncertainty type in `semantic_digital_twin` was deferred out of wave 1. The
+review overrides that deferral, so the type moved:
+
+- `semantic_digital_twin/spatial_types/pose_covariance.py` holds `PoseAxis` and
+  `PoseCovariance` with no ROS in them. The matrix is six by six over the
+  degrees of freedom of a pose, validated on construction by
+  `PoseCovarianceNotSixBySixError`. `from_row_major` is gone — the name itself
+  encoded a serialization layout.
+- `PoseWithCovarianceToSemDTConverter`, beside the other converters in
+  `adapters/ros/ros2_to_semdt_converters.py`, is the only thing that knows ROS
+  stores those numbers flat and row-major. `OdometrySynchronizer` asks it.
+- `PoseCovarianceSource` stays in giskardpy, in its own module. It is giskard's
+  dependency-inversion seam, not a spatial concept.
+
+The tests split the same way: the axis and summary tests are now
+`semantic_digital_twin` spatial-type tests, and the row-major ones became
+converter tests that fail on a transposed read.
+
+### Where it lives also decided its ORM fate
+
+`ORMatic.from_package([semantic_digital_twin])` maps every dataclass it finds,
+so moving the type there is not neutral — it either becomes a table or goes in
+`ignore_classes`. That was put to the user rather than decided in passing, and
+the answer was to ignore it: nothing stores a covariance in the world, it is
+read from a live input and republished to the statechart per control cycle.
+
+Worth carrying forward for `detection-confidence-field`, whose own notes already
+flag the same mechanism, and for any later item that adds a dataclass to
+`semantic_digital_twin`.
+
+### The named default became a field
+
+*"no global variables like that. if you need this default named either expose
+the parameter where you use it, or create an enum for it."* — the same objection
+`grasp-likelihood-continuous` got about `GRIPPED_LIKELIHOOD_THRESHOLD`, and
+taken the same way.
+
+`UNCERTAINTY_WITHOUT_A_READING` is now `PoseUncertainty.uncertainty_without_a_reading`,
+defaulting to infinity. The reasoning for infinity is unchanged and is now in the
+field's own docstring. It also buys something the constant did not allow: a
+caller who can bound the uncertainty before the first reading may say so, and
+there is a test for that case beside the default one.
+
+### And the covariance is typed with numpy typing
+
+*"always use numpy typing"* — `values: npt.NDArray[np.float64]`. `main` made the
+same move in `symbolic_math` in the meantime (`d169530a`).
+
+### Where it stands
+
+Three of the four threads are resolved. The ROS-assumption thread on
+`pose_covariance.py:19` was answered but left open, because the reply carries a
+question back: whether ignoring the type in the ORM scan is the right call.
+
+`main` was merged into the branch twice over this round. The one conflict was
+`semantic_digital_twin/exceptions.py`, where both sides appended new exception
+classes; all were kept.
+
+CI was fully green on `28dc12c2`, the commit before these fixes. The fixes
+themselves are not CI-verified yet — only the `PoseCovariance` tests could be run
+in this container, against the module source with the exceptions module stubbed.
