@@ -1402,3 +1402,139 @@ and measurement tests, and removing the dependency declaration fails only
   nothing here watched #7 for concurrent structural changes. `estimator-node-base`
   started in parallel during this session and was picked up from the manifest instead.
 - Regenerating the ORM remains CI's to confirm, as on every earlier item.
+
+The plan settled at kickoff, and the calls it makes beyond the item's recorded
+`notes`.
+
+### The base is #9's branch
+
+`PoseCovariance` and `SpatialVariables.pose` exist on `claude/jolly-edison-k0zkiq`
+and nowhere else, so this item stacks on `odometry-covariance-capture` (#9) and is
+re-based onto `main` once #9 lands — the same call every stacked item on this plan has
+made. The dependency check reports #9 `open_ready`, so the parent is an open, non-draft
+pull request rather than something still being drafted.
+
+Removing the edits the two branches share still leaves the whole propagation and a new
+spatial type, so this is real work on top of an unlanded parent rather than something to
+fold into #9 — which is also the call the user already made on #9's review thread.
+
+`pose-covariance-on-shared-quantities` will also edit `pose_covariance.py`, to rebuild
+its private row lookup on `Quantities` once `probability-concepts-in-probabilistic-model`
+moves that type. The two do not collide in purpose — that item changes how the matrix is
+laid out, this one adds an operation over it — but whichever lands second should expect
+to resolve that file.
+
+### The propagation is the adjoint, not a rotation
+
+The item's `notes` say to *"rotate the covariance with the transform"*. Rotating it is
+right for a transform that is a pure rotation and wrong for every other one, so the
+operation implemented is the adjoint.
+
+A pose covariance describes a small perturbation of the reported pose, applied in the
+frame the pose is expressed in: `reference_T_pose_true = exp(perturbation)
+reference_T_pose`. Re-expressing that in another frame with a certain transform
+`new_reference_T_reference` moves the perturbation through it, and
+
+    new_reference_T_reference exp(perturbation) reference_T_reference_inverse
+        = exp(adjoint * perturbation)
+
+is exact, with the adjoint of a transform whose rotation is `R` and whose translation is
+`t` being
+
+    [[R, skew(t) R],
+     [0, R       ]]
+
+over the degrees of freedom in `SpatialVariables.pose`, which are the translational
+three followed by the rotational three. So the covariance becomes
+`adjoint @ covariance @ adjoint.T`.
+
+The half a plain rotation would miss is `skew(t) R`: a pose that is uncertain about its
+yaw and is re-expressed about an origin a metre away is uncertain about its position
+there, by the square of that lever arm. Silently dropping that term is exactly the
+*"a wrong covariance is worse than an absent one"* failure this plan's standing caveat
+names, so it is what the adjoint identity is tested against directly rather than only
+through the formula the code is written in.
+
+### Inverting is the same operation, applied to the inverse
+
+`(exp(perturbation) T)_inverse = T_inverse exp(-perturbation)`, and moving that
+perturbation through `T_inverse` gives `adjoint(T_inverse) * -perturbation`. The sign
+squares away under `covariance = adjoint @ covariance @ adjoint.T`, so inverting an
+uncertain pose is the propagation applied with the pose's own inverse, and there is one
+primitive rather than two.
+
+### The attachment is a pairing, not a private field on `Pose`
+
+The review thread on #9 asked *"cant we just make it a private field?"*. The mechanism
+works — #9's own section records that `ORMatic` skips underscore-prefixed fields and that
+`Pose.to_json`/`_from_json` are hand-written over position and rotation only — and it is
+still the wrong place, for the reason the item's `notes` already give: a field that
+silently survives or silently vanishes across compose and invert is worse than no field.
+
+That hazard is structural rather than incidental. Every path that produces a `Pose`
+rebuilds it from a CasADi expression — `HomogeneousTransformationMatrix.dot` through
+`type(other).from_casadi_sx`, `_copy_with_data`, `to_pose`, and each `Pose.from_*`
+classmethod — so a private field is dropped by all of them unless every one is threaded
+through, and any path missed drops a covariance without saying so. A field that did
+survive `dot` unrotated would be worse, because it would be wrong rather than absent.
+Most `Pose` instances are also symbolic forward-kinematics expressions with no measured
+uncertainty at all, so the field would be `None` on nearly every one.
+
+`UncertainPose` is the attachment instead: a pose together with how uncertain it is,
+whose operations move both halves together. It cannot lose its covariance, because there
+is no way to hold one without it. It is also where the covariance finally gets a frame —
+`PoseCovariance` is deliberately frame-naive, and pairing it with the pose says which
+frame it is expressed in without that type having to carry one.
+
+### There is already a general not-yet-a-number exception
+
+A covariance can only be moved by a transform whose numbers are known, and most poses in
+this stack are symbolic. `SymbolicMathType.to_np` already raises
+`HasFreeVariablesError` in exactly that case, carrying the free variables, so this item
+adds no exception at all — the same finding `estimator-node-base` made about
+`NodeNotBuiltError`.
+
+That also keeps `semantic_digital_twin/exceptions.py` untouched here, so this branch
+stays out of the append-an-exception conflict #8, #9 and #10 already have in their own
+packages' exception modules.
+
+### The new type is kept out of the ORM
+
+`ORMatic.from_package([semantic_digital_twin])` maps every dataclass it finds, and #9's
+section records what that costs when a field has no column type: it fails at import of
+the generated module and takes down every dependent package at once. `UncertainPose`
+joins `PoseCovariance` in `generate_orm.py`'s `ignore_classes`, for the same reason its
+covariance is already there — nothing stores an uncertain pose in the world; it is read
+from a live input and used within a control cycle.
+
+### Scope boundaries held
+
+- **No consumer is rewired.** The `PoseUncertainty` monitor and `OdometrySynchronizer`
+  stay as #9 left them. The item asks that carrying uncertainty through a transform
+  become possible, not that something start doing it.
+- **Composing two uncertain poses is not offered.** Doing so would have to assume the two
+  are independent, which is the standard assumption and not one this plan can make
+  quietly; the mixed case the item actually asks about — an uncertain pose and a certain
+  transform — is what `transformed_by` answers, and a certain transform contributes
+  nothing but its adjoint. When a caller needs the uncertain-on-uncertain case, that
+  caller's item states the correlation model rather than this one guessing at it.
+- **Nothing is added to `Pose`.** `spatial_types.py` is not touched, so no existing
+  spatial operation changes behaviour.
+
+### Assumptions and open points
+
+- **The rotational degrees of freedom are read as a rotation vector**, a small rotation
+  about each axis, not as Euler angles composed in a fixed sequence. That is the reading
+  the ROS odometry covariance #9 lifts already has, and it is what makes the adjoint
+  identity exact rather than an approximation about the nominal orientation. It is
+  first-order in the size of the uncertainty, which is the model a covariance is.
+- **Frames are not checked.** `transformed_by` does not verify that the transform's child
+  frame is the frame the pose is expressed in, because
+  `HomogeneousTransformationMatrix.dot` does not either, and adding a check on one half
+  of an operation the package performs unchecked elsewhere would be inconsistent rather
+  than safer. The covariance frame `odometry-covariance-capture` left unchecked stays
+  unchecked.
+- **Inverting inherits `HomogeneousTransformationMatrix.inverse`'s frame behaviour.** A
+  `Pose` carries a reference frame and no child frame, so the inverse of one has no
+  reference frame to name. The covariance round-trips exactly through two inversions; the
+  frame does not come back.
