@@ -1928,10 +1928,9 @@ Diffing the failure set against a `main` baseline is what makes "the merge broke
 nothing" a measurement rather than a claim, and it is cheap enough to be worth
 doing on every restack this plan has left.
 
-CI on the merge commit `76bab6d3` agrees: every completed check is green,
-`test_each_lib (krrood)` among them — the suite that covers both conflicted
-files — with `test_each_lib (giskardpy)` and `test_each_lib (coraplex)` still
-running at the time of writing.
+CI on the merge commit `76bab6d3` agrees: all 23 checks are green, including
+`test_each_lib (krrood)` — the suite that covers both conflicted files — and
+`test_each_lib (giskardpy)`, which covers the node the helper is called from.
 
 ### The container reached the krrood suite this time
 
