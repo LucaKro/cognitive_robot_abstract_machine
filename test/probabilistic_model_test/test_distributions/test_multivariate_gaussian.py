@@ -8,19 +8,15 @@ from random_events.variable import Continuous
 
 from probabilistic_model.distributions.gaussian import GaussianDistribution
 from probabilistic_model.distributions.multivariate_gaussian import (
-    Covariance,
-    Mean,
     MultivariateGaussianDistribution,
-    Reading,
     TruncatedMultivariateGaussianDistribution,
 )
 from probabilistic_model.exceptions import (
     IntractableError,
-    MeanAndCovarianceDisagreeError,
+    ShapeMismatchError,
     UndefinedOperationError,
-    VariableNotInQuantitiesError,
+    VariableNotInDistributionError,
 )
-from probabilistic_model.quantities import Quantities
 
 # %% shared fixtures
 
@@ -42,10 +38,10 @@ def independent(horizontal, vertical) -> MultivariateGaussianDistribution:
     every answer can be checked against the univariate distribution already in this
     package.
     """
-    return MultivariateGaussianDistribution.of(
-        quantities=Quantities.of(horizontal, vertical),
-        estimates={horizontal: 1.0, vertical: -2.0},
-        uncertainty={(horizontal, horizontal): 4.0, (vertical, vertical): 9.0},
+    return MultivariateGaussianDistribution(
+        distribution_variables=(horizontal, vertical),
+        mean=np.array([1.0, -2.0]),
+        covariance=np.array([[4.0, 0.0], [0.0, 9.0]]),
     )
 
 
@@ -55,14 +51,10 @@ def correlated(horizontal, vertical) -> MultivariateGaussianDistribution:
     Standard quantities correlated by 0.6, which is the case with no closed form for the
     probability of a box.
     """
-    return MultivariateGaussianDistribution.of(
-        quantities=Quantities.of(horizontal, vertical),
-        estimates={horizontal: 0.0, vertical: 0.0},
-        uncertainty={
-            (horizontal, horizontal): 1.0,
-            (vertical, vertical): 1.0,
-            (horizontal, vertical): 0.6,
-        },
+    return MultivariateGaussianDistribution(
+        distribution_variables=(horizontal, vertical),
+        mean=np.array([0.0, 0.0]),
+        covariance=np.array([[1.0, 0.6], [0.6, 1.0]]),
     )
 
 
@@ -80,6 +72,20 @@ def marginal_of(
     )
 
 
+def one_variable(
+    variable: Continuous, mean: float, variance: float
+) -> MultivariateGaussianDistribution:
+    """
+    :return: A distribution over a single quantity, which several tests need and which
+        carries no layout worth restating at each of them.
+    """
+    return MultivariateGaussianDistribution(
+        distribution_variables=(variable,),
+        mean=np.array([mean]),
+        covariance=np.array([[variance]]),
+    )
+
+
 # %% what the distribution is built from and holds
 
 
@@ -92,41 +98,51 @@ class TestBuildingADistribution:
         assert independent.variance_of(horizontal) == 4.0
         assert independent.variance_of(vertical) == 9.0
 
-    def test_a_shared_uncertainty_is_stated_once_and_reads_both_ways(
+    def test_a_covariance_is_read_in_either_direction(
         self, correlated, horizontal, vertical
     ):
-        assert correlated.covariance.between(horizontal, vertical) == 0.6
-        assert correlated.covariance.between(vertical, horizontal) == 0.6
+        assert correlated.covariance_between(horizontal, vertical) == 0.6
+        assert correlated.covariance_between(vertical, horizontal) == 0.6
 
     def test_a_distribution_about_one_quantity_needs_no_layout(self, horizontal):
-        distribution = MultivariateGaussianDistribution.of_one_variable(
-            horizontal, mean=3.0, variance=0.25
+        distribution = MultivariateGaussianDistribution(
+            distribution_variables=(horizontal,),
+            mean=np.array([3.0]),
+            covariance=np.array([[0.25]]),
         )
         assert distribution.mean_of(horizontal) == 3.0
         assert distribution.variance_of(horizontal) == 0.25
         assert distribution.variables == (horizontal,)
 
-    def test_an_estimate_and_an_uncertainty_about_different_quantities_are_rejected(
+    def test_a_mean_that_is_not_laid_out_by_the_variables_is_rejected(
         self, horizontal, vertical
     ):
-        """
-        With each carrying its own layout, neither would say anything about the other.
-        """
-        estimated = Quantities.of(horizontal)
-        uncertain = Quantities.of(vertical)
-        with pytest.raises(MeanAndCovarianceDisagreeError) as error:
+        with pytest.raises(ShapeMismatchError) as error:
             MultivariateGaussianDistribution(
-                mean=Mean.of(estimated, {horizontal: 0.0}),
-                covariance=Covariance.of(uncertain, {(vertical, vertical): 1.0}),
+                distribution_variables=(horizontal, vertical),
+                mean=np.array([0.0]),
+                covariance=np.zeros((2, 2)),
             )
-        assert error.value.mean_quantities == [horizontal]
-        assert error.value.covariance_quantities == [vertical]
+        assert error.value.expected_shape == (2,)
+        assert error.value.received_shape == (1,)
+
+    def test_a_covariance_that_is_not_laid_out_by_the_variables_is_rejected(
+        self, horizontal, vertical
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            MultivariateGaussianDistribution(
+                distribution_variables=(horizontal, vertical),
+                mean=np.zeros(2),
+                covariance=np.zeros((2, 3)),
+            )
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (2, 3)
 
     def test_reading_a_quantity_the_distribution_is_not_about_is_rejected(
         self, independent
     ):
         absent = Continuous("absent")
-        with pytest.raises(VariableNotInQuantitiesError) as error:
+        with pytest.raises(VariableNotInDistributionError) as error:
             independent.mean_of(absent)
         assert error.value.variable == absent
 
@@ -135,62 +151,11 @@ class TestBuildingADistribution:
     ):
         assert independent.variables == (horizontal, vertical)
 
-
-# %% what the estimate and the uncertainty are held as
-
-
-class TestHeldByQuantity:
-    """
-    The estimate and the uncertainty are kept as numbers against the quantities they
-    belong to, not as arrays a reader has to index by row.
-
-    An array is built only where the arithmetic needs one, which is what
-    :attr:`Mean.as_array` and :attr:`Covariance.as_array` mark.
-    """
-
-    def test_the_estimate_names_the_quantity_each_number_belongs_to(
+    def test_the_mean_and_covariance_are_laid_out_by_the_variables(
         self, independent, horizontal, vertical
     ):
-        assert independent.mean.estimates == {horizontal: 1.0, vertical: -2.0}
-
-    def test_the_uncertainty_names_the_pair_each_number_belongs_to(
-        self, correlated, horizontal, vertical
-    ):
-        assert correlated.covariance.uncertainty[horizontal, vertical] == 0.6
-        assert correlated.covariance.uncertainty[vertical, horizontal] == 0.6
-
-    def test_a_quantity_left_out_of_an_estimate_is_still_held(
-        self, horizontal, vertical
-    ):
-        """
-        Every quantity has a number, so nothing has to distinguish "zero" from "absent".
-        """
-        mean = Mean.of(Quantities.of(horizontal, vertical), {horizontal: 1.0})
-        assert mean.estimates == {horizontal: 1.0, vertical: 0.0}
-
-    def test_the_array_the_arithmetic_uses_is_laid_out_by_the_quantities(
-        self, independent, horizontal, vertical
-    ):
-        assert independent.mean.as_array.tolist() == [1.0, -2.0]
-
-    def test_an_estimate_survives_the_trip_through_an_array(
-        self, independent, horizontal, vertical
-    ):
-        rebuilt = Mean.from_array(independent.quantities, independent.mean.as_array)
-        assert rebuilt.estimates == independent.mean.estimates
-
-    def test_an_uncertainty_read_back_from_an_array_keeps_both_directions_apart(
-        self, correlated, horizontal, vertical
-    ):
-        """
-        Reading an array back must not quietly symmetrize it, or the one thing that can
-        go wrong in the arithmetic — an uncertainty drifting out of symmetry — would
-        stop being visible.
-        """
-        lopsided = np.array([[1.0, 0.25], [0.75, 1.0]])
-        rebuilt = Covariance.from_array(correlated.quantities, lopsided)
-        assert rebuilt.between(horizontal, vertical) == 0.25
-        assert rebuilt.between(vertical, horizontal) == 0.75
+        assert independent.mean.tolist() == [1.0, -2.0]
+        assert independent.covariance.tolist() == [[4.0, 0.0], [0.0, 9.0]]
 
 
 # %% density
@@ -250,7 +215,7 @@ class TestProbabilityOfABox:
                 vertical: open_closed(0.0, np.inf),
             }
         )
-        correlation = correlated.covariance.between(horizontal, vertical)
+        correlation = correlated.covariance_between(horizontal, vertical)
         assert correlated.probability_of_simple_event(both_positive) == pytest.approx(
             0.25 + math.asin(correlation) / (2 * math.pi)
         )
@@ -371,31 +336,37 @@ class TestConditioningOnAValue:
         unexplained uncertainty.
         """
         first, second, given = horizontal, Continuous("second"), Continuous("given")
-        distribution = MultivariateGaussianDistribution.of(
-            quantities=Quantities.of(first, second, given),
-            estimates={},
-            uncertainty={
-                (first, first): 1e8,
-                (second, second): 1e-8,
-                (given, given): 3.0,
-                (first, second): 1e-2,
-                (first, given): 0.9e4,
-                (second, given): 1e-5,
-            },
+        distribution = MultivariateGaussianDistribution(
+            distribution_variables=(first, second, given),
+            mean=np.zeros(3),
+            covariance=np.array(
+                [
+                    [1e8, 1e-2, 0.9e4],
+                    [1e-2, 1e-8, 1e-5],
+                    [0.9e4, 1e-5, 3.0],
+                ]
+            ),
         )
         conditioned, _ = distribution.conditional({given: 1.0})
-        uncertainty = conditioned.covariance
-        assert uncertainty.between(first, second) == uncertainty.between(second, first)
+        assert conditioned.covariance_between(
+            first, second
+        ) == conditioned.covariance_between(second, first)
 
-    def test_conditioning_on_every_quantity_leaves_no_distribution(
+    def test_conditioning_on_every_quantity_leaves_a_point_mass(
         self, independent, horizontal, vertical
     ):
-        with pytest.raises(UndefinedOperationError):
-            independent.conditional({horizontal: 0.0, vertical: 0.0})
+        """
+        Nothing is left free, so what remains is the Dirac impulse at the values given
+        rather than a Gaussian over nothing.
+        """
+        conditioned, _ = independent.conditional({horizontal: 1.5, vertical: -0.5})
+        assert set(conditioned.variables) == {horizontal, vertical}
+        assert conditioned.likelihood(np.array([[1.5, -0.5]]))[0] == np.inf
+        assert conditioned.likelihood(np.array([[0.0, 0.0]]))[0] == 0.0
 
     def test_conditioning_on_an_unknown_quantity_is_rejected(self, independent):
         absent = Continuous("absent")
-        with pytest.raises(VariableNotInQuantitiesError) as error:
+        with pytest.raises(VariableNotInDistributionError) as error:
             independent.conditional({absent: 0.0})
         assert error.value.variable == absent
 
@@ -403,80 +374,76 @@ class TestConditioningOnAValue:
 # %% correcting an estimate with what a sensor reported
 
 
-class TestCorrectingWithReadings:
-    def test_a_reading_pulls_the_estimate_toward_what_was_reported(
+class TestCorrectingWithAMeasurement:
+    def test_a_measurement_pulls_the_mean_toward_what_was_measured(
         self, independent, horizontal
     ):
-        corrected = independent.conditional_on_readings(
-            [Reading.of_one_variable(horizontal, value=5.0, variance=4.0)]
+        corrected = independent.conditional_on_measurement(
+            model=np.array([[1.0, 0.0]]),
+            measured=np.array([5.0]),
+            noise=np.array([[1.0]]),
         )
         assert independent.mean_of(horizontal) < corrected.mean_of(horizontal) < 5.0
 
-    def test_a_reading_always_leaves_the_estimate_more_certain(
+    def test_a_measurement_always_leaves_the_mean_more_certain(
         self, independent, horizontal
     ):
-        corrected = independent.conditional_on_readings(
-            [Reading.of_one_variable(horizontal, value=5.0, variance=4.0)]
+        corrected = independent.conditional_on_measurement(
+            model=np.array([[1.0, 0.0]]),
+            measured=np.array([5.0]),
+            noise=np.array([[4.0]]),
         )
         assert corrected.variance_of(horizontal) < independent.variance_of(horizontal)
 
-    def test_a_reading_of_equal_certainty_lands_halfway(self, horizontal):
+    def test_a_measurement_of_equal_certainty_lands_halfway(self, horizontal):
         """
-        With the estimate and the reading equally uncertain, neither outweighs the
-        other, so the corrected estimate is their midpoint exactly.
+        With the mean and the measurement equally uncertain, neither outweighs the
+        other, so the corrected mean is their midpoint exactly.
         """
-        distribution = MultivariateGaussianDistribution.of_one_variable(
-            horizontal, mean=0.0, variance=2.0
-        )
-        corrected = distribution.conditional_on_readings(
-            [Reading.of_one_variable(horizontal, value=10.0, variance=2.0)]
+        corrected = one_variable(horizontal, 0.0, 2.0).conditional_on_measurement(
+            model=np.array([[1.0]]),
+            measured=np.array([10.0]),
+            noise=np.array([[2.0]]),
         )
         assert corrected.mean_of(horizontal) == pytest.approx(5.0)
 
-    def test_repeated_readings_accumulate_into_the_uncertainty(self, horizontal):
+    def test_repeated_measurements_accumulate_into_the_covariance(self, horizontal):
         """
         Checked against the information form — precisions add — rather than against a
         stored number, so the recursion is verified against an independent formulation
         of the same law instead of a second copy of itself.
         """
-        starting_variance, reading_variance, readings = 1.0, 4.0, 100
-        distribution = MultivariateGaussianDistribution.of_one_variable(
-            horizontal, mean=0.0, variance=starting_variance
-        )
-        for _ in range(readings):
-            distribution = distribution.conditional_on_readings(
-                [
-                    Reading.of_one_variable(
-                        horizontal, value=1.0, variance=reading_variance
-                    )
-                ]
+        starting_variance, measurement_variance, measurements = 1.0, 4.0, 100
+        distribution = one_variable(horizontal, 0.0, starting_variance)
+        for _ in range(measurements):
+            distribution = distribution.conditional_on_measurement(
+                model=np.array([[1.0]]),
+                measured=np.array([1.0]),
+                noise=np.array([[measurement_variance]]),
             )
 
-        expected_precision = 1 / starting_variance + readings / reading_variance
+        expected_precision = 1 / starting_variance + measurements / measurement_variance
         assert distribution.variance_of(horizontal) == pytest.approx(
             1 / expected_precision
         )
 
-    def test_a_reading_of_several_quantities_at_once_corrects_all_of_them(
+    def test_a_measurement_of_several_quantities_at_once_corrects_all_of_them(
         self, horizontal, vertical
     ):
         """
         A sensor reporting the sum of two quantities says nothing about either one
-        alone, which is what stating contributions buys over reading a quantity itself.
+        alone, which is what stating a measurement model buys over reading a quantity
+        itself.
         """
-        distribution = MultivariateGaussianDistribution.of(
-            quantities=Quantities.of(horizontal, vertical),
-            estimates={horizontal: 0.0, vertical: 0.0},
-            uncertainty={(horizontal, horizontal): 1.0, (vertical, vertical): 1.0},
+        distribution = MultivariateGaussianDistribution(
+            distribution_variables=(horizontal, vertical),
+            mean=np.zeros(2),
+            covariance=np.eye(2),
         )
-        corrected = distribution.conditional_on_readings(
-            [
-                Reading(
-                    value=4.0,
-                    contributions={horizontal: 1.0, vertical: 1.0},
-                    variance=1.0,
-                )
-            ]
+        corrected = distribution.conditional_on_measurement(
+            model=np.array([[1.0, 1.0]]),
+            measured=np.array([4.0]),
+            noise=np.array([[1.0]]),
         )
         assert corrected.mean_of(horizontal) > 0.0
         assert corrected.mean_of(vertical) > 0.0
@@ -484,8 +451,10 @@ class TestCorrectingWithReadings:
             corrected.mean_of(vertical)
         )
 
-    def test_reporting_nothing_leaves_the_estimate_alone(self, independent, horizontal):
-        corrected = independent.conditional_on_readings([])
+    def test_measuring_nothing_leaves_the_mean_alone(self, independent, horizontal):
+        corrected = independent.conditional_on_measurement(
+            model=np.zeros((0, 2)), measured=np.zeros(0), noise=np.zeros((0, 0))
+        )
         assert corrected.mean_of(horizontal) == independent.mean_of(horizontal)
         assert corrected.variance_of(horizontal) == independent.variance_of(horizontal)
 
@@ -493,18 +462,34 @@ class TestCorrectingWithReadings:
         self, independent, horizontal
     ):
         before = independent.mean_of(horizontal)
-        independent.conditional_on_readings(
-            [Reading.of_one_variable(horizontal, value=5.0, variance=1.0)]
+        independent.conditional_on_measurement(
+            model=np.array([[1.0, 0.0]]),
+            measured=np.array([5.0]),
+            noise=np.array([[1.0]]),
         )
         assert independent.mean_of(horizontal) == before
 
-    def test_a_reading_of_an_unknown_quantity_is_rejected(self, independent):
-        absent = Continuous("absent")
-        with pytest.raises(VariableNotInQuantitiesError) as error:
-            independent.conditional_on_readings(
-                [Reading.of_one_variable(absent, value=0.0, variance=1.0)]
+    def test_a_measurement_model_of_the_wrong_width_is_rejected(self, independent):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.conditional_on_measurement(
+                model=np.array([[1.0]]),
+                measured=np.array([0.0]),
+                noise=np.array([[1.0]]),
             )
-        assert error.value.variable == absent
+        assert error.value.expected_shape == (1, 2)
+        assert error.value.received_shape == (1, 1)
+
+    def test_measuring_more_numbers_than_the_model_describes_is_rejected(
+        self, independent
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.conditional_on_measurement(
+                model=np.array([[1.0, 0.0]]),
+                measured=np.array([0.0, 1.0]),
+                noise=np.array([[1.0]]),
+            )
+        assert error.value.expected_shape == (1,)
+        assert error.value.received_shape == (2,)
 
 
 # %% reading fewer quantities than the distribution is about
@@ -576,7 +561,7 @@ class TestTranslationAndScaling:
         self, correlated, horizontal, vertical
     ):
         correlated.apply_scaling({horizontal: 2.0})
-        assert correlated.covariance.between(horizontal, vertical) == pytest.approx(1.2)
+        assert correlated.covariance_between(horizontal, vertical) == pytest.approx(1.2)
 
     def test_a_quantity_left_out_of_a_scaling_keeps_its_size(
         self, independent, vertical
@@ -594,10 +579,7 @@ class TestSampling:
         assert correlated.sample(7).shape == (7, 2)
 
     def test_samples_of_one_quantity_are_still_a_column(self, horizontal):
-        distribution = MultivariateGaussianDistribution.of_one_variable(
-            horizontal, mean=0.0, variance=1.0
-        )
-        assert distribution.sample(5).shape == (5, 1)
+        assert one_variable(horizontal, 0.0, 1.0).sample(5).shape == (5, 1)
 
     def test_samples_fall_where_the_distribution_says_they_should(self, independent):
         np.random.seed(69)
@@ -742,58 +724,58 @@ class TestLinearMap:
     def test_a_quantity_becomes_the_weighted_sum_of_the_others(
         self, independent, horizontal, vertical
     ):
-        independent.apply_linear_map(
-            {(horizontal, horizontal): 1.0, (horizontal, vertical): 2.0}
-        )
+        independent.apply_linear_map(np.array([[1.0, 2.0], [0.0, 1.0]]))
         assert independent.mean_of(horizontal) == pytest.approx(1.0 + 2.0 * -2.0)
 
-    def test_a_linear_map_carries_into_the_uncertainty_on_both_sides(
-        self, independent, horizontal, vertical
-    ):
-        """
-        The uncertainty of a sum of two independent quantities is the sum of theirs.
-        """
-        independent.apply_linear_map(
-            {(horizontal, horizontal): 1.0, (horizontal, vertical): 1.0}
-        )
-        assert independent.variance_of(horizontal) == pytest.approx(4.0 + 9.0)
-
-    def test_leaving_the_quantities_unchanged_changes_nothing(
-        self, correlated, horizontal, vertical
-    ):
-        before = correlated.covariance.as_array.copy()
-        correlated.apply_linear_map(correlated.quantities.unchanged)
-        assert correlated.covariance.as_array.tolist() == before.tolist()
-
-    def test_a_linear_map_of_an_unknown_quantity_is_rejected(
+    def test_a_linear_map_carries_into_the_covariance_on_both_sides(
         self, independent, horizontal
     ):
-        absent = Continuous("absent")
-        with pytest.raises(VariableNotInQuantitiesError) as error:
-            independent.apply_linear_map({(horizontal, absent): 1.0})
-        assert error.value.variable == absent
+        """
+        The variance of a sum of two independent quantities is the sum of theirs.
+        """
+        independent.apply_linear_map(np.array([[1.0, 1.0], [0.0, 1.0]]))
+        assert independent.variance_of(horizontal) == pytest.approx(4.0 + 9.0)
+
+    def test_the_identity_changes_nothing(self, correlated):
+        before = correlated.covariance.copy()
+        correlated.apply_linear_map(np.eye(2))
+        assert correlated.covariance.tolist() == before.tolist()
+
+    def test_a_linear_map_not_laid_out_by_the_variables_is_rejected(self, independent):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.apply_linear_map(np.eye(3))
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (3, 3)
 
 
 # %% growing less certain
 
 
-class TestAddedUncertainty:
-    def test_added_uncertainty_accumulates(self, independent, horizontal):
-        independent.apply_added_uncertainty({(horizontal, horizontal): 1.5})
+class TestAddedCovariance:
+    def test_added_covariance_accumulates(self, independent, horizontal):
+        independent.apply_added_covariance(np.array([[1.5, 0.0], [0.0, 0.0]]))
         assert independent.variance_of(horizontal) == pytest.approx(5.5)
 
-    def test_a_shared_added_uncertainty_is_stated_once(
+    def test_an_added_covariance_reaches_both_directions_of_a_pair(
         self, independent, horizontal, vertical
     ):
-        independent.apply_added_uncertainty({(horizontal, vertical): 0.5})
-        assert independent.covariance.between(horizontal, vertical) == pytest.approx(
+        independent.apply_added_covariance(np.array([[0.0, 0.5], [0.5, 0.0]]))
+        assert independent.covariance_between(horizontal, vertical) == pytest.approx(
             0.5
         )
-        assert independent.covariance.between(vertical, horizontal) == pytest.approx(
+        assert independent.covariance_between(vertical, horizontal) == pytest.approx(
             0.5
         )
 
-    def test_adding_nothing_leaves_the_uncertainty_alone(self, correlated):
-        before = correlated.covariance.as_array.copy()
-        correlated.apply_added_uncertainty({})
-        assert correlated.covariance.as_array.tolist() == before.tolist()
+    def test_adding_nothing_leaves_the_covariance_alone(self, correlated):
+        before = correlated.covariance.copy()
+        correlated.apply_added_covariance(np.zeros((2, 2)))
+        assert correlated.covariance.tolist() == before.tolist()
+
+    def test_an_added_covariance_not_laid_out_by_the_variables_is_rejected(
+        self, independent
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.apply_added_covariance(np.zeros((3, 3)))
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (3, 3)

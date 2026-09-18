@@ -67,12 +67,12 @@ class ShapeMismatchError(DataclassException, ValueError):
 
 
 @dataclass
-class VariableNotInQuantitiesError(DataclassException):
+class VariableNotInDistributionError(DataclassException):
     """
-    Exception raised when a variable is named that the layout is not over.
+    Exception raised when a variable is named that a distribution is not over.
 
-    Every array is laid out by a fixed, ordered set of variables, so a variable outside
-    it has no row to be read from or written to.
+    A distribution's mean and covariance are laid out by its own variables, so a
+    variable outside them has no row to be read from or written to.
     """
 
     variable: Variable
@@ -80,65 +80,16 @@ class VariableNotInQuantitiesError(DataclassException):
     The variable that was named.
     """
 
-    quantities: List[Variable]
+    variables: List[Variable]
     """
-    The variables the layout is over.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"{self.variable} is not one of the quantities "
-            f"{[str(variable) for variable in self.quantities]}."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Name one of the quantities the layout was built over."
-
-
-@dataclass
-class RepeatedVariableError(DataclassException):
-    """
-    Exception raised when a variable is named more than once in one layout.
-
-    A variable occupies exactly one row, so a second mention would claim a row that can
-    never be read back.
-    """
-
-    variable: Variable
-    """
-    The variable that was named more than once.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.variable} was named more than once."
-
-    def suggest_correction(self) -> str:
-        return "Name each quantity once."
-
-
-@dataclass
-class MeanAndCovarianceDisagreeError(DataclassException):
-    """
-    Exception raised when a distribution's mean and covariance are laid out by different
-    quantities, in which case neither says anything about the other.
-    """
-
-    mean_quantities: List[Variable]
-    """
-    The variables the mean is laid out by.
-    """
-
-    covariance_quantities: List[Variable]
-    """
-    The variables the covariance is laid out by.
+    The variables the distribution is over.
     """
 
     def error_message(self) -> str:
         return (
-            f"The mean is about {[str(variable) for variable in self.mean_quantities]} "
-            f"and the covariance about "
-            f"{[str(variable) for variable in self.covariance_quantities]}."
+            f"{self.variable} is not one of the variables "
+            f"{[str(variable) for variable in self.variables]}."
         )
 
     def suggest_correction(self) -> str:
-        return "Lay both out by the same quantities."
+        return "Name one of the variables the distribution is over."

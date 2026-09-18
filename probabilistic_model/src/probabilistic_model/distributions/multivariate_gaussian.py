@@ -10,12 +10,13 @@ from random_events.interval import Interval, SimpleInterval, reals, singleton
 from random_events.product_algebra import Event, SimpleEvent, VariableMap
 from random_events.variable import Continuous, Variable
 from scipy.stats import multivariate_normal
-from typing_extensions import Any, Dict, Iterable, List, Mapping, Optional, Self, Tuple
+from typing_extensions import Any, Dict, Iterable, List, Optional, Self, Tuple
 
 from probabilistic_model.exceptions import (
     IntractableError,
-    MeanAndCovarianceDisagreeError,
+    ShapeMismatchError,
     UndefinedOperationError,
+    VariableNotInDistributionError,
 )
 from probabilistic_model.probabilistic_model import (
     CenterType,
@@ -23,269 +24,56 @@ from probabilistic_model.probabilistic_model import (
     OrderType,
     ProbabilisticModel,
 )
-from probabilistic_model.quantities import Quantities, QuantityPair
 
-# %% the estimate and the uncertainty a Gaussian is written in
-
-
-@dataclass
-class Mean:
-    """
-    What each of a distribution's quantities is expected to be.
-
-    The estimates are kept against the quantities they belong to rather than as an array
-    a reader has to index by row. :attr:`as_array` is where that becomes an array, which
-    is the only place the arithmetic needs one.
-    """
-
-    quantities: Quantities
-    """
-    The quantities being estimated.
-    """
-
-    estimates: Dict[Continuous, float]
-    """
-    What each of them is expected to be, one entry per quantity.
-    """
-
-    @classmethod
-    def of(cls, quantities: Quantities, estimates: Mapping[Continuous, float]) -> Self:
-        """
-        :param quantities: The quantities being estimated.
-        :param estimates: What each of them is estimated at; one left out is zero.
-        :return: Those estimates, against those quantities.
-        :raises VariableNotInQuantitiesError: If an estimate names a quantity that is not
-            one of them.
-        """
-        for variable in estimates:
-            quantities.index_of(variable)
-        return cls(
-            quantities=quantities,
-            estimates={
-                variable: float(estimates.get(variable, 0.0)) for variable in quantities
-            },
-        )
-
-    @classmethod
-    def from_array(
-        cls, quantities: Quantities, values: npt.NDArray[np.float64]
-    ) -> Self:
-        """
-        Read an estimate back off the array the arithmetic produced.
-
-        :param quantities: The quantities the array is laid out by.
-        :param values: One number per quantity, in that layout.
-        :return: Those estimates, against those quantities.
-        """
-        return cls(
-            quantities=quantities,
-            estimates={
-                variable: float(values[position])
-                for position, variable in enumerate(quantities)
-            },
-        )
-
-    @property
-    def as_array(self) -> npt.NDArray[np.float64]:
-        """
-        :return: The estimates as one number per quantity, in the layout order, for the
-            arithmetic that needs an array.
-        """
-        return self.quantities.vector(self.estimates)
-
-    def estimate_of(self, variable: Continuous) -> float:
-        """
-        :param variable: The quantity to read.
-        :return: What it is estimated at.
-        :raises VariableNotInQuantitiesError: If it is not one of these quantities.
-        """
-        self.quantities.index_of(variable)
-        return self.estimates[variable]
-
-
-@dataclass
-class Covariance:
-    """
-    How uncertain a distribution's estimates are, and how far their errors move
-    together.
-
-    Like :class:`Mean`, the numbers are kept against the pairs of quantities they
-    describe rather than as a matrix indexed by row and column. Both directions of a
-    pair are kept separately, so an uncertainty that drifts out of symmetry stays
-    visible rather than being quietly evened out on the way in.
-    """
-
-    quantities: Quantities
-    """
-    The quantities being estimated.
-    """
-
-    uncertainty: Dict[QuantityPair, float]
-    """
-    How uncertain each ordered pair of them is, one entry per pair, with a quantity
-    paired with itself being its own variance.
-    """
-
-    @classmethod
-    def of(
-        cls, quantities: Quantities, uncertainty: Mapping[QuantityPair, float]
-    ) -> Self:
-        """
-        :param quantities: The quantities being estimated.
-        :param uncertainty: How uncertain each pair of them is; one left out is zero. Two
-            quantities vary together by one number, so a pair given once fills its mirror
-            as well.
-        :return: That uncertainty, against those quantities.
-        :raises VariableNotInQuantitiesError: If an entry names a quantity that is not
-            one of them.
-        """
-        return cls.from_array(quantities, quantities.symmetric_matrix(uncertainty))
-
-    @classmethod
-    def from_array(
-        cls, quantities: Quantities, values: npt.NDArray[np.float64]
-    ) -> Self:
-        """
-        Read an uncertainty back off the matrix the arithmetic produced.
-
-        Each direction of a pair is read on its own rather than averaged, so this
-        records what the arithmetic actually produced.
-
-        :param quantities: The quantities the matrix is laid out by.
-        :param values: One number per ordered pair, in that layout.
-        :return: That uncertainty, against those quantities.
-        """
-        return cls(
-            quantities=quantities,
-            uncertainty={
-                (row, column): float(values[first, second])
-                for first, row in enumerate(quantities)
-                for second, column in enumerate(quantities)
-            },
-        )
-
-    @property
-    def as_array(self) -> npt.NDArray[np.float64]:
-        """
-        :return: The uncertainty as one number per ordered pair, in the layout order, for
-            the arithmetic that needs a matrix.
-        """
-        return self.quantities.matrix(self.uncertainty)
-
-    def variance_of(self, variable: Continuous) -> float:
-        """
-        :param variable: The quantity to read.
-        :return: How uncertain its estimate is on its own.
-        :raises VariableNotInQuantitiesError: If it is not one of these quantities.
-        """
-        return self.between(variable, variable)
-
-    def between(self, first: Continuous, second: Continuous) -> float:
-        """
-        :param first: One of the quantities.
-        :param second: The other one.
-        :return: How far their errors move together.
-        :raises VariableNotInQuantitiesError: If either is not one of these quantities.
-        """
-        self.quantities.index_of(first)
-        self.quantities.index_of(second)
-        return self.uncertainty[first, second]
-
-
-# %% what a sensor reported
-
-
-@dataclass
-class Reading:
-    """
-    One number a sensor reported, and what it says about a distribution's quantities.
-    """
-
-    value: float
-    """
-    The number the sensor reported.
-    """
-
-    contributions: Mapping[Continuous, float]
-    """
-    How much each quantity adds to that number if the estimate is exactly right, so a
-    sensor reading one quantity itself contributes one of it and nothing else.
-    """
-
-    variance: float
-    """
-    How far this sensor's readings scatter around the truth, which is what decides how
-    far the reading is allowed to move the estimate.
-    """
-
-    @classmethod
-    def of_one_variable(
-        cls, variable: Continuous, value: float, variance: float
-    ) -> Self:
-        """
-        Build the reading of a sensor that reports one quantity itself.
-
-        :param variable: The quantity that was read.
-        :param value: What the sensor reported for it.
-        :param variance: How far that sensor's readings scatter.
-        :return: The reading.
-        """
-        return cls(value=value, contributions={variable: 1.0}, variance=variance)
-
-
-# %% a Gaussian over several quantities at once
+# %% a Gaussian over several variables at once
 
 
 @dataclass
 class MultivariateGaussianDistribution(ProbabilisticModel):
     """
-    A Gaussian over one or more continuous quantities that may co-vary.
+    A multivariate Gaussian distribution over continuous random variables.
 
-    Everything is named by quantity rather than by row, so a caller never counts
-    positions. :meth:`conditional` fixes some of the quantities at a value and answers
-    with the Gaussian over the rest; :meth:`conditional_on_readings` expresses a
-    measurement through it.
-
-    ..note:: Arrays whose rows are this distribution's quantities — those
-        :meth:`log_likelihood` and :meth:`sample` take and return — are laid out in
-        :attr:`variables` order, which is the order the quantities were named in and is
-        not sorted.
+    Every tractable query is answered by :mod:`scipy.stats.multivariate_normal`, the
+    same way :class:`~probabilistic_model.distributions.gaussian.GaussianDistribution`
+    answers its own through :mod:`scipy.stats.norm`.
     """
 
-    mean: Mean
+    distribution_variables: Tuple[Continuous, ...]
     """
-    What each quantity is expected to be.
+    The variables of the distribution.
     """
 
-    covariance: Covariance
+    mean: npt.NDArray
     """
-    How uncertain those expectations are.
+    The mean.
+
+    Its dimension corresponds to the variables in the same order.
+    """
+
+    covariance: npt.NDArray
+    """
+    The covariance matrix. Both of its dimensions correspond to the variables in the
+    same order.
     """
 
     def __post_init__(self):
         """
-        :raises MeanAndCovarianceDisagreeError: If the estimate and the uncertainty are
-            laid out by different quantities, in which case neither says anything about
-            the other.
+        :raises ShapeMismatchError: If the mean or the covariance is not laid out by
+            this distribution's variables.
         """
-        if self.mean.quantities != self.covariance.quantities:
-            raise MeanAndCovarianceDisagreeError(
-                mean_quantities=list(self.mean.quantities),
-                covariance_quantities=list(self.covariance.quantities),
-            )
+        self.distribution_variables = tuple(self.distribution_variables)
+        self.mean = np.asarray(self.mean, dtype=float)
+        self.covariance = np.asarray(self.covariance, dtype=float)
 
-    # %% what it is about
-
-    @property
-    def quantities(self) -> Quantities:
-        """
-        :return: The quantities this distribution is over, in their layout order.
-        """
-        return self.mean.quantities
+        amount = len(self.distribution_variables)
+        if self.mean.shape != (amount,):
+            raise ShapeMismatchError(self.mean.shape, (amount,))
+        if self.covariance.shape != (amount, amount):
+            raise ShapeMismatchError(self.covariance.shape, (amount, amount))
 
     @property
-    def variables(self) -> Tuple[Variable, ...]:
-        return self.quantities.variables
+    def variables(self) -> Tuple[Continuous, ...]:
+        return tuple(self.distribution_variables)
 
     @property
     def support(self) -> Event:
@@ -293,282 +81,311 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             {variable: reals() for variable in self.variables}
         ).as_composite_set()
 
-    # %% building one
-
-    @classmethod
-    def of(
-        cls,
-        quantities: Quantities,
-        estimates: Mapping[Continuous, float],
-        uncertainty: Mapping[QuantityPair, float],
-    ) -> Self:
+    @property
+    def scipy_distribution(self) -> Any:
         """
-        Build a Gaussian over several quantities at once.
-
-        :param quantities: The quantities being estimated.
-        :param estimates: What each of them is expected to be; one left out is zero.
-        :param uncertainty: How uncertain those expectations are: a quantity paired with
-            itself is its own variance, and two different quantities are how far their
-            errors move together.
-        :return: The Gaussian over them.
-        :raises VariableNotInQuantitiesError: If either names a quantity that is not one
-            of them.
+        :return: The scipy distribution every tractable query is answered by.
         """
-        return cls(
-            mean=Mean.of(quantities, estimates),
-            covariance=Covariance.of(quantities, uncertainty),
-        )
+        return multivariate_normal(mean=self.mean, cov=self.covariance)
 
-    @classmethod
-    def of_one_variable(
-        cls, variable: Continuous, mean: float, variance: float
-    ) -> Self:
-        """
-        Build a Gaussian over a single quantity.
+    # %% reading it by variable
 
-        :param variable: The quantity being estimated.
-        :param mean: What it is expected to be.
-        :param variance: How uncertain that expectation is.
-        :return: The Gaussian over it.
+    def index_of(self, variable: Continuous) -> int:
         """
-        return cls.of(
-            quantities=Quantities.of(variable),
-            estimates={variable: mean},
-            uncertainty={(variable, variable): variance},
-        )
+        :param variable: The variable to locate.
+        :return: The row it occupies in the mean and the covariance.
+        :raises VariableNotInDistributionError: If this distribution is not over it.
+        """
+        if variable not in self.distribution_variables:
+            raise VariableNotInDistributionError(
+                variable=variable, variables=list(self.distribution_variables)
+            )
+        return self.distribution_variables.index(variable)
 
     def mean_of(self, variable: Continuous) -> float:
         """
-        :param variable: The quantity to read.
-        :return: What it is expected to be.
-        :raises VariableNotInQuantitiesError: If this distribution is not about it.
+        :param variable: The variable to read.
+        :return: Its mean.
+        :raises VariableNotInDistributionError: If this distribution is not over it.
         """
-        return self.mean.estimate_of(variable)
+        return float(self.mean[self.index_of(variable)])
 
     def variance_of(self, variable: Continuous) -> float:
         """
-        :param variable: The quantity to read.
-        :return: How uncertain its expectation is.
-        :raises VariableNotInQuantitiesError: If this distribution is not about it.
+        :param variable: The variable to read.
+        :return: Its variance.
+        :raises VariableNotInDistributionError: If this distribution is not over it.
         """
-        return self.covariance.variance_of(variable)
+        return self.covariance_between(variable, variable)
+
+    def covariance_between(self, first: Continuous, second: Continuous) -> float:
+        """
+        The covariance of two variables is an integral over both of them, and this
+        distribution is one of the few for which it is tractable in closed form.
+
+        :param first: One of the variables.
+        :param second: The other one.
+        :return: Their covariance.
+        :raises VariableNotInDistributionError: If this distribution is not over either
+            of them.
+        """
+        return float(self.covariance[self.index_of(first), self.index_of(second)])
 
     # %% density and probability
 
     def log_likelihood(self, events: npt.NDArray) -> npt.NDArray:
-        return np.atleast_1d(
-            multivariate_normal.logpdf(
-                events, mean=self.mean.as_array, cov=self.covariance.as_array
-            )
-        )
+        return np.atleast_1d(self.scipy_distribution.logpdf(events))
+
+    def cumulative_distribution_function(self, events: npt.NDArray) -> npt.NDArray:
+        return np.atleast_1d(self.scipy_distribution.cdf(events))
 
     def probability_of_simple_event(self, event: SimpleEvent) -> float:
         """
-        The probability of an axis-aligned box has no closed form once the quantities
-        co-vary, so it is integrated numerically. A quantity confined to several
-        stretches makes several boxes, and their probabilities add.
+        The probability of an axis-aligned box under a correlated Gaussian has no closed
+        form, so it is integrated numerically. A variable confined to several stretches
+        makes several boxes, and their probabilities add.
 
         :param event: The box, or boxes, to measure.
         :return: How probable it is.
         """
-        stretches_per_quantity = [
-            self._simple_intervals_of(event, variable) for variable in self.variables
+        stretches_per_variable = [
+            tuple(event[variable].simple_sets) for variable in self.variables
         ]
         return float(
             sum(
                 self._probability_of_box(box)
-                for box in itertools.product(*stretches_per_quantity)
+                for box in itertools.product(*stretches_per_variable)
             )
         )
 
-    def _simple_intervals_of(
-        self, event: SimpleEvent, variable: Variable
-    ) -> Tuple[SimpleInterval, ...]:
-        """
-        :param event: The box the quantity is confined by.
-        :param variable: The quantity to read the confinement of.
-        :return: The unbroken stretches it is confined to.
-        """
-        interval: Interval = event[variable]
-        return tuple(interval.simple_sets)
-
     def _probability_of_box(self, box: Tuple[SimpleInterval, ...]) -> float:
         """
-        :param box: One unbroken stretch per quantity, in layout order.
-        :return: How probable it is that every quantity falls in its own stretch.
+        :param box: One unbroken stretch per variable, in this distribution's order.
+        :return: How probable it is that every variable falls in its own stretch.
         """
-        lower = np.array([stretch.lower for stretch in box])
-        upper = np.array([stretch.upper for stretch in box])
         probability = multivariate_normal.cdf(
-            upper,
-            mean=self.mean.as_array,
-            cov=self.covariance.as_array,
-            lower_limit=lower,
+            np.array([stretch.upper for stretch in box]),
+            mean=self.mean,
+            cov=self.covariance,
+            lower_limit=np.array([stretch.lower for stretch in box]),
         )
         return max(float(probability), 0.0)
 
     def log_mode(self) -> Tuple[Event, float]:
         """
-        A Gaussian is most likely exactly where it is expected to be.
+        A Gaussian is most dense exactly at its mean.
 
-        :return: The expectation, and the log-density there.
+        :return: The mean, and the log-density there.
         """
         mode = SimpleEvent.from_data(
-            {
-                variable: singleton(self.mean.estimate_of(variable))
-                for variable in self.variables
-            }
+            {variable: singleton(self.mean_of(variable)) for variable in self.variables}
         ).as_composite_set()
-        return mode, float(self.log_likelihood(self.mean.as_array.reshape(1, -1))[0])
+        return mode, float(self.log_likelihood(self.mean.reshape(1, -1))[0])
 
-    # %% fixing quantities at a value
+    # %% reading fewer variables
+
+    def marginal(self, variables: Iterable[Variable]) -> Optional[Self]:
+        """
+        :param variables: The variables to keep. They are kept in this distribution's
+            own order, whatever order they are asked for in.
+        :return: The Gaussian over only those variables.
+        :raises VariableNotInDistributionError: If this distribution is not over one of
+            them.
+        """
+        kept = set(variables)
+        return self._over_rows(
+            [self.index_of(variable) for variable in self.variables if variable in kept]
+        )
+
+    def _over_rows(self, rows: List[int]) -> Self:
+        """
+        :param rows: The rows to keep, in this distribution's own order.
+        :return: The Gaussian over the variables those rows belong to.
+        """
+        return type(self)(
+            distribution_variables=tuple(
+                self.distribution_variables[row] for row in rows
+            ),
+            mean=self.mean[rows],
+            covariance=self.covariance[np.ix_(rows, rows)],
+        )
+
+    # %% fixing variables at a value
 
     def log_conditional(
         self, point: Dict[Variable, Any]
-    ) -> Tuple[Optional[Self], float]:
+    ) -> Tuple[Optional[ProbabilisticModel], float]:
         """
-        Fix some of the quantities at the values given and answer with the Gaussian over
-        the rest, which stays Gaussian.
+        Fix some of the variables at the values given and answer with the distribution
+        over the rest, which stays Gaussian.
 
-        :param point: What each fixed quantity is known to be.
-        :return: The Gaussian over the quantities left free, and the log-density of the
+        Fixing *every* variable leaves a point mass at the values given, which is a
+        product of Dirac impulses rather than a Gaussian.
+
+        :param point: What each fixed variable is known to be.
+        :return: The distribution over whatever is left, and the log-density of the
             values given.
-        :raises VariableNotInQuantitiesError: If a fixed quantity is not one of this
+        :raises VariableNotInDistributionError: If a fixed variable is not one of this
             distribution's.
-        :raises UndefinedOperationError: If every quantity is fixed, since there is no
-            distribution over nothing.
         """
-        fixed_rows = [self.quantities.index_of(variable) for variable in point]
+        fixed_rows = [self.index_of(variable) for variable in point]
         free_rows = [
-            row for row in range(len(self.quantities)) if row not in set(fixed_rows)
+            row for row in range(len(self.variables)) if row not in set(fixed_rows)
         ]
-        if not free_rows:
-            raise UndefinedOperationError(self)
 
         fixed_at = np.array([float(point[variable]) for variable in point])
-        free_given_fixed = self._gaussian_of(free_rows, fixed_rows, fixed_at)
-        log_density_of_fixed = self._gaussian_of(
-            fixed_rows, [], fixed_at
-        ).log_likelihood(fixed_at.reshape(1, -1))[0]
-        return free_given_fixed, float(log_density_of_fixed)
+        log_density = float(
+            self._over_rows(fixed_rows).log_likelihood(fixed_at.reshape(1, -1))[0]
+        )
 
-    def _gaussian_of(
+        if not free_rows:
+            return self._point_mass_at(point), log_density
+        return self._conditioned(free_rows, fixed_rows, fixed_at), log_density
+
+    def _point_mass_at(self, point: Dict[Variable, Any]) -> ProbabilisticModel:
+        """
+        :param point: What every variable is known to be.
+        :return: The product of one Dirac impulse per variable, which is what a
+            distribution conditioned on all of its own variables is.
+        """
+        from probabilistic_model.distributions.distributions import (
+            DiracDeltaDistribution,
+        )
+        from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
+            ProbabilisticCircuit,
+            ProductUnit,
+            leaf,
+        )
+
+        circuit = ProbabilisticCircuit()
+        product = ProductUnit(probabilistic_circuit=circuit)
+        for variable in self.variables:
+            product.add_subcircuit(
+                leaf(
+                    DiracDeltaDistribution(
+                        variable=variable, location=float(point[variable])
+                    ),
+                    circuit,
+                )
+            )
+        return product.probabilistic_circuit
+
+    def _conditioned(
         self,
-        rows: List[int],
-        given_rows: List[int],
-        given_values: npt.NDArray[np.float64],
+        free_rows: List[int],
+        fixed_rows: List[int],
+        fixed_at: npt.NDArray,
     ) -> Self:
         """
-        :param rows: The rows the answer is over, in layout order.
-        :param given_rows: The rows held at a value, in the order ``given_values`` uses.
-        :param given_values: What those rows are held at.
-        :return: The Gaussian over ``rows``, narrowed by whatever ``given_rows`` says.
+        :param free_rows: The rows the answer is over, in this distribution's order.
+        :param fixed_rows: The rows held at a value, in the order ``fixed_at`` uses.
+        :param fixed_at: What those rows are held at.
+        :return: The Gaussian over ``free_rows``, narrowed by what the fixed rows say.
         """
-        quantities = Quantities.of(*[self.quantities.variables[row] for row in rows])
-        mean = self.mean.as_array[rows]
-        covariance = self.covariance.as_array[np.ix_(rows, rows)]
-
-        if given_rows:
-            cross = self.covariance.as_array[np.ix_(rows, given_rows)]
-            among_given = self.covariance.as_array[np.ix_(given_rows, given_rows)]
-            explained = cross @ np.linalg.inv(among_given)
-            mean = mean + explained @ (given_values - self.mean.as_array[given_rows])
-            covariance = covariance - explained @ cross.T
-
+        free = self._over_rows(free_rows)
+        cross = self.covariance[np.ix_(free_rows, fixed_rows)]
+        explained = cross @ np.linalg.inv(
+            self.covariance[np.ix_(fixed_rows, fixed_rows)]
+        )
         return type(self)(
-            mean=Mean.from_array(quantities, mean),
-            covariance=Covariance.from_array(quantities, self._symmetrized(covariance)),
+            distribution_variables=free.distribution_variables,
+            mean=free.mean + explained @ (fixed_at - self.mean[fixed_rows]),
+            covariance=self._symmetrized(free.covariance - explained @ cross.T),
         )
 
     @staticmethod
-    def _symmetrized(
-        covariance: npt.NDArray[np.float64],
-    ) -> npt.NDArray[np.float64]:
+    def _symmetrized(covariance: npt.NDArray) -> npt.NDArray:
         """
-        An uncertainty is symmetric by definition, so any difference between a matrix
-        and its transpose here is rounding. Averaging the two removes it, and one that
-        drifts out of symmetry at a control cycle's rate shows up much later as an
-        unexplained uncertainty.
+        A covariance is symmetric by definition, so any difference between a matrix and
+        its transpose is rounding. Averaging the two removes it exactly.
 
-        :param covariance: The uncertainty as the arithmetic left it.
-        :return: The same uncertainty, exactly symmetric.
+        :param covariance: The covariance as the arithmetic left it.
+        :return: The same covariance, exactly symmetric.
         """
         return (covariance + covariance.T) / 2
 
-    def conditional_on_readings(self, readings: List[Reading]) -> Self:
-        """
-        Correct the expectation with what sensors reported.
-
-        The readings and the expectation are weighed against each other by how uncertain
-        each is, so a sensor that is unsure of itself barely moves the estimate. This is
-        :meth:`conditional` applied to the joint distribution over these quantities and
-        what the sensors report, which is what a measurement update is.
-
-        :param readings: What the sensors reported, and what each number says about
-            these quantities. Reporting nothing answers with this distribution
-            unchanged.
-        :return: The corrected Gaussian over the same quantities.
-        :raises VariableNotInQuantitiesError: If a reading names a quantity this
-            distribution is not about.
-        """
-        if not readings:
-            return self
-
-        model = np.array(
-            [self.quantities.vector(reading.contributions) for reading in readings]
-        )
-        scatter = np.diag([reading.variance for reading in readings])
-        reported = np.array([reading.value for reading in readings])
-
-        joint = self._joint_with_readings(model, scatter)
-        estimated_rows = list(range(len(self.quantities)))
-        reported_rows = list(range(len(self.quantities), len(joint.quantities)))
-        return joint._gaussian_of(estimated_rows, reported_rows, reported)
-
-    def _joint_with_readings(
+    def conditional_on_measurement(
         self,
-        model: npt.NDArray[np.float64],
-        scatter: npt.NDArray[np.float64],
+        model: npt.NDArray,
+        measured: npt.NDArray,
+        noise: npt.NDArray,
     ) -> Self:
         """
-        :param model: How much each quantity contributes to each reported number.
-        :param scatter: How far each sensor's readings scatter.
-        :return: The Gaussian over these quantities followed by what the sensors report.
+        Correct the mean with what was measured.
+
+        The measurement and the mean are weighed against each other by how uncertain
+        each is. This is :meth:`conditional` applied to the joint distribution over
+        these variables together with what the measurement reports, which is what a
+        measurement update is.
+
+        :param model: How much each variable contributes to each measured number, with
+            one row per number measured.
+        :param measured: The numbers measured, one per row of ``model``.
+        :param noise: How far the measurement scatters, one row and column per number
+            measured.
+        :return: The corrected Gaussian over the same variables.
+        :raises ShapeMismatchError: If the three do not describe one measurement of
+            these variables.
         """
-        joint_quantities = Quantities.of(
-            *self.quantities.variables,
-            *self._variables_for_readings(len(model)),
+        model = np.atleast_2d(np.asarray(model, dtype=float))
+        measured = np.atleast_1d(np.asarray(measured, dtype=float))
+        noise = np.atleast_2d(np.asarray(noise, dtype=float))
+
+        amount = len(model)
+        if model.shape != (amount, len(self.variables)):
+            raise ShapeMismatchError(model.shape, (amount, len(self.variables)))
+        if measured.shape != (amount,):
+            raise ShapeMismatchError(measured.shape, (amount,))
+        if noise.shape != (amount, amount):
+            raise ShapeMismatchError(noise.shape, (amount, amount))
+
+        if amount == 0:
+            return self
+
+        joint = self._joint_with_measurement(model, noise)
+        return joint._conditioned(
+            list(range(len(self.variables))),
+            list(range(len(self.variables), len(joint.variables))),
+            measured,
         )
-        covariance = self.covariance.as_array
-        joint_covariance = np.block(
-            [
-                [covariance, covariance @ model.T],
-                [model @ covariance, model @ covariance @ model.T + scatter],
-            ]
-        )
+
+    def _joint_with_measurement(self, model: npt.NDArray, noise: npt.NDArray) -> Self:
+        """
+        :param model: How much each variable contributes to each measured number.
+        :param noise: How far the measurement scatters.
+        :return: The Gaussian over these variables followed by what is measured.
+        """
         return type(self)(
-            mean=Mean.from_array(
-                joint_quantities,
-                np.concatenate([self.mean.as_array, model @ self.mean.as_array]),
+            distribution_variables=(
+                *self.distribution_variables,
+                *self._variables_for_measurement(len(model)),
             ),
-            covariance=Covariance.from_array(
-                joint_quantities,
-                self._symmetrized(joint_covariance),
+            mean=np.concatenate([self.mean, model @ self.mean]),
+            covariance=self._symmetrized(
+                np.block(
+                    [
+                        [self.covariance, self.covariance @ model.T],
+                        [
+                            model @ self.covariance,
+                            model @ self.covariance @ model.T + noise,
+                        ],
+                    ]
+                )
             ),
         )
 
-    def _variables_for_readings(self, amount: int) -> List[Continuous]:
+    def _variables_for_measurement(self, amount: int) -> List[Continuous]:
         """
-        A reading is a quantity of the joint distribution only while the measurement is
-        being applied, so it is named here rather than carried in :class:`Reading`.
+        What is measured is a variable of the joint only while the measurement is being
+        applied, so it is named here rather than asked of the caller.
 
-        :param amount: How many readings need a name.
+        :param amount: How many measured numbers need a name.
         :return: That many names, none of which this distribution already uses.
         """
         taken = {variable.name for variable in self.variables}
         names = []
         for position in range(amount):
-            name = f"reading {position}"
+            name = f"measurement {position}"
             while name in taken:
                 name = f"{name} "
             taken.add(name)
@@ -603,32 +420,16 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             math.log(probability),
         )
 
-    # %% reading fewer quantities
-
-    def marginal(self, variables: Iterable[Variable]) -> Optional[Self]:
-        """
-        :param variables: The quantities to keep. They are kept in this distribution's
-            own layout order, whatever order they are asked for in.
-        :return: The Gaussian over only those quantities.
-        :raises VariableNotInQuantitiesError: If one of them is not one of this
-            distribution's.
-        """
-        kept = set(variables)
-        rows = [
-            self.quantities.index_of(variable)
-            for variable in self.variables
-            if variable in kept
-        ]
-        return self._gaussian_of(rows, [], np.array([]))
+    # %% moments
 
     def moment(self, order: OrderType, center: CenterType) -> MomentType:
         """
-        Every moment asked for here is of one quantity on its own, so each is answered
-        by that quantity's own marginal.
+        Every moment asked for here is of one variable on its own, so each is answered
+        by that variable's own marginal.
 
-        :param order: The order of the moment of each quantity to answer for.
+        :param order: The order of the moment of each variable to answer for.
         :param center: What to take each of those moments about.
-        :return: The moment of each quantity asked for.
+        :return: The moment of each variable asked for.
         """
         from probabilistic_model.distributions.gaussian import GaussianDistribution
 
@@ -649,79 +450,75 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
 
     def apply_translation(self, translation: Dict[Variable, float]):
         """
-        Move the expectation, leaving the uncertainty as it is.
+        Move the mean, leaving the covariance as it is.
 
-        :param translation: How far to move each quantity; one left out does not move.
-        :raises VariableNotInQuantitiesError: If it names a quantity this distribution
-            is not about.
+        :param translation: How far to move each variable; one left out does not move.
+        :raises VariableNotInDistributionError: If it names a variable this distribution
+            is not over.
         """
-        self.mean = Mean.from_array(
-            self.quantities, self.mean.as_array + self.quantities.vector(translation)
-        )
+        for variable, distance in translation.items():
+            self.mean[self.index_of(variable)] += distance
 
     def apply_scaling(self, scaling: Dict[Variable, float]):
         """
-        Stretch the quantities, which stretches the expectation once and the uncertainty
-        once per quantity it relates.
+        Stretch the variables, which stretches the mean once and the covariance once per
+        variable it relates.
 
-        :param scaling: What to multiply each quantity by; one left out keeps its size.
-        :raises VariableNotInQuantitiesError: If it names a quantity this distribution
-            is not about.
+        :param scaling: What to multiply each variable by; one left out keeps its size.
+        :raises VariableNotInDistributionError: If it names a variable this distribution
+            is not over.
         """
-        factors = np.ones(len(self.quantities))
+        factors = np.ones(len(self.variables))
         for variable, factor in scaling.items():
-            factors[self.quantities.index_of(variable)] = factor
-        self.mean = Mean.from_array(self.quantities, self.mean.as_array * factors)
-        self.covariance = Covariance.from_array(
-            self.quantities, self.covariance.as_array * np.outer(factors, factors)
-        )
+            factors[self.index_of(variable)] = factor
+        self.mean = self.mean * factors
+        self.covariance = self.covariance * np.outer(factors, factors)
 
-    def apply_linear_map(self, mapping: Mapping[QuantityPair, float]):
+    def apply_linear_map(self, mapping: npt.NDArray):
         """
-        Make each quantity the weighted sum of the quantities it is mapped from, which
-        is what carrying an estimate forward through a linear change does.
+        Make each variable the weighted sum of the variables it is mapped from, which is
+        what carrying a distribution forward through a linear change does.
 
-        :param mapping: How much each quantity on the right of a pair carries into the
-            quantity on its left. :attr:`Quantities.unchanged` leaves every quantity as
-            it is.
-        :raises VariableNotInQuantitiesError: If it names a quantity this distribution
-            is not about.
+        :param mapping: How much each variable on the way in contributes to each
+            variable on the way out, one row and column per variable. The identity
+            leaves every variable as it is.
+        :raises ShapeMismatchError: If it is not laid out by this distribution's
+            variables.
         """
-        matrix = self.quantities.matrix(mapping)
-        self.mean = Mean.from_array(self.quantities, matrix @ self.mean.as_array)
-        self.covariance = Covariance.from_array(
-            self.quantities,
-            self._symmetrized(matrix @ self.covariance.as_array @ matrix.T),
-        )
+        mapping = np.asarray(mapping, dtype=float)
+        amount = len(self.variables)
+        if mapping.shape != (amount, amount):
+            raise ShapeMismatchError(mapping.shape, (amount, amount))
+        self.mean = mapping @ self.mean
+        self.covariance = self._symmetrized(mapping @ self.covariance @ mapping.T)
 
-    def apply_added_uncertainty(self, uncertainty: Mapping[QuantityPair, float]):
+    def apply_added_covariance(self, added: npt.NDArray):
         """
-        Make the quantities less certain, which is what keeps a distribution nobody is
+        Make the variables less certain, which is what keeps a distribution nobody is
         measuring from staying confident forever.
 
-        :param uncertainty: How much uncertainty to add to each pair of quantities; one
-            left out gains none.
-        :raises VariableNotInQuantitiesError: If it names a quantity this distribution
-            is not about.
+        :param added: The covariance to add, one row and column per variable.
+        :raises ShapeMismatchError: If it is not laid out by this distribution's
+            variables.
         """
-        self.covariance = Covariance.from_array(
-            self.quantities,
-            self.covariance.as_array + self.quantities.symmetric_matrix(uncertainty),
-        )
+        added = np.asarray(added, dtype=float)
+        amount = len(self.variables)
+        if added.shape != (amount, amount):
+            raise ShapeMismatchError(added.shape, (amount, amount))
+        self.covariance = self.covariance + added
 
     # %% sampling
 
     def sample(self, amount: int) -> npt.NDArray:
-        return multivariate_normal.rvs(
-            mean=self.mean.as_array, cov=self.covariance.as_array, size=amount
-        ).reshape(amount, len(self.quantities))
+        return self.scipy_distribution.rvs(size=amount).reshape(
+            amount, len(self.variables)
+        )
 
     def __copy__(self) -> Self:
         return type(self)(
-            mean=Mean.from_array(self.quantities, self.mean.as_array.copy()),
-            covariance=Covariance.from_array(
-                self.quantities, self.covariance.as_array.copy()
-            ),
+            distribution_variables=self.distribution_variables,
+            mean=self.mean.copy(),
+            covariance=self.covariance.copy(),
         )
 
 
@@ -780,20 +577,19 @@ class TruncatedMultivariateGaussianDistribution(ProbabilisticModel):
 
     def log_mode(self) -> Tuple[Event, float]:
         """
-        The most likely point is the untruncated expectation whenever the event still
-        contains it, since the density falls away from there in every direction.
+        The most likely point is the untruncated mean whenever the event still contains
+        it, since the density falls away from there in every direction.
 
         :return: That point and its log-density.
-        :raises IntractableError: If the expectation was ruled out, which leaves the
-            most likely point somewhere on the event's boundary and no closed form for
-            it.
+        :raises IntractableError: If the mean was ruled out, which leaves the most
+            likely point somewhere on the event's boundary and no closed form for it.
         """
-        expectation = self.untruncated.mean.as_array
-        if not self.event.contains(expectation):
+        mean = self.untruncated.mean
+        if not self.event.contains(mean):
             raise IntractableError(self)
         return (
             self.untruncated.log_mode()[0],
-            float(self.log_likelihood(expectation.reshape(1, -1))[0]),
+            float(self.log_likelihood(mean.reshape(1, -1))[0]),
         )
 
     def log_truncated(
@@ -822,7 +618,7 @@ class TruncatedMultivariateGaussianDistribution(ProbabilisticModel):
         self, point: Dict[Variable, Any]
     ) -> Tuple[Optional[Self], float]:
         """
-        :raises UndefinedOperationError: Always. Fixing a quantity of a confined Gaussian
+        :raises UndefinedOperationError: Always. Fixing a variable of a confined Gaussian
             leaves the Gaussian conditional confined to the slice the event makes at that
             value, which nothing asks for yet.
         """
