@@ -788,3 +788,39 @@ uses — that swap is internals only, and `estimator-node-base`,
 `Quantities` itself is a candidate to move with them: an ordered set of random
 variables plus the layout of arrays over them is a probability concept, not a
 motion-control one.
+
+### The move into `semantic_digital_twin` broke the ORM, and the exception was why
+
+The first CI run after the review fixes came back **10 of 23 red**, and every
+failure was one root cause: `sqlalchemy.orm.exc.MappedAnnotationError` importing
+the generated `semantic_digital_twin/orm/ormatic_interface.py`.
+
+Moving `PoseCovariance` into `semantic_digital_twin` moved
+`PoseCovarianceNotSixBySixError` there with it, and `ORMatic.from_package` maps
+every dataclass it finds — exceptions included, which is normal here; sdt's other
+exceptions all have DAOs. What is not normal is a field typed as a bare `tuple`:
+a shape has no fixed length, so there is no column type for it, and the generated
+`PoseCovarianceNotSixBySixErrorDAO` could not be imported. Nothing that reaches
+sdt's ORM could start — giskardpy, coraplex, experiments, sdt itself and every
+notebook and demo job.
+
+The ignore-it decision recorded above covered the type but not its error. Both are
+in `ignore_classes` now, for the same reason: a shape mismatch is not something a
+world stores. The fields are typed `tuple[int, ...]` rather than bare `tuple`,
+which is what they always meant.
+
+The failing run is also what verifies the fix: `PoseCovariance` itself was already
+excluded and produced no DAO, so the mechanism demonstrably works on the very run
+that caught this.
+
+Worth carrying forward, and sharper than the note already written above: adding a
+dataclass to `semantic_digital_twin` is never neutral, and *the exceptions that
+come with it count as dataclasses too*. `detection-confidence-field` and
+`probability-concepts-in-probabilistic-model` both add types to shared packages.
+An unmappable field type fails at import of the generated module, not at
+generation, so it takes down every dependent package at once rather than
+producing one local failure.
+
+This also could not be caught in the authoring container: regenerating the ORM
+needs the ROS message packages, so the existing sdt ORM tests are the only thing
+that exercises it, and they only run in CI.
