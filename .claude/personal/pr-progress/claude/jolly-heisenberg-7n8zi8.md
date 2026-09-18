@@ -5,7 +5,7 @@ Plan `aicon-belief-integration`, track *Belief core*. Base is
 `Quantities` lives only on #11's stack and `pose_covariance.py` only on #13's, and this
 item needs both.
 
-## Done - the whole item is implemented and pushed (`1b61ff7d`)
+## Done - the whole item is implemented and pushed (`1781fca6`)
 
 1. `SpatialVariables.pose` is a `Quantities` over the six degrees of freedom;
    `row_in_pose` deleted rather than reimplemented over it.
@@ -35,11 +35,42 @@ uses an asymmetric covariance.
 - Cost measured, since `PoseUncertainty.on_tick` reads it per cycle: `total_variance`
   55 us -> 121 us, 0.13% of a 50 ms tick.
 
+## Resolution round - the one red check (`1781fca6`)
+
+CI on `1b61ff7d` came back 22 of 23 green. The one failure was
+`test_each_lib (semantic_digital_twin)`: **1 failed, 1764 passed, 52 skipped**, and it
+was this branch's.
+
+`test_convert_pose_covariance_reads_the_entries_row_by_row` raised
+`AttributeError: 'Quantities' object has no attribute 'index'`. The rename was one site
+short - its forward assertion used `pose.index_of`, and the transposed read on the next
+line still used the tuple's `.index`, twice on one line. The item's own record says
+three test sites moved; there was a fourth.
+
+The local run could not have caught it: that test is under `test_ros/` and imports
+`geometry_msgs.msg`, a ROS package with no PyPI distribution at all (checked, not
+assumed), while the local verification ran `test_spatial_types`. The cheap guard for a
+mechanical rename is a whole-branch grep for the removed name - `git grep 'pose\.index('`
+reports the one line - rather than a local run.
+
+Changing the test is normally the wrong move, and `AGENTS.md` says so. This is the case
+that rule does not describe: the production code is right and the test called a method
+that no longer exists, so it raised before asserting anything. What it asserts is
+unchanged, and that was checked - the transposed read is still row `yaw`, column `x`,
+which is 30 of a counting-up matrix, the same number #9's second review round recorded
+for this layout. Both directions were run against the real `PoseCovariance.from_array`
+here (5 and 30) and still differ, so a transposed `as_array` is still visible.
+
 ## Next
 
-- Watch CI on `1b61ff7d`: the converter, monitor and synchronizer tests are CI's
-  (`test/giskardpy_test/conftest.py` imports `rclpy`), as is regenerating the ORM.
+- **Read CI on `1781fca6`.** It was still running when this round closed: 3 green
+  (`to-lowercase`, `check_generated_orm_interfaces_are_untracked`,
+  `test_claude_dev_tooling`), 20 in flight including
+  `test_each_lib (semantic_digital_twin)`, which is the one that matters.
+- The converter, monitor and synchronizer tests stay CI's, as does regenerating the ORM.
 - PR stays a draft until its author has reviewed it, per this repo's convention.
+- The two-parent shape will draw a reviewer comment, as it did on #14. The answer is the
+  empty `git diff <other parent> <head> -- <path>`, not the description's heading.
 
 ## Container recipe that worked here
 
