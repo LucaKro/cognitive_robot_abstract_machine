@@ -337,3 +337,86 @@ own frame, and a frame-aware spatial uncertainty type belongs in
 - **Untested locally.** This container has no `numpy`, `casadi` or `rclpy`, so
   every test here is verified by CI rather than by the session that wrote it —
   the same constraint #8 reported.
+
+The plan settled at kickoff, and what it decided that the item's own `notes`
+left open.
+
+### Where the belief layer lives
+
+`ContextExtension` is giskard's (`motion_statechart/context.py:25`), so
+`BeliefContext` can only live in giskardpy. The Gaussian itself goes beside it
+in a new `motion_statechart/beliefs/` package rather than in krrood: krrood is a
+knowledge-representation library whose numeric half is the CasADi wrapper, and a
+recursive filter is neither. `beliefs/` also gives `estimator-node-base` a place
+to land, matching how `goals/`, `monitors/` and `tasks/` are already organized.
+
+### A belief names its dimensions with `random_events` variables
+
+The roadmap's "use `random_events` for variables and events" is taken
+literally: a `GaussianBelief` carries a list of `Continuous` variables, one per
+row of its mean, and `BeliefContext` is keyed by those same variables. That
+gives the context a structured key instead of a string, lets a vector belief
+answer `variance_of(yaw)` without the caller counting rows, and is the same
+vocabulary `symbolic-estimator-means` will need in wave 3.
+
+One belief is registered under each of its variables, so a variable can belong
+to exactly one belief — `add` raises `DuplicateBeliefError` rather than
+silently splitting a quantity across two filters.
+
+### Predict and update mutate in place
+
+A belief is the filter's state, not a value object. Returning a new instance
+would leave every holder of the old one — the context included — silently
+stale, and the context would have to be re-written on every tick at 20 Hz.
+`predict` and `update` therefore modify the belief the context already holds,
+which is also what segmind's per-tick context state does.
+
+### `predict` takes an offset
+
+`x' = F x + offset`, not just `F x`. `grasp-belief-node` is already specified as
+"a prediction step that decays toward the prior when the gripper is open", which
+is affine rather than linear, so the offset is required by a recorded dependent
+item rather than added speculatively.
+
+### The update is written in Joseph form
+
+`P' = (I - K H) P (I - K H)ᵀ + K R Kᵀ` rather than the shorter `(I - K H) P`.
+Both are the same in exact arithmetic; the long form stays symmetric under
+floating point, and a belief that drifts out of symmetry at 20 Hz is a failure
+that shows up much later as an unexplained covariance.
+
+### One shape error, not four
+
+Every array the belief layer is handed can be the wrong shape — mean,
+covariance, transition, process noise, offset, and a measurement's value, model
+and noise. That is one situation with eight subjects, so it is one
+`WrongBeliefShapeError` carrying a `BeliefArray` enum member naming which array,
+the shape required and the shape given, rather than a separate exception class
+per array or a message to match on.
+
+### Scope boundaries held
+
+No statechart node is introduced. This item is the container and the math;
+`estimator-node-base` is the item that makes a `MotionStatechartNode` out of it
+and registers a `FloatVariable` for the mean, and nothing here touches
+`float_variable_data`. Nothing is added to `WorldState`, the ORM or the control
+loop, per the design decisions already recorded above.
+
+### Assumptions and open points
+
+- Nothing adds a `BeliefContext` to a live context yet. Like `SegmindContext`,
+  which `episode_segmenter.py:62` adds, that wiring belongs to whoever runs the
+  statechart — here, `estimator-node-base`. Until then the extension is
+  reachable only by a caller that adds it itself, which is what the tests do.
+- The belief carries no prior over which variables are correlated: a caller
+  states the full covariance. That is deliberate for a first version, but it
+  means a two-variable belief built by two different estimators has no defined
+  way to merge.
+- This item's only file overlap with the unlanded `grasp-likelihood-continuous`
+  branch is `motion_statechart/exceptions.py`, where both append new exception
+  classes. Different classes in different places in the file, so the two are
+  independent work; worth knowing when the second of the two rebases.
+- The branch recorded is the session's designated branch,
+  `claude/belief-integration-gaussian-zi1o82`, not the
+  `belief-context-and-gaussian` placeholder the manifest carried, following the
+  same correction `grasp-likelihood-continuous` made.
