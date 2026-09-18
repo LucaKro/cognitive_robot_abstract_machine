@@ -701,3 +701,90 @@ classes; all were kept.
 CI was fully green on `28dc12c2`, the commit before these fixes. The fixes
 themselves are not CI-verified yet — only the `PoseCovariance` tests could be run
 in this container, against the module source with the exceptions module stubbed.
+
+## `belief-context-and-gaussian` — first review round
+
+Two review threads and one pull request comment, all from the author. The first
+two are one ask; the third reopens a design decision recorded above.
+
+### The arrays are laid out by quantity, not checked for shape
+
+*"are these arrays always different in size? or can we extract a datastructure
+from that we dont need these 'expected shape' checks everywhere?"* and *"is
+there any way we can use proper datastructures instead of just numpy arrays
+everywhere?"*
+
+They are not always different in size: every array in the module had one of five
+shapes, all of them derived from two numbers — how many quantities the belief is
+about, and how many numbers a reading carries. Eight shape checks, an
+eight-member `BeliefArray` enum and `WrongBeliefShapeError` existed only because
+the arrays were unlabelled and the caller built them.
+
+`Quantities` now holds the variables a belief is about and builds every vector
+and matrix over them. An array cannot describe a different set of quantities
+than the belief it belongs to, so there is nothing left for a shape check to
+check; naming a quantity the belief is not about is the only remaining way to
+get it wrong, and `VariableNotInBeliefError` already covered that. The enum and
+the exception are gone.
+
+This also turned the interfaces from positions into names. A belief is built
+from what each quantity is estimated at and how pairs of them co-vary; `predict`
+takes its transition, process noise and offset the same way, with
+`Quantities.unchanged` for quantities expected to stay put; and a measurement is
+a list of `Reading`s carrying what a sensor reported, how much each quantity
+contributes to that number, and how far that sensor scatters. Reading the *sum*
+of two quantities went from a hand-built `[[1.0, 1.0]]` row to
+`contributions={a: 1.0, b: 1.0}`.
+
+The honest cost: the mappings are built per call rather than reused, so a large
+belief on a fast loop does work a preallocated array would not. At the sizes
+this plan needs — a scalar grasp belief, a six-quantity pose belief — it is far
+below the raycast already on the same tick. It also means a caller that *has* a
+matrix, such as the 6×6 `odometry-covariance-capture` lifts off a ROS message,
+must state it as pair-keyed entries; when a consumer needs the array path, that
+item adds it rather than this one guessing at it.
+
+This reverses the *"one shape error, not four"* decision recorded at kickoff.
+That decision was defensible while the arrays were unlabelled; once they are
+built from the quantities, consolidating the checks is worse than not needing
+them.
+
+### The probability concepts belong in `probabilistic_model`
+
+*"I talked to the maintainer of Probabilistic Model and he said that there is
+just no Multivariate Gaussian because he didnt need them yet, but they would be
+cool to have. is this possible"*, and — in session — that the same applies to
+covariance and to any other probability concept.
+
+The kickoff recorded *"write the Kalman update by hand; do not force
+`probabilistic_model` to be a filter"*, on the evidence that the package has no
+multivariate Gaussian, no covariance, and conditioning that is truncation or
+Dirac collapse. The first two are true but are absence rather than obstacle. The
+third was wrong about the relevant operation: `ProbabilisticModel` is already
+multivariate and keyed by `random_events` variables, and it declares
+`conditional(point)` — conditioning on a value of a subset of the variables,
+which for a joint Gaussian *is* the Kalman measurement update in closed form.
+`apply_translation` and `apply_scaling`, also keyed by variable, are the
+prediction step's ingredients. So the distribution belongs there, and so do the
+concepts around it.
+
+What makes it real work rather than an afternoon: everything under
+`ProbabilisticModel` today is a `UnivariateDistribution`, so a multivariate
+Gaussian needs its own place in that hierarchy, and two of the eight abstract
+methods are hard for a *correlated* Gaussian —
+`probability_of_simple_event` (the probability of an axis-aligned box has no
+closed form and needs numerical integration) and `log_truncated` (a truncated
+correlated Gaussian is not Gaussian, so it cannot answer with `Self`). That is
+the more likely reason it does not exist yet.
+
+**Decided with the user:** this lands as a new plan item,
+`probability-concepts-in-probabilistic-model`, depending on this one, rather
+than holding wave 2 behind another package or widening this pull request across
+two of them. `GaussianBelief`'s internals then swap onto it. Because this round
+made the interface variable-keyed — the same vocabulary `ProbabilisticModel`
+uses — that swap is internals only, and `estimator-node-base`,
+`grasp-belief-node` and the drawer experiment do not have to move for it.
+
+`Quantities` itself is a candidate to move with them: an ordered set of random
+variables plus the layout of arrays over them is a probability concept, not a
+motion-control one.
