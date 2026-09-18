@@ -2916,19 +2916,25 @@ fails identically at the same class. So the generator is unavailable here for re
 that predate the change, and regenerating the ORM stays CI's, as every round has
 recorded — but now as a measurement rather than an expectation.
 
-### Verification
+### Verification, and the ORM point confirmed by the run that could answer it
 
-CI on `58b8cd66`: 20 of 23 checks complete and green, three still running
-(`test_each_lib` for giskardpy, `semantic_digital_twin` and coraplex).
-`check_generated_orm_interfaces_are_untracked` is among the green ones.
-`mergeable_state` reads `unstable` because checks are pending, not because any failed.
+CI on `58b8cd66`: 21 of 23 checks green, including `test_each_lib (giskardpy)` —
+the one that builds and imports the generated giskardpy interface, and so the only
+thing that could have contradicted the reasoning above. It did not. A field-less
+dataclass in the scan maps to an empty table and breaks nothing, which is now
+measured rather than argued from a sibling branch.
+
+`check_generated_orm_interfaces_are_untracked` is green too. The two still running
+are `test_each_lib` for `semantic_digital_twin` and coraplex, neither of which this
+diff touches — it is giskardpy source plus one giskardpy test file.
+`mergeable_state` reads `unstable` because those two are pending, not because
+anything failed.
 
 ### Still open
 
-- **`test_each_lib (giskardpy)` had not finished.** It is the check that exercises the
-  generated giskardpy interface and so the last confirmation of the ORM point above.
-  Nothing suggests it will fail — the reasoning is checked and the other 20 are green —
-  but it is unread.
+- **Two checks had not finished** when this round closed: `test_each_lib` for
+  `semantic_digital_twin` and coraplex. Neither covers a file this diff touches, and
+  every completed check is green.
 - **The review thread is open by intent**, carrying the question about whether to
   restructure the base back to the author.
 - **The dashboard is still not published.** Rebuilt again this round with no drift and
