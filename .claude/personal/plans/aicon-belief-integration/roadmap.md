@@ -1967,3 +1967,117 @@ packages, and it now covers krrood too.
 - **The tracking-issue subscription was refused** by this session's permission
   mode, as on every earlier round. Issue #7's comments were read directly
   instead; the three structural changes recorded there concern other items.
+
+## `odometry-covariance-capture` — restack resolution
+
+The stall was mechanical, and the same one `grasp-likelihood-continuous` hit: the
+stack maintenance pass could not integrate `main`, so it left the branch alone
+and labelled #9 `needs-resolution`, which withholds it from promotion. Nothing on
+the review side was blocking — all eight review threads are resolved, including
+the two the second round left open for the author, and CI was 23 of 23 green on
+`d8c6c10b` throughout. A dashboard reading checks and review state alone would
+have shown nothing wrong.
+
+### The conflict was the append-an-exception collision this plan predicted
+
+`giskardpy/src/giskardpy/motion_statechart/exceptions.py`, and it is exactly the
+three-way overlap the resolution round recorded a warning about — except the
+other side is now `main` rather than a sibling branch. `main`'s #650 added
+`NodeStateVariableNotSerializableError` at the end of the file; this branch had
+added `PoseUncertaintyNotBuiltError` at the same point. Git could not tell the two
+appends apart.
+
+Both are kept, and neither is optional — that was checked rather than assumed.
+`graph_node.py:47` imports `NodeStateVariableNotSerializableError` and raises it in
+`to_json`; `uncertainty_monitors.py:10` imports `PoseUncertaintyNotBuiltError` and
+raises it when the published variable is read before the node is built. Dropping
+either side would have broken an import. The file's import block auto-merged, so
+`JSONSerializationError` and `NodeStateVariable` were already in place.
+
+`semantic_digital_twin/exceptions.py` auto-merged this time; `main` added no class
+to it, and this branch's two survived.
+
+### The merge was verified against a baseline, not against an expectation
+
+Following the recommendation `grasp-likelihood-continuous`'s own restack left.
+The `semantic_digital_twin` spatial-type suite on the merged tree reports 1 failed,
+321 passed; plain `origin/main` in the same container reports 1 failed, 309 passed,
+and the failure is the same `TestVector3::test_length_0` both times — the one
+`pose-uncertainty-through-transforms` already recorded as this container's casadi
+3.8.1 rather than anything in a diff. The difference is exactly this branch's twelve
+`PoseCovariance` tests, all passing.
+
+That the failure is `main`'s is also true by construction: after the merge,
+`spatial_types.py`, `test_spatial_types.py` and `reference_implementations.py` are
+byte-identical to `origin/main`.
+
+The ten dependency-declaration tests pass, giskardpy's among them, so the merge
+introduced no undeclared workspace import.
+
+### `random_events` builds here now, which no earlier round managed
+
+Every previous session on this plan recorded the same antlr4 wheel failure and
+worked around it by stubbing `random_events.variable` down to a hashable
+`Continuous`. The wheel still fails, but the fix is not to build it: `pip install
+--no-deps random_events` takes the manylinux wheel, which ships the compiled
+`random_events_lib` the checkout's own source needs. With that installed and
+`random_events/src` on the path, the checkout's `random_events` — `plotting`
+included, which the wheel lacks — imports and works.
+
+So the twelve `PoseCovariance` tests ran against the real module this round rather
+than against a stub. `antlr4` itself, if a later item needs it, installs the same
+way `urdf_parser_py` and `xacro` do: the sdist's package directory copied onto
+`site-packages`.
+
+### What still cannot run here, and why it is a harder boundary than it looks
+
+The monitor, converter and synchronizer tests remain CI's. Two separate walls,
+and only the first is avoidable:
+
+- The root `test/conftest.py` regenerates the ORM, which needs the ROS message
+  packages. `--orm-build=never` is the supported way past it — a real option on the
+  option parser, not a workaround — and it works.
+- `test/giskardpy_test/conftest.py` imports `GiskardTester`, which imports `rclpy`.
+  The `mini_world` fixture those tests want is pure `semantic_digital_twin` and
+  touches no ROS at all, so only that one unused import stands between this
+  container and the monitor tests. Stubbing it was tried and abandoned: the
+  stub has to satisfy `from rclpy.x import a, b` across the middleware layer, at
+  which point it is reimplementing ROS rather than standing in for it.
+
+Worth knowing rather than re-deriving: the giskardpy suites on this plan are
+blocked by one import in a conftest, not by the code under test.
+
+### Scope boundaries held
+
+- **No production code changed.** The merge commit is the only change, and the diff
+  against `main` is what it was before the restack.
+- **`PoseUncertaintyNotBuiltError` was left alone.** `estimator-node-base`'s section
+  records that `NodeNotBuiltError` already exists on `main` and that pointing this
+  branch's exception at it is this branch's change to make — the same call
+  `grasp-likelihood-continuous` made about its own. It is a real simplification, no
+  reviewer has asked for it, and folding it into a conflict resolution would widen a
+  no-op merge. Worth doing on this item's next code push, if there is one.
+
+### Still open
+
+- **The `needs-resolution` label is still on #9.** The stack pass clears it once the
+  branch merges cleanly again, which it now does, so the next pass should drop it and
+  let the branch rejoin promotion.
+- **#9 was deliberately left out of draft**, for the reason `grasp-likelihood-continuous`
+  recorded and confirmed with the author one round earlier: un-drafting is this
+  repository's record of the author having reviewed it, the push changed no production
+  code, and re-drafting would have withdrawn it from the promotion queue for a no-op
+  merge. #9 also carries a requested reviewer, which #8 did not.
+- **The work stayed on the item's own branch.** This session was designated
+  `claude/odometry-covariance-capture-frq0bu`; the merge belongs on
+  `claude/jolly-edison-k0zkiq` where #9 and its eight threads are. Settled rather than
+  asked again — `belief-context-and-gaussian`'s second round left the note, this item's
+  own second round made the same call, and `grasp-likelihood-continuous` confirmed it
+  with the author.
+- **The covariance frame is still unchecked**, as every round since the kickoff has
+  recorded.
+- **`PoseCovariance.values` is still a bare array**, as #11 and #13 both record.
+  `pose-covariance-on-shared-quantities` is where matching it costs least.
+- **The tracking-issue subscription was refused** by this session's permission mode,
+  as on every earlier round. Issue #7's comments were read directly instead; the three
+  structural changes recorded there concern other items.
