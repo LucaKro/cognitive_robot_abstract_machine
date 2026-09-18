@@ -69,7 +69,8 @@ from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.predetermined_maps.apartment_environment import (
     ApartmentEnvironment,
 )
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.reasoning.predicates import LeftOf
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.pr2 import PR2
@@ -524,6 +525,101 @@ def _pr2_world_setup():
 def pr2_world_copy(_pr2_world_setup):
     result = deepcopy(_pr2_world_setup)
     return result
+
+
+# %% a body sitting between a gripper's fingers
+
+
+@dataclass
+class BodyBetweenFingers:
+    """
+    A world in which one body sits between the fingers of one gripper, for exercising
+    the predicates and nodes that measure whether it is held.
+    """
+
+    world: World
+    """
+    The world holding both the robot and the body.
+    """
+
+    body: Body
+    """
+    The body placed between the fingers.
+    """
+
+    gripper: EndEffector
+    """
+    The gripper it was placed in.
+    """
+
+    connection: Connection6DoF
+    """
+    The connection positioning the body, so a test can move it again.
+    """
+
+    def move_body_away(self):
+        """
+        Moves the body back to the world root, leaving the gripper empty.
+        """
+        self.connection.origin = HomogeneousTransformationMatrix(
+            reference_frame=self.world.root
+        )
+
+
+@pytest.fixture(scope="function")
+def body_between_fingers(pr2_world_copy) -> BodyBetweenFingers:
+    robot = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
+    grippers = pr2_world_copy.get_semantic_annotations_by_type(EndEffector)
+    left_gripper = (
+        grippers[0]
+        if LeftOf(
+            grippers[0].root.center_of_mass,
+            grippers[1].root.center_of_mass,
+            robot.root.global_transform,
+        )()
+        else grippers[1]
+    )
+
+    body = Body(name=PrefixedName("body_between_fingers"))
+    body.collision = ShapeCollection(
+        [
+            Box(
+                scale=Scale(0.05, 0.01, 0.05),
+                origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    reference_frame=body
+                ),
+                color=Color(1.0, 0.0, 0.0),
+            )
+        ]
+    )
+
+    finger_position = (
+        left_gripper.finger.tip.collision.center_of_mass_in_world().to_vector3()
+    )
+    thumb_position = (
+        left_gripper.thumb.tip.collision.center_of_mass_in_world().to_vector3()
+    )
+    between_fingers = (finger_position + thumb_position) / 2.0
+
+    with pr2_world_copy.modify_world():
+        root = pr2_world_copy.root
+        connection = Connection6DoF.create_with_dofs(
+            parent=root, child=body, world=pr2_world_copy
+        )
+        pr2_world_copy.add_connection(connection)
+        connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=between_fingers[0],
+            y=between_fingers[1],
+            z=between_fingers[2],
+            reference_frame=root,
+        )
+
+    return BodyBetweenFingers(
+        world=pr2_world_copy,
+        body=body,
+        gripper=left_gripper,
+        connection=connection,
+    )
 
 
 @pytest.fixture(scope="session")
