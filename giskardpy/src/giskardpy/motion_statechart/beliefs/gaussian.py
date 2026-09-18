@@ -31,6 +31,12 @@ class Quantities:
     quantities than the belief it belongs to. Naming a quantity the belief is not about
     is then the only way left to get it wrong, and that is what :meth:`index_of`
     rejects.
+
+    ..note:: Building each array here walks a mapping on every call, where taking the
+        arrays ready-made would not. At the sizes a belief is used at that stays far
+        below the rest of a control cycle, but it is the first thing to undo if one
+        ever shows up in a profile: the arithmetic below is plain numpy, so the
+        mappings can go back to being arrays the caller builds.
     """
 
     variables: Tuple[Continuous, ...]
