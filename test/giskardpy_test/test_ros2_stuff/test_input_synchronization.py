@@ -25,6 +25,7 @@ from giskardpy.middleware.ros2.input_synchronization import (
     TfFrameSynchronizer,
     TopicInputSynchronizer,
 )
+from giskardpy.motion_statechart.pose_covariance import PoseAxis
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
@@ -83,9 +84,12 @@ def joint_state_message(joint_name: str, position: float) -> JointState:
     return message
 
 
-def odometry_message(pose: HomogeneousTransformationMatrix) -> Odometry:
+def odometry_message(
+    pose: HomogeneousTransformationMatrix,
+    variance_of_axis: dict[PoseAxis, float] | None = None,
+) -> Odometry:
     """
-    An odometry message that reports the given pose.
+    An odometry message that reports the given pose, and how uncertain it is.
     """
     quaternion = pose.to_rotation_matrix().to_quaternion().to_np()
     position = pose.to_position().to_np()
@@ -97,6 +101,8 @@ def odometry_message(pose: HomogeneousTransformationMatrix) -> Odometry:
     message.pose.pose.orientation.y = float(quaternion[1])
     message.pose.pose.orientation.z = float(quaternion[2])
     message.pose.pose.orientation.w = float(quaternion[3])
+    for axis, variance in (variance_of_axis or {}).items():
+        message.pose.covariance[axis * len(PoseAxis) + axis] = variance
     return message
 
 
@@ -237,6 +243,61 @@ def test_odometry_synchronizer_writes_the_pose_into_the_drive(
         expected_pose.to_np().astype(float),
         atol=1e-9,
     )
+
+
+# %% keeping the uncertainty of the base pose
+
+
+def test_odometry_synchronizer_reports_no_covariance_before_a_message_arrives(
+    init_rospy, omni_drive_world: World
+):
+    synchronizer = OdometrySynchronizer(
+        world=omni_drive_world,
+        topic_name="odom",
+        connection=omni_drive_world.get_connection_by_name("root_T_base"),
+    )
+
+    assert synchronizer.pose_covariance is None
+
+
+def test_odometry_synchronizer_keeps_the_covariance_of_the_message_it_applied(
+    init_rospy, omni_drive_world: World
+):
+    """
+    The covariance is the only statement the robot makes about how much to trust the
+    pose, and it used to be dropped on every message.
+    """
+    variance_of_axis = {axis: float(axis) + 1.0 for axis in PoseAxis}
+    synchronizer = OdometrySynchronizer(
+        world=omni_drive_world,
+        topic_name="odom",
+        connection=omni_drive_world.get_connection_by_name("root_T_base"),
+    )
+    synchronizer.latest_message = odometry_message(
+        HomogeneousTransformationMatrix.from_xyz_rpy(), variance_of_axis
+    )
+
+    assert synchronizer.apply() is True
+    for axis, variance in variance_of_axis.items():
+        assert synchronizer.pose_covariance.variance_of(axis) == variance, axis
+
+
+def test_odometry_synchronizer_replaces_the_covariance_with_every_message(
+    init_rospy, omni_drive_world: World
+):
+    synchronizer = OdometrySynchronizer(
+        world=omni_drive_world,
+        topic_name="odom",
+        connection=omni_drive_world.get_connection_by_name("root_T_base"),
+    )
+    pose = HomogeneousTransformationMatrix.from_xyz_rpy()
+    synchronizer.latest_message = odometry_message(pose, {PoseAxis.POSITION_X: 4.0})
+    synchronizer.apply()
+
+    synchronizer.latest_message = odometry_message(pose, {PoseAxis.POSITION_X: 0.5})
+    synchronizer.apply()
+
+    assert synchronizer.pose_covariance.variance_of(PoseAxis.POSITION_X) == 0.5
 
 
 # %% writing tf into the world
