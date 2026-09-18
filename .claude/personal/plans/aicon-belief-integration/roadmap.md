@@ -2370,3 +2370,173 @@ second read to confirm it, which is the one step that is not obvious.
 - **The tracking-issue subscription was refused** by this session's permission mode, as
   on every earlier round. Issue #7's comments were read directly instead; the three
   structural changes recorded there concern this item only in its own creation.
+
+## `grasp-belief-node`
+
+The plan settled at kickoff, and the calls it makes beyond the item's recorded
+`notes`.
+
+### This is the first item on the plan with two parents
+
+Every stacked item so far has had exactly one unlanded dependency:
+`probability-concepts-in-probabilistic-model` and `estimator-node-base` both sit on
+`belief-context-and-gaussian`, `pose-uncertainty-through-transforms` on
+`odometry-covariance-capture`. This item declares two, and they are on disjoint
+stacks: `estimator-node-base` (#12) is on `belief-context-and-gaussian`'s branch,
+and `grasp-likelihood-continuous` (#8) is on `main`. Neither contains the other,
+and the dependency check reports both `open_ready`.
+
+So the branch is based on #12 — the class this node extends — and merges #8 in as a
+second parent. The two merge with no conflict, which is not luck: both were
+restacked against `main` in their own resolution rounds, so each already carries
+`main`'s `NodeStateVariableNotSerializableError` at the tail of
+`motion_statechart/exceptions.py`, and that append point is where every collision
+on this plan has happened.
+
+The cost is that the pull request's diff against its base also shows #8's 537
+lines, because a pull request has one base and #8 is not in it. The description
+says so and names this item's own files.
+
+### The node filters `GraspLikelihood` rather than casting its own rays
+
+The item's `notes` say the update is on the logit *of `is_body_in_gripper`*, which
+is on `main` and could be called directly. The declared dependency on #8 is what
+decides otherwise, and #8's own section states the division: *"Memoryless by
+intent: this publishes the current measurement only. The recursive filter over it
+is `grasp-belief-node`."*
+
+Calling the predicate again would also cast a second 100-ray sample per cycle in
+any statechart holding both nodes, on the critical path the item's `notes` and
+`estimator-node-base` both say to watch.
+
+### The node depends on an abstraction, not on the monitor
+
+`odometry-covariance-capture` declared `PoseCovarianceSource` so its node would not
+depend on where the poses came from, and its resolution round confirmed that an
+implementing class may take that second base class without disturbing its own
+generic binding. The same split applies here for the same reason, plus one this
+plan has wanted throughout: a node that reads its measurement through an
+abstraction can be tested against a recorded source, with no world, no raycast and
+no sampling noise in the assertions.
+
+`GraspLikelihoodSource` reports the variable the likelihood is published to and how
+many rays it was measured from. `GraspLikelihood` already has both — a `likelihood`
+property and a `sample_size` field — so implementing it is one base class and no
+change to its body.
+
+### The belief is about the log-odds, and the measurement noise comes from the ray count
+
+A Gaussian over a probability is the wrong shape: it has weight outside `[0, 1]`,
+and a Kalman update can push the estimate there. The log-odds are unbounded, which
+is what the item's `notes` ask for when they say to filter the logit.
+
+Two consequences the `notes` do not mention, both textbook rather than invented:
+
+- **`logit(0)` and `logit(1)` are infinite**, and both occur routinely — no ray hits
+  the body, or every ray does. The count is therefore read through the
+  Haldane–Anscombe correction, `(hits + 0.5) / (sample_size + 1)`, which is the
+  standard half-count adjustment for exactly this case and needs no threshold of
+  our own.
+- **How far a reading scatters follows from the same two numbers.** The standard
+  error of a log-odds is `1 / (hits + 0.5) + 1 / (misses + 0.5)`, so a hundred rays
+  give a reading that is trusted more than ten do, and nothing here is a tuned
+  constant. `GraspLikelihoodSource.sample_size` exists for this.
+
+The hit count is recovered from the published fraction by multiplying by the sample
+size, since :func:`is_body_in_gripper` is the ray count divided by it.
+
+### Decay toward the prior is stated in seconds, not per cycle
+
+The item's `notes` ask for *"a prediction step that decays toward the prior when the
+gripper is open"*. A decay stated as a per-cycle retention factor means something
+different at 20 Hz than at 50 Hz, and `QPControllerConfig.target_frequency` is
+configurable, so the node states a half-life in seconds and converts it with
+`context.qp_controller_config.control_dt`. The drift a cycle adds is stated the same
+way, as variance per second.
+
+`GaussianBelief.predict`'s offset is what carries this: decaying toward a prior is
+`x' = retention * x + (1 - retention) * prior`, which is affine, and
+`belief-context-and-gaussian` recorded that it took an offset for this item
+specifically.
+
+Whether the gripper is open is read from the structure rather than from an aperture
+number: `gripper.get_joint_state_by_type(GripperState.OPEN).is_achieved()`. A
+gripper that declares no open state is rejected while the statechart compiles, not
+at 20 Hz, following the call `estimator-node-base` made about two estimators of one
+quantity.
+
+### The node publishes a probability as well, because the next item needs one
+
+`EstimatorNode` publishes an estimate and an uncertainty per quantity, and here the
+quantity is the log-odds. `belief-weighted-open-goal` scales a goal weight by the
+belief, which wants a number in `[0, 1]`, and a constraint reads a `FloatVariable`
+symbolically — there is no sigmoid in `symbolic_math` to convert log-odds into a
+probability inside an expression.
+
+So the node registers one further variable holding the probability the estimate
+corresponds to, converted in plain Python on the same tick that publishes the
+estimate. That is the same standard `belief-context-and-gaussian` used for
+`predict`'s offset: required by a recorded dependent item rather than added
+speculatively.
+
+### The observation is a threshold on that probability
+
+`estimator-node-base` records that the base class observes whether it measured this
+cycle, and that *"a threshold on the estimate itself is a concrete estimator's to
+observe ... A subclass that wants it overrides `on_tick`."* This is that subclass:
+*is the grasp confident enough* is what a transition off this node is for, and
+whether a raycast returned is not.
+
+The trinary value comes from `trinary_logic_from_continuous`, which #8 added and
+whose review round asked whether one production call site justified it. The author
+kept it. This is its second.
+
+### Defaults only where something to cite says what they should be
+
+Both review rounds that raised named constants on this plan settled on the same
+rule: expose the parameter, and give it the default you think is sensible. #8 then
+split its two thresholds — `true_above` defaults to the share of hits
+`is_body_gripped` already calls a grasp, and `false_below` has none, because there
+is no established value.
+
+The same split here. The prior defaults to an even chance, which is what *nothing is
+known yet* means and needs no source. The decay half-life, the drift and the two
+observation thresholds have no honest default: they say how fast a grasp should be
+forgotten and how confident is confident enough, which is what
+`belief-drawer-experiment` exists to measure. The caller states them.
+
+### Scope boundaries held
+
+- **No consumer is rewired.** `goals/open_close.py` is untouched;
+  `belief-weighted-open-goal` is the item that reads any of this.
+- **Nothing is added to the ORM.** `generate_orm.py` ignores
+  `classes_of_package(giskardpy.motion_statechart.beliefs)` and `classes_of_package`
+  walks sub-modules, so a new module in that package is excluded with no change to
+  the script — the inheritance `belief-context-and-gaussian`'s second round
+  established and `estimator-node-base` re-confirmed.
+- **No exception is added.** A gripper with no open state raises
+  `NoJointStateWithType`, which `get_joint_state_by_type` already raises and which
+  carries the state type asked for — the same finding `estimator-node-base` made
+  about `NodeNotBuiltError` and `pose-uncertainty-through-transforms` about
+  `HasFreeVariablesError`. `motion_statechart/exceptions.py` is therefore untouched,
+  which keeps this branch out of the append-at-the-tail collision every other item
+  on this plan has had to resolve.
+- **One pull request.** A node, a source abstraction and their tests; nothing here
+  wants splitting.
+
+### Assumptions and open points
+
+- **The belief reads the likelihood one cycle late.** `MotionStatechart.tick` updates
+  every node's observation state before any life cycle runs, and nothing orders
+  `GraspLikelihood.on_tick` before this node's within a cycle. So a reading taken on
+  the cycle the monitor measured it may be the previous cycle's measurement. At 20 Hz
+  that is 50 ms against a grasp that persists for seconds, and #8's own docstring
+  already records the same lag for its observation.
+- **The prior's uncertainty is stated in log-odds**, which is the one parameter whose
+  units a caller has to think about rather than read off. It is the field the drawer
+  experiment is most likely to want changed.
+- **Nothing validates the belief against contact state.** This plan's standing caveat
+  applies in full: a recursive filter over a raycast that is consistent with what it
+  observes rather than with what is physically happening will report a confident
+  grasp of a gripper wedged into a crease. `belief-drawer-experiment` is where that
+  is measured, against the simulator rather than against the posterior.
