@@ -1,45 +1,49 @@
 # belief-context-and-gaussian — PR #10 (draft)
 
 Plan item `belief-context-and-gaussian` of `aicon-belief-integration`, wave 2,
-track *belief core*. Base `main`, no dependencies. Kickoff ran in `auto` mode.
-The full reasoning is in the roadmap section on the personal-notes branch and in
-the PR description.
+track *belief core*. Base `main`, no dependencies. Kickoff and resolve both ran
+in `auto` mode. Full reasoning: the item's two roadmap sections on the
+personal-notes branch, and the PR description.
 
-## Plan
+## State
 
-1. Exceptions in `giskardpy/motion_statechart/exceptions.py`. **Done**
-2. `beliefs/gaussian.py`: `BeliefArray`, `Measurement`, `GaussianBelief` with
-   `predict` and `update`. **Done**
-3. `beliefs/context.py`: `BeliefContext`. **Done**
-4. Tests, written first. **Done — 34, all passing locally.**
-5. Docstring formatting, commit, push. **Done.**
+Implemented and pushed. One CI failure found and fixed. Waiting on the re-run and
+on review.
 
 ## Done
 
-- Local environment brought up: `pip install -U uv` (the repo's `pyproject.toml`
-  needs a newer uv than the container ships), `apt-get install graphviz
-  libgraphviz-dev`, then `uv sync --extra dev`. Unlike the two earlier items'
-  sessions, this one could run its own tests.
-- Everything above, committed as one change and pushed.
-- PR description rewritten to match the diff.
+- Belief layer: `GaussianBelief`, `Measurement`, `BeliefContext`, five exceptions,
+  34 tests. Commit `81f0aded`.
+- First CI run: 22 of 23 green, `test_each_lib (giskardpy)` among them — so the
+  belief tests *and* the ORM exclusion in `giskardpy/scripts/generate_orm.py` are
+  both confirmed, which is what the kickoff could not verify locally.
+- The one failure, `test_imported_workspace_members_are_declared[giskardpy]`, was
+  real and mine: the belief layer is giskardpy's first direct import of
+  `random_events`, which giskardpy never declared. Declared it in `[project]
+  dependencies` and in `[dependency-groups] workspace`. Commit `8e80853a`.
+  Reproduced locally first, then 21 passed; `uv sync` still resolves and
+  `random_events` still comes from the checkout.
+- PR description updated to match.
 
 ## Next
 
-- Nothing outstanding on the branch. Waiting on CI and on review.
-- The one thing CI has to confirm rather than me: the ORM change in
-  `giskardpy/scripts/generate_orm.py`, which excludes the belief classes from the
-  scan. Local ORM regeneration cannot run here (see below).
+- Watch the CI re-run on `8e80853a`. Nothing else outstanding on the branch.
+- The PR stays a draft until its author reviews it.
 
 ## Notes for whoever picks this up
 
 - The root `test/conftest.py` regenerates the ORM interfaces at collection, which
-  needs the ROS message packages this container has not got —
-  `semantic_digital_twin/exceptions.py`'s `MetaData` hint cannot be resolved
-  without them, so `scripts/regenerate_all_orm.py` fails here on a clean tree
-  too. Run a new test file from a copy outside `test/` if it needs no fixtures.
-- `subscribe_pr_activity` on tracking issue #7 was denied by the permission
-  classifier. That agrees with the standing note not to subscribe to PR activity,
-  so nothing is being watched from here.
-- `estimator-node-base` is the item that depends on this one, and is what makes a
-  `MotionStatechartNode` out of `GaussianBelief` and adds a `BeliefContext` to a
-  live context. Nothing does either yet.
+  needs ROS message packages this container has not got, so
+  `scripts/regenerate_all_orm.py` fails here on a clean tree too. Two ways round
+  it: `pytest --noconftest` for a test that needs no fixtures at all (the
+  version tests), or running the file from a copy outside `test/` (the belief
+  tests).
+- Local environment: `pip install -U uv` (the repo's `pyproject.toml` needs newer
+  than the container's 0.8.17), `apt-get install graphviz libgraphviz-dev`, then
+  `uv sync --extra dev`.
+- The `random_events` declaration is a cost of naming belief dimensions with
+  `random_events` variables, not an argument against it. `estimator-node-base`
+  and `symbolic-estimator-means` inherit that import through giskardpy, which now
+  declares it.
+- Nothing is being watched from here, per the standing note not to subscribe to
+  PR activity.
