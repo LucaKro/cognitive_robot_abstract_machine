@@ -15,3 +15,4 @@ from semantic_digital_twin.spatial_types.pose_covariance import (
     PoseCovariance,
     PoseVariablePair,
 )
+from semantic_digital_twin.spatial_types.uncertain_pose import UncertainPose
