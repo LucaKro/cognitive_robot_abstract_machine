@@ -2081,3 +2081,102 @@ blocked by one import in a conftest, not by the code under test.
 - **The tracking-issue subscription was refused** by this session's permission mode,
   as on every earlier round. Issue #7's comments were read directly instead; the three
   structural changes recorded there concern other items.
+
+## `belief-context-and-gaussian` — restack against `main`
+
+The first round on this item where the blocker was neither a design question nor a
+review thread. Nothing was wrong with the branch; `main` moved and took the one
+file this item shares with it.
+
+### The recorded blocker was right, and it was mechanical
+
+`plan.yaml` carried no blocker, and the item's own notes describe settled design.
+The stall was on the pull request itself: `mergeable_state` was `dirty`, the fork
+pull request carried the `needs-resolution` label, and the stack maintenance
+routine had commented saying it hit a conflict integrating `main`, left the branch
+untouched and skipped it so later passes would not re-report the same thing.
+
+The conflicting file was the one the roadmap has been predicting since round 1:
+`giskardpy/src/giskardpy/motion_statechart/exceptions.py`. What it did not predict
+is which branch would collide. Three sibling items — #8, #9 and #10 — were each
+recorded as appending their own exception classes there, and the standing note said
+whichever two landed second and third should expect to resolve it. In the event the
+collision was not with a sibling at all: `main` itself gained
+`NodeStateVariableNotSerializableError` from upstream #650 (symbolic-math JSON
+serialization), appended at the end of the same file this item appends its five
+belief exceptions to.
+
+So the note generalizes: that file is a shared append point for the *whole
+repository*, not only for this plan's siblings, and any branch touching it should
+expect to resolve it against `main` rather than only against a sibling.
+
+### The resolution is the union, and it was checked as one
+
+Both sides only appended. The resolution keeps `main`'s exception and this branch's
+five, with the union of the imports each needs — `List` and `Continuous` for the
+belief exceptions, `JSONSerializationError` and `NodeStateVariable` for `main`'s.
+git had already auto-merged the import block correctly; only the two appended
+blocks conflicted, and only because git interleaved them.
+
+Rather than hand-edit the conflict markers, the tail was rebuilt from the two
+parents directly and then diffed against each: the only line not carried over from
+`main`'s version is its narrower `typing_extensions` import, and nothing at all is
+dropped from the branch's. That is what says the resolution is a union rather than a
+merge that happens to compile.
+
+The repository's default is merge rather than rebase (`.claude/stack/stack.toml`'s
+`rebase_label` is opt-in and #10 does not carry it), so this is a merge commit and
+the branch's own history is untouched.
+
+### Verification ran here, and the two failures were proven not to be ours
+
+The belief tests pass on the merged tree — all 44, unchanged. The 20
+dependency-declaration tests pass, including the
+`test_imported_workspace_members_are_declared[giskardpy]` that caught this branch's
+first round. Both merged exception classes import, and `graph_node.py`'s use of
+`main`'s one resolves against the merged module.
+
+Two failures in this container were each run on `origin/main` alone before being
+attributed: `test_all_package_versions_match_root_version` fails because no
+`coraplex` is installed here, and `test_jacobian_dot`/`test_jacobian_ddot` fail on a
+casadi API mismatch — the same one #13's session recorded. Both reproduce
+identically without this merge.
+
+### The container recipe changed, and is worth carrying forward
+
+Round 2 recorded that the belief tests run here. They no longer run the way it
+described: `random_events` builds a C++ extension that fails here, and the workspace
+source now raises `module 'random_events_lib' has no attribute 'reals'` against
+whatever stale library is present. Installing the **PyPI wheel** of `random_events`
+supplies a matching `random_events_lib`, and the workspace source then imports
+against it — so the real workspace code still runs, rather than a stub of it.
+
+The other change is to skip the editable install entirely: some workspace members
+fail on their build dependencies here, and putting each package's `src/` on
+`PYTHONPATH` sidesteps that without changing what is imported. `urdf_parser_py`
+remains the root `conftest.py`'s blocker, as on every earlier round.
+
+### Still open
+
+- **CI on `15a55dff` has not been read.** The local run covers the belief tests,
+  the dependency declarations and krrood's symbolic math; the ROS half of the
+  matrix and the ORM regeneration are CI's, as always on this plan.
+- **The `needs-resolution` label is still on the pull request.** The routine's own
+  comment says it clears once the branch merges cleanly again and the branch
+  rejoins the pass, so it is left for the next pass rather than removed by hand.
+- **The pull request is out of draft and stays that way.** The author un-drafted it
+  and requested `ichumuh`, which in this workflow is the approve-for-upstream
+  signal; the standing "re-draft after every push" convention was put to the user
+  this round and they chose to leave it ready. This is the first item on the plan
+  where that convention does not apply.
+- **The branch was not this session's designated branch**, for the third round
+  across this plan. The session was designated
+  `claude/belief-integration-gaussian-9youx0`; the user was asked, as the round-2
+  section says a later session should, and again chose to keep the work on
+  `claude/belief-integration-gaussian-zi1o82`. `9youx0` was never created.
+- **The dashboard is still not republished**, for the fourth round running, and for
+  the reason every earlier session recorded: the artifact belongs to another
+  account and refuses a publish from here.
+- **The tracking-issue subscription was refused** by this session's permission mode,
+  as on every earlier round. Issue #7's comments were read directly; nothing there
+  concerns this item beyond its own creation and the `probability-concepts` split.
