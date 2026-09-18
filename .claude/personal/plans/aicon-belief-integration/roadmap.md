@@ -1955,9 +1955,12 @@ packages, and it now covers krrood too.
 
 ### Still open
 
-- **The `needs-resolution` label is still on #8** at the time of writing. The
-  stack pass clears it once the branch merges cleanly again, which it now does,
-  so the next pass should drop it and let the branch rejoin promotion.
+- **The label cleared and the branch was promoted, within the session.** A stack
+  maintenance pass ran once CI went green, dropped `needs-resolution`, and
+  replaced it with `cram2-link-sent` plus a "Promote" section on #8 carrying the
+  upstream compare-and-create link. `mergeable_state` is `clean`. So the item is
+  out of the stall entirely and is waiting on the author to click Create
+  upstream — the one step the pass never takes itself.
 - **#8 was deliberately left out of draft.** Un-drafting is this repository's
   record of the author having reviewed it, the push changed no production code,
   and re-drafting would have withdrawn it from the promotion queue for a no-op
