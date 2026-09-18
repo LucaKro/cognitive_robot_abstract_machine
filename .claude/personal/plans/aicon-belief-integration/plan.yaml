@@ -116,6 +116,30 @@ items:
       GaussianDistribution is strictly univariate, has no covariance, and its
       conditioning is truncation or Dirac collapse, not a measurement update.
 
+  - id: probability-concepts-in-probabilistic-model
+    title: Move the belief layer's probability concepts into probabilistic_model
+    branch: probability-concepts-in-probabilistic-model
+    pull_request_number: null
+    track: belief-core
+    status: not_started
+    depends_on: [belief-context-and-gaussian]
+    notes: >-
+      probabilistic_model has no multivariate Gaussian only because nobody has
+      needed one; its maintainer would welcome it. ProbabilisticModel is already
+      multivariate and keyed by random_events variables, and its
+      conditional(point) is the Kalman measurement update in closed form, so the
+      distribution belongs there rather than hand-written in giskardpy. The same
+      goes for covariance and the other probability concepts
+      belief-context-and-gaussian currently keeps locally - Quantities, which is
+      an ordered set of random variables plus the layout of arrays over them, and
+      the measurement model a Reading carries. Two of ProbabilisticModel's eight
+      abstract methods are the real work:
+      probability_of_simple_event (the probability of an axis-aligned box under a
+      correlated Gaussian has no closed form and needs numerical integration) and
+      log_truncated (a truncated correlated Gaussian is not Gaussian, so it
+      cannot return Self). Once it exists, swap GaussianBelief's internals onto
+      it; the interface is already variable-keyed, so no dependent has to move.
+
   - id: estimator-node-base
     title: EstimatorNode base class with the register/set_value tick lifecycle
     branch: estimator-node-base
