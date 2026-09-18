@@ -2,40 +2,44 @@
 
 Plan item `belief-context-and-gaussian` of `aicon-belief-integration`, wave 2,
 track *belief core*. Base `main`, no dependencies. Kickoff ran in `auto` mode.
-Roadmap section with the full reasoning is on the personal-notes branch.
+The full reasoning is in the roadmap section on the personal-notes branch and in
+the PR description.
 
 ## Plan
 
-1. Exceptions in `giskardpy/motion_statechart/exceptions.py`:
-   `WrongBeliefShapeError`, `VariableNotInBeliefError`, `UnknownBeliefError`,
-   `DuplicateBeliefError`.
-2. `giskardpy/motion_statechart/beliefs/gaussian.py`: `BeliefArray` enum,
-   `Measurement`, `GaussianBelief` with `predict` and `update` (Joseph form),
-   dimensions named by `random_events` `Continuous` variables.
-3. `giskardpy/motion_statechart/beliefs/context.py`: `BeliefContext`
-   (`ContextExtension`) keyed by those variables, `add` / `require`.
-4. Tests in `test/giskardpy_test/test_motion_statechart/test_beliefs.py`, written
-   first, with hand-computed exact posteriors.
-5. `scripts/format_docstrings.py` on everything touched, then push.
+1. Exceptions in `giskardpy/motion_statechart/exceptions.py`. **Done**
+2. `beliefs/gaussian.py`: `BeliefArray`, `Measurement`, `GaussianBelief` with
+   `predict` and `update`. **Done**
+3. `beliefs/context.py`: `BeliefContext`. **Done**
+4. Tests, written first. **Done — 34, all passing locally.**
+5. Docstring formatting, commit, push. **Done.**
 
 ## Done
 
-- Branch opened, draft PR #10 created, manifest + roadmap recorded.
-- Local environment brought up (`uv sync --extra dev` after upgrading uv, plus
-  system graphviz), so unlike the previous item's session this one can actually
-  run the new tests.
+- Local environment brought up: `pip install -U uv` (the repo's `pyproject.toml`
+  needs a newer uv than the container ships), `apt-get install graphviz
+  libgraphviz-dev`, then `uv sync --extra dev`. Unlike the two earlier items'
+  sessions, this one could run its own tests.
+- Everything above, committed as one change and pushed.
+- PR description rewritten to match the diff.
 
 ## Next
 
-- Write the tests, then the three modules, then run them.
-- Keep the PR description matching what the diff does before the final push.
+- Nothing outstanding on the branch. Waiting on CI and on review.
+- The one thing CI has to confirm rather than me: the ORM change in
+  `giskardpy/scripts/generate_orm.py`, which excludes the belief classes from the
+  scan. Local ORM regeneration cannot run here (see below).
 
 ## Notes for whoever picks this up
 
-- The root `test/conftest.py` regenerates the ORM interfaces at collection and
-  that needs ROS message packages, which this container has not got. Run the new
-  test file from a copy outside `test/` so no conftest is loaded; the belief
-  tests need no fixtures.
+- The root `test/conftest.py` regenerates the ORM interfaces at collection, which
+  needs the ROS message packages this container has not got —
+  `semantic_digital_twin/exceptions.py`'s `MetaData` hint cannot be resolved
+  without them, so `scripts/regenerate_all_orm.py` fails here on a clean tree
+  too. Run a new test file from a copy outside `test/` if it needs no fixtures.
 - `subscribe_pr_activity` on tracking issue #7 was denied by the permission
-  classifier this session. That matches the standing note not to subscribe to PR
-  activity, so nothing is being watched here.
+  classifier. That agrees with the standing note not to subscribe to PR activity,
+  so nothing is being watched from here.
+- `estimator-node-base` is the item that depends on this one, and is what makes a
+  `MotionStatechartNode` out of `GaussianBelief` and adds a `BeliefContext` to a
+  live context. Nothing does either yet.
