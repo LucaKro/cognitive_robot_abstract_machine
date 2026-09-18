@@ -1689,3 +1689,123 @@ why that accessor is public rather than private.
 - The `npt.NDArray` on `ProbabilisticModel`'s abstract `log_likelihood` and `sample`,
   above. The second thread is left open for it; the first is resolved.
 - CI has not yet run on `6da3fc22`.
+
+The item picked up its first review: two threads, both from the author. Nothing else
+was blocking — CI was 23 of 23 green on `a2d6dbe9`, including the
+`test_each_lib (semantic_digital_twin)` run that exercises the ORM exclusion the
+kickoff could only check by reading `classes_of_package`; the branch was level with
+its base with no conflict; there were no pull request comments, no tracking-issue
+discussion about this item since it was created, and no `in-review` label, so no
+upstream review to read.
+
+One thread asked for a change already familiar on this plan. The other found a gap.
+
+### The frame change became a type, and the global function went with it
+
+*"can we make the np arrays actual types?"* and *"that way we also dont need this global
+function"*, on `_cross_product_matrix`.
+
+This is the fifth round across this plan to ask for a named type instead of a bare
+array, and the kickoff had left exactly one place still answering with one: the adjoint
+was built and returned as a 6×6 by a private `_adjoint_of`, helped by a module-level
+`_cross_product_matrix`.
+
+`PoseDisplacementMap` replaces both. It holds `factors: Mapping[PoseVariablePair,
+float]` — how much each degree of freedom seen in the new frame follows each one in the
+frame the pose is reported in — `of_transform` reads that off a transform, the cross
+product is a private static method on it, and `as_array` is the single place it becomes
+numpy for the arithmetic. The same shape `Mean` and `Covariance` took on #11.
+
+The gain shows in the tests: the lever-arm term was previously asserted through a
+variance after a full round trip, and is now asserted directly as
+`factor_of(y, yaw) == -lever_arm`.
+
+### The row a degree of freedom occupies moved to where the ordering lives
+
+Both types needed it, so keeping `PoseCovariance._row_of` private would have duplicated
+the lookup. It is now `SpatialVariables.row_in_pose`, beside the `pose` ordering that
+defines it, and both types read through it. `semantic_digital_twin.exceptions` does not
+import `datastructures.variables`, so raising `VariableNotInPoseError` from there
+introduces no cycle — checked rather than assumed.
+
+This also helps `pose-covariance-on-shared-quantities`: one place to collapse onto
+`Quantities`, rather than two.
+
+### Uncertainty does travel up the chain, and that case was missing
+
+*"but there may also be uncertain transforms no? for example if we have a drawer
+connection whose state is uncertain? also if there is a bottle inside the drawer, doesnt
+the uncertainty of the drawer position propagate upwards to the bottle pose as well?"*
+
+It does, and the kickoff had implemented only half of it. `transformed_by` applies a
+certain transform on the *left* — a change of reference frame. The drawer and bottle put
+the uncertain pose on the left and the certain offset on the right, which is a different
+operation with a different answer:
+
+- `certain @ uncertain` re-expresses the pose in another frame, and the displacement has
+  to be carried through that frame change.
+- `uncertain @ certain` extends the pose along the chain, and the displacement is
+  carried **unchanged**: `exp(perturbation) T B` relative to `T B` is still
+  `exp(perturbation)`, exactly, with no approximation and no assumption.
+
+`UncertainPose.dot`, with `__matmul__` beside it so the style guide's own
+`a_T_c = a_T_b @ b_T_c` reads the same whether or not a pose is uncertain.
+
+The part that could mislead, and so is a `..note::` on `dot`: unchanged does not mean
+the far end is equally well located. The displacement acts about the reference frame's
+origin, so the same perturbation moves a more distant frame further. Reading that as
+uncertainty about the far end's own position is `transformed_by` — a drawer with
+0.04 rad² of heading uncertainty gives a bottle a metre out 0.04 m² of lateral variance,
+but only once the covariance is re-expressed about the bottle.
+
+### Two uncertain poses are refused rather than assumed independent
+
+The kickoff recorded not offering uncertain-on-uncertain composition, on the grounds
+that it needs an independence assumption. That stands, but silently having no operation
+was the wrong way to express it: a caller reaching for it got a `TypeError` naming
+nothing.
+
+`uncertain @ uncertain` now raises `UncertaintyCorrelationUnknownError`, whose message
+says the answer depends on whether the two uncertainties are related and whose
+`suggest_correction` points at extending by a certain transform instead. The first-order
+formula and the offer to add the independent version went on the review thread; that
+thread is left open for the author, per this repository's convention that a thread
+carrying a question back is not resolved.
+
+The exception has no fields — there is nothing informative to carry — and joins its
+siblings in `generate_orm.py`'s `ignore_classes`. A field-less dataclass would map
+harmlessly, but a DAO that fails to generate takes down every dependent package at
+import, and only CI can check that, so the conservative entry is worth more than the
+empty table it avoids.
+
+### Verification
+
+`test_spatial_types/` is 344 passed, 1 failed, the failure being the same
+`TestVector3::test_length_0` the kickoff recorded and re-confirmed here by stashing the
+diff. The refactor is covered by the kickoff's own perturbation-identity test, which
+still passes unchanged and is what says the propagation still means what it meant.
+
+The container reached further this round, following #12's finding that `urdf_parser_py`
+and `xacro` install from their sdists' package directories even though their wheels fail
+against this container's Debian-patched setuptools. `test_datastructures` collects with
+those plus `lxml`, `daqp`, `piqp` and `giskardpy_bullet_bindings` and `giskardpy/src` on
+the path. Two tests there error on a CasADi API mismatch —
+`FunctionBuffer_set_res` rejects the arguments the forward-kinematics memory binding
+passes — which reproduces identically with this diff stashed and is this container's
+casadi 3.8.1 rather than anything in the change.
+
+### Still open
+
+- The uncertain-on-uncertain thread, above, awaiting the author's call.
+- `PoseCovariance.values` is still a bare array, which the reply to the first thread says
+  explicitly. #9's second round settled that shape and #11's session re-confirmed it,
+  naming `pose-covariance-on-shared-quantities` as where matching it costs least. Offered
+  to bring it forward if wanted.
+- **The dashboard is still not republished.** The `Artifact` tool treats this account's
+  plan dashboard as a third-party artifact, so a read returns a prose summary rather than
+  the page source and the publish refuses with "you haven't viewed the latest version".
+  The user was asked at kickoff and chose to skip rather than force-overwrite or mint a
+  duplicate; that choice stands for this round. `plan.yaml` and this file are current.
+- The tracking-issue subscription was refused by this session's permission mode, as at
+  kickoff. Issue #7's comments were read directly instead; nothing there concerns this
+  item beyond its creation.
