@@ -57,18 +57,24 @@ All steps implemented and pushed as commit `b5c4a811`. PR #8 still draft.
       `test_predicates.py::test_is_body_in_gripper` refactored onto it
 - [x] Step 5 — formatted, committed, pushed, PR description updated
 
-## Verification state — read this before trusting the branch
+## Verification state — RESOLVED, fully green
 
-- krrood symbolic-math tests: **run and passing** in a minimal venv
-  (numpy/casadi/sqlalchemy only), 285 passed. 3 failures in that file
-  (`test_jacobian_dot`, `test_jacobian_ddot`,
-  `test_error_holding_a_variable_is_not_json_serializable`) are pre-existing —
-  confirmed identical on a stashed clean tree.
-- giskardpy + semantic_digital_twin tests: **not executed**. This container has
-  no numpy/casadi/trimesh installed, and `uv sync` fails (repo pyproject needs a
-  newer uv than 0.8.17, and pygraphviz needs system graphviz headers that
-  aren't present). The 8 node tests and the refactored predicate test are
-  CI-verified only. First CI run deserves a close look.
+**All 23 checks pass on `b5c4a811`.** The verification gap the kickoff left open
+is closed.
+
+- krrood symbolic-math tests: run locally (285 passed; 3 pre-existing failures in
+  that file, confirmed identical on a stashed clean tree) and green in CI.
+- giskardpy + semantic_digital_twin tests: could not run locally (no
+  numpy/casadi/trimesh; `uv sync` fails on the repo pyproject needing a newer uv
+  than 0.8.17 plus absent graphviz headers) — but `test_each_lib (giskardpy)`
+  and `test_each_lib (semantic_digital_twin)` have both since passed in CI.
+  That covers the 8 node tests, the new root-conftest fixture and the refactored
+  `test_is_body_in_gripper`.
+
+The three calls made by reading the code rather than running it are confirmed by
+that run: monitor-only statechart compiles/ticks with no constraints or DOFs;
+`on_start` priming keeps the first observation off an unset variable; the
+observation stays one of the three trinary constants.
 
 ## Design calls made (recorded so they aren't re-litigated)
 
@@ -83,9 +89,19 @@ All steps implemented and pushed as commit `b5c4a811`. PR #8 still draft.
 
 ## Next
 
-Nothing outstanding on this item beyond CI. If CI is red, the likely suspects
-are the new giskard test's statechart setup, or the `body_between_fingers`
-fixture's placement in the root conftest.
+Nothing outstanding. A `/plan-item-resolve` pass found no blocker: CI fully
+green, no review threads, no PR comments, no tracking-issue discussion, no
+merge conflict, branch level with `main`, never promoted upstream (no
+`in-review` label) so there is no upstream review to read.
+
+The PR is a draft waiting on its author's own review — un-drafting is this
+repo's record of having done that review, and only the user does it. Nothing
+for a session to do here until a review comment or a CI failure arrives.
+
+Carry forward: this branch, #9 (`odometry-covariance-capture`) and #10
+(`belief-context-and-gaussian`) each append their own exception class to
+`giskardpy/.../motion_statechart/exceptions.py`. Independent work, but whichever
+land second and third will have to resolve that file.
 
 ## Watch out
 
