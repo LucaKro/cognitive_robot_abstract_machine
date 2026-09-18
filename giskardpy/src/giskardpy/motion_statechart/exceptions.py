@@ -3,13 +3,16 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-from typing_extensions import TYPE_CHECKING, Type
+from typing_extensions import TYPE_CHECKING, List, Tuple, Type
 
 from krrood.exceptions import DataclassException
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
 
 if TYPE_CHECKING:
+    from random_events.variable import Continuous
+
+    from giskardpy.motion_statechart.beliefs.gaussian import BeliefArray
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         TrinaryCondition,
@@ -663,3 +666,120 @@ class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Call tick() at least once before plotting, or configure debug expressions to record."
+
+
+@dataclass
+class WrongBeliefShapeError(MotionStatechartError):
+    """
+    Raised when an array a Gaussian belief was built from cannot describe the quantities
+    that belief is about.
+    """
+
+    array: BeliefArray
+    """
+    Which of the belief's arrays was the wrong shape.
+    """
+
+    expected_shape: Tuple[int, ...]
+    """
+    The shape the belief's quantities require of it.
+    """
+
+    actual_shape: Tuple[int, ...]
+    """
+    The shape it was given with.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The {self.array} of a belief must have shape {self.expected_shape}, but "
+            f"has {self.actual_shape}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Build it over the same quantities, in the same order, as the belief."
+
+
+@dataclass
+class VariableNotInBeliefError(MotionStatechartError):
+    """
+    Raised when a belief is asked about a quantity it does not estimate.
+    """
+
+    variable: Continuous
+    """
+    The quantity that was asked about.
+    """
+
+    belief_variables: List[Continuous]
+    """
+    The quantities the belief does estimate.
+    """
+
+    def error_message(self) -> str:
+        estimated = ", ".join(variable.name for variable in self.belief_variables)
+        return f"A belief about {estimated} says nothing about '{self.variable.name}'."
+
+    def suggest_correction(self) -> str:
+        return "Read the belief that estimates this quantity, or add it to this one."
+
+
+@dataclass
+class RepeatedVariableInBeliefError(MotionStatechartError):
+    """
+    Raised when a belief is built over a list that names one quantity more than once, so
+    only one of that quantity's rows could ever be read back.
+    """
+
+    variable: Continuous
+    """
+    The quantity the list names more than once.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A belief is about each of its quantities once, but '{self.variable.name}' "
+            f"is listed more than once."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Give the second one a name of its own, or drop it."
+
+
+@dataclass
+class UnknownBeliefError(MotionStatechartError):
+    """
+    Raised when the belief context is asked about a quantity nothing estimates.
+    """
+
+    variable: Continuous
+    """
+    The quantity that was asked about.
+    """
+
+    def error_message(self) -> str:
+        return f"Nothing has a belief about '{self.variable.name}'."
+
+    def suggest_correction(self) -> str:
+        return "Add the node estimating it to the motion statechart."
+
+
+@dataclass
+class DuplicateBeliefError(MotionStatechartError):
+    """
+    Raised when a second belief about a quantity is added to the belief context.
+    """
+
+    variable: Continuous
+    """
+    The quantity that already has a belief.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.variable.name}' already has a belief, and two beliefs about one "
+            f"quantity would each miss what the other was told."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Update the belief that is already there instead of adding a second one."
