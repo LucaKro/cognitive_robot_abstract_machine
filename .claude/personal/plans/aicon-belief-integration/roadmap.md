@@ -1061,3 +1061,111 @@ a transposed read is still visible.
   `claude/wonderful-edison-czfut6`; the work stayed on `claude/jolly-edison-k0zkiq`,
   where the pull request and its threads are — the same call
   `belief-context-and-gaussian` records making one round earlier.
+
+The plan settled at kickoff, and the calls it makes beyond the item's recorded
+`notes`.
+
+### The base is #10's branch, not `main`
+
+`motion_statechart/beliefs/gaussian.py` does not exist on `main` — the scope check
+confirms `belief-context-and-gaussian` (#10) is the only branch that introduces it. So
+this item stacks on `claude/belief-integration-gaussian-zi1o82` and is re-based onto
+`main` once #10 lands. Removing the overlapping edits still leaves a whole multivariate
+Gaussian in another package, so this is real work on top of an unlanded parent rather
+than something to fold into it — which is also the call the user already made on #10's
+comment thread.
+
+The one file both branches change is `beliefs/gaussian.py`, which this item empties of
+probability math. That is this item's whole purpose, so the overlap is the work rather
+than a collision.
+
+### `Quantities` does not live with the Gaussian
+
+The item's `notes` say `Quantities` moves; they do not say where. It goes in
+`probabilistic_model/quantities.py`, its own module, rather than beside the
+distribution — because the item that consumes it next,
+`pose-covariance-on-shared-quantities`, needs the layout for a *pose covariance*, which
+is not a Gaussian. A reader looking for the layout should not have to open a
+distribution to find it.
+
+`Mean` and `Covariance` do go beside the distribution: they are the parameters a
+Gaussian is written in, and that is where a reader looks for them.
+
+### The Kalman update is conditioning on a joint, so a reading needs no variable of its own
+
+`ProbabilisticModel.conditional(point)` conditions on a value of a *subset of the
+model's own variables*, so expressing a measurement update through it means building the
+joint over the estimated quantities together with what the sensors report, and
+conditioning that on the reported numbers. The posterior over the quantities is then the
+Kalman posterior, in closed form, with no gain written by hand.
+
+`Reading` keeps the three fields #10 gave it — what the sensor reported, how much each
+quantity contributes to that number, and how far the sensor scatters. The variables the
+joint needs for the readings are built where the joint is, not carried in the public
+interface, so nothing #10 exposes changes shape.
+
+This is what makes the swap internals-only, which is the promise the item's `notes`
+make to `estimator-node-base`, `grasp-belief-node` and the drawer experiment.
+
+### The two hard methods are answered, not deferred
+
+The item's `notes` name `probability_of_simple_event` and `log_truncated` as the real
+work. Both are implemented rather than raised on:
+
+- **`probability_of_simple_event`** is the probability of an axis-aligned box under a
+  correlated Gaussian, which has no closed form. `scipy.stats.multivariate_normal.cdf`
+  takes a `lower_limit`, which is exactly the rectangle probability by Genz's algorithm,
+  so the numerical integration the item anticipates is scipy's rather than ours. A
+  variable's interval may be a union, so the probability is summed over the boxes the
+  per-variable intervals make. This needs `scipy>=1.10`, which `probabilistic_model`
+  does not currently pin.
+- **`log_truncated`** cannot answer with `Self`, as the item records, so it answers with
+  a `TruncatedMultivariateGaussianDistribution` — the base signature already permits a
+  `ProbabilisticModel` that is not `Self`. It holds the untruncated Gaussian and the
+  event, and answers likelihood, probability, sampling and further truncation. Its mode
+  is the mean when the mean is inside the event and genuinely intractable otherwise, so
+  that case raises `IntractableError`, which is what that exception is for.
+
+### The exceptions lose the word "belief"
+
+`VariableNotInBeliefError`, `RepeatedVariableInBeliefError` and
+`BeliefQuantitiesDisagreeError` are raised by the code that moves, so they move with it
+— and a probability package has no beliefs, so they are renamed for what they actually
+reject. `UnknownBeliefError` and `DuplicateBeliefError` stay in giskardpy: they are
+`BeliefContext`'s registry errors, not probability.
+
+### Declaring the dependency is part of the change
+
+giskardpy does not import `probabilistic_model` today. #10 established what that costs:
+`test_imported_workspace_members_are_declared` fails on the first undeclared import of a
+workspace sibling, and the fix is `[project] dependencies` plus `[dependency-groups]
+workspace`. Done here as part of the change rather than after CI says so.
+
+### Scope boundaries held
+
+No statechart node, nothing registered in `float_variable_data`, nothing added to
+`WorldState` or the control loop — the same boundaries #10 held, and for the same
+reason. `GaussianBelief` keeps its public interface exactly; only what is behind it
+moves. `PoseCovariance` is deliberately *not* rebuilt on `Quantities` here, even though
+this item is what makes that possible: that is
+`pose-covariance-on-shared-quantities`, which is a tracked item of its own.
+
+This is one pull request, not several. It has a single purpose — the probability
+concepts end up in the probability package — and splitting the move from the swap would
+ship a state where the same concepts exist twice.
+
+### Assumptions and open points
+
+- **Nothing consumes the truncated distribution.** It exists because `log_truncated` is
+  abstract and the item names it as the work, not because the belief layer truncates.
+  Its conditioning is the one query left unanswered: conditioning a truncated Gaussian
+  on a point is a truncated Gaussian over the slice, which is real work with no caller,
+  so it raises with the reason stated.
+- **`Mean` and `Covariance` are Gaussian parameters, not general moments.** They are
+  named for what a Gaussian is written in. If a later distribution wants the same pair,
+  that is when they earn a home of their own.
+- **This item is verifiable in the authoring container**, which no earlier item on this
+  plan was: `probabilistic_model` and its dependencies install from PyPI, and the
+  existing 114 distribution tests pass here before any change. The giskardpy half still
+  needs CI, for the reason #10 recorded — the root `test/conftest.py` imports
+  `urdf_parser_py`, which is not on PyPI.
