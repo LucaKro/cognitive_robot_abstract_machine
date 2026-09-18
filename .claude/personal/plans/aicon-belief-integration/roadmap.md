@@ -2835,3 +2835,108 @@ giskardpy's dependencies and no new workspace sibling is imported. The one failu
 - **The tracking-issue subscription was refused** by this session's permission mode,
   as on every earlier round on this plan. Issue #7 was not read this round; nothing
   in the manifest suggests a structural change since the item was created.
+
+## `grasp-belief-node` — first review round
+
+The item was not stalled. The round closed the one open point the implementation
+left and answered the one review thread, which turned out to be about the branch's
+shape rather than about its code.
+
+### The two-parent base cost a review round, exactly where it was predicted to
+
+The only thread is on `symbolic_math.py:2486`, `trinary_logic_from_continuous`:
+
+> *"i also feel like we already have this here: [#8]"*
+
+It is #8 — that is the whole of it. The kickoff recorded that a pull request has one
+base, so everything #8 adds that the base (#12) lacks appears in this diff, and the
+description says so under its own heading. The review read the diff rather than that
+heading, which is the honest default: a reviewer opening a pull request sees files,
+not a note about why some of them are there.
+
+Checked rather than argued on the thread: `git diff <#8's branch> 58b8cd66 -- krrood/`
+is empty, so krrood is byte-identical between the two branches, and `58b8cd66` touches
+five files, none in krrood. `GraspBelief` *imports* the helper and calls it once, which
+makes this its second production call site rather than a second copy — the same helper
+whose single call site #8's own review round questioned.
+
+Nothing was pushed for it, and the thread is left open rather than resolved, per this
+repository's convention that a thread carrying a question back is not resolved: the
+reply offers to restructure if the author would rather review against a base that does
+not carry #8.
+
+Worth carrying forward, because `pose-covariance-on-shared-quantities` (#15) has the
+same shape and has not been reviewed yet: a two-parent branch will draw this comment,
+and the answer is the diff check above rather than a description the reviewer has
+already passed.
+
+### The ORM point is now checked rather than reasoned
+
+The implementation left `GraspLikelihoodSource`'s ORM fate as *"evidence rather than
+proof"* — a field-less abstract dataclass outside the `beliefs/` package the exclusion
+covers, argued safe from `PoseCovarianceSource` being the same shape on a green #9.
+
+It is checked now, against `classes_of_package` directly, which is what every earlier
+round on this plan used where the generator itself could not run:
+
+- `GraspBelief` and `SampledLikelihood` are in the excluded package, so they produce no
+  DAO — the inheritance `belief-context-and-gaussian`'s second round established, and
+  this is the third item to get it for free.
+- `GraspLikelihoodSource` is *not* excluded and will be mapped. It carries
+  `dataclasses.fields() == []`.
+
+Zero fields is what settles it. The failure this plan learned to fear —
+`odometry-covariance-capture`'s first review round, where an unmappable field type took
+down every dependent package at import of the generated module — needs a field with no
+column type. A class with no fields cannot have one; it maps to an empty table.
+
+It is left unignored rather than added to `generate_orm.py`'s `ignore_classes`, which is
+a choice between two precedents on this plan that point opposite ways.
+`pose-uncertainty-through-transforms` added a field-less exception to the ignore list,
+reasoning that *"only CI can check that, so the conservative entry is worth more than
+the empty table it avoids"*. But that class is in `semantic_digital_twin`, where a DAO
+that fails to generate takes down every dependent package; this one is in giskardpy,
+beside `odometry-covariance-capture`'s `PoseCovarianceSource`, which is the *same*
+dependency-inversion seam, in the same package, unignored, on a branch whose CI is
+green. Ignoring one seam and not the other would leave the two inconsistent once both
+land, for an empty table either way.
+
+Whether both seams should be ignored is a question about #9's branch as much as this
+one, so it is left for the author rather than decided from here.
+
+### Local ORM regeneration is blocked by the container, not by this diff
+
+`scripts/regenerate_all_orm.py` was run rather than assumed unrunnable, which no earlier
+round on this plan attempted. It fails with `CouldNotResolveType: Could not resolve type
+MetaData` inside `semantic_digital_twin.exceptions.WorldUpdateReferencesUnknownEntityError`
+— a class this diff does not touch.
+
+Run again in a detached worktree at the base branch, with this item's commit absent, it
+fails identically at the same class. So the generator is unavailable here for reasons
+that predate the change, and regenerating the ORM stays CI's, as every round has
+recorded — but now as a measurement rather than an expectation.
+
+### Verification
+
+CI on `58b8cd66`: 20 of 23 checks complete and green, three still running
+(`test_each_lib` for giskardpy, `semantic_digital_twin` and coraplex).
+`check_generated_orm_interfaces_are_untracked` is among the green ones.
+`mergeable_state` reads `unstable` because checks are pending, not because any failed.
+
+### Still open
+
+- **`test_each_lib (giskardpy)` had not finished.** It is the check that exercises the
+  generated giskardpy interface and so the last confirmation of the ORM point above.
+  Nothing suggests it will fail — the reasoning is checked and the other 20 are green —
+  but it is unread.
+- **The review thread is open by intent**, carrying the question about whether to
+  restructure the base back to the author.
+- **The dashboard is still not published.** Rebuilt again this round with no drift and
+  no auto-corrections, and refused again: the cached artifact
+  `WCfARob6AeALaMcNBCwmm8` does not appear in this account's `Artifact` listing under
+  either `mine` or `shared`, so a read returns an isolated third-party summary instead
+  of the page source and the publish precondition cannot be met. `force: true` would
+  discard whatever #15's session published in parallel, so it was not used. This needs
+  the author to choose between overwriting and minting a fresh dashboard.
+- **The pull request is a draft and stays one**, awaiting its author's own review. No
+  push was made this round, so nothing needed re-drafting.
