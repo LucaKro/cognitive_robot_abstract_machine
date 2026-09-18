@@ -16,7 +16,7 @@ import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import Optional, Tuple, Type
+from typing_extensions import List, Optional, Tuple, Type
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ExecutionType
@@ -27,7 +27,18 @@ from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.view_manager import ViewManager
-from krrood.entity_query_language.factories import a, an, entity, variable
+from krrood.entity_query_language.factories import (
+    a,
+    an,
+    count,
+    entity,
+    flat_variable,
+    min as minimum,
+    set_of,
+    the,
+    variable,
+)
+from krrood.entity_query_language.predicate import symbolic_function
 from semantic_digital_twin.api import (
     BodySpecification,
     RobotSpecification,
@@ -35,19 +46,25 @@ from semantic_digital_twin.api import (
     WorldSpecification,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.reasoning.predicates import (
+    compute_euclidean_planar_distance,
+)
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.mixins import (
+    HasRootBody,
     HasRootKinematicStructureEntity,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bowl,
+    Cabinet,
     Drawer,
     Handle,
     Milk,
     Spoon,
 )
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Vector3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
@@ -188,6 +205,160 @@ class PlaceSettingObject:
         )
 
 
+# %% questions about the scene
+
+
+@symbolic_function
+def drawer_opening_travel(drawer: Drawer) -> float:
+    """
+    :param drawer: The drawer to measure.
+    :return: How far the drawer slides out between its joint limits, in meters.
+    """
+    limits = drawer.mechanical_joint.root.parent_connection.dof.limits
+    return limits.upper.position - limits.lower.position
+
+
+@dataclass
+class DrawerAccess:
+    """
+    Where a drawer is and what opening it takes.
+    """
+
+    cabinet: Cabinet
+    """
+    The cabinet the drawer belongs to.
+    """
+
+    drawer: Drawer
+    """
+    The drawer itself.
+    """
+
+    opening_travel: float
+    """
+    How far the drawer slides out, in meters.
+    """
+
+    handle_distance: float
+    """
+    How far the drawer's handle is from the robot on the floor plane, in meters.
+    """
+
+
+@dataclass
+class CabinetWithOpenableDrawers:
+    """
+    A cabinet together with how many of its drawers the robot could pull open.
+    """
+
+    cabinet: Cabinet
+    """
+    The cabinet.
+    """
+
+    openable_drawer_count: int
+    """
+    How many of its drawers have a handle and slide out far enough.
+    """
+
+    nearest_handle_distance: float
+    """
+    How far the nearest of those drawers' handles is from the robot on the floor plane,
+    in meters.
+    """
+
+
+@dataclass
+class SceneQuestions:
+    """
+    Entity queries asking the apartment where things are and how the robot gets at them.
+    """
+
+    world: World
+    """
+    The world the questions are asked about.
+    """
+
+    robot: AbstractRobot
+    """
+    The robot distances are measured from.
+    """
+
+    minimum_opening_travel: float = 0.3
+    """
+    How far a drawer has to slide out to count as openable, in meters.
+    """
+
+    minimum_openable_drawers: int = 2
+    """
+    How many openable drawers a cabinet needs to be listed.
+    """
+
+    def drawer_holding(self, held_object: HasRootBody) -> DrawerAccess:
+        """
+        Ask which drawer an object lies in, which cabinet it belongs to, how far it
+        opens and how far its handle is from the robot.
+
+        :param held_object: The object lying in the drawer.
+        :return: The one drawer holding the object.
+        """
+        cabinet = variable(Cabinet, domain=self.world.semantic_annotations)
+        drawer = flat_variable(cabinet.drawers)
+        opening_travel = drawer_opening_travel(drawer)
+        handle_distance = compute_euclidean_planar_distance(
+            self.robot.root, drawer.handle.root, Vector3.Z()
+        )
+
+        query = the(
+            set_of(cabinet, drawer, opening_travel, handle_distance).where(
+                drawer.root == held_object.root.parent_kinematic_structure_entity,
+                drawer.handle != None,
+            )
+        )
+        (answer,) = query.evaluate()
+        return DrawerAccess(
+            cabinet=answer[cabinet],
+            drawer=answer[drawer],
+            opening_travel=answer[opening_travel],
+            handle_distance=float(answer[handle_distance]),
+        )
+
+    def cabinets_with_openable_drawers(self) -> List[CabinetWithOpenableDrawers]:
+        """
+        Ask which cabinets have enough drawers the robot could pull open by a handle.
+
+        :return: The cabinets, the one whose nearest handle is closest to the robot
+            first.
+        """
+        cabinet = variable(Cabinet, domain=self.world.semantic_annotations)
+        drawer = flat_variable(cabinet.drawers)
+        openable_drawer_count = count(drawer)
+        nearest_handle_distance = minimum(
+            compute_euclidean_planar_distance(
+                self.robot.root, drawer.handle.root, Vector3.Z()
+            )
+        )
+
+        query = (
+            set_of(cabinet, openable_drawer_count, nearest_handle_distance)
+            .where(
+                drawer.handle != None,
+                drawer_opening_travel(drawer) >= self.minimum_opening_travel,
+            )
+            .grouped_by(cabinet)
+            .having(openable_drawer_count >= self.minimum_openable_drawers)
+            .ordered_by(nearest_handle_distance)
+        )
+        return [
+            CabinetWithOpenableDrawers(
+                cabinet=answer[cabinet],
+                openable_drawer_count=answer[openable_drawer_count],
+                nearest_handle_distance=float(answer[nearest_handle_distance]),
+            )
+            for answer in query.evaluate()
+        ]
+
+
 # %% the demonstration
 
 
@@ -299,14 +470,6 @@ class BulletWorldDemonstration(RobotDemonstration):
 
         with world.modify_world():
             WorldReasoner(world).reason()
-            world.add_semantic_annotation_recursively(
-                Drawer(
-                    root=world.get_body_by_name(ApartmentBody.SPOON_DRAWER),
-                    handle=Handle(
-                        root=world.get_body_by_name(ApartmentBody.SPOON_DRAWER_HANDLE)
-                    ),
-                )
-            )
 
     def build_context(self, world: World) -> Context:
         return Context(
