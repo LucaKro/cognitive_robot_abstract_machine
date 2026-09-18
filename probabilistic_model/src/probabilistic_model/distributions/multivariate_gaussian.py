@@ -32,16 +32,20 @@ from probabilistic_model.quantities import Quantities, QuantityPair
 class Mean:
     """
     What each of a distribution's quantities is expected to be.
+
+    The estimates are kept against the quantities they belong to rather than as an array
+    a reader has to index by row. :attr:`as_array` is where that becomes an array, which
+    is the only place the arithmetic needs one.
     """
 
     quantities: Quantities
     """
-    The quantities these estimates are laid out by.
+    The quantities being estimated.
     """
 
-    values: npt.NDArray[np.float64]
+    estimates: Dict[Continuous, float]
     """
-    The estimate of each of them, in that layout.
+    What each of them is expected to be, one entry per quantity.
     """
 
     @classmethod
@@ -49,11 +53,45 @@ class Mean:
         """
         :param quantities: The quantities being estimated.
         :param estimates: What each of them is estimated at; one left out is zero.
-        :return: Those estimates, laid out by those quantities.
+        :return: Those estimates, against those quantities.
         :raises VariableNotInQuantitiesError: If an estimate names a quantity that is not
             one of them.
         """
-        return cls(quantities=quantities, values=quantities.vector(estimates))
+        for variable in estimates:
+            quantities.index_of(variable)
+        return cls(
+            quantities=quantities,
+            estimates={
+                variable: float(estimates.get(variable, 0.0)) for variable in quantities
+            },
+        )
+
+    @classmethod
+    def from_array(
+        cls, quantities: Quantities, values: npt.NDArray[np.float64]
+    ) -> Self:
+        """
+        Read an estimate back off the array the arithmetic produced.
+
+        :param quantities: The quantities the array is laid out by.
+        :param values: One number per quantity, in that layout.
+        :return: Those estimates, against those quantities.
+        """
+        return cls(
+            quantities=quantities,
+            estimates={
+                variable: float(values[position])
+                for position, variable in enumerate(quantities)
+            },
+        )
+
+    @property
+    def as_array(self) -> npt.NDArray[np.float64]:
+        """
+        :return: The estimates as one number per quantity, in the layout order, for the
+            arithmetic that needs an array.
+        """
+        return self.quantities.vector(self.estimates)
 
     def estimate_of(self, variable: Continuous) -> float:
         """
@@ -61,7 +99,8 @@ class Mean:
         :return: What it is estimated at.
         :raises VariableNotInQuantitiesError: If it is not one of these quantities.
         """
-        return float(self.values[self.quantities.index_of(variable)])
+        self.quantities.index_of(variable)
+        return self.estimates[variable]
 
 
 @dataclass
@@ -69,17 +108,22 @@ class Covariance:
     """
     How uncertain a distribution's estimates are, and how far their errors move
     together.
+
+    Like :class:`Mean`, the numbers are kept against the pairs of quantities they
+    describe rather than as a matrix indexed by row and column. Both directions of a
+    pair are kept separately, so an uncertainty that drifts out of symmetry stays
+    visible rather than being quietly evened out on the way in.
     """
 
     quantities: Quantities
     """
-    The quantities this uncertainty is laid out by.
+    The quantities being estimated.
     """
 
-    values: npt.NDArray[np.float64]
+    uncertainty: Dict[QuantityPair, float]
     """
-    The uncertainty of each pair of them, in that layout, with a quantity paired with
-    itself being its own variance.
+    How uncertain each ordered pair of them is, one entry per pair, with a quantity
+    paired with itself being its own variance.
     """
 
     @classmethod
@@ -88,14 +132,45 @@ class Covariance:
     ) -> Self:
         """
         :param quantities: The quantities being estimated.
-        :param uncertainty: How uncertain each pair of them is; one left out is zero.
-        :return: That uncertainty, laid out by those quantities.
+        :param uncertainty: How uncertain each pair of them is; one left out is zero. Two
+            quantities vary together by one number, so a pair given once fills its mirror
+            as well.
+        :return: That uncertainty, against those quantities.
         :raises VariableNotInQuantitiesError: If an entry names a quantity that is not
             one of them.
         """
+        return cls.from_array(quantities, quantities.symmetric_matrix(uncertainty))
+
+    @classmethod
+    def from_array(
+        cls, quantities: Quantities, values: npt.NDArray[np.float64]
+    ) -> Self:
+        """
+        Read an uncertainty back off the matrix the arithmetic produced.
+
+        Each direction of a pair is read on its own rather than averaged, so this
+        records what the arithmetic actually produced.
+
+        :param quantities: The quantities the matrix is laid out by.
+        :param values: One number per ordered pair, in that layout.
+        :return: That uncertainty, against those quantities.
+        """
         return cls(
-            quantities=quantities, values=quantities.symmetric_matrix(uncertainty)
+            quantities=quantities,
+            uncertainty={
+                (row, column): float(values[first, second])
+                for first, row in enumerate(quantities)
+                for second, column in enumerate(quantities)
+            },
         )
+
+    @property
+    def as_array(self) -> npt.NDArray[np.float64]:
+        """
+        :return: The uncertainty as one number per ordered pair, in the layout order, for
+            the arithmetic that needs a matrix.
+        """
+        return self.quantities.matrix(self.uncertainty)
 
     def variance_of(self, variable: Continuous) -> float:
         """
@@ -112,9 +187,9 @@ class Covariance:
         :return: How far their errors move together.
         :raises VariableNotInQuantitiesError: If either is not one of these quantities.
         """
-        row = self.quantities.index_of(first)
-        column = self.quantities.index_of(second)
-        return float(self.values[row, column])
+        self.quantities.index_of(first)
+        self.quantities.index_of(second)
+        return self.uncertainty[first, second]
 
 
 # %% what a sensor reported
@@ -283,7 +358,7 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
     def log_likelihood(self, events: npt.NDArray) -> npt.NDArray:
         return np.atleast_1d(
             multivariate_normal.logpdf(
-                events, mean=self.mean.values, cov=self.covariance.values
+                events, mean=self.mean.as_array, cov=self.covariance.as_array
             )
         )
 
@@ -326,8 +401,8 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         upper = np.array([stretch.upper for stretch in box])
         probability = multivariate_normal.cdf(
             upper,
-            mean=self.mean.values,
-            cov=self.covariance.values,
+            mean=self.mean.as_array,
+            cov=self.covariance.as_array,
             lower_limit=lower,
         )
         return max(float(probability), 0.0)
@@ -344,7 +419,7 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
                 for variable in self.variables
             }
         ).as_composite_set()
-        return mode, float(self.log_likelihood(self.mean.values.reshape(1, -1))[0])
+        return mode, float(self.log_likelihood(self.mean.as_array.reshape(1, -1))[0])
 
     # %% fixing quantities at a value
 
@@ -390,21 +465,19 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         :return: The Gaussian over ``rows``, narrowed by whatever ``given_rows`` says.
         """
         quantities = Quantities.of(*[self.quantities.variables[row] for row in rows])
-        mean = self.mean.values[rows]
-        covariance = self.covariance.values[np.ix_(rows, rows)]
+        mean = self.mean.as_array[rows]
+        covariance = self.covariance.as_array[np.ix_(rows, rows)]
 
         if given_rows:
-            cross = self.covariance.values[np.ix_(rows, given_rows)]
-            among_given = self.covariance.values[np.ix_(given_rows, given_rows)]
+            cross = self.covariance.as_array[np.ix_(rows, given_rows)]
+            among_given = self.covariance.as_array[np.ix_(given_rows, given_rows)]
             explained = cross @ np.linalg.inv(among_given)
-            mean = mean + explained @ (given_values - self.mean.values[given_rows])
+            mean = mean + explained @ (given_values - self.mean.as_array[given_rows])
             covariance = covariance - explained @ cross.T
 
         return type(self)(
-            mean=Mean(quantities=quantities, values=mean),
-            covariance=Covariance(
-                quantities=quantities, values=self._symmetrized(covariance)
-            ),
+            mean=Mean.from_array(quantities, mean),
+            covariance=Covariance.from_array(quantities, self._symmetrized(covariance)),
         )
 
     @staticmethod
@@ -466,7 +539,7 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             *self.quantities.variables,
             *self._variables_for_readings(len(model)),
         )
-        covariance = self.covariance.values
+        covariance = self.covariance.as_array
         joint_covariance = np.block(
             [
                 [covariance, covariance @ model.T],
@@ -474,13 +547,13 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             ]
         )
         return type(self)(
-            mean=Mean(
-                quantities=joint_quantities,
-                values=np.concatenate([self.mean.values, model @ self.mean.values]),
+            mean=Mean.from_array(
+                joint_quantities,
+                np.concatenate([self.mean.as_array, model @ self.mean.as_array]),
             ),
-            covariance=Covariance(
-                quantities=joint_quantities,
-                values=self._symmetrized(joint_covariance),
+            covariance=Covariance.from_array(
+                joint_quantities,
+                self._symmetrized(joint_covariance),
             ),
         )
 
@@ -582,7 +655,9 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         :raises VariableNotInQuantitiesError: If it names a quantity this distribution
             is not about.
         """
-        self.mean.values = self.mean.values + self.quantities.vector(translation)
+        self.mean = Mean.from_array(
+            self.quantities, self.mean.as_array + self.quantities.vector(translation)
+        )
 
     def apply_scaling(self, scaling: Dict[Variable, float]):
         """
@@ -596,8 +671,10 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         factors = np.ones(len(self.quantities))
         for variable, factor in scaling.items():
             factors[self.quantities.index_of(variable)] = factor
-        self.mean.values = self.mean.values * factors
-        self.covariance.values = self.covariance.values * np.outer(factors, factors)
+        self.mean = Mean.from_array(self.quantities, self.mean.as_array * factors)
+        self.covariance = Covariance.from_array(
+            self.quantities, self.covariance.as_array * np.outer(factors, factors)
+        )
 
     def apply_linear_map(self, mapping: Mapping[QuantityPair, float]):
         """
@@ -611,9 +688,10 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             is not about.
         """
         matrix = self.quantities.matrix(mapping)
-        self.mean.values = matrix @ self.mean.values
-        self.covariance.values = self._symmetrized(
-            matrix @ self.covariance.values @ matrix.T
+        self.mean = Mean.from_array(self.quantities, matrix @ self.mean.as_array)
+        self.covariance = Covariance.from_array(
+            self.quantities,
+            self._symmetrized(matrix @ self.covariance.as_array @ matrix.T),
         )
 
     def apply_added_uncertainty(self, uncertainty: Mapping[QuantityPair, float]):
@@ -626,22 +704,23 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         :raises VariableNotInQuantitiesError: If it names a quantity this distribution
             is not about.
         """
-        self.covariance.values = (
-            self.covariance.values + self.quantities.symmetric_matrix(uncertainty)
+        self.covariance = Covariance.from_array(
+            self.quantities,
+            self.covariance.as_array + self.quantities.symmetric_matrix(uncertainty),
         )
 
     # %% sampling
 
     def sample(self, amount: int) -> npt.NDArray:
         return multivariate_normal.rvs(
-            mean=self.mean.values, cov=self.covariance.values, size=amount
+            mean=self.mean.as_array, cov=self.covariance.as_array, size=amount
         ).reshape(amount, len(self.quantities))
 
     def __copy__(self) -> Self:
         return type(self)(
-            mean=Mean(quantities=self.quantities, values=self.mean.values.copy()),
-            covariance=Covariance(
-                quantities=self.quantities, values=self.covariance.values.copy()
+            mean=Mean.from_array(self.quantities, self.mean.as_array.copy()),
+            covariance=Covariance.from_array(
+                self.quantities, self.covariance.as_array.copy()
             ),
         )
 
@@ -709,7 +788,7 @@ class TruncatedMultivariateGaussianDistribution(ProbabilisticModel):
             most likely point somewhere on the event's boundary and no closed form for
             it.
         """
-        expectation = self.untruncated.mean.values
+        expectation = self.untruncated.mean.as_array
         if not self.event.contains(expectation):
             raise IntractableError(self)
         return (

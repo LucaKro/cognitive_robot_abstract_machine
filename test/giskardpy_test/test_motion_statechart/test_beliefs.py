@@ -224,7 +224,7 @@ class TestUpdate:
         that is the statement the recursion has to keep being equal to.
         """
         belief = self.build_correlated_belief()
-        prior_covariance = belief.covariance.values.copy()
+        prior_covariance = belief.covariance.as_array.copy()
         noise_variance = 2.0
         reading_of_a = np.array([[1.0, 0.0]])
         corrections = 100
@@ -239,7 +239,7 @@ class TestUpdate:
         accumulated_precision = np.linalg.inv(prior_covariance) + corrections * (
             reading_of_a.T @ reading_of_a / noise_variance
         )
-        assert belief.covariance.values == pytest.approx(
+        assert belief.covariance.as_array == pytest.approx(
             np.linalg.inv(accumulated_precision)
         )
 
@@ -256,8 +256,8 @@ class TestUpdate:
             belief.update(
                 [Reading.of_one_variable(Continuous("a"), value=4.0, variance=2.0)]
             )
-        assert belief.covariance.values == pytest.approx(
-            belief.covariance.values.T, rel=1e-14
+        assert belief.covariance.as_array == pytest.approx(
+            belief.covariance.as_array.T, rel=1e-14
         )
 
     def test_the_uncertainty_stays_a_covariance_over_many_corrections(self):
@@ -269,7 +269,7 @@ class TestUpdate:
             belief.update(
                 [Reading.of_one_variable(Continuous("a"), value=4.0, variance=2.0)]
             )
-        assert min(np.linalg.eigvalsh(belief.covariance.values)) >= 0
+        assert min(np.linalg.eigvalsh(belief.covariance.as_array)) >= 0
 
     def test_a_reading_of_a_quantity_the_belief_is_not_about_is_rejected(self):
         belief = GaussianBelief.of_one_variable(Continuous("x"), mean=0.0, variance=1.0)

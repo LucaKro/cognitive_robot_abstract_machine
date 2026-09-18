@@ -136,6 +136,63 @@ class TestBuildingADistribution:
         assert independent.variables == (horizontal, vertical)
 
 
+# %% what the estimate and the uncertainty are held as
+
+
+class TestHeldByQuantity:
+    """
+    The estimate and the uncertainty are kept as numbers against the quantities they
+    belong to, not as arrays a reader has to index by row.
+
+    An array is built only where the arithmetic needs one, which is what
+    :attr:`Mean.as_array` and :attr:`Covariance.as_array` mark.
+    """
+
+    def test_the_estimate_names_the_quantity_each_number_belongs_to(
+        self, independent, horizontal, vertical
+    ):
+        assert independent.mean.estimates == {horizontal: 1.0, vertical: -2.0}
+
+    def test_the_uncertainty_names_the_pair_each_number_belongs_to(
+        self, correlated, horizontal, vertical
+    ):
+        assert correlated.covariance.uncertainty[horizontal, vertical] == 0.6
+        assert correlated.covariance.uncertainty[vertical, horizontal] == 0.6
+
+    def test_a_quantity_left_out_of_an_estimate_is_still_held(
+        self, horizontal, vertical
+    ):
+        """
+        Every quantity has a number, so nothing has to distinguish "zero" from "absent".
+        """
+        mean = Mean.of(Quantities.of(horizontal, vertical), {horizontal: 1.0})
+        assert mean.estimates == {horizontal: 1.0, vertical: 0.0}
+
+    def test_the_array_the_arithmetic_uses_is_laid_out_by_the_quantities(
+        self, independent, horizontal, vertical
+    ):
+        assert independent.mean.as_array.tolist() == [1.0, -2.0]
+
+    def test_an_estimate_survives_the_trip_through_an_array(
+        self, independent, horizontal, vertical
+    ):
+        rebuilt = Mean.from_array(independent.quantities, independent.mean.as_array)
+        assert rebuilt.estimates == independent.mean.estimates
+
+    def test_an_uncertainty_read_back_from_an_array_keeps_both_directions_apart(
+        self, correlated, horizontal, vertical
+    ):
+        """
+        Reading an array back must not quietly symmetrize it, or the one thing that can
+        go wrong in the arithmetic — an uncertainty drifting out of symmetry — would
+        stop being visible.
+        """
+        lopsided = np.array([[1.0, 0.25], [0.75, 1.0]])
+        rebuilt = Covariance.from_array(correlated.quantities, lopsided)
+        assert rebuilt.between(horizontal, vertical) == 0.25
+        assert rebuilt.between(vertical, horizontal) == 0.75
+
+
 # %% density
 
 
@@ -327,9 +384,8 @@ class TestConditioningOnAValue:
             },
         )
         conditioned, _ = distribution.conditional({given: 1.0})
-        assert conditioned.covariance.values.tolist() == (
-            conditioned.covariance.values.T.tolist()
-        )
+        uncertainty = conditioned.covariance
+        assert uncertainty.between(first, second) == uncertainty.between(second, first)
 
     def test_conditioning_on_every_quantity_leaves_no_distribution(
         self, independent, horizontal, vertical
@@ -705,9 +761,9 @@ class TestLinearMap:
     def test_leaving_the_quantities_unchanged_changes_nothing(
         self, correlated, horizontal, vertical
     ):
-        before = correlated.covariance.values.copy()
+        before = correlated.covariance.as_array.copy()
         correlated.apply_linear_map(correlated.quantities.unchanged)
-        assert correlated.covariance.values.tolist() == before.tolist()
+        assert correlated.covariance.as_array.tolist() == before.tolist()
 
     def test_a_linear_map_of_an_unknown_quantity_is_rejected(
         self, independent, horizontal
@@ -738,6 +794,6 @@ class TestAddedUncertainty:
         )
 
     def test_adding_nothing_leaves_the_uncertainty_alone(self, correlated):
-        before = correlated.covariance.values.copy()
+        before = correlated.covariance.as_array.copy()
         correlated.apply_added_uncertainty({})
-        assert correlated.covariance.values.tolist() == before.tolist()
+        assert correlated.covariance.as_array.tolist() == before.tolist()

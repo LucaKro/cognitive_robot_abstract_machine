@@ -32,10 +32,12 @@ class Quantities:
     wrong, and that is what :meth:`index_of` rejects.
 
     ..note:: Building each array here walks a mapping on every call, where taking the
-        arrays ready-made would not. At the sizes these layouts are used at that stays
-        far below the rest of a control cycle, but it is the first thing to undo if one
-        ever shows up in a profile: what consumes these arrays does plain numpy
-        arithmetic, so the mappings can go back to being arrays the caller builds.
+        arrays ready-made would not. What holds these numbers walks one again to hand an
+        array over, so a single operation may build the same array twice. At the sizes
+        these layouts are used at that stays far below the rest of a control cycle, but
+        it is the first thing to undo if one ever shows up in a profile: every
+        consumer does its arithmetic on plain numpy, so the mappings can go back to
+        being arrays that are held and passed directly.
     """
 
     variables: Tuple[Continuous, ...]
