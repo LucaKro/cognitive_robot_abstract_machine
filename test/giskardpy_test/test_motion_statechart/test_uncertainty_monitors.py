@@ -16,7 +16,8 @@ from giskardpy.motion_statechart.exceptions import PoseUncertaintyNotBuiltError
 from giskardpy.motion_statechart.monitors.uncertainty_monitors import PoseUncertainty
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.pose_covariance_source import PoseCovarianceSource
-from semantic_digital_twin.spatial_types import PoseAxis, PoseCovariance
+from semantic_digital_twin.datastructures.variables import SpatialVariables
+from semantic_digital_twin.spatial_types import PoseCovariance
 from semantic_digital_twin.world import World
 
 # %% a source whose covariance the test decides
@@ -41,15 +42,14 @@ class RecordedPoseCovariance(PoseCovarianceSource):
 
 def covariance_of_total_variance(total_variance: float) -> PoseCovariance:
     """
-    A covariance whose six axes sum to the given total.
+    A covariance whose six degrees of freedom sum to the given total.
 
-    :param total_variance: The total the axes should sum to.
+    :param total_variance: The total the degrees of freedom should sum to.
     :return: The covariance with that total.
     """
-    values = np.zeros((len(PoseAxis), len(PoseAxis)), dtype=np.float64)
-    for axis in PoseAxis:
-        values[axis, axis] = total_variance / len(PoseAxis)
-    return PoseCovariance(values=values)
+    pose = SpatialVariables.pose
+    share = total_variance / len(pose)
+    return PoseCovariance.of({(variable, variable): share for variable in pose})
 
 
 # %% running a single node

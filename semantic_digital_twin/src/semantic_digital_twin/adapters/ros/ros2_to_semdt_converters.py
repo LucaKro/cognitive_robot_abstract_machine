@@ -14,10 +14,10 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
     InputType,
     OutputType,
 )
+from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
-    PoseAxis,
     PoseCovariance,
     Vector3,
     Quaternion,
@@ -274,7 +274,7 @@ class PoseWithCovarianceToSemDTConverter(
     def convert(
         cls, data: geometry_msgs.PoseWithCovariance, world: World
     ) -> PoseCovariance:
-        side = len(PoseAxis)
+        side = len(SpatialVariables.pose)
         return PoseCovariance(
             values=np.asarray(data.covariance, dtype=np.float64).reshape(side, side)
         )

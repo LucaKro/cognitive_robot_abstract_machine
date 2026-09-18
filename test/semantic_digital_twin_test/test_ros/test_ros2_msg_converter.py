@@ -11,10 +11,10 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
 from semantic_digital_twin.adapters.ros.semdt_to_ros2_converters import (
     PoseToRos2Converter,
 )
+from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
-    PoseAxis,
     Vector3,
     Quaternion,
 )
@@ -279,7 +279,8 @@ def pose_with_covariance_counting_up() -> geometry_msgs.PoseWithCovariance:
     transposed read is visible.
     """
     message = geometry_msgs.PoseWithCovariance()
-    for index in range(len(PoseAxis) * len(PoseAxis)):
+    side = len(SpatialVariables.pose)
+    for index in range(side * side):
         message.covariance[index] = float(index)
     return message
 
@@ -292,24 +293,31 @@ def test_convert_pose_covariance_reads_the_entries_row_by_row(cylinder_bot_world
 
     covariance = Ros2ToSemDTConverter.convert(message, world=cylinder_bot_world)
 
-    assert covariance.values[PoseAxis.POSITION_X, PoseAxis.ROTATION_Z] == float(
-        PoseAxis.POSITION_X * len(PoseAxis) + PoseAxis.ROTATION_Z
+    pose = SpatialVariables.pose
+    side = len(pose)
+    x, yaw = SpatialVariables.x.value, SpatialVariables.yaw.value
+
+    assert covariance.covariance_between(x, yaw) == float(
+        pose.index(x) * side + pose.index(yaw)
     )
-    assert covariance.values[PoseAxis.ROTATION_Z, PoseAxis.POSITION_X] == float(
-        PoseAxis.ROTATION_Z * len(PoseAxis) + PoseAxis.POSITION_X
+    assert covariance.covariance_between(yaw, x) == float(
+        pose.index(yaw) * side + pose.index(x)
     )
 
 
-def test_convert_pose_covariance_puts_each_axis_variance_on_its_own_axis(
+def test_convert_pose_covariance_puts_each_variance_on_its_own_degree_of_freedom(
     cylinder_bot_world,
 ):
     message = geometry_msgs.PoseWithCovariance()
-    variance_of_axis = {axis: float(axis) + 1.0 for axis in PoseAxis}
-    for axis, variance in variance_of_axis.items():
-        message.covariance[axis * len(PoseAxis) + axis] = variance
+    pose = SpatialVariables.pose
+    side = len(pose)
+    variances = {variable: float(row) + 1.0 for row, variable in enumerate(pose)}
+    for variable, variance in variances.items():
+        row = pose.index(variable)
+        message.covariance[row * side + row] = variance
 
     covariance = Ros2ToSemDTConverter.convert(message, world=cylinder_bot_world)
 
-    for axis, variance in variance_of_axis.items():
-        assert covariance.variance_of(axis) == variance, axis
-    assert covariance.total_variance == sum(variance_of_axis.values())
+    for variable, variance in variances.items():
+        assert covariance.variance_of(variable) == variance, variable
+    assert covariance.total_variance == sum(variances.values())

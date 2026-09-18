@@ -11,6 +11,7 @@ import pytest
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from numpy.testing import assert_allclose
+from random_events.variable import Continuous
 from sensor_msgs.msg import JointState
 
 from giskardpy.middleware.ros2.exceptions import (
@@ -26,10 +27,8 @@ from giskardpy.middleware.ros2.input_synchronization import (
     TopicInputSynchronizer,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.spatial_types import (
-    HomogeneousTransformationMatrix,
-    PoseAxis,
-)
+from semantic_digital_twin.datastructures.variables import SpatialVariables
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
@@ -88,7 +87,7 @@ def joint_state_message(joint_name: str, position: float) -> JointState:
 
 def odometry_message(
     pose: HomogeneousTransformationMatrix,
-    variance_of_axis: dict[PoseAxis, float] | None = None,
+    variance_of_variable: dict[Continuous, float] | None = None,
 ) -> Odometry:
     """
     An odometry message that reports the given pose, and how uncertain it is.
@@ -103,8 +102,10 @@ def odometry_message(
     message.pose.pose.orientation.y = float(quaternion[1])
     message.pose.pose.orientation.z = float(quaternion[2])
     message.pose.pose.orientation.w = float(quaternion[3])
-    for axis, variance in (variance_of_axis or {}).items():
-        message.pose.covariance[axis * len(PoseAxis) + axis] = variance
+    pose_variables = SpatialVariables.pose
+    for variable, variance in (variance_of_variable or {}).items():
+        row = pose_variables.index(variable)
+        message.pose.covariance[row * len(pose_variables) + row] = variance
     return message
 
 
@@ -269,19 +270,21 @@ def test_odometry_synchronizer_keeps_the_covariance_of_the_message_it_applied(
     The covariance is the only statement the robot makes about how much to trust the
     pose, and it used to be dropped on every message.
     """
-    variance_of_axis = {axis: float(axis) + 1.0 for axis in PoseAxis}
+    variance_of_variable = {
+        variable: float(row) + 1.0 for row, variable in enumerate(SpatialVariables.pose)
+    }
     synchronizer = OdometrySynchronizer(
         world=omni_drive_world,
         topic_name="odom",
         connection=omni_drive_world.get_connection_by_name("root_T_base"),
     )
     synchronizer.latest_message = odometry_message(
-        HomogeneousTransformationMatrix.from_xyz_rpy(), variance_of_axis
+        HomogeneousTransformationMatrix.from_xyz_rpy(), variance_of_variable
     )
 
     assert synchronizer.apply() is True
-    for axis, variance in variance_of_axis.items():
-        assert synchronizer.pose_covariance.variance_of(axis) == variance, axis
+    for variable, variance in variance_of_variable.items():
+        assert synchronizer.pose_covariance.variance_of(variable) == variance, variable
 
 
 def test_odometry_synchronizer_replaces_the_covariance_with_every_message(
@@ -293,13 +296,14 @@ def test_odometry_synchronizer_replaces_the_covariance_with_every_message(
         connection=omni_drive_world.get_connection_by_name("root_T_base"),
     )
     pose = HomogeneousTransformationMatrix.from_xyz_rpy()
-    synchronizer.latest_message = odometry_message(pose, {PoseAxis.POSITION_X: 4.0})
+    position_x = SpatialVariables.x.value
+    synchronizer.latest_message = odometry_message(pose, {position_x: 4.0})
     synchronizer.apply()
 
-    synchronizer.latest_message = odometry_message(pose, {PoseAxis.POSITION_X: 0.5})
+    synchronizer.latest_message = odometry_message(pose, {position_x: 0.5})
     synchronizer.apply()
 
-    assert synchronizer.pose_covariance.variance_of(PoseAxis.POSITION_X) == 0.5
+    assert synchronizer.pose_covariance.variance_of(position_x) == 0.5
 
 
 # %% writing tf into the world

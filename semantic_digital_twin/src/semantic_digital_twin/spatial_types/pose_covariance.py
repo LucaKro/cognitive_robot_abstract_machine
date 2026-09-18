@@ -1,71 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import IntEnum
 
 import numpy as np
 import numpy.typing as npt
-from typing_extensions import Self
+from random_events.variable import Continuous
+from typing_extensions import Mapping, Self, Tuple
 
-from semantic_digital_twin.exceptions import PoseCovarianceNotSixBySixError
+from semantic_digital_twin.datastructures.variables import SpatialVariables
+from semantic_digital_twin.exceptions import (
+    PoseCovarianceNotSixBySixError,
+    VariableNotInPoseError,
+)
 
-# %% the degrees of freedom a pose covariance relates
+PoseVariablePair = Tuple[Continuous, Continuous]
+"""
+Two degrees of freedom of a pose whose joint uncertainty an entry describes.
+"""
 
-
-class PoseAxis(IntEnum):
-    """
-    The six degrees of freedom of a pose, in the order :class:`PoseCovariance` indexes
-    them.
-
-    The members double as indices into :attr:`PoseCovariance.values`.
-    """
-
-    POSITION_X = 0
-    """
-    Translation along the x axis.
-    """
-
-    POSITION_Y = 1
-    """
-    Translation along the y axis.
-    """
-
-    POSITION_Z = 2
-    """
-    Translation along the z axis.
-    """
-
-    ROTATION_X = 3
-    """
-    Rotation about the x axis.
-    """
-
-    ROTATION_Y = 4
-    """
-    Rotation about the y axis.
-    """
-
-    ROTATION_Z = 5
-    """
-    Rotation about the z axis.
-    """
-
-    @classmethod
-    def position_axes(cls) -> tuple[Self, ...]:
-        """
-        :return: The three translational axes.
-        """
-        return cls.POSITION_X, cls.POSITION_Y, cls.POSITION_Z
-
-    @classmethod
-    def rotation_axes(cls) -> tuple[Self, ...]:
-        """
-        :return: The three rotational axes.
-        """
-        return cls.ROTATION_X, cls.ROTATION_Y, cls.ROTATION_Z
-
-
-# %% the covariance itself
+# %% how uncertain a pose is
 
 
 @dataclass
@@ -79,7 +32,8 @@ class PoseCovariance:
 
     values: npt.NDArray[np.float64]
     """
-    The covariance, as a matrix whose rows and columns are indexed by :class:`PoseAxis`.
+    The covariance, as a matrix whose rows and columns are the degrees of freedom in
+    :attr:`SpatialVariables.pose`, in that order.
     """
 
     def __post_init__(self):
@@ -87,32 +41,80 @@ class PoseCovariance:
         :raises PoseCovarianceNotSixBySixError: If the matrix does not relate all six
             degrees of freedom to each other.
         """
-        expected_shape = (len(PoseAxis), len(PoseAxis))
+        side = len(SpatialVariables.pose)
+        expected_shape = (side, side)
         if self.values.shape != expected_shape:
             raise PoseCovarianceNotSixBySixError(
                 given_shape=tuple(self.values.shape), expected_shape=expected_shape
             )
 
-    def variance_of(self, axis: PoseAxis) -> float:
+    @classmethod
+    def of(cls, covariances: Mapping[PoseVariablePair, float]) -> Self:
         """
-        :param axis: The degree of freedom to read.
+        Build one from named pairs rather than from a matrix a caller lays out.
+
+        Two degrees of freedom vary together by one number rather than two, so each pair
+        given fills its mirror as well and a caller states it once.
+
+        :param covariances: How much each pair of degrees of freedom varies together; a
+            pair of one with itself is its own variance, and omitted pairs are zero.
+        :return: The covariance those entries describe.
+        :raises VariableNotInPoseError: If a named variable is not a degree of freedom
+            of a pose.
+        """
+        side = len(SpatialVariables.pose)
+        values = np.zeros((side, side), dtype=np.float64)
+        for (one, other), covariance in covariances.items():
+            row, column = cls._row_of(one), cls._row_of(other)
+            values[row, column] = covariance
+            values[column, row] = covariance
+        return cls(values=values)
+
+    @staticmethod
+    def _row_of(variable: Continuous) -> int:
+        """
+        :param variable: The degree of freedom to locate.
+        :return: The row and column it occupies.
+        :raises VariableNotInPoseError: If it is not a degree of freedom of a pose.
+        """
+        pose = SpatialVariables.pose
+        if variable not in pose:
+            raise VariableNotInPoseError(
+                variable_name=variable.name,
+                pose_variable_names=tuple(each.name for each in pose),
+            )
+        return pose.index(variable)
+
+    def covariance_between(self, one: Continuous, other: Continuous) -> float:
+        """
+        :param one: The first degree of freedom.
+        :param other: The second one.
+        :return: How much the two vary together.
+        :raises VariableNotInPoseError: If either is not a degree of freedom of a pose.
+        """
+        return float(self.values[self._row_of(one), self._row_of(other)])
+
+    def variance_of(self, variable: Continuous) -> float:
+        """
+        :param variable: The degree of freedom to read.
         :return: How uncertain that one degree of freedom is.
+        :raises VariableNotInPoseError: If it is not a degree of freedom of a pose.
         """
-        return float(self.values[axis, axis])
+        return self.covariance_between(variable, variable)
 
     @property
     def position_variance(self) -> float:
         """
         :return: The uncertainty of the position alone, summed over its three axes.
         """
-        return sum(self.variance_of(axis) for axis in PoseAxis.position_axes())
+        return sum(self.variance_of(variable) for variable in SpatialVariables.position)
 
     @property
     def rotation_variance(self) -> float:
         """
         :return: The uncertainty of the orientation alone, summed over its three axes.
         """
-        return sum(self.variance_of(axis) for axis in PoseAxis.rotation_axes())
+        return sum(self.variance_of(variable) for variable in SpatialVariables.rotation)
 
     @property
     def total_variance(self) -> float:
