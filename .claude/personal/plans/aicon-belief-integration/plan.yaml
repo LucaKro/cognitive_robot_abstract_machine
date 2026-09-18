@@ -85,6 +85,13 @@ items:
       (even just its trace to begin with) so the statechart can condition on
       base uncertainty. Enables conditions of the form "do not begin the final
       approach while base uncertainty exceeds X".
+      Correction from review: PoseCovariance and the six degrees of freedom it
+      relates live in semantic_digital_twin, not giskardpy, and the flat row-major
+      ROS layout is a converter's knowledge. The degrees of freedom are
+      SpatialVariables, not an enum of this item's own - PoseAxis was removed in
+      the second round because its translational half restated them. Dependents
+      should read a covariance by variable (variance_of, covariance_between) and
+      build one with PoseCovariance.of, never by row index.
 
   - id: detection-confidence-field
     title: Carry perception confidence across the process boundary
@@ -139,6 +146,51 @@ items:
       log_truncated (a truncated correlated Gaussian is not Gaussian, so it
       cannot return Self). Once it exists, swap GaussianBelief's internals onto
       it; the interface is already variable-keyed, so no dependent has to move.
+
+  - id: pose-covariance-on-shared-quantities
+    title: Lay a pose covariance out with the shared quantity layout
+    branch: pose-covariance-on-shared-quantities
+    pull_request_number: null
+    track: belief-core
+    status: not_started
+    depends_on: [probability-concepts-in-probabilistic-model, odometry-covariance-capture]
+    notes: >-
+      PoseCovariance builds and reads its matrix from its own private row lookup
+      over SpatialVariables.pose, which is the same job Quantities does for a
+      belief - an ordered set of random variables plus the layout of arrays over
+      them. It could not reuse Quantities when it was written: Quantities lives in
+      giskardpy, giskardpy depends on semantic_digital_twin and not the reverse, so
+      the import direction forbids it. Once
+      probability-concepts-in-probabilistic-model moves Quantities into
+      probabilistic_model, which semantic_digital_twin already depends on, the
+      layout becomes importable and PoseCovariance's private _row_of, its own
+      symmetric fill in of() and VariableNotInPoseError all collapse onto it. The
+      public interface is already keyed by random_events variables, so this is
+      internals only and no caller moves.
+
+  - id: pose-uncertainty-through-transforms
+    title: Carry a pose's uncertainty through the transforms applied to it
+    branch: pose-uncertainty-through-transforms
+    pull_request_number: null
+    track: belief-core
+    status: not_started
+    depends_on: [odometry-covariance-capture]
+    notes: >-
+      Raised in review on #9: a covariance sounds like something that should be
+      associated directly with a pose. Attaching it is mechanically easy - ORMatic
+      skips fields whose name starts with an underscore (wrapped_table.py:628) and
+      Pose.to_json/_from_json are hand-written over position and rotation only, so
+      a private field is invisible to both the ORM scan and the JSON round-trip.
+      What is not easy is that Pose composes and inverts, a covariance is
+      frame-dependent, and transforming a pose must rotate its covariance. A field
+      that silently survives or silently vanishes across those operations is worse
+      than no field, because a wrong covariance is worse than an absent one - the
+      plan's own standing caveat about manufacturing confident beliefs. So this item
+      is the propagation, not the field: rotate the covariance with the transform,
+      decide what an operation between an uncertain and a certain pose yields, and
+      only then attach it. Most Pose instances are symbolic forward-kinematics
+      expressions with no measured uncertainty at all, which is the other reason the
+      field alone would mislead.
 
   - id: estimator-node-base
     title: EstimatorNode base class with the register/set_value tick lifecycle

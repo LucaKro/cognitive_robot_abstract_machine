@@ -688,19 +688,59 @@ there is a test for that case beside the default one.
 *"always use numpy typing"* — `values: npt.NDArray[np.float64]`. `main` made the
 same move in `symbolic_math` in the meantime (`d169530a`).
 
-### Where it stands
+### The move into `semantic_digital_twin` broke the ORM, and the exception was why
 
-Three of the four threads are resolved. The ROS-assumption thread on
-`pose_covariance.py:19` was answered but left open, because the reply carries a
-question back: whether ignoring the type in the ORM scan is the right call.
+The first CI run after the review fixes came back **10 of 23 red**, and every
+failure was one root cause: `sqlalchemy.orm.exc.MappedAnnotationError` importing
+the generated `semantic_digital_twin/orm/ormatic_interface.py`.
+
+Moving `PoseCovariance` into `semantic_digital_twin` moved
+`PoseCovarianceNotSixBySixError` there with it, and `ORMatic.from_package` maps
+every dataclass it finds — exceptions included, which is normal here; sdt's other
+exceptions all have DAOs. What is not normal is a field typed as a bare `tuple`:
+a shape has no fixed length, so there is no column type for it, and the generated
+`PoseCovarianceNotSixBySixErrorDAO` could not be imported. Nothing that reaches
+sdt's ORM could start — giskardpy, coraplex, experiments, sdt itself and every
+notebook and demo job.
+
+The ignore-it decision recorded above covered the type but not its error. Both are
+in `ignore_classes` now, for the same reason: a shape mismatch is not something a
+world stores. The fields are typed `tuple[int, ...]` rather than bare `tuple`,
+which is what they always meant.
+
+The failing run is also what verifies the fix: `PoseCovariance` itself was already
+excluded and produced no DAO, so the mechanism demonstrably works on the very run
+that caught this.
+
+Worth carrying forward, and sharper than the note already written above: adding a
+dataclass to `semantic_digital_twin` is never neutral, and *the exceptions that
+come with it count as dataclasses too*. `detection-confidence-field` and
+`probability-concepts-in-probabilistic-model` both add types to shared packages.
+An unmappable field type fails at import of the generated module, not at
+generation, so it takes down every dependent package at once rather than
+producing one local failure.
+
+This also could not be caught in the authoring container: regenerating the ORM
+needs the ROS message packages, so the existing sdt ORM tests are the only thing
+that exercises it, and they only run in CI.
+
+### How the round closed
+
+All four threads are resolved. The ROS-assumption thread on `pose_covariance.py:19`
+was left open at the time pending the author's call on the ORM exclusion; the
+answer was to ignore the type, and the thread was resolved on that basis.
 
 `main` was merged into the branch twice over this round. The one conflict was
 `semantic_digital_twin/exceptions.py`, where both sides appended new exception
 classes; all were kept.
 
-CI was fully green on `28dc12c2`, the commit before these fixes. The fixes
-themselves are not CI-verified yet — only the `PoseCovariance` tests could be run
-in this container, against the module source with the exceptions module stubbed.
+CI was fully green on `28dc12c2`, the commit before these fixes, and green again
+on `546fb2ab` once they landed.
+
+..note:: This section was filed under `belief-context-and-gaussian`'s first review
+    round until the second round below moved it here. That item's pull request
+    (#10) touches no `semantic_digital_twin` file at all — `PoseCovariance`, its
+    error and the `generate_orm.py` exclusion are all this item's.
 
 ## `belief-context-and-gaussian` — first review round
 
@@ -788,42 +828,6 @@ uses — that swap is internals only, and `estimator-node-base`,
 `Quantities` itself is a candidate to move with them: an ordered set of random
 variables plus the layout of arrays over them is a probability concept, not a
 motion-control one.
-
-### The move into `semantic_digital_twin` broke the ORM, and the exception was why
-
-The first CI run after the review fixes came back **10 of 23 red**, and every
-failure was one root cause: `sqlalchemy.orm.exc.MappedAnnotationError` importing
-the generated `semantic_digital_twin/orm/ormatic_interface.py`.
-
-Moving `PoseCovariance` into `semantic_digital_twin` moved
-`PoseCovarianceNotSixBySixError` there with it, and `ORMatic.from_package` maps
-every dataclass it finds — exceptions included, which is normal here; sdt's other
-exceptions all have DAOs. What is not normal is a field typed as a bare `tuple`:
-a shape has no fixed length, so there is no column type for it, and the generated
-`PoseCovarianceNotSixBySixErrorDAO` could not be imported. Nothing that reaches
-sdt's ORM could start — giskardpy, coraplex, experiments, sdt itself and every
-notebook and demo job.
-
-The ignore-it decision recorded above covered the type but not its error. Both are
-in `ignore_classes` now, for the same reason: a shape mismatch is not something a
-world stores. The fields are typed `tuple[int, ...]` rather than bare `tuple`,
-which is what they always meant.
-
-The failing run is also what verifies the fix: `PoseCovariance` itself was already
-excluded and produced no DAO, so the mechanism demonstrably works on the very run
-that caught this.
-
-Worth carrying forward, and sharper than the note already written above: adding a
-dataclass to `semantic_digital_twin` is never neutral, and *the exceptions that
-come with it count as dataclasses too*. `detection-confidence-field` and
-`probability-concepts-in-probabilistic-model` both add types to shared packages.
-An unmappable field type fails at import of the generated module, not at
-generation, so it takes down every dependent package at once rather than
-producing one local failure.
-
-This also could not be caught in the authoring container: regenerating the ORM
-needs the ROS message packages, so the existing sdt ORM tests are the only thing
-that exercises it, and they only run in CI.
 
 ### How the datastructure round closed
 
@@ -935,3 +939,125 @@ one situation rather than eight.
   request and its threads are. `8yaw8t` was never created and has no commits. Any
   later session designated a fresh branch for an item that already has one should
   ask the same question rather than opening a second pull request for one item.
+
+## `odometry-covariance-capture` — second review round
+
+Four threads, all from the author, posted after the round-1 close and so
+untouched by it. Nothing else was blocking: CI was 22 of 23 green on `546fb2ab`
+with `test_each_lib (coraplex)` still running, the branch was level with `main`
+with no conflict, and the pull request carries no `in-review` label, so there was
+no upstream review to read.
+
+Two of the four asked questions rather than naming a change, and the answers
+below were the author's, given in session.
+
+### `PoseAxis` is gone; a pose covariance is indexed by spatial variables
+
+*"this feels a bit like duplicated information. is there any way to dedupe?"*
+
+`PoseAxis`'s three translational members restated `SpatialVariables`
+(`datastructures/variables.py`), which already carries `x`, `y` and `z` as
+`random_events` `Continuous` variables and is used across the package. The enum
+is removed. `SpatialVariables` gains `roll`, `pitch` and `yaw` beside them, plus
+`position`, `rotation` and `pose` orderings; `pose` is what every array over a
+pose's degrees of freedom is laid out by, and it is an ordered tuple rather than
+the `SortedSet` its neighbours return, because a variable's place in it is the
+row and column it occupies.
+
+The resulting order is `x, y, z, roll, pitch, yaw` — the same order `PoseAxis`
+numbered, so the ROS row-major read is unchanged and the adapter's transposition
+test still fails on a transposed read.
+
+Two alternatives were offered and rejected. Deriving the six from `Pose`'s own
+`.x`/`.y`/`.z`/`.roll`/`.pitch`/`.yaw` accessors removes no duplicate: `Pose` has
+six separate properties and no list of them, so the list would have been invented
+and then tied to property names by string. Leaving the docstring as the only thing
+deduplicated would not have addressed the enum.
+
+### Building and reading it is by name, not by position
+
+*"is there a way we can use a datastructure here instead of numpy arrays? I think
+we did sth similar in one of the other open draft already"*
+
+The other draft is `belief-context-and-gaussian` (#10), whose own second round
+points back at this item as its precedent. Both land on the same shape: a named
+type owning the array and answering by name rather than by row.
+
+`PoseCovariance.of` takes the covariance of each pair of degrees of freedom and
+fills the mirror entry itself, so a caller states a correlation once;
+`covariance_between` and `variance_of` read by variable. `values` stays
+`npt.NDArray[np.float64]` and the arithmetic stays numpy, exactly as `Mean` and
+`Covariance` do on #10. The adapter still constructs from the array it lifts off
+the message, which is the one place a laid-out matrix is the honest input.
+
+Naming a variable a pose does not have now raises `VariableNotInPoseError`
+instead of indexing at random. It joins its sibling in `generate_orm.py`'s
+`ignore_classes`, per the lesson recorded above.
+
+**What could not be reused, and why.** The datastructure the thread points at is
+`Quantities`, and it lives in giskardpy. giskardpy depends on
+`semantic_digital_twin` and not the reverse, so `PoseCovariance` cannot import it;
+the private row lookup here is that layout rebuilt locally. `semantic_digital_twin`
+does depend on `probabilistic_model`, which is where
+`probability-concepts-in-probabilistic-model` is already slated to move
+`Quantities` — so the reuse becomes possible then, and is tracked as
+`pose-covariance-on-shared-quantities` rather than left as a comment.
+
+### `PoseCovarianceSource` stays in giskardpy
+
+*"should this also move to semdt?"*
+
+No. Its only consumer is the `PoseUncertainty` node and its only implementer is
+`OdometrySynchronizer`, both in giskardpy; nothing in `semantic_digital_twin`
+would use it. It is giskard's dependency-inversion seam, not a spatial concept,
+which is the call the first round already recorded. Answered on the thread and
+left for the author to close.
+
+### A covariance on a `Pose` is propagation, not a field
+
+*"this sounds a bit like something that should be associated directly with a pose
+no? or does this not fit into the bigger picture of this plan?"*, and then *"if we
+dont want it to be roundtripped or orm mapped, cant we just make it a private
+field?"*
+
+The private field does work, and that was checked rather than assumed: ORMatic
+skips fields whose name starts with an underscore
+(`krrood/ormatic/wrapped_table.py:628`), and `Pose.to_json`/`_from_json` are
+hand-written over position and rotation only, so such a field is invisible to both
+the ORM scan and the JSON round-trip.
+
+Storage was not the real objection. `Pose` composes and inverts, a covariance is
+frame-dependent, and transforming a pose must rotate its covariance — so a field
+would either silently survive those operations, now wrong, or silently vanish. A
+wrong covariance is worse than an absent one, which is this plan's own standing
+caveat. Most `Pose` instances are also symbolic forward-kinematics expressions
+with no measured uncertainty at all.
+
+So the association is real work, not a field, and it is tracked as
+`pose-uncertainty-through-transforms`: rotate the covariance with the transform,
+decide what an operation between an uncertain and a certain pose yields, and
+attach it only then.
+
+### Verification
+
+The authoring container still cannot build `random_events` — the same antlr4
+wheel failure every session on this plan has hit — so the twelve
+`PoseCovariance` tests were run against the real module source with
+`random_events.variable` stubbed down to a hashable `Continuous`. They pass. The
+converter, synchronizer and monitor tests need `geometry_msgs`, `nav_msgs` and
+`rclpy` and remain CI's to verify.
+
+The row-major layout was checked directly as well: a 36-entry matrix counting up
+reads `covariance_between(x, yaw) == 5` and `covariance_between(yaw, x) == 30`, so
+a transposed read is still visible.
+
+### Still open
+
+- The covariance frame is still unchecked, as the kickoff recorded.
+- Two threads — `PoseCovarianceSource`'s home and the `Pose` association — were
+  answered rather than acted on, so they stay open for the author. The two that
+  named a change are resolved.
+- The branch was not this session's designated branch. The session was designated
+  `claude/wonderful-edison-czfut6`; the work stayed on `claude/jolly-edison-k0zkiq`,
+  where the pull request and its threads are — the same call
+  `belief-context-and-gaussian` records making one round earlier.
