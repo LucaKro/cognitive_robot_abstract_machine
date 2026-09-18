@@ -2540,3 +2540,85 @@ forgotten and how confident is confident enough, which is what
   observes rather than with what is physically happening will report a confident
   grasp of a gripper wedged into a crease. `belief-drawer-experiment` is where that
   is measured, against the simulator rather than against the posterior.
+
+## `pose-covariance-on-shared-quantities`
+
+The plan settled at kickoff, and the two calls it makes beyond the item's recorded
+`notes`.
+
+### The base is #13, and the branch carries two parents
+
+The item's recorded `depends_on` is `probability-concepts-in-probabilistic-model` (#11)
+and `odometry-covariance-capture` (#9), and the dependency check reports both
+`open_ready`. What it does not record is that the two live on different stacks:
+`Quantities` exists only on `main` ← #10 ← #11, and `pose_covariance.py` only on
+`main` ← #9 ← #13. This item needs both, so its branch takes one as its pull request
+base and merges the other in. Every stacked item on this plan so far has had exactly
+one parent; this is the first with two, and `.claude/stack/stack.toml` models the stack
+as a tree — base is parent — so the second parent is a merge every maintenance pass
+re-integrates rather than something the tooling knows about.
+
+`pose-uncertainty-through-transforms` (#13) is the base rather than #9, and is added to
+this item's `depends_on`. #13's own first review round moved `PoseCovariance._row_of`
+onto `SpatialVariables.row_in_pose` and recorded that it did so to leave this item *"one
+place to collapse onto `Quantities`, rather than two"*; it also added
+`PoseDisplacementMap`, a second type laying an array out over the same six variables,
+which is that second place. Basing on #9 would mean collapsing a method #13 has already
+deleted and handing #13 the `pose_covariance.py` conflict its own kickoff predicted.
+
+Adding a dependency edge is a structural change, so it was put to the user rather than
+decided in passing, and is broadcast on issue #7 per this plan's own convention.
+
+### `PoseCovariance` stops holding a bare array
+
+The item's `notes` scope this as *"internals only and no caller moves"* — the row
+lookup, the symmetric fill in `of()` and `VariableNotInPoseError` collapsing onto
+`Quantities`. Three separate roadmap sections say more than that: #11's first review
+round, #13's first review round and #9's restack each record that `PoseCovariance.values`
+is still a bare `npt.NDArray[np.float64]` and name this item as *"where matching it costs
+least"*. That was an offer, and it had never been taken up.
+
+It is taken up here, with the user's answer. `PoseCovariance` holds how uncertain each
+ordered pair of degrees of freedom is, with `of`, `from_array` and `as_array` — the same
+shape `probabilistic_model`'s `Covariance` took on #11, and the shape five review rounds
+across this plan have now asked for. Doing the narrow version would have invited a sixth
+round of the same comment.
+
+One caller moves, which is the cost the `notes` did not anticipate:
+`PoseWithCovarianceToSemDTConverter` builds from the flat sequence a ROS message carries
+and so goes from `PoseCovariance(values=...)` to `PoseCovariance.from_array(...)`. That
+is the one place a laid-out matrix is the honest input, which is why `from_array` is
+public rather than private — the same reason `Covariance` keeps its own.
+
+### The ordering and the layout become one thing
+
+`SpatialVariables.pose` is the six degrees of freedom in the order an array over them is
+laid out, and `SpatialVariables.row_in_pose` is the lookup into that order. Those are the
+two halves `Quantities` already is, so `pose` becomes a `Quantities` and `row_in_pose` is
+removed rather than reimplemented beside it. A second classproperty returning the tuple
+would have left two spellings of one ordering, which is what this item exists to remove.
+
+`VariableNotInPoseError` goes with it: naming a variable a pose does not have is rejected
+by `Quantities.index_of` as `VariableNotInQuantitiesError`, and a pose is not a special
+case of that. It leaves `semantic_digital_twin/exceptions.py` and
+`generate_orm.py`'s `ignore_classes`.
+
+### Scope boundaries held
+
+- **No behaviour changes.** Every number this produces is the number it produced before;
+  the tests that pin the ROS row-major read and the adjoint identity are unchanged in
+  what they assert.
+- **`PoseDisplacementMap` keeps building from a transform's numbers.** Reading a rotation
+  and a translation off a matrix is what `of_transform` is for; only the matrix it
+  *produces* moves onto the shared layout.
+- **`Mean` and `Covariance` are not reused.** #11 records that they are the parameters a
+  Gaussian is written in, and a pose covariance is not a Gaussian. `Quantities` is the
+  part that is genuinely shared, which is why #11 put it in its own module rather than
+  beside the distribution — and it named this item as the reason.
+
+### Assumptions and open points
+
+- **The covariance frame is still unchecked**, as every round on #9 and #13 has recorded.
+  Nothing here touches it.
+- **The two-parent merge is the structural cost.** Until #11 and #13 both land, this
+  branch's diff carries both stacks, so its review reads wider than the change it makes.
