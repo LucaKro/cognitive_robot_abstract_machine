@@ -17,6 +17,7 @@ from krrood.symbolic_math.exceptions import (
     NotColumnVectorError,
     NotEnoughArgumentsError,
     NotSquareMatrixError,
+    ThresholdsOutOfOrderError,
 )
 from krrood.symbolic_math.symbolic_math import VariableParameters
 from .reference_implementations import (
@@ -263,6 +264,98 @@ class TestTrinaryPredicates:
         for predicate in self.predicate_of_value.values():
             actual = float(predicate(not_a_truth_value))
             assert actual == TrinaryFalse, f"{predicate.__name__}, actual {actual}"
+
+
+# %% continuous confidence to trinary logic
+
+
+class TestTrinaryLogicFromContinuous:
+    """
+    Converting a continuous confidence into a trinary truth value.
+    """
+
+    false_below = 0.2
+    """
+    The threshold below which the conversions under test report false.
+    """
+
+    true_above = 0.8
+    """
+    The threshold above which the conversions under test report true.
+    """
+
+    def convert(self, value: float) -> sm.Scalar:
+        """
+        :param value: The confidence to convert.
+        :return: The trinary truth value it maps to under this class's thresholds.
+        """
+        return sm.trinary_logic_from_continuous(
+            sm.Scalar(value), false_below=self.false_below, true_above=self.true_above
+        )
+
+    def test_a_confidence_below_the_false_threshold_is_false(self):
+        assert self.convert(0.05) == sm.Scalar.const_false()
+
+    def test_a_confidence_above_the_true_threshold_is_true(self):
+        assert self.convert(0.95) == sm.Scalar.const_true()
+
+    def test_a_confidence_between_the_thresholds_is_unknown(self):
+        assert self.convert(0.5) == sm.Scalar.const_trinary_unknown()
+
+    def test_the_thresholds_themselves_are_unknown(self):
+        """
+        Both bounds are exclusive, so neither threshold is a committed answer.
+        """
+        assert self.convert(self.false_below) == sm.Scalar.const_trinary_unknown()
+        assert self.convert(self.true_above) == sm.Scalar.const_trinary_unknown()
+
+    def test_the_result_is_recognized_by_the_trinary_predicates(self):
+        """
+        The predicates test equality against the three constants exactly, so a
+        confidence that is not already one of them satisfies none of them.
+
+        Converting first is what makes a continuous quantity usable where a truth value
+        is expected.
+        """
+        predicate_of_confidence = {
+            0.05: sm.Scalar.is_false,
+            0.42: sm.Scalar.is_unknown,
+            0.95: sm.Scalar.is_true,
+        }
+        for confidence, predicate in predicate_of_confidence.items():
+            raw = sm.Scalar(confidence)
+            assert float(predicate(raw)) == TrinaryFalse, f"raw {confidence}"
+            assert (
+                float(predicate(self.convert(confidence))) == TrinaryTrue
+            ), f"converted {confidence}"
+
+    def test_it_converts_a_variable_once_its_value_is_known(self):
+        """
+        The real caller builds the expression before the confidence exists, so the
+        conversion has to survive being compiled over a variable.
+        """
+        variable = sm.FloatVariable(name="likelihood")
+        expression = sm.trinary_logic_from_continuous(
+            variable, false_below=self.false_below, true_above=self.true_above
+        )
+        assert expression.free_variables() == [variable]
+        expected_of_confidence = {
+            0.05: sm.Scalar.const_false(),
+            0.5: sm.Scalar.const_trinary_unknown(),
+            0.95: sm.Scalar.const_true(),
+        }
+        compiled = expression.compile()
+        for confidence, expected in expected_of_confidence.items():
+            actual = float(compiled.call_with_kwargs(likelihood=confidence).item())
+            assert actual == float(expected), f"confidence {confidence}"
+
+    def test_thresholds_in_the_wrong_order_are_rejected(self):
+        with pytest.raises(ThresholdsOutOfOrderError) as error:
+            sm.trinary_logic_from_continuous(
+                sm.Scalar(0.5), false_below=0.8, true_above=0.2
+            )
+        assert error.value.false_below == 0.8
+        assert error.value.true_above == 0.2
 
 
 class TestIfElse:
