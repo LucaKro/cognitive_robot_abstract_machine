@@ -94,10 +94,11 @@ items:
 
   - id: belief-context-and-gaussian
     title: BeliefContext and a scalar/vector Gaussian belief with predict and update
-    branch: belief-context-and-gaussian
-    pull_request_number: null
+    branch: claude/belief-integration-gaussian-zi1o82
+    pull_request_number: 10
     track: belief-core
-    status: not_started
+    status: in_progress
+    session: https://claude.ai/code/session_01Jgb6XoeNP4KFcAcb8CjqV9
     notes: >-
       A ContextExtension holding per-quantity beliefs, following the shape
       segmind already uses (SegmindContext, detectors/base.py:36, retrieved with
