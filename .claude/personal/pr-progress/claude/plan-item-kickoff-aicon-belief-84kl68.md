@@ -87,21 +87,47 @@ observation stays one of the three trinary constants.
 - A monitor-only statechart compiles fine — `_compile_qp_controller` returns
   early when there are no constraints, so no EndMotion or DOF is needed.
 
+## First review round — one done, one open
+
+Review arrived 2026-09-18. Two threads, both from LucaKro.
+
+**1. Threshold constant — DONE, resolved (`f345eacd`).** "no global variables
+like that. if you need some default, expose the parameter and give it the
+default you think is sensible." `GRIPPED_LIKELIHOOD_THRESHOLD` removed; each
+site carries its own default. Side effect worth knowing: `robot_predicates.py`
+and `container.py` are byte-identical to `main` again, so **this branch now
+touches no existing production code** — only new modules, new exceptions, the
+shared test fixture and tests. Dropped
+`test_the_true_threshold_defaults_to_the_one_the_boolean_predicate_uses` (it
+pinned a coupling that no longer exists; `0.9 == 0.9` would only restate a
+literal). 7 node tests now, not 8.
+
+**2. Is `trinary_logic_from_continuous` still needed? — OPEN, replied, NOT
+resolved.** Asked whether the helper earns its place given the observation
+isn't the carrier. Answered on the thread: the observation *is* used (it's the
+trinary view; it's what lets other nodes gate on this one and lets it earn a
+verdict) — the question is really where the mapping lives. One production call
+site, `grasp_monitors.py:92`. Offered two alternatives: inline the `if_cases`
+in the node and drop the krrood function + its 7 tests +
+`ThresholdsOutOfOrderError`, or drop the node's observation entirely. **Waiting
+on the user's decision** — did not remove a recorded deliverable unilaterally.
+
 ## Next
 
-Nothing outstanding. A `/plan-item-resolve` pass found no blocker: CI fully
-green, no review threads, no PR comments, no tracking-issue discussion, no
-merge conflict, branch level with `main`, never promoted upstream (no
-`in-review` label) so there is no upstream review to read.
-
-The PR is a draft waiting on its author's own review — un-drafting is this
-repo's record of having done that review, and only the user does it. Nothing
-for a session to do here until a review comment or a CI failure arrives.
+- Await the answer on thread 2, then either keep as-is or carry out the chosen
+  alternative.
+- `f345eacd` has not been through CI yet. Previous commit `b5c4a811` was 23/23
+  green. The new commit only deletes a constant and a test, so no new risk is
+  expected, but it is unverified.
+- PR stays draft. Un-drafting is the user's record of having reviewed; never do
+  it unasked.
 
 Carry forward: this branch, #9 (`odometry-covariance-capture`) and #10
 (`belief-context-and-gaussian`) each append their own exception class to
 `giskardpy/.../motion_statechart/exceptions.py`. Independent work, but whichever
-land second and third will have to resolve that file.
+land second and third will have to resolve that file. Also: both siblings
+publish a `FloatVariable` too, so whatever is decided on thread 2 is likely the
+answer for all three.
 
 ## Watch out
 
