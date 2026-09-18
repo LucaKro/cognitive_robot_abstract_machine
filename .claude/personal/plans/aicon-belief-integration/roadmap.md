@@ -176,3 +176,74 @@ past a tutorial.
 - Never push anything to the `cram2` remote. `origin` is
   `LucaKro/cognitive_robot_abstract_machine` and is where every branch and PR in
   this plan lives.
+
+The plan settled at kickoff, and the one correction it makes to the item's own
+recorded `notes`.
+
+### The carrier for a continuous value is a `FloatVariable`, not an observation
+
+The item's `notes` claim the likelihood is *"type-compatible with a giskard
+observation today"*, and name `is_unknown()` (`symbolic_math.py:1035`,
+`ca.eq(x, 0.5)`) as the single thing to guard against. The first half is right
+about the *algebra* only: trinary not/and/or are `1-x`, `min` and `max`, which
+are total on `[0, 1]`. It does not hold for the sites that compare against the
+three constants exactly, and there are four of those rather than one:
+
+- `motion_statechart.py:288`, `ObservationState.__getitem__`, coerces through
+  `ObservationStateValues(value)` and raises `ValueError` on anything else.
+- `graph_node.py:1284`, `goal_reached_state`, repeats that coercion.
+- `graph_node.py:926`, `_create_verdict`, matches the three constants exactly
+  and falls through to `INTERRUPTED`, so a node observing a continuous value
+  could never be judged succeeded or failed.
+- `_create_condition_holds` reads a condition through `is_true()`, which is
+  `ca.eq(x, 1)`. A continuous `0.97` therefore reads as false, and a continuous
+  observation would never fire a transition at all.
+
+So the continuous value is carried as a `FloatVariable` registered in
+`context.float_variable_data` and written each tick, while the node's
+observation stays trinary. The observation updater already compiles against
+`context.float_variable_data.variables` (`motion_statechart.py:332`), so the
+value is symbolically readable by constraints and transition conditions without
+any of the four sites changing. `WiggleInsert` (`wiggle_insert.py:202`, `:250`)
+is the register-then-write-per-tick precedent this follows.
+
+This also makes wave 1 agree with wave 2: `odometry-covariance-capture` and
+`estimator-node-base` both already specify a registered `FloatVariable` as the
+carrier.
+
+### What is built
+
+- `trinary_logic_from_continuous` in krrood's `symbolic_math`, joining the
+  existing `trinary_logic_not`/`_and`/`_or`/`_to_str` family. It maps a
+  continuous confidence onto the three constants with explicit thresholds, so
+  the exact-equality hazard above is resolved in one place rather than
+  hand-rolled per caller. This is what the item's note asks for when it says to
+  guard `is_unknown()`.
+- `GraspLikelihood`, a monitor in giskard's motion statechart, registering the
+  likelihood variable, writing `is_body_in_gripper` into it each tick, and
+  deriving its own observation from that variable through the helper.
+- A named constant for the gripped-likelihood threshold, which was spelled as a
+  bare `0.9` in both `is_body_gripped` and coraplex's container post-condition.
+
+### Scope boundaries held
+
+Memoryless by intent: this publishes the current measurement only. The recursive
+filter over it is `grasp-belief-node`, which depends on this item, and the
+statechart's existing predicate is a stateless Monte-Carlo raycast, so nothing
+here has memory yet. No base class is introduced either — wave 1 is specified as
+"no new abstractions", and `estimator-node-base` is where the pattern gets
+generalized.
+
+### Assumptions and open points
+
+- The node evaluates a 100-ray raycast synchronously on the control loop. That
+  is a real cost on a 20 Hz tick and is the critical-path concern
+  `estimator-node-base` is already told to watch. The sample count is a field so
+  it can be traded down, and the threaded alternative already exists in
+  `ThreadedPredicateMonitor` — but that monitor coerces its result with `bool()`,
+  so adopting it would need the same continuous treatment. Left for wave 2
+  rather than widened into this item.
+- The branch recorded for this item is the session's designated branch,
+  `claude/plan-item-kickoff-aicon-belief-84kl68`, rather than the
+  `grasp-likelihood-continuous` name the manifest carried as a placeholder. The
+  session is constrained to develop on its designated branch.
