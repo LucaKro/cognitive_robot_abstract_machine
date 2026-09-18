@@ -425,6 +425,28 @@ class NotInMotionStatechartError(MotionStatechartError):
 
 
 @dataclass
+class GraspLikelihoodNotBuiltError(MotionStatechartError):
+    """
+    Raised when a grasp likelihood is read before the node that measures it has been
+    built, so the variable carrying it does not exist yet.
+    """
+
+    node_name: str
+    """
+    The name of the node whose likelihood was read too early.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The likelihood of node '{self.node_name}' does not exist until the node "
+            f"has been built."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Add the node to a MotionStatechart and compile it before reading this."
+
+
+@dataclass
 class InvalidConditionError(MotionStatechartError):
     """
     Base class for errors raised when a condition is set to an unusable expression.
