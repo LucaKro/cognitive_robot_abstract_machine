@@ -301,7 +301,7 @@ def test_convert_pose_covariance_reads_the_entries_row_by_row(cylinder_bot_world
         pose.index_of(x) * side + pose.index_of(yaw)
     )
     assert covariance.covariance_between(yaw, x) == float(
-        pose.index(yaw) * side + pose.index(x)
+        pose.index_of(yaw) * side + pose.index_of(x)
     )
 
 
