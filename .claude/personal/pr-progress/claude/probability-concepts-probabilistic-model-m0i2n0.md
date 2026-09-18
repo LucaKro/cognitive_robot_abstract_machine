@@ -3,52 +3,47 @@
 Plan item `probability-concepts-in-probabilistic-model` (aicon-belief-integration,
 wave 2, track *belief core*). PR #11, draft. Based on #10's branch
 `claude/belief-integration-gaussian-zi1o82`, not `main` — re-base once #10 lands.
-Mode: `auto`; the settled plan is in the plan's `roadmap.md` under this item.
+Mode: `auto`; the settled plan and both rounds are in the plan's `roadmap.md`.
 
-## Status: implemented and pushed (`f431efa7`), awaiting first CI run and author review.
+## Status: first review round addressed and pushed (`6da3fc22`). CI not yet run on it.
 
-## What landed
+## Round 1 — "an actual datastructure instead of just np array"
 
-1. `probabilistic_model/quantities.py` — `Quantities`, in its own module so
-   `pose-covariance-on-shared-quantities` can use the layout without a Gaussian.
-2. `probabilistic_model/distributions/multivariate_gaussian.py` — `Mean`,
-   `Covariance`, `Reading`, `MultivariateGaussianDistribution`,
-   `TruncatedMultivariateGaussianDistribution`.
-3. `probability_of_simple_event` via `scipy.stats.multivariate_normal.cdf(...,
-   lower_limit=...)`; `scipy>=1.10` pinned.
-4. `log_truncated` answers with the truncated type, not `Self`.
-5. Three exceptions renamed off "belief" into `probabilistic_model/exceptions.py`;
-   `UnknownBeliefError`/`DuplicateBeliefError` stayed in giskardpy.
-6. `GaussianBelief` swapped onto the distribution; interface unchanged. Needed two
-   extra distribution operations so no probability arithmetic stayed in giskardpy:
-   `apply_linear_map` and `apply_added_uncertainty`.
-7. `probabilistic_model` declared in giskardpy's `[project] dependencies` and
-   `[dependency-groups] workspace`.
-8. `scripts/format_docstrings.py` run on every modified file.
+Two threads, both from the author, on `Mean.values` and `Covariance.values`.
+Fourth time this ask has come up on this plan (#10 twice, #9 once); first time aimed
+at what the type *holds* rather than at what callers hand it.
 
-## Verified locally (a first for this plan)
+- `Mean` holds `estimates` (per quantity), `Covariance` holds `uncertainty` (per
+  ordered pair). Neither holds an array.
+- `as_array` / `from_array` are the only two places numpy appears on either type.
+- `Covariance.from_array` keeps both directions of a pair apart — symmetrizing on the
+  way in would have made the symmetry test true by construction. Checked by removing
+  the symmetrization and watching that test fail.
+- Thread 1 **resolved**. Thread 2 **left open**: the remaining arrays are
+  `ProbabilisticModel`'s abstract `log_likelihood`/`sample` signatures, and whether to
+  change those across the whole package is the author's call, not this item's.
 
-- 266 passed across the collectible `probabilistic_model` suite (74 new).
-- 29 passed on #10's belief tests, unchanged but for imports/renames.
-- 20 passed on `test_dependency_declarations.py`, including the giskardpy check that
-  caught #10 — confirmed load-bearing by removing the declaration.
-- Key assertions mutation-checked: dropping the correlation, not narrowing the
-  conditional covariance, and removing the dependency declaration each fail only
-  their own tests.
+## Verified locally
+
+- 272 passed, collectible `probabilistic_model` suite (12 layout + 68 distribution).
+- 29 passed on #10's belief tests — only `.values` → `.as_array` where they genuinely
+  want the matrix (inverse, transpose, eigenvalues).
+- 20 passed on `test_dependency_declarations.py`.
+- CI was 23/23 green on `f431efa7`, the commit before these fixes.
 
 ## Next
 
-- Watch the first CI run. ORM regeneration is still CI's to confirm.
+- Watch CI on `6da3fc22`.
+- Thread 2 needs the author's answer on the base-class signatures.
 - After #10 lands: rebase onto `main`.
 
 ## Open
 
-- **Dashboard not republished.** `Artifact` treats this account's plan dashboard as a
-  public third-party artifact, so a read returns only a summary and the publish
-  refuses with "you haven't viewed the latest version". Did not use `force:true`,
-  which would discard #12's session's publish. Needs the user's call.
-- Tracking-issue (#7) subscription was refused by this session's permission mode.
-- **#12 (`estimator-node-base`) heads-up**: it stacks on #10 too and has no
-  implementation commits yet. It should import `Quantities`/`Reading` from
-  `probabilistic_model` and use the renamed exceptions. Spelled out in #11's
-  description.
+- **Dashboard still not republished.** `Artifact` treats this account's plan dashboard
+  as a public third-party artifact: a read returns only a summary, so the publish
+  keeps refusing with "you haven't viewed the latest version". `force:true` would
+  discard another session's publish. Needs the user's call.
+- Tracking-issue (#7) subscription refused by this session's permission mode.
+- **#12 (`estimator-node-base`) heads-up**, now three items: import
+  `Quantities`/`Reading` from `probabilistic_model`, use the renamed exceptions, and
+  read a covariance matrix via `.as_array`. All three are in #11's description.
