@@ -1,85 +1,76 @@
 # PR progress: `claude/probability-concepts-probabilistic-model-m0i2n0`
 
 Plan item `probability-concepts-in-probabilistic-model` (aicon-belief-integration,
-wave 2, track *belief core*). PR #11, **out of draft**, reviewer `ichumuh` requested.
-Based on #10's branch `claude/belief-integration-gaussian-zi1o82`, not `main` —
-re-base once #10 lands. Mode: `auto`; the settled plan and every round are in the
-plan's `roadmap.md`.
+wave 2, track *belief core*). PR #11, **back in draft** after `8930c6f8`. Based on #10's
+branch. Mode: `auto`; every round is in the plan's `roadmap.md`.
 
-## Status: restacked onto #10 and pushed (`ad9aa52b`). Stall fully cleared.
+## Status: re-architected on the maintainer's review. Pushed, 8 of 10 threads resolved.
 
-`mergeable_state` went `dirty` → `unstable`, and the `needs-resolution` label has
-already cleared on its own — the stack pass drops it once the branch merges cleanly, so
-#11 has rejoined promotion. CI re-running on the merge; every completed check green.
+## What the stall actually was
 
-## Round 1 — "an actual datastructure instead of just np array"
+Not CI (23/23 green), not a conflict (`clean`), not the label (already cleared), not the
+dependency (#10 `open_ready`). **`tomsch420`, `probabilistic_model`'s maintainer,
+submitted CHANGES_REQUESTED on `ad9aa52b` with ten threads** — three hours after every
+record here said the item was clear.
 
-Two threads, both from the author, on `Mean.values` and `Covariance.values`.
+Carry this forward: a dashboard reading checks, labels and mergeability **cannot see a
+requested-changes review**, and the restack rounds trained several sessions to treat
+those three as the whole picture.
 
-- `Mean` holds `estimates` (per quantity), `Covariance` holds `uncertainty` (per
-  ordered pair). Neither holds an array.
-- `as_array` / `from_array` are the only two places numpy appears on either type.
-- `Covariance.from_array` keeps both directions of a pair apart — symmetrizing on the
-  way in would have made the symmetry test true by construction.
-- **Both threads are now resolved**, including the one this note previously recorded
-  as left open (whether `ProbabilisticModel`'s abstract `log_likelihood`/`sample`
-  signatures should stop taking arrays). The author answered it; nothing on the review
-  side is outstanding.
+## The reversal
 
-## Round 2 — the restack onto #10
+His review overturned this PR's *own* round 1. I had asked for "a datastructure instead
+of just np array", which produced `Mean`/`Covariance`/`Quantities`. He asked for the
+opposite — and the package backs him:
 
-The stack pass could not integrate #10's own restack (`15a55dff`, which carries
-`main`) and labelled #11 `needs-resolution`.
+- `MultinomialDistribution` (the *other* multivariate model) holds
+  `distribution_variables: Tuple[Symbolic, ...]` + `probabilities: npt.NDArray`, and
+  validates with `ShapeMismatchError` in `__post_init__`.
+- `GaussianDistribution` holds two plain floats, delegates everything to
+  `scipy.stats.norm`.
 
-- One conflicting file: `giskardpy/src/giskardpy/motion_statechart/exceptions.py`.
-  `main` inserts `NodeStateVariableNotSerializableError` at exactly the point this
-  branch *removes* the three belief exceptions that moved into `probabilistic_model`,
-  so git could not tell the insertion from the deletion.
-- Resolved as the intersection: `main`'s exception kept, this branch's removals kept,
-  `List` gone because the moved exceptions were its only users. Diffed against **both**
-  parents to prove nothing else differs either way.
-- **The trap worth remembering:** the `@dataclass` decorating `UnknownBeliefError` sat
-  at the tail of the conflict hunk. Cutting the hunk cleanly drops it, leaving a class
-  that imports fine and silently has no fields. Caught by asserting
-  `dataclasses.fields()` on every class touching the hunk.
+Decision taken with me: **adopt his design in full**, naming from surrounding code.
 
-## Verified locally, against a pre-merge baseline
+## What landed (`8930c6f8`, net −406 lines)
 
-Every suite run twice, on `6da3fc22` and on the merge, same container:
+- `Quantities`, `Mean`, `Covariance` deleted, module included.
+- `distribution_variables` + plain `mean`/`covariance`; every query via
+  `scipy.stats.multivariate_normal`.
+- Covariance is a **query** (`covariance_between`), not the datamodel.
+- Conditioning on *every* variable → **Dirac impulse** (`ProductUnit` of
+  `DiracDeltaDistribution`), not an error. He was right; it was a real defect.
+- `marginal` is the primitive; the old helper did marginal+conditional in one.
+- Three exceptions → one `VariableNotInDistributionError` + the package's
+  `ShapeMismatchError`.
+- **`Reading` moved back to giskardpy** — a probability package has no sensors.
+  `GaussianBelief` keeps its variable-keyed interface and builds the arrays.
 
-| Suite | Pre-merge | Merged |
-|---|---|---|
-| `test/probabilistic_model_test` | 308 passed, 17 collection errors | identical |
-| `test/giskardpy_test/test_motion_statechart` | 114 passed, 11 failed, 39 errors | identical |
-| `test_beliefs.py` | 29 passed | 29 passed |
-| `test/version_test` | 20 passed, 1 failed | 20 passed, 1 failed |
+## Deliberately not done
 
-The motion-statechart failure sets are byte-identical across the merge (compared as
-sorted lists, not counts). They are the container's — the same code pre-merge is
-23/23 green in CI, which also closes the "CI has not run on `6da3fc22`" point.
+**Discrete variables via an encoding.** Three interacting decisions (which encoding,
+what `support` becomes, `probability_of_simple_event` cost per assignment) that are the
+maintainer's calls about his own package. Thread left open with a concrete proposal
+(one-hot, dropped reference level, encoding private). Rejection-sampling thread also
+left open — he said "fine for now"; I recorded the unguarded non-termination and offered
+a cap.
 
-Container recipe that reached the whole motion-statechart suite: PyPI wheel of
-`random_events` for `random_events_lib`, each package's `src/` on `PYTHONPATH`,
-`--noconftest`, plus mujoco/trimesh/plyfile/piqp/daqp/lxml/pandas/matplotlib/pydot/
-inflect/lemminflect/rustworkx/sqlalchemy/ordered_set/giskardpy_bullet_bindings.
+## Verification
+
+396 passed across the collectible `probabilistic_model` suite vs a **pre-change baseline
+of 410** in the same container, same 16 collection errors — difference is exactly the 12
+deleted layout tests + 2 net from the rewrite. 66 distribution, 29 belief (#10's,
+unchanged in what they assert), 20 dependency declarations.
+
+Four mutations each failed only the tests naming them: symmetrization removed, point
+mass → None, covariance shape check removed, correlation dropped from box probability.
 
 ## Next
 
-- Watch CI on `ad9aa52b`.
-- Let the next stack pass promote (the label is already clear).
-- After #10 lands: rebase onto `main`.
+- **CI on `8930c6f8`** — first push here that changes production code substantially.
+- **#15 is broken by this** and needs its own resolve round: its whole premise was
+  collapsing `PoseCovariance` onto `Quantities`, and it already implemented against it.
+  Recorded as a blocker in `plan.yaml`.
+- **#12 and #14** need three mechanical changes: `Reading` import, `belief.variables`
+  for `belief.quantities`, `VariableNotInDistributionError`.
+- Two open threads await `tomsch420`.
 
-## The dashboard wall is gone
-
-Every round since this item's kickoff recorded that the plan dashboard could not be
-republished — the `Artifact` tool treated it as a third-party artifact. It no longer
-does: the read returns the page source and the publish goes through, no `force`. The
-dashboard is current again. The one non-obvious step: a publish that resends content an
-earlier refusal rejected needs a second read of the artifact to confirm it.
-
-## Deliberate non-actions
-
-- **Left out of draft.** Un-drafting is this repo's record of author review; the push
-  changed no production code, and re-drafting would withdraw it from the promotion
-  queue for a no-op merge. Same call #8 confirmed with the author and #9 settled.
-- **Did not touch the renamed exceptions** or widen the merge in any way.
