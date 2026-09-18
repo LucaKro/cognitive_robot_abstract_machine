@@ -668,6 +668,28 @@ class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
 
 
 @dataclass
+class PoseUncertaintyNotBuiltError(MotionStatechartError):
+    """
+    Raised when the uncertainty of a pose is read before the node that publishes it has
+    been built, so the variable carrying it does not exist yet.
+    """
+
+    node_name: str
+    """
+    The name of the node whose uncertainty was read too early.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The pose uncertainty of node '{self.node_name}' does not exist until the "
+            f"node has been built."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Add the node to a MotionStatechart and compile it before reading this."
+
+
+@dataclass
 class NodeStateVariableNotSerializableError(JSONSerializationError):
     """
     Raised when a node state variable is serialized to JSON, which has no way to refer

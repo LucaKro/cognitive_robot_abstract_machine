@@ -1952,3 +1952,57 @@ class SimulationAlreadyRunningError(UsageError):
 
     def suggest_correction(self) -> str:
         return "Stop the simulation before starting it again."
+
+
+@dataclass
+class PoseCovarianceNotSixBySixError(DataclassException):
+    """
+    Raised when a pose covariance is built from a matrix that does not relate all six
+    degrees of freedom of a pose to each other.
+    """
+
+    given_shape: tuple[int, ...]
+    """
+    The shape of the matrix that was given.
+    """
+
+    expected_shape: tuple[int, ...]
+    """
+    The shape a pose covariance has.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A pose covariance relates the six degrees of freedom of a pose, so it "
+            f"has shape {self.expected_shape}, but {self.given_shape} was given."
+        )
+
+    def suggest_correction(self) -> str:
+        return "reshape the covariance so that it has one row and column per axis."
+
+
+@dataclass
+class VariableNotInPoseError(DataclassException):
+    """
+    Raised when a variable that is not one of a pose's degrees of freedom is used to
+    read or build a pose covariance.
+    """
+
+    variable_name: str
+    """
+    The name of the variable that was given.
+    """
+
+    pose_variable_names: tuple[str, ...]
+    """
+    The names of the degrees of freedom a pose covariance is about.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A pose covariance is about {', '.join(self.pose_variable_names)}, so it "
+            f"says nothing about {self.variable_name}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "name one of the degrees of freedom the covariance is about."

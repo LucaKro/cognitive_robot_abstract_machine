@@ -15,9 +15,16 @@ from giskardpy.middleware.ros2.exceptions import (
     ConnectionCannotBeTrackedByTfFrameError,
     UnboundMessageTypeError,
 )
+from giskardpy.motion_statechart.pose_covariance_source import PoseCovarianceSource
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
+from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
+    PoseWithCovarianceToSemDTConverter,
+)
 from semantic_digital_twin.adapters.ros.tfwrapper import TFWrapper
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types import (
+    HomogeneousTransformationMatrix,
+    PoseCovariance,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
@@ -253,15 +260,25 @@ class LatestJointStateSynchronizer(JointStateInputSynchronizer):
 
 
 @dataclass
-class OdometrySynchronizer(TopicInputSynchronizer[Odometry]):
+class OdometrySynchronizer(TopicInputSynchronizer[Odometry], PoseCovarianceSource):
     """
-    Writes the pose of an odometry message into a drive connection.
+    Writes the pose of an odometry message into a drive connection, and reports how
+    uncertain that pose was.
     """
 
     connection: Union[OmniDrive, DifferentialDrive] = field(kw_only=True)
     """
     The drive connection whose origin follows the odometry.
     """
+
+    _pose_covariance: PoseCovariance | None = field(init=False, default=None)
+    """
+    The covariance of the most recently written pose.
+    """
+
+    @property
+    def pose_covariance(self) -> PoseCovariance | None:
+        return self._pose_covariance
 
     def apply_message(self, message: Odometry) -> None:
         pose = message.pose.pose
@@ -273,6 +290,9 @@ class OdometrySynchronizer(TopicInputSynchronizer[Odometry]):
             quat_x=pose.orientation.x,
             quat_y=pose.orientation.y,
             quat_z=pose.orientation.z,
+        )
+        self._pose_covariance = PoseWithCovarianceToSemDTConverter.convert(
+            message.pose, self.world
         )
 
 
