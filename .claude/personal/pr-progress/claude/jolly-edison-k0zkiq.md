@@ -2,7 +2,7 @@
 
 Plan item `odometry-covariance-capture` of `aicon-belief-integration`, wave 1,
 track *uncertainty plumbing*. No dependencies. Base: `main`.
-Roadmap sections: the kickoff's, plus `odometry-covariance-capture - resolution`.
+Roadmap sections: the kickoff's, the resolution, and the first review round.
 
 ## Plan
 
@@ -12,32 +12,38 @@ registered `FloatVariable` so the statechart can condition on base uncertainty.
 
 ## Done
 
-- `PoseCovariance` + `PoseAxis` + `PoseCovarianceSource`, the two exceptions,
-  `OdometrySynchronizer` implementing the source, and the `PoseUncertainty` node
-  priming to infinity. Committed and pushed as `28dc12c2`.
-- CI verified all 17 tests: `test_each_lib (giskardpy)` = 823 passed, 1 failed,
-  and that failure is not in this diff.
-- The kickoff's one flagged risk is closed: `message_type()` still returns
-  `Odometry` with the second base class, confirmed by two passing tests.
-- Re-ran the failed jobs once (run 35315156655) - the one red check is the known
-  flaky `test_attached_self_collision_avoid_stick`. Test not touched.
-- Roadmap resolution section written, PR description brought up to date.
+- Original implementation (`28dc12c2`): `PoseCovariance`/`PoseAxis`,
+  `PoseCovarianceSource`, `OdometrySynchronizer` implementing it, the
+  `PoseUncertainty` node. CI fully green on that commit, all 23 checks.
+- First review round, four threads, all addressed in `449abfcf`:
+  - type moved to `semantic_digital_twin/spatial_types/pose_covariance.py`
+    with no ROS in it; `from_row_major` deleted;
+  - `PoseWithCovarianceToSemDTConverter` added beside the other ROS converters
+    and used by the synchronizer;
+  - `PoseCovariance` added to sdt `generate_orm.py` `ignore_classes` (user's
+    call, asked before doing it);
+  - `UNCERTAINTY_WITHOUT_A_READING` is now the node field
+    `uncertainty_without_a_reading`, default infinity;
+  - `values: npt.NDArray[np.float64]`.
+- Merged `main` (arrived on the branch as `b67533f7`); one conflict in sdt
+  `exceptions.py` where both sides appended classes - all kept. Merge `ab9ec2ea`.
+- Replied to all four threads; resolved three.
 
 ## Next
 
-- Nothing on the branch. Awaiting the author's own review; un-drafting is what
-  records that, per the repo convention. PR stays a draft until then.
-- If the re-run comes back red on the same test again, that is worth a second
-  look rather than a third re-run - one re-run is the limit already spent.
+- CI on `ab9ec2ea` is pending - the review fixes are not verified yet. The move
+  touches sdt, so `test_each_lib (semantic_digital_twin)` matters as much as
+  giskardpy this time.
+- One thread left open on purpose: the ORM-ignore call. It carries a question
+  back to the author, so per the notes it is not resolved.
 
 ## Notes
 
 - Container limits (unchanged): `random_events` will not build here (antlr4
-  wheel failure) and there is no `rclpy`, so local runs are limited to the 7
-  `PoseCovariance` tests against the module source with exceptions stubbed.
-- Three branches now append to `motion_statechart/exceptions.py`: this one, #8
-  and #10. Whichever lands second and third resolves that file.
-- No review threads, no PR comments, no tracking-issue discussion, no conflict;
-  branch level with `main`.
-- Subscribing to tracking issue #7 was denied by the permission classifier.
+  wheel failure), no `rclpy`. Verified the 8 `PoseCovariance`/reshape cases
+  against the real module source with sdt exceptions stubbed; everything else is
+  CI-only.
+- The exceptions-file overlap with #8/#10 is smaller now: this branch's
+  `CovarianceNotSixBySixError` left giskardpy's `motion_statechart/exceptions.py`
+  for sdt, so only `PoseUncertaintyNotBuiltError` remains there.
 - Per personal notes, this session does not watch the PR.
