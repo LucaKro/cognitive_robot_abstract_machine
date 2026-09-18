@@ -2946,3 +2946,152 @@ anything failed.
   the author to choose between overwriting and minting a fresh dashboard.
 - **The pull request is a draft and stays one**, awaiting its author's own review. No
   push was made this round, so nothing needed re-drafting.
+
+## `probability-concepts-in-probabilistic-model` — the maintainer's review round
+
+The first round on this plan where the reviewer was not the author, and the first where
+a review overturned a design three earlier rounds had built up.
+
+### The recorded state said the item was clear, and it was three hours stale
+
+`plan.yaml`, this file and the PR-progress note all recorded the same thing after the
+restack: both review threads resolved, CI green, the label cleared, the branch back in
+promotion, nothing outstanding. All of that was true and none of it was the item's
+state any more.
+
+`tomsch420` — `probabilistic_model`'s maintainer, and `author_association: NONE` on
+this fork — submitted a **CHANGES_REQUESTED** review on `ad9aa52b` with ten inline
+threads. CI was still 23 of 23 green, `mergeable_state` still `clean`, no label, no
+conflict, the dependency still `open_ready`. So every mechanical signal this plan has
+learned to read said the item was healthy, and the item was blocked.
+
+Worth carrying forward for every remaining item: a dashboard reading checks, labels and
+mergeability cannot see a requested-changes review, and this plan's restack rounds have
+trained several sessions to treat those three as the whole picture.
+
+### The review reversed this PR's own first round
+
+The sharpest thing in it. Round 1 on this PR was the author asking *"can these be an
+actual datastructure instead of just np array?"*, which is what produced `Mean` and
+`Covariance` holding per-variable and per-pair mappings — the fourth round across this
+plan to make that ask, after #10's two and #9's.
+
+`tomsch420` asked for the opposite, and was right about his own package:
+
+- *"i find this mean and covariance definition unnesessary complicated"*
+- *"covariance != uncertainty. Covariance is a double integral like any other query,
+  thats just tractable for multivariate normals. I do not recommend doing it this way."*
+- *"also covariance seems to be the only usecase ... i dont think that making this the
+  datamodel itself is a good idea"* on `Quantities`
+- *"i think this class should behave more like a wrapper around
+  scipy.stats.multivariate_normal"*
+
+The evidence settles it against the earlier rounds. `MultinomialDistribution` — the
+package's *other* multivariate `ProbabilisticModel` — holds `distribution_variables:
+Tuple[Symbolic, ...]` plus `probabilities: npt.NDArray`, with a docstring saying the
+dimensions correspond to the variables in the same order, and validates with
+`ShapeMismatchError` in `__post_init__`. `GaussianDistribution` holds two plain floats
+and delegates every query to `scipy.stats.norm`. The datamodel this plan built was
+local to us, in someone else's package.
+
+The user was asked, with the conflict stated, and chose to adopt the maintainer's design
+in full and to take naming from the surrounding code.
+
+### What that cost, and what it bought
+
+A net **−406 lines**, which is the honest measure of how much of the earlier rounds was
+scaffolding around an array.
+
+`Quantities`, `Mean` and `Covariance` are deleted, `quantities.py` with them. The three
+exceptions that existed only for them — `VariableNotInQuantitiesError`,
+`RepeatedVariableError`, `MeanAndCovarianceDisagreeError` — are replaced by one
+`VariableNotInDistributionError` plus the package's own `ShapeMismatchError`. `of` and
+`of_one_variable` are gone from the distribution, which is now constructed by its
+dataclass fields like every other one.
+
+Two of the ten were real defects rather than shape objections, and both were right:
+
+- **Conditioning on every variable raised `UndefinedOperationError`.** *"its defined to
+  be the dirac impulse in that case"* — it is, and it now returns a `ProductUnit` of
+  `DiracDeltaDistribution` leaves built with the package's own `leaf` helper. The
+  log-density returned alongside was already correct either way, which is what made the
+  error path inconsistent as well as wrong.
+- **`_gaussian_of` was marginalising and conditioning in one method.** *"sounds like
+  marginal to me"* — `marginal` is now the primitive, `_over_rows` the sub-selection,
+  and `_conditioned` narrows a marginal.
+
+### `Reading` was never a probability concept
+
+The one place the review's direction and this plan's needs both pointed the same way.
+`Reading` — what a sensor reported, how much each quantity contributes to it, how far it
+scatters — moved *into* `probabilistic_model` at this item's kickoff. A probability
+package has no sensors, which is the same argument that stripped "belief" out of the
+three exception names, applied one step further.
+
+It moved back to giskardpy. What crosses the boundary is
+`conditional_on_measurement(model, measured, noise)`, in plain Kalman words and plain
+arrays. `GaussianBelief` keeps its variable-keyed interface and builds those arrays
+itself — so the by-name convenience four review rounds asked for still exists, in the
+package whose callers wanted it, rather than being imposed on the probability package.
+
+That split is worth carrying: the named-data ergonomics belong to the consumer, and the
+shared package stays in its own idiom.
+
+### What this does to `pose-covariance-on-shared-quantities`
+
+#15's entire premise was that `Quantities` would move into `probabilistic_model`, which
+`semantic_digital_twin` already depends on, so `PoseCovariance` could collapse onto it.
+`Quantities` no longer exists, and #15 has already *implemented* against it — its own
+section records `SpatialVariables.pose` becoming a `Quantities` and `row_in_pose` being
+deleted.
+
+The user was told this before deciding and chose it anyway. The replacement is better
+shaped than the original plan: a pose's six degrees of freedom are a spatial concept, so
+`semantic_digital_twin` keeps its own ordering rather than importing one from a
+probability package that only ever had it for a covariance. #15 needs its own
+resolution round, and its dependency on this item is now a conflict to unwind rather
+than a thing to build on.
+
+### The one thing not done
+
+*"i think multivariate gaussians also support discrete variables using some encoding
+strategy. Thats completely missing here :("*
+
+Not implemented, deliberately, and the thread is left open carrying a proposal. It is
+three interacting decisions — which encoding (one-hot with a dropped reference level, or
+ordinal, which silently asserts an ordering `Symbolic` does not have), what `support`
+is once it is a finite set crossed with reals, and that `probability_of_simple_event`
+becomes one `scipy.cdf` call per assignment rather than one. Those are the maintainer's
+calls about his own package, and guessing them into a pull request he has already asked
+to restructure would be the same mistake this round exists to undo. The type hints now
+say `Tuple[Continuous, ...]` out loud rather than leaving it implied.
+
+The rejection-sampling thread is also left open: he marked it *"fine for now"*, and the
+reply records the unguarded failure mode (no iteration cap, expected rounds growing as
+the reciprocal of the event's probability) and offers a cap.
+
+### Verification
+
+396 passed across the collectible `probabilistic_model` suite against a pre-change
+baseline of 410 in the same container with the same 16 collection errors — the
+difference is exactly the 12 deleted layout tests plus the 2 net from the rewrite, so
+the drop is all deletion and no regression. 66 on the distribution, 29 on #10's belief
+tests unchanged in what they assert, 20 on the dependency declarations.
+
+Four mutations, each failing only the tests that name it: removing the symmetrization,
+returning nothing instead of the point mass, dropping the covariance shape check, and
+dropping the correlation from the box probability.
+
+### Still open
+
+- **Two review threads by intent**, above.
+- **CI has not run on `8930c6f8`.** This is the first push on this item that changes
+  production code substantially rather than merging a parent.
+- **#15 is now inconsistent with this branch** and needs its own round, per above.
+- **#12 and #14 need three mechanical changes** — `Reading`'s import, `variables` for
+  `quantities`, and the renamed exception.
+- **The pull request went back to draft** after this push, per the standing convention.
+  The earlier rounds' reasoning for leaving it ready does not apply: that was for a
+  no-op merge, and this is a re-architecture answering a requested-changes review.
+- **The tracking-issue subscription was refused** by this session's permission mode, as
+  on every earlier round. Issue #7's comments were read directly instead.

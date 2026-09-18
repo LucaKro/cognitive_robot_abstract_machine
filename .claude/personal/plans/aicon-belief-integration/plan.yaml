@@ -134,7 +134,7 @@ items:
     track: belief-core
     status: in_progress
     depends_on: [belief-context-and-gaussian]
-    session: https://claude.ai/code/session_01VpDYNqmbxmxKma7aB9B1Y9
+    session: https://claude.ai/code/session_01G71CddCfZJVXGuewt2gWkm
     notes: >-
       probabilistic_model has no multivariate Gaussian only because nobody has
       needed one; its maintainer would welcome it. ProbabilisticModel is already
@@ -151,12 +151,24 @@ items:
       log_truncated (a truncated correlated Gaussian is not Gaussian, so it
       cannot return Self). Once it exists, swap GaussianBelief's internals onto
       it; the interface is already variable-keyed, so no dependent has to move.
-      Both review threads are resolved, including the one about numpy arrays on
-      ProbabilisticModel's own abstract signatures, which the roadmap recorded as
-      left open for the author. The item's remaining history is the restack onto
-      its parent: the stack pass could not integrate #10's own restack and
-      labelled #11 needs-resolution, which is resolved in ad9aa52b; the label has
-      since cleared on its own and the branch has rejoined promotion.
+      Correction from the maintainer's review round: the datamodel four earlier
+      rounds across this plan built - Quantities, Mean and Covariance holding
+      per-variable and per-pair mappings - is gone. tomsch420, probabilistic_model's
+      maintainer, requested changes on ad9aa52b with ten threads, and the package's
+      own conventions back him: MultinomialDistribution holds ordered
+      distribution_variables plus a plain array, and GaussianDistribution delegates
+      every query to scipy.stats.norm. The distribution now holds
+      distribution_variables, mean and covariance as plain arrays and delegates to
+      scipy.stats.multivariate_normal; covariance is a query (covariance_between),
+      not the datamodel; conditioning on every variable is the Dirac impulse rather
+      than an error; marginal is the primitive. Reading moved back to giskardpy - a
+      probability package has no sensors - and GaussianBelief keeps its
+      variable-keyed interface while building the arrays itself. Dependents read
+      Reading from giskardpy.motion_statechart.beliefs.gaussian, use
+      belief.variables for belief.quantities, and VariableNotInDistributionError for
+      VariableNotInQuantitiesError. Discrete-variable support is the one review
+      point not implemented: the encoding is the maintainer's call and the thread
+      carries a proposal.
 
   - id: pose-covariance-on-shared-quantities
     title: Lay a pose covariance out with the shared quantity layout
@@ -166,6 +178,11 @@ items:
     status: in_progress
     depends_on: [probability-concepts-in-probabilistic-model, odometry-covariance-capture, pose-uncertainty-through-transforms]
     session: https://claude.ai/code/session_0186RZZUq8orJoQjS2uK33Xi
+    blockers: >-
+      #11 deleted Quantities in its maintainer review round, which is what this item
+      was built to collapse PoseCovariance onto. The branch already implements against
+      it, so this needs a resolution round to rebuild on semantic_digital_twin's own
+      ordering.
     notes: >-
       PoseCovariance builds and reads its matrix from its own private row lookup
       over SpatialVariables.pose, which is the same job Quantities does for a
@@ -188,6 +205,13 @@ items:
       of degrees of freedom with of/from_array/as_array, the shape #11's Covariance
       took, which #11, #13 and #9 each recorded as costing least here. The one caller
       that moves is PoseWithCovarianceToSemDTConverter, onto from_array.
+      Blocked by #11's maintainer review round: Quantities no longer exists.
+      tomsch420 rejected it as a datamodel in probabilistic_model and #11 deleted it,
+      so this item's premise - collapse PoseCovariance onto a shared layout - has
+      nothing to collapse onto, and the implementation already landed against it
+      (SpatialVariables.pose became a Quantities, row_in_pose was deleted). The
+      replacement is better shaped: a pose's degrees of freedom are a spatial concept,
+      so semantic_digital_twin keeps its own ordering.
 
   - id: pose-uncertainty-through-transforms
     title: Carry a pose's uncertainty through the transforms applied to it
