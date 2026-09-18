@@ -514,3 +514,61 @@ failed jobs were re-run once rather than the test being touched.
 - The covariance frame is still unchecked, as the kickoff recorded. CI passing
   says the code does what it says, not that the frame assumption it inherits
   from the synchronizer is right.
+
+## `belief-context-and-gaussian` — resolution
+
+Nothing was blocking the design. The first CI run found one real defect, in the
+one part of the change the kickoff had flagged as unverifiable locally — though
+not the part it expected.
+
+### What CI confirmed
+
+The run on `81f0aded` came back 22 of 23 green, `test_each_lib (giskardpy)`
+among them. That covers the 34 belief tests *and* the ORM exclusion in
+`giskardpy/scripts/generate_orm.py`, which the kickoff recorded as "verified by
+CI rather than by me" because local ORM regeneration needs ROS message packages
+this container has not got. Excluding the belief classes from the scan works;
+`check_generated_orm_interfaces_are_untracked` is green too.
+
+### What it caught
+
+`test_each_lib (version)`, one failure:
+`test_imported_workspace_members_are_declared[giskardpy]`, asserting
+`{'random-events'} == set()`.
+
+The belief layer is the first direct import of `random_events` from giskardpy's
+own source. Nothing failed at runtime, because `krrood` and
+`semantic_digital_twin` both declare that package and giskardpy depends on both
+— but the test exists precisely for that case: a tool reading the workspace
+without building it, such as uv or an IDE's project model, sees only what
+`[project] dependencies` lists, so an undeclared sibling import drifts out of
+the workspace graph.
+
+`random_events` is now declared in giskardpy's `[project] dependencies` and in
+its `[dependency-groups] workspace`, the second so uv keeps resolving it from
+the checkout rather than from PyPI. That is how every other member declaring a
+workspace sibling spells it — `semantic_digital_twin` lists five that way.
+
+The failure was reproduced locally first (`pytest test/version_test
+--noconftest`, which sidesteps the root `conftest.py`'s ORM build), then shown
+passing: 21 passed. `uv sync --extra dev` still resolves, and
+`random_events.__file__` points into the checkout rather than site-packages, so
+the workspace group entry does what it is there for.
+
+### Worth carrying forward
+
+This is a cost of the recorded decision to name a belief's dimensions with
+`random_events` variables, not an argument against it. Any later item that
+imports a workspace sibling a package has not imported before will trip the same
+check — `estimator-node-base` and `symbolic-estimator-means` both inherit this
+import, but through giskardpy, which now declares it.
+
+### Still open
+
+- Nothing was reviewed. No review threads, no pull request comments, no
+  tracking-issue discussion, no merge conflict, and the branch is level with
+  `main`. The pull request stays a draft awaiting its author's own review.
+- The rest of the suite still cannot be run in this container: the root
+  `test/conftest.py` regenerates the ORM interfaces at collection and that needs
+  the ROS message packages. `--noconftest`, or running a fixture-free test file
+  from a copy outside `test/`, is the way around it.
