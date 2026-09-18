@@ -1974,12 +1974,12 @@ class PoseCovarianceNotSixBySixError(DataclassException):
     degrees of freedom of a pose to each other.
     """
 
-    given_shape: tuple
+    given_shape: tuple[int, ...]
     """
     The shape of the matrix that was given.
     """
 
-    expected_shape: tuple
+    expected_shape: tuple[int, ...]
     """
     The shape a pose covariance has.
     """

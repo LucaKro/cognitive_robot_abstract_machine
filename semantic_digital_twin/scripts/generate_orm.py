@@ -28,6 +28,7 @@ from semantic_digital_twin.semantic_annotations.position_descriptions import (
 from semantic_digital_twin.spatial_computations.forward_kinematics import (
     ForwardKinematicsManager,
 )
+from semantic_digital_twin.exceptions import PoseCovarianceNotSixBySixError
 from semantic_digital_twin.spatial_types import PoseCovariance
 from semantic_digital_twin.testing import StateChangeCounter
 from semantic_digital_twin.world import (
@@ -49,8 +50,10 @@ ignore_classes = {
     SemanticDirection,
     SubclassJSONSerializer,
     # How uncertain a reported pose is, which nothing stores in the world: it is read
-    # from a live input and published to the motion statechart per control cycle.
+    # from a live input and published to the motion statechart per control cycle. Its
+    # error goes with it - a shape is a tuple of any length, which has no column type.
     PoseCovariance,
+    PoseCovarianceNotSixBySixError,
     # A symbolic operation is a step of a query, not something a world stores, so none of
     # them is mapped. The modules defining them are imported above so that they are all
     # declared by the time this is read.
