@@ -125,11 +125,12 @@ items:
 
   - id: probability-concepts-in-probabilistic-model
     title: Move the belief layer's probability concepts into probabilistic_model
-    branch: probability-concepts-in-probabilistic-model
-    pull_request_number: null
+    branch: claude/probability-concepts-probabilistic-model-m0i2n0
+    pull_request_number: 11
     track: belief-core
-    status: not_started
+    status: in_progress
     depends_on: [belief-context-and-gaussian]
+    session: https://claude.ai/code/session_01VpDYNqmbxmxKma7aB9B1Y9
     notes: >-
       probabilistic_model has no multivariate Gaussian only because nobody has
       needed one; its maintainer would welcome it. ProbabilisticModel is already
