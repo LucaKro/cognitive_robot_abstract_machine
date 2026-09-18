@@ -5,59 +5,47 @@ Plan `aicon-belief-integration`, track *Belief core*. Base is
 `Quantities` lives only on #11's stack and `pose_covariance.py` only on #13's, and this
 item needs both.
 
-## The plan
+## Done - the whole item is implemented and pushed (`1b61ff7d`)
 
-Collapse `semantic_digital_twin`'s local rebuild of the quantity layout onto
-`probabilistic_model.Quantities`, now that #11 has made it importable.
+1. `SpatialVariables.pose` is a `Quantities` over the six degrees of freedom;
+   `row_in_pose` deleted rather than reimplemented over it.
+2. `PoseCovariance` holds the uncertainty of each ordered pair with
+   `of` / `from_array` / `as_array`, instead of `values: npt.NDArray[np.float64]`.
+   Its symmetric fill is `Quantities.symmetric_matrix`.
+3. `PoseDisplacementMap.as_array` builds through the same layout (and is a property
+   now, matching `Covariance.as_array` - one spelling per operation in the module).
+4. `VariableNotInPoseError` removed from `exceptions.py` and `generate_orm.py`'s
+   `ignore_classes`; the layout raises `VariableNotInQuantitiesError`.
+5. `PoseWithCovarianceToSemDTConverter` moved onto `from_array` - the one caller.
 
-1. `SpatialVariables.pose` becomes a `Quantities` over the six degrees of freedom;
-   `row_in_pose` is removed rather than reimplemented beside it.
-2. `PoseCovariance` holds the uncertainty of each ordered pair of degrees of freedom
-   with `of` / `from_array` / `as_array`, the shape `Covariance` took on #11, instead of
-   `values: npt.NDArray[np.float64]`. Its `of()` symmetric fill becomes
-   `Quantities.symmetric_matrix`.
-3. `PoseDisplacementMap.as_array` builds through the layout instead of a comprehension.
-4. `VariableNotInPoseError` goes; `Quantities.index_of` raises
-   `VariableNotInQuantitiesError`. Drop it from `exceptions.py` and from
-   `generate_orm.py`'s `ignore_classes`.
-5. `PoseWithCovarianceToSemDTConverter` moves to `PoseCovariance.from_array` - the one
-   caller that moves.
+Tests first: the five new tests and the four now naming the shared error were red
+before the change. Every new assertion was then confirmed load-bearing by mutating the
+implementation; the transpose mutation initially survived, so the round-trip test now
+uses an asymmetric covariance.
 
-Tests first, per TDD: the new behaviour (reading by quantity, `from_array`/`as_array`
-round trip keeping both directions of a pair apart, the rejection naming quantities)
-before the refactor. Existing assertions about the ROS row-major read and the adjoint
-identity must keep passing unchanged - they are what says behaviour did not move.
+## Verification
 
-## Decided at kickoff
-
-- **Base #13, not #9.** #13 already moved `_row_of` to `SpatialVariables.row_in_pose`
-  for exactly this item, and added `PoseDisplacementMap` as the second place to collapse.
-  `pose-uncertainty-through-transforms` added to `depends_on`; broadcast on issue #7.
-- **Drop the bare array.** #11, #13 and #9 each recorded this item as where matching
-  `Covariance`'s shape costs least. Taken up, with the user's answer.
-- **`Mean`/`Covariance` are not reused.** #11 records them as the parameters a Gaussian
-  is written in; a pose covariance is not a Gaussian. `Quantities` is the shared part.
-
-## Done
-
-- Branch created off #13 with #11 merged in cleanly; draft PR #15 opened.
-- `plan.yaml` (status, branch, PR, session, the new dependency, corrected notes) and
-  `roadmap.md` (the kickoff section) saved to the personal-notes branch.
+- sdt spatial types: 346 passed / 1 failed, against a stashed baseline of 342 / 1 - the
+  same pre-existing `TestVector3::test_length_0` (this container's casadi 3.8.1).
+- 109 pass across `test_quantities.py`, `test_multivariate_gaussian.py` and #10's
+  `test_beliefs.py`, so the merged-in half costs nothing.
+- `test/version_test`: 20 passed / 1 failed (missing local `coraplex`, pre-existing).
+  `test_imported_workspace_members_are_declared[semantic_digital_twin]` passes - sdt
+  already declared `probabilistic_model`.
+- Cost measured, since `PoseUncertainty.on_tick` reads it per cycle: `total_variance`
+  55 us -> 121 us, 0.13% of a 50 ms tick.
 
 ## Next
 
-- Comment the dependency change on issue #7.
-- Republish the dashboard.
-- Implement steps 1-5 above, tests first.
+- Watch CI on `1b61ff7d`: the converter, monitor and synchronizer tests are CI's
+  (`test/giskardpy_test/conftest.py` imports `rclpy`), as is regenerating the ORM.
+- PR stays a draft until its author has reviewed it, per this repo's convention.
 
-## Watch out for
+## Container recipe that worked here
 
-- `semantic_digital_twin` already declares `probabilistic_model` in both `[project]
-  dependencies` and `[dependency-groups] workspace`, so
-  `test_imported_workspace_members_are_declared` needs no change here - checked, unlike
-  on #10 where it caught an undeclared import.
-- Removing `VariableNotInPoseError` touches `semantic_digital_twin/exceptions.py`, which
-  every restack on this plan has found to be a shared append point that conflicts
-  against `main`.
-- `Quantities` has no `__getitem__` and no `.index`; three test sites call
-  `SpatialVariables.pose.index(...)` and move to `index_of`.
+PyPI wheel of `random_events` for `random_events_lib`, each package's `src/` on
+`PYTHONPATH` (no editable install), `--noconftest`, plus numpy, scipy, casadi, mujoco,
+trimesh, plyfile, sqlalchemy, ordered_set, rustworkx, sortedcontainers, platformdirs,
+psutil, lxml, pandas, matplotlib, pydot, inflect, lemminflect, plotly, tqdm, piqp, daqp,
+giskardpy_bullet_bindings. `pip install black docformatter` for
+`scripts/format_docstrings.py`.
