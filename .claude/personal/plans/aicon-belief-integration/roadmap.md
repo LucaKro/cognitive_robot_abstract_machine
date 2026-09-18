@@ -824,3 +824,26 @@ producing one local failure.
 This also could not be caught in the authoring container: regenerating the ORM
 needs the ROS message packages, so the existing sdt ORM tests are the only thing
 that exercises it, and they only run in CI.
+
+### How the datastructure round closed
+
+Both threads are resolved. The author's answer on the second was *"lets do
+datastructures for now, if we notice bottlenecks we can still remove them again.
+but add a comment in the doc as a reminder that there is the pure numpy option
+one could go back to if we think this is too expensive."*
+
+That reminder is a `..note::` on `Quantities`, the class that does the per-call
+building and so the one whose cost a reader would question. It says the walk
+costs something, that it stays far below a control cycle at the sizes a belief
+is used at, and — the part that makes this reversible rather than merely
+regretted — that `predict` and `update` still do their arithmetic on plain
+numpy. Undoing it means changing what the signatures accept, not rewriting the
+filter.
+
+It is a deliberate exception to `AGENTS.md`'s rule against documenting a design
+that was not chosen: the alternative here is a live fallback with a stated
+trigger, not history.
+
+CI is green on `50047b27` across the matrix, `test_each_lib (giskardpy)`
+included, so the 36 tests behind the new interface are verified rather than
+claimed.
