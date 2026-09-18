@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-from typing_extensions import TYPE_CHECKING, List, Tuple, Type
+from typing_extensions import TYPE_CHECKING, List, Type
 
 from krrood.exceptions import DataclassException
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
@@ -12,7 +12,6 @@ from semantic_digital_twin.collision_checking.collision_detector import ClosestP
 if TYPE_CHECKING:
     from random_events.variable import Continuous
 
-    from giskardpy.motion_statechart.beliefs.gaussian import BeliefArray
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         TrinaryCondition,
@@ -666,38 +665,6 @@ class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Call tick() at least once before plotting, or configure debug expressions to record."
-
-
-@dataclass
-class WrongBeliefShapeError(MotionStatechartError):
-    """
-    Raised when an array a Gaussian belief was built from cannot describe the quantities
-    that belief is about.
-    """
-
-    array: BeliefArray
-    """
-    Which of the belief's arrays was the wrong shape.
-    """
-
-    expected_shape: Tuple[int, ...]
-    """
-    The shape the belief's quantities require of it.
-    """
-
-    actual_shape: Tuple[int, ...]
-    """
-    The shape it was given with.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"The {self.array} of a belief must have shape {self.expected_shape}, but "
-            f"has {self.actual_shape}."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Build it over the same quantities, in the same order, as the belief."
 
 
 @dataclass

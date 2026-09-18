@@ -4,9 +4,9 @@ from random_events.variable import Continuous
 
 from giskardpy.motion_statechart.beliefs.context import BeliefContext
 from giskardpy.motion_statechart.beliefs.gaussian import (
-    BeliefArray,
     GaussianBelief,
-    Measurement,
+    Quantities,
+    Reading,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.exceptions import (
@@ -14,44 +14,16 @@ from giskardpy.motion_statechart.exceptions import (
     RepeatedVariableInBeliefError,
     UnknownBeliefError,
     VariableNotInBeliefError,
-    WrongBeliefShapeError,
 )
 
-# %% the shape a belief has to have
+# %% the quantities every array is laid out by
 
 
-class TestBeliefShape:
+class TestQuantities:
     """
-    A belief's variables, mean and covariance all describe the same quantities, so they
-    have to agree on how many there are.
+    Naming the quantities is what decides an array's layout, so nothing a caller hands a
+    belief can describe a different number of them than the belief is about.
     """
-
-    def test_a_belief_about_one_quantity_has_one_dimension(self):
-        belief = GaussianBelief.of_one_variable(
-            Continuous("grasp"), mean=0.4, variance=0.25
-        )
-        assert belief.dimensions == 1
-        assert belief.mean.tolist() == [0.4]
-        assert belief.covariance.tolist() == [[0.25]]
-
-    def test_a_mean_with_a_row_per_variable_is_accepted(self):
-        belief = GaussianBelief(
-            variables=[Continuous("x"), Continuous("y")],
-            mean=np.zeros(2),
-            covariance=np.eye(2),
-        )
-        assert belief.dimensions == 2
-
-    def test_a_mean_that_does_not_have_a_row_per_variable_is_rejected(self):
-        with pytest.raises(WrongBeliefShapeError) as error:
-            GaussianBelief(
-                variables=[Continuous("x")],
-                mean=np.zeros(2),
-                covariance=np.eye(1),
-            )
-        assert error.value.array == BeliefArray.MEAN
-        assert error.value.expected_shape == (1,)
-        assert error.value.actual_shape == (2,)
 
     def test_a_quantity_named_twice_is_rejected(self):
         """
@@ -60,59 +32,95 @@ class TestBeliefShape:
         """
         repeated = Continuous("x")
         with pytest.raises(RepeatedVariableInBeliefError) as error:
-            GaussianBelief(
-                variables=[repeated, repeated],
-                mean=np.zeros(2),
-                covariance=np.eye(2),
-            )
+            Quantities.of(repeated, repeated)
         assert error.value.variable == repeated
 
-    def test_a_covariance_that_is_not_square_over_the_variables_is_rejected(self):
-        with pytest.raises(WrongBeliefShapeError) as error:
-            GaussianBelief(
-                variables=[Continuous("x"), Continuous("y")],
-                mean=np.zeros(2),
-                covariance=np.eye(3),
-            )
-        assert error.value.array == BeliefArray.COVARIANCE
-        assert error.value.expected_shape == (2, 2)
-        assert error.value.actual_shape == (3, 3)
+    def test_each_quantity_keeps_the_row_it_was_named_in(self):
+        first, second = Continuous("a"), Continuous("b")
+        quantities = Quantities.of(first, second)
+        assert quantities.index_of(first) == 0
+        assert quantities.index_of(second) == 1
+        assert len(quantities) == 2
 
+    def test_a_quantity_that_was_not_named_is_rejected(self):
+        quantities = Quantities.of(Continuous("a"))
+        unnamed = Continuous("b")
+        with pytest.raises(VariableNotInBeliefError) as error:
+            quantities.index_of(unnamed)
+        assert error.value.variable == unnamed
+        assert error.value.belief_variables == [Continuous("a")]
 
-# %% reading one quantity out of a belief
+    def test_a_vector_holds_each_quantity_in_its_own_row(self):
+        first, second = Continuous("a"), Continuous("b")
+        quantities = Quantities.of(first, second)
+        assert quantities.vector({second: 3.0}).tolist() == [0.0, 3.0]
 
+    def test_a_matrix_reads_a_pair_as_row_then_column(self):
+        first, second = Continuous("a"), Continuous("b")
+        quantities = Quantities.of(first, second)
+        assert quantities.matrix({(first, second): 5.0}).tolist() == [
+            [0.0, 5.0],
+            [0.0, 0.0],
+        ]
 
-class TestReadingOneQuantity:
-    """
-    A belief about several quantities answers about each of them by name, so a caller
-    never has to know which row a quantity sits in.
-    """
-
-    def build_belief(self) -> GaussianBelief:
+    def test_a_symmetric_matrix_fills_a_pair_both_ways(self):
         """
-        :return: A belief whose two variables have distinct means and variances.
+        Two quantities vary together by one number, so a covariance is stated once.
         """
-        return GaussianBelief(
-            variables=[Continuous("base_x"), Continuous("base_yaw")],
-            mean=np.array([1.5, -0.25]),
-            covariance=np.array([[0.04, 0.01], [0.01, 0.09]]),
+        first, second = Continuous("a"), Continuous("b")
+        quantities = Quantities.of(first, second)
+        assert quantities.symmetric_matrix({(first, second): 5.0}).tolist() == [
+            [0.0, 5.0],
+            [5.0, 0.0],
+        ]
+
+    def test_the_transition_of_unchanging_quantities_keeps_each_of_them(self):
+        first, second = Continuous("a"), Continuous("b")
+        quantities = Quantities.of(first, second)
+        assert quantities.matrix(quantities.unchanged).tolist() == np.eye(2).tolist()
+
+
+# %% building a belief
+
+
+class TestBuildingABelief:
+    def test_a_belief_about_one_quantity_starts_where_it_was_told_to(self):
+        grasp = Continuous("grasp")
+        belief = GaussianBelief.of_one_variable(grasp, mean=0.4, variance=0.25)
+        assert belief.mean_of(grasp) == 0.4
+        assert belief.variance_of(grasp) == 0.25
+
+    def test_a_quantity_left_out_starts_at_no_estimate_and_no_uncertainty(self):
+        first, second = Continuous("a"), Continuous("b")
+        belief = GaussianBelief(
+            quantities=Quantities.of(first, second),
+            estimates={first: 1.5},
+            uncertainty={(first, first): 0.04},
         )
+        assert belief.mean_of(second) == 0.0
+        assert belief.variance_of(second) == 0.0
 
-    def test_the_estimate_of_a_named_quantity_is_its_own_row(self):
-        belief = self.build_belief()
-        assert belief.mean_of(Continuous("base_yaw")) == -0.25
-
-    def test_the_uncertainty_of_a_named_quantity_is_its_own_diagonal_entry(self):
-        belief = self.build_belief()
-        assert belief.variance_of(Continuous("base_yaw")) == 0.09
+    def test_the_uncertainty_shared_by_two_quantities_is_stated_once(self):
+        first, second = Continuous("a"), Continuous("b")
+        belief = GaussianBelief(
+            quantities=Quantities.of(first, second),
+            estimates={},
+            uncertainty={
+                (first, first): 2.0,
+                (second, second): 2.0,
+                (first, second): 1.0,
+            },
+        )
+        assert belief.covariance.tolist() == [[2.0, 1.0], [1.0, 2.0]]
 
     def test_a_quantity_the_belief_is_not_about_is_rejected(self):
-        belief = self.build_belief()
+        belief = GaussianBelief.of_one_variable(
+            Continuous("base_x"), mean=1.5, variance=0.04
+        )
         unestimated = Continuous("gripper_opening")
         with pytest.raises(VariableNotInBeliefError) as error:
             belief.mean_of(unestimated)
         assert error.value.variable == unestimated
-        assert error.value.belief_variables == belief.variables
 
 
 # %% carrying a belief to the next control cycle
@@ -125,24 +133,26 @@ class TestPredict:
     """
 
     def test_a_quantity_expected_not_to_change_keeps_its_estimate(self):
-        belief = GaussianBelief.of_one_variable(
-            Continuous("grasp"), mean=0.8, variance=0.01
-        )
-        belief.predict(transition=np.eye(1), process_noise=np.zeros((1, 1)))
-        assert belief.mean.tolist() == [0.8]
+        grasp = Continuous("grasp")
+        belief = GaussianBelief.of_one_variable(grasp, mean=0.8, variance=0.01)
+        belief.predict(transition=belief.quantities.unchanged, process_noise={})
+        assert belief.mean_of(grasp) == 0.8
 
     def test_the_process_noise_is_added_to_the_uncertainty(self):
-        belief = GaussianBelief.of_one_variable(
-            Continuous("grasp"), mean=0.8, variance=0.01
+        grasp = Continuous("grasp")
+        belief = GaussianBelief.of_one_variable(grasp, mean=0.8, variance=0.01)
+        belief.predict(
+            transition=belief.quantities.unchanged,
+            process_noise={(grasp, grasp): 0.02},
         )
-        belief.predict(transition=np.eye(1), process_noise=np.full((1, 1), 0.02))
-        assert belief.variance_of(Continuous("grasp")) == pytest.approx(0.03)
+        assert belief.variance_of(grasp) == pytest.approx(0.03)
 
     def test_the_transition_scales_the_uncertainty_by_its_square(self):
-        belief = GaussianBelief.of_one_variable(Continuous("x"), mean=1.0, variance=1.0)
-        belief.predict(transition=np.full((1, 1), 2.0), process_noise=np.zeros((1, 1)))
-        assert belief.mean_of(Continuous("x")) == 2.0
-        assert belief.variance_of(Continuous("x")) == 4.0
+        quantity = Continuous("x")
+        belief = GaussianBelief.of_one_variable(quantity, mean=1.0, variance=1.0)
+        belief.predict(transition={(quantity, quantity): 2.0}, process_noise={})
+        assert belief.mean_of(quantity) == 2.0
+        assert belief.variance_of(quantity) == 4.0
 
     def test_an_offset_moves_the_estimate_without_adding_uncertainty(self):
         """
@@ -154,29 +164,20 @@ class TestPredict:
         decay = 0.75
         prior = 0.5
         belief.predict(
-            transition=np.full((1, 1), decay),
-            process_noise=np.zeros((1, 1)),
-            offset=np.array([(1 - decay) * prior]),
+            transition={(grasp, grasp): decay},
+            process_noise={},
+            offset={grasp: (1 - decay) * prior},
         )
         assert belief.mean_of(grasp) == pytest.approx(decay * 1.0 + (1 - decay) * prior)
         assert belief.variance_of(grasp) == pytest.approx(decay**2 * 0.04)
 
-    def test_a_transition_that_does_not_fit_the_belief_is_rejected(self):
-        belief = GaussianBelief.of_one_variable(Continuous("x"), mean=0.0, variance=1.0)
-        with pytest.raises(WrongBeliefShapeError) as error:
-            belief.predict(transition=np.eye(2), process_noise=np.zeros((1, 1)))
-        assert error.value.array == BeliefArray.TRANSITION
-        assert error.value.expected_shape == (1, 1)
-
-    def test_an_offset_that_does_not_fit_the_belief_is_rejected(self):
-        belief = GaussianBelief.of_one_variable(Continuous("x"), mean=0.0, variance=1.0)
-        with pytest.raises(WrongBeliefShapeError) as error:
-            belief.predict(
-                transition=np.eye(1),
-                process_noise=np.zeros((1, 1)),
-                offset=np.zeros(2),
-            )
-        assert error.value.array == BeliefArray.OFFSET
+    def test_a_quantity_the_belief_is_not_about_is_rejected(self):
+        quantity = Continuous("x")
+        belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
+        stranger = Continuous("y")
+        with pytest.raises(VariableNotInBeliefError) as error:
+            belief.predict(transition={(stranger, stranger): 1.0}, process_noise={})
+        assert error.value.variable == stranger
 
 
 # %% correcting a belief with a reading
@@ -190,81 +191,95 @@ class TestUpdate:
     def test_a_reading_as_uncertain_as_the_estimate_lands_halfway_between_them(self):
         quantity = Continuous("x")
         belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
-        belief.update(belief.measurement_of(quantity, value=1.0, variance=1.0))
+        belief.update([Reading.of_one_variable(quantity, value=1.0, variance=1.0)])
         assert belief.mean_of(quantity) == pytest.approx(0.5)
         assert belief.variance_of(quantity) == pytest.approx(0.5)
 
     def test_a_reading_the_sensor_is_sure_of_almost_replaces_the_estimate(self):
         quantity = Continuous("x")
         belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
-        belief.update(belief.measurement_of(quantity, value=1.0, variance=1e-6))
+        belief.update([Reading.of_one_variable(quantity, value=1.0, variance=1e-6)])
         assert belief.mean_of(quantity) == pytest.approx(1.0, abs=1e-5)
 
     def test_a_reading_the_sensor_is_unsure_of_barely_moves_the_estimate(self):
         quantity = Continuous("x")
         belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
-        belief.update(belief.measurement_of(quantity, value=1.0, variance=1e6))
+        belief.update([Reading.of_one_variable(quantity, value=1.0, variance=1e6)])
         assert belief.mean_of(quantity) == pytest.approx(0.0, abs=1e-5)
 
     def test_a_reading_never_makes_the_estimate_less_certain(self):
         quantity = Continuous("x")
         belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
         variance_before = belief.variance_of(quantity)
-        belief.update(belief.measurement_of(quantity, value=3.0, variance=4.0))
+        belief.update([Reading.of_one_variable(quantity, value=3.0, variance=4.0)])
         assert belief.variance_of(quantity) < variance_before
+
+    def test_reporting_nothing_leaves_the_estimate_alone(self):
+        quantity = Continuous("x")
+        belief = GaussianBelief.of_one_variable(quantity, mean=0.3, variance=1.0)
+        belief.update([])
+        assert belief.mean_of(quantity) == 0.3
+        assert belief.variance_of(quantity) == 1.0
 
     def build_correlated_belief(self) -> GaussianBelief:
         """
         :return: A belief about two quantities whose errors are related, so reading one
             of them says something about the other.
         """
+        first, second = Continuous("a"), Continuous("b")
         return GaussianBelief(
-            variables=[Continuous("a"), Continuous("b")],
-            mean=np.zeros(2),
-            covariance=np.array([[2.0, 1.0], [1.0, 2.0]]),
+            quantities=Quantities.of(first, second),
+            estimates={},
+            uncertainty={
+                (first, first): 2.0,
+                (second, second): 2.0,
+                (first, second): 1.0,
+            },
         )
 
     def test_reading_one_quantity_moves_a_related_one(self):
         belief = self.build_correlated_belief()
-        belief.update(belief.measurement_of(Continuous("a"), value=4.0, variance=2.0))
+        belief.update(
+            [Reading.of_one_variable(Continuous("a"), value=4.0, variance=2.0)]
+        )
         assert belief.mean_of(Continuous("a")) == pytest.approx(2.0)
         assert belief.mean_of(Continuous("b")) == pytest.approx(1.0)
 
     def test_reading_one_quantity_also_sharpens_a_related_one(self):
         belief = self.build_correlated_belief()
-        belief.update(belief.measurement_of(Continuous("a"), value=4.0, variance=2.0))
+        belief.update(
+            [Reading.of_one_variable(Continuous("a"), value=4.0, variance=2.0)]
+        )
         assert belief.variance_of(Continuous("a")) == pytest.approx(1.0)
         assert belief.variance_of(Continuous("b")) == pytest.approx(1.75)
 
     def test_reading_one_quantity_leaves_an_unrelated_one_alone(self):
+        first, second = Continuous("a"), Continuous("b")
         belief = GaussianBelief(
-            variables=[Continuous("a"), Continuous("b")],
-            mean=np.array([0.0, 5.0]),
-            covariance=np.diag([2.0, 3.0]),
+            quantities=Quantities.of(first, second),
+            estimates={second: 5.0},
+            uncertainty={(first, first): 2.0, (second, second): 3.0},
         )
-        belief.update(belief.measurement_of(Continuous("a"), value=4.0, variance=2.0))
-        assert belief.mean_of(Continuous("b")) == pytest.approx(5.0)
-        assert belief.variance_of(Continuous("b")) == pytest.approx(3.0)
+        belief.update([Reading.of_one_variable(first, value=4.0, variance=2.0)])
+        assert belief.mean_of(second) == pytest.approx(5.0)
+        assert belief.variance_of(second) == pytest.approx(3.0)
 
     def test_a_reading_of_several_quantities_at_once_corrects_all_of_them(self):
         """
-        A sensor need not read a quantity directly: the measurement model is what lets a
+        A sensor need not read a quantity itself: what it contributes to is what lets a
         reading of, here, the sum of two quantities say something about each.
         """
+        first, second = Continuous("a"), Continuous("b")
         belief = GaussianBelief(
-            variables=[Continuous("a"), Continuous("b")],
-            mean=np.zeros(2),
-            covariance=np.eye(2),
+            quantities=Quantities.of(first, second),
+            estimates={},
+            uncertainty={(first, first): 1.0, (second, second): 1.0},
         )
         belief.update(
-            Measurement(
-                value=np.array([2.0]),
-                model=np.array([[1.0, 1.0]]),
-                noise=np.eye(1),
-            )
+            [Reading(value=2.0, contributions={first: 1.0, second: 1.0}, variance=1.0)]
         )
-        assert belief.mean_of(Continuous("a")) == pytest.approx(2.0 / 3.0)
-        assert belief.mean_of(Continuous("b")) == pytest.approx(2.0 / 3.0)
+        assert belief.mean_of(first) == pytest.approx(2.0 / 3.0)
+        assert belief.mean_of(second) == pytest.approx(2.0 / 3.0)
 
     def test_repeated_readings_accumulate_into_the_uncertainty(self):
         """
@@ -281,9 +296,11 @@ class TestUpdate:
         corrections = 100
         for _ in range(corrections):
             belief.update(
-                belief.measurement_of(
-                    Continuous("a"), value=4.0, variance=noise_variance
-                )
+                [
+                    Reading.of_one_variable(
+                        Continuous("a"), value=4.0, variance=noise_variance
+                    )
+                ]
             )
         accumulated_precision = np.linalg.inv(prior_covariance) + corrections * (
             reading_of_a.T @ reading_of_a / noise_variance
@@ -301,7 +318,7 @@ class TestUpdate:
         belief = self.build_correlated_belief()
         for _ in range(100):
             belief.update(
-                belief.measurement_of(Continuous("a"), value=4.0, variance=2.0)
+                [Reading.of_one_variable(Continuous("a"), value=4.0, variance=2.0)]
             )
         assert belief.covariance == pytest.approx(belief.covariance.T, rel=1e-14)
 
@@ -312,33 +329,16 @@ class TestUpdate:
         belief = self.build_correlated_belief()
         for _ in range(100):
             belief.update(
-                belief.measurement_of(Continuous("a"), value=4.0, variance=2.0)
+                [Reading.of_one_variable(Continuous("a"), value=4.0, variance=2.0)]
             )
         assert min(np.linalg.eigvalsh(belief.covariance)) >= 0
 
-    def test_a_reading_whose_noise_does_not_match_its_values_is_rejected(self):
-        with pytest.raises(WrongBeliefShapeError) as error:
-            Measurement(
-                value=np.array([1.0, 2.0]),
-                model=np.eye(2),
-                noise=np.eye(1),
-            )
-        assert error.value.array == BeliefArray.MEASUREMENT_NOISE
-        assert error.value.expected_shape == (2, 2)
-
-    def test_a_reading_of_a_differently_sized_belief_is_rejected(self):
+    def test_a_reading_of_a_quantity_the_belief_is_not_about_is_rejected(self):
         belief = GaussianBelief.of_one_variable(Continuous("x"), mean=0.0, variance=1.0)
-        with pytest.raises(WrongBeliefShapeError) as error:
-            belief.update(
-                Measurement(
-                    value=np.array([1.0]),
-                    model=np.array([[1.0, 1.0]]),
-                    noise=np.eye(1),
-                )
-            )
-        assert error.value.array == BeliefArray.MEASUREMENT_MODEL
-        assert error.value.expected_shape == (1, 1)
-        assert error.value.actual_shape == (1, 2)
+        stranger = Continuous("y")
+        with pytest.raises(VariableNotInBeliefError) as error:
+            belief.update([Reading.of_one_variable(stranger, value=1.0, variance=1.0)])
+        assert error.value.variable == stranger
 
 
 # %% the beliefs a statechart carries across its cycles
@@ -357,15 +357,16 @@ class TestBeliefContext:
         assert context.require(grasp) is belief
 
     def test_a_belief_about_several_quantities_is_found_by_each_of_them(self):
+        first, second = Continuous("base_x"), Continuous("base_yaw")
         belief = GaussianBelief(
-            variables=[Continuous("base_x"), Continuous("base_yaw")],
-            mean=np.zeros(2),
-            covariance=np.eye(2),
+            quantities=Quantities.of(first, second),
+            estimates={},
+            uncertainty={(first, first): 1.0, (second, second): 1.0},
         )
         context = BeliefContext()
         context.add(belief)
-        assert context.require(Continuous("base_x")) is belief
-        assert context.require(Continuous("base_yaw")) is belief
+        assert context.require(first) is belief
+        assert context.require(second) is belief
 
     def test_a_quantity_nothing_estimates_is_rejected(self):
         context = BeliefContext()
@@ -384,20 +385,21 @@ class TestBeliefContext:
 
     def test_a_rejected_belief_leaves_the_quantities_it_shares_untouched(self):
         shared = Continuous("base_x")
+        other = Continuous("base_yaw")
         first = GaussianBelief.of_one_variable(shared, mean=1.0, variance=0.1)
         context = BeliefContext()
         context.add(first)
         with pytest.raises(DuplicateBeliefError):
             context.add(
                 GaussianBelief(
-                    variables=[Continuous("base_yaw"), shared],
-                    mean=np.zeros(2),
-                    covariance=np.eye(2),
+                    quantities=Quantities.of(other, shared),
+                    estimates={},
+                    uncertainty={(other, other): 1.0, (shared, shared): 1.0},
                 )
             )
         assert context.require(shared) is first
         with pytest.raises(UnknownBeliefError):
-            context.require(Continuous("base_yaw"))
+            context.require(other)
 
     def test_a_correction_is_visible_to_whoever_reads_the_belief_next(self):
         """
@@ -407,8 +409,9 @@ class TestBeliefContext:
         grasp = Continuous("grasp")
         context = BeliefContext()
         context.add(GaussianBelief.of_one_variable(grasp, mean=0.0, variance=1.0))
-        estimating = context.require(grasp)
-        estimating.update(estimating.measurement_of(grasp, value=1.0, variance=1.0))
+        context.require(grasp).update(
+            [Reading.of_one_variable(grasp, value=1.0, variance=1.0)]
+        )
         assert context.require(grasp).mean_of(grasp) == pytest.approx(0.5)
 
     def test_it_is_reachable_through_the_motion_statechart_context(self):
