@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-from typing_extensions import TYPE_CHECKING, List, Type
+from typing_extensions import TYPE_CHECKING, Type
 
 from krrood.exceptions import DataclassException
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
@@ -668,52 +668,6 @@ class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
 
 
 @dataclass
-class VariableNotInBeliefError(MotionStatechartError):
-    """
-    Raised when a belief is asked about a quantity it does not estimate.
-    """
-
-    variable: Continuous
-    """
-    The quantity that was asked about.
-    """
-
-    belief_variables: List[Continuous]
-    """
-    The quantities the belief does estimate.
-    """
-
-    def error_message(self) -> str:
-        estimated = ", ".join(variable.name for variable in self.belief_variables)
-        return f"A belief about {estimated} says nothing about '{self.variable.name}'."
-
-    def suggest_correction(self) -> str:
-        return "Read the belief that estimates this quantity, or add it to this one."
-
-
-@dataclass
-class RepeatedVariableInBeliefError(MotionStatechartError):
-    """
-    Raised when a belief is built over a list that names one quantity more than once, so
-    only one of that quantity's rows could ever be read back.
-    """
-
-    variable: Continuous
-    """
-    The quantity the list names more than once.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"A belief is about each of its quantities once, but '{self.variable.name}' "
-            f"is listed more than once."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Give the second one a name of its own, or drop it."
-
-
-@dataclass
 class UnknownBeliefError(MotionStatechartError):
     """
     Raised when the belief context is asked about a quantity nothing estimates.
@@ -750,37 +704,3 @@ class DuplicateBeliefError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Update the belief that is already there instead of adding a second one."
-
-
-@dataclass
-class BeliefQuantitiesDisagreeError(MotionStatechartError):
-    """
-    Raised when a belief is built from an estimate and an uncertainty that are laid out
-    by different quantities.
-    """
-
-    mean_variables: List[Continuous]
-    """
-    The quantities the estimate is laid out by.
-    """
-
-    covariance_variables: List[Continuous]
-    """
-    The quantities the uncertainty is laid out by.
-    """
-
-    def error_message(self) -> str:
-        estimated = ", ".join(variable.name for variable in self.mean_variables)
-        uncertain_about = ", ".join(
-            variable.name for variable in self.covariance_variables
-        )
-        return (
-            f"A belief estimating {estimated} cannot carry an uncertainty about "
-            f"{uncertain_about}."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Build the belief with GaussianBelief.of(), which lays the estimate and "
-            "the uncertainty out by the same quantities."
-        )

@@ -37,6 +37,7 @@ dependencies = [
     "giskardpy_bullet_bindings==1.0.1",
     "PyQT5>=5.15.11",
     "krrood",
+    "probabilistic_model",
     "random_events",
     "semantic_digital_twin",
 ]
@@ -56,6 +57,7 @@ version = {attr = "giskardpy._version.__version__"}
 [dependency-groups]
 workspace = [
     "krrood",
+    "probabilistic_model",
     "random_events",
     "semantic_digital_twin",
 ]

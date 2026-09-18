@@ -1,148 +1,17 @@
 import numpy as np
 import pytest
+from probabilistic_model.distributions.multivariate_gaussian import Reading
+from probabilistic_model.exceptions import VariableNotInQuantitiesError
+from probabilistic_model.quantities import Quantities
 from random_events.variable import Continuous
 
 from giskardpy.motion_statechart.beliefs.context import BeliefContext
-from giskardpy.motion_statechart.beliefs.gaussian import (
-    Covariance,
-    GaussianBelief,
-    Mean,
-    Quantities,
-    Reading,
-)
+from giskardpy.motion_statechart.beliefs.gaussian import GaussianBelief
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.exceptions import (
-    BeliefQuantitiesDisagreeError,
     DuplicateBeliefError,
-    RepeatedVariableInBeliefError,
     UnknownBeliefError,
-    VariableNotInBeliefError,
 )
-
-# %% the quantities every array is laid out by
-
-
-class TestQuantities:
-    """
-    Naming the quantities is what decides an array's layout, so nothing a caller hands a
-    belief can describe a different number of them than the belief is about.
-    """
-
-    def test_a_quantity_named_twice_is_rejected(self):
-        """
-        Only one of the two rows could ever be read back, so the other's estimate would
-        be carried along and never answered with.
-        """
-        repeated = Continuous("x")
-        with pytest.raises(RepeatedVariableInBeliefError) as error:
-            Quantities.of(repeated, repeated)
-        assert error.value.variable == repeated
-
-    def test_each_quantity_keeps_the_row_it_was_named_in(self):
-        first, second = Continuous("a"), Continuous("b")
-        quantities = Quantities.of(first, second)
-        assert quantities.index_of(first) == 0
-        assert quantities.index_of(second) == 1
-        assert len(quantities) == 2
-
-    def test_a_quantity_that_was_not_named_is_rejected(self):
-        quantities = Quantities.of(Continuous("a"))
-        unnamed = Continuous("b")
-        with pytest.raises(VariableNotInBeliefError) as error:
-            quantities.index_of(unnamed)
-        assert error.value.variable == unnamed
-        assert error.value.belief_variables == [Continuous("a")]
-
-    def test_a_vector_holds_each_quantity_in_its_own_row(self):
-        first, second = Continuous("a"), Continuous("b")
-        quantities = Quantities.of(first, second)
-        assert quantities.vector({second: 3.0}).tolist() == [0.0, 3.0]
-
-    def test_a_matrix_reads_a_pair_as_row_then_column(self):
-        first, second = Continuous("a"), Continuous("b")
-        quantities = Quantities.of(first, second)
-        assert quantities.matrix({(first, second): 5.0}).tolist() == [
-            [0.0, 5.0],
-            [0.0, 0.0],
-        ]
-
-    def test_a_symmetric_matrix_fills_a_pair_both_ways(self):
-        """
-        Two quantities vary together by one number, so a covariance is stated once.
-        """
-        first, second = Continuous("a"), Continuous("b")
-        quantities = Quantities.of(first, second)
-        assert quantities.symmetric_matrix({(first, second): 5.0}).tolist() == [
-            [0.0, 5.0],
-            [5.0, 0.0],
-        ]
-
-    def test_the_transition_of_unchanging_quantities_keeps_each_of_them(self):
-        first, second = Continuous("a"), Continuous("b")
-        quantities = Quantities.of(first, second)
-        assert quantities.matrix(quantities.unchanged).tolist() == np.eye(2).tolist()
-
-
-# %% the estimate and the uncertainty a belief holds
-
-
-class TestMean:
-    """
-    The estimate answers by quantity, so a caller never counts rows to read one back.
-    """
-
-    def test_each_quantity_is_estimated_at_what_it_was_given(self):
-        first, second = Continuous("a"), Continuous("b")
-        mean = Mean.of(Quantities.of(first, second), {first: 1.5, second: -2.0})
-        assert mean.estimate_of(first) == 1.5
-        assert mean.estimate_of(second) == -2.0
-
-    def test_a_quantity_left_out_is_estimated_at_zero(self):
-        first, second = Continuous("a"), Continuous("b")
-        mean = Mean.of(Quantities.of(first, second), {first: 1.5})
-        assert mean.estimate_of(second) == 0.0
-
-    def test_a_quantity_it_is_not_over_is_rejected(self):
-        mean = Mean.of(Quantities.of(Continuous("a")), {})
-        stranger = Continuous("b")
-        with pytest.raises(VariableNotInBeliefError) as error:
-            mean.estimate_of(stranger)
-        assert error.value.variable == stranger
-
-
-class TestCovariance:
-    """
-    The uncertainty answers by quantity and by pair of quantities, and a pair shared by
-    two of them is one number rather than two.
-    """
-
-    def test_each_quantity_is_as_uncertain_as_it_was_given(self):
-        first, second = Continuous("a"), Continuous("b")
-        covariance = Covariance.of(
-            Quantities.of(first, second),
-            {(first, first): 2.0, (second, second): 3.0},
-        )
-        assert covariance.variance_of(first) == 2.0
-        assert covariance.variance_of(second) == 3.0
-
-    def test_a_pair_stated_once_holds_both_ways_round(self):
-        first, second = Continuous("a"), Continuous("b")
-        covariance = Covariance.of(Quantities.of(first, second), {(first, second): 1.0})
-        assert covariance.between(first, second) == 1.0
-        assert covariance.between(second, first) == 1.0
-
-    def test_a_pair_left_out_does_not_move_together_at_all(self):
-        first, second = Continuous("a"), Continuous("b")
-        covariance = Covariance.of(Quantities.of(first, second), {(first, first): 2.0})
-        assert covariance.between(first, second) == 0.0
-
-    def test_a_quantity_it_is_not_over_is_rejected(self):
-        covariance = Covariance.of(Quantities.of(Continuous("a")), {})
-        stranger = Continuous("b")
-        with pytest.raises(VariableNotInBeliefError) as error:
-            covariance.variance_of(stranger)
-        assert error.value.variable == stranger
-
 
 # %% building a belief
 
@@ -178,29 +47,12 @@ class TestBuildingABelief:
         assert belief.covariance.between(first, second) == 1.0
         assert belief.covariance.between(second, first) == 1.0
 
-    def test_an_estimate_and_an_uncertainty_about_different_quantities_are_rejected(
-        self,
-    ):
-        """
-        Each carries the quantities it is laid out by, so the one way left to build a
-        belief that means nothing is to hand it two that disagree.
-        """
-        estimated = Quantities.of(Continuous("a"))
-        uncertain_about = Quantities.of(Continuous("b"))
-        with pytest.raises(BeliefQuantitiesDisagreeError) as error:
-            GaussianBelief(
-                mean=Mean.of(estimated, {}),
-                covariance=Covariance.of(uncertain_about, {}),
-            )
-        assert error.value.mean_variables == list(estimated)
-        assert error.value.covariance_variables == list(uncertain_about)
-
     def test_a_quantity_the_belief_is_not_about_is_rejected(self):
         belief = GaussianBelief.of_one_variable(
             Continuous("base_x"), mean=1.5, variance=0.04
         )
         unestimated = Continuous("gripper_opening")
-        with pytest.raises(VariableNotInBeliefError) as error:
+        with pytest.raises(VariableNotInQuantitiesError) as error:
             belief.mean_of(unestimated)
         assert error.value.variable == unestimated
 
@@ -257,7 +109,7 @@ class TestPredict:
         quantity = Continuous("x")
         belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
         stranger = Continuous("y")
-        with pytest.raises(VariableNotInBeliefError) as error:
+        with pytest.raises(VariableNotInQuantitiesError) as error:
             belief.predict(transition={(stranger, stranger): 1.0}, process_noise={})
         assert error.value.variable == stranger
 
@@ -422,7 +274,7 @@ class TestUpdate:
     def test_a_reading_of_a_quantity_the_belief_is_not_about_is_rejected(self):
         belief = GaussianBelief.of_one_variable(Continuous("x"), mean=0.0, variance=1.0)
         stranger = Continuous("y")
-        with pytest.raises(VariableNotInBeliefError) as error:
+        with pytest.raises(VariableNotInQuantitiesError) as error:
             belief.update([Reading.of_one_variable(stranger, value=1.0, variance=1.0)])
         assert error.value.variable == stranger
 
