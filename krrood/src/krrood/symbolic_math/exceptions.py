@@ -185,6 +185,33 @@ class NotEnoughArgumentsError(SymbolicMathError):
 
 
 @dataclass
+class ThresholdsOutOfOrderError(SymbolicMathError, ValueError):
+    """
+    Raised when a continuous value is converted to trinary logic with a false threshold
+    that is not below the true threshold.
+    """
+
+    false_below: float
+    """
+    The threshold below which the conversion reports false.
+    """
+
+    true_above: float
+    """
+    The threshold above which the conversion reports true.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The false threshold {self.false_below} must be below the true threshold "
+            f"{self.true_above}, otherwise one answer would overrule the other."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Swap the two thresholds, or move them apart."
+
+
+@dataclass
 class DuplicateVariablesError(SymbolicMathError):
     """
     Raised when duplicate variables are found in an operation that requires unique

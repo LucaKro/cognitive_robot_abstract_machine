@@ -411,59 +411,17 @@ def test_supporting(two_block_world):
     assert not is_supported_by(center, top)
 
 
-def test_is_body_in_gripper(pr2_world_copy):
-    pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
+def test_is_body_in_gripper(body_between_fingers):
+    pr2 = body_between_fingers.world.get_semantic_annotations_by_type(PR2)[0]
 
-    gripper = pr2_world_copy.get_semantic_annotations_by_type(EndEffector)
-
-    left_gripper = (
-        gripper[0]
-        if LeftOf(
-            gripper[0].root.center_of_mass,
-            gripper[1].root.center_of_mass,
-            pr2.root.global_transform,
-        )()
-        else gripper[1]
+    assert (
+        is_body_in_gripper(body_between_fingers.body, body_between_fingers.gripper) > 0
     )
-
-    # Create krrood_test box between fingers
-    test_box = Body(name=PrefixedName("test_box"))
-    box_collision = Box(
-        scale=Scale(0.05, 0.01, 0.05),
-        origin=HomogeneousTransformationMatrix.from_xyz_rpy(reference_frame=test_box),
-        color=Color(1.0, 0.0, 0.0),
+    assert robot_holds_body(pr2, body_between_fingers.body)
+    body_between_fingers.move_body_away()
+    assert (
+        is_body_in_gripper(body_between_fingers.body, body_between_fingers.gripper) == 0
     )
-    test_box.collision = ShapeCollection([box_collision])
-
-    # Calculate position between fingers
-    finger1_pos = (
-        left_gripper.finger.tip.collision.center_of_mass_in_world().to_vector3()
-    )
-    finger2_pos = (
-        left_gripper.thumb.tip.collision.center_of_mass_in_world().to_vector3()
-    )
-    between_fingers = (finger1_pos + finger2_pos) / 2.0
-
-    # Add box to world
-    with pr2_world_copy.modify_world():
-        root = pr2_world_copy.root
-        connection = Connection6DoF.create_with_dofs(
-            parent=root,
-            child=test_box,
-            world=pr2_world_copy,
-        )
-        pr2_world_copy.add_connection(connection)
-        connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=between_fingers[0],
-            y=between_fingers[1],
-            z=between_fingers[2],
-            reference_frame=root,
-        )
-
-    assert is_body_in_gripper(test_box, left_gripper) > 0
-    assert robot_holds_body(pr2, test_box)
-    connection.origin = HomogeneousTransformationMatrix(reference_frame=root)
-    assert is_body_in_gripper(test_box, left_gripper) == 0
 
 
 def test_reachable(pr2_world_state_reset, rclpy_node):

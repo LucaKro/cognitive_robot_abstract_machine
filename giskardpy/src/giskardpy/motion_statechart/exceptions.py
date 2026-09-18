@@ -429,6 +429,28 @@ class NotInMotionStatechartError(MotionStatechartError):
 
 
 @dataclass
+class GraspLikelihoodNotBuiltError(MotionStatechartError):
+    """
+    Raised when a grasp likelihood is read before the node that measures it has been
+    built, so the variable carrying it does not exist yet.
+    """
+
+    node_name: str
+    """
+    The name of the node whose likelihood was read too early.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The likelihood of node '{self.node_name}' does not exist until the node "
+            f"has been built."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Add the node to a MotionStatechart and compile it before reading this."
+
+
+@dataclass
 class InvalidConditionError(MotionStatechartError):
     """
     Base class for errors raised when a condition is set to an unusable expression.
@@ -807,4 +829,28 @@ class BeliefQuantitiesDisagreeError(MotionStatechartError):
         return (
             "Build the belief with GaussianBelief.of(), which lays the estimate and "
             "the uncertainty out by the same quantities."
+        )
+
+
+@dataclass
+class CertainPriorError(MotionStatechartError):
+    """
+    Raised when an estimator is given a prior that already rules the outcome in or out.
+    """
+
+    probability: float
+    """
+    The probability that was given.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A prior probability of {self.probability} is certain, so it has no "
+            f"log-odds and no reading could ever change it."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give a prior strictly between 0 and 1. A belief that is allowed to be "
+            "wrong is what makes the evidence worth collecting."
         )

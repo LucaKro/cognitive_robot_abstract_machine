@@ -68,6 +68,7 @@ from krrood.symbolic_math.exceptions import (
     UnsupportedOperationError,
     WrongDimensionsError,
     CannotConvertToStringError,
+    ThresholdsOutOfOrderError,
 )
 
 EPS: float = sys.float_info.epsilon * 4.0
@@ -2480,6 +2481,37 @@ def trinary_logic_or(*args: FloatVariable | Scalar) -> Scalar:
         return max(args[0], args[1])
     else:
         return trinary_logic_or(args[0], trinary_logic_or(*args[1:]))
+
+
+def trinary_logic_from_continuous(
+    value: FloatVariable | Scalar, *, false_below: float, true_above: float
+) -> Scalar:
+    """
+    Convert a continuous confidence into a trinary truth value.
+
+    The trinary operators are total on ``[0, 1]``, but the predicates asking *which*
+    truth value an expression carries compare against the three constants exactly, so
+    they never hold for a raw confidence. This maps such a confidence onto those
+    constants, leaving the band between the thresholds as the *Unknown* it is.
+
+    Both thresholds are exclusive, so a confidence sitting exactly on one is not yet a
+    committed answer.
+
+    :param value: The confidence to convert, expected in ``[0, 1]``.
+    :param false_below: The threshold under which the result is the trinary False.
+    :param true_above: The threshold over which the result is the trinary True.
+    :return: The trinary truth value the confidence maps to.
+    :raises ThresholdsOutOfOrderError: If `false_below` is not below `true_above`.
+    """
+    if false_below >= true_above:
+        raise ThresholdsOutOfOrderError(false_below=false_below, true_above=true_above)
+    return if_cases(
+        cases=[
+            (Scalar(value < false_below), Scalar.const_false()),
+            (Scalar(value > true_above), Scalar.const_true()),
+        ],
+        else_result=Scalar.const_trinary_unknown(),
+    )
 
 
 def trinary_logic_to_str(expression: Scalar) -> str:
