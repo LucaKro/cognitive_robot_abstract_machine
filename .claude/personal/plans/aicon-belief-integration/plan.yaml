@@ -49,10 +49,11 @@ tracks:
 items:
   - id: grasp-likelihood-continuous
     title: Keep the grasp likelihood continuous instead of thresholding it away
-    branch: grasp-likelihood-continuous
-    pull_request_number: null
+    branch: claude/plan-item-kickoff-aicon-belief-84kl68
+    pull_request_number: 8
     track: uncertainty-plumbing
-    status: not_started
+    status: in_progress
+    session: https://claude.ai/code/session_01Fw9Svyih3RfDVQEWeSH28e
     notes: >-
       is_body_in_gripper (robot_predicates.py:162) already returns a float its
       own docstring calls a marginal probability; is_body_gripped discards it
