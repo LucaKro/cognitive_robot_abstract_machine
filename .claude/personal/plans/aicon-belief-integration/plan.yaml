@@ -155,7 +155,8 @@ items:
       ProbabilisticModel's own abstract signatures, which the roadmap recorded as
       left open for the author. The item's remaining history is the restack onto
       its parent: the stack pass could not integrate #10's own restack and
-      labelled #11 needs-resolution, which is resolved in ad9aa52b.
+      labelled #11 needs-resolution, which is resolved in ad9aa52b; the label has
+      since cleared on its own and the branch has rejoined promotion.
 
   - id: pose-covariance-on-shared-quantities
     title: Lay a pose covariance out with the shared quantity layout

@@ -2337,11 +2337,25 @@ from its position, and the headings added. No prose changed.
   no such exception, and widening a no-op merge to touch the ones it does own would be
   the same mistake.
 
+### The label cleared on its own, and the dashboard published for the first time
+
+Two things every earlier restack round on this plan left open resolved themselves here.
+
+`needs-resolution` is already gone from #11: the stack pass clears it once the branch
+merges cleanly again, and `mergeable_state` went `dirty` to `unstable` on the push, so
+the branch has rejoined promotion without anyone touching the label.
+
+The dashboard is republished — version 14 — which no round since this item's own
+kickoff managed. The `Artifact` tool no longer treats this account's dashboard as a
+third-party artifact: a read returns the page source rather than a prose summary, and
+the publish goes through after reading that source in full. The refusal every earlier
+round recorded, and worked around by leaving the page stale, does not need `force`. The
+recipe, for the next round: read the artifact, Read every line of the file the read
+saves, then publish; a publish that resends content an earlier refusal rejected needs a
+second read to confirm it, which is the one step that is not obvious.
+
 ### Still open
 
-- **The `needs-resolution` label is still on #11.** The stack pass clears it once the
-  branch merges cleanly again, which it now does, so the next pass should drop it and
-  let the branch rejoin promotion.
 - **#11 was deliberately left out of draft**, for the reason `grasp-likelihood-continuous`
   confirmed with the author and `odometry-covariance-capture` then settled: un-drafting
   is this repository's record of the author having reviewed it, the push changed no
