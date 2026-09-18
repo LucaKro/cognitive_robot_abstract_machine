@@ -420,3 +420,41 @@ loop, per the design decisions already recorded above.
   `claude/belief-integration-gaussian-zi1o82`, not the
   `belief-context-and-gaussian` placeholder the manifest carried, following the
   same correction `grasp-likelihood-continuous` made.
+
+## `grasp-likelihood-continuous` — resolution
+
+Nothing was blocking it. Resolving the item was a matter of closing the one gap
+the kickoff left open rather than fixing a stall.
+
+The kickoff recorded that the giskardpy and `semantic_digital_twin` tests could
+not be executed in that session — the container had no numpy, casadi or trimesh,
+and installing the workspace failed on the repository's `pyproject.toml` needing
+a newer uv than 0.8.17 plus absent graphviz headers. Only the krrood
+symbolic-math tests ran locally. The pull request description and the
+PR-progress note both said so and flagged the first CI run as worth watching.
+
+That run has now completed: all 23 checks on `b5c4a811` are green, including
+`test_each_lib (giskardpy)` and `test_each_lib (semantic_digital_twin)`, which
+are exactly the two suites the session could not run. So the eight
+`GraspLikelihood` tests, the `body_between_fingers` fixture in the root
+`test/conftest.py` and the refactored `test_is_body_in_gripper` are verified,
+and the three design calls the kickoff had to make by reading the code rather
+than by running it are confirmed by a passing suite:
+
+- a monitor-only statechart compiles and ticks with no constraints, no
+  `EndMotion` and no degrees of freedom;
+- priming the likelihood in `on_start` means the first observation is read off a
+  measured variable rather than an unset one;
+- the trinary observation stays one of the three constants, so the four
+  exact-equality sites keep working.
+
+No review threads, no pull request comments, no tracking-issue discussion, no
+merge conflict, and the branch is level with `main`. The pull request stays a
+draft awaiting its author's own review, per this repository's convention that
+un-drafting *is* the record of having reviewed it.
+
+One thing to carry forward: this branch, `odometry-covariance-capture` (#9) and
+`belief-context-and-gaussian` (#10) all append their own exception classes to
+`giskardpy/src/giskardpy/motion_statechart/exceptions.py`. Different classes in
+different places, so the work is independent, but whichever two land second and
+third should expect to resolve that file.

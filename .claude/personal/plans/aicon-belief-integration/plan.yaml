@@ -63,6 +63,13 @@ items:
       continuous path without breaking the existing boolean predicate, which is
       used in EQL preconditions. Guard is_unknown(), which tests ca.eq(x, 0.5)
       exactly and will never fire on a continuous value.
+      Correction from the implementation: the type-compatibility claim above
+      holds for the trinary algebra but not for the four sites that compare
+      against the three constants exactly, so a continuous value must not be a
+      node's observation. It is carried by a registered FloatVariable instead,
+      and only a trinary view of it is observed - see this item's roadmap
+      section. Dependents should read the likelihood off GraspLikelihood's
+      FloatVariable, not off its observation.
 
   - id: odometry-covariance-capture
     title: Stop discarding the odometry pose covariance
