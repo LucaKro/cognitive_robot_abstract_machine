@@ -1601,3 +1601,91 @@ failed the compile, which is a node in a state nothing should be able to observe
 - **Regenerating the ORM remains CI's to confirm**, as on every earlier item — the
   exclusion was checked against `classes_of_package` directly rather than by running the
   generator.
+
+The item picked up its first review: two threads, both from the author, both the same
+objection. Nothing else was blocking — CI was 23 of 23 green on `f431efa7`, the branch
+was `clean` against its base with no conflict, there were no pull request comments, no
+tracking-issue discussion about this item since it was created, and the fork pull request
+carries no `in-review` label, so there is no upstream review to read.
+
+### Nothing holds a numpy array any more
+
+*"can these be an actual datastructure instead of just np array?"* on `Mean.values`, and
+*"here as well. anywhere where np arrays are used in this diff"* on `Covariance.values`.
+
+This is the fourth round across this plan to make the same ask, and the first to aim it
+one layer deeper than the previous three. #10's first round made everything a caller
+*hands* a belief quantity-keyed; #10's second round made what the belief *holds* into
+`Mean` and `Covariance`; #9's second round did the same for `PoseCovariance`. All three
+stopped at a named type owning a `values: npt.NDArray[np.float64]`. This round says the
+array itself should not be what the type holds.
+
+So `Mean` holds `estimates`, what each quantity is expected to be, and `Covariance` holds
+`uncertainty`, how uncertain each ordered pair of them is. Neither holds an array.
+`as_array` builds one for the arithmetic and `from_array` reads one back off the
+arithmetic's result; those two are the only places numpy appears on either type, and the
+distribution's internals go through them rather than indexing rows.
+
+### Reading an array back must not symmetrize it
+
+The one thing this could have quietly cost. `Covariance.from_array` records each
+direction of a pair separately rather than averaging them. Had it symmetrized on the way
+in, `test_the_conditioned_uncertainty_stays_exactly_symmetric` would have become true by
+construction and stopped testing the symmetrization it exists for.
+
+The test now states its assertion by quantity — `between(first, second) ==
+between(second, first)` — which is what the datastructure buys over comparing an array to
+its transpose, and it still fails when the symmetrization is removed. That was checked by
+removing it, not assumed.
+
+### What stays an array, and why
+
+Answered on the open thread rather than decided unilaterally, because one of the three is
+the author's call:
+
+- **`ProbabilisticModel`'s own abstract signatures.** `log_likelihood(events:
+  npt.NDArray) -> npt.NDArray` and `sample(amount) -> npt.NDArray` are the base class's
+  contract (`probabilistic_model.py:118`, `:271`), `likelihood` calls straight into
+  `log_likelihood`, and every other distribution in the package implements them that way.
+  Changing them here would make this one distribution non-substitutable for its own base.
+  Changing them everywhere is a piece of work across the package, not something to fold
+  into this item — put to the author, thread left open.
+- **`Quantities.vector`/`matrix`/`symmetric_matrix`.** Producing the array *is* their job;
+  they are the boundary rather than a leak through it.
+- **The private arithmetic helpers** — matrix inverse and block assembly.
+
+### The cost note now covers two layers
+
+The `..note::` on `Quantities` the author asked for in #10's first round said the layout
+is walked per call and that the arithmetic stays numpy, so the decision is reversible. It
+now also says that what holds the numbers walks it again to hand an array over, so one
+operation may build the same array twice. That is the honest cost of this round, and it
+is the thing to undo first if a profile ever shows it.
+
+### `PoseCovariance` is left as it is
+
+`Mean` and `Covariance` now hold named data while `PoseCovariance` on #9 still holds
+`values: npt.NDArray[np.float64]`, which is the shape #9's own second round settled on.
+That is not a problem for `pose-covariance-on-shared-quantities`: that item collapses
+`PoseCovariance` onto `Quantities`, which this round did not change. Flagged on the thread
+as the place where matching the two costs least, rather than widened into this item.
+
+### Verification
+
+`test_the_conditioned_uncertainty_stays_exactly_symmetric` and the two transform
+round-trip tests were rewritten to read by quantity or through `as_array`; six new tests
+pin what the two types now hold, that a quantity left out is still held, that an estimate
+survives the trip through an array, and that reading a matrix back keeps both directions
+of a pair apart.
+
+272 passed across the collectible `probabilistic_model` suite, 29 on #10's belief tests,
+20 on the dependency declarations. #10's belief tests needed only `.values` →
+`.as_array` where they genuinely want the matrix — an inverse, a transpose and an
+eigenvalue check, all properties of a matrix rather than of any named pair — which is
+why that accessor is public rather than private.
+
+### Still open
+
+- The `npt.NDArray` on `ProbabilisticModel`'s abstract `log_likelihood` and `sample`,
+  above. The second thread is left open for it; the first is resolved.
+- CI has not yet run on `6da3fc22`.
