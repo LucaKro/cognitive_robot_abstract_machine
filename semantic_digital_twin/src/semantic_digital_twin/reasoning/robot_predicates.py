@@ -32,12 +32,6 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 from semantic_digital_twin.world_description.world_entity import Body
 
-GRIPPED_LIKELIHOOD_THRESHOLD: float = 0.9
-"""
-The share of rays sampled between the fingers that must hit a body before it counts as
-held rather than merely touched.
-"""
-
 
 @symbolic_function
 def robot_in_collision(
@@ -185,10 +179,7 @@ def is_body_in_gripper(
 
 @symbolic_function
 def is_body_gripped(
-    body: Body,
-    gripper: EndEffector,
-    threshold: float = GRIPPED_LIKELIHOOD_THRESHOLD,
-    sample_size: int = 100,
+    body: Body, gripper: EndEffector, threshold: float = 0.9, sample_size: int = 100
 ) -> bool:
     """
     Check if the body is held by the gripper with at least the given confidence.

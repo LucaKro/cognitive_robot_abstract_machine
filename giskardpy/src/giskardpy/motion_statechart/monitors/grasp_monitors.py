@@ -12,10 +12,7 @@ from krrood.symbolic_math.symbolic_math import (
     FloatVariable,
     trinary_logic_from_continuous,
 )
-from semantic_digital_twin.reasoning.robot_predicates import (
-    GRIPPED_LIKELIHOOD_THRESHOLD,
-    is_body_in_gripper,
-)
+from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -58,10 +55,11 @@ class GraspLikelihood(MotionStatechartNode):
     a grasp counts as ruled out, which depends on what the caller does next.
     """
 
-    true_above: float = field(default=GRIPPED_LIKELIHOOD_THRESHOLD, kw_only=True)
+    true_above: float = field(default=0.9, kw_only=True)
     """
-    The likelihood over which the observation is true, matching the threshold
-    :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped` uses.
+    The likelihood over which the observation is true, defaulting to the same share of
+    hits :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped` calls
+    a grasp.
     """
 
     sample_size: int = field(default=100, kw_only=True)

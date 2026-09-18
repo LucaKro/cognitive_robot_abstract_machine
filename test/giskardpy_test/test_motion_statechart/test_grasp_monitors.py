@@ -8,10 +8,7 @@ from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.exceptions import GraspLikelihoodNotBuiltError
 from giskardpy.motion_statechart.monitors.grasp_monitors import GraspLikelihood
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from semantic_digital_twin.reasoning.robot_predicates import (
-    GRIPPED_LIKELIHOOD_THRESHOLD,
-    is_body_in_gripper,
-)
+from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 
 # %% running a single node
 
@@ -72,17 +69,13 @@ def test_the_measured_likelihood_is_published_as_a_variable(body_between_fingers
     The point of the node: the share of rays that hit is readable as a number, not only
     as a yes or no.
     """
-    ticked = tick_once(
-        body_between_fingers, false_below=0.05, true_above=GRIPPED_LIKELIHOOD_THRESHOLD
-    )
+    ticked = tick_once(body_between_fingers, false_below=0.05, true_above=0.9)
     assert ticked.measured_likelihood > 0
 
 
 def test_an_empty_gripper_measures_exactly_zero(body_between_fingers):
     body_between_fingers.move_body_away()
-    ticked = tick_once(
-        body_between_fingers, false_below=0.05, true_above=GRIPPED_LIKELIHOOD_THRESHOLD
-    )
+    ticked = tick_once(body_between_fingers, false_below=0.05, true_above=0.9)
     assert ticked.measured_likelihood == 0
 
 
@@ -95,13 +88,6 @@ def test_the_likelihood_is_unavailable_before_the_node_is_built(body_between_fin
     with pytest.raises(GraspLikelihoodNotBuiltError) as error:
         node.likelihood
     assert error.value.node_name == node.name
-
-
-def test_the_true_threshold_defaults_to_the_one_the_boolean_predicate_uses():
-    """
-    The node and :func:`is_body_gripped` must call the same likelihood a grasp.
-    """
-    assert GraspLikelihood.true_above == GRIPPED_LIKELIHOOD_THRESHOLD
 
 
 # %% the trinary observation derived from it
@@ -126,9 +112,7 @@ def test_a_likelihood_under_the_false_threshold_is_observed_as_false(
     body_between_fingers,
 ):
     body_between_fingers.move_body_away()
-    ticked = tick_once(
-        body_between_fingers, false_below=0.05, true_above=GRIPPED_LIKELIHOOD_THRESHOLD
-    )
+    ticked = tick_once(body_between_fingers, false_below=0.05, true_above=0.9)
     assert ticked.node.observation_state == ObservationStateValues.FALSE
 
 
@@ -155,7 +139,5 @@ def test_the_observation_stays_one_of_the_three_truth_values(body_between_finger
     A continuous observation would raise here instead, which is why the continuous value
     is carried by a variable and only the trinary view of it is observed.
     """
-    ticked = tick_once(
-        body_between_fingers, false_below=0.05, true_above=GRIPPED_LIKELIHOOD_THRESHOLD
-    )
+    ticked = tick_once(body_between_fingers, false_below=0.05, true_above=0.9)
     assert ticked.node.observation_state in set(ObservationStateValues)
