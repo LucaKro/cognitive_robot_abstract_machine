@@ -105,7 +105,7 @@ items:
     pull_request_number: 10
     track: belief-core
     status: in_progress
-    session: https://claude.ai/code/session_01Jgb6XoeNP4KFcAcb8CjqV9
+    session: https://claude.ai/code/session_01QKaPHenZW9umY47JiBjtXA
     notes: >-
       A ContextExtension holding per-quantity beliefs, following the shape
       segmind already uses (SegmindContext, detectors/base.py:36, retrieved with

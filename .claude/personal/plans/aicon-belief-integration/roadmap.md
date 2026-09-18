@@ -847,3 +847,91 @@ trigger, not history.
 CI is green on `50047b27` across the matrix, `test_each_lib (giskardpy)`
 included, so the 36 tests behind the new interface are verified rather than
 claimed.
+
+## `belief-context-and-gaussian` — second review round
+
+Two threads, both from the author, both on `beliefs/gaussian.py`, both posted
+after the round-1 close and so untouched by it. Nothing else was blocking: CI was
+23 of 23 green on `822b3e59`, the branch was level with `main` with no conflict,
+and the fork pull request carries no `in-review` label, so there is no upstream
+review to read.
+
+### The estimate and the uncertainty became types
+
+*"can these become actual datastructures instead of just numpy arrays? i think we
+talked about this in another of the open draft PRs"*
+
+Round 1 made everything a caller *hands* a belief quantity-keyed and stopped
+there; what the belief itself *holds* stayed two bare
+`npt.NDArray[np.float64]` fields. That is the half the second thread names, and
+the other draft pull request it points at is `odometry-covariance-capture` (#9),
+where the same objection produced `PoseCovariance`: a named type owning the array
+and reading it by name.
+
+`Mean` and `Covariance` follow that shape. Each carries the `Quantities` it is
+laid out by and answers by quantity rather than by row — `Mean.estimate_of`,
+`Covariance.variance_of`, and `Covariance.between` for how two quantities co-vary.
+`GaussianBelief.mean_of` and `variance_of` read through them, so nothing outside
+the module moved. The clearest gain is the one the row indices hid: a shared
+uncertainty is now asserted as `covariance.between(first, second) == 1.0` rather
+than against a nested list.
+
+The `..note::` the author asked for in round 1 still holds, and this round is why
+it is worth keeping: `predict` and `update` still do their arithmetic on plain
+numpy behind the two types, so undoing this is still a change to what the
+signatures accept rather than a rewrite of the filter.
+
+### Building a belief is a classmethod
+
+*"hmm i dont like initvars at all. use classmethods instead if you want this kind
+of initialization"*
+
+`GaussianBelief` had taken `estimates` and `uncertainty` as `InitVar`s and built
+`mean` and `covariance` from them in `__post_init__`. Both `InitVar`s are gone:
+the belief now takes the two things it holds, and `of(quantities, estimates,
+uncertainty)` builds both from the same quantities, beside the existing
+`of_one_variable`. `of` was already this module's word for a classmethod builder,
+so the vocabulary did not grow.
+
+`__post_init__` itself stays, for validation rather than construction — which is
+what `PoseCovariance` does on #9 too, and is not what the thread objected to. That
+was said on the thread, with the alternative offered: the check can move into
+`of`, at the cost of the raw constructor letting it through.
+
+### One thing the types made possible to get wrong
+
+With `Mean` and `Covariance` each carrying their own `Quantities`, a belief can be
+handed two that disagree, and then neither says anything about the other.
+`BeliefQuantitiesDisagreeError` rejects it. This is not a return of the shape
+checks round 1 removed: it names quantities rather than counting rows, and it is
+one situation rather than eight.
+
+### Two things this round settled that later items inherit
+
+- **The ORM exclusion is by package, so it scales.** `generate_orm.py` ignores
+  `classes_of_package(giskardpy.motion_statechart.beliefs)`, so `Mean` and
+  `Covariance` needed no change to that script. That was checked directly against
+  `classes_of_package` rather than assumed — regenerating the ORM still cannot run
+  in the authoring container. `estimator-node-base` adding types to this package
+  inherits the same exclusion for free.
+- **The belief tests now run in the authoring container**, for the first time on
+  this item. The blocker was never the belief code: the root `test/conftest.py`
+  imports `urdf_parser_py`, a ROS package that is not on PyPI and does not build
+  from source here. Everything else the belief layer needs installs from PyPI
+  (numpy, casadi, scipy, sqlalchemy, rustworkx, mujoco, trimesh and a handful
+  more) with the workspace packages installed `--no-deps`. Running the test file
+  from a copy outside `test/` then works, and `--noconftest` covers a fixture-free
+  file. Worth doing at the start of any later item on this plan rather than
+  writing a wave of code unverified.
+
+### Still open
+
+- Nothing is outstanding on the branch. All four review threads are resolved, and
+  the pull request stays a draft awaiting its author's own review, per this
+  repository's convention that un-drafting *is* the record of having reviewed it.
+- The branch was not this session's designated branch. The session resolving this
+  round was designated `claude/belief-integration-gaussian-8yaw8t`; the user chose
+  to keep the work on `claude/belief-integration-gaussian-zi1o82`, where the pull
+  request and its threads are. `8yaw8t` was never created and has no commits. Any
+  later session designated a fresh branch for an item that already has one should
+  ask the same question rather than opening a second pull request for one item.
