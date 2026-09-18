@@ -6,10 +6,11 @@ Based on #10's branch `claude/belief-integration-gaussian-zi1o82`, not `main` �
 re-base once #10 lands. Mode: `auto`; the settled plan and every round are in the
 plan's `roadmap.md`.
 
-## Status: restacked onto #10 and pushed (`ad9aa52b`). Conflict cleared; awaiting CI.
+## Status: restacked onto #10 and pushed (`ad9aa52b`). Stall fully cleared.
 
-`mergeable_state` went `dirty` → `unstable`. The `needs-resolution` label is still on
-#11; the stack pass clears it on its next run now that the branch merges cleanly.
+`mergeable_state` went `dirty` → `unstable`, and the `needs-resolution` label has
+already cleared on its own — the stack pass drops it once the branch merges cleanly, so
+#11 has rejoined promotion. CI re-running on the merge; every completed check green.
 
 ## Round 1 — "an actual datastructure instead of just np array"
 
@@ -65,8 +66,16 @@ inflect/lemminflect/rustworkx/sqlalchemy/ordered_set/giskardpy_bullet_bindings.
 ## Next
 
 - Watch CI on `ad9aa52b`.
-- Let the next stack pass clear `needs-resolution` and promote.
+- Let the next stack pass promote (the label is already clear).
 - After #10 lands: rebase onto `main`.
+
+## The dashboard wall is gone
+
+Every round since this item's kickoff recorded that the plan dashboard could not be
+republished — the `Artifact` tool treated it as a third-party artifact. It no longer
+does: the read returns the page source and the publish goes through, no `force`. The
+dashboard is current again. The one non-obvious step: a publish that resends content an
+earlier refusal rejected needs a second read of the artifact to confirm it.
 
 ## Deliberate non-actions
 
