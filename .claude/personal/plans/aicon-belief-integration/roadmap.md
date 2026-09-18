@@ -1169,3 +1169,136 @@ ship a state where the same concepts exist twice.
   existing 114 distribution tests pass here before any change. The giskardpy half still
   needs CI, for the reason #10 recorded — the root `test/conftest.py` imports
   `urdf_parser_py`, which is not on PyPI.
+
+The plan settled at kickoff, and the calls it makes beyond the item's recorded
+`notes`.
+
+### The base is #10's branch, and it is the only branch this one needs
+
+`motion_statechart/beliefs/` exists on `claude/belief-integration-gaussian-zi1o82`
+and nowhere else, so this item stacks on #10 and is re-based onto `main` once #10
+lands — the same call `probability-concepts-in-probabilistic-model` made. The
+dependency check reports #10 `open_ready`, so the stack is on an open, non-draft
+parent rather than on something still being drafted.
+
+`probability-concepts-in-probabilistic-model` (#11) is *not* in this item's
+dependency chain and is not in its base. It swaps `GaussianBelief`'s internals onto
+`probabilistic_model` while keeping its public interface, which is the promise that
+item's own roadmap section makes to this one — so nothing here has to wait for it or
+move when it lands. #11 touches `beliefs/context.py` not at all, so the one edit this
+item makes to that file conflicts with nothing currently in flight.
+
+### The estimator publishes its uncertainty as well as its estimate
+
+The item's `notes` ask for *"a FloatVariable for the mean"*. The node registers one
+variable per quantity for the estimate and a second one per quantity for how
+uncertain it is.
+
+The uncertainty is what the whole wave is for, and it is what a condition is actually
+written against — `odometry-covariance-capture` already publishes a variance and
+nothing else, for a condition of the form *"do not begin the final approach while the
+base is less certain than this"*. An estimator that published only its mean would hide
+the one thing that distinguishes a belief from a number, and every concrete estimator
+would then register the uncertainty variable itself, which is the duplication a base
+class exists to remove. Additive to the recorded contract rather than a departure from
+it: nothing that wanted only the mean has to change.
+
+### What a subclass states, and what the base does with it
+
+Three abstract methods, one per thing only a concrete estimator knows:
+
+- `create_initial_belief` — the prior, which also names the quantities the node is
+  about and therefore the variables it registers.
+- `create_prediction` — how the belief is expected to change over one cycle, as a
+  `Prediction` carrying the transition, the process noise and the offset
+  `GaussianBelief.predict` already takes. Abstract rather than defaulted to
+  "nothing changes, no noise": zero process noise is a belief that never grows less
+  certain, which is exactly the failure #10's `predict` docstring names, so a subclass
+  has to say what its quantity does when nobody is looking at it. `grasp-belief-node`'s
+  "decays toward the prior when the gripper is open" is the offset half of one.
+- `measure` — what the sensors reported this cycle, as #10's `Reading`s. Reporting
+  nothing is normal and leaves the estimate on prediction alone.
+
+The base owns the order — predict, measure, update, publish — so no concrete estimator
+can get the tick lifecycle wrong, which is the same shape segmind's `AbstractDetector`
+uses where `on_tick` does the shared work and delegates one abstract method.
+
+### The node observes whether it measured this cycle
+
+`grasp-likelihood-continuous`'s open review thread records that this item would face
+the *"what is my observation, then?"* question a `FloatVariable` publisher always
+faces. The answer here does not need that thread resolved: the estimator observes
+whether `measure` returned anything, true when a reading corrected it and false when
+the belief ran on prediction alone. That is the direct analogue of `PoseUncertainty`
+observing whether a pose arrived at all, it is one of the three truth values so the
+four exact-equality sites keep working, and it needs neither `trinary_logic_from_continuous`
+nor a threshold.
+
+A threshold on the estimate itself — *"is the grasp confident enough"* — is a concrete
+estimator's to observe, not the base class's, because only the concrete estimator knows
+what its quantity means. A subclass that wants it overrides `on_tick`.
+
+### There is already a general read-before-built exception
+
+`grasp-likelihood-continuous` and `odometry-covariance-capture` each appended a
+near-identical `…NotBuiltError` to `motion_statechart/exceptions.py`, and the second
+item's section records that generalizing the pair is this item's job. The
+generalization turns out to exist already: `NodeNotBuiltError` is on `main`, takes the
+node itself, and is what `ConvergingTask.error_signal` raises for exactly this case.
+
+So this item adds no exception at all — it raises `NodeNotBuiltError`, and reuses
+`VariableNotInBeliefError` for a quantity the estimator is not about. `exceptions.py`
+is therefore untouched here, which also removes this branch from the three-way
+conflict #8, #9 and #10 already have in that file. Pointing the existing two at
+`NodeNotBuiltError` is a change to their own branches rather than something this one
+can do without stacking on both.
+
+### The beliefs are wired to the statechart here
+
+#10 recorded that nothing adds a `BeliefContext` to a live context yet and that the
+wiring belongs to this item. `MotionStatechartContext` can only be asked for an
+extension in a way that raises when it is absent, or given one in a way that raises
+when it is present, so `BeliefContext.of` answers with the statechart's beliefs and
+starts it carrying them if it had none. It lives on `BeliefContext` rather than on the
+node because it is knowledge about where beliefs live, which a later goal reading a
+belief wants just as much as an estimator writing one.
+
+The belief is registered at build, which runs exactly once per compile, so the
+registration cannot be repeated by a node that is started, reset and started again.
+
+### Two estimators about one quantity is rejected where it is wired, not at 20 Hz
+
+`BeliefContext.add` already raises `DuplicateBeliefError`. Registering at build means
+a statechart holding two estimators of the same quantity fails to compile, rather than
+producing two filters that silently disagree for a whole run.
+
+### Scope boundaries held
+
+- **No concrete estimator.** `grasp-belief-node` is the first one and is a tracked item
+  of its own; the tests here drive the base class through a mimic whose readings the
+  test decides.
+- **Nothing on the critical path beyond the filter.** `float_variable_data.set_value`
+  is a write into an array and notifies nobody, so the tick cost is whatever a subclass
+  measures plus the numpy arithmetic — the node itself never touches world state and so
+  never reaches `notify_state_change`'s forward-kinematics recompute, which is the cost
+  the item's `notes` say to watch. The node keeps its own handle on the belief rather
+  than looking it up per tick, which is the same object the context holds because
+  `predict` and `update` mutate in place.
+- **Nothing added to the ORM.** `generate_orm.py` ignores
+  `classes_of_package(giskardpy.motion_statechart.beliefs)`, and `classes_of_package`
+  walks sub-modules, so a new module in that package is excluded without touching the
+  script — the inheritance #10's second round recorded, checked rather than assumed.
+
+### Assumptions and open points
+
+- **Nothing reads the published variables yet.** No goal or condition is rewritten to
+  use an estimate; `belief-weighted-open-goal` is where one is. The item asks only that
+  it become possible.
+- **The vector case is registered but not exercised by a real estimator.** A belief
+  about several quantities publishes one variable per quantity; the tests cover it, but
+  the first real multi-quantity estimator is `pose-uncertainty-through-transforms`'
+  territory rather than this plan's wave 2.
+- **The branch is the session's designated branch**,
+  `claude/plan-item-kickoff-aicon-0t046w`, rather than the `estimator-node-base` name
+  the manifest carried as a placeholder — the same correction every earlier item on this
+  plan made.
