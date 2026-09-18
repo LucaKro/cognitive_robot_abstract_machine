@@ -1,49 +1,54 @@
 # belief-context-and-gaussian — PR #10 (draft)
 
 Plan item `belief-context-and-gaussian` of `aicon-belief-integration`, wave 2,
-track *belief core*. Base `main`, no dependencies. Kickoff and resolve both ran
-in `auto` mode. Full reasoning: the item's two roadmap sections on the
-personal-notes branch, and the PR description.
+track *belief core*. Base `main`. Kickoff and both resolves ran in `auto` mode.
+Full reasoning: the item's three roadmap sections on the personal-notes branch,
+plus #10's own threads.
 
 ## State
 
-Implemented and pushed. One CI failure found and fixed. Waiting on the re-run and
-on review.
+First review round answered and pushed (`50047b27`). Waiting on CI for that
+commit, and on the author's next pass.
 
 ## Done
 
-- Belief layer: `GaussianBelief`, `Measurement`, `BeliefContext`, five exceptions,
-  34 tests. Commit `81f0aded`.
-- First CI run: 22 of 23 green, `test_each_lib (giskardpy)` among them — so the
-  belief tests *and* the ORM exclusion in `giskardpy/scripts/generate_orm.py` are
-  both confirmed, which is what the kickoff could not verify locally.
-- The one failure, `test_imported_workspace_members_are_declared[giskardpy]`, was
-  real and mine: the belief layer is giskardpy's first direct import of
-  `random_events`, which giskardpy never declared. Declared it in `[project]
-  dependencies` and in `[dependency-groups] workspace`. Commit `8e80853a`.
-  Reproduced locally first, then 21 passed; `uv sync` still resolves and
-  `random_events` still comes from the checkout.
-- PR description updated to match.
+- Belief layer, 36 tests. `81f0aded`.
+- `random_events` declared as a giskardpy dependency, after CI caught the first
+  direct import of it from giskardpy's own source. `8e80853a`.
+- **Review round 1**, both threads the same ask — proper datastructures instead of
+  bare numpy arrays, so the shape checks are unnecessary. `Quantities` now owns
+  the layout and builds every array from the belief's own variables; all eight
+  shape checks, the `BeliefArray` enum and `WrongBeliefShapeError` are gone, and
+  `predict`/`update` take quantity-keyed mappings and `Reading`s. `50047b27`.
+  Replied on both threads, including the honest downsides (per-call dict walks;
+  a caller holding a real matrix has to state it as pair entries; `Quantities`
+  fixes an order).
+- **Structural change agreed with the user**: the multivariate Gaussian,
+  covariance and `Quantities` belong in `probabilistic_model` —
+  `ProbabilisticModel` is already multivariate and variable-keyed and its
+  `conditional(point)` is the Kalman update in closed form. New item
+  `probability-concepts-in-probabilistic-model` added to `plan.yaml`, depending
+  on this one; recorded on issue #7 and answered on #10.
 
 ## Next
 
-- Watch the CI re-run on `8e80853a`. Nothing else outstanding on the branch.
-- The PR stays a draft until its author reviews it.
+- Watch CI on `50047b27`, then the author's next review pass.
+- Nothing else outstanding. The PR stays a draft until its author reviews it.
 
 ## Notes for whoever picks this up
 
-- The root `test/conftest.py` regenerates the ORM interfaces at collection, which
-  needs ROS message packages this container has not got, so
-  `scripts/regenerate_all_orm.py` fails here on a clean tree too. Two ways round
-  it: `pytest --noconftest` for a test that needs no fixtures at all (the
-  version tests), or running the file from a copy outside `test/` (the belief
-  tests).
-- Local environment: `pip install -U uv` (the repo's `pyproject.toml` needs newer
-  than the container's 0.8.17), `apt-get install graphviz libgraphviz-dev`, then
-  `uv sync --extra dev`.
-- The `random_events` declaration is a cost of naming belief dimensions with
-  `random_events` variables, not an argument against it. `estimator-node-base`
-  and `symbolic-estimator-means` inherit that import through giskardpy, which now
-  declares it.
+- The two threads are answered but **not resolved** — thread 2 asked for the
+  downsides of the change, so the author should judge whether the trade is worth
+  it before either is closed.
+- The kickoff's recorded decision *"one shape error, not four"* is reversed by
+  round 1, and *"do not force probabilistic_model to be a filter"* is partly
+  reversed by the new item. Both reversals are written up in the roadmap rather
+  than left implicit in the diff.
+- Test running here: `pytest --noconftest` for a fixture-free file (the version
+  tests), or run the file from a copy outside `test/` (the belief tests). The
+  root `test/conftest.py` regenerates the ORM interfaces at collection and needs
+  ROS message packages this container has not got.
+- Local environment: `pip install -U uv`, `apt-get install graphviz
+  libgraphviz-dev`, then `uv sync --extra dev`.
 - Nothing is being watched from here, per the standing note not to subscribe to
   PR activity.
