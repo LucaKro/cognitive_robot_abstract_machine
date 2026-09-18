@@ -2,7 +2,7 @@
 
 Plan item `odometry-covariance-capture` of `aicon-belief-integration`, wave 1,
 track *uncertainty plumbing*. No dependencies. Base: `main`.
-Roadmap section: `.claude/personal/plans/aicon-belief-integration/roadmap.md`.
+Roadmap sections: the kickoff's, plus `odometry-covariance-capture - resolution`.
 
 ## Plan
 
@@ -12,35 +12,32 @@ registered `FloatVariable` so the statechart can condition on base uncertainty.
 
 ## Done
 
-- Branch opened, draft PR #9, manifest `in_progress`, roadmap section written.
-- `PoseCovariance` + `PoseAxis` + `PoseCovarianceSource` in
-  `motion_statechart/pose_covariance.py`.
-- `CovarianceNotSixBySixError` and `PoseUncertaintyNotBuiltError` appended to
-  `motion_statechart/exceptions.py`.
-- `OdometrySynchronizer` implements `PoseCovarianceSource`, keeping the
-  covariance of the message it applied.
-- `PoseUncertainty` node in `monitors/uncertainty_monitors.py`, priming to
-  infinity so an unread covariance never reads as certainty.
-- 17 tests across three files. Implementation committed and pushed; PR
-  description updated to match.
+- `PoseCovariance` + `PoseAxis` + `PoseCovarianceSource`, the two exceptions,
+  `OdometrySynchronizer` implementing the source, and the `PoseUncertainty` node
+  priming to infinity. Committed and pushed as `28dc12c2`.
+- CI verified all 17 tests: `test_each_lib (giskardpy)` = 823 passed, 1 failed,
+  and that failure is not in this diff.
+- The kickoff's one flagged risk is closed: `message_type()` still returns
+  `Odometry` with the second base class, confirmed by two passing tests.
+- Re-ran the failed jobs once (run 35315156655) - the one red check is the known
+  flaky `test_attached_self_collision_avoid_stick`. Test not touched.
+- Roadmap resolution section written, PR description brought up to date.
 
 ## Next
 
-- Nothing outstanding on the branch. Waiting on CI.
-- If CI is red, the first suspect is `OdometrySynchronizer`'s second base class
-  interacting with `SubClassSafeGeneric.get_generic_type_parameters` - i.e.
-  whether `message_type()` still returns `Odometry`. Reasoned through the
-  `__orig_bases__` walk (non-parameterized bases are skipped) but could not
-  execute it.
+- Nothing on the branch. Awaiting the author's own review; un-drafting is what
+  records that, per the repo convention. PR stays a draft until then.
+- If the re-run comes back red on the same test again, that is worth a second
+  look rather than a third re-run - one re-run is the limit already spent.
 
 ## Notes
 
-- Container limits: `random_events` will not build (antlr4 wheel failure), and
-  there is no `rclpy`. Installed numpy/casadi/scipy/pytest etc. and verified the
-  7 `PoseCovariance` tests against the real module source with the exceptions
-  module stubbed; everything else is CI-verified only.
-- Overlaps #8 on `motion_statechart/exceptions.py` only (each appends its own
-  read-before-built exception). Deliberately does not use #8's
-  `trinary_logic_from_continuous` - no declared dependency on it.
+- Container limits (unchanged): `random_events` will not build here (antlr4
+  wheel failure) and there is no `rclpy`, so local runs are limited to the 7
+  `PoseCovariance` tests against the module source with exceptions stubbed.
+- Three branches now append to `motion_statechart/exceptions.py`: this one, #8
+  and #10. Whichever lands second and third resolves that file.
+- No review threads, no PR comments, no tracking-issue discussion, no conflict;
+  branch level with `main`.
 - Subscribing to tracking issue #7 was denied by the permission classifier.
 - Per personal notes, this session does not watch the PR.
