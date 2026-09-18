@@ -2713,3 +2713,125 @@ restack recorded: `test/giskardpy_test/conftest.py` imports `rclpy` through
   recorded. Nothing here touches it.
 - **The branch carries two parents** until #11 and #13 both land, so the pull
   request's diff reads wider than the change it makes.
+
+## `grasp-belief-node` — what the implementation settled
+
+What the implementation settled that the kickoff plan did not anticipate.
+
+### An exception was added after all, and the boundary was wrong to claim
+
+The kickoff recorded *"no exception is added"*, and named that as what kept this
+branch out of the append-at-the-tail collision in
+`motion_statechart/exceptions.py` that every other item on this plan has had to
+resolve.
+
+That did not survive reading the code back. A prior probability of exactly zero or
+one has no log-odds, and no reading could ever move a belief that starts there. The
+kickoff's design failed it with `ZeroDivisionError` from the middle of
+`create_initial_belief`, while the statechart was compiling — an illegal state
+reported by an arithmetic accident rather than by anything that says what is wrong.
+`CertainPriorError` rejects it in `__post_init__`, where the node is written.
+
+So this branch is in that collision after all, and the standing warning applies to
+it: any two edits at that file's tail conflict, additions and deletions alike.
+
+### The node reaches into nothing the base class keeps private
+
+Two places first read `EstimatorNode._belief` — a private field of the parent — to
+get the quantities for the prediction's transition and the mean for the published
+probability. Both had an answer in the public interface:
+
+- The transition of a one-quantity belief expected to stay put is
+  `{(grasp, grasp): 1.0}`, which needs no belief to state.
+- The probability is read off `estimate_variable_of(grasp)`, the variable the base
+  class has just published. That is not only public but stronger: the two variables
+  now describe one number by construction rather than by two reads of the same
+  belief agreeing, and the test asserting that they mean the same thing tests a
+  guarantee rather than a coincidence.
+
+### The prior was being rebuilt at the control rate
+
+`create_prediction` called `create_initial_belief` every cycle purely to recover the
+prior's log-odds, building a whole `GaussianBelief` and its `Quantities` to read one
+number back out — on the critical path the item's own `notes` say to watch. It is a
+`prior_log_odds` property now, and `create_initial_belief` reads the same one.
+
+### The assertions were checked by breaking the code
+
+Following `estimator-node-base`'s practice. Six mutations, each confirming which
+tests are load-bearing and that no test falls over for a reason it does not name:
+
+| Mutation | Tests that fail |
+|---|---|
+| No half-count correction | the two extreme-measurement tests, and the one on the corrected counts |
+| Measurement variance ignores the ray count | the more-rays-scatter-less test alone |
+| Drift stated per cycle | the drift-in-seconds test alone |
+| Half-life counted in cycles | the half-life-in-seconds test alone |
+| Observes whether it measured rather than the threshold | the false and unknown observation tests |
+| The prior is not published at start | the prior test, and the unknown observation test |
+
+Two of these are worth recording rather than just counting.
+
+The first draft had no test for the drift's units at all: stating it per cycle
+instead of per second passed everything. The half-life had a test only because the
+same question had already been asked of it. Both are now pinned the same way —
+against two configured control rates, comparing what `create_prediction` produces at
+each, rather than against a second copy of the formula the code is written in.
+
+The two observation tests originally drove the node with measurements of every ray
+hitting and none hitting, and so failed under the half-count mutation for arithmetic
+reasons rather than for anything about thresholds. They use ordinary measurements
+now, so each fails only for its own reason.
+
+The one mutation that does *not* fail a test is the true observation: the base class
+also reports true on a cycle it measured, so no test can tell the two mechanisms
+apart there. The false and unknown cases can, and do.
+
+### Verification
+
+The giskardpy half runs in this container, as `estimator-node-base` found and the
+restack rounds extended. The recipe that worked here, for the next round:
+
+- The PyPI wheel of `random_events` for its compiled `random_events_lib`, with the
+  checkout's own `random_events/src` on `PYTHONPATH` — the workspace source does not
+  build here, and without the wheel it raises `module 'random_events_lib' has no
+  attribute 'reals'`.
+- `urdf_parser_py` from its sdist's package directory and `xacro` from its wheel,
+  both copied onto `site-packages`, since neither builds against this container's
+  setuptools. `semantic_digital_twin.api` imports both, so nothing that reaches a
+  `World` collects without them.
+- Every workspace package's `src/` on `PYTHONPATH` rather than an editable install,
+  and `--noconftest` past the root `conftest.py`'s ORM build.
+
+The collectible `test_motion_statechart` suite is 223 passed, 4 failed, 111 errors
+with this change and 200 passed with exactly the same 115 failures and errors
+without it — compared as sorted lists rather than as counts. The difference is
+exactly this item's 23 tests. The failures are the container's `rclpy` and
+`coraplex` walls reached through `--noconftest`, not this diff's.
+
+`test/version_test` is 20 passed, including
+`test_imported_workspace_members_are_declared[giskardpy]`: `scipy` is already in
+giskardpy's dependencies and no new workspace sibling is imported. The one failure,
+`test_all_package_versions_match_root_version`, wants a locally installed
+`coraplex`, as `belief-context-and-gaussian`'s restack also recorded.
+
+### Still open
+
+- **`GraspLikelihoodSource` is not in `generate_orm.py`'s `ignore_classes`.** It
+  lives in `motion_statechart/` rather than in the `beliefs/` package the exclusion
+  covers, so `ORMatic.from_package([giskardpy])` will map it. It is a field-less
+  abstract dataclass, which `pose-uncertainty-through-transforms` records as mapping
+  harmlessly, and `odometry-covariance-capture`'s `PoseCovarianceSource` is the same
+  shape unignored on a branch whose CI is green. That is evidence rather than proof:
+  regenerating the ORM needs the ROS message packages this container has not got, so
+  CI is what confirms it.
+- **Nothing was reviewed**, and the pull request stays a draft awaiting its author's
+  own review, per this repository's convention that un-drafting *is* that record.
+- **The two published variables are not read by anything yet.**
+  `belief-weighted-open-goal` is the item that reads them, and is what the
+  probability variable exists for.
+- **The belief is still not validated against contact state**, which is the plan's
+  standing caveat and `belief-drawer-experiment`'s job.
+- **The tracking-issue subscription was refused** by this session's permission mode,
+  as on every earlier round on this plan. Issue #7 was not read this round; nothing
+  in the manifest suggests a structural change since the item was created.
