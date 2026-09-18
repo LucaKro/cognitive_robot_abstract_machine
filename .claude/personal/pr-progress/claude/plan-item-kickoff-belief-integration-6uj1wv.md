@@ -25,8 +25,17 @@ the plan's `roadmap.md` under this item, in two sections.
   `GraspLikelihoodSource` maps cleanly - it sits outside the `beliefs/` package
   `generate_orm.py` excludes. If `test_each_lib (giskardpy)` goes red on the
   generated interface, add it to `ignore_classes`.
-- Republish the dashboard: `/plan-dashboard aicon-belief-integration`.
 - The pull request stays a draft until its author has reviewed it.
+- Republish the dashboard. It was rebuilt this round (no drift, no
+  auto-corrections) but could not be published: the cached artifact
+  `WCfARob6AeALaMcNBCwmm8` does not appear in this account's `Artifact` listing
+  at all, under either `mine` or `shared`, so a read comes back as an isolated
+  third-party summary rather than the page source and the publish precondition
+  can never be met. Forcing was not attempted - a session working
+  `pose-covariance-on-shared-quantities` opened #15 during this run, so a
+  concurrent publish is a live possibility and `force: true` would discard it.
+  This needs the user to decide: overwrite, or mint a fresh dashboard and
+  repoint the cache.
 
 ## Container recipe that worked here
 
