@@ -750,3 +750,37 @@ class DuplicateBeliefError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Update the belief that is already there instead of adding a second one."
+
+
+@dataclass
+class BeliefQuantitiesDisagreeError(MotionStatechartError):
+    """
+    Raised when a belief is built from an estimate and an uncertainty that are laid out
+    by different quantities.
+    """
+
+    mean_variables: List[Continuous]
+    """
+    The quantities the estimate is laid out by.
+    """
+
+    covariance_variables: List[Continuous]
+    """
+    The quantities the uncertainty is laid out by.
+    """
+
+    def error_message(self) -> str:
+        estimated = ", ".join(variable.name for variable in self.mean_variables)
+        uncertain_about = ", ".join(
+            variable.name for variable in self.covariance_variables
+        )
+        return (
+            f"A belief estimating {estimated} cannot carry an uncertainty about "
+            f"{uncertain_about}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Build the belief with GaussianBelief.of(), which lays the estimate and "
+            "the uncertainty out by the same quantities."
+        )

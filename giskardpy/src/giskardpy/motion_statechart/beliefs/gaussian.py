@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
@@ -8,6 +8,7 @@ from random_events.variable import Continuous
 from typing_extensions import Dict, List, Mapping, Optional, Self, Tuple
 
 from giskardpy.motion_statechart.exceptions import (
+    BeliefQuantitiesDisagreeError,
     RepeatedVariableInBeliefError,
     VariableNotInBeliefError,
 )
@@ -127,6 +128,97 @@ class Quantities:
         return {(variable, variable): 1.0 for variable in self.variables}
 
 
+# %% the estimate and the uncertainty a belief holds
+
+
+@dataclass
+class Mean:
+    """
+    What each of a belief's quantities is currently estimated at.
+    """
+
+    quantities: Quantities
+    """
+    The quantities these estimates are laid out by.
+    """
+
+    values: npt.NDArray[np.float64]
+    """
+    The estimate of each of them, in that layout.
+    """
+
+    @classmethod
+    def of(cls, quantities: Quantities, estimates: Mapping[Continuous, float]) -> Self:
+        """
+        :param quantities: The quantities being estimated.
+        :param estimates: What each of them is estimated at; one left out is zero.
+        :return: Those estimates, laid out by those quantities.
+        :raises VariableNotInBeliefError: If an estimate names a quantity that is not
+            one of them.
+        """
+        return cls(quantities=quantities, values=quantities.vector(estimates))
+
+    def estimate_of(self, variable: Continuous) -> float:
+        """
+        :param variable: The quantity to read.
+        :return: What it is estimated at.
+        :raises VariableNotInBeliefError: If it is not one of these quantities.
+        """
+        return float(self.values[self.quantities.index_of(variable)])
+
+
+@dataclass
+class Covariance:
+    """
+    How uncertain a belief's estimates are, and how far their errors move together.
+    """
+
+    quantities: Quantities
+    """
+    The quantities this uncertainty is laid out by.
+    """
+
+    values: npt.NDArray[np.float64]
+    """
+    The uncertainty of each pair of them, in that layout, with a quantity paired with
+    itself being its own variance.
+    """
+
+    @classmethod
+    def of(
+        cls, quantities: Quantities, uncertainty: Mapping[QuantityPair, float]
+    ) -> Self:
+        """
+        :param quantities: The quantities being estimated.
+        :param uncertainty: How uncertain each pair of them is; one left out is zero.
+        :return: That uncertainty, laid out by those quantities.
+        :raises VariableNotInBeliefError: If an entry names a quantity that is not one
+            of them.
+        """
+        return cls(
+            quantities=quantities, values=quantities.symmetric_matrix(uncertainty)
+        )
+
+    def variance_of(self, variable: Continuous) -> float:
+        """
+        :param variable: The quantity to read.
+        :return: How uncertain its estimate is on its own.
+        :raises VariableNotInBeliefError: If it is not one of these quantities.
+        """
+        return self.between(variable, variable)
+
+    def between(self, first: Continuous, second: Continuous) -> float:
+        """
+        :param first: One of the quantities.
+        :param second: The other one.
+        :return: How far their errors move together.
+        :raises VariableNotInBeliefError: If either is not one of these quantities.
+        """
+        row = self.quantities.index_of(first)
+        column = self.quantities.index_of(second)
+        return float(self.values[row, column])
+
+
 # %% what a sensor reported
 
 
@@ -183,39 +275,59 @@ class GaussianBelief:
     the same estimate.
     """
 
-    quantities: Quantities
+    mean: Mean
     """
-    The quantities this belief is about.
-    """
-
-    estimates: InitVar[Mapping[Continuous, float]]
-    """
-    The estimate to start each quantity at; one left out starts at zero.
+    What each quantity is currently estimated at.
     """
 
-    uncertainty: InitVar[Mapping[QuantityPair, float]]
+    covariance: Covariance
     """
-    How uncertain those estimates are: a quantity paired with itself is its own
-    variance, and two different quantities are how far their errors move together.
-    """
-
-    mean: npt.NDArray[np.float64] = field(init=False)
-    """
-    The current estimate of each quantity, laid out by :attr:`quantities`.
+    How uncertain those estimates are.
     """
 
-    covariance: npt.NDArray[np.float64] = field(init=False)
-    """
-    How uncertain that estimate is, in the same layout.
-    """
+    def __post_init__(self):
+        """
+        :raises BeliefQuantitiesDisagreeError: If the estimate and the uncertainty are
+            laid out by different quantities, in which case neither says anything about
+            the other.
+        """
+        if self.mean.quantities != self.covariance.quantities:
+            raise BeliefQuantitiesDisagreeError(
+                mean_variables=list(self.mean.quantities),
+                covariance_variables=list(self.covariance.quantities),
+            )
 
-    def __post_init__(
-        self,
+    @property
+    def quantities(self) -> Quantities:
+        """
+        :return: The quantities this belief is about.
+        """
+        return self.mean.quantities
+
+    @classmethod
+    def of(
+        cls,
+        quantities: Quantities,
         estimates: Mapping[Continuous, float],
         uncertainty: Mapping[QuantityPair, float],
-    ):
-        self.mean = self.quantities.vector(estimates)
-        self.covariance = self.quantities.symmetric_matrix(uncertainty)
+    ) -> Self:
+        """
+        Build a belief about several quantities at once.
+
+        :param quantities: The quantities being estimated.
+        :param estimates: The estimate to start each of them at; one left out starts at
+            zero.
+        :param uncertainty: How uncertain those estimates are: a quantity paired with
+            itself is its own variance, and two different quantities are how far their
+            errors move together.
+        :return: The belief about them.
+        :raises VariableNotInBeliefError: If either names a quantity that is not one of
+            them.
+        """
+        return cls(
+            mean=Mean.of(quantities, estimates),
+            covariance=Covariance.of(quantities, uncertainty),
+        )
 
     @classmethod
     def of_one_variable(
@@ -229,7 +341,7 @@ class GaussianBelief:
         :param variance: How uncertain that starting estimate is.
         :return: The belief about it.
         """
-        return cls(
+        return cls.of(
             quantities=Quantities.of(variable),
             estimates={variable: mean},
             uncertainty={(variable, variable): variance},
@@ -240,15 +352,14 @@ class GaussianBelief:
         :param variable: The quantity to read.
         :return: Its current estimate.
         """
-        return float(self.mean[self.quantities.index_of(variable)])
+        return self.mean.estimate_of(variable)
 
     def variance_of(self, variable: Continuous) -> float:
         """
         :param variable: The quantity to read.
         :return: How uncertain its estimate is.
         """
-        index = self.quantities.index_of(variable)
-        return float(self.covariance[index, index])
+        return self.covariance.variance_of(variable)
 
     def predict(
         self,
@@ -274,12 +385,17 @@ class GaussianBelief:
         """
         if offset is None:
             offset = {}
-        transition_matrix = self.quantities.matrix(transition)
+        quantities = self.quantities
+        transition_matrix = quantities.matrix(transition)
 
-        self.mean = transition_matrix @ self.mean + self.quantities.vector(offset)
-        self.covariance = (
-            transition_matrix @ self.covariance @ transition_matrix.T
-            + self.quantities.symmetric_matrix(process_noise)
+        self.mean = Mean(
+            quantities=quantities,
+            values=transition_matrix @ self.mean.values + quantities.vector(offset),
+        )
+        self.covariance = Covariance(
+            quantities=quantities,
+            values=transition_matrix @ self.covariance.values @ transition_matrix.T
+            + quantities.symmetric_matrix(process_noise),
         )
 
     def update(self, readings: List[Reading]) -> None:
@@ -303,18 +419,26 @@ class GaussianBelief:
         if not readings:
             return
 
+        quantities = self.quantities
+        mean = self.mean.values
+        covariance = self.covariance.values
+
         model = np.array(
-            [self.quantities.vector(reading.contributions) for reading in readings]
+            [quantities.vector(reading.contributions) for reading in readings]
         )
         reported = np.array([reading.value for reading in readings])
         noise = np.diag([reading.variance for reading in readings])
 
-        predicted_reading = model @ self.mean
-        prediction_error_covariance = model @ self.covariance @ model.T + noise
-        gain = self.covariance @ model.T @ np.linalg.inv(prediction_error_covariance)
-        uncorrected = np.eye(len(self.quantities)) - gain @ model
+        predicted_reading = model @ mean
+        prediction_error_covariance = model @ covariance @ model.T + noise
+        gain = covariance @ model.T @ np.linalg.inv(prediction_error_covariance)
+        uncorrected = np.eye(len(quantities)) - gain @ model
 
-        self.mean = self.mean + gain @ (reported - predicted_reading)
-        self.covariance = (
-            uncorrected @ self.covariance @ uncorrected.T + gain @ noise @ gain.T
+        self.mean = Mean(
+            quantities=quantities,
+            values=mean + gain @ (reported - predicted_reading),
+        )
+        self.covariance = Covariance(
+            quantities=quantities,
+            values=uncorrected @ covariance @ uncorrected.T + gain @ noise @ gain.T,
         )
