@@ -13,16 +13,10 @@ from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.exceptions import PoseUncertaintyNotBuiltError
-from giskardpy.motion_statechart.monitors.uncertainty_monitors import (
-    UNCERTAINTY_WITHOUT_A_READING,
-    PoseUncertainty,
-)
+from giskardpy.motion_statechart.monitors.uncertainty_monitors import PoseUncertainty
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from giskardpy.motion_statechart.pose_covariance import (
-    PoseAxis,
-    PoseCovariance,
-    PoseCovarianceSource,
-)
+from giskardpy.motion_statechart.pose_covariance_source import PoseCovarianceSource
+from semantic_digital_twin.spatial_types import PoseAxis, PoseCovariance
 from semantic_digital_twin.world import World
 
 # %% a source whose covariance the test decides
@@ -52,10 +46,10 @@ def covariance_of_total_variance(total_variance: float) -> PoseCovariance:
     :param total_variance: The total the axes should sum to.
     :return: The covariance with that total.
     """
-    entries = np.zeros((len(PoseAxis), len(PoseAxis)), dtype=np.float64)
+    values = np.zeros((len(PoseAxis), len(PoseAxis)), dtype=np.float64)
     for axis in PoseAxis:
-        entries[axis, axis] = total_variance / len(PoseAxis)
-    return PoseCovariance.from_row_major(entries.reshape(-1))
+        values[axis, axis] = total_variance / len(PoseAxis)
+    return PoseCovariance(values=values)
 
 
 # %% running a single node
@@ -90,15 +84,18 @@ class TickedPoseUncertainty:
         return self.context.float_variable_data.get_value(self.node.total_variance)
 
 
-def tick_once(world: World, source: PoseCovarianceSource) -> TickedPoseUncertainty:
+def tick_once(
+    world: World, source: PoseCovarianceSource, **node_arguments
+) -> TickedPoseUncertainty:
     """
     Builds a statechart holding a single pose uncertainty node and ticks it once.
 
     :param world: The world the statechart is executed in.
     :param source: The source of the covariance the node publishes.
+    :param node_arguments: Further arguments for the node under test.
     :return: The ticked node, its context and its executor.
     """
-    node = PoseUncertainty(source=source)
+    node = PoseUncertainty(source=source, **node_arguments)
     motion_statechart = MotionStatechart()
     motion_statechart.add_node(node)
     context = MotionStatechartContext(world=world)
@@ -130,7 +127,19 @@ def test_a_pose_that_was_never_observed_is_maximally_uncertain(mini_world):
     """
     ticked = tick_once(mini_world, RecordedPoseCovariance())
 
-    assert ticked.published_variance == UNCERTAINTY_WITHOUT_A_READING
+    assert ticked.published_variance == np.inf
+
+
+def test_a_caller_may_say_how_uncertain_an_unobserved_pose_is(mini_world):
+    """
+    A caller that can bound the uncertainty before the first reading may say so, rather
+    than being stuck with a value no comparison can narrow.
+    """
+    ticked = tick_once(
+        mini_world, RecordedPoseCovariance(), uncertainty_without_a_reading=12.5
+    )
+
+    assert ticked.published_variance == ticked.node.uncertainty_without_a_reading
 
 
 def test_a_later_observation_replaces_the_published_value(mini_world):

@@ -9,17 +9,8 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.exceptions import PoseUncertaintyNotBuiltError
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode, NodeArtifacts
-from giskardpy.motion_statechart.pose_covariance import PoseCovarianceSource
+from giskardpy.motion_statechart.pose_covariance_source import PoseCovarianceSource
 from krrood.symbolic_math.symbolic_math import FloatVariable
-
-UNCERTAINTY_WITHOUT_A_READING: float = np.inf
-"""
-The uncertainty published while no pose has been observed yet.
-
-Nothing has been measured, so the pose is as uncertain as it can be. Zero would be the
-one wrong answer: it reads as perfect certainty, and a condition that waits for the
-uncertainty to fall would pass before the first message arrives.
-"""
 
 
 @dataclass(eq=False, repr=False)
@@ -37,6 +28,15 @@ class PoseUncertainty(MotionStatechartNode):
     source: PoseCovarianceSource = field(kw_only=True)
     """
     Whatever receives the poses whose uncertainty is published.
+    """
+
+    uncertainty_without_a_reading: float = field(default=np.inf, kw_only=True)
+    """
+    The uncertainty published while no pose has been observed yet.
+
+    Nothing has been measured, so the default says the pose is as uncertain as it can
+    be. Zero is the one wrong answer: it reads as perfect certainty, and a condition
+    that waits for the uncertainty to fall would pass before the first message arrives.
     """
 
     _total_variance: Optional[FloatVariable] = field(
@@ -83,7 +83,7 @@ class PoseUncertainty(MotionStatechartNode):
         context.float_variable_data.set_value(
             self.total_variance,
             (
-                UNCERTAINTY_WITHOUT_A_READING
+                self.uncertainty_without_a_reading
                 if covariance is None
                 else covariance.total_variance
             ),

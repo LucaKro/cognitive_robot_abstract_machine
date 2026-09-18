@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 import geometry_msgs.msg as geometry_msgs
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker
@@ -15,6 +17,8 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
+    PoseAxis,
+    PoseCovariance,
     Vector3,
     Quaternion,
 )
@@ -253,3 +257,24 @@ class MeshMarkerToSemDTConverter(Ros2ToSemDTConverter[Marker, Mesh]):
             data.header.frame_id
         )
         return result
+
+
+@dataclass
+class PoseWithCovarianceToSemDTConverter(
+    Ros2ToSemDTConverter[geometry_msgs.PoseWithCovariance, PoseCovariance]
+):
+    """
+    Reads how uncertain a reported pose is.
+
+    ROS stores that covariance as one flat row-major sequence over the six axes; knowing
+    that layout is this adapter's job, so :class:`PoseCovariance` does not carry it.
+    """
+
+    @classmethod
+    def convert(
+        cls, data: geometry_msgs.PoseWithCovariance, world: World
+    ) -> PoseCovariance:
+        side = len(PoseAxis)
+        return PoseCovariance(
+            values=np.asarray(data.covariance, dtype=np.float64).reshape(side, side)
+        )

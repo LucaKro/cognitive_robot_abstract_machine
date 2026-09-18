@@ -1840,3 +1840,30 @@ class ExerciseVerificationFailed(UsageError):
 
     def suggest_correction(self) -> str:
         return "revisit the task description of this exercise and adjust your solution."
+
+
+@dataclass
+class PoseCovarianceNotSixBySixError(DataclassException):
+    """
+    Raised when a pose covariance is built from a matrix that does not relate all six
+    degrees of freedom of a pose to each other.
+    """
+
+    given_shape: tuple
+    """
+    The shape of the matrix that was given.
+    """
+
+    expected_shape: tuple
+    """
+    The shape a pose covariance has.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A pose covariance relates the six degrees of freedom of a pose, so it "
+            f"has shape {self.expected_shape}, but {self.given_shape} was given."
+        )
+
+    def suggest_correction(self) -> str:
+        return "reshape the covariance so that it has one row and column per axis."

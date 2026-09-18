@@ -14,6 +14,7 @@ from semantic_digital_twin.adapters.ros.semdt_to_ros2_converters import (
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
+    PoseAxis,
     Vector3,
     Quaternion,
 )
@@ -267,3 +268,48 @@ def test_convert_mesh_shape(cylinder_bot_world):
 
     shape2 = SemDTToRos2Converter.convert(mesh2)
     assert shape == shape2
+
+
+# %% how uncertain a reported pose is
+
+
+def pose_with_covariance_counting_up() -> geometry_msgs.PoseWithCovariance:
+    """
+    A pose whose covariance entry at row ``i`` and column ``j`` is ``i * 6 + j``, so a
+    transposed read is visible.
+    """
+    message = geometry_msgs.PoseWithCovariance()
+    for index in range(len(PoseAxis) * len(PoseAxis)):
+        message.covariance[index] = float(index)
+    return message
+
+
+def test_convert_pose_covariance_reads_the_entries_row_by_row(cylinder_bot_world):
+    """
+    ROS stores the covariance flat and row-major, and knowing that is the adapter's job.
+    """
+    message = pose_with_covariance_counting_up()
+
+    covariance = Ros2ToSemDTConverter.convert(message, world=cylinder_bot_world)
+
+    assert covariance.values[PoseAxis.POSITION_X, PoseAxis.ROTATION_Z] == float(
+        PoseAxis.POSITION_X * len(PoseAxis) + PoseAxis.ROTATION_Z
+    )
+    assert covariance.values[PoseAxis.ROTATION_Z, PoseAxis.POSITION_X] == float(
+        PoseAxis.ROTATION_Z * len(PoseAxis) + PoseAxis.POSITION_X
+    )
+
+
+def test_convert_pose_covariance_puts_each_axis_variance_on_its_own_axis(
+    cylinder_bot_world,
+):
+    message = geometry_msgs.PoseWithCovariance()
+    variance_of_axis = {axis: float(axis) + 1.0 for axis in PoseAxis}
+    for axis, variance in variance_of_axis.items():
+        message.covariance[axis * len(PoseAxis) + axis] = variance
+
+    covariance = Ros2ToSemDTConverter.convert(message, world=cylinder_bot_world)
+
+    for axis, variance in variance_of_axis.items():
+        assert covariance.variance_of(axis) == variance, axis
+    assert covariance.total_variance == sum(variance_of_axis.values())

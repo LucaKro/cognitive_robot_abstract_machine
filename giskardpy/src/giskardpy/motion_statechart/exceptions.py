@@ -666,33 +666,6 @@ class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
 
 
 @dataclass
-class CovarianceNotSixBySixError(MotionStatechartError):
-    """
-    Raised when a pose covariance is read from a sequence that does not hold the 36
-    entries of a six by six matrix.
-    """
-
-    given_size: int
-    """
-    How many entries the sequence held.
-    """
-
-    expected_size: int
-    """
-    How many entries a pose covariance has.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"A pose covariance has {self.expected_size} entries, but "
-            f"{self.given_size} were given."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Pass the covariance of a pose, row by row, without reshaping it first."
-
-
-@dataclass
 class PoseUncertaintyNotBuiltError(MotionStatechartError):
     """
     Raised when the uncertainty of a pose is read before the node that publishes it has
