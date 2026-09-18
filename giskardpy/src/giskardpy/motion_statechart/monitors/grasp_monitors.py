@@ -7,6 +7,7 @@ from typing_extensions import Optional
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.exceptions import GraspLikelihoodNotBuiltError
+from giskardpy.motion_statechart.grasp_likelihood_source import GraspLikelihoodSource
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode, NodeArtifacts
 from krrood.symbolic_math.symbolic_math import (
     FloatVariable,
@@ -18,7 +19,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
-class GraspLikelihood(MotionStatechartNode):
+class GraspLikelihood(MotionStatechartNode, GraspLikelihoodSource):
     """
     Publishes how strongly a body is currently held by a gripper, as a continuous
     quantity rather than a yes or no.

@@ -830,3 +830,27 @@ class BeliefQuantitiesDisagreeError(MotionStatechartError):
             "Build the belief with GaussianBelief.of(), which lays the estimate and "
             "the uncertainty out by the same quantities."
         )
+
+
+@dataclass
+class CertainPriorError(MotionStatechartError):
+    """
+    Raised when an estimator is given a prior that already rules the outcome in or out.
+    """
+
+    probability: float
+    """
+    The probability that was given.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A prior probability of {self.probability} is certain, so it has no "
+            f"log-odds and no reading could ever change it."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give a prior strictly between 0 and 1. A belief that is allowed to be "
+            "wrong is what makes the evidence worth collecting."
+        )
