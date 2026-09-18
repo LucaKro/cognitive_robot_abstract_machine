@@ -66,10 +66,11 @@ items:
 
   - id: odometry-covariance-capture
     title: Stop discarding the odometry pose covariance
-    branch: odometry-covariance-capture
-    pull_request_number: null
+    branch: claude/jolly-edison-k0zkiq
+    pull_request_number: 9
     track: uncertainty-plumbing
-    status: not_started
+    status: in_progress
+    session: https://claude.ai/code/session_01JziQZTMtT3k4wuoBg4B6TG
     notes: >-
       OdometrySynchronizer.apply_message (input_synchronization.py:266) reads
       message.pose.pose and never touches message.pose.covariance, dropping all
