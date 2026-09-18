@@ -47,12 +47,45 @@ compatible with a giskard observation today" and flagged only `is_unknown()`.
 
 ## Status
 
+All steps implemented and pushed as commit `b5c4a811`. PR #8 still draft.
+
 - [x] Branch, draft PR #8, manifest (`open`), roadmap section (`record`)
-- [ ] Step 1 — trinary helper
-- [ ] Step 2 — threshold constant
-- [ ] Step 3 — GraspLikelihood node
-- [ ] Step 4 — shared fixture
-- [ ] Step 5 — tests, formatting, push
+- [x] Step 1 — `trinary_logic_from_continuous` + `ThresholdsOutOfOrderError`
+- [x] Step 2 — `GRIPPED_LIKELIHOOD_THRESHOLD`, used in sdt and coraplex
+- [x] Step 3 — `GraspLikelihood` in `monitors/grasp_monitors.py`
+- [x] Step 4 — `body_between_fingers` fixture in `test/conftest.py`,
+      `test_predicates.py::test_is_body_in_gripper` refactored onto it
+- [x] Step 5 — formatted, committed, pushed, PR description updated
+
+## Verification state — read this before trusting the branch
+
+- krrood symbolic-math tests: **run and passing** in a minimal venv
+  (numpy/casadi/sqlalchemy only), 285 passed. 3 failures in that file
+  (`test_jacobian_dot`, `test_jacobian_ddot`,
+  `test_error_holding_a_variable_is_not_json_serializable`) are pre-existing —
+  confirmed identical on a stashed clean tree.
+- giskardpy + semantic_digital_twin tests: **not executed**. This container has
+  no numpy/casadi/trimesh installed, and `uv sync` fails (repo pyproject needs a
+  newer uv than 0.8.17, and pygraphviz needs system graphviz headers that
+  aren't present). The 8 node tests and the refactored predicate test are
+  CI-verified only. First CI run deserves a close look.
+
+## Design calls made (recorded so they aren't re-litigated)
+
+- `false_below` is a required field; only `true_above` gets a default, because
+  `GRIPPED_LIKELIHOOD_THRESHOLD` is established and nothing in the codebase
+  says where "definitely not held" sits.
+- Node measures in `on_start` as well as `on_tick`: `tick()` evaluates the
+  observation expression *before* running nodes, so priming avoids reading an
+  unset variable on the first observation.
+- A monitor-only statechart compiles fine — `_compile_qp_controller` returns
+  early when there are no constraints, so no EndMotion or DOF is needed.
+
+## Next
+
+Nothing outstanding on this item beyond CI. If CI is red, the likely suspects
+are the new giskard test's statechart setup, or the `body_between_fingers`
+fixture's placement in the root conftest.
 
 ## Watch out
 
