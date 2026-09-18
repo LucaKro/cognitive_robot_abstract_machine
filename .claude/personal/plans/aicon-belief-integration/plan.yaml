@@ -151,6 +151,11 @@ items:
       log_truncated (a truncated correlated Gaussian is not Gaussian, so it
       cannot return Self). Once it exists, swap GaussianBelief's internals onto
       it; the interface is already variable-keyed, so no dependent has to move.
+      Both review threads are resolved, including the one about numpy arrays on
+      ProbabilisticModel's own abstract signatures, which the roadmap recorded as
+      left open for the author. The item's remaining history is the restack onto
+      its parent: the stack pass could not integrate #10's own restack and
+      labelled #11 needs-resolution, which is resolved in ad9aa52b.
 
   - id: pose-covariance-on-shared-quantities
     title: Lay a pose covariance out with the shared quantity layout

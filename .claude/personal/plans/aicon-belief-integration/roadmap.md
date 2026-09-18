@@ -177,6 +177,8 @@ past a tutorial.
   `LucaKro/cognitive_robot_abstract_machine` and is where every branch and PR in
   this plan lives.
 
+## `grasp-likelihood-continuous`
+
 The plan settled at kickoff, and the one correction it makes to the item's own
 recorded `notes`.
 
@@ -1062,6 +1064,8 @@ a transposed read is still visible.
   where the pull request and its threads are — the same call
   `belief-context-and-gaussian` records making one round earlier.
 
+## `probability-concepts-in-probabilistic-model`
+
 The plan settled at kickoff, and the calls it makes beyond the item's recorded
 `notes`.
 
@@ -1169,6 +1173,8 @@ ship a state where the same concepts exist twice.
   existing 114 distribution tests pass here before any change. The giskardpy half still
   needs CI, for the reason #10 recorded — the root `test/conftest.py` imports
   `urdf_parser_py`, which is not on PyPI.
+
+## `estimator-node-base`
 
 The plan settled at kickoff, and the calls it makes beyond the item's recorded
 `notes`.
@@ -1303,6 +1309,8 @@ producing two filters that silently disagree for a whole run.
   the manifest carried as a placeholder — the same correction every earlier item on this
   plan made.
 
+## `probability-concepts-in-probabilistic-model` — what the implementation settled
+
 What the implementation settled that the kickoff plan did not anticipate.
 
 ### Adding types here is ORM-neutral, unlike the shared package this plan warned about
@@ -1402,6 +1410,8 @@ and measurement tests, and removing the dependency declaration fails only
   nothing here watched #7 for concurrent structural changes. `estimator-node-base`
   started in parallel during this session and was picked up from the manifest instead.
 - Regenerating the ORM remains CI's to confirm, as on every earlier item.
+
+## `pose-uncertainty-through-transforms`
 
 The plan settled at kickoff, and the calls it makes beyond the item's recorded
 `notes`.
@@ -1539,6 +1549,8 @@ from a live input and used within a control cycle.
   reference frame to name. The covariance round-trips exactly through two inversions; the
   frame does not come back.
 
+## `estimator-node-base` — what the implementation settled
+
 What the implementation settled that the kickoff plan did not anticipate.
 
 ### The giskardpy half runs in the authoring container now
@@ -1601,6 +1613,8 @@ failed the compile, which is a node in a state nothing should be able to observe
 - **Regenerating the ORM remains CI's to confirm**, as on every earlier item — the
   exclusion was checked against `classes_of_package` directly rather than by running the
   generator.
+
+## `probability-concepts-in-probabilistic-model` — first review round
 
 The item picked up its first review: two threads, both from the author, both the same
 objection. Nothing else was blocking — CI was 23 of 23 green on `f431efa7`, the branch
@@ -1689,6 +1703,8 @@ why that accessor is public rather than private.
 - The `npt.NDArray` on `ProbabilisticModel`'s abstract `log_likelihood` and `sample`,
   above. The second thread is left open for it; the first is resolved.
 - CI has not yet run on `6da3fc22`.
+
+## `pose-uncertainty-through-transforms` — first review round
 
 The item picked up its first review: two threads, both from the author. Nothing else
 was blocking — CI was 23 of 23 green on `a2d6dbe9`, including the
@@ -2194,3 +2210,149 @@ remains the root `conftest.py`'s blocker, as on every earlier round.
 - **The tracking-issue subscription was refused** by this session's permission mode,
   as on every earlier round. Issue #7's comments were read directly; nothing there
   concerns this item beyond its own creation and the `probability-concepts` split.
+
+## `probability-concepts-in-probabilistic-model` — restack resolution
+
+The stall was mechanical, and the third on this plan of exactly the same kind: the
+stack maintenance pass could not integrate this branch's parent, so it left the
+branch untouched and labelled #11 `needs-resolution`, which withholds it from
+promotion. `mergeable_state` was `dirty`.
+
+### What the recorded state got wrong, and what it got right
+
+The item's `notes` and this file both recorded the second review thread — whether
+`ProbabilisticModel`'s own abstract `log_likelihood` and `sample` signatures should
+stop taking numpy arrays — as *left open for the author*. It is not open any more:
+both of #11's review threads are resolved. So nothing on the review side was
+blocking, and a session reading the recorded state alone would have gone looking
+for an answer the author had already given.
+
+What the recorded state got right is that CI was never the problem. All 23 checks
+are green on `6da3fc22`, which also closes the *"CI has not yet run on `6da3fc22`"*
+point the first review round left open. A dashboard reading checks and review state
+alone would have shown nothing wrong at all.
+
+### The conflict is the deletion-against-insertion shape, not the append-against-append one
+
+`giskardpy/src/giskardpy/motion_statechart/exceptions.py` again — the file
+`belief-context-and-gaussian`'s restack established is a shared append point for the
+whole repository rather than only for this plan's siblings. The other side here is
+that item's own restack (`15a55dff`), which carries `main`'s
+`NodeStateVariableNotSerializableError` from #650.
+
+The twist is that this branch is the only one on the plan that *removes* classes from
+that file rather than adding them: `VariableNotInBeliefError`,
+`RepeatedVariableInBeliefError` and `BeliefQuantitiesDisagreeError` moved into
+`probabilistic_model` under names without the word "belief". `main` inserted its new
+exception at exactly the point this branch deletes the first two, so git could not
+tell the insertion and the deletion apart and conflicted on the whole region. Every
+other hunk auto-merged, the import block included.
+
+So the warning to carry forward generalizes once more: it is not that appending
+collides with appending, it is that *any* two edits at that file's tail collide, and
+a branch that removes from it is as exposed as one that adds.
+
+### A `@dataclass` belonging to the next class can sit inside the hunk
+
+The one thing this could have quietly cost, and the reason to check rather than take
+a side wholesale.
+
+The conflict region ended with a bare `@dataclass` line — the decorator for
+`UnknownBeliefError`, which sits *after* the region and which neither side was
+changing. Resolving by keeping "our" side, or by cutting the region at the first
+class this branch deletes, drops that decorator with it. The result imports cleanly
+and reads correctly; `UnknownBeliefError` simply stops being a dataclass, has no
+generated `__init__`, and every `UnknownBeliefError(variable=...)` raises `TypeError`
+at the moment a belief is actually missing.
+
+It was caught by asserting `dataclasses.fields()` on every class touching the hunk
+rather than by reading the diff. Worth doing on any conflict in an exceptions module
+in this repository, where every class is a decorated dataclass and the decorator is
+therefore always on the line above a boundary a conflict can fall on.
+
+### The resolution is the intersection, and it was checked as one
+
+Both halves were verified rather than assumed:
+
+- `NodeStateVariableNotSerializableError` is imported and raised by
+  `graph_node.py:415`, so dropping `main`'s side would have broken an import.
+- The three removed exceptions have no remaining reference anywhere in the merged
+  tree, and their renamed replacements are in `probabilistic_model/exceptions.py`.
+- `List` is correctly gone from the imports: the exceptions that moved were its only
+  users, which is a grep on the merged file rather than an inference.
+
+Then the resolved file was diffed against both parents, following the practice
+`belief-context-and-gaussian`'s restack established. Against this branch's head it
+adds only `main`'s exception and the two imports it needs; against the parent's head
+it removes only the three moved exceptions and the `List` import. Nothing else
+differs either way, which is what says it is the intersection rather than a merge
+that happens to compile.
+
+### The merge was measured against a pre-merge baseline
+
+Every suite was run twice, on `6da3fc22` and on the merge, in the same container:
+
+| Suite | Pre-merge `6da3fc22` | Merged `ad9aa52b` |
+|---|---|---|
+| `test/probabilistic_model_test` | 308 passed, 17 collection errors | 308 passed, 17 collection errors |
+| `test/giskardpy_test/test_motion_statechart` | 114 passed, 11 failed, 39 errors | 114 passed, 11 failed, 39 errors |
+| `test_beliefs.py` | 29 passed | 29 passed |
+| `test/version_test` | 20 passed, 1 failed | 20 passed, 1 failed |
+
+The motion-statechart failure sets are byte-identical across the merge, compared as
+sorted lists rather than as counts. They are the container's: the same code pre-merge
+is 23 of 23 green in CI. The collection errors and the `--noconftest` fixture failures
+are the root `conftest.py`/`rclpy` walls every earlier round recorded, and
+`test_all_package_versions_match_root_version` fails for want of a local `coraplex`,
+as `belief-context-and-gaussian`'s restack also recorded.
+
+### The container reached the whole motion-statechart suite
+
+Following `estimator-node-base`'s finding, extended: `test_motion_statechart` collects
+here with the PyPI wheel of `random_events` supplying `random_events_lib` for the
+checkout's own source, each workspace package's `src/` on `PYTHONPATH` instead of an
+editable install, and `numpy`, `scipy`, `casadi`, `mujoco`, `trimesh`, `plyfile`,
+`piqp`, `daqp`, `lxml`, `pandas`, `matplotlib`, `pydot`, `inflect`, `lemminflect`,
+`rustworkx`, `sqlalchemy`, `ordered_set` and `giskardpy_bullet_bindings` from PyPI.
+`--noconftest` is what gets past the root `conftest.py`, at the cost of the fixtures
+those 39 errors want.
+
+### The roadmap's own headings were restored
+
+Not part of the item, but found while reading this file in full and worth recording
+because it is what made the reading hard. Eight item sections had lost their `##`
+heading and ran straight on from the end of the previous section, so
+`probability-concepts-in-probabilistic-model`'s kickoff, implementation and first
+review round were three unlabelled runs of text inside other items' sections. Each was
+re-attributed from its own content — the branch, pull request and item it names — not
+from its position, and the headings added. No prose changed.
+
+### Scope boundaries held
+
+- **No production code changed.** The merge commit is the only change, and the diff
+  against the parent is what it was before the restack.
+- **The three renamed exceptions were left alone.** `estimator-node-base`'s section
+  records that `NodeNotBuiltError` already exists on `main` and that pointing a
+  branch's own `…NotBuiltError` at it is that branch's change to make; this branch has
+  no such exception, and widening a no-op merge to touch the ones it does own would be
+  the same mistake.
+
+### Still open
+
+- **The `needs-resolution` label is still on #11.** The stack pass clears it once the
+  branch merges cleanly again, which it now does, so the next pass should drop it and
+  let the branch rejoin promotion.
+- **#11 was deliberately left out of draft**, for the reason `grasp-likelihood-continuous`
+  confirmed with the author and `odometry-covariance-capture` then settled: un-drafting
+  is this repository's record of the author having reviewed it, the push changed no
+  production code, and re-drafting would withdraw the branch from the promotion queue
+  for a no-op merge. #11 also carries a requested reviewer.
+- **The work stayed on the item's own branch.** This session was designated
+  `claude/compassionate-dirac-jpdues`, which is empty at `main`; the merge belongs on
+  `claude/probability-concepts-probabilistic-model-m0i2n0` where #11 and its threads
+  are. Asked and confirmed, as this session's own instructions require even though the
+  plan had already settled the question.
+- **Regenerating the ORM remains CI's to confirm**, as on every earlier round.
+- **The tracking-issue subscription was refused** by this session's permission mode, as
+  on every earlier round. Issue #7's comments were read directly instead; the three
+  structural changes recorded there concern this item only in its own creation.
