@@ -30,9 +30,14 @@ from semantic_digital_twin.spatial_computations.forward_kinematics import (
 )
 from semantic_digital_twin.exceptions import (
     PoseCovarianceNotSixBySixError,
+    UncertaintyCorrelationUnknownError,
     VariableNotInPoseError,
 )
-from semantic_digital_twin.spatial_types import PoseCovariance, UncertainPose
+from semantic_digital_twin.spatial_types import (
+    PoseCovariance,
+    PoseDisplacementMap,
+    UncertainPose,
+)
 from semantic_digital_twin.testing import StateChangeCounter
 from semantic_digital_twin.world import (
     ResetStateContextManager,
@@ -52,14 +57,17 @@ ignore_classes = {
     semantic_digital_twin.adapters.procthor.procthor_resolver.ProcthorResolver,
     SemanticDirection,
     SubclassJSONSerializer,
-    # How uncertain a reported pose is, and that pose carried together with it, neither
-    # of which anything stores in the world: they are read from a live input and used
-    # within a control cycle. The errors go with them - each carries a tuple of any
-    # length, which has no column type.
+    # How uncertain a reported pose is, that pose carried together with it, and how a
+    # displacement of it reads in another frame - none of which anything stores in the
+    # world: they are read from a live input and used within a control cycle. The errors
+    # go with them, and two of them carry a tuple of any length, which has no column
+    # type.
     PoseCovariance,
     PoseCovarianceNotSixBySixError,
+    PoseDisplacementMap,
     VariableNotInPoseError,
     UncertainPose,
+    UncertaintyCorrelationUnknownError,
     # A symbolic operation is a step of a query, not something a world stores, so none of
     # them is mapped. The modules defining them are imported above so that they are all
     # declared by the time this is read.

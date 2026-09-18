@@ -8,6 +8,8 @@ from random_events.variable import Continuous
 from sortedcontainers import SortedSet
 from typing_extensions import Tuple
 
+from semantic_digital_twin.exceptions import VariableNotInPoseError
+
 
 class SpatialVariables(Enum):
     """
@@ -59,3 +61,19 @@ class SpatialVariables(Enum):
             variable here is the row and column it occupies in a matrix over them.
         """
         return cls.position + cls.rotation
+
+    @classmethod
+    def row_in_pose(cls, variable: Continuous) -> int:
+        """
+        :param variable: The degree of freedom to locate.
+        :return: The row and column it occupies in an array laid out over
+            :attr:`pose`.
+        :raises VariableNotInPoseError: If it is not a degree of freedom of a pose.
+        """
+        pose = cls.pose
+        if variable not in pose:
+            raise VariableNotInPoseError(
+                variable_name=variable.name,
+                pose_variable_names=tuple(each.name for each in pose),
+            )
+        return pose.index(variable)

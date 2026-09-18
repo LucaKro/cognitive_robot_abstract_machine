@@ -10,6 +10,7 @@ import pytest
 
 from krrood.symbolic_math.exceptions import HasFreeVariablesError
 from semantic_digital_twin.datastructures.variables import SpatialVariables
+from semantic_digital_twin.exceptions import UncertaintyCorrelationUnknownError
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     PoseCovariance,
@@ -118,3 +119,47 @@ def test_a_pose_whose_numbers_are_not_known_cannot_be_inverted():
 
     with pytest.raises(HasFreeVariablesError):
         symbolic.inverse()
+
+
+# %% extending it further along the chain
+
+
+def test_extending_by_a_certain_transform_moves_the_pose():
+    uncertain_pose = an_uncertain_pose()
+    pose_T_further = HomogeneousTransformationMatrix.from_xyz_rpy(x=1.0, yaw=0.2)
+
+    extended = uncertain_pose @ pose_T_further
+
+    np.testing.assert_allclose(
+        extended.pose.to_np(),
+        (uncertain_pose.pose.to_homogeneous_matrix() @ pose_T_further).to_np(),
+        atol=1e-12,
+    )
+
+
+def test_extending_by_a_certain_transform_leaves_the_uncertainty_as_it_is():
+    """
+    A bottle held rigidly in an uncertain drawer is exactly as uncertain as the drawer.
+
+    The uncertainty is a displacement of the whole assembly in the frame the drawer is
+    reported in, and a rigid offset from the drawer does not change that displacement.
+    """
+    drawer = an_uncertain_pose()
+    drawer_T_bottle = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.3, z=0.1)
+
+    bottle = drawer @ drawer_T_bottle
+
+    np.testing.assert_allclose(
+        bottle.covariance.values, drawer.covariance.values, atol=1e-12
+    )
+
+
+def test_composing_two_uncertain_poses_is_refused():
+    """
+    The answer depends on whether the two uncertainties are related, which nothing here
+    is told, and a wrong covariance is worse than an absent one.
+    """
+    uncertain_pose = an_uncertain_pose()
+
+    with pytest.raises(UncertaintyCorrelationUnknownError):
+        uncertain_pose @ an_uncertain_pose()

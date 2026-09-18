@@ -19,6 +19,7 @@ from semantic_digital_twin.exceptions import (
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     PoseCovariance,
+    PoseDisplacementMap,
 )
 
 # %% the degrees of freedom it is indexed by
@@ -331,3 +332,84 @@ def test_a_transform_whose_numbers_are_not_known_is_rejected():
 
     with pytest.raises(HasFreeVariablesError):
         covariance.transformed_by(symbolic)
+
+
+# %% the row a degree of freedom occupies
+
+
+def test_each_degree_of_freedom_knows_the_row_it_occupies():
+    """
+    The ordering every array over a pose is laid out by, read from the one place that
+    holds it.
+    """
+    for row, variable in enumerate(SpatialVariables.pose):
+        assert SpatialVariables.row_in_pose(variable) == row, variable
+
+
+def test_asking_for_the_row_of_a_variable_that_is_not_a_degree_of_freedom_is_rejected():
+    not_a_pose_variable = Continuous(name="gripper_opening")
+
+    with pytest.raises(VariableNotInPoseError) as error:
+        SpatialVariables.row_in_pose(not_a_pose_variable)
+
+    assert error.value.variable_name == not_a_pose_variable.name
+
+
+# %% how a displacement is read in another frame
+
+
+def test_turning_the_frame_reads_each_axis_as_the_one_it_turns_into():
+    """
+    Seen from a frame turned a quarter turn about z, a displacement along x reads as one
+    along y.
+    """
+    quarter_turn = HomogeneousTransformationMatrix.from_xyz_rpy(yaw=np.pi / 2)
+
+    displacement_map = PoseDisplacementMap.of_transform(quarter_turn)
+
+    assert displacement_map.factor_of(
+        SpatialVariables.y.value, SpatialVariables.x.value
+    ) == pytest.approx(1.0)
+    assert displacement_map.factor_of(
+        SpatialVariables.x.value, SpatialVariables.x.value
+    ) == pytest.approx(0.0)
+
+
+def test_moving_the_frame_away_makes_position_depend_on_turning():
+    """
+    The lever arm, read by name: from a frame a distance along x, a turn about z reads
+    as a displacement along y by that distance.
+    """
+    lever_arm = 3.0
+    shifted = HomogeneousTransformationMatrix.from_xyz_rpy(x=lever_arm)
+
+    displacement_map = PoseDisplacementMap.of_transform(shifted)
+
+    assert displacement_map.factor_of(
+        SpatialVariables.y.value, SpatialVariables.yaw.value
+    ) == pytest.approx(-lever_arm)
+
+
+def test_turning_never_depends_on_where_the_frame_is():
+    """
+    How far a pose is turned is the same question wherever the origin sits, so no
+    rotational row may depend on a positional one.
+    """
+    moved_and_turned = HomogeneousTransformationMatrix.from_xyz_rpy(
+        x=1.0, y=2.0, z=3.0, roll=0.3, yaw=-0.7
+    )
+
+    displacement_map = PoseDisplacementMap.of_transform(moved_and_turned)
+
+    for turn in SpatialVariables.rotation:
+        for shift in SpatialVariables.position:
+            assert displacement_map.factor_of(turn, shift) == 0.0, (turn, shift)
+
+
+def test_a_map_naming_a_variable_that_is_not_a_degree_of_freedom_is_rejected():
+    not_a_pose_variable = Continuous(name="gripper_opening")
+
+    with pytest.raises(VariableNotInPoseError) as error:
+        PoseDisplacementMap(factors={(not_a_pose_variable, not_a_pose_variable): 1.0})
+
+    assert error.value.variable_name == not_a_pose_variable.name

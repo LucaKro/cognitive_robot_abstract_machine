@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from krrood.symbolic_math.exceptions import UnsupportedOperationError
 from typing_extensions import Self
 
+from semantic_digital_twin.exceptions import UncertaintyCorrelationUnknownError
 from semantic_digital_twin.spatial_types.pose_covariance import PoseCovariance
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -27,6 +29,16 @@ class UncertainPose:
     This is also where the uncertainty gets a frame. :class:`PoseCovariance` is
     deliberately frame-naive; pairing it with the pose says which frame it belongs to
     without that type having to carry one.
+
+    Uncertainty travels along a kinematic chain: a bottle held in a drawer whose position
+    is uncertain is itself uncertain. Which operation carries it depends on which side the
+    certain transform is on, and the two are not the same:
+
+    - :meth:`transformed_by` re-expresses the pose in another frame, and has to carry the
+      displacement through that frame change with a :class:`PoseDisplacementMap`.
+    - :meth:`dot` extends the pose further along the chain, and carries the displacement
+      unchanged, because a rigid offset from an uncertain pose does not change how the
+      assembly as a whole is displaced in the frame it is reported in.
     """
 
     pose: Pose
@@ -78,3 +90,34 @@ class UncertainPose:
             pose=reference_T_pose_inverse.to_pose(),
             covariance=self.covariance.transformed_by(reference_T_pose_inverse),
         )
+
+    def dot(self, pose_T_further: HomogeneousTransformationMatrix) -> Self:
+        """
+        Extend this pose further along the chain by a transform that is certain.
+
+        The uncertainty is carried unchanged. It describes how far the true pose is from
+        the reported one, as a displacement in the frame this pose is reported in, and a
+        rigid offset from it is displaced by that same amount.
+
+        ..note:: Unchanged does not mean the far end is no less well located. The
+            displacement acts about the reference frame's origin, so a pose further from
+            it ends up further from where it was reported. Reading that as uncertainty
+            about the far end's own position is :meth:`transformed_by`.
+
+        :param pose_T_further: The transform from this pose to the one to extend it to,
+            whose own numbers are taken to be certain.
+        :return: The pose at the far end, carrying this pose's uncertainty.
+        :raises UncertaintyCorrelationUnknownError: If the transform is itself uncertain.
+        :raises UnsupportedOperationError: If it is not a transform at all.
+        """
+        if isinstance(pose_T_further, UncertainPose):
+            raise UncertaintyCorrelationUnknownError()
+        if not isinstance(pose_T_further, HomogeneousTransformationMatrix):
+            raise UnsupportedOperationError("dot", self.pose, pose_T_further)
+        return type(self)(
+            pose=(self.pose.to_homogeneous_matrix() @ pose_T_further).to_pose(),
+            covariance=self.covariance,
+        )
+
+    def __matmul__(self, other: HomogeneousTransformationMatrix) -> Self:
+        return self.dot(other)
