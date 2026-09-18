@@ -2,42 +2,43 @@
 
 Plan item `estimator-node-base`, plan `aicon-belief-integration`, track *Belief core*.
 Branch `claude/plan-item-kickoff-aicon-0t046w`, based on #10's branch
-`claude/belief-integration-gaussian-zi1o82` (the beliefs package does not exist on main).
-Kickoff ran in `auto` mode. Full reasoning is in the plan's roadmap.md section.
+`claude/belief-integration-gaussian-zi1o82`. Kickoff ran in `auto` mode.
+Full reasoning is in the plan's roadmap.md, in this item's two sections.
 
-## Plan
+## Done — the item is implemented and pushed
 
-1. `beliefs/estimator.py`: `Prediction` (transition + process noise + offset) and
-   `EstimatorNode(MotionStatechartNode, ABC)`.
-   - abstract: `create_initial_belief`, `create_prediction`, `measure`.
-   - `build_artifacts`: build the prior, register it in the BeliefContext, register one
-     estimate and one uncertainty `FloatVariable` per quantity.
-   - `on_start`: publish the prior. `on_tick`: predict → measure → update → publish,
-     observing whether anything was measured this cycle.
-   - readers: `estimate_variable_of` / `uncertainty_variable_of`, raising
-     `NodeNotBuiltError` before build and `VariableNotInBeliefError` for a foreign quantity.
-     No new exception class.
-2. `beliefs/context.py`: `BeliefContext.of(statechart_context)` — find or add the
-   extension. The only edit to a file #10 owns.
-3. `test/giskardpy_test/test_motion_statechart/test_estimator.py`, TDD-first, driving the
-   base through a mimic estimator whose readings the test decides. Expected values derived
-   by running `GaussianBelief` itself rather than hardcoded.
+- `beliefs/estimator.py`: `PublishedValue`, `Prediction`, `EstimatorNode`.
+  Abstract: `create_initial_belief`, `create_prediction`, `measure`. The base owns
+  predict → measure → update → publish, registers the belief in the `BeliefContext` at
+  build, publishes one estimate and one uncertainty `FloatVariable` per quantity, and
+  observes whether it measured this cycle. `NodeNotBuiltError` and
+  `VariableNotInBeliefError` are reused, so no exception class was added.
+- `beliefs/context.py`: `BeliefContext.of(statechart_context)` — the find-or-add wiring
+  #10 left to this item. The only edit to a file #10 owns; #11 does not touch that file.
+- `test/giskardpy_test/test_motion_statechart/test_estimator.py`: 14 tests through the
+  `RecordedReadingEstimator` mimic, expectations derived by running `GaussianBelief`.
+- Verified locally — 58 pass (14 new + #10's 44 unchanged). Each behaviour confirmed
+  load-bearing by mutating the implementation. The wider directory's 4 failures are
+  present on the clean base too.
+- Commit `eb88a5d1` pushed; PR #12 description rewritten to match; still a draft.
+- Roadmap carries both the kickoff plan and an implementation section.
 
-## Done
+## Test environment (worth reusing on the next item)
 
-- Setup check + `/setup-personal-notes` (markdown/nh3 installed; all three labels present).
-- Context gathered: plan.yaml, full roadmap, dependency readiness (#10 `open_ready`),
-  scope-overlap check, the two sibling nodes (#8 `GraspLikelihood`, #9 `PoseUncertainty`)
-  and segmind's `AbstractDetector` as the precedents.
-- Branch created off #10, pushed; draft PR #12 opened; manifest `in_progress`; roadmap
-  section appended.
-- Test environment built in this container for the first time at kickoff rather than at
-  the end: numpy/casadi/scipy/sqlalchemy/rustworkx/trimesh/mujoco/pytest from PyPI plus the
-  five workspace packages `-e --no-deps`. `urdf_parser_py` is still absent, so the root
-  `test/conftest.py` cannot be collected — run the test file from a copy outside `test/`.
+PyPI: pytest numpy casadi scipy sqlalchemy rustworkx trimesh mujoco matplotlib pandas
+pydot lxml piqp daqp plotly tqdm inflect lemminflect ordered_set platformdirs pillow
+plyfile psutil giskardpy_bullet_bindings. Workspace: `pip install --no-deps -e` for
+random_events, probabilistic_model, krrood, semantic_digital_twin, giskardpy.
+`urdf_parser_py` and `xacro` fail to build a wheel here (Debian setuptools,
+`install_layout`) but are pure Python — `pip download --no-binary :all:`, untar, copy the
+package dir into site-packages. Run tests with `--noconftest`.
 
-## Next
+## Outstanding — for the user, not for this session
 
-- Write the failing tests, then `estimator.py` and the `BeliefContext.of` edit.
-- Run them locally; report honestly which ones this container could not execute.
-- Update PR #12's description to match what actually landed; keep it a draft.
+- **Dashboard not republished.** `Artifact` treats the plan dashboard as a public
+  third-party artifact: `read` returns a summary, not source, so `publish` refuses with
+  "you haven't viewed the latest version". Needs `force: true`, which the user has to
+  ask for. #11's session hit the same wall.
+- **Tracking issue #7 not subscribed** — the call was refused by this session's
+  permission mode.
+- Nothing reviewed on #12; CI's first run on `eb88a5d1` not yet seen.
