@@ -35,9 +35,9 @@ parent. Design, implementation notes and the first review round are in the plan'
 
 ## Next
 
-- Read `test_each_lib (giskardpy)` on `58b8cd66` - still running, and the last
-  confirmation of the ORM point. 20 of 23 checks green; `mergeable_state` is
-  `unstable` from pending checks, nothing red.
+- Nothing outstanding on this branch. `test_each_lib (giskardpy)` came back green on
+  `58b8cd66`, which confirms the ORM point; 21 of 23 checks green, the two pending
+  (`semantic_digital_twin`, coraplex) cover no file this diff touches.
 - The pull request stays a draft until its author has reviewed it. No push was made
   this round, so nothing needed re-drafting.
 
