@@ -6,51 +6,59 @@ Plan item of **aicon-belief-integration**, wave 2 / belief core. Branch
 
 ## Plan
 
-1. `PoseCovariance.transformed_by(new_reference_T_reference)` — re-express a covariance
-   in another frame by the adjoint `[[R, skew(t) R], [0, R]]` of the transform, over
-   `SpatialVariables.pose`'s translation-then-rotation order. Raises
-   `HasFreeVariablesError` (krrood's, via `to_np`) for a transform whose numbers are not
-   known; no new exception.
-2. `UncertainPose` in a new `spatial_types/uncertain_pose.py` — a `Pose` with its
-   `PoseCovariance`, with `transformed_by` and `inverse` moving both halves. No private
-   field on `Pose`; `spatial_types.py` untouched.
-3. Export both from `spatial_types/__init__.py`; add `UncertainPose` to
-   `generate_orm.py`'s `ignore_classes`.
-4. Tests first, per TDD:
-   - `test_pose_covariance.py` gains a propagation section: a pure rotation rotates it;
-     a translation turns yaw uncertainty into position uncertainty at the square of the
-     lever arm; the rotation block is untouched by a translation; identity is a no-op;
-     transforming twice equals transforming by the composed transform; a symbolic
-     transform is rejected.
-   - The adjoint identity itself, checked exactly:
-     `T @ hat(perturbation) @ inverse(T) == hat(adjoint @ perturbation)`. This is what
-     tests the model rather than the formula the code is written in.
-   - New `test_uncertain_pose.py`: both halves move together, the result's reference
-     frame follows the transform, inverse uses the pose's own inverse, two inversions
-     round-trip the covariance, a symbolic pose is rejected.
-5. `scripts/format_docstrings.py` on every modified file.
+1. `PoseCovariance.transformed_by(new_reference_T_reference)` — the adjoint
+   `[[R, cross_product_matrix(t) @ R], [0, R]]` over `SpatialVariables.pose`'s
+   translation-then-rotation order. `HasFreeVariablesError` via `to_np` for a symbolic
+   transform; no new exception.
+2. `UncertainPose` in `spatial_types/uncertain_pose.py` — pose plus covariance, with
+   `transformed_by` and `inverse` moving both halves. No private field on `Pose`;
+   `spatial_types.py` untouched.
+3. Export from `spatial_types/__init__.py`; `UncertainPose` into `generate_orm.py`'s
+   `ignore_classes`.
+4. Tests first, per TDD; `scripts/format_docstrings.py` on every modified file.
 
-## Done
+## Done — all of it, pushed as `a2d6dbe9`
 
-- Branch created off #9, empty bootstrap commit pushed, draft PR #13 opened.
-- Manifest recorded: `in_progress`, branch/session/PR number, roadmap section appended.
-- Container brought up far enough to run the spatial types locally — a first for this
-  plan. `numpy casadi scipy sortedcontainers typing_extensions rustworkx sqlalchemy
-  trimesh mujoco pytest` from PyPI, plus `pip install --no-build-isolation
-  antlr4-python3-runtime` then `pip install --no-deps random_events`, which is the way
-  round the antlr4 wheel failure every earlier session on this plan hit. Run with
-  `PYTHONPATH=krrood/src:semantic_digital_twin/src`; the root `test/conftest.py` still
-  needs `urdf_parser_py`, so run test files from a copy outside `test/` or with
-  `--noconftest`.
+- Branch off #9, draft PR #13 opened, manifest recorded (`in_progress`, branch, session,
+  PR number), roadmap section appended.
+- `PoseCovariance.transformed_by` + private `_adjoint_of` + module-level
+  `_cross_product_matrix`.
+- `UncertainPose` with `transformed_by` and `inverse`; `inverse` reuses the same
+  propagation with the pose's own inverse rather than deriving a second formula.
+- Export and ORM exclusion.
+- 12 new tests. `test_spatial_types/` runs **335 passed, 1 failed**; the failure is
+  `TestVector3::test_length_0`, confirmed identical on the base branch with this diff
+  stashed (checked by `git stash`).
+- PR description rewritten to match what landed.
+
+### Container recipe — worth reusing, this plan's first locally-verified item
+
+`numpy casadi scipy sortedcontainers typing_extensions rustworkx sqlalchemy trimesh
+mujoco platformdirs pillow plyfile plotly psutil setuptools-scm pytest black docformatter
+tqdm` from PyPI, then the way round the antlr4 wheel failure every earlier session hit:
+
+    pip install --no-build-isolation antlr4-python3-runtime
+    pip install --no-deps random_events
+
+Run with `PYTHONPATH=krrood/src:semantic_digital_twin/src` and `--noconftest` — the root
+`test/conftest.py` still needs `urdf_parser_py`, which is not on PyPI.
 
 ## Next
 
-- Write the failing tests, then the two production changes, then re-run.
-- Republish `/plan-dashboard aicon-belief-integration` (done at kickoff; refresh again if
-  status changes).
+- Nothing outstanding on the branch. Awaiting first CI run on `a2d6dbe9`; the ORM
+  regeneration and the `rclpy`/`nav_msgs` half of #9's own tests are still CI's to
+  verify, since neither runs here.
+- PR stays a draft awaiting its author's own review, per the repo convention that
+  un-drafting is the record of having reviewed it.
 
 ## Open
 
-- Frames are not checked on `transformed_by`, matching `HomogeneousTransformationMatrix.dot`.
+- Dashboard not republished: the artifact reads as third-party-authored, so `Artifact`
+  will not hand over a writable copy of the live version. User chose to skip rather than
+  force-overwrite or mint a duplicate. `plan.yaml` and `roadmap.md` are correct; only the
+  published page is stale.
+- Frames unchecked on `transformed_by`, matching `HomogeneousTransformationMatrix.dot`.
+- `inverse` inherits `HomogeneousTransformationMatrix.inverse`'s frame behaviour: the
+  covariance round-trips through two inversions, the reference frame does not.
 - `pose-covariance-on-shared-quantities` will also edit `pose_covariance.py`; whichever
   lands second resolves that file.
