@@ -139,8 +139,8 @@ PyPI with `krrood/src` on the path.
 
 - Nothing is outstanding on the branch. Both review threads resolved, no merge
   conflict, no PR comments awaiting a reply.
-- Watch CI on `76bab6d3`. The merge changes no production code, so 23/23 is
-  expected; if it is not, that is the restack's to answer.
+- CI on `76bab6d3` is **23/23 green**, `test_each_lib (krrood)` and
+  `test_each_lib (giskardpy)` included. The restack is verified, not just pushed.
 - The `needs-resolution` label is still on #8. The stack pass clears it once the
   branch merges cleanly again, which it now does, so the next pass should drop it
   and let the branch rejoin promotion. Nothing to do by hand.
@@ -176,3 +176,8 @@ the helper's single call site is settled rather than provisional.
 - This session was designated `claude/plan-item-resolve-aicon-belief-9dx2nz`
   (created empty at `main`). The work belongs on this branch, where #8 is —
   asked and confirmed, per the precedent #9 and #10 both set.
+- The dashboard could not be republished: the `Artifact` tool reports the plan
+  dashboard as a public artifact from outside the organization, so the read
+  returns nothing and the publish cannot proceed without `force`. Forcing would
+  discard what the parallel #9/#10 sessions published. `plan.yaml`, `roadmap.md`
+  and this note are current; the published page is not.
