@@ -1538,3 +1538,66 @@ from a live input and used within a control cycle.
   `Pose` carries a reference frame and no child frame, so the inverse of one has no
   reference frame to name. The covariance round-trips exactly through two inversions; the
   frame does not come back.
+
+What the implementation settled that the kickoff plan did not anticipate.
+
+### The giskardpy half runs in the authoring container now
+
+`belief-context-and-gaussian`'s second round recorded that the belief tests run here
+and that it was worth doing at the start of a later item rather than after writing a
+wave of code unverified. Taken literally, and it went further than that round managed:
+the whole `test_motion_statechart` directory collects, so this is the first item on this
+plan whose giskardpy work is verified by the session that wrote it rather than by CI.
+
+Two of the packages that round named as blockers do install, just not through pip's
+build path. `urdf_parser_py` and `xacro` both fail to build a wheel against this
+container's Debian-patched setuptools (`AttributeError: install_layout`), but both are
+pure Python, so the sdist's package directory copied onto `site-packages` is enough.
+Everything else is PyPI plus the workspace packages installed `-e --no-deps`, with
+`ordered_set`, `platformdirs`, `pillow`, `plyfile`, `psutil`, `lxml`, `piqp`, `daqp`,
+`matplotlib`, `pydot`, `pandas`, `inflect`, `lemminflect`, `plotly`, `tqdm` and
+`giskardpy_bullet_bindings` picked up by following the import errors.
+
+58 tests pass — this item's 14 and #10's 44 unchanged, which is the evidence that the
+one edit to `beliefs/context.py` costs its parent nothing.
+
+### The assertions were checked by breaking the code
+
+Each of the four behaviours the tests name was confirmed load-bearing by mutating the
+implementation and watching which tests fell over: dropping `predict` fails only the
+process-noise and offset tests, dropping `update` fails only the three reading tests,
+always observing true fails only the prediction-alone test, and not publishing the
+uncertainty fails only the three tests that read it. No mutation took down a test that
+does not name it, so the tests are separable in the way `AGENTS.md` asks for.
+
+### The two published values are an enum, not two spellings
+
+The variable a quantity's estimate is written to and the one its uncertainty is written
+to are named by suffix, and a suffix naming a fixed thing is what `AGENTS.md` says to
+give a `StrEnum` member. `PublishedValue` holds the two, so the names exist once rather
+than at each registration — the same objection the reviewer raised twice on this plan
+about named constants, applied before it was raised a third time.
+
+### The belief is assigned only once the context accepts it
+
+`build_artifacts` builds the prior, registers it, and only then keeps it. Assigning
+first would leave a node that reads as built after a `DuplicateBeliefError` had already
+failed the compile, which is a node in a state nothing should be able to observe.
+
+### Still open
+
+- **Nothing was reviewed**, and the pull request stays a draft awaiting its author's own
+  review, per this repository's convention that un-drafting *is* that record.
+- **The dashboard was not republished.** The `Artifact` tool treats this account's plan
+  dashboard as a public third-party artifact, so a read returns a prose summary rather
+  than the page source, and the publish then refuses with "you haven't viewed the latest
+  version". `force: true` would discard whatever was last published there, so it was
+  left for the user to decide. `probability-concepts-in-probabilistic-model`'s session
+  hit the same wall in parallel, so this is the tool's behaviour on this artifact rather
+  than either session's doing.
+- **The tracking-issue subscription was refused** by this session's permission mode, so
+  nothing here watched #7 for concurrent structural changes. #11's session was working
+  the plan in parallel throughout; its roadmap section was read from the branch instead.
+- **Regenerating the ORM remains CI's to confirm**, as on every earlier item — the
+  exclusion was checked against `classes_of_package` directly rather than by running the
+  generator.
