@@ -195,11 +195,12 @@ items:
 
   - id: estimator-node-base
     title: EstimatorNode base class with the register/set_value tick lifecycle
-    branch: estimator-node-base
-    pull_request_number: null
+    branch: claude/plan-item-kickoff-aicon-0t046w
+    pull_request_number: 12
     track: belief-core
-    status: not_started
+    status: in_progress
     depends_on: [belief-context-and-gaussian]
+    session: https://claude.ai/code/session_011zwGR4mjhPuLoavbHkAZZi
     notes: >-
       A MotionStatechartNode whose build_artifacts registers a FloatVariable for
       the mean and whose on_tick runs predict/update and writes the value with
