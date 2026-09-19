@@ -315,11 +315,12 @@ items:
       task modules at once.
   - id: belief-drawer-experiment
     title: Three-condition drawer sweep judging whether the belief changes outcomes
-    branch: belief-drawer-experiment
-    pull_request_number: null
+    branch: claude/zealous-maxwell-93feuw
+    pull_request_number: 17
     track: belief-application
-    status: not_started
+    status: in_progress
     depends_on: [belief-weighted-open-goal]
+    session: https://claude.ai/code/session_014rNxpUmTFMhXdyncTyUR6C
     notes: >-
       Sweep initial arm configurations and cabinet yaws across (i) stock Open,
       (ii) belief-weighted Open, (iii) belief-weighted with the grasp
