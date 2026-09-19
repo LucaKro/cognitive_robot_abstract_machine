@@ -278,11 +278,12 @@ items:
 
   - id: belief-weighted-open-goal
     title: Scale the Open goal's hold-handle weight by the grasp belief
-    branch: belief-weighted-open-goal
-    pull_request_number: null
+    branch: claude/adoring-bell-hilm79
+    pull_request_number: 16
     track: belief-application
-    status: not_started
+    status: in_progress
     depends_on: [grasp-belief-node]
+    session: https://claude.ai/code/session_018xNiHCXAJUP7vLv1HHGWNm
     notes: >-
       goals/open_close.py:20 opens with "Assumes that the grasped part has
       already been grasped" and pins grasp_weight to the constant
