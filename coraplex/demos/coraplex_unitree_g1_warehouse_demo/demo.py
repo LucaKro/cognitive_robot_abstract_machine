@@ -30,6 +30,7 @@ from semantic_digital_twin.api import (
 )
 from semantic_digital_twin.robots.unitree_g1 import UnitreeG1
 from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Parcel
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
@@ -109,7 +110,7 @@ def build_world() -> World:
     # to name it by, not a particular kind of object.
     with world.modify_world():
         world.add_semantic_annotation(
-            HasGraspPoses(root=world.get_body_by_name("parcel"))
+            Parcel(root=world.get_body_by_name("parcel"))
         )
     return world
 
@@ -140,7 +141,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
     parcel_annotation = an(
         entity(
             semantic_annotation := variable(
-                HasGraspPoses, domain=world.semantic_annotations
+                Parcel, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == parcel)
     ).first()
@@ -191,7 +192,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
     parcel_annotation = an(
         entity(
             semantic_annotation := variable(
-                HasGraspPoses, domain=world.semantic_annotations
+                Parcel, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == parcel)
     ).first()

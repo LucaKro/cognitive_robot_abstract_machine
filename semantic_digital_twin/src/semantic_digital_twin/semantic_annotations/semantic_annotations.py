@@ -1606,6 +1606,12 @@ class Human(Agent):
     human agents differently from robots if needed.
     """
 
+@dataclass(eq=False)
+class Parcel(HasGraspPoses):
+    """
+    Represents a Parcel one may find in a amazon warehouse.
+    """
+
 
 @dataclass(eq=False)
 class SemanticEnvironmentAnnotation(HasRootBody):

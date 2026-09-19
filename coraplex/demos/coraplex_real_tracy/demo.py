@@ -26,6 +26,7 @@ from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchroni
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tracy import Tracy
+from semantic_digital_twin.semantic_annotations.semantic_annotations import GelatinBox
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
@@ -33,7 +34,6 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.world_description.world_entity import Body
 
 giskard_process = subprocess.Popen(
@@ -47,7 +47,7 @@ execition_mode = ExecutionType.REAL
 
 print("Init ROS")
 rclpy.init()
-node = rclpy.create_node("stretch_demo_node")
+node = rclpy.create_node("tracy_demo_node")
 
 executor = MultiThreadedExecutor()
 executor.add_node(node)
@@ -100,8 +100,8 @@ with world.modify_world():
 
     # The boxes stand in for any graspable object; the plan only needs an annotation to
     # name them by, not a particular kind of object.
-    box2_annotation = HasGraspPoses(root=box2)
-    box3_annotation = HasGraspPoses(root=box3)
+    box2_annotation = GelatinBox(root=box2)
+    box3_annotation = GelatinBox(root=box3)
     world.add_semantic_annotations([box2_annotation, box3_annotation])
 
     world.add_connection(
