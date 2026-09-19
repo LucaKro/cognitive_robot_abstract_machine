@@ -352,10 +352,17 @@ items:
       arm, a parallel gripper and a free-standing block, with the control loop in
       lockstep with MuJoCo and every number read from the simulation. The sweep is
       untouched; rebuilding it on the simulation is gated on the author confirming the
-      setup, and a recording was sent for that. Dependents building a world this way
-      should note the two adapter traps this found: a joint must carry a degree of
-      freedom of its own name, and neighbouring links must belong to a robot to be
-      excused from contact.
+      setup, and a recording was sent for that.
+      The author then asked for the Franka instead of a hand-built arm, so the box arm is
+      gone and the setup drives MuJoCo Menagerie's Panda, vendored whole under
+      semantic_digital_twin/resources/mjcf/franka_emika_panda. Three defects in the
+      vendored-arm path are repaired on the parsed world rather than in the adapter, and
+      two of them are adapter bugs worth their own PRs: MJCFParser.parse_actuator cannot
+      follow a tendon transmission to a joint, so the gripper arrives undriven, and a
+      mimic coupling leaves both fingers carrying a degree of freedom named after the
+      first, which miswires their servos. MJCF also carries no velocity limits. The
+      repository's own Panda, mjx_single_cube_no_mesh.xml, has no geoms on any robot body
+      at all and so cannot grasp or render.
     blockers:
       - >-
         Waiting on the author to confirm the MuJoCo setup before the experiment

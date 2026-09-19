@@ -3838,3 +3838,128 @@ recorded.
   it whenever the quota is worth spending.
 - **The tracking-issue subscription was refused** by this session's permission mode, as on
   every earlier round on this plan.
+
+## `belief-drawer-experiment` — the basis becomes the vendored Franka
+
+The author's answer to the setup the previous round pushed:
+
+> *"It may also be a object pickup Experiment first of thats simpler to setup. Can you use
+> the franka arm instead? Or are there problems with that"*
+
+There are problems, three of them, and all three are in the arm rather than in the idea.
+Once they are repaired the Franka does the pick and place, so the hand-built box arm is
+gone and this package carries one setup rather than two.
+
+### The repository already had a Franka, and it could not touch anything
+
+`resources/mjcf/mjx_single_cube_no_mesh.xml` is a Franka Emika Panda — the MJX
+single-cube task, with the seven arm joints, a parallel gripper, a free-standing cube,
+tuned position actuators and `home`/`pickup` keyframes. `MJCFParser.parse()` reads it
+into a world cleanly, and it sidesteps the degree-of-freedom naming trap the box arm hit,
+because MJCF joint names carry through.
+
+What it cannot do is grasp. Compiled, the whole scene holds **two** geoms, the floor and
+the cube: every one of the robot's twelve bodies carries an `<inertial>` and no geometry
+at all. The `fingertip_pad_collision_1..4` classes are declared in its own `<default>`
+block and referenced nowhere. It exercises the simulator's name and state callbacks, not
+manipulation, and a recording of it shows a cube moving by itself.
+
+Adding the four declared pads to each finger is enough to make it grasp — measured, not
+assumed: the cube came off the floor by 220 mm. That variant is not what landed, but it
+is what established that the problem was the geometry rather than the arm.
+
+### So the arm is MuJoCo Menagerie's, vendored whole
+
+`resources/mjcf/franka_emika_panda/` is Menagerie's `panda.xml` with its 67 meshes and its
+Apache-2.0 licence, unmodified. Its kinematics, masses, joint limits, collision geometry
+and servo gains are the ones its maintainers tuned. `pick_scene.xml` beside it is ours: it
+includes that file and adds the floor, the table and the block. It sits in that directory
+rather than above it because a model's `meshdir` resolves against the file that declares
+it.
+
+The honest cost is 33 MB, and it is worth stating exactly where it goes: 112 KB of that is
+the collision meshes the physics actually needs. The other 33 MB is the visual meshes —
+what makes a recording show a Franka rather than a stick figure, and nothing else. A later
+round that wants the repository smaller can drop the visual meshes and render the
+collision ones without touching a line of code.
+
+### Three repairs, each now pinned by a test
+
+**The gripper arrives with nothing driving it.** Menagerie closes it through a *tendon*,
+and `MJCFParser.parse_actuator` cannot follow a tendon transmission to a joint, so it warns
+and skips it. An undriven joint is not servoed but *written straight into qpos*, which is a
+gripper that passes through whatever it closes on. Each finger gets a `PositionServo`
+instead, with the gains the same description states for its joint-driven variant.
+
+**Both fingers arrive carrying a degree of freedom named after the first.** The coupling
+between them is read as a mimic, so `finger_joint2`'s degree of freedom is named
+`finger_joint1`. Two separate mechanisms then resolve by that name alone —
+`_transmission_for_degree_of_freedom`, which wires a servo to the *first* connection
+carrying a degree of freedom of that name, and `Connection1DOFConverter`, which re-emits
+the coupling as an equality whenever a connection's degree of freedom is named differently
+from it. The result is one finger with two servos fighting over its joint and the other
+with none. Renaming each finger's degree of freedom after its own joint fixes both at once,
+and it is the same invariant the box arm's own section recorded: *a joint must carry a
+degree of freedom of its own name*.
+
+**No joint states how fast it may travel.** MJCF carries positions and torques and no
+velocities, so `apply_limits_to_velocity` fails on `None` before a task can be built at
+all.
+
+One further thing the mesh-free variant taught, recorded because it cost an hour: with the
+equality left in place and `finger_joint2` undriven, the physics lets that joint drift to
+0.0409 against a 0–0.04 range, the sync copies the out-of-range value into the world, and
+the QP goes `InfeasibleException` on cycle 63. A joint the controller can see must be one
+the controller drives.
+
+### What the physics says
+
+Under ideal conditions, with everything read from the simulation rather than from the
+world the controller planned in:
+
+| | Grip closed | Grip left open |
+|---|---|---|
+| Block lifted | yes, by 231 mm | no, 0 mm |
+| Both fingers on it at the top | yes | no |
+| Ends from where it was to be put down | 7.6 mm | 250.0 mm |
+| Travelled | 246.3 mm | 0.06 mm |
+| Control cycles | 287 | 287 |
+
+The open-gripper run is the same motion with the same cycle count and moves the block by
+six hundredths of a millimetre. It is the control the kinematic sweep could not have.
+
+### Two smaller things the port settled
+
+**The hand's shell reaches lower than its fingertips.** Commanding the grasp frame onto the
+block's centre presses the palm onto it before the fingers ever close — the physics
+reported `hand` among the contacts. The block is gripped 15 mm above its centre instead,
+and only the fingers ever touch it.
+
+**Neither the camera nor the materials survive the round trip.** A world is mirrored into
+MuJoCo by rebuilding it from what the world holds, and that carries shapes and colours but
+not a scene's `<asset>` materials, its `<visual>` settings or a camera posed with `xyaxes`.
+The camera, the lights and the room's colours are therefore set on the world in Python,
+where `MujocoCamera.overview_pose` already had the precedent. The same rebuild is why a
+recording is 640×480: `offwidth` is a scene setting and does not come along.
+
+### Scope boundaries held
+
+- **Nothing in the belief experiment is rebuilt on it.** The author's gate — *"After i
+  confirm its okay, then we use this as a Basis for the experiment"* — still stands. The
+  sweep, its conditions and its recorded result are untouched.
+- **No production code changes.** The repairs are made on the parsed world inside the
+  experiment, not in `MJCFParser` or the MuJoCo adapter. Both are real defects and both are
+  worth their own bug pull requests off the default branch; neither is one this branch
+  should be making.
+- **Menagerie's `panda.xml` is unmodified**, so it stays attributable and updatable.
+
+### Verification
+
+Thirteen tests: nine on the arrangement and the repairs, which need no simulator, and four
+that start MuJoCo under the same continuous-integration gating as every other
+simulator-backed test here. Each was confirmed load-bearing by mutating the implementation.
+
+The container needs `libosmesa6` for headless rendering, `imageio` and `imageio-ffmpeg` for
+the recording, `vhacdx` for the convex decomposition the collision meshes go through
+(already declared by `semantic_digital_twin`), and `casadi==3.7.0` as
+`belief-weighted-open-goal` recorded.
