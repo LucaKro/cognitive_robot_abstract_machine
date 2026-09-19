@@ -1,66 +1,59 @@
-# belief-drawer-experiment — PR #17 (draft), base #16
+# belief-pickup-experiment — PR #17 (draft), base #16
 
-Plan item `belief-drawer-experiment` of `aicon-belief-integration`. **Sweep
-complete; a MuJoCo Franka basis is pushed and waiting on the author's
-confirmation.**
+Plan item `belief-pickup-experiment` (renamed from `belief-drawer-experiment`) of
+`aicon-belief-integration`. **The experiment is done, on the cube, in physics, and
+the deciding cell answers yes.**
 
-## The sweep's result
+## The result
 
-Nine runs per cell (3 arm postures x 3 cabinet yaws), distances in mm:
+Four conditions x 3 block placements, everything read from MuJoCo. mm.
 
-| Condition | Rays | Drawer travel | Grip offset | Touching |
-|---|---|---|---|---|
-| Unconditional | 100 | 198.25 | 7.57 | 9/9 |
-| Believed | 100/1k/10k | 198.25 | 7.57 | 9/9 |
-| Failing | 100 | 201.26 | 8.72 | 9/9 |
-| Failing | 1000 | 226.96 | 30.23 | 9/9 |
-| Failing | 10000 | 286.12 | 86.50 | 0/9 |
+| Condition | Samples | Lifted | Block moved | Hand from target | p | Finished |
+|---|---|---|---|---|---|---|
+| Full weight, on cube | 2 | 3/3 | 246.0 | 2.12 | 0.59 | 3/3 |
+| Believed, on cube | 2 | 3/3 | 276.2 | 97.5 | 0.59 | 1/3 |
+| Believed, on cube | 20 | 3/3 | 248.5 | 88.7 | 0.73 | 2/3 |
+| Believed, on cube | 200 | 3/3 | 245.97 | 2.09 | 0.85 | 3/3 |
+| Believed, on cube | 2000 | 3/3 | 245.95 | 2.11 | 0.92 | 3/3 |
+| Full weight, on nothing | 2 | 0/3 | 0.06 | 2.12 | 0.26 | 3/3 |
+| Believed, on nothing | 2 | 0/3 | 0.06 | 238.4 | 0.26 | 0/3 |
+| Believed, on nothing | 20 | 0/3 | 0.06 | 252.5 | 0.07 | 0/3 |
+| Believed, on nothing | 200 | 0/3 | 0.06 | 254.7 | 0.02 | 0/3 |
+| Believed, on nothing | 2000 | 0/3 | 0.06 | 255.0 | 0.00 | 0/3 |
 
-Grip = 2500 x probability vs mechanism = 1.0, so the ordering flips below
-p = 4e-4; no hits out of 100 rays only reaches p = 5e-3. Scaling the grip alone
-does not make the robot back off.
+- Believed + nothing gives way at every strength; unconditional + nothing carries air
+  the whole way and reports success.
+- Believed + cube == unconditional + cube from 200 samples up; below that a *good*
+  carry is degraded too. That band is the honest cost.
+- Ordering flips at p = 0.26, not the drawer's p = 4e-4: a weight ratio is not what
+  decides a QP (7 posture rows vs 3 carry rows).
 
-## The blocker, and what was done about it
+## Design calls that cost time
 
-The author's PR comment rejected the *basis*, not the measurement. He asked for
-a MuJoCo setup where normal grasping works under ideal conditions, a video, and
-his confirmation **before** the experiment is rebuilt on it. He then asked for
-the Franka rather than a hand-built arm.
-
-`experiments/simulated_grasp/` is that setup. It drives MuJoCo Menagerie's
-Franka Emika Panda, vendored whole under
-`semantic_digital_twin/resources/mjcf/franka_emika_panda` (33 MB; 112 KB of it
-is the collision meshes the physics needs). Grip closed lifts the block 231 mm,
-holds it with both fingers and places it 7.6 mm from the target; grip left open
-moves it 0.06 mm on the same motion at the same cycle count. Video sent in chat.
+- **A weight needs an antagonist.** Return-to-ready at WEIGHT_BELOW_COLLISION_AVOIDANCE.
+- **Its window cannot end on a step it competes with** — deadlock. Both narrower windows
+  hung before this was understood. It ends at ABOVE_THE_TARGET.
+- **A contested carry settles ~14 mm short at 2500:1**, so carrying steps take a 30 mm
+  threshold; the placement step keeps the default.
+- **Block distances must stay in 0.48-0.58 m** — outside that the baseline itself fails,
+  which would make a give-way the experiment's own doing.
 
 ## Done
 
-- Branch off #16, draft PR #17, manifest `in_progress`.
-- Four roadmap sections pushed (kickoff, what the implementation settled, the
-  resolution moving the basis to physics, and the Franka port).
-- `drawer_scenario.py`, `drawer_run.py`, `sweep.py`, 18 tests — `c7d73963`.
-- Box-arm setup — `f2fbf16c`. Replaced by the Franka.
-- Vendored Menagerie Panda — `156ed89f`; `panda_world.py` +
-  `grasp_attempt.py` + 14 tests — `96ad4f98`.
-- 11 mutations on the sweep, 15 on the Franka setup, each failing only the tests
-  that name it. Three initially failed nothing and each exposed a real gap.
-- Baseline comparison: identical 10 pre-existing collection errors.
-  `test/version_test` 21 passed.
-- CI 23 of 23 green on `c7d73963`.
-- PR description rewritten; a comment on #17 reports the setup.
+- Drawer code deleted (`belief_drawer_experiment/` + its test file).
+- `contact_likelihood.py`, `belief_experiment.py`, 24 tests.
+- `PhysicalGrasp` seams; baseline numbers bit-identical to the confirmed run.
+- Manifest: item renamed, optional `belief-drawer-experiment` added (`deferred`, nothing
+  depends on it), `epistemic-action-demo` repointed. Saved; commented on #7.
+- Roadmap section appended.
+- 23 mutations; two exposed real gaps, both closed.
 
 ## Next
 
-- **Waiting on the author to confirm the MuJoCo setup.** Nothing past that gate
-  is this branch's to do — the sweep stays as it is until then.
-- CI has not run on `f2fbf16c` or `96ad4f98`.
-- **Dashboard is at v21 and four roadmap sections behind.**
-  `/plan-dashboard aicon-belief-integration` refreshes it.
-- Three bugs found, none fixed here, each wanting its own PR off the default
-  branch: `is_body_in_gripper` deduplicates before counting rays;
-  `MJCFParser.parse_actuator` cannot follow a tendon transmission to a joint;
-  and a mimic coupling leaves both fingers carrying a degree of freedom named
-  after the first, which miswires their servos.
-- Also worth raising: the mis-scaled probability-to-weight mapping wants a plan
-  item, and `mjx_single_cube_no_mesh.xml` has no geoms on any robot body.
+- Video + observation guide to the author (in flight).
+- Commit, push, update PR description, keep it a draft.
+- CI has not run.
+- Three bugs still unfixed, each wanting its own PR off main: `is_body_in_gripper`
+  deduplicates before counting rays; `MJCFParser.parse_actuator` cannot follow a tendon
+  transmission; a mimic coupling miswires both finger servos.
+- Dashboard is stale (`/plan-dashboard aicon-belief-integration`).
