@@ -205,13 +205,10 @@ class PhysicalGrasp:
     """
 
     video_resolution: VideoResolution = field(
-        default_factory=lambda: VideoResolution(width=640, height=480)
+        default_factory=lambda: VideoResolution(width=1280, height=720)
     )
     """
     How large the recorded frames are.
-
-    MuJoCo renders off screen into a buffer the scene declares the size of, and nothing
-    here declares one, so the default is as large as its own default buffer.
     """
 
     # %% init False
@@ -245,6 +242,8 @@ class PhysicalGrasp:
         if self.video_path is not None:
             self._use_headless_rendering()
         self._simulation = MujocoSim(world=self._scenario.world, headless=True)
+        if self.video_path is not None:
+            self._make_room_to_render_into()
         self._simulation.start_stepped_simulation()
         highest = resting_height
         held_when_highest = False
@@ -469,6 +468,19 @@ class PhysicalGrasp:
         """
         if os.environ.get("MUJOCO_GL", "").lower() not in ("egl", "osmesa"):
             os.environ["MUJOCO_GL"] = "osmesa"
+
+    def _make_room_to_render_into(self) -> None:
+        """
+        Size the off-screen buffer MuJoCo renders into to the frames being asked for.
+
+        A scene states that size in its own ``<visual>`` block, and the simulation is
+        not read from a scene but rebuilt from what the world holds, which carries
+        shapes and colours and no such block. Left alone the buffer keeps MuJoCo's own
+        default, and a larger frame is refused rather than cropped.
+        """
+        display = self._simulation.simulator._mj_model.vis.global_
+        display.offwidth = max(display.offwidth, self.video_resolution.width)
+        display.offheight = max(display.offheight, self.video_resolution.height)
 
     def _capture_frame(self) -> None:
         """

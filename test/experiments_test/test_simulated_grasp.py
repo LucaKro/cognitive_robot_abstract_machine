@@ -14,6 +14,8 @@ import pytest
 
 from ..pytest_environment import runs_in_continuous_integration
 
+from semantic_digital_twin.adapters.mujoco_video_recording import VideoResolution
+
 from experiments.simulated_grasp.grasp_attempt import (
     CONTROL_FREQUENCY,
     GraspOutcome,
@@ -214,15 +216,24 @@ def test_the_block_stays_put_when_the_gripper_never_closes():
 @requires_mujoco
 def test_a_recording_keeps_one_frame_per_control_cycle(tmp_path):
     """
-    A recording shows the attempt it was made of, so it carries a frame for every cycle
-    the controller ran plus the one taken once the scene has settled.
+    A recording shows the attempt it was made of, so it carries a frame for every cycle.
+
+    the controller ran plus the one taken once the scene has settled, at the width it was
+    asked for - wider than the buffer MuJoCo would otherwise render into, and so refuse.
+
+    The width is what is asserted because the encoder rounds a frame's height up to a
+    multiple of sixteen, which is its own business rather than this recording's.
     """
     import imageio.v2 as imageio
 
     video_path = tmp_path / "grasp.mp4"
+    resolution = VideoResolution(width=800, height=600)
 
-    outcome = PhysicalGrasp(video_path=video_path).execute()
+    outcome = PhysicalGrasp(
+        video_path=video_path, video_resolution=resolution
+    ).execute()
 
     frames = [frame for frame in imageio.get_reader(video_path)]
     assert len(frames) == outcome.control_cycles + 1
+    assert frames[0].shape[1] == resolution.width
     assert imageio.get_reader(video_path).get_meta_data()["fps"] == CONTROL_FREQUENCY
