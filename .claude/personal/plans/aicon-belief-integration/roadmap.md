@@ -3963,3 +3963,152 @@ The container needs `libosmesa6` for headless rendering, `imageio` and `imageio-
 the recording, `vhacdx` for the convex decomposition the collision meshes go through
 (already declared by `semantic_digital_twin`), and `casadi==3.7.0` as
 `belief-weighted-open-goal` recorded.
+## `belief-pickup-experiment` — the experiment moves to the cube, and answers
+
+The author confirmed the MuJoCo setup the previous round pushed, and decided what the
+experiment is:
+
+> *"please now do the experiment in this setup, but do the Experiment just with grasping
+> the cube. Remove any Code related to the drawer Experiment, and instead add another
+> plan item for the drawer Experiment Version in case i want to do it in the future. But
+> it should be Optional, not mandatory to progress until the end of the Roadmap."*
+
+So the drawer sweep is deleted, the item is renamed for what it now is, and the drawer
+version is `belief-drawer-experiment`, `deferred`, with nothing depending on it.
+
+### The cube is the better experiment, and the drawer's weakness is why
+
+`belief-weighted-open-goal` already recorded the drawer's escape hatch and this item's
+own implementation round measured it: `JointPositionList` constrains the drawer
+connection's own position variable, so the solver satisfies the hinge goal by commanding
+that degree of freedom whatever the grip weighs. *The drawer does not open* was never an
+outcome that stack could produce, which is why the drawer sweep had to fall back on how
+far the arm was dragged along behind a handle it was not holding.
+
+A cube has no degree of freedom the controller can command. It is on the table or it is
+not, the physics decides which, and the decision is read off contact rather than off a
+collision detector run against the world the controller itself wrote.
+
+### A weight means nothing without something to lose against
+
+The single thing that decides whether this experiment can say anything at all. A
+quadratic program with one task drives that task's error to zero whatever the task is
+worth; scaling a lone weight changes nothing. The drawer had an antagonist by accident -
+the hinge goal the grip was competing with. A cube pickup has none, so the alternative to
+carrying has to be stated, and the experiment states the plainest one available: putting
+the arm back in the posture it started from, at
+`WEIGHT_BELOW_COLLISION_AVOIDANCE`, which is the same weight the drawer's mechanism
+carried.
+
+It runs from the moment the grip has settled until the block is over where it is going,
+so it is the alternative to *carrying* rather than an alternative to reaching, to lowering
+the block or to letting go. Getting that window wrong is not a matter of taste: ending it
+on a step it competes with deadlocks, because that step cannot converge while it is being
+pulled at and it will not stop pulling until that step converges. Both narrower windows
+were tried and both hung.
+
+### A carry performed against an alternative settles short of its goal
+
+The other thing the window does not fix. Even a carry worth two and a half thousand times
+the alternative ends about fourteen millimetres from where it was aimed, because the
+steady-state offset of two competing velocity-level tasks is set by the ratio of their
+weights and by how far the losing one still wants to go - and the starting posture is a
+long way from a carry. A one-centimetre threshold never fires, so the two carrying steps
+carry a threshold of three, and the step that lowers the block onto its place keeps the
+default, because by then the alternative has ended and the placement is precise again.
+
+### The belief reads the physics rather than a script
+
+The drawer sweep published a share of rays the condition dictated, because
+`is_body_in_gripper` cannot report a share (it deduplicates the bodies its rays hit before
+counting them, so it answers `0` or `1 / sample_size`). Here there is nothing to script:
+the physics reports exactly which bodies are touching the block, so `ContactLikelihood`
+publishes how many of the gripper's two fingers are among them. A grasp that failed reports
+nothing touching, for as long as it goes on failing.
+
+What that reading is *worth* is the one thing the measurement cannot supply. A moment of
+contact carries no sample count, and how far it settles whether the grasp will go on
+holding is a judgment rather than a measurement, so `sample_size` states it and the sweep
+varies it. It defaults to the two fingers the reading was taken over.
+
+### The failure is a perception error, which is the honest one
+
+A grasp is made to fail by putting the block clear of the gripper while the motion aims at
+where the scene says it is. The robot has every reason to think it succeeded; the fingers
+close past the block; the physics says so. Nothing is faked and no likelihood is overridden.
+
+### The belief runs under every condition, so only its use differs
+
+An unconditional run keeps the same belief, fed by the same contacts, and simply does not
+read it. So the only difference between two rows of the comparison is which class the two
+carrying steps are built from, and the probability is reported for every run - taken at the
+moment the carry begins, which is when the weight decided whether to perform it, rather
+than at the end, when a successful run has already let the block go.
+
+### The fourth cell is not missing; it is the baseline twice over
+
+Three conditions were specified. Two things vary, so there are four, and the cell the
+original specification leaves out - an unconditional carry on a failed grasp - is the one
+that shows what the stack does today. It is not a spare: it is the only row that shows the
+robot completing a pick-and-place while holding nothing and reporting success.
+
+### What the physics said
+
+Three places the block was put — 0.48, 0.53 and 0.58 m in front of the arm — per row.
+Distances in millimetres, the probability taken at the moment the carry began:
+
+| Condition | Samples | Lifted | Block moved | Hand from the target | p | Finished |
+|---|---|---|---|---|---|---|
+| Full weight, on the block | 2 | 3 of 3 | 246.0 ± 0.12 | 2.12 ± 0.76 | 0.59 | 3 of 3 |
+| Believed, on the block | 2 | 3 of 3 | 276.2 ± 42.6 | 97.5 ± 142.4 | 0.59 | 1 of 3 |
+| Believed, on the block | 20 | 3 of 3 | 248.5 ± 4.4 | 88.7 ± 149.3 | 0.73 | 2 of 3 |
+| Believed, on the block | 200 | 3 of 3 | 245.97 ± 0.17 | 2.09 ± 0.75 | 0.85 | 3 of 3 |
+| Believed, on the block | 2000 | 3 of 3 | 245.95 ± 0.19 | 2.11 ± 0.76 | 0.92 | 3 of 3 |
+| Full weight, on nothing | 2 | 0 of 3 | 0.06 | 2.12 ± 0.76 | 0.26 | 3 of 3 |
+| Believed, on nothing | 2 | 0 of 3 | 0.06 | 238.4 ± 32.5 | 0.26 | 0 of 3 |
+| Believed, on nothing | 20 | 0 of 3 | 0.06 | 252.5 ± 9.4 | 0.07 | 0 of 3 |
+| Believed, on nothing | 200 | 0 of 3 | 0.06 | 254.7 ± 6.6 | 0.02 | 0 of 3 |
+| Believed, on nothing | 2000 | 0 of 3 | 0.06 | 255.0 ± 6.3 | 0.00 | 0 of 3 |
+
+**The deciding cell answers yes.** A belief-weighted carry on a grasp that closed on
+nothing ends a quarter of a metre from where it was going, at every evidence strength
+tried, and never delivers. The same motion at full weight takes an empty gripper the
+whole way across the table and reports that it finished — which is the plan's claim that
+the stack today *cannot represent* a failed grasp, made physical rather than argued.
+
+**A confirmed grasp is untouched, once the evidence is worth something.** At 200 samples
+and above the believed rows are the unconditional one to the hundredth of a millimetre.
+That is the opt-in claim `belief-weighted-open-goal` makes.
+
+**And there is a floor, which is the honest cost.** At 2 and 20 samples a *successful*
+carry is degraded — 97 mm off target, one run of three finishing — because a belief fed
+two measurements only reaches p = 0.59, and 1475 against 1.0 is not enough to hold the
+carry steady against its alternative. So the mechanism has a working band rather than
+being free: below about a hundred samples' worth of trust, weighing a carry by a belief
+costs a good grasp something. Reporting that is the point of sweeping the strength rather
+than fixing it.
+
+### The drawer's arithmetic does not carry over, and that is the interesting part
+
+The kinematic sweep found the ordering flips only below p = 4e-4, from
+`2500 × p` against `1.0`. Here the carry gives way at p = 0.26, where that product is
+650. The reason is that a weight ratio is not what decides a quadratic program: the
+posture task constrains seven joints and the carry three, and the steady-state error of
+two competing velocity-level tasks depends on how far the losing one still wants to go,
+not only on what each is worth. So `belief-weighted-open-goal`'s handed-over question has
+a different answer on a cube than on a drawer, and the number to quote is the measured
+one.
+
+### Still open
+
+- **`is_body_in_gripper` is still wrong on `main`.** Nothing here depends on it any more —
+  the likelihood is measured contact — but it needs its own bug pull request.
+- **The two MuJoCo adapter defects** are still repaired inside the experiment rather than
+  in the adapter, and still want their own pull requests.
+- **Scaling every weight by the belief** is untried. Only the carry is weighted here; a
+  goal whose other tasks also follow the belief is `task-weights-through-the-constraint-seam`'s
+  territory.
+- **A believed carry that gives way never finishes**, so it spends the whole cycle budget.
+  That is the outcome rather than a fault, but it means a robot doing this needs something
+  to notice the stall and decide what to do next — which nothing in this plan provides.
+

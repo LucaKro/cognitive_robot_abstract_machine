@@ -327,8 +327,8 @@ items:
       scaling and reads self.weight gets none and says nothing. Mechanical, and worth
       a baseline diff of the failure sets rather than a claim, since it touches seven
       task modules at once.
-  - id: belief-drawer-experiment
-    title: Three-condition drawer sweep judging whether the belief changes outcomes
+  - id: belief-pickup-experiment
+    title: Four-condition cube pickup judging whether the belief changes outcomes
     branch: claude/zealous-maxwell-93feuw
     pull_request_number: 17
     track: belief-application
@@ -336,37 +336,56 @@ items:
     depends_on: [belief-weighted-open-goal]
     session: https://claude.ai/code/session_014rNxpUmTFMhXdyncTyUR6C
     notes: >-
-      Sweep initial arm configurations and cabinet yaws across (i) stock Open,
-      (ii) belief-weighted Open, (iii) belief-weighted with the grasp
-      deliberately failing. Condition (iii) is the one that matters - stock Open
-      cannot represent a failed grasp and will drive the hinge goal against a
-      drawer it is not holding until NotApproachingGoal fires. Validate against
-      simulator contact state, not against the posterior.
-      The sweep is implemented and answers #16's handed-over question with a number:
-      the grip is 2500 x probability against a mechanism weight of 1.0, so the
-      ordering flips only below p = 4e-4, and no hits out of 100 rays only reaches
-      p = 5e-3. Scaling the grip alone does not make the robot back off.
-      Review then rejected the basis rather than the measurement: the sweep integrates
-      commanded velocities and reads contact off the world's own collision detector.
-      experiments/simulated_grasp is the physics basis asked for instead - a six-joint
-      arm, a parallel gripper and a free-standing block, with the control loop in
-      lockstep with MuJoCo and every number read from the simulation. The sweep is
-      untouched; rebuilding it on the simulation is gated on the author confirming the
-      setup, and a recording was sent for that.
-      The author then asked for the Franka instead of a hand-built arm, so the box arm is
-      gone and the setup drives MuJoCo Menagerie's Panda, vendored whole under
-      semantic_digital_twin/resources/mjcf/franka_emika_panda. Three defects in the
-      vendored-arm path are repaired on the parsed world rather than in the adapter, and
-      two of them are adapter bugs worth their own PRs: MJCFParser.parse_actuator cannot
-      follow a tendon transmission to a joint, so the gripper arrives undriven, and a
+      A two-by-two in a MuJoCo simulation on the vendored Franka: the carry either keeps
+      its full weight or follows the grasp belief, and the gripper either closes on the
+      cube or closes on nothing because the cube sits clear of it. The cell that decides
+      the plan is the believed carry on nothing. Everything is read from the physics -
+      the likelihood is the share of the gripper's fingers the simulator reports against
+      the cube - never from the world the controller planned in.
+      The measured result: a believed carry on nothing ends a quarter of a metre from
+      where it was going and never delivers, at every evidence strength tried, while the
+      unconditional one takes an empty gripper the whole way and reports success. A
+      believed carry on the cube is the unconditional one to the hundredth of a
+      millimetre once a reading is worth 200 samples or more; below that a successful
+      carry is degraded too, which is the mechanism's working band and the honest cost.
+      A weight needs something to lose against or it changes nothing in a quadratic
+      program, so the carry is performed against returning to the arm's starting posture
+      at WEIGHT_BELOW_COLLISION_AVOIDANCE - the same weight the drawer's mechanism
+      carried. The drawer's arithmetic does not carry over: the ordering flips at
+      p = 0.26 here rather than p = 4e-4, because a ratio of weights is not what decides
+      a quadratic program.
+      Originally specified as a drawer sweep and run as one; review rejected that basis
+      because it integrated commanded velocities and read contact off the world's own
+      collision detector. The author then asked for a MuJoCo setup with a real arm,
+      confirmed the vendored Franka pick-and-place, and asked for the experiment to be
+      done on the cube alone. The drawer version is now its own optional item.
+      Three defects in the vendored-arm path are repaired on the parsed world rather than
+      in the adapter, and two of them are adapter bugs worth their own PRs:
+      MJCFParser.parse_actuator cannot follow a tendon transmission to a joint, and a
       mimic coupling leaves both fingers carrying a degree of freedom named after the
-      first, which miswires their servos. MJCF also carries no velocity limits. The
-      repository's own Panda, mjx_single_cube_no_mesh.xml, has no geoms on any robot body
-      at all and so cannot grasp or render.
-    blockers:
-      - >-
-        Waiting on the author to confirm the MuJoCo setup before the experiment
-        is rebuilt on it.
+      first. MJCF also carries no velocity limits.
+
+  - id: belief-drawer-experiment
+    title: The same comparison on a drawer, if a mechanism ever needs to be shown
+    branch: belief-drawer-experiment
+    pull_request_number: null
+    track: belief-application
+    status: deferred
+    depends_on: [belief-pickup-experiment]
+    notes: >-
+      Optional, at the author's own call. Nothing in this plan depends on it and the
+      roadmap can be finished to the end without it - epistemic-action-demo depends on
+      belief-pickup-experiment instead, which is the cell that decides the plan. It exists
+      so the drawer version can be picked up later rather than rediscovered.
+      What it would add over the cube is a mechanism with a degree of freedom of its own.
+      That is also what made it the weaker experiment and why the cube replaced it:
+      JointPositionList commands the drawer's own joint, so the drawer opens whatever the
+      grip weighs and "the drawer does not open" is not an outcome this stack can produce.
+      A cube has no such escape hatch - it is on the table or it is not.
+      The deleted implementation is on this branch's history at c7d73963 if it is ever
+      wanted back. Rebuilding it on the physics would mean a MuJoCo cabinet and drawer
+      beside the vendored Franka, and scaling the mechanism weight by the belief as well
+      as the grip.
 
   - id: symbolic-estimator-means
     title: Expose estimator means as symbolic expressions with rate variables
@@ -420,7 +439,7 @@ items:
     pull_request_number: null
     track: differentiable-beliefs
     status: not_started
-    depends_on: [gradient-flow-guard, belief-drawer-experiment]
+    depends_on: [gradient-flow-guard, belief-pickup-experiment]
     notes: >-
       The payoff and the publishable claim - an MPC controller with hard joint,
       jerk and collision limits taking exact symbolic derivatives through a
