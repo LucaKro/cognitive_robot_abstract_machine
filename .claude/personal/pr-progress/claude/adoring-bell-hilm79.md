@@ -61,3 +61,20 @@ from every task DAO via `parse_field`'s fall-through.
 `task-weights-through-the-constraint-seam` added to the `belief-application` track,
 depending on this item: converting the other 17 `quadratic_weight=self.weight` sites.
 Asked and approved by the user; broadcast on issue #7.
+
+## Dashboard — the one thing left undone
+
+Not republished. The publish precondition is a full Read of the live artifact
+(4048 lines / 268KB), and spending ~110k tokens of context on it risked ending the
+session before the work could be reported. `plan.yaml`, `roadmap.md` and this note
+are current; the published page is not.
+
+Recipe for the next session, from #11's restack round, which is the one that
+succeeded: read the artifact, Read *every* line of the file the read saves, then
+publish to the cached url. Budget the read first, before writing code.
+
+While reading the first 1700 lines for that publish, five roadmap lines were found
+rendering as headings — wrapped continuations beginning `#10`, `#8's`, `#11's`,
+`#13)`, which Markdown parses as a heading at column 0. Fixed on the personal-notes
+branch (`1b0ad148`): pulled up onto the previous line where it was a continuation,
+prefixed with "Pull request" where it began a paragraph. 37 real `##` sections intact.
