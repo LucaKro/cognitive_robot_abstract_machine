@@ -356,9 +356,10 @@ items:
       should note the two adapter traps this found: a joint must carry a degree of
       freedom of its own name, and neighbouring links must belong to a robot to be
       excused from contact.
-    blockers: >-
-      Waiting on the author to confirm the MuJoCo setup before the experiment is
-      rebuilt on it.
+    blockers:
+      - >-
+        Waiting on the author to confirm the MuJoCo setup before the experiment
+        is rebuilt on it.
 
   - id: symbolic-estimator-means
     title: Expose estimator means as symbolic expressions with rate variables
