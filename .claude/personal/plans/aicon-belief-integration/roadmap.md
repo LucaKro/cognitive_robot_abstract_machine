@@ -3545,3 +3545,143 @@ that the two disagree.
   item's restack round fixed for eight sections. One line added, no prose changed.
 - **The tracking-issue subscription was refused** by this session's permission mode, as on
   every earlier round.
+
+## `belief-drawer-experiment` — what the implementation settled
+
+What running it settled that the kickoff plan did not anticipate, and the result it
+produced.
+
+### The answer to the question #16 handed over is a number
+
+`belief-weighted-open-goal` left *"whether scaling the grip alone makes the robot back
+off"* for this item. It does not, at any evidence a hundred-ray reading can produce, and
+the sweep says by how much it falls short.
+
+A belief-scaled grip carries `WEIGHT_ABOVE_COLLISION_AVOIDANCE` — 2500 — times the
+probability of a grasp, against the mechanism's `WEIGHT_BELOW_COLLISION_AVOIDANCE` of
+1.0. So the grip stops dominating only below a probability of 1 in 2500. A reading of no
+hits at all out of a hundred rays is log-odds `log(0.5 / 100.5)`, which is a probability
+of about `5e-3` — an order of magnitude short of where the ordering flips.
+
+Nine runs per cell, three arm postures by three cabinet angles, distances in
+millimetres:
+
+| Condition | Rays | Drawer travel | Grip offset | Still touching |
+|---|---|---|---|---|
+| Unconditional grip | 100 | 198.25 ± 2.0 | 7.57 ± 4.3 | 9 of 9 |
+| Believed grip | 100 / 1000 / 10000 | 198.25 ± 2.0 | 7.57 ± 4.3 | 9 of 9 |
+| Failing grip | 100 | 201.26 ± 1.81 | 8.72 ± 4.6 | 9 of 9 |
+| Failing grip | 1000 | 226.96 ± 0.82 | 30.23 ± 1.45 | 9 of 9 |
+| Failing grip | 10000 | 286.12 ± 0.42 | 86.50 ± 1.82 | 0 of 9 |
+
+Three things to read off it.
+
+**A confirmed grasp is stock `Open`, exactly.** The believed rows are identical to the
+unconditional one to the last reported digit, at every evidence strength. That is the
+opt-in claim #16 makes, measured rather than argued.
+
+**A failed grasp at a hundred rays is also stock `Open`, very nearly.** 201 mm against
+198, and the gripper is still on the handle in every run. The belief is doing exactly
+what it was asked to — it reports a probability of `5e-3` — and the weight it produces
+is still twelve times the mechanism's. Nothing backs off.
+
+**It takes ten thousand rays for the grip to give way**, and then it gives way
+completely: contact is lost in every run, the gripper ends 86 mm behind the handle, and
+the drawer runs on to 286 mm instead of stalling at 198.
+
+So the deciding measurement's answer is that the mechanism works and the mapping from
+probability to weight is mis-scaled for the evidence a raycast can supply. Scaling
+`mechanism_weight` by the belief as well, or putting a floor or a curve between the
+probability and the weight, is the follow-on. It is outside this item's recorded scope
+and is reported rather than done.
+
+### The conflict is the arm's reach, and collision avoidance has nothing to do with it
+
+The kickoff planned the statechart with `ExternalCollisionAvoidance` active, reasoning
+that the grip is weighted *above collision avoidance* and so needs something to outrank.
+Mutation testing says otherwise: removing collision avoidance entirely fails no test and
+changes no number. It was untested scaffolding on every run, so it is gone.
+
+What the conditions actually differ in is whether the arm can follow. The drawer slides
+*away* from the arm, past the end of its reach, so a grip that keeps its weight stalls
+the drawer at the point the arm runs out — which is the 198 mm every holding row
+reports. That conflict is geometric and needs no obstacle. Reversing the drawer's axis so
+it opens toward the arm fails the deciding test, which is what says the geometry is
+load-bearing rather than decorative.
+
+### Arm travel does not discriminate, and the kickoff said it would
+
+The kickoff recorded that *"the experiment measures how far the arm travelled and how far
+the gripper ended from the handle, and those two together say which condition left the
+world consistent"*. Only the second half holds. Arm travel is 1.0 radians in every cell
+to within its own spread, because the motion reaches for the handle before it opens
+anything and that first phase dominates the total.
+
+The column is kept, because a reader comparing conditions should see that it does not
+separate them rather than wonder whether it would have. What separates them is the grip
+offset and the contact count.
+
+### The world is built here, not supplied
+
+The kickoff recorded that the drawer builder would take a robot's world and add a
+`Drawer` to it, so that a PR2 could be swapped in. Nothing needs that, so it is not
+built: `DrawerWorld.of` builds a planar three-joint arm, a cabinet, a sliding drawer and
+a handle, and the experiment owns all of it.
+
+The reason is the same one the kickoff gave for keeping the robot out — every robot in
+this repository is described by a ROS package that is not on PyPI — but the conclusion
+is the opposite of what it drew. A supplied world would have meant the tests exercising
+one robot and the sweep running another, which is the arrangement the kickoff was trying
+to avoid. Building it here means the tests run the thing the sweep runs, and it is what
+makes this the first item on the plan whose *whole* deliverable, the deciding
+measurement included, is verified by the session that wrote it rather than by CI.
+
+The honest cost: the numbers above describe a planar arm, not a PR2. What they measure —
+a weight ratio against a reach limit — does not depend on the arm, but the particular
+millimetres do.
+
+### The assertions were checked by breaking the code
+
+Following the practice `estimator-node-base` established. Eleven mutations, each failing
+only the tests that name it:
+
+| Mutation | Tests that fail |
+|---|---|
+| `share_of_hits` ignores the failing share | the two-conditions test |
+| An unconditional grip also reads a belief | four, all about the baseline |
+| Every condition runs at every evidence strength | the one-evidence-strength test |
+| Distances stay in metres | the millimetres test |
+| Running out of cycles counts as finishing | the cycle-limit test |
+| A run without a belief reports a probability | the no-probability test |
+| The scripted likelihood publishes a constant | the publishing test |
+| Contact is counted for every run | the counting test |
+| The drawer opens toward the arm | the deciding test |
+| A failing grasp reports every ray hitting | the deciding test |
+| Collision avoidance is off | **nothing** — which is why it was removed |
+
+### Verification
+
+- 18 tests: 16 fast and two behind `@pytest.mark.slow`, which `pytest.ini` already
+  excludes by default. The two slow ones are the deciding measurements, and they run in
+  seven seconds, so the marker is about what they exercise rather than about their cost.
+- `test/experiments_test` collects with and without this diff to the same ten
+  pre-existing collection errors, compared as sorted lists. All ten are ROS imports in
+  other experiments' tests.
+- `test/version_test` is 21 passed, so the experiment imports no undeclared workspace
+  sibling. `experiments` already declares `giskardpy` and `semantic_digital_twin`.
+- The container needs `casadi==3.7.0`, as `belief-weighted-open-goal` recorded; 3.8.1
+  rejects the arguments the forward-kinematics memory binding passes.
+
+### Still open
+
+- **`is_body_in_gripper` is still wrong on `main`**, and this experiment works around it
+  rather than fixing it. It needs a focused bug pull request off the default branch.
+- **Every run stops at the cycle limit**, in every condition. The drawer's goal is
+  300 mm; a held grip stalls it at 198 and a released one reaches 286 within 400 cycles.
+  Nothing reached its goals, which is the outcome rather than a fault, but it means
+  `runs_that_reached_their_goals` separates nothing at this cycle limit.
+- **Nothing was reviewed**, and the pull request stays a draft awaiting its author's own
+  review, per this repository's convention that un-drafting *is* that record.
+- **CI has not run** on this branch.
+- **The tracking-issue subscription was refused** by this session's permission mode, as
+  on every earlier round on this plan.
