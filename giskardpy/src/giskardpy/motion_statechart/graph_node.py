@@ -1602,6 +1602,14 @@ class Task(MotionStatechartNode):
         NodePlotSpec.create_task_style
     )
 
+    @property
+    def constraint_weight(self) -> sm.ScalarData:
+        """
+        :return: The priority this task's constraints are built with, which is
+            :attr:`weight` unless a subclass makes it follow something measured.
+        """
+        return self.weight
+
 
 @dataclass(eq=False, repr=False)
 class ConvergingTask(ABC, Task):

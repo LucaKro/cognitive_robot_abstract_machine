@@ -9,6 +9,10 @@ from semantic_digital_twin.world_description.connections import ActiveConnection
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+from giskardpy.motion_statechart.beliefs.grasp import GraspBelief
+from giskardpy.motion_statechart.beliefs.grasp_weighted_tasks import (
+    GraspWeightedCartesianPose,
+)
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal, NodeArtifacts
@@ -65,6 +69,16 @@ class Open(Goal):
     letting the end effector drift off the grasped part, and the two move independently.
     """
 
+    grasp_belief: Optional[GraspBelief] = field(default=None, kw_only=True)
+    """
+    The belief about whether the grasped part is held, which scales
+    :attr:`grasp_weight`.
+
+    Left unset, the grip carries that weight unconditionally, which asserts the grasp
+    this goal's docstring assumes. Set, a grasp that fails or degrades takes the grip
+    with it, so the mechanism is no longer followed against a part that is not held.
+    """
+
     def expand(self, context: MotionStatechartContext) -> None:
         self.connection = self.environment_link.get_first_parent_connection_of_type(
             ActiveConnection1DOF
@@ -80,15 +94,25 @@ class Open(Goal):
                     ),
                     weight=self.mechanism_weight,
                 ),
-                CartesianPose(
-                    name="hold handle",
-                    root_link=self.environment_link,
-                    tip_link=self.tip_link,
-                    goal_pose=Pose(reference_frame=self.tip_link),
-                    weight=self.grasp_weight,
-                ),
+                self._hold_handle_task(),
             ]
         )
+
+    def _hold_handle_task(self) -> CartesianPose:
+        """
+        :return: The task keeping the end effector on the grasped part, weighted by the
+            belief that it is held where one was given.
+        """
+        arguments = dict(
+            name="hold handle",
+            root_link=self.environment_link,
+            tip_link=self.tip_link,
+            goal_pose=Pose(reference_frame=self.tip_link),
+            weight=self.grasp_weight,
+        )
+        if self.grasp_belief is None:
+            return CartesianPose(**arguments)
+        return GraspWeightedCartesianPose(**arguments, grasp_belief=self.grasp_belief)
 
     def _reachable_goal_joint_state(self) -> float:
         """
