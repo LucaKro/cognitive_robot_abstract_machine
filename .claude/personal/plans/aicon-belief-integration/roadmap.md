@@ -3032,6 +3032,8 @@ migrated, is the statement of intent the fix follows.
   on every earlier round. Issue #7's comments were read directly instead; the four
   structural changes recorded there concern this item only in its own creation and its
   added dependency on #13.
+## `belief-weighted-open-goal`
+
 
 The plan settled at kickoff, and the calls it makes beyond the item's recorded
 `notes`.
@@ -3372,3 +3374,174 @@ is what lets the fast tests use a minimal robot world: the PR2 needs
   the same correction every earlier item on this plan made.
 - **The tracking-issue subscription was refused** by this session's permission mode, as on
   every earlier round on this plan.
+
+## `probability-concepts-in-probabilistic-model` — second review round
+
+The second round on this item where the recorded state said the branch was clear and a
+review posted after that record said otherwise. Worth stating as a pattern rather than as
+an incident: **the recorded state is only ever as fresh as the round that wrote it**, and
+a dashboard reading checks, labels and mergeability cannot see a review that arrived
+since.
+
+Everything else was clear, and was checked rather than assumed: CI 23 of 23 green on
+`8930c6f8`, `mergeable_state` `clean`, `needs-resolution` long gone, the dependency (#10)
+`open_ready`, no pull request comments since the stack routine's own, and no `in-review`
+label — so no upstream pull request and nothing for `/upstream-reviews` to read. The
+stall was eleven new threads from `tomsch420` between 06:15 and 06:48, three of which
+call the truncated distribution outright incorrect.
+
+### Narrowing truncation to a box is what made the two refusals answerable
+
+The round's shape is one change and its consequences, not eleven independent fixes.
+
+*"the supported truncation should only be over a simple event, that has intervals of
+exactly length everywhere. Otherwise you need a circuit construction, and then this class
+is not what should be used."* So `TruncatedMultivariateGaussianDistribution` holds a
+`box: SimpleEvent` — one unbroken stretch per variable — and `require_box` raises the new
+`EventIsNotABoxError` on anything wider, whose `suggest_correction` names the circuit.
+
+The kickoff had recorded two things as genuinely intractable on that class, and both were
+artefacts of the general event rather than facts about Gaussians:
+
+- **The mode.** *"this still has exactly one maximum when truncated oustside of mean."*
+  Correct: the density is strictly log-concave and a box is convex, so there is exactly
+  one maximiser — the mean while the box holds it, otherwise the nearest point of the box
+  **in the distribution's own metric**, found by minimising the Mahalanobis distance over
+  the box's bounds. `IntractableError` is gone from the module.
+- **Conditioning.** *"also incorrect, this does exist."* Also correct, and it composes
+  two things that already existed: condition the untruncated Gaussian on the point, then
+  confine the result to the slice the box makes there. `UndefinedOperationError` is gone
+  too.
+
+That the metric matters is pinned rather than asserted: for `[[1, 0.9], [0.9, 1]]`
+confined to `horizontal ∈ [1, 2]` with `vertical` free, clipping the mean into the box
+gives `(1, 0)` and the mode is `(1, 0.9)`. Replacing the minimisation with the clipped
+start fails only that test.
+
+An excluded end is not a mode either, and the answer was already in the package:
+`TruncatedGaussianDistribution.univariate_log_mode` nudges with `nextafter`, so this is
+that behaviour one dimension up rather than a new rule.
+
+### Sampling is exact where the quantities do not co-vary, and honest where they do
+
+*"this whole class should be like a wrapper around [`scipy.stats.truncnorm`] also."* Half
+of that is right and the half that is not matters: a box-truncated **correlated** Gaussian
+is not the product of its variables' truncated marginals, so composing per-variable
+`truncnorm` draws would sample the wrong thing silently. Where the covariance is diagonal
+the variables stay independent under the box and each is drawn from its own `truncnorm`,
+rejecting nothing; where they co-vary, rejection stays, now with a `..warning::` about its
+unbounded cost.
+
+The test for it is behavioural rather than statistical, and worth copying: it draws from a
+box about nine deviations out, which rejection cannot reach in any time at all. Forcing
+that case back through rejection makes the test **hang rather than fail**, which is the
+clearest available evidence that the exact path is what it exercises. Geweke's sequential
+draw would make the correlated case exact too, and was offered as its own change rather
+than folded in.
+
+### The prediction step left the package, and the measurement update did not
+
+*"this and the method above sound like they belong in some other wrapper around this, that
+updates the distribution from sensor values"*, on `apply_linear_map` and
+`apply_added_covariance` — which reverses this item's own implementation round, where they
+were added *"rather than leave that arithmetic in giskardpy"*.
+
+Put to the user, who settled it: move the prediction step, keep the measurement update.
+The reasoning is the reviewer's own objection one comment earlier — a general linear map
+makes `x` into `0.5x + 2y` and the `random_events` variable still says `x`, which nothing
+on a distribution can express. A Kalman transition is not a general linear map: it relates
+the quantities to *themselves* one cycle later, so the variables keep their meaning, and it
+is the belief's question. `GaussianBelief.predict` now carries `F P Fᵀ + Q` and its own
+symmetrisation. `conditional_on_measurement` stays, because *"`conditional(point)` is the
+Kalman update in closed form"* is this item's whole recorded premise; the thread explaining
+what it does is left open rather than resolved, since it also carries that question back.
+
+The *"variance would converge to infinity"* half is answered rather than changed: a
+quantity nobody measures genuinely does become less certain forever, and `update` is what
+pulls it back. The opposite — staying confident unobserved — is the failure
+`belief-context-and-gaussian`'s own `predict` docstring names.
+
+### Two tests were replaced, which the rule against touching tests does not cover
+
+`test_the_mode_is_intractable_once_the_mean_is_cut_away` and
+`test_conditioning_a_truncated_distribution_is_not_answered` pinned exactly the two
+behaviours this round corrects. `AGENTS.md` forbids modifying a test to dodge a failure;
+here the assertion *was* the defect, which is the same distinction
+`pose-covariance-on-shared-quantities`'s resolution round drew when a test called a method
+that no longer existed.
+
+### Verification, and what each mutation cost
+
+Each new assertion was confirmed load-bearing by breaking the implementation, and none
+took down a test that does not name it:
+
+| Mutation | Tests that fail |
+|---|---|
+| `predict` stops averaging the carried covariance | the every-cycle symmetry test alone |
+| The mode is not moved off an excluded end | the open-box test alone |
+| The mode is the mean clipped into the box | the co-varying-quantities test alone |
+| A variable on several stretches is accepted as a box | the more-than-one-box test alone |
+| The conditional density is not scaled by the box | the split-the-joint and all-fixed tests |
+| The conditional is not confined to the slice | the two slice tests |
+| A value the box rules out is conditioned on anyway | the ruled-out test alone |
+| Quantities that do not co-vary are rejected instead | the exact-sampling test **hangs** |
+
+The symmetry test needed rewriting before it bit at all: `F P Fᵀ` stays exactly symmetric
+for many matrices and the first version's values were among them, and a drift that does
+appear washes out again within twenty cycles. It asserts on **every** cycle rather than at
+the end, which is also the honest statement of the property, and uses two quantities held
+on very different scales, where the drift actually occurs.
+
+Measured against a pre-change baseline in the same container, both run twice:
+
+| Suite | Baseline `8930c6f8` | `0c081d59` |
+|---|---|---|
+| `test/probabilistic_model_test` | 396 passed, 16 collection errors | 400 passed, 16 collection errors |
+| `test/giskardpy_test/test_motion_statechart` | 114 passed, 11 failed, 39 errors | 115 passed, 11 failed, 39 errors |
+| `test/version_test` | 21 passed | 21 passed |
+
+The motion-statechart failure sets are byte-identical as sorted lists; the +1 is this
+round's own symmetry test. The +4 on `probabilistic_model` is this round's net new tests.
+
+CI on `0c081d59` is 22 of 23 green with `semantic_digital_twin/scripts/test_exercises.sh`
+still running — a job this diff does not touch. `test_each_lib` for `probabilistic_model`,
+`giskardpy` and `version` are all green.
+
+### Three threads are the maintainer's to answer, not this round's to guess
+
+- **`_point_mass_at`** — *"i dont think this should construct a circuit on its own ...
+  perhaps raise an error if that happens"* directly contradicts his own earlier thread on
+  the same method (*"its defined to be the dirac impulse in that case"*), which `8930c6f8`
+  acted on. Flipping it a second time on an ambiguous reading would be worse than asking:
+  the two readings are a layering objection and an answer objection, and they lead
+  different places. Asked, with the preferred reading stated.
+- **Triangular covariance storage** — explicitly optional (*"if you want to go for gigachad
+  storage"*) and pulls against the plain-arrays shape he asked for in the same review.
+  Replied with what it does and does not buy.
+- **Discrete variables via an encoding** — unchanged from the first round and still his.
+
+Carry forward: a review that contradicts an earlier thread on the same pull request is a
+question, not an instruction. Acting on the later one silently would have left no record
+that the two disagree.
+
+### Still open
+
+- **The prediction step's symmetrisation is now written twice** — `(x + xᵀ) / 2` in
+  `GaussianBelief.predict` and `_symmetrized` in the distribution. One expression, and the
+  alternative was a public symmetrise helper on the distribution, which is more surface for
+  less. Worth revisiting if a third caller appears.
+- **#15's premise is gone and its record still relies on it.** `plan.yaml` for
+  `pose-covariance-on-shared-quantities` says `SpatialVariables.pose` *is* a `Quantities`,
+  and `8930c6f8` deleted `Quantities` and its module. That is #15's own resolve round, and
+  it is flagged in its notes here rather than fixed from this item.
+- **#11 stays out of draft**, for the reason `grasp-likelihood-continuous` confirmed with
+  the author and `odometry-covariance-capture` settled: un-drafting is this repository's
+  record of the author having reviewed it, and re-drafting withdraws the branch from the
+  promotion queue. This round *did* change production code, unlike the restack that
+  established the practice, so the user's standing "re-draft after any push" convention is
+  reported here rather than applied unasked.
+- **One further roadmap heading was restored.** `belief-weighted-open-goal`'s kickoff
+  section had lost its `##` and ran on from the previous item's, the same defect this
+  item's restack round fixed for eight sections. One line added, no prose changed.
+- **The tracking-issue subscription was refused** by this session's permission mode, as on
+  every earlier round.

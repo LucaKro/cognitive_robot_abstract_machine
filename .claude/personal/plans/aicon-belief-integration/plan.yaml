@@ -151,12 +151,22 @@ items:
       log_truncated (a truncated correlated Gaussian is not Gaussian, so it
       cannot return Self). Once it exists, swap GaussianBelief's internals onto
       it; the interface is already variable-keyed, so no dependent has to move.
-      Both review threads are resolved, including the one about numpy arrays on
-      ProbabilisticModel's own abstract signatures, which the roadmap recorded as
-      left open for the author. The item's remaining history is the restack onto
-      its parent: the stack pass could not integrate #10's own restack and
-      labelled #11 needs-resolution, which is resolved in ad9aa52b; the label has
-      since cleared on its own and the branch has rejoined promotion.
+      Second review round, answered in 0c081d59. Truncation is now supported only over
+      a box - one unbroken stretch per variable - which is what made the truncated
+      distribution's mode and conditional answerable rather than intractable: a strictly
+      log-concave density on a convex box has exactly one maximum, and conditioning is the
+      Gaussian conditional confined to the slice the box makes. Sampling is exact through
+      scipy.stats.truncnorm where the quantities do not co-vary. The prediction step
+      (apply_linear_map, apply_added_covariance) moved into GaussianBelief.predict, because
+      a general linear map changes what the variables mean and a Kalman transition does not;
+      conditional_on_measurement stays here, since conditional(point) being the Kalman update
+      in closed form is this item's premise. Dependents read a covariance through
+      covariance_between and build the distribution from distribution_variables plus plain
+      mean and covariance arrays - Quantities, Mean and Covariance no longer exist.
+      Four threads are open for the maintainer rather than blocked on us: whether
+      _point_mass_at should build a circuit (his two comments contradict each other),
+      triangular covariance storage, discrete variables via an encoding, and what
+      conditional_on_measurement should be.
 
   - id: pose-covariance-on-shared-quantities
     title: Lay a pose covariance out with the shared quantity layout
@@ -188,9 +198,13 @@ items:
       of degrees of freedom with of/from_array/as_array, the shape #11's Covariance
       took, which #11, #13 and #9 each recorded as costing least here. The one caller
       that moves is PoseWithCovarianceToSemDTConverter, onto from_array.
-      Resolution: the only thing that stalled this was one missed site of that
-      rename. SpatialVariables.pose is a Quantities, whose lookup is index_of and
-      has no index, and the transposed-read assertion in
+      Superseded by #11's second review round: Quantities and its module are deleted, so
+      this item's whole premise - collapsing PoseCovariance onto the shared layout - no
+      longer has anything to collapse onto. The branch already implements against it, so
+      this needs its own resolve round to decide what SpatialVariables.pose becomes now.
+      Earlier resolution, still true of the branch as pushed: the only thing that stalled
+      this was one missed site of that rename. SpatialVariables.pose is a Quantities,
+      whose lookup is index_of and has no index, and the transposed-read assertion in
       test_convert_pose_covariance_reads_the_entries_row_by_row still called the
       tuple's .index - so it raised AttributeError and took
       test_each_lib (semantic_digital_twin) red while the other 22 checks passed.
