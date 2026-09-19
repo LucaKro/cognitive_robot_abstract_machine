@@ -3152,3 +3152,84 @@ round records as taking down every dependent package at import. Read out of
 - **The branch is the session's designated branch**, `claude/adoring-bell-hilm79`, rather
   than the `belief-weighted-open-goal` name the manifest carried as a placeholder — the
   same correction every earlier item on this plan made.
+
+## `belief-weighted-open-goal` — what the implementation settled
+
+What the implementation settled that the kickoff plan did not anticipate.
+
+### The seam had to be pinned by the program, not by the task
+
+The kickoff's tests read `constraint_weight` off the task. Mutation testing showed that
+was not enough twice over, and both gaps are the same mistake at different depths:
+
+- Reverting **both** Cartesian leaves to `self.weight` failed nothing. The property still
+  computed the scaled weight; nothing checked that the constraints the program is built
+  from ever read it. The seam — the one edit that makes any of this reach the solver —
+  was untested.
+- Fixing that with a union of the free variables across both halves' constraints failed
+  nothing when only the *position* leaf was reverted, because the orientation leaf still
+  supplied the probability to the union.
+
+The test now takes each half's constraints separately, by the name prefix
+`combine_constraint_collections_of_nodes` gives them, and asserts the belief's
+probability among the free variables of each. Reverting either leaf alone now fails it.
+
+Worth carrying forward for `task-weights-through-the-constraint-seam`, which converts the
+other 17 sites: a test that reads the overriding property tests the override, not the
+wiring, and a set union over several subjects hides a miss in any one of them.
+
+### The weight the program carries is gated by the life cycle, so it is not evaluable alone
+
+Evaluating a constraint's `quadratic_weight` numerically raises `HasFreeVariablesError`
+on the node's own life-cycle variable — the program zeroes a task's weight while it is
+not running, and that factor is applied when the collection is linked to the node rather
+than by the task. So the numeric assertion (*weight times probability*) is made against
+the task's `constraint_weight`, and what the program carries is pinned structurally, by
+which variables it depends on. Two assertions rather than one, because no single reading
+covers both.
+
+### `CartesianPose` is a goal, not a task
+
+The kickoff's plan called the hold-handle child a task throughout. It is a `Parallel`
+goal and has no `constraint_weight` at all, which is why the belief-weighted version has
+to override `expand` and build weighted leaves rather than simply overriding a property.
+That override deliberately skips `CartesianPose.expand` and resumes at `Parallel` —
+calling `super().expand` would overwrite the halves it had just built with ones that do
+not read the belief.
+
+### The container runs this item's tests, with one version pin no earlier round recorded
+
+`casadi` 3.8.1 rejects the arguments the forward-kinematics memory binding passes to
+`FunctionBuffer_set_res`, which `pose-uncertainty-through-transforms` recorded as a
+container fault and worked around by attributing the failures. It is avoidable:
+`casadi==3.7.0` accepts them, and the whole `prismatic_bot` fixture then builds. Worth
+pinning at the start of any later item on this plan rather than writing off the tests
+that need a `World`.
+
+The other wall is unchanged — `test/giskardpy_test/conftest.py` imports `rclpy` through
+`GiskardTester`, so the fixture is reached by running the test file from a copy outside
+`test/` beside a local `prismatic_bot`, which is `belief-context-and-gaussian`'s recipe.
+
+### Verification
+
+- 10 tests, each confirmed load-bearing by mutating the implementation: dropping the
+  probability from the weight fails four, emptying `prerequisite_nodes` fails one, never
+  using the belief in `Open` fails seven, and reverting either Cartesian leaf fails the
+  constraint-level one. No mutation took down a test that does not name it.
+- `test_motion_statechart` compared with and without the diff in the same container:
+  **3 failed, 246 passed both times**, failure sets identical as sorted lists. The only
+  difference is this item's own tests, erroring in-tree for want of the stripped fixture.
+- `test/version_test` is 21 passed, so the new module imports no undeclared workspace
+  sibling.
+
+### Still open
+
+- **Nothing was reviewed**, and the pull request stays a draft awaiting its author's own
+  review, per this repository's convention that un-drafting *is* that record.
+- **CI has not run** on `aca45716`. The ORM point in particular is read out of
+  `wrapped_table.py` rather than run, as on every earlier item.
+- **Whether the grip alone is enough** stays the open question the kickoff recorded, for
+  `belief-drawer-experiment`.
+- **The tracking-issue subscription was refused** by this session's permission mode, as on
+  every earlier round. The structural change this session made was commented on #7
+  directly.
