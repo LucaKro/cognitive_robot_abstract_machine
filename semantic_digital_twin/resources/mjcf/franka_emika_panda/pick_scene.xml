@@ -1,0 +1,48 @@
+<!--
+  A Franka Emika Panda in front of a table with a block on it.
+
+  Ours, not MuJoCo Menagerie's: it includes Menagerie's unmodified panda.xml, which
+  carries the arm, and adds the room the block is picked up in. It lives beside that
+  file because a model's meshdir resolves against the directory of the file that
+  declares it.
+-->
+<mujoco model="panda pick scene">
+  <include file="panda.xml"/>
+
+  <statistic center="0.4 0 0.4" extent="1.2"/>
+
+  <visual>
+    <headlight diffuse="0.5 0.5 0.5" ambient="0.35 0.35 0.35" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="140" elevation="-25" offwidth="1280" offheight="720"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4"
+             rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.1"/>
+    <material name="tabletop" rgba="0.55 0.42 0.30 1"/>
+    <material name="block" rgba="0.86 0.36 0.20 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0.6 -0.6 2.0" dir="-0.2 0.25 -1" directional="true" diffuse="0.8 0.8 0.8"/>
+    <light pos="-0.5 0.8 1.8" dir="0.25 -0.4 -1" directional="true" diffuse="0.35 0.35 0.35" castshadow="false"/>
+
+    <body name="floor">
+      <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    </body>
+
+    <body name="table" pos="0.55 0 0.19">
+      <geom name="table" type="box" size="0.30 0.40 0.01" material="tabletop"/>
+    </body>
+
+    <body name="block" pos="0.55 0 0.23">
+      <freejoint/>
+      <geom name="block" type="box" size="0.02 0.02 0.03" material="block"
+            condim="4" friction="1 0.05 0.005" solref="0.01 1" mass="0.1"/>
+    </body>
+
+  </worldbody>
+</mujoco>
