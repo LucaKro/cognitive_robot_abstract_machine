@@ -342,6 +342,23 @@ items:
       cannot represent a failed grasp and will drive the hinge goal against a
       drawer it is not holding until NotApproachingGoal fires. Validate against
       simulator contact state, not against the posterior.
+      The sweep is implemented and answers #16's handed-over question with a number:
+      the grip is 2500 x probability against a mechanism weight of 1.0, so the
+      ordering flips only below p = 4e-4, and no hits out of 100 rays only reaches
+      p = 5e-3. Scaling the grip alone does not make the robot back off.
+      Review then rejected the basis rather than the measurement: the sweep integrates
+      commanded velocities and reads contact off the world's own collision detector.
+      experiments/simulated_grasp is the physics basis asked for instead - a six-joint
+      arm, a parallel gripper and a free-standing block, with the control loop in
+      lockstep with MuJoCo and every number read from the simulation. The sweep is
+      untouched; rebuilding it on the simulation is gated on the author confirming the
+      setup, and a recording was sent for that. Dependents building a world this way
+      should note the two adapter traps this found: a joint must carry a degree of
+      freedom of its own name, and neighbouring links must belong to a robot to be
+      excused from contact.
+    blockers: >-
+      Waiting on the author to confirm the MuJoCo setup before the experiment is
+      rebuilt on it.
 
   - id: symbolic-estimator-means
     title: Expose estimator means as symbolic expressions with rate variables

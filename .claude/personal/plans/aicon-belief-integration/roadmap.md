@@ -3685,3 +3685,150 @@ only the tests that name it:
 - **CI has not run** on this branch.
 - **The tracking-issue subscription was refused** by this session's permission mode, as
   on every earlier round on this plan.
+
+## `belief-drawer-experiment` — resolution: the basis moves to a physics simulation
+
+The first round on this plan where nothing mechanical was wrong at all. CI was 23 of 23
+green on `c7d73963`, `mergeable_state` was `clean`, there were no review threads, no
+`in-review` label and so no upstream review, and issue #7's five comments concern other
+items. The stall was one pull request comment, from the author:
+
+> *"Hmm idk this is sus. I think the only way to get proper evidence if this could
+> actually works is by testing this in a mujoco simulation. Please Set up one with a
+> robot arm (i think we have other mujoco robot arm Experiments already), in which the
+> normal grasping works under ideal conditions. Record a Video as well and provide it in
+> our Chat. For me to confirm that the setup is okay. After i confirm its okay, then we
+> use this as a Basis for the experiment"*
+
+So the objection is to the basis, not to the measurement: the sweep integrates commanded
+velocities and reads contact off the world's own collision detector, which is the
+arrangement this plan's own standing caveat warns about — a world that agrees with the
+controller because the controller wrote it. The request is gated, and the gate is the
+author's: build the simulation, record it, and stop there.
+
+### What the repository already had, and what it did not
+
+`test_mujoco_live_control.py` is the precedent and it is exact: `MujocoSim` plus
+`SteppedSimulationPacer` put Giskard's own control loop in lockstep with the physics, one
+`mj_step` sequence per control cycle. `MujocoVideoRecorder` mirrors a world into a
+headless MuJoCo scene and encodes frames.
+
+Neither is usable off the shelf here. That test drives Tracy, whose description is
+`iai_tracy_description`, a ROS package with no PyPI distribution — the same wall every
+round on this plan has hit. And the one mesh-free robot arm in the repository's own
+resources, `mjcf/mjx_single_cube_no_mesh.xml`, is a Franka Panda whose bodies carry
+inertials and no geoms at all, so nothing in it can touch anything: it exercises the
+simulator's name and state callbacks, not grasping.
+
+So the arm is built here, out of boxes, exactly as `DrawerWorld` already builds one — and
+for the same reason. That also keeps one code path between what the tests exercise and
+what the recording shows.
+
+### An actuated joint's world position is the set point, not the measurement
+
+The property that makes this a physics experiment rather than a re-skin of the kinematic
+one, and it is not obvious from the outside. `MujocoSynchronizer._read_connections_from_qpos`
+skips every degree of freedom that has an actuator: *"An actuated joint's world position
+is the set point it was commanded to, which the position it has reached so far must not
+overwrite."* So the controller keeps planning in a world where the arm is exactly where it
+was told to be, while the physics holds where it actually got to, and the two are read
+apart.
+
+Every number this setup reports is therefore read from the simulation —
+`get_body_position`, `get_contact_bodies` — never from the world the controller planned
+in. That is the plan's standing caveat satisfied by construction rather than by a
+predicate that happens to be independent.
+
+It is also what makes a grip possible at all. The grip force is the servo's stiffness
+times the distance between the commanded finger position and the one the block has stopped
+it at; if the world were re-synced from the physics, that distance would be one control
+cycle of travel and the gripper would barely hold anything.
+
+### Four things had to be got right before anything could be grasped
+
+Each was found by measurement rather than by reading, and each is now pinned by a test.
+
+**A joint has to carry a degree of freedom of its own name.** `create_with_dofs` names
+every degree of freedom it makes `dof`, distinguishing them only by prefix. Two places in
+the MuJoCo adapter go by the bare name:
+`Connection1DOFConverter` reads a joint whose degree of freedom is named differently as a
+*mimic* and emits an equality constraint to a joint of that name, and
+`_transmission_for_degree_of_freedom` wires an actuator to the first connection carrying a
+degree of freedom of that name. With `create_with_dofs`, all eight actuators came out
+wired to the shoulder. The joints here therefore build their own degrees of freedom, named
+for themselves. Worth carrying forward: this is a trap for any programmatically built
+robot, and it is invisible — the scene compiles and the arm moves, just not by the servos
+you think.
+
+**Neighbouring links have to be excused from contact.** A description's links overlap where
+they meet, and in MuJoCo that overlap is a contact that holds the joint between them still.
+The adapter already excludes such pairs — but only for bodies that belong to a *robot*, via
+`world.robot_body_to_robot_mapping` and the collision manager's `AllowCollisionForAdjacentPairs`.
+Until `MinimalRobot.from_branch_in_world(column)` was called, the shoulder's own overlap with
+the column jammed the yaw joint: the arm reached the block, lifted it, and then carried it
+nowhere, because the only motion that needed yaw was the one across the table.
+
+**The palm must not be asked to face down by a full pose goal.** A `CartesianPose` onto the
+block with `roll = pi` is feasible and the QP still could not reach it: it wound the wrist
+to its limits and stopped 25 cm short. The block is square and narrower across its diagonal
+than the gripper's opening, so the rotation about the vertical carries no information — the
+approach is a `CartesianPosition` on the frame between the fingertips plus an `AlignPlanes`
+holding the palm's own axis against straight down, and the wrist is left alone.
+
+**The arm has to start palm-down.** Even with the rotation free, reaching down from a
+palm-up posture costs half a turn somewhere, and the QP spends it at the wrist against its
+limit. `READY_POSTURE`'s three pitches sum to half a turn, so the arm starts already facing
+the table and reaches the block by extending.
+
+### What the setup does, and what the physics says about it
+
+A six-joint arm on a column, a parallel gripper, a table and a block. The motion is a full
+pick and place: reach above the block, descend onto it, close, settle, lift, carry across
+the table, set down, open, settle, retreat. Under ideal conditions:
+
+| | Grip closed | Grip left open |
+|---|---|---|
+| Block lifted | yes, by 246 mm | no, 0 mm |
+| Both fingers on it at the top | yes | no |
+| Ends from the target | 3.1 mm | 200.0 mm |
+| Travelled | 201.2 mm | 0.1 mm |
+| Control cycles | 306 | 306 |
+
+The open-gripper run is the same motion with the same cycle count, and it moves the block
+by a tenth of a millimetre — which is what says the block was carried by the fingers rather
+than pushed along by anything else. It is the control this experiment's kinematic
+predecessor could not have.
+
+### Scope boundaries held
+
+- **Nothing in the belief experiment is rebuilt on it.** The author gated that explicitly:
+  *"After i confirm its okay, then we use this as a Basis for the experiment."* The sweep,
+  its conditions and its recorded result are untouched.
+- **No production code changes.** Nothing in `giskardpy` or `semantic_digital_twin` is
+  edited; the two adapter traps above are worked around inside this world, not fixed in the
+  adapter.
+- **Nothing is added to the ORM.** `experiments` has its own scan and the outcome is an
+  `ExperimentResult` row, the same way `control_loop_experiments` already is.
+
+### Verification
+
+Twelve tests: eight on the arrangement the grasp depends on, which need no simulator, and
+four that start MuJoCo and follow the same continuous-integration gating as every other
+simulator-backed test here. Each was confirmed load-bearing by mutating the implementation.
+
+The container needs `libosmesa6` for headless rendering — its MuJoCo has no EGL — plus
+`imageio` and `imageio-ffmpeg`, and `casadi==3.7.0` as `belief-weighted-open-goal` already
+recorded.
+
+### Still open
+
+- **The author has not confirmed the setup.** That is the gate, and nothing beyond it is
+  this round's to do.
+- **`is_body_in_gripper` is still wrong on `main`**, as this item's implementation recorded.
+  It needs a focused bug pull request off the default branch. It matters more now: a
+  physically simulated grasp is exactly what a share-of-rays likelihood would finally have
+  something honest to measure.
+- **The mis-scaled probability-to-weight mapping** stays a follow-on, and the numbers the
+  kinematic sweep produced for it still stand as the answer to the question #16 handed over.
+- **The tracking-issue subscription was refused** by this session's permission mode, as on
+  every earlier round on this plan.
