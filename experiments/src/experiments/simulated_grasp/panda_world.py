@@ -15,7 +15,7 @@ from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import List, Tuple
+from typing_extensions import List
 
 import semantic_digital_twin
 from semantic_digital_twin.adapters.mjcf import MJCFParser
@@ -34,6 +34,7 @@ from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connection_properties import ServoGains
 from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
+    Connection6DoF,
     FixedConnection,
 )
 from semantic_digital_twin.world_description.geometry import Color
@@ -97,6 +98,19 @@ class PandaPartName(StrEnum):
     FLOOR = "floor"
     TABLE = "table"
     BLOCK = "block"
+
+
+class BlockPlacement(StrEnum):
+    """
+    The degrees of freedom the block is placed through, as the description names them.
+
+    They are read as offsets from where the scene itself puts the block, which is what
+    lets a block be placed somewhere other than where a motion aiming at the scene's own
+    description expects it.
+    """
+
+    ALONG_THE_ARM = "x"
+    ACROSS_THE_TABLE = "y"
 
 
 # %% where everything is, and how hard the gripper squeezes
@@ -232,6 +246,14 @@ class PandaWorld:
     The block the arm picks up.
     """
 
+    expected_block_position: Point3
+    """
+    Where a motion aiming at this scene expects the block to be.
+
+    The block itself may sit somewhere else, which is what a perception error looks like
+    to a robot that cannot tell the difference.
+    """
+
     table: Body
     """
     The surface the block rests on.
@@ -248,10 +270,17 @@ class PandaWorld:
     """
 
     @classmethod
-    def of(cls) -> PandaWorld:
+    def of(
+        cls, block_distance: float = BLOCK_DISTANCE, block_offset: float = 0.0
+    ) -> PandaWorld:
         """
         Read the scene and make the arm drivable.
 
+        :param block_distance: How far in front of the arm the block is, in metres.
+        :param block_offset: How far across the table the block actually sits from where
+            a motion aiming at this scene expects it, in metres. Nothing in the world
+            says it is there, which is what makes it a perception error rather than a
+            different scene.
         :return: The world, ready to execute a motion in.
         """
         world = MJCFParser.from_file(str(SCENE_PATH)).parse()
@@ -288,6 +317,7 @@ class PandaWorld:
             world.state[connection.dof.id].position = position
         for finger in fingers:
             world.state[finger.dof.id].position = OPEN_FINGER_OFFSET
+        cls._place_the_block(world, block_distance, block_offset)
         world.notify_state_change()
 
         return cls(
@@ -295,10 +325,42 @@ class PandaWorld:
             hand=bodies[PandaPartName.HAND],
             tool_frame=tool_frame,
             block=bodies[PandaPartName.BLOCK],
+            expected_block_position=cls.resting_place(block_distance, 0.0),
             table=bodies[PandaPartName.TABLE],
             arm=arm,
             fingers=fingers,
         )
+
+    @staticmethod
+    def _place_the_block(
+        world: World, block_distance: float, block_offset: float
+    ) -> None:
+        """
+        Put the block down on the table, as far along the arm and as far across it as
+        asked for.
+
+        :param world: The world holding the block.
+        :param block_distance: How far in front of the arm it is, in metres.
+        :param block_offset: How far across the table it is, in metres.
+
+        ..note:: The block rests on the table on a free joint, whose positions the scene
+            reads as offsets from where it puts the block itself.
+        """
+        placement = [
+            connection
+            for connection in world.connections
+            if isinstance(connection, Connection6DoF)
+            and connection.child.name.name == PandaPartName.BLOCK
+        ][0]
+        wanted = {
+            BlockPlacement.ALONG_THE_ARM: block_distance - BLOCK_DISTANCE,
+            BlockPlacement.ACROSS_THE_TABLE: block_offset,
+        }
+        for degree_of_freedom in placement.dofs:
+            if degree_of_freedom.name.name in wanted:
+                world.state[degree_of_freedom.id].position = wanted[
+                    degree_of_freedom.name.name
+                ]
 
     @staticmethod
     def resting_place(x: float, y: float) -> Point3:

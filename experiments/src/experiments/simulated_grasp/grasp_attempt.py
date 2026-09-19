@@ -18,7 +18,7 @@ from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import List, Optional, Set
+from typing_extensions import Dict, List, Optional, Set
 
 from experiments.experiment_definitions import ExperimentResult
 from experiments.simulated_grasp.panda_world import (
@@ -27,14 +27,13 @@ from experiments.simulated_grasp.panda_world import (
     GRIPPED_FINGER_OFFSET,
     OPEN_FINGER_OFFSET,
     OVERVIEW_CAMERA,
-    PandaJointName,
     PandaPartName,
     PandaWorld,
 )
 from giskardpy.executor import Executor, SteppedSimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import Parallel
-from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     CountSimulationTimeSeconds,
 )
@@ -113,6 +112,15 @@ class GraspPhase(StrEnum):
     RELEASING = "settling the release"
     RETREATING = "retreating"
 
+    @property
+    def carries_the_block(self) -> bool:
+        """
+        :return: Whether this step moves the block from where it was picked up to where
+            it is going. Reaching for it, lowering it and letting go of it are worth
+            performing whether or not it is held; taking it across the table is not.
+        """
+        return self in (GraspPhase.LIFTING, GraspPhase.ABOVE_THE_TARGET)
+
 
 # %% what an attempt reports
 
@@ -154,6 +162,21 @@ class GraspOutcome(ExperimentResult):
     travelled: float
     """
     How far the block ended from where it started, in millimetres.
+    """
+
+    gripper_offset_from_the_target: float
+    """
+    How far the hand ended from over the place the block was to be put down, in
+    millimetres, which is what says whether the arm performed the carry at all.
+    """
+
+    grasp_probability: Optional[float]
+    """
+    How likely a belief held a grasp to be when the attempt ended, or nothing where the
+    attempt kept no belief.
+
+    Reported so a reader can see why an attempt behaved as it did, and never what one is
+    judged by.
     """
 
     control_cycles: int
@@ -199,6 +222,21 @@ class PhysicalGrasp:
     lifted block was lifted by the grip rather than carried along by anything else.
     """
 
+    block_distance: float = BLOCK_DISTANCE
+    """
+    How far in front of the arm the block sits, in metres.
+    """
+
+    block_offset: float = 0.0
+    """
+    How far across the table the block actually sits from where the motion expects it,
+    in metres.
+
+    The motion aims at where the scene says the block is, so an offset wide enough to
+    clear the gripper is a grasp that closes on nothing while the robot has every reason
+    to think it succeeded.
+    """
+
     video_path: Optional[Path] = None
     """
     Where a recording of the attempt is written, or nothing to run without rendering.
@@ -234,10 +272,11 @@ class PhysicalGrasp:
 
         :return: What it did.
         """
-        self._scenario = PandaWorld.of()
+        self._scenario = PandaWorld.of(
+            block_distance=self.block_distance, block_offset=self.block_offset
+        )
         started_at = self._scenario.block_position.copy()
         resting_height = started_at[2]
-        statechart = self._create_statechart(self._scenario)
 
         if self.video_path is not None:
             self._use_headless_rendering()
@@ -245,6 +284,7 @@ class PhysicalGrasp:
         if self.video_path is not None:
             self._make_room_to_render_into()
         self._simulation.start_stepped_simulation()
+        statechart = self._create_statechart(self._scenario)
         highest = resting_height
         held_when_highest = False
         hand_ever_touched = False
@@ -266,6 +306,7 @@ class PhysicalGrasp:
                     break
                 executor.tick()
                 executor.pacer.sleep()
+                self._observe_cycle(executor)
                 self._capture_frame()
                 hand_ever_touched = hand_ever_touched or self.hand_touches_the_block
                 height = self.block_position[2]
@@ -278,13 +319,15 @@ class PhysicalGrasp:
             self._simulation.step_simulation(timedelta(seconds=SETTLING_TIME))
             self._capture_frame()
             ended_at = self.block_position.copy()
+            hand_ended_at = self.hand_position.copy()
+            grasp_probability = self._grasp_probability(executor)
             control_cycles = int(executor.control_cycles)
         finally:
             self._simulation.stop_simulation()
 
         self._write_video()
         return GraspOutcome(
-            block_was_lifted=highest - resting_height >= LIFTED_OFF_THE_TABLE,
+            block_was_lifted=bool(highest - resting_height >= LIFTED_OFF_THE_TABLE),
             highest_lift=(highest - resting_height) * MILLIMETRES_PER_METRE,
             held_by_both_fingers=held_when_highest,
             hand_touched_the_block=hand_ever_touched,
@@ -292,6 +335,11 @@ class PhysicalGrasp:
             * MILLIMETRES_PER_METRE,
             travelled=float(np.linalg.norm(ended_at - started_at))
             * MILLIMETRES_PER_METRE,
+            gripper_offset_from_the_target=float(
+                np.linalg.norm(hand_ended_at[:2] - self.target.to_np()[:2])
+            )
+            * MILLIMETRES_PER_METRE,
+            grasp_probability=grasp_probability,
             control_cycles=control_cycles,
             reached_its_goals=reached_its_goals,
         )
@@ -304,6 +352,18 @@ class PhysicalGrasp:
         return np.array(
             self._simulation.simulator.get_body_position(
                 body_name=PandaPartName.BLOCK
+            ).result
+        )
+
+    @property
+    def hand_position(self) -> np.ndarray:
+        """
+        :return: Where the hand is in the physics, which is where the arm actually got
+            to rather than where it was commanded.
+        """
+        return np.array(
+            self._simulation.simulator.get_body_position(
+                body_name=PandaPartName.HAND
             ).result
         )
 
@@ -342,63 +402,89 @@ class PhysicalGrasp:
 
         :param scenario: The world the attempt is made in.
         :return: The statechart the attempt executes.
-        """
-        block = Point3.from_iterable(scenario.block_position)
-        above_the_block = self._reach(
-            scenario, GraspPhase.ABOVE_THE_BLOCK, block, APPROACH_HEIGHT
-        )
-        at_the_block = self._reach(
-            scenario, GraspPhase.AT_THE_BLOCK, block, GRASP_HEIGHT
-        )
-        closing = self._grip(scenario, GraspPhase.CLOSING, GRIPPED_FINGER_OFFSET)
-        gripping = CountSimulationTimeSeconds(
-            name=GraspPhase.GRIPPING, seconds=SETTLING_TIME
-        )
-        lifting = self._reach(scenario, GraspPhase.LIFTING, block, CARRY_HEIGHT)
-        above_the_target = self._reach(
-            scenario, GraspPhase.ABOVE_THE_TARGET, self.target, CARRY_HEIGHT
-        )
-        at_the_target = self._reach(
-            scenario, GraspPhase.AT_THE_TARGET, self.target, GRASP_HEIGHT
-        )
-        opening = self._grip(scenario, GraspPhase.OPENING, OPEN_FINGER_OFFSET)
-        releasing = CountSimulationTimeSeconds(
-            name=GraspPhase.RELEASING, seconds=SETTLING_TIME
-        )
-        retreating = self._reach(
-            scenario, GraspPhase.RETREATING, self.target, CARRY_HEIGHT
-        )
 
-        steps = [
-            above_the_block,
-            at_the_block,
-            gripping,
-            lifting,
-            above_the_target,
-            at_the_target,
-            releasing,
-            retreating,
-        ]
+        ..note:: Built once the physics is running, so that anything running alongside
+            the motion can read the simulation the motion is judged by.
+        """
+        block = scenario.expected_block_position
+        steps: Dict[GraspPhase, MotionStatechartNode] = {
+            GraspPhase.ABOVE_THE_BLOCK: self._reach(
+                scenario, GraspPhase.ABOVE_THE_BLOCK, block, APPROACH_HEIGHT
+            ),
+            GraspPhase.AT_THE_BLOCK: self._reach(
+                scenario, GraspPhase.AT_THE_BLOCK, block, GRASP_HEIGHT
+            ),
+            GraspPhase.GRIPPING: CountSimulationTimeSeconds(
+                name=GraspPhase.GRIPPING, seconds=SETTLING_TIME
+            ),
+            GraspPhase.LIFTING: self._reach(
+                scenario, GraspPhase.LIFTING, block, CARRY_HEIGHT
+            ),
+            GraspPhase.ABOVE_THE_TARGET: self._reach(
+                scenario, GraspPhase.ABOVE_THE_TARGET, self.target, CARRY_HEIGHT
+            ),
+            GraspPhase.AT_THE_TARGET: self._reach(
+                scenario, GraspPhase.AT_THE_TARGET, self.target, GRASP_HEIGHT
+            ),
+            GraspPhase.RELEASING: CountSimulationTimeSeconds(
+                name=GraspPhase.RELEASING, seconds=SETTLING_TIME
+            ),
+            GraspPhase.RETREATING: self._reach(
+                scenario, GraspPhase.RETREATING, self.target, CARRY_HEIGHT
+            ),
+        }
         previous = None
-        for step in steps:
+        for step in steps.values():
             step.end_condition = step.observation_variable
             if previous is not None:
                 step.start_condition = previous.is_succeeded
             previous = step
 
-        closing.start_condition = at_the_block.is_succeeded
-        closing.end_condition = at_the_target.is_succeeded
-        opening.start_condition = at_the_target.is_succeeded
+        closing = self._grip(scenario, GraspPhase.CLOSING, GRIPPED_FINGER_OFFSET)
+        opening = self._grip(scenario, GraspPhase.OPENING, OPEN_FINGER_OFFSET)
+        closing.start_condition = steps[GraspPhase.AT_THE_BLOCK].is_succeeded
+        closing.end_condition = steps[GraspPhase.AT_THE_TARGET].is_succeeded
+        opening.start_condition = steps[GraspPhase.AT_THE_TARGET].is_succeeded
 
         statechart = MotionStatechart()
-        for node in steps + [closing, opening]:
+        for node in (
+            list(steps.values())
+            + [closing, opening]
+            + self._competing_nodes(scenario, steps)
+        ):
             statechart.add_node(node)
-        statechart.add_node(EndMotion.when_true(retreating))
+        statechart.add_node(EndMotion.when_true(steps[GraspPhase.RETREATING]))
         return statechart
 
-    @staticmethod
+    def _competing_nodes(
+        self, scenario: PandaWorld, steps: Dict[GraspPhase, MotionStatechartNode]
+    ) -> List[MotionStatechartNode]:
+        """
+        Whatever else runs alongside the motion.
+
+        :param scenario: The world the attempt is made in.
+        :param steps: The motion's own steps, by the phase each performs, so that
+            something running alongside them can say when it does.
+        :return: Nothing, for an attempt that is only the motion.
+        """
+        return []
+
+    def _observe_cycle(self, executor: Executor) -> None:
+        """
+        Read whatever this attempt watches for while it runs.
+
+        :param executor: The executor that has just ticked.
+        """
+
+    def _grasp_probability(self, executor: Executor) -> Optional[float]:
+        """
+        :param executor: The executor whose context holds whatever was published.
+        :return: Nothing, for an attempt that keeps no belief about its grasp.
+        """
+        return None
+
     def _reach(
-        scenario: PandaWorld, phase: GraspPhase, place: Point3, height: float
+        self, scenario: PandaWorld, phase: GraspPhase, place: Point3, height: float
     ) -> Parallel:
         """
         Bring the frame between the fingertips over a place on the table, with the palm
@@ -420,11 +506,10 @@ class PhysicalGrasp:
         return Parallel(
             name=phase,
             nodes=[
-                CartesianPosition(
-                    name=f"{phase}/position",
-                    root_link=world.root,
-                    tip_link=scenario.tool_frame,
-                    goal_point=Point3(
+                self._position_task(
+                    scenario,
+                    phase,
+                    Point3(
                         goal[0], goal[1], goal[2] + height, reference_frame=world.root
                     ),
                 ),
@@ -436,6 +521,24 @@ class PhysicalGrasp:
                     goal_normal=Vector3(0.0, 0.0, -1.0, reference_frame=world.root),
                 ),
             ],
+        )
+
+    def _position_task(
+        self, scenario: PandaWorld, phase: GraspPhase, goal_point: Point3
+    ) -> CartesianPosition:
+        """
+        Bring the frame between the fingertips to a point.
+
+        :param scenario: The world the attempt is made in.
+        :param phase: Which step of the attempt this is.
+        :param goal_point: Where that frame is to end up.
+        :return: The task, carrying its weight whatever happens.
+        """
+        return CartesianPosition(
+            name=f"{phase}/position",
+            root_link=scenario.world.root,
+            tip_link=scenario.tool_frame,
+            goal_point=goal_point,
         )
 
     def _grip(
@@ -527,10 +630,17 @@ def main() -> None:
         action="store_true",
         help="Run the same motion without closing the gripper.",
     )
+    parser.add_argument(
+        "--block-offset",
+        type=float,
+        default=0.0,
+        help="How far across the table the block sits from where the motion expects it.",
+    )
     arguments = parser.parse_args()
     outcome = PhysicalGrasp(
         video_path=arguments.video,
         closes_the_gripper=not arguments.leave_the_gripper_open,
+        block_offset=arguments.block_offset,
     ).execute()
     for name, value in zip(
         GraspOutcome.get_column_names(), outcome.get_column_values()
