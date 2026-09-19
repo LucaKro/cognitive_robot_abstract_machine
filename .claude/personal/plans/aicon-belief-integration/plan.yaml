@@ -291,6 +291,28 @@ items:
       failed or degrading grasp is representable at all. Keep the change behind
       an opt-in field so stock Open behaviour is unchanged by default.
 
+  - id: task-weights-through-the-constraint-seam
+    title: Let every task's weight follow the constraint seam, not just the grip's
+    branch: task-weights-through-the-constraint-seam
+    pull_request_number: null
+    track: belief-application
+    status: not_started
+    depends_on: [belief-weighted-open-goal]
+    notes: >-
+      belief-weighted-open-goal adds Task.constraint_weight, a property returning
+      self.weight that a task whose weight follows something measured overrides,
+      and points CartesianPosition and CartesianOrientation at it - the two leaves
+      the Open goal's hold-handle CartesianPose expands into, and the only ones a
+      belief-scaled weight reaches. The other 17 quadratic_weight=self.weight sites
+      were left on the field, in feature_functions, pointing, wiggle_insert,
+      align_planes, grasp_bar and the Cartesian trajectory, straight and
+      velocity-limit tasks. That was the user's call at that item's kickoff, to keep
+      it inside its recorded scope. It leaves AGENTS.md's "one operation, one name,
+      throughout a module" half-held: the property is declared on the base class, so
+      it is formalized rather than a convention, but a later task that wants weight
+      scaling and reads self.weight gets none and says nothing. Mechanical, and worth
+      a baseline diff of the failure sets rather than a claim, since it touches seven
+      task modules at once.
   - id: belief-drawer-experiment
     title: Three-condition drawer sweep judging whether the belief changes outcomes
     branch: belief-drawer-experiment
