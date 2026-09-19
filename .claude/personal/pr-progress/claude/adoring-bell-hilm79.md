@@ -4,59 +4,60 @@ Plan item of **AICON Belief Integration**. Branch `claude/adoring-bell-hilm79`,
 based on #14 (`claude/plan-item-kickoff-belief-integration-6uj1wv`), which is where
 `GraspBelief` lives. Tracking issue #7.
 
-## Plan
+## Status: implemented and pushed (`aca45716`), awaiting CI and the author's review
 
-Make `Open`'s hold-handle weight follow the grasp belief, opt-in, stock behaviour
-unchanged.
+## What landed
 
-1. `Task.constraint_weight` — a property returning `self.weight`, read by
-   `CartesianPosition` (`cartesian_tasks.py:181`) and `CartesianOrientation`
-   (`cartesian_tasks.py:626`). The field stays a `float`; retyping it to
-   `sm.ScalarData` would drop the `weight` ORM column from every task DAO.
-2. A belief-weighted Cartesian pose in `motion_statechart/beliefs/` — holds the
-   `GraspBelief`, declares it in `prerequisite_nodes`, overrides
-   `constraint_weight` as `self.weight * belief.probability`. Because
-   `CartesianPose` is a `Parallel` goal, it also expands into belief-weighted
-   position and orientation leaves.
-3. An optional field on `Open`, unset by default; when set, the hold-handle child
-   is the belief-weighted pose.
-4. Tests first, in `test_other_tasks.py` beside the existing `Open` weight tests,
-   reusing the `prismatic_bot` fixture and the `_expanded_nodes` helper.
+1. `Task.constraint_weight` — a property returning `self.weight`, overridden where a
+   weight follows something measured. `Task.weight` stays a `float`, so no ORM
+   mapping changes.
+2. `CartesianPosition` (`cartesian_tasks.py:181`) and `CartesianOrientation`
+   (`:626`) read it — the two leaves the hold-handle `CartesianPose` expands into.
+3. `motion_statechart/beliefs/grasp_weighted_tasks.py` — `GraspWeightedTask` holds
+   the belief, declares it in `prerequisite_nodes`, returns
+   `self.weight * belief.probability`; the two weighted leaves and the
+   `CartesianPose` that expands into them sit beside it.
+4. `Open.grasp_belief`, optional and unset by default. `Close` inherits it.
+5. Ten tests in `test_grasp_weighted_open.py`, reusing #14's `grasp_belief` helper.
 
 ## Why this shape
 
-The wall is timing before typing: `Open.expand` runs in `_expand_goals`, which
-completes before any `build_artifacts`, and `GraspBelief.probability` does not
-exist until the belief builds. So the weight has to resolve at the task's own
-build, which is what the property plus `prerequisite_nodes` buys.
-`NotApproachingGoal` (`progress_monitors.py:75`) is the precedent.
+Timing before typing: `Open.expand` runs in `_expand_goals`, which completes before
+any `build_artifacts`, and `GraspBelief.probability` does not exist until the belief
+builds. So the weight resolves at the task's own build, which the property plus
+`prerequisite_nodes` buys. `NotApproachingGoal` (`progress_monitors.py:75`) is the
+precedent. Retyping `Task.weight` to `sm.ScalarData` would drop the `weight` column
+from every task DAO via `parse_field`'s fall-through.
 
-## Done
+## Verified
 
-- Read `roadmap.md` in full; dependency #14 reports `open_ready`.
-- Established the QP re-evaluates `quadratic_weights` every cycle with
-  `float_variables` among its parameters, so a variable-scaled weight is live.
-- Seam breadth settled with the user: only the two Cartesian leaves, since `Open`
-  builds just three constraint-adding tasks and only the grip's two carry
-  `grasp_weight`. Remainder tracked as `task-weights-through-the-constraint-seam`,
-  broadcast on #7.
-- Branch, draft PR #16, manifest fields and roadmap section recorded.
+- 10/10 pass; every assertion confirmed load-bearing by mutation.
+- Two test gaps found that way and fixed: reading the task's property left the seam
+  itself unpinned, and a union across both halves hid a revert of either one.
+- `test_motion_statechart` baseline: 3 failed / 246 passed with and without the
+  diff, failure sets identical as sorted lists.
+- `test/version_test` 21 passed.
+- Container needs `casadi==3.7.0`; 3.8.1 breaks the FK memory binding.
 
 ## Next
 
-- Write the failing tests, then the three production changes.
-- Try the `test_motion_statechart` suite locally with #14's recorded container
-  recipe; `test/giskardpy_test/conftest.py` imports `rclpy` through
-  `GiskardTester`, which is what has blocked the fixture-using tests on this plan.
-- Republish the dashboard.
+- Nothing outstanding on the branch. CI on `aca45716` has not been read.
+- Republish the dashboard (the read/publish cycle is expensive in context; left as
+  the last step).
 
-## Open, carried into the PR description and roadmap
+## Open, recorded in the roadmap and the PR description
 
 - Scaling the grip alone may not make the robot back off: `JointPositionList`
   constrains the environment connection's own position variable, so the solver can
   open the drawer directly while a slack grip leaves the arm uncoupled. Flagged for
-  `belief-drawer-experiment`; scaling `mechanism_weight` too is outside this item's
+  `belief-drawer-experiment`; scaling `mechanism_weight` is outside this item's
   recorded scope.
 - No floor under the scaled weight — a ruled-out grasp reaches
-  `DefaultWeights.WEIGHT_MINIMUM`. A floor would be a tuned constant with nothing
-  to cite.
+  `DefaultWeights.WEIGHT_MINIMUM`.
+- The ORM point is read out of `wrapped_table.py`, not run. CI confirms it.
+
+## Structural change made this session
+
+`task-weights-through-the-constraint-seam` added to the `belief-application` track,
+depending on this item: converting the other 17 `quadratic_weight=self.weight` sites.
+Asked and approved by the user; broadcast on issue #7.
