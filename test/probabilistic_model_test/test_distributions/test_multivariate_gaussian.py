@@ -5,6 +5,7 @@ import pytest
 from random_events.interval import closed, open_closed, singleton
 from random_events.product_algebra import SimpleEvent, VariableMap
 from random_events.variable import Continuous
+from scipy.stats._multivariate import multivariate_normal_frozen
 
 from probabilistic_model.distributions.gaussian import GaussianDistribution
 from probabilistic_model.distributions.multivariate_gaussian import (
@@ -12,9 +13,8 @@ from probabilistic_model.distributions.multivariate_gaussian import (
     TruncatedMultivariateGaussianDistribution,
 )
 from probabilistic_model.exceptions import (
-    IntractableError,
+    EventIsNotABoxError,
     ShapeMismatchError,
-    UndefinedOperationError,
     VariableNotInDistributionError,
 )
 
@@ -156,6 +156,20 @@ class TestBuildingADistribution:
     ):
         assert independent.mean.tolist() == [1.0, -2.0]
         assert independent.covariance.tolist() == [[4.0, 0.0], [0.0, 9.0]]
+
+    def test_the_support_is_every_value_the_variables_can_take(self, independent):
+        """
+        A Gaussian rules nothing out, so its support is the universal event over its own
+        variables rather than one rebuilt from the reals.
+        """
+        assert independent.support == (
+            independent.universal_simple_event().as_composite_set()
+        )
+
+    def test_every_tractable_query_is_answered_by_one_scipy_distribution(
+        self, independent
+    ):
+        assert isinstance(independent.scipy_distribution, multivariate_normal_frozen)
 
 
 # %% density
@@ -603,6 +617,28 @@ class TestCopying:
 # %% confining a distribution to an event
 
 
+def box_over(horizontal, vertical, lower: float, upper: float) -> SimpleEvent:
+    """
+    :return: The same stretch on both quantities, which is the shape every truncation
+        here is confined to.
+    """
+    return SimpleEvent.from_data(
+        {horizontal: closed(lower, upper), vertical: closed(lower, upper)}
+    )
+
+
+def mode_point_of(truncated: TruncatedMultivariateGaussianDistribution) -> np.ndarray:
+    """
+    :return: The one point the mode is, read back in the distribution's own order, so a
+        mode an optimiser lands next to can be compared to the value it should be.
+    """
+    mode, _ = truncated.log_mode()
+    box = mode.simple_sets[0]
+    return np.array(
+        [box[variable].simple_sets[0].lower for variable in truncated.variables]
+    )
+
+
 class TestTruncation:
     def test_truncating_answers_with_a_distribution_that_is_no_longer_gaussian(
         self, correlated, horizontal, vertical
@@ -611,12 +647,27 @@ class TestTruncation:
         A correlated Gaussian confined to a box is not a Gaussian, so truncation cannot
         answer with one of its own kind.
         """
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, probability = correlated.truncated(box)
         assert isinstance(truncated, TruncatedMultivariateGaussianDistribution)
         assert probability == pytest.approx(correlated.probability(box))
+
+    def test_an_event_of_more_than_one_box_is_not_this_class_to_answer(
+        self, correlated, horizontal, vertical
+    ):
+        """
+        A quantity confined to two separate stretches leaves a shape that needs a
+        circuit rather than one truncated Gaussian.
+        """
+        two_stretches = SimpleEvent.from_data(
+            {
+                horizontal: closed(0.0, 1.0) | closed(3.0, 4.0),
+                vertical: closed(0.0, 1.0),
+            }
+        ).as_composite_set()
+        with pytest.raises(EventIsNotABoxError) as error:
+            correlated.truncated(two_stretches)
+        assert error.value.model is correlated
 
     def test_an_impossible_event_leaves_nothing(self, correlated, horizontal, vertical):
         nothing = SimpleEvent.from_data(
@@ -629,9 +680,7 @@ class TestTruncation:
     def test_the_truncated_density_is_the_original_scaled_up_to_one(
         self, correlated, horizontal, vertical
     ):
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, probability = correlated.truncated(box)
         inside = np.array([[0.5, 0.5]])
         assert truncated.likelihood(inside)[0] == pytest.approx(
@@ -641,52 +690,102 @@ class TestTruncation:
     def test_nothing_outside_the_event_can_happen(
         self, correlated, horizontal, vertical
     ):
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
         assert truncated.likelihood(np.array([[5.0, 5.0]]))[0] == 0.0
 
     def test_the_truncated_distribution_is_certain_of_its_own_event(
         self, correlated, horizontal, vertical
     ):
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
         assert truncated.probability(truncated.support) == pytest.approx(1.0)
 
     def test_the_mode_is_the_mean_when_the_mean_survived_the_truncation(
         self, correlated, horizontal, vertical
     ):
-        box = SimpleEvent.from_data(
-            {horizontal: closed(-1.0, 1.0), vertical: closed(-1.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, -1.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
         mode, _ = truncated.mode()
         assert mode.contains(np.array([0.0, 0.0]))
 
-    def test_the_mode_is_intractable_once_the_mean_is_cut_away(
+    def test_the_mode_of_quantities_that_do_not_co_vary_is_the_mean_pulled_into_the_box(
+        self, independent, horizontal, vertical
+    ):
+        """
+        Quantities that do not co-vary are most likely, within a box, exactly where each
+        of them on its own is: at the point of its own stretch nearest its own mean.
+        """
+        box = SimpleEvent.from_data(
+            {horizontal: closed(3.0, 4.0), vertical: closed(-2.0, 0.0)}
+        ).as_composite_set()
+        truncated, _ = independent.truncated(box)
+        assert mode_point_of(truncated) == pytest.approx(
+            [3.0, independent.mean_of(vertical)]
+        )
+
+    def test_the_mode_is_on_the_boundary_once_the_mean_is_cut_away(
         self, correlated, horizontal, vertical
     ):
         """
-        The most likely point is then somewhere on the event's boundary, which has no
-        closed form for a correlated Gaussian.
+        A Gaussian falls away from its mean in every direction, so a box that excludes
+        the mean still has exactly one most likely point: its own corner nearest to it.
+        """
+        box = box_over(horizontal, vertical, 3.0, 4.0).as_composite_set()
+        truncated, _ = correlated.truncated(box)
+        _, log_density = truncated.log_mode()
+        assert mode_point_of(truncated) == pytest.approx([3.0, 3.0])
+        assert log_density == pytest.approx(
+            truncated.log_likelihood(np.array([[3.0, 3.0]]))[0]
+        )
+
+    def test_a_quantity_the_box_leaves_free_follows_the_one_it_confines(
+        self, horizontal, vertical
+    ):
+        """
+        Two quantities that co-vary are not most likely where each of them on its own
+        would be: confining one of them moves where the other is most likely with it.
+        """
+        strongly_correlated = MultivariateGaussianDistribution(
+            distribution_variables=(horizontal, vertical),
+            mean=np.array([0.0, 0.0]),
+            covariance=np.array([[1.0, 0.9], [0.9, 1.0]]),
+        )
+        box = SimpleEvent.from_data(
+            {horizontal: closed(1.0, 2.0), vertical: closed(-5.0, 5.0)}
+        ).as_composite_set()
+        truncated, _ = strongly_correlated.truncated(box)
+        assert mode_point_of(truncated) == pytest.approx([1.0, 0.9])
+
+    def test_no_point_of_the_box_is_more_likely_than_the_mode(
+        self, correlated, horizontal, vertical
+    ):
+        box = box_over(horizontal, vertical, 3.0, 4.0).as_composite_set()
+        truncated, _ = correlated.truncated(box)
+        _, log_density = truncated.log_mode()
+        grid = np.linspace(3.0, 4.0, 11)
+        elsewhere = np.array([[first, second] for first in grid for second in grid])
+        assert max(truncated.log_likelihood(elsewhere)) <= log_density
+
+    def test_the_mode_of_an_open_box_is_a_point_the_box_still_allows(
+        self, correlated, horizontal, vertical
+    ):
+        """
+        A stretch that excludes its own lower end has no nearest point, so the mode is
+        the next value there is rather than the end itself, which the box gives no
+        density at all.
         """
         box = SimpleEvent.from_data(
-            {horizontal: closed(3.0, 4.0), vertical: closed(3.0, 4.0)}
+            {horizontal: open_closed(3.0, 4.0), vertical: open_closed(3.0, 4.0)}
         ).as_composite_set()
         truncated, _ = correlated.truncated(box)
-        with pytest.raises(IntractableError):
-            truncated.mode()
+        _, log_density = truncated.log_mode()
+        assert log_density > -np.inf
+        assert truncated.log_likelihood(np.array([[3.0, 3.0]]))[0] == -np.inf
 
     def test_truncating_again_narrows_the_event(self, correlated, horizontal, vertical):
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 2.0), vertical: closed(0.0, 2.0)}
-        ).as_composite_set()
-        smaller = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, 0.0, 2.0).as_composite_set()
+        smaller = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
         narrowed, probability = truncated.truncated(smaller)
         assert narrowed.likelihood(np.array([[1.5, 1.5]]))[0] == 0.0
@@ -698,84 +797,97 @@ class TestTruncation:
         self, correlated, horizontal, vertical
     ):
         np.random.seed(69)
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
         samples = truncated.sample(200)
         assert samples.shape == (200, 2)
         assert all(truncated.support.contains(sample) for sample in samples)
 
-    def test_conditioning_a_truncated_distribution_is_not_answered(
+    def test_quantities_that_do_not_co_vary_are_sampled_without_being_rejected(
+        self, independent, horizontal, vertical
+    ):
+        """
+        A box the distribution almost never lands in cannot be reached by drawing until
+        something falls inside it; each quantity is drawn from its own stretch instead.
+        """
+        np.random.seed(69)
+        unlikely = SimpleEvent.from_data(
+            {horizontal: closed(20.0, 21.0), vertical: closed(20.0, 21.0)}
+        ).as_composite_set()
+        truncated, _ = independent.truncated(unlikely)
+        samples = truncated.sample(50)
+        assert samples.shape == (50, 2)
+        assert all(truncated.support.contains(sample) for sample in samples)
+
+
+# %% fixing a variable of a distribution that has already been confined
+
+
+class TestConditioningATruncatedDistribution:
+    def test_it_answers_with_the_slice_the_box_makes_at_that_value(
         self, correlated, horizontal, vertical
     ):
-        box = SimpleEvent.from_data(
-            {horizontal: closed(0.0, 1.0), vertical: closed(0.0, 1.0)}
-        ).as_composite_set()
+        """
+        Fixing one quantity of a truncated Gaussian leaves the Gaussian conditional,
+        itself confined to what the box still allows the rest.
+        """
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
-        with pytest.raises(UndefinedOperationError):
-            truncated.conditional({vertical: 0.5})
+        conditional, _ = truncated.conditional({vertical: 0.5})
+        assert isinstance(conditional, TruncatedMultivariateGaussianDistribution)
+        assert conditional.variables == (horizontal,)
+        assert conditional.likelihood(np.array([[1.5]]))[0] == 0.0
+        assert conditional.probability(conditional.support) == pytest.approx(1.0)
 
-
-# %% carrying the quantities forward through a linear change
-
-
-class TestLinearMap:
-    def test_a_quantity_becomes_the_weighted_sum_of_the_others(
-        self, independent, horizontal, vertical
+    def test_the_slice_is_the_untruncated_conditional_confined_the_same_way(
+        self, correlated, horizontal, vertical
     ):
-        independent.apply_linear_map(np.array([[1.0, 2.0], [0.0, 1.0]]))
-        assert independent.mean_of(horizontal) == pytest.approx(1.0 + 2.0 * -2.0)
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
+        truncated, _ = correlated.truncated(box)
+        conditional, _ = truncated.conditional({vertical: 0.5})
 
-    def test_a_linear_map_carries_into_the_covariance_on_both_sides(
-        self, independent, horizontal
-    ):
-        """
-        The variance of a sum of two independent quantities is the sum of theirs.
-        """
-        independent.apply_linear_map(np.array([[1.0, 1.0], [0.0, 1.0]]))
-        assert independent.variance_of(horizontal) == pytest.approx(4.0 + 9.0)
-
-    def test_the_identity_changes_nothing(self, correlated):
-        before = correlated.covariance.copy()
-        correlated.apply_linear_map(np.eye(2))
-        assert correlated.covariance.tolist() == before.tolist()
-
-    def test_a_linear_map_not_laid_out_by_the_variables_is_rejected(self, independent):
-        with pytest.raises(ShapeMismatchError) as error:
-            independent.apply_linear_map(np.eye(3))
-        assert error.value.expected_shape == (2, 2)
-        assert error.value.received_shape == (3, 3)
-
-
-# %% growing less certain
-
-
-class TestAddedCovariance:
-    def test_added_covariance_accumulates(self, independent, horizontal):
-        independent.apply_added_covariance(np.array([[1.5, 0.0], [0.0, 0.0]]))
-        assert independent.variance_of(horizontal) == pytest.approx(5.5)
-
-    def test_an_added_covariance_reaches_both_directions_of_a_pair(
-        self, independent, horizontal, vertical
-    ):
-        independent.apply_added_covariance(np.array([[0.0, 0.5], [0.5, 0.0]]))
-        assert independent.covariance_between(horizontal, vertical) == pytest.approx(
-            0.5
-        )
-        assert independent.covariance_between(vertical, horizontal) == pytest.approx(
-            0.5
+        untruncated_conditional, _ = correlated.conditional({vertical: 0.5})
+        stretch = SimpleEvent.from_data(
+            {horizontal: closed(0.0, 1.0)}
+        ).as_composite_set()
+        expected, _ = untruncated_conditional.truncated(stretch)
+        inside = np.array([[0.25]])
+        assert conditional.likelihood(inside)[0] == pytest.approx(
+            expected.likelihood(inside)[0]
         )
 
-    def test_adding_nothing_leaves_the_covariance_alone(self, correlated):
-        before = correlated.covariance.copy()
-        correlated.apply_added_covariance(np.zeros((2, 2)))
-        assert correlated.covariance.tolist() == before.tolist()
-
-    def test_an_added_covariance_not_laid_out_by_the_variables_is_rejected(
-        self, independent
+    def test_the_density_returned_is_what_splits_the_joint_into_the_two_halves(
+        self, correlated, horizontal, vertical
     ):
-        with pytest.raises(ShapeMismatchError) as error:
-            independent.apply_added_covariance(np.zeros((3, 3)))
-        assert error.value.expected_shape == (2, 2)
-        assert error.value.received_shape == (3, 3)
+        """
+        A conditional density times the density of what was fixed is the joint density,
+        which is what the number answered alongside the conditional has to be.
+        """
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
+        truncated, _ = correlated.truncated(box)
+        conditional, log_density = truncated.log_conditional({vertical: 0.5})
+        assert truncated.likelihood(np.array([[0.25, 0.5]]))[0] == pytest.approx(
+            math.exp(log_density) * conditional.likelihood(np.array([[0.25]]))[0]
+        )
+
+    def test_a_value_the_box_rules_out_leaves_nothing(
+        self, correlated, horizontal, vertical
+    ):
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
+        truncated, _ = correlated.truncated(box)
+        conditional, log_density = truncated.log_conditional({vertical: 5.0})
+        assert conditional is None
+        assert log_density == -np.inf
+
+    def test_fixing_every_quantity_leaves_the_point_it_was_fixed_at(
+        self, correlated, horizontal, vertical
+    ):
+        box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
+        truncated, _ = correlated.truncated(box)
+        conditional, log_density = truncated.log_conditional(
+            {horizontal: 0.25, vertical: 0.5}
+        )
+        assert conditional.likelihood(np.array([[0.25, 0.5]]))[0] == float("inf")
+        assert log_density == pytest.approx(
+            truncated.log_likelihood(np.array([[0.25, 0.5]]))[0]
+        )

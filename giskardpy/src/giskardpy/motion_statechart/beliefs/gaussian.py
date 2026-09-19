@@ -227,6 +227,11 @@ class GaussianBelief:
         and grows less certain by the process noise, which is what keeps a belief nobody
         is observing from staying confident forever.
 
+        The transition relates the quantities to *themselves* one cycle later, which is
+        why it is applied here rather than to the distribution: a general linear map
+        would make each quantity a combination of the others and leave the variables
+        naming something they no longer are.
+
         :param transition: How much each quantity's estimate carries into each
             quantity's next one. :attr:`unchanged` is the one for quantities expected to
             stay put.
@@ -236,8 +241,13 @@ class GaussianBelief:
         :raises VariableNotInDistributionError: If any of them names a quantity this
             belief is not about.
         """
-        self.distribution.apply_linear_map(self.matrix(transition))
-        self.distribution.apply_added_covariance(self.symmetric_matrix(process_noise))
+        carried = self.matrix(transition)
+        grown = (
+            carried @ self.distribution.covariance @ carried.T
+            + self.symmetric_matrix(process_noise)
+        )
+        self.distribution.mean = carried @ self.distribution.mean
+        self.distribution.covariance = (grown + grown.T) / 2
         self.distribution.apply_translation(dict(offset or {}))
 
     def update(self, readings: List[Reading]) -> None:

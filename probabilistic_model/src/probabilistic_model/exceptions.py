@@ -6,6 +6,8 @@ from krrood.exceptions import DataclassException
 from random_events.variable import Variable
 
 if TYPE_CHECKING:
+    from random_events.product_algebra import Event
+
     from probabilistic_model.probabilistic_model import ProbabilisticModel
 
 
@@ -41,6 +43,36 @@ class UndefinedOperationError(DataclassException):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class EventIsNotABoxError(DataclassException):
+    """
+    Exception raised when a model is asked to confine itself to something other than a
+    single box.
+
+    A box is one unbroken stretch per variable. Anything wider leaves a shape no single
+    truncated distribution describes.
+    """
+
+    model: ProbabilisticModel
+    """
+    The model that was asked.
+    """
+
+    event: Event
+    """
+    What it was asked to confine itself to.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.event} is not one box, so {self.model} cannot be confined to it."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Confine it to one unbroken stretch per variable, or build a circuit over "
+            "the boxes the event is made of."
+        )
 
 
 @dataclass

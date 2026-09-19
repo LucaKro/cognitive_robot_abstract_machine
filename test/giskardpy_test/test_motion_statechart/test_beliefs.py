@@ -103,6 +103,36 @@ class TestPredict:
         assert belief.mean_of(grasp) == pytest.approx(decay * 1.0 + (1 - decay) * prior)
         assert belief.variance_of(grasp) == pytest.approx(decay**2 * 0.04)
 
+    def test_the_uncertainty_stays_symmetric_on_every_cycle(self):
+        """
+        Carrying a covariance through a transition is symmetric in exact arithmetic and
+        drifts out of it under rounding, most visibly between quantities held on very
+        different scales.
+
+        A covariance that is not symmetric is no longer one, so this has to hold on
+        every cycle rather than by the end of a run.
+        """
+        first, second = Continuous("a"), Continuous("b")
+        belief = GaussianBelief.of(
+            variables=(first, second),
+            estimates={},
+            uncertainty={
+                (first, first): 0.001,
+                (second, second): 1000.0,
+                (first, second): 0.1,
+            },
+        )
+        transition = {
+            (first, first): 0.1,
+            (first, second): 0.1,
+            (second, first): 0.1,
+            (second, second): 0.2,
+        }
+        for _ in range(20):
+            belief.predict(transition=transition, process_noise={})
+            covariance = belief.distribution.covariance
+            assert covariance.tolist() == covariance.T.tolist()
+
     def test_a_quantity_the_belief_is_not_about_is_rejected(self):
         quantity = Continuous("x")
         belief = GaussianBelief.of_one_variable(quantity, mean=0.0, variance=1.0)
