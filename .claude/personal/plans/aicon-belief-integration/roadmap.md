@@ -3233,3 +3233,142 @@ The other wall is unchanged — `test/giskardpy_test/conftest.py` imports `rclpy
 - **The tracking-issue subscription was refused** by this session's permission mode, as on
   every earlier round. The structural change this session made was commented on #7
   directly.
+
+## `belief-drawer-experiment`
+
+The plan settled at kickoff, and the two findings that changed what the experiment can
+be built on.
+
+### The base is #16, and the item's own files collide with nothing
+
+`Open.grasp_belief` and `GraspWeightedCartesianPose` exist only on
+`claude/adoring-bell-hilm79`, so this item stacks on `belief-weighted-open-goal` (#16)
+and is re-based onto `main` once #16 lands — the same call every stacked item on this
+plan has made. The dependency check reports #16 `open_ready`, and it is the only
+dependency, so this branch has one parent rather than the two `grasp-belief-node` and
+`pose-covariance-on-shared-quantities` each had to carry.
+
+`scope-decision.md`'s mechanical check reports this item's own paths absent from the
+base and touched by no unlanded branch: the experiment package and its tests are new
+files, and everything it reads — the belief, the weighted grip, the `Open` goal — is
+already on the base. Nothing here edits what a parent introduces.
+
+### `is_body_in_gripper` cannot report a share of rays, so the likelihood is scripted
+
+The finding that decides how the experiment is driven.
+:func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_in_gripper` is
+documented as *"the percentage of rays between the fingers that hit the body"*, and
+`grasp-likelihood-continuous` built `GraspLikelihood` on that reading. It does not
+compute one. `bodies_in_gripper` ends with `list(set(bodies) - ...)`, which deduplicates
+the hits before `len([b for b in bodies if b == body]) / sample_size` counts them, so
+the answer is `0` or `1 / sample_size` and nothing else.
+
+Read from the source and corroborated by both call sites rather than by running it,
+since the raycast needs a gripper with meshes this container cannot build:
+`test_is_body_in_gripper` asserts only `> 0` and `== 0`, and coraplex's container
+post-condition guards its `> 0.9` with `or_(..., allclose(position))`, which is what a
+condition that can never fire on its own looks like.
+
+What it costs this item: a likelihood capped at `0.01` drives the belief to a confident
+*not held* in `BELIEVED_GRIP` as surely as in `FAILING_GRIP`, so the two conditions the
+experiment exists to tell apart would run identically. The experiment therefore drives
+the belief through a scripted `GraspLikelihoodSource` publishing the share of hits the
+condition dictates, which is what `grasp-belief-node` declared that abstraction for —
+its own tests already stand a recorded source in for the raycast. *Deliberately* failing
+a grasp is a scripted failure by definition, so condition (iii) wants this regardless.
+
+The defect is on `main`, it is one root cause, and fixing it belongs in a focused bug
+pull request off the default branch rather than inside an experiment. It is not fixed
+here.
+
+### The three conditions are three cells of a two-by-two, and the fourth is not missing
+
+The item's `notes` name three conditions across two things that vary — whether the grip
+follows a belief, and whether the grasp holds. The cell the three leave out is stock
+`Open` under a failing grasp, which is the baseline condition (iii) has to be read
+against.
+
+It needs no run. Stock `Open` reads no likelihood at all, so the scripted share reaches
+nothing and its trajectory is the same either way; `UNCONDITIONAL_GRIP` is therefore
+simultaneously the baseline for both belief conditions. That is not a convenience — it
+is the plan's own claim that stock `Open` *cannot represent* a failed grasp, made
+mechanical. The condition builds no likelihood source and no belief, so the claim is
+true by construction rather than by a parameter being ignored.
+
+### What the conditions can differ in, now that the mechanism is commanded directly
+
+`belief-weighted-open-goal` flagged this for the experiment rather than deciding it:
+`JointPositionList` constrains the environment connection's own position variable, so
+the solver satisfies the hinge goal by commanding that degree of freedom whatever the
+grip weighs. *The drawer does not open* is not an outcome this stack can produce, so the
+plan's *"drive the hinge goal against a drawer it is not holding until
+`NotApproachingGoal` fires"* does not describe what happens here.
+
+What does differ is whether the arm is dragged along a drawer it is not holding. Under
+`UNCONDITIONAL_GRIP` the grip outranks collision avoidance, so the arm tracks a handle it
+has no hold on — the physical falsehood the plan's standing caveat is about, produced by
+the controller rather than by a confident posterior. Under `FAILING_GRIP` the grip's
+weight goes to `WEIGHT_MINIMUM` and the arm stays where it is while the handle travels
+away from it. So the experiment measures how far the arm travelled and how far the
+gripper ended from the handle, and those two together say which condition left the world
+consistent.
+
+Scaling `mechanism_weight` by the belief as well is the obvious follow-on and is outside
+this item's recorded scope; it is reported rather than done.
+
+### Contact is read from the world's collision detector, which is the honest reading here
+
+The plan's standing caveat says to validate against simulator contact state, never
+against the posterior. There is no physics engine in this loop — `Executor` integrates
+the commanded velocities, which is what every `Open` test in the package runs against —
+so the contact available is
+:func:`~semantic_digital_twin.reasoning.predicates.contact`, the world's own collision
+detector between the gripper and the handle.
+
+It satisfies what the caveat is for: it reads the geometry the controller produced and
+is independent of the belief, so a confident posterior cannot make it true. Running the
+sweep through `physics_simulators` would be a different and much larger item, and no
+giskard test does it.
+
+### The world is supplied, not built into the sweep
+
+The sweep is over arm configurations and cabinet yaws, and both are robot-specific. The
+drawer builder therefore takes the robot's world and adds a `Drawer` to it — a case body,
+a `Handle` and a `Slider`, the way `TestOpenClose::test_open` builds its `Door`, `Handle`
+and `Hinge` — rather than building a PR2 itself, and the arm configurations are data the
+caller supplies.
+
+That keeps one code path between what the tests exercise and what the sweep runs, and it
+is what lets the fast tests use a minimal robot world: the PR2 needs
+`iai_pr2_description`, a ROS package absent from every container this plan has recorded.
+
+### Scope boundaries held
+
+- **No production code changes.** The experiment reads `Open`, `GraspBelief` and the
+  weighted grip as its parents left them; nothing in `giskardpy` or
+  `semantic_digital_twin` is edited.
+- **`is_body_in_gripper` is not fixed.** One root cause, its own bug pull request off the
+  default branch.
+- **The mechanism weight is not scaled.** That is what the experiment reports on, not what
+  it changes.
+- **Nothing is added to the ORM.** `experiments` has its own `scripts/generate_orm.py`
+  scan; the sweep's results are `ExperimentResult` rows, which that package already maps
+  the same way `control_loop_experiments` does.
+
+### Assumptions and open points
+
+- **The belief's parameters have no established values**, as `grasp-belief-node` recorded:
+  the half-life, the drift, the prior uncertainty and the two observation thresholds say
+  how fast a grasp should be forgotten and how confident is confident enough. They are
+  sweep inputs. The two scripted shares default to every ray hitting and none hitting,
+  which are the extremes rather than tuned numbers.
+- **The real runs cannot be verified in the authoring container.** They need the PR2, so
+  they sit behind `@pytest.mark.slow`, which this repository's `pytest.ini` already
+  excludes by default — the shape `test_control_loop_benchmark.py` established. The
+  aggregation and the condition building are pinned by fast tests against hand-built
+  runs.
+- **The branch is the session's designated branch**, `claude/zealous-maxwell-93feuw`,
+  rather than the `belief-drawer-experiment` name the manifest carried as a placeholder —
+  the same correction every earlier item on this plan made.
+- **The tracking-issue subscription was refused** by this session's permission mode, as on
+  every earlier round on this plan.
