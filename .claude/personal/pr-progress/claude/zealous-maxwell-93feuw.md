@@ -1,48 +1,43 @@
 # belief-drawer-experiment — PR #17 (draft), base #16
 
 Plan item `belief-drawer-experiment` of `aicon-belief-integration`. The
-measurement the whole plan turns on.
+measurement the whole plan turns on. **Implementation complete and pushed.**
 
-## Plan
+## The result
 
-1. `experiments/src/experiments/belief_drawer_experiment/drawer_scenario.py`
-   — `DrawerWorld.of(robot_world, cabinet_yaw)` adding a `Drawer` (case body,
-   `Handle`, `Slider`) to a supplied robot world; `ArmConfiguration`;
-   `DrawerCondition` (`UNCONDITIONAL_GRIP`, `BELIEVED_GRIP`, `FAILING_GRIP`);
-   `ScriptedLikelihood`, a `GraspLikelihoodSource` publishing the share of
-   hits the condition dictates; the statechart each condition builds
-   (reach the handle, then `Open`, with collision avoidance on).
-2. `.../sweep.py` — `DrawerRun`, `DrawerRunOutcome` (mechanism travel, arm
-   travel, grip offset, contact, cycles, goals reached), aggregation into
-   `DrawerConditionResult(ExperimentResult)`, `DrawerSweep.execute()` /
-   `render_figure()` / `write_manifest`, and an argparse CLI — following
-   `control_loop_experiments/benchmark.py`.
-3. `test/experiments_test/test_belief_drawer_experiment.py` — tests first.
-   Fast: what each condition builds, the scripted likelihood, the
-   aggregation against hand-built outcomes, the sweep grid, a timed-out run.
-   `@pytest.mark.slow`: one real run per condition.
+Nine runs per cell (3 arm postures x 3 cabinet yaws), distances in mm:
 
-## Decisions already recorded (roadmap section is pushed)
+| Condition | Rays | Drawer travel | Grip offset | Touching |
+|---|---|---|---|---|
+| Unconditional | 100 | 198.25 | 7.57 | 9/9 |
+| Believed | 100/1k/10k | 198.25 | 7.57 | 9/9 |
+| Failing | 100 | 201.26 | 8.72 | 9/9 |
+| Failing | 1000 | 226.96 | 30.23 | 9/9 |
+| Failing | 10000 | 286.12 | 86.50 | 0/9 |
 
-- `is_body_in_gripper` deduplicates its hits, so it can only answer `0` or
-  `1/sample_size`. The likelihood is scripted; the defect is flagged for a
-  separate bug PR off `main`, not fixed here.
-- Three conditions, not four: stock `Open` reads no likelihood, so it is the
-  baseline for both belief conditions at once.
-- The mechanism DOF is commanded directly, so the outcome that separates the
-  conditions is whether the arm is dragged, not whether the drawer opens.
-- Contact comes from the world's collision detector; there is no physics
-  engine in this loop.
+Answers #16's handed-over question with a number: scaling the grip alone does
+NOT make the robot back off at any evidence a 100-ray reading can produce.
+Grip = 2500 x probability vs mechanism = 1.0, so the ordering flips below
+p = 4e-4; no hits out of 100 rays only reaches p = 5e-3.
 
 ## Done
 
-- Branch off #16, empty bootstrap commit, draft PR #17.
-- `plan.yaml` item flipped to `in_progress` with branch/session/PR; roadmap
-  section appended.
+- Branch off #16, draft PR #17, manifest `in_progress`.
+- Both roadmap sections pushed (kickoff plan + what the implementation
+  settled, including the three corrections to the kickoff's own claims).
+- `drawer_scenario.py`, `drawer_run.py`, `sweep.py`, 18 tests. Committed and
+  pushed as `c7d73963`.
+- 11 mutations, each failing only the tests that name it. One failed nothing
+  (collision avoidance) and that code was removed.
+- Baseline comparison: identical 10 pre-existing collection errors with and
+  without the diff. `test/version_test` 21 passed.
+- Dashboard republished (v21).
+- PR description rewritten to match the result.
 
 ## Next
 
-- Write the tests, then the two modules.
-- Republish the dashboard (`/plan-dashboard aicon-belief-integration`).
-- Report the `is_body_in_gripper` defect to the user; consider a plan item
-  for it and for scaling `mechanism_weight` by the belief.
+- Republish the dashboard once more (the roadmap gained a section since v21).
+- CI has not run on `c7d73963`.
+- Raise with the user: the `is_body_in_gripper` defect on `main` wants its own
+  bug PR (needs the `bug` label, off the default branch), and the mis-scaled
+  probability-to-weight mapping wants a plan item.
