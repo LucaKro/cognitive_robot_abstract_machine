@@ -178,7 +178,7 @@ class CartesianPosition(CartesianTask):
             frame_P_goal=root_P_goal,
             frame_P_current=root_P_current,
             reference_velocity=self.reference_velocity,
-            quadratic_weight=self.weight,
+            quadratic_weight=self.constraint_weight,
         )
 
         self.add_goal_and_current_debug_expressions(
@@ -623,7 +623,7 @@ class CartesianOrientation(CartesianTask):
             frame_R_current=root_R_current,
             frame_R_goal=root_R_goal,
             reference_velocity=self.reference_velocity,
-            quadratic_weight=self.weight,
+            quadratic_weight=self.constraint_weight,
         )
 
         self.add_goal_and_current_debug_expressions(
