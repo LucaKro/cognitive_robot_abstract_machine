@@ -3032,3 +3032,123 @@ migrated, is the statement of intent the fix follows.
   on every earlier round. Issue #7's comments were read directly instead; the four
   structural changes recorded there concern this item only in its own creation and its
   added dependency on #13.
+
+The plan settled at kickoff, and the calls it makes beyond the item's recorded
+`notes`.
+
+### The base is #14, and the wall is not the belief
+
+`GraspBelief` exists only on `claude/plan-item-kickoff-belief-integration-6uj1wv`, so
+this item stacks on #14 and is re-based onto `main` once #14 lands — the same call every
+stacked item on this plan has made. The dependency check reports #14 `open_ready`.
+
+What the item's `notes` do not anticipate is that reading the belief is the easy half.
+Everything below `Task.weight` already accepts a symbol: `quadratic_weight` is
+`sm.ScalarData` from `constraint_builders.py` through `GiskardConstraint` into
+`qp_data_factories.py`, where `quadratic_weights` is compiled with `float_variables`
+among its parameters and re-evaluated every control cycle. So a weight that follows a
+published variable is genuinely live at 20 Hz, and that was read out of the compile path
+rather than assumed.
+
+The wall is `Task.weight: float`, and it is a timing wall before it is a typing one.
+`Open.expand` builds `CartesianPose(weight=self.grasp_weight)`; `CartesianPose` is itself
+a `Parallel` goal that expands into `CartesianPosition` and `CartesianOrientation`. All
+of that happens in `_expand_goals`, which runs to completion *before* any node's
+`build_artifacts` — and `GraspBelief.probability` is created in `build_artifacts` and
+raises `NodeNotBuiltError` until then. There is no value to pass at expand time.
+
+### The weight is resolved at the task's build, through a property
+
+`Task` gains `constraint_weight`, returning `self.weight`, and the two tasks the
+hold-handle `CartesianPose` expands into read it instead of the field. A task whose
+weight follows something measured overrides the property, which is evaluated while that
+task builds — by which point `_build_and_apply_artifacts` has already built its
+`prerequisite_nodes`, so the belief's variable exists.
+
+The alternative was to retype `Task.weight` to `sm.ScalarData` and let `Open` pass a
+symbolic weight straight down, which is less code. It is rejected on the ORM: a union is
+neither a builtin nor a mapped class nor a custom type, so `parse_field`
+(`wrapped_table.py`) falls through to *"Skipping due to not handled type"* and the
+`weight` column disappears from every task DAO. That is a schema change to every task in
+the package, and `scripts/regenerate_all_orm.py` does not run in the authoring container
+— #14's own review round established that it fails on a pre-existing
+`CouldNotResolveType` — so nothing here could have caught it. A property leaves the field
+a `float` and changes no mapping.
+
+### Only the two tasks the grip is built from read the seam
+
+`constraint_weight` is read by `CartesianPosition` and `CartesianOrientation`; the other
+17 `quadratic_weight=self.weight` sites are left on the field.
+
+That is a deliberate exception to `AGENTS.md`'s *"one operation, one name, throughout a
+module"*, and it was put to the user rather than taken in passing. `Open` builds exactly
+three constraint-adding tasks — `JointPositionList` for the hinge goal, carrying
+`mechanism_weight`, and the two Cartesian leaves for the grip, carrying `grasp_weight` —
+so the grip's two are the only ones a belief-scaled weight ever reaches, and
+`belief-drawer-experiment` needs no more than that. The remaining sites are in
+`feature_functions`, `pointing`, `wiggle_insert`, `align_planes`, `grasp_bar` and the
+Cartesian trajectory, straight and velocity-limit tasks, none of which `Open` builds.
+
+Converting them is real work with a real reason — a later task that wants weight scaling
+and reads `self.weight` gets no scaling and says nothing — so it is tracked as
+`task-weights-through-the-constraint-seam` rather than left as a comment or folded into
+this pull request.
+
+### The belief is reached through the node, not the variable
+
+The belief-weighted pose holds the `GraspBelief` and declares it in
+`prerequisite_nodes`, which is what orders the build. `NotApproachingGoal`
+(`progress_monitors.py:75`) is the working precedent: it holds the task it watches,
+declares it a prerequisite, and reads what that task only produces at build.
+
+Holding the variable instead is not available, for the timing reason above, and holding
+an abstraction rather than the node was considered and rejected as premature: this plan
+declared `PoseCovarianceSource` and `GraspLikelihoodSource` because a node had to be
+testable without a live ROS subscription or a raycast, and neither applies to reading a
+published float off a node a test can build itself.
+
+### It lives in `beliefs/`, which keeps it out of the ORM
+
+`generate_orm.py` ignores `classes_of_package(giskardpy.motion_statechart.beliefs)` and
+`classes_of_package` walks sub-modules, so a new module there is excluded with no change
+to the script — the inheritance `belief-context-and-gaussian`'s second round established
+and both `estimator-node-base` and `grasp-belief-node` re-confirmed.
+
+`Open`'s new field is the one thing this does not cover: `goals/open_close.py` is mapped,
+and the field's type is a class that is not. `parse_field`'s final branch skips a field
+whose type is neither builtin, mapped, nor a custom type, so it produces no column rather
+than an unmappable one — which is the failure `odometry-covariance-capture`'s first review
+round records as taking down every dependent package at import. Read out of
+`wrapped_table.py` rather than run, so CI is what confirms it, as on every earlier item.
+
+### Scope boundaries held
+
+- **Stock `Open` is untouched behaviour.** The field defaults to unset, and with it unset
+  the grip is built exactly as before, from the `grasp_weight` constant. That is what the
+  item's `notes` ask for when they say to keep the change opt-in.
+- **The mechanism weight is not scaled.** The item is the hold-handle weight, and
+  `JointPositionList` keeps `mechanism_weight` unconditionally.
+- **No exception is added**, so this branch stays out of the append-at-the-tail collision
+  in `motion_statechart/exceptions.py` that most items on this plan have had to resolve.
+- **No estimator changes.** `beliefs/grasp.py` and `beliefs/estimator.py` are #14's and
+  are read, not edited.
+
+### Assumptions and open points
+
+- **Whether scaling the grip alone makes the robot back off is not settled here, and it
+  is the experiment's question.** `JointPositionList` constrains the environment
+  connection's own position variable, so the solver can satisfy the hinge goal by
+  commanding that degree of freedom directly. With the grip slack, nothing then couples
+  the arm to the handle, and the drawer can open while the arm does not follow — which is
+  not the *"backs off on its own"* the plan's deciding measurement describes. Scaling the
+  mechanism weight as well would be the obvious answer and is outside what this item
+  records, so it is flagged for `belief-drawer-experiment` rather than decided from here.
+- **The probability is read as a plain factor.** The weight is the constant times the
+  published probability, with no floor, so a belief that rules a grasp out takes the grip
+  to zero weight — which is `DefaultWeights.WEIGHT_MINIMUM` and an existing legal value.
+  Whether a grip should ever be abandoned completely is the experiment's to measure, and
+  a floor invented here would be a tuned constant with nothing to cite, which both review
+  rounds on this plan that raised named constants ruled out.
+- **The branch is the session's designated branch**, `claude/adoring-bell-hilm79`, rather
+  than the `belief-weighted-open-goal` name the manifest carried as a placeholder — the
+  same correction every earlier item on this plan made.
