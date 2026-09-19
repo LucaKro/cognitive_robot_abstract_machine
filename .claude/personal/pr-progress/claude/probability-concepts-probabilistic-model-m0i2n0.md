@@ -1,76 +1,96 @@
 # PR progress: `claude/probability-concepts-probabilistic-model-m0i2n0`
 
 Plan item `probability-concepts-in-probabilistic-model` (aicon-belief-integration,
-wave 2, track *belief core*). PR #11, **back in draft** after `8930c6f8`. Based on #10's
-branch. Mode: `auto`; every round is in the plan's `roadmap.md`.
+wave 2, track *belief core*). PR #11, based on #10's branch. Mode: `auto`; every round
+is in the plan's `roadmap.md`.
 
-## Status: re-architected on the maintainer's review. Pushed, 8 of 10 threads resolved.
+## Status: second maintainer review round, in progress.
 
-## What the stall actually was
+## What the stall actually is
 
-Not CI (23/23 green), not a conflict (`clean`), not the label (already cleared), not the
-dependency (#10 `open_ready`). **`tomsch420`, `probabilistic_model`'s maintainer,
-submitted CHANGES_REQUESTED on `ad9aa52b` with ten threads** — three hours after every
-record here said the item was clear.
+Everything the earlier records point at is clear: CI is **23 of 23 green** on
+`8930c6f8`, `mergeable_state` is `clean`, `needs-resolution` is gone, the dependency
+(#10) is `open_ready`, and the fork PR carries no `in-review` label so there is no
+upstream review to read.
 
-Carry this forward: a dashboard reading checks, labels and mergeability **cannot see a
-requested-changes review**, and the restack rounds trained several sessions to treat
-those three as the whole picture.
+The stall is a **second review round from `tomsch420` on 2026-09-19, 06:15-06:48** -
+eleven new threads on `multivariate_gaussian.py`, posted after the previous round
+closed. The recorded state (`plan.yaml`'s *"Both review threads are resolved ... the
+branch has rejoined promotion"*) predates it and is stale.
 
-## The reversal
+Carry forward, again and more sharply: **the recorded state is only ever as fresh as the
+round that wrote it.** Two rounds in a row on this item have been stalled by a review
+posted after the record said it was clear.
 
-His review overturned this PR's *own* round 1. I had asked for "a datastructure instead
-of just np array", which produced `Mean`/`Covariance`/`Quantities`. He asked for the
-opposite — and the package backs him:
+## The plan
 
-- `MultinomialDistribution` (the *other* multivariate model) holds
-  `distribution_variables: Tuple[Symbolic, ...]` + `probabilities: npt.NDArray`, and
-  validates with `ShapeMismatchError` in `__post_init__`.
-- `GaussianDistribution` holds two plain floats, delegates everything to
-  `scipy.stats.norm`.
+### Implement (clearly correct, in scope)
 
-Decision taken with me: **adopt his design in full**, naming from surrounding code.
+1. `support` uses `ProbabilisticModel.universal_simple_event()` rather than rebuilding
+   it from `reals()` - r4052429466.
+2. `scipy_distribution`'s `-> Any` is the wrong type hint - r4052434804.
+3. `_over_rows` -> `_marginal_over_variable_indices` - r4052438074.
+4. `apply_linear_map`'s docstring warns that it changes what the variables *mean*, which
+   the variables themselves do not reflect - r4052460610.
 
-## What landed (`8930c6f8`, net −406 lines)
+### Move, per the user's call on the Kalman seam
 
-- `Quantities`, `Mean`, `Covariance` deleted, module included.
-- `distribution_variables` + plain `mean`/`covariance`; every query via
-  `scipy.stats.multivariate_normal`.
-- Covariance is a **query** (`covariance_between`), not the datamodel.
-- Conditioning on *every* variable → **Dirac impulse** (`ProductUnit` of
-  `DiracDeltaDistribution`), not an error. He was right; it was a real defect.
-- `marginal` is the primitive; the old helper did marginal+conditional in one.
-- Three exceptions → one `VariableNotInDistributionError` + the package's
-  `ShapeMismatchError`.
-- **`Reading` moved back to giskardpy** — a probability package has no sensors.
-  `GaussianBelief` keeps its variable-keyed interface and builds the arrays.
+5. `apply_linear_map` and `apply_added_covariance` move out of the distribution into
+   `GaussianBelief.predict`, where the sensor-facing wrapper is - r4052462622. The
+   measurement update (`conditional_on_measurement`) **stays** in `probabilistic_model`:
+   that `conditional(point)` *is* the Kalman update in closed form is this item's whole
+   recorded premise. Both halves of that thread answered on it.
 
-## Deliberately not done
+### The truncated distribution's correctness cluster
 
-**Discrete variables via an encoding.** Three interacting decisions (which encoding,
-what `support` becomes, `probability_of_simple_event` cost per assignment) that are the
-maintainer's calls about his own package. Thread left open with a concrete proposal
-(one-hot, dropped reference level, encoding private). Rejection-sampling thread also
-left open — he said "fine for now"; I recorded the unguarded non-termination and offered
-a cap.
+The maintainer calls three things on `TruncatedMultivariateGaussianDistribution`
+outright incorrect, and they resolve together once truncation is narrowed:
 
-## Verification
+6. Truncation is supported **only over a box** - a simple event with exactly one
+   interval per variable. Anything else needs a circuit and this class is not what
+   should be used - r4052470661.
+7. `log_mode` is *not* intractable when the mean is cut away: a strictly log-concave
+   density on a convex box has exactly one maximum - r4052463820, r4052465083.
+8. `log_conditional` *does* exist: condition the untruncated Gaussian, then confine the
+   result to the slice the box makes at that value - r4052466049.
+9. `sample` draws exactly through `scipy.stats.truncnorm` where the variables do not
+   co-vary, instead of rejecting - r4052469095, r4052483009. Rejection stays only for
+   the correlated case, which is also a partial answer to the older open thread
+   r4050610620.
 
-396 passed across the collectible `probabilistic_model` suite vs a **pre-change baseline
-of 410** in the same container, same 16 collection errors — difference is exactly the 12
-deleted layout tests + 2 net from the rewrite. 66 distribution, 29 belief (#10's,
-unchanged in what they assert), 20 dependency declarations.
+### Reply only - his call, not mine
 
-Four mutations each failed only the tests naming them: symmetrization removed, point
-mass → None, covariance shape check removed, correlation dropped from box probability.
+10. `_point_mass_at` - r4052444869 and r4052448442 ask for the circuit not to be built
+    here and perhaps for an error, which **contradicts his own earlier thread**
+    r4050566432 (*"its defined to be the dirac impulse in that case"*), acted on in
+    `8930c6f8`. Put back to him rather than flipped a second time.
+11. Triangular covariance storage - r4052454927 is explicitly optional (*"if you want to
+    go for gigachad storage"*) and undoes the plain-arrays shape he asked for in the
+    same review. Replied, not done.
+12. Discrete variables via an encoding - r4050505434, unchanged and still his call.
+
+## Two tests pin behaviour the review says is wrong
+
+`test_the_mode_is_intractable_once_the_mean_is_cut_away` and
+`test_conditioning_a_truncated_distribution_is_not_answered` assert exactly what 7 and 8
+overturn. `AGENTS.md`'s *"never modify the test"* guards against weakening an assertion
+to dodge a failure; this is the case `pose-covariance-on-shared-quantities` already
+recorded as different - the assertion itself is the thing being corrected. Replaced by
+tests of the answers, and said so in the round's record.
+
+## Flagged, not silently papered over
+
+- **#15's premise is gone and its record still relies on it.** `plan.yaml` for
+  `pose-covariance-on-shared-quantities` says `SpatialVariables.pose` *is* a
+  `Quantities`; `8930c6f8` deleted `Quantities` and its module. This item's own
+  PR-progress note already recorded #15 as broken by it. The two records disagree and
+  #15 needs its own resolve round.
+- **The tracking-issue subscription was refused** by this session's permission mode, as
+  on every earlier round.
 
 ## Next
 
-- **CI on `8930c6f8`** — first push here that changes production code substantially.
-- **#15 is broken by this** and needs its own resolve round: its whole premise was
-  collapsing `PoseCovariance` onto `Quantities`, and it already implemented against it.
-  Recorded as a blocker in `plan.yaml`.
-- **#12 and #14** need three mechanical changes: `Reading` import, `belief.variables`
-  for `belief.quantities`, `VariableNotInDistributionError`.
-- Two open threads await `tomsch420`.
-
+- Verify against the pre-change baseline in this container: 66 distribution tests and
+  29 belief tests, both green on `8930c6f8` before any edit.
+- Push, reply on every thread, and leave 10-12 open for the maintainer.
+- CI on the pushed commit.
