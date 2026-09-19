@@ -1261,7 +1261,7 @@ can do without stacking on both.
 
 ### The beliefs are wired to the statechart here
 
-#10 recorded that nothing adds a `BeliefContext` to a live context yet and that the
+Pull request #10 recorded that nothing adds a `BeliefContext` to a live context yet and that the
 wiring belongs to this item. `MotionStatechartContext` can only be asked for an
 extension in a way that raises when it is absent, or given one in a way that raises
 when it is present, so `BeliefContext.of` answers with the statechart's beliefs and
@@ -1906,8 +1906,8 @@ review round left open has since been answered.
 
 The item's recorded state said the first review round left
 `trinary_logic_from_continuous`'s single call site undecided. That is no longer
-true: the author answered on the thread — *"okay good keep it"* — and both of
-#8's review threads are resolved. Nothing on the review side was blocking.
+true: the author answered on the thread — *"okay good keep it"* — and both of #8's
+review threads are resolved. Nothing on the review side was blocking.
 
 What was blocking is that the stack maintenance pass could not integrate `main`:
 it reported a conflict in `krrood/src/krrood/symbolic_math/symbolic_math.py` and
@@ -2659,8 +2659,8 @@ stays on `from_array`, which is the one place a shape exists.
 Caught by mutation rather than by reading: transposing `as_array` left every test
 passing, because every covariance the first version of that test built was
 symmetric and a transpose of a symmetric matrix is itself. The test now round-trips
-a deliberately asymmetric matrix — which `from_array` can hold precisely because
-#11's lesson says not to symmetrize on the way in — and fails on the transpose.
+a deliberately asymmetric matrix — which `from_array` can hold precisely because #11's
+lesson says not to symmetrize on the way in — and fails on the transpose.
 
 Each of the other new assertions was confirmed load-bearing the same way:
 symmetrizing in `from_array` fails only the both-directions test, dropping the
@@ -2680,7 +2680,7 @@ tick.
 
 ### `semantic_digital_twin` needed no declaration change
 
-#10 recorded that the first import of a workspace sibling costs a `[project]
+Pull request #10 recorded that the first import of a workspace sibling costs a `[project]
 dependencies` plus `[dependency-groups] workspace` entry, and #11 did that work for
 giskardpy. `semantic_digital_twin` already declares `probabilistic_model` in both
 places and already imports it from `semantic_annotations`, so
@@ -2954,8 +2954,8 @@ plan that was purely a red check. `test_each_lib (semantic_digital_twin)` failed
 `1b61ff7d` — **1 failed, 1764 passed, 52 skipped** — while the other 22 checks were
 green, there were no review threads, no pull request comments, no `in-review` label
 and so no upstream review to read, and `mergeable_state` was `unstable` because of
-that one check rather than because of any conflict. All three dependencies (#11, #9,
-#13) report `open_ready`, and the branch already carries #11's current head
+that one check rather than because of any conflict. All three dependencies (#11, #9, #13)
+report `open_ready`, and the branch already carries #11's current head
 (`ad9aa52b`), so nothing needed restacking.
 
 ### The rename was one site short
