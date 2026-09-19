@@ -17,25 +17,24 @@ from datetime import timedelta
 from enum import StrEnum
 from pathlib import Path
 
-import mujoco
 import numpy as np
 from typing_extensions import List, Optional, Set
 
 from experiments.experiment_definitions import ExperimentResult
-from experiments.simulated_grasp.tabletop_world import (
+from experiments.simulated_grasp.panda_world import (
     BLOCK_DISTANCE,
-    BLOCK_HEIGHT,
-    BLOCK_SIDE,
-    FingerName,
-    PartName,
-    TABLE_TOP,
-    TabletopWorld,
-    WIDEST_FINGER_OFFSET,
+    GRASP_HEIGHT,
+    GRIPPED_FINGER_OFFSET,
+    OPEN_FINGER_OFFSET,
+    OVERVIEW_CAMERA,
+    PandaJointName,
+    PandaPartName,
+    PandaWorld,
 )
 from giskardpy.executor import Executor, SteppedSimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import Parallel
-from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     CountSimulationTimeSeconds,
 )
@@ -69,17 +68,7 @@ MILLIMETRES_PER_METRE = 1000.0
 What a distance is reported in, so a result reads in the units the differences occur at.
 """
 
-GRIPPED_FINGER_OFFSET = BLOCK_SIDE / 2 - 0.005
-"""
-How far from the palm's centre a finger's own centre is commanded to while gripping, in
-metres.
-
-Inside the block's surface, so the servo keeps pushing once the block has stopped the
-finger:
-that remaining error is what the grip is made of.
-"""
-
-APPROACH_HEIGHT = 0.15
+APPROACH_HEIGHT = 0.13
 """
 How far above the block the gripper is brought before it descends, in metres.
 """
@@ -100,6 +89,11 @@ started too early would slide off a block that is not yet held.
 LIFTED_OFF_THE_TABLE = 0.05
 """
 How far above its resting height the block counts as lifted, in metres.
+"""
+
+PLACED_ACROSS_THE_TABLE = 0.25
+"""
+How far across the table the block is carried, in metres.
 """
 
 
@@ -144,6 +138,14 @@ class GraspOutcome(ExperimentResult):
     Whether both fingers were touching the block at the moment it was highest.
     """
 
+    hand_touched_the_block: bool
+    """
+    Whether anything but a finger ever touched the block.
+
+    The hand's own shell reaches lower than its fingertips, so a grip taken too deep
+    presses the palm onto the block before the fingers ever close on it.
+    """
+
     placement_error: float
     """
     How far the block ended from where it was to be placed, in millimetres.
@@ -176,7 +178,9 @@ class PhysicalGrasp:
     """
 
     target: Point3 = field(
-        default_factory=lambda: TabletopWorld.resting_place(BLOCK_DISTANCE, 0.2)
+        default_factory=lambda: PandaWorld.resting_place(
+            BLOCK_DISTANCE, PLACED_ACROSS_THE_TABLE
+        )
     )
     """
     Where on the table the block is to be put down.
@@ -212,7 +216,7 @@ class PhysicalGrasp:
 
     # %% init False
 
-    _scenario: Optional[TabletopWorld] = field(default=None, init=False, repr=False)
+    _scenario: Optional[PandaWorld] = field(default=None, init=False, repr=False)
     """
     The world the attempt is made in, built by :meth:`execute`.
     """
@@ -233,7 +237,7 @@ class PhysicalGrasp:
 
         :return: What it did.
         """
-        self._scenario = TabletopWorld.of()
+        self._scenario = PandaWorld.of()
         started_at = self._scenario.block_position.copy()
         resting_height = started_at[2]
         statechart = self._create_statechart(self._scenario)
@@ -244,6 +248,7 @@ class PhysicalGrasp:
         self._simulation.start_stepped_simulation()
         highest = resting_height
         held_when_highest = False
+        hand_ever_touched = False
         try:
             executor = Executor(
                 context=MotionStatechartContext(
@@ -263,12 +268,13 @@ class PhysicalGrasp:
                 executor.tick()
                 executor.pacer.sleep()
                 self._capture_frame()
+                hand_ever_touched = hand_ever_touched or self.hand_touches_the_block
                 height = self.block_position[2]
                 if height > highest:
                     highest = height
                     held_when_highest = self.fingers_touching_the_block == {
-                        FingerName.LEFT,
-                        FingerName.RIGHT,
+                        PandaPartName.LEFT_FINGER,
+                        PandaPartName.RIGHT_FINGER,
                     }
             self._simulation.step_simulation(timedelta(seconds=SETTLING_TIME))
             self._capture_frame()
@@ -282,6 +288,7 @@ class PhysicalGrasp:
             block_was_lifted=highest - resting_height >= LIFTED_OFF_THE_TABLE,
             highest_lift=(highest - resting_height) * MILLIMETRES_PER_METRE,
             held_by_both_fingers=held_when_highest,
+            hand_touched_the_block=hand_ever_touched,
             placement_error=float(np.linalg.norm(ended_at - self.target.to_np()[:3]))
             * MILLIMETRES_PER_METRE,
             travelled=float(np.linalg.norm(ended_at - started_at))
@@ -297,7 +304,7 @@ class PhysicalGrasp:
         """
         return np.array(
             self._simulation.simulator.get_body_position(
-                body_name=PartName.BLOCK
+                body_name=PandaPartName.BLOCK
             ).result
         )
 
@@ -308,11 +315,28 @@ class PhysicalGrasp:
             block.
         """
         touching = self._simulation.simulator.get_contact_bodies(
-            body_name=PartName.BLOCK
+            body_name=PandaPartName.BLOCK
         ).result
-        return {finger for finger in FingerName if finger in touching}
+        return {
+            finger
+            for finger in (PandaPartName.LEFT_FINGER, PandaPartName.RIGHT_FINGER)
+            if finger in touching
+        }
 
-    def _create_statechart(self, scenario: TabletopWorld) -> MotionStatechart:
+    @property
+    def hand_touches_the_block(self) -> bool:
+        """
+        :return: Whether the physics reports the hand itself, rather than a finger,
+            against the block.
+        """
+        return (
+            PandaPartName.HAND
+            in self._simulation.simulator.get_contact_bodies(
+                body_name=PandaPartName.BLOCK
+            ).result
+        )
+
+    def _create_statechart(self, scenario: PandaWorld) -> MotionStatechart:
         """
         Describe the motion: reach the block from above, close on it, carry it to the
         target, put it down and let go.
@@ -324,7 +348,9 @@ class PhysicalGrasp:
         above_the_block = self._reach(
             scenario, GraspPhase.ABOVE_THE_BLOCK, block, APPROACH_HEIGHT
         )
-        at_the_block = self._reach(scenario, GraspPhase.AT_THE_BLOCK, block, 0.0)
+        at_the_block = self._reach(
+            scenario, GraspPhase.AT_THE_BLOCK, block, GRASP_HEIGHT
+        )
         closing = self._grip(scenario, GraspPhase.CLOSING, GRIPPED_FINGER_OFFSET)
         gripping = CountSimulationTimeSeconds(
             name=GraspPhase.GRIPPING, seconds=SETTLING_TIME
@@ -334,9 +360,9 @@ class PhysicalGrasp:
             scenario, GraspPhase.ABOVE_THE_TARGET, self.target, CARRY_HEIGHT
         )
         at_the_target = self._reach(
-            scenario, GraspPhase.AT_THE_TARGET, self.target, 0.0
+            scenario, GraspPhase.AT_THE_TARGET, self.target, GRASP_HEIGHT
         )
-        opening = self._grip(scenario, GraspPhase.OPENING, WIDEST_FINGER_OFFSET)
+        opening = self._grip(scenario, GraspPhase.OPENING, OPEN_FINGER_OFFSET)
         releasing = CountSimulationTimeSeconds(
             name=GraspPhase.RELEASING, seconds=SETTLING_TIME
         )
@@ -373,7 +399,7 @@ class PhysicalGrasp:
 
     @staticmethod
     def _reach(
-        scenario: TabletopWorld, phase: GraspPhase, place: Point3, height: float
+        scenario: PandaWorld, phase: GraspPhase, place: Point3, height: float
     ) -> Parallel:
         """
         Bring the frame between the fingertips over a place on the table, with the palm
@@ -406,15 +432,15 @@ class PhysicalGrasp:
                 AlignPlanes(
                     name=f"{phase}/approach",
                     root_link=world.root,
-                    tip_link=scenario.palm,
-                    tip_normal=Vector3.Z(reference_frame=scenario.palm),
+                    tip_link=scenario.hand,
+                    tip_normal=Vector3.Z(reference_frame=scenario.hand),
                     goal_normal=Vector3(0.0, 0.0, -1.0, reference_frame=world.root),
                 ),
             ],
         )
 
     def _grip(
-        self, scenario: TabletopWorld, phase: GraspPhase, offset: float
+        self, scenario: PandaWorld, phase: GraspPhase, offset: float
     ) -> JointPositionList:
         """
         Command both fingers to the same distance from the palm's centre.
@@ -425,7 +451,7 @@ class PhysicalGrasp:
             metres.
         :return: The step.
         """
-        commanded = offset if self.closes_the_gripper else WIDEST_FINGER_OFFSET
+        commanded = offset if self.closes_the_gripper else OPEN_FINGER_OFFSET
         return JointPositionList(
             name=phase,
             goal_state=JointState.from_mapping(
@@ -452,7 +478,7 @@ class PhysicalGrasp:
             return
         self._frames.append(
             self._simulation.simulator.capture_rgb(
-                camera_name="grasp_overview_camera",
+                camera_name=OVERVIEW_CAMERA,
                 height=self.video_resolution.height,
                 width=self.video_resolution.width,
             ).result
