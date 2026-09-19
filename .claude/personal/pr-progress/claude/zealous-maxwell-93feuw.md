@@ -36,7 +36,11 @@ p = 4e-4; no hits out of 100 rays only reaches p = 5e-3.
 
 ## Next
 
-- Republish the dashboard once more (the roadmap gained a section since v21).
+- **Dashboard is at v21 and one roadmap section behind.** Every status field on
+  it is current (item in_progress, PR #17, no drift); only the collapsed
+  roadmap prose lacks the implementation section. Republishing needs a full
+  re-read of the 4601-line live page, which was judged not worth the quota.
+  `/plan-dashboard aicon-belief-integration` refreshes it whenever wanted.
 - CI has not run on `c7d73963`.
 - Raise with the user: the `is_body_in_gripper` defect on `main` wants its own
   bug PR (needs the `bug` label, off the default branch), and the mis-scaled
