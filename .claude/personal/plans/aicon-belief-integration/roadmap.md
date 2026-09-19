@@ -3830,5 +3830,11 @@ recorded.
   something honest to measure.
 - **The mis-scaled probability-to-weight mapping** stays a follow-on, and the numbers the
   kinematic sweep produced for it still stand as the answer to the question #16 handed over.
+- **The dashboard was rebuilt but not republished.** It is listed as this account's own
+  artifact now, so the read works, but the publish refuses until all 4601 lines of the
+  live page have been read back, and `force` would discard a version. The build reports
+  `drift_count: 0` and nothing auto-corrected, so the stale page hides nothing that
+  `plan.yaml` does not already say; `/plan-dashboard aicon-belief-integration` refreshes
+  it whenever the quota is worth spending.
 - **The tracking-issue subscription was refused** by this session's permission mode, as on
   every earlier round on this plan.
