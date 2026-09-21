@@ -103,6 +103,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.locations.factories import reachability_location
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 location = reachability_location(
     GraspPose.from_body_origin(world.get_semantic_annotations_by_type(Milk)[0]),

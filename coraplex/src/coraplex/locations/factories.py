@@ -195,6 +195,10 @@ class ReachableGrasps(Iterable[GraspPose]):
     """
 
     def __iter__(self) -> Iterator[GraspPose]:
+        """
+        :return: The reachable grasps, on :attr:`graspable` in the world of
+            :attr:`context` rather than in the copy the reach was judged in.
+        """
         location = grasping_location(
             graspable=self.graspable,
             context=self.context,
@@ -203,7 +207,7 @@ class ReachableGrasps(Iterable[GraspPose]):
             retreat_distance=self.retreat_distance,
         )
         for _ in location:
-            yield location.validator.reachable_grasp
+            yield location.validator.reachable_grasp.copy_for_world(self.context.world)
 
 
 def accessing_location(

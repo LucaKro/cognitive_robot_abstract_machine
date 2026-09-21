@@ -193,14 +193,18 @@ def test_reachable_grasps_sees_the_world_as_it_is_when_consumed(monkeypatch):
 
         def __iter__(self):
             observed.append(moved["value"])
-            self.validator.reachable_grasp = Pose.from_xyz_rpy(1.0, 0.0, 0.0)
+            self.validator.reachable_grasp = SimpleNamespace(
+                copy_for_world=lambda world: world
+            )
             yield Pose.from_xyz_rpy(0.0, 0.0, 0.0)
 
     monkeypatch.setattr(
         factories, "grasping_location", lambda *args, **kwargs: LocationStandingIn()
     )
 
-    grasps = factories.ReachableGrasps(object(), object(), object())
+    grasps = factories.ReachableGrasps(
+        object(), SimpleNamespace(world=object()), object()
+    )
     moved["value"] = "after"
     next(iter(grasps), None)
 
@@ -253,3 +257,29 @@ def test_reachable_grasps_yields_grasps_the_object_offers(immutable_model_world)
         )
         for offered in milk.grasp_poses()
     )
+
+
+def test_reachable_grasps_are_on_the_annotation_the_caller_named(
+    immutable_model_world,
+):
+    """
+    A grasp handed out names the object in the world the plan runs in, not in the copy
+    the reach was judged in, so the object can be attached to the gripper that takes it.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    # Where test_pose_validator establishes the right arm can reach it.
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        1.7, 1.4, 1.0, reference_frame=world.root
+    )
+
+    grasp = next(
+        iter(
+            factories.ReachableGrasps(
+                milk, context, ViewManager.get_arm_view(Arms.RIGHT, view)
+            )
+        ),
+        None,
+    )
+
+    assert grasp.graspable is milk

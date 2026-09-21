@@ -230,7 +230,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     accept_first_if_multiple=True,
                 ),
                 a(PickUpAction)(
-                    graspable_object=cereal,
+                    grasp=cereal.grasp_poses()[0],
                     arm=Arms.LEFT,
                     perceive_before_grasp=True,
                 ),
