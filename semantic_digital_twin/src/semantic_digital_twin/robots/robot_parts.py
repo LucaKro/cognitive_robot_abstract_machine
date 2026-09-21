@@ -54,7 +54,11 @@ from semantic_digital_twin.robots.robot_part_mixins import (
     TGenericSensors,
     RobotPartMixin,
 )
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses, HasRootBody
+from semantic_digital_twin.semantic_annotations.mixins import (
+    GraspPose,
+    HasGraspPoses,
+    HasRootBody,
+)
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Agent,
     Table,
@@ -758,7 +762,7 @@ class EndEffector(AbstractRobotPart, ABC):
         self,
         graspable: HasGraspPoses,
         position_tolerance: float,
-    ) -> List[Pose]:
+    ) -> List[GraspPose]:
         """
         The grasps an object offers, the ones this gripper is closest to first.
 
@@ -769,13 +773,13 @@ class EndEffector(AbstractRobotPart, ABC):
         :param graspable: The object to be grasped.
         :param position_tolerance: How close two distances have to be, in meters, to
             count as the same distance.
-        :return: Its grasp frames, nearest first.
+        :return: Its grasps, nearest first.
         """
         return sorted(
             graspable.grasp_poses(),
-            key=lambda grasp_pose: (
-                self._distance_to_grasp(grasp_pose) // position_tolerance,
-                self._misalignment_with_grasp(grasp_pose),
+            key=lambda grasp: (
+                self._distance_to_grasp(grasp.root_T_grasp) // position_tolerance,
+                self._misalignment_with_grasp(grasp.root_T_grasp),
             ),
         )
 

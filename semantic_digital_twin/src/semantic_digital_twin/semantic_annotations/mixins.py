@@ -52,7 +52,9 @@ from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.exceptions import (
     AmbiguousPart,
     CannotBeAPartOf,
+    MissingReferenceFrameError,
     NoSupportingSurfaceError,
+    ReferenceFrameMismatchError,
     UnknownPartWholeRelationshipField,
 )
 from semantic_digital_twin.reasoning.predicates import is_supported_by
@@ -421,23 +423,88 @@ class HasRootBody(HasRootKinematicStructureEntity[Body]):
 
 
 @dataclass(eq=False)
+class GraspPose:
+    """
+    A grasp an object offers, together with the object offering it.
+
+    A grasp frame has its x-axis pointing the way the gripper travels toward the object,
+    its y-axis along the axis the fingers close along, and its z-axis completing the
+    frame. Every end effector states the same two axes in its own tool frame, as
+    :attr:`~semantic_digital_twin.robots.robot_parts.EndEffector.approach_axis` and
+    :attr:`~semantic_digital_twin.robots.robot_parts.EndEffector.closing_axis`, which is
+    how a grasp stays independent of the robot performing it.
+    """
+
+    graspable: HasGraspPoses
+    """
+    The annotation of the object offering this grasp.
+    """
+
+    root_T_grasp: Pose
+    """
+    The grasp frame relative to :attr:`graspable`'s root body, so that it stays correct
+    when the object moves.
+    """
+
+    def __post_init__(self):
+        # Neither frozen nor compared by value: World.rebind_world_entities assigns to
+        # these fields to re-bind a designator to a world copy, and the parameterizer
+        # hashes a grasp to put it in a variable's domain.
+        if self.root_T_grasp.reference_frame is None:
+            raise MissingReferenceFrameError(self.root_T_grasp)
+        if self.root_T_grasp.reference_frame is not self.graspable.root:
+            raise ReferenceFrameMismatchError(
+                expected_frame=self.graspable.root,
+                actual_frame=self.root_T_grasp.reference_frame,
+                context="grasp pose",
+            )
+
+    @classmethod
+    def from_body_origin(cls, graspable: HasGraspPoses) -> GraspPose:
+        """
+        The grasp that takes an object at the origin of its own body.
+
+        :param graspable: The annotation of the object to be grasped.
+        :return: A grasp at that object's origin.
+        """
+        return cls(graspable, Pose(reference_frame=graspable.root))
+
+    def moved_to(self, reference_T_object: Pose) -> Pose:
+        """
+        This grasp once the object it is on has been moved to a given pose.
+
+        :param reference_T_object: The pose the object is going to have.
+        :return: ``reference_T_grasp``, the grasp in the same frame that pose is in.
+        """
+        return reference_T_object.to_homogeneous_matrix() @ self.root_T_grasp
+
+    @property
+    def world_T_grasp(self) -> Pose:
+        """
+        :return: The grasp frame relative to the world, where the object stands now.
+        """
+        return self.moved_to(self.graspable.root.global_pose)
+
+    def copy_for_world(self, world: World) -> GraspPose:
+        """
+        Address this grasp in another copy of the world it was taken from.
+
+        :param world: The copy to address.
+        :return: The same grasp, on that copy's annotation.
+        """
+        return GraspPose(
+            world.get_semantic_annotation_by_id(self.graspable.id),
+            self.root_T_grasp.copy_for_world(world),
+        )
+
+
+@dataclass(eq=False)
 class HasGraspPoses(HasRootBody):
     """
     A mixin class for semantic annotations that can say where they may be grasped.
 
     Only an annotation rooted in a body can be grasped at all, since a region carries
     no collision geometry for fingers to close on.
-
-    A grasp pose is a *grasp frame* expressed in :attr:`root`'s frame: its x-axis points
-    the way the gripper travels toward the object, its y-axis is the axis the fingers
-    close along, and its z-axis completes the frame. Every end effector states the same
-    two axes in its own tool frame, as
-    :attr:`~semantic_digital_twin.robots.robot_parts.EndEffector.approach_axis` and
-    :attr:`~semantic_digital_twin.robots.robot_parts.EndEffector.closing_axis`, which is
-    how a grasp stays independent of the robot performing it.
-
-    ..note:: The poses are expressed in :attr:`root`'s frame so that they stay correct
-        when the annotated object moves.
     """
 
     grasp_pose_count: int = field(default=12, kw_only=True)
@@ -445,18 +512,23 @@ class HasGraspPoses(HasRootBody):
     How many grasp poses :meth:`grasp_poses` generates.
     """
 
-    def grasp_poses(self) -> Iterator[Pose]:
+    def grasp_poses(self) -> List[GraspPose]:
         """
-        Generate the grasp frames this annotation offers, in no particular order.
+        The grasps this annotation offers, in no particular order.
 
         The default grasps the object at its own origin, from evenly spaced directions
         around its z-axis. Annotations whose geometry admits a better grip override this.
         """
-        for yaw in np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False):
-            yield Pose(
-                orientation=RotationMatrix.from_rpy(yaw=yaw).to_quaternion(),
-                reference_frame=self.root,
+        return [
+            GraspPose(
+                self,
+                Pose(
+                    orientation=RotationMatrix.from_rpy(yaw=yaw).to_quaternion(),
+                    reference_frame=self.root,
+                ),
             )
+            for yaw in np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False)
+        ]
 
 
 @dataclass(eq=False)

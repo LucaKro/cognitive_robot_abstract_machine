@@ -2,8 +2,7 @@
 What a transport does about an object it finds inside a container.
 """
 
-from coraplex.config.action_conf import ActionConfig
-from coraplex.datastructures.enums import Arms
+from coraplex.datastructures.enums import Arms, ReachFraction
 from coraplex.locations import factories
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
@@ -45,7 +44,7 @@ def test_opening_a_container_on_the_way_stands_where_it_is_opened_from(
             )
         )
     transport = TransportAction(
-        graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
+        grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
         target_location=Pose(reference_frame=world.root),
         arm=Arms.RIGHT,
     )
@@ -62,4 +61,4 @@ def test_opening_a_container_on_the_way_stands_where_it_is_opened_from(
 
     transport._make_open_container_actions(drawer_body)
 
-    assert asked_for["reach_fraction"] == ActionConfig.accessing_reach_fraction
+    assert asked_for["reach_fraction"] == ReachFraction.ACCESSING

@@ -35,11 +35,13 @@ def pr2_holding_milk(mutable_simple_pr2_world):
     A PR2 whose left tool frame holds the milk off-centre, at :data:`HELD_AT`.
     """
     world, robot, _ = mutable_simple_pr2_world
-    milk = world.get_body_by_name("milk.stl")
+    milk_body = world.get_body_by_name("milk.stl")
+    milk = Milk(root=milk_body)
     tool_frame = ViewManager.get_end_effector_view(Arms.LEFT, robot).tool_frame
     with world.modify_world():
-        world.move_branch(milk, tool_frame)
-    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        world.move_branch(milk_body, tool_frame)
+        world.add_semantic_annotation(milk)
+    milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         *HELD_AT, yaw=HELD_YAW, reference_frame=tool_frame
     )
     world.notify_state_change()
@@ -62,9 +64,11 @@ def test_place_derives_the_grasp_from_the_live_tool_frame_transform(pr2_holding_
     sequential([place], context=Context(world, robot, sampling_seed=SAMPLING_SEED))
 
     end_effector = ViewManager.get_end_effector_view(Arms.LEFT, robot)
-    tool_goal = end_effector.tool_frame_goal(place._grasp_pose_at(target))
+    tool_goal = end_effector.tool_frame_goal(
+        place._grasp_on_the_held_object().moved_to(target)
+    )
 
-    tool_T_milk = world.transform(milk.global_transform, end_effector.tool_frame)
+    tool_T_milk = world.transform(milk.root.global_transform, end_effector.tool_frame)
     placed_milk = tool_goal.to_homogeneous_matrix() @ tool_T_milk
 
     np.testing.assert_allclose(
@@ -86,13 +90,13 @@ def test_place_uses_the_grasp_its_pick_up_will_take(mutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     target = Pose.from_xyz_rpy(1.2, 0.4, 0.9, reference_frame=world.root)
 
-    pick_up = PickUpAction(milk, Arms.LEFT)
-    place = PlaceAction(milk.root, target, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
+    place = PlaceAction(milk, target, Arms.LEFT)
     sequential([pick_up, place], context=context)
 
     np.testing.assert_allclose(
-        place._grasp_on_the_held_object().to_np(),
-        pick_up.grasp_pose.to_np(),
+        place._grasp_on_the_held_object().root_T_grasp.to_np(),
+        pick_up.grasp.root_T_grasp.to_np(),
         atol=1e-9,
     )
 
@@ -102,15 +106,15 @@ def test_place_without_a_preceding_pick_up_grasps_at_the_objects_origin(
 ):
     """
     Nothing in the plan and nothing in the gripper leaves only the object's own frame to
-    go on, since a place is handed a body rather than an annotation to ask.
+    go on.
     """
     world, robot, context = mutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     target = Pose.from_xyz_rpy(1.2, 0.4, 0.9, reference_frame=world.root)
 
-    place = PlaceAction(milk.root, target, Arms.LEFT)
+    place = PlaceAction(milk, target, Arms.LEFT)
     sequential([place], context=context)
 
     np.testing.assert_allclose(
-        place._grasp_on_the_held_object().to_np(), np.eye(4), atol=1e-9
+        place._grasp_on_the_held_object().root_T_grasp.to_np(), np.eye(4), atol=1e-9
     )

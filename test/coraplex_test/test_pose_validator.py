@@ -31,6 +31,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowSelfCollisions,
 )
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
     Milk,
@@ -189,8 +190,9 @@ def test_is_grasp_reachable_by_copies_current_world_lazily(
             world=world,
         ),
         arm=ViewManager.get_arm_view(Arms.RIGHT, view),
-        grasp_pose=Pose(reference_frame=milk),
-        object_designator=milk,
+        grasp=GraspPose.from_body_origin(
+            world.get_semantic_annotations_by_type(Milk)[0]
+        ),
     )
 
     # Move the object *after* the predicate has been constructed.
@@ -221,8 +223,10 @@ def test_is_grasp_reachable_by_uses_the_grasp_pose_sequence(
     With a grasp pose set, the reach pose sequence is checked.
     """
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
-    target = Pose(Point3.from_iterable([2, 1.5, 0.7]), reference_frame=world.root)
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    target = GraspPose(
+        milk, Pose(Point3.from_iterable([0, 0, 0.1]), reference_frame=milk.root)
+    )
 
     captured = {}
     monkeypatch.setattr(
@@ -237,8 +241,7 @@ def test_is_grasp_reachable_by_uses_the_grasp_pose_sequence(
             world=world,
         ),
         arm=ViewManager.get_arm_view(Arms.RIGHT, view),
-        grasp_pose=target,
-        object_designator=milk,
+        grasp=target,
     )()
 
     assert len(captured["seq"]) == 3
@@ -546,8 +549,9 @@ def test_validation_is_run_with_the_motion_settings_of_the_plan(
     validator = IsGraspReachableBy(
         context=context,
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot_view),
-        grasp_pose=Pose(reference_frame=milk),
-        object_designator=milk,
+        grasp=GraspPose.from_body_origin(
+            world.get_semantic_annotations_by_type(Milk)[0]
+        ),
     )
 
     check_contexts = []
@@ -599,19 +603,16 @@ def test_any_grasp_validator_keeps_the_grasp_it_reached(immutable_model_world):
         assert validator()
 
     assert validator.reachable_grasp is not None
-    assert validator.reachable_grasp.reference_frame is milk.root
-    reachable_grasps = [
-        grasp
-        for grasp in ViewManager.get_end_effector_view(
-            Arms.RIGHT, robot_view
-        ).grasp_poses_by_distance(
-            milk, context.motion_tolerances.default_tcp_position_threshold
-        )
-    ]
+    assert validator.reachable_grasp.graspable is milk
+    reachable_grasps = ViewManager.get_end_effector_view(
+        Arms.RIGHT, robot_view
+    ).grasp_poses_by_distance(
+        milk, context.motion_tolerances.default_tcp_position_threshold
+    )
     assert any(
         np.allclose(
-            validator.reachable_grasp.to_homogeneous_matrix().to_np(),
-            grasp.to_homogeneous_matrix().to_np(),
+            validator.reachable_grasp.root_T_grasp.to_homogeneous_matrix().to_np(),
+            grasp.root_T_grasp.to_homogeneous_matrix().to_np(),
         )
         for grasp in reachable_grasps
     ), "the grasp handed back must be one of the grasps the object offers"
@@ -637,7 +638,7 @@ def test_any_grasp_validator_tries_the_nearest_grasps_first(
     monkeypatch.setattr(
         IsObjectReachableBy,
         "_reaches",
-        lambda self, grasp_pose, *a, **k: tried.append(grasp_pose) or False,
+        lambda self, grasp, *a, **k: tried.append(grasp) or False,
     )
 
     assert not validator()
@@ -650,8 +651,8 @@ def test_any_grasp_validator_tries_the_nearest_grasps_first(
     assert len(tried) == len(expected)
     for actual, wanted in zip(tried, expected):
         np.testing.assert_allclose(
-            actual.to_homogeneous_matrix().to_np(),
-            wanted.to_homogeneous_matrix().to_np(),
+            actual.root_T_grasp.to_homogeneous_matrix().to_np(),
+            wanted.root_T_grasp.to_homogeneous_matrix().to_np(),
             atol=1e-9,
         )
 

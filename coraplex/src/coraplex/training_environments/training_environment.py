@@ -191,7 +191,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
         )
 
         move_to_reach = a(MoveToReach)(
-            grasp_pose=target_pose,
+            reference_T_tool_frame=target_pose,
             target_pose_offset_robot=a(Pose2D)(
                 x=..., y=..., yaw=..., reference_frame=None
             ),

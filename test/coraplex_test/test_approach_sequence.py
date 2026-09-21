@@ -3,6 +3,8 @@ import pytest
 
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
@@ -25,7 +27,7 @@ Extents of the box the approach sequence has to clear.
 @pytest.fixture
 def boxed_pr2_world(mutable_simple_pr2_world):
     """
-    A PR2 next to a box of known extents, standing a meter above the world root.
+    A PR2 next to a graspable box of known extents, a meter above the world root.
     """
     world, robot, context = mutable_simple_pr2_world
     with world.modify_world():
@@ -38,15 +40,17 @@ def boxed_pr2_world(mutable_simple_pr2_world):
         connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
             1, 0, 1, reference_frame=world.root
         )
-    return world, robot, box
+        graspable = Milk(root=box)
+        world.add_semantic_annotation(graspable)
+    return world, robot, graspable
 
 
-def grasp_at_origin(body) -> Pose:
+def grasp_at_origin(graspable) -> GraspPose:
     """
-    :param body: The body to grasp.
-    :return: A grasp frame at the body's origin, approaching along the body's x-axis.
+    :param graspable: The annotation of the object to grasp.
+    :return: A grasp at the object's origin, approaching along the body's x-axis.
     """
-    return Pose(reference_frame=body)
+    return GraspPose.from_body_origin(graspable)
 
 
 # %% approach sequences
@@ -57,12 +61,12 @@ def test_pre_grasp_pose_clears_the_body_it_grasps(boxed_pr2_world):
     A grasp at the body's own origin has to be approached from outside the body, so the
     pre-grasp pose stands off by half of it plus the clearance.
     """
-    _, robot, box = boxed_pr2_world
+    _, robot, graspable = boxed_pr2_world
     action = HasApproachesGraspPoses()
 
-    origin_grasp = grasp_at_origin(box)
+    origin_grasp = grasp_at_origin(graspable)
     pre_grasp, grasp, _ = action.grasp_pose_sequence(
-        origin_grasp,
+        origin_grasp.root_T_grasp,
         robot.left_arm.end_effector,
         origin_grasp,
     )
@@ -78,18 +82,21 @@ def test_pre_grasp_pose_of_a_surface_grasp_only_adds_the_clearance(boxed_pr2_wor
     A grasp already on the body's surface, approached from outside it, needs nothing
     beyond the clearance -- this is what lets a bowl be grasped at its rim.
     """
-    _, robot, box = boxed_pr2_world
+    _, robot, graspable = boxed_pr2_world
     action = HasApproachesGraspPoses()
-    surface_grasp = Pose(
-        position=Vector3(0, 0, BOX_SCALE.z / 2).to_point3(),
-        orientation=RotationMatrix.from_vectors(
-            x=Vector3.NEGATIVE_Z(), y=Vector3.X()
-        ).to_quaternion(),
-        reference_frame=box,
+    surface_grasp = GraspPose(
+        graspable,
+        Pose(
+            position=Vector3(0, 0, BOX_SCALE.z / 2).to_point3(),
+            orientation=RotationMatrix.from_vectors(
+                x=Vector3.NEGATIVE_Z(), y=Vector3.X()
+            ).to_quaternion(),
+            reference_frame=graspable.root,
+        ),
     )
 
     pre_grasp, _, _ = action.grasp_pose_sequence(
-        surface_grasp,
+        surface_grasp.root_T_grasp,
         robot.left_arm.end_effector,
         surface_grasp,
     )
@@ -102,32 +109,34 @@ def test_pre_grasp_pose_of_a_surface_grasp_only_adds_the_clearance(boxed_pr2_wor
 
 
 def test_grasp_pose_is_the_middle_of_the_sequence(boxed_pr2_world):
-    _, robot, box = boxed_pr2_world
+    _, robot, graspable = boxed_pr2_world
     end_effector = robot.left_arm.end_effector
-    grasp = grasp_at_origin(box)
+    grasp = grasp_at_origin(graspable)
 
     approach = HasApproachesGraspPoses()
-    _, middle, _ = approach.grasp_pose_sequence(grasp, end_effector, grasp)
+    _, middle, _ = approach.grasp_pose_sequence(grasp.root_T_grasp, end_effector, grasp)
 
     np.testing.assert_allclose(
         middle.to_np(),
-        end_effector.tool_frame_goal(grasp).to_np(),
+        end_effector.tool_frame_goal(grasp.root_T_grasp).to_np(),
         atol=1e-9,
     )
 
 
 def test_retreat_pose_rises_along_the_world_z_axis(boxed_pr2_world):
-    world, robot, box = boxed_pr2_world
+    world, robot, graspable = boxed_pr2_world
     action = HasApproachesGraspPoses()
-    grasp = grasp_at_origin(box)
+    grasp = grasp_at_origin(graspable)
 
     _, _, retreat = action.grasp_pose_sequence(
-        grasp,
+        grasp.root_T_grasp,
         robot.left_arm.end_effector,
         grasp,
     )
 
-    world_P_grasp = world.transform(grasp.to_homogeneous_matrix(), world.root).to_np()
+    world_P_grasp = world.transform(
+        grasp.root_T_grasp.to_homogeneous_matrix(), world.root
+    ).to_np()
     world_P_retreat = world.transform(
         retreat.to_homogeneous_matrix(), world.root
     ).to_np()
@@ -139,12 +148,12 @@ def test_retreat_pose_rises_along_the_world_z_axis(boxed_pr2_world):
 
 
 def test_retreat_pose_keeps_the_grasp_orientation(boxed_pr2_world):
-    _, robot, box = boxed_pr2_world
+    _, robot, graspable = boxed_pr2_world
 
     approach = HasApproachesGraspPoses()
-    origin_grasp = grasp_at_origin(box)
+    origin_grasp = grasp_at_origin(graspable)
     _, grasp, retreat = approach.grasp_pose_sequence(
-        origin_grasp,
+        origin_grasp.root_T_grasp,
         robot.left_arm.end_effector,
         origin_grasp,
     )
@@ -157,13 +166,15 @@ def test_retreat_pose_keeps_the_grasp_orientation(boxed_pr2_world):
 
 
 def test_reversing_turns_the_grasp_into_a_release(boxed_pr2_world):
-    _, robot, box = boxed_pr2_world
+    _, robot, graspable = boxed_pr2_world
     action = HasApproachesGraspPoses()
-    grasp = grasp_at_origin(box)
+    grasp = grasp_at_origin(graspable)
 
-    forward = action.grasp_pose_sequence(grasp, robot.left_arm.end_effector, grasp)
+    forward = action.grasp_pose_sequence(
+        grasp.root_T_grasp, robot.left_arm.end_effector, grasp
+    )
     backward = action.grasp_pose_sequence(
-        grasp, robot.left_arm.end_effector, grasp, reverse=True
+        grasp.root_T_grasp, robot.left_arm.end_effector, grasp, reverse=True
     )
 
     for expected, actual in zip(reversed(forward), backward):
@@ -171,11 +182,11 @@ def test_reversing_turns_the_grasp_into_a_release(boxed_pr2_world):
 
 
 def test_sequence_without_a_body_stands_off_by_the_clearance_alone(boxed_pr2_world):
-    _, robot, box = boxed_pr2_world
+    _, robot, graspable = boxed_pr2_world
     action = HasApproachesGraspPoses()
 
     pre_grasp, _, _ = action.grasp_pose_sequence(
-        grasp_at_origin(box), robot.left_arm.end_effector
+        grasp_at_origin(graspable).root_T_grasp, robot.left_arm.end_effector
     )
 
     np.testing.assert_allclose(

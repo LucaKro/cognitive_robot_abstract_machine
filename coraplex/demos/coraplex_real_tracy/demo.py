@@ -150,22 +150,22 @@ plan = sequential(
         # Stack Box 2
         ParkArmsAction(Arms.BOTH),
         PickUpAction(
-            box2_annotation,
+            box2_annotation.grasp_poses()[0],
             Arms.LEFT,
         ),
         PlaceAction(
-            box2,
+            box2_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.02, yaw=0, reference_frame=world.root),
             Arms.LEFT,
         ),
         # Stack Box 3
         ParkArmsAction(Arms.BOTH),
         PickUpAction(
-            box3_annotation,
+            box3_annotation.grasp_poses()[0],
             Arms.RIGHT,
         ),
         PlaceAction(
-            box3,
+            box3_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.12, yaw=0, reference_frame=world.root),
             Arms.RIGHT,
         ),

@@ -7,6 +7,25 @@ from __future__ import annotations
 from enum import Enum, auto, IntEnum
 
 
+class ReachFraction(float, Enum):
+    """
+    How far the robot stands off what it reaches for, as a fraction of the arm's length.
+    """
+
+    GRASPING = 0.5
+    """
+    Reaching something that stays where it is.
+    """
+
+    ACCESSING = 0.66
+    """
+    Working a container's handle.
+
+    A container is pulled open towards the robot, so it stands further back than it does
+    to reach something that stays where it is.
+    """
+
+
 class VisualizationLayout(Enum):
     BFS = "bfs"
     """

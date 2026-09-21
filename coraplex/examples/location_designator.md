@@ -102,9 +102,10 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.factories import reachability_location
 from coraplex.view_manager import ViewManager
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 
 location = reachability_location(
-    world.get_body_by_name("milk.stl"),
+    GraspPose.from_body_origin(world.get_semantic_annotations_by_type(Milk)[0]),
     context=context,
     arm=ViewManager.get_arm_view(Arms.LEFT, context.robot),
 )

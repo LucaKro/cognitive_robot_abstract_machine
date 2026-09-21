@@ -34,7 +34,6 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3, Vect
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
-from coraplex.config.action_conf import ActionConfig
 from coraplex.exceptions import NonPositiveNumberOfSamples
 from coraplex.datastructures.dataclasses import Context
 
@@ -951,7 +950,7 @@ class RingCostmap(Costmap):
         context: Context,
         arm: Arm,
         origin: Pose,
-        reach_fraction: float = ActionConfig.reach_fraction,
+        reach_fraction: float,
     ) -> RingCostmap:
         """
         Creates a ring costmap around a target the robot is to reach with one arm.

@@ -53,6 +53,7 @@ from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.mixins import (
+    GraspPose,
     HasRootBody,
     HasRootKinematicStructureEntity,
 )
@@ -492,16 +493,15 @@ class BulletWorldDemonstration(RobotDemonstration):
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
                 TransportAction(
-                    self.milk.annotation_in(world),
+                    self.milk.annotation_in(world).grasp_poses()[0],
                     Arms.LEFT,
                     target_location=self.milk.target_location(world),
                 ),
                 a(TransportAction)(
-                    graspable_object=bowl,
                     target_location=self.bowl.target_location(world),
                     arm=Arms.LEFT,
-                    grasp_pose=variable(
-                        Pose,
+                    grasp=variable(
+                        GraspPose,
                         domain=ReachableGrasps(
                             graspable=bowl,
                             context=context,
@@ -510,7 +510,7 @@ class BulletWorldDemonstration(RobotDemonstration):
                     ),
                 ),
                 TransportAction(
-                    self.spoon.annotation_in(world),
+                    self.spoon.annotation_in(world).grasp_poses()[0],
                     Arms.LEFT,
                     target_location=self.spoon.target_location(world),
                 ),

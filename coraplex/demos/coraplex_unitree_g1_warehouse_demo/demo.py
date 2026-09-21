@@ -109,9 +109,7 @@ def build_world() -> World:
     # The parcel stands in for any graspable object; the plan only needs an annotation
     # to name it by, not a particular kind of object.
     with world.modify_world():
-        world.add_semantic_annotation(
-            Parcel(root=world.get_body_by_name("parcel"))
-        )
+        world.add_semantic_annotation(Parcel(root=world.get_body_by_name("parcel")))
     return world
 
 
@@ -140,9 +138,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
     parcel = world.get_body_by_name("parcel")
     parcel_annotation = an(
         entity(
-            semantic_annotation := variable(
-                Parcel, domain=world.semantic_annotations
-            )
+            semantic_annotation := variable(Parcel, domain=world.semantic_annotations)
         ).where(semantic_annotation.root == parcel)
     ).first()
     grasp = Pose(reference_frame=parcel)
@@ -159,7 +155,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
             # %% bring to place pose
             ParkArmsAction(Arms.BOTH),
             NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
+            PickUpAction(grasp, Arms.LEFT),
             ParkArmsAction(Arms.BOTH),
             MoveJointsMotion(
                 names=[
@@ -169,7 +165,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
             ),
             NavigateAction(Pose.from_xyz_rpy(yaw=-1.57, reference_frame=robot.root)),
             NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PlaceAction(parcel, place_pose, Arms.LEFT),
+            PlaceAction(parcel_annotation, place_pose, Arms.LEFT),
             ParkArmsAction(Arms.BOTH),
             MoveJointsMotion(
                 names=[
@@ -191,9 +187,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
     parcel = world.get_body_by_name("parcel")
     parcel_annotation = an(
         entity(
-            semantic_annotation := variable(
-                Parcel, domain=world.semantic_annotations
-            )
+            semantic_annotation := variable(Parcel, domain=world.semantic_annotations)
         ).where(semantic_annotation.root == parcel)
     ).first()
     grasp = Pose(reference_frame=parcel)
@@ -210,7 +204,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
             # %% bring to place pose
             ParkArmsAction(Arms.BOTH),
             NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
+            PickUpAction(grasp, Arms.LEFT),
             ParkArmsAction(Arms.BOTH),
             MoveJointsMotion(
                 names=[
@@ -220,7 +214,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
             ),
             NavigateAction(Pose.from_xyz_rpy(yaw=1.57, reference_frame=robot.root)),
             NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PlaceAction(parcel, pick_pose, Arms.LEFT),
+            PlaceAction(parcel_annotation, pick_pose, Arms.LEFT),
             ParkArmsAction(Arms.BOTH),
             MoveJointsMotion(
                 names=[

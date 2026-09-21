@@ -39,7 +39,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -182,16 +182,13 @@ def test_reach_action_multi(immutable_stationary_block_world):
     box_body = world.get_body_by_name("box1")
     box = graspable_annotation(world, box_body)
     position = box_body.global_pose.position.to_np()
-    grasp_pose = Pose.from_xyz_rpy(
-        *position[:3], pitch=np.pi / 2, reference_frame=world.root
-    )
+    grasp_pose = Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body)
 
     plan = sequential(
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
-                grasp_pose=grasp_pose,
-                graspable_object=box,
+                grasp=GraspPose(box, grasp_pose),
                 arm=Arms.LEFT,
             ),
         ],
@@ -249,9 +246,11 @@ def test_grasping(immutable_stationary_block_world):
 
     box_body = world.get_body_by_name("box1")
     description = GraspingAction(
-        graspable_annotation(world, box_body),
+        GraspPose(
+            graspable_annotation(world, box_body),
+            Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body),
+        ),
         Arms.LEFT,
-        Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body),
     )
     plan = sequential(
         [ParkArmsAction(Arms.BOTH), description],
@@ -277,7 +276,7 @@ def test_pick_up_multi(mutable_stationary_block_world):
         [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
-                graspable_annotation(world, box_body),
+                graspable_annotation(world, box_body).grasp_poses()[0],
                 Arms.LEFT,
             ),
         ],
@@ -319,11 +318,11 @@ def test_place_multi(mutable_stationary_block_world, place_position):
         [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
-                graspable_annotation(world, box_body),
+                graspable_annotation(world, box_body).grasp_poses()[0],
                 Arms.LEFT,
             ),
             PlaceAction(
-                world.get_body_by_name("box1"),
+                graspable_annotation(world, box_body),
                 Pose(place_position, reference_frame=world.root),
                 Arms.LEFT,
             ),

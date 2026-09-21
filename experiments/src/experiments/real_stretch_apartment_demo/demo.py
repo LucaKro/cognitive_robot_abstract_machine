@@ -190,7 +190,9 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     trust_detected_orientation=True,
                     accept_first_if_multiple=True,
                 ),
-                PickUpAction(cereal, Arms.LEFT, perceive_before_grasp=True),
+                PickUpAction(
+                    cereal.grasp_poses()[0], Arms.LEFT, perceive_before_grasp=True
+                ),
                 ParkArmsAction(Arms.BOTH),
                 NavigateAction(
                     Pose.from_xyz_rpy(
@@ -198,7 +200,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     )
                 ),
                 PlaceAction(
-                    object_designator=cereal_body,
+                    object_designator=cereal,
                     target_location=Pose.from_xyz_rpy(
                         x=0.1,
                         z=0.56,
@@ -239,7 +241,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     )
                 ),
                 a(PlaceAction)(
-                    object_designator=cereal_body,
+                    object_designator=cereal,
                     target_location=CEREAL_SHELF_LAYER_T_CEREAL.to_pose(),
                     arm=Arms.LEFT,
                 ),

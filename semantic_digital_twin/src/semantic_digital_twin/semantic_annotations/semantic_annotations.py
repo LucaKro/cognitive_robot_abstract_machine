@@ -39,6 +39,7 @@ from semantic_digital_twin.semantic_annotations.mixins import (
     HasLegs,
     HasSink,
     HasShelfLayers,
+    GraspPose,
     HasGraspPoses,
 )
 from semantic_digital_twin.spatial_types import (
@@ -1100,21 +1101,26 @@ class Bowl(HasSupportingSurface, HasGraspPoses, IsPerceivable):
     How far below the highest point of the bowl the fingers grip its wall.
     """
 
-    def grasp_poses(self) -> Iterator[Pose]:
+    def grasp_poses(self) -> List[GraspPose]:
         """
-        Generate grasps that straddle the bowl's wall, approaching it from above.
+        The grasps that straddle the bowl's wall, approaching it from above.
 
         A bowl offers nothing to grip at its own origin, which is inside it, so the wall
         of its rim is grasped instead.
         """
-        for section in self._rim_wall_sections():
-            yield Pose(
-                position=section.center,
-                orientation=RotationMatrix.from_vectors(
-                    x=Vector3.NEGATIVE_Z(), y=section.outward
-                ).to_quaternion(),
-                reference_frame=self.root,
+        return [
+            GraspPose(
+                self,
+                Pose(
+                    position=section.center,
+                    orientation=RotationMatrix.from_vectors(
+                        x=Vector3.NEGATIVE_Z(), y=section.outward
+                    ).to_quaternion(),
+                    reference_frame=self.root,
+                ),
             )
+            for section in self._rim_wall_sections()
+        ]
 
     def _rim_wall_sections(self) -> Iterator[RimWallSection]:
         """
@@ -1515,9 +1521,9 @@ class Cutlery(HasGraspPoses):
     A piece of cutlery.
     """
 
-    def grasp_poses(self) -> Iterator[Pose]:
+    def grasp_poses(self) -> List[GraspPose]:
         """
-        Generate the grasp that reaches down onto the piece and closes across it.
+        The grasp that reaches down onto the piece and closes across it.
 
         Cutlery lies flat, so there is nothing to take hold of from the side. The
         fingers have to come from above and close across the piece rather than along
@@ -1529,12 +1535,17 @@ class Cutlery(HasGraspPoses):
         along_x = bounding_box.x_interval.upper - bounding_box.x_interval.lower
         along_y = bounding_box.y_interval.upper - bounding_box.y_interval.lower
         finger_axis = Vector3.NEGATIVE_Y() if along_x >= along_y else Vector3.X()
-        yield Pose(
-            orientation=RotationMatrix.from_vectors(
-                x=Vector3.NEGATIVE_Z(), y=finger_axis
-            ).to_quaternion(),
-            reference_frame=self.root,
-        )
+        return [
+            GraspPose(
+                self,
+                Pose(
+                    orientation=RotationMatrix.from_vectors(
+                        x=Vector3.NEGATIVE_Z(), y=finger_axis
+                    ).to_quaternion(),
+                    reference_frame=self.root,
+                ),
+            )
+        ]
 
 
 @dataclass(eq=False)
@@ -1605,6 +1616,7 @@ class Human(Agent):
     This class exists primarily for semantic distinction, so that algorithms can treat
     human agents differently from robots if needed.
     """
+
 
 @dataclass(eq=False)
 class Parcel(HasGraspPoses):

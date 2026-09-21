@@ -104,63 +104,6 @@ class WipingTargetMissing(DataclassException):
 
 
 @dataclass
-class PerceptionTargetMissing(DataclassException):
-    """
-    Raised when an action is asked to perceive before grasping but names no object.
-    """
-
-    instance: Designator
-    """
-    The action that has no object to detect.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.instance} perceives before grasping but names no object."
-
-    def suggest_correction(self) -> str:
-        return "provide a graspable_object or leave perceive_before_grasp off."
-
-
-@dataclass
-class OffersNoGrasp(DataclassException):
-    """
-    Raised when an action has to take hold of an object that offers no grasp.
-    """
-
-    graspable: SemanticAnnotation
-    """
-    The annotation that generated no grasp frame.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.graspable} offers no grasp to take hold by."
-
-    def suggest_correction(self) -> str:
-        return (
-            "name a grasp_pose on the action, or give the annotation a grasp_poses "
-            "implementation that yields at least one frame."
-        )
-
-
-@dataclass
-class GraspPoseMissing(DataclassException):
-    """
-    Raised when a reach names neither a grasp to aim at nor an object offering one.
-    """
-
-    instance: Designator
-    """
-    The action that has nothing to reach for.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.instance} names neither a grasp_pose nor a graspable_object."
-
-    def suggest_correction(self) -> str:
-        return "provide a grasp_pose, or a graspable_object whose grasps it can take."
-
-
-@dataclass
 class MissingToolFrame(DataclassException):
     """
     Raised when no tool frame is available for the requested arm.

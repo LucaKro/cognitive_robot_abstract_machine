@@ -17,6 +17,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from coraplex.locations.base import Location, PoseGeneratorBackend
 from coraplex.locations.sampling import CandidateDraw
 from coraplex.locations.costmaps import Costmap, OccupancyCostmap, GaussianCostmap
@@ -54,11 +55,6 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     The arm that should do the reaching.
     """
 
-    grasp_pose: Pose
-    """
-    The grasp frame the end effector should reach on the target.
-    """
-
     robot: AbstractRobot
     """
     Robot for which base poses should be found.
@@ -69,12 +65,9 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
     The world in which to sample.
     """
 
-    body_T_grasp: Pose = field(default_factory=Pose, kw_only=True)
+    grasp: GraspPose = field(kw_only=True)
     """
-    The same grasp in the frame of the body the approach must avoid, which sets how far
-    ahead of the grasp the approach begins.
-
-    An identity grasp with no reference frame when there is no such body.
+    The grasp the end effector should reach.
     """
 
     contact_bodies: List[Body] = field(default_factory=list, kw_only=True)
@@ -85,8 +78,8 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
 
     reverse: bool = field(default=False, kw_only=True)
     """
-    Whether the gripper withdraws from :attr:`grasp_pose` rather than moving onto it,
-    which is how a body is released where it is placed.
+    Whether the gripper withdraws from :attr:`grasp` rather than moving onto it, which
+    is how a body is released where it is placed.
     """
 
     distance_to_obstacle: float = 0.1
@@ -233,10 +226,11 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
         with checked_world.modify_world():
             robot._setup_collision_rules()
 
+        grasp = self.grasp.copy_for_world(checked_world)
         target_sequence = self.grasp_pose_sequence(
-            self.grasp_pose.copy_for_world(checked_world),
+            grasp.moved_to(self.target_pose.copy_for_world(checked_world)),
             end_effector,
-            self.body_T_grasp,
+            grasp,
             reverse=self.reverse,
         )
 

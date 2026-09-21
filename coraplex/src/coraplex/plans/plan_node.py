@@ -19,7 +19,7 @@ from coraplex.plans.executables import (
     Executable,
     GiskardExecutable,
 )
-from coraplex.plans.failures import RECOVERABLE_FAILURES, RecoverableFailure
+from coraplex.plans.failures import PlanFailure
 from coraplex.plans.motion_state_chart_building import BuildsMotionStateChart
 from coraplex.plans.plan_entity import PlanEntity
 
@@ -62,7 +62,7 @@ class PlanNode(PlanEntity):
     The ending time of the function, optional.
     """
 
-    reason: Optional[RecoverableFailure] = None
+    reason: Optional[PlanFailure] = None
     """
     The reason of failure if the action failed.
     """
@@ -291,7 +291,7 @@ class PlanNode(PlanEntity):
         try:
             self.notify()
             self.result = self.parse().execute()
-        except RECOVERABLE_FAILURES as e:
+        except PlanFailure as e:
             self.status = LifeCycleValues.FAILED
             self.reason = e
             raise e

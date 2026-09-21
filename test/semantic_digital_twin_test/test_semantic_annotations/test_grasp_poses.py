@@ -4,7 +4,12 @@ import pytest
 import trimesh
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import (
+    MissingReferenceFrameError,
+    ReferenceFrameMismatchError,
+)
 from semantic_digital_twin.semantic_annotations.mixins import (
+    GraspPose,
     HasGraspPoses,
     HasRootBody,
 )
@@ -102,30 +107,39 @@ def axes_of(pose: Pose) -> NDArray[np.float64]:
 
 
 def test_default_grasp_poses_are_in_the_root_frame(milk):
-    for pose in milk.grasp_poses():
-        assert pose.reference_frame is milk.root
+    for grasp in milk.grasp_poses():
+        assert grasp.root_T_grasp.reference_frame is milk.root
+
+
+def test_default_grasp_poses_belong_to_the_annotation_that_offers_them(milk):
+    for grasp in milk.grasp_poses():
+        assert grasp.graspable is milk
 
 
 def test_default_grasp_poses_are_at_the_root_origin(milk):
-    for pose in milk.grasp_poses():
-        np.testing.assert_allclose(pose.to_np()[:3, 3], np.zeros(3), atol=1e-9)
+    for grasp in milk.grasp_poses():
+        np.testing.assert_allclose(
+            grasp.root_T_grasp.to_np()[:3, 3], np.zeros(3), atol=1e-9
+        )
 
 
 def test_default_grasp_pose_count_follows_the_field(milk):
     milk.grasp_pose_count = 7
-    assert len(list(milk.grasp_poses())) == 7
+    assert len(milk.grasp_poses()) == 7
 
 
 def test_default_grasp_poses_differ_only_in_yaw(milk):
-    for pose in milk.grasp_poses():
+    for grasp in milk.grasp_poses():
         # A pure yaw keeps the frame's z-axis on the body's z-axis.
-        np.testing.assert_allclose(axes_of(pose)[:, 2], [0, 0, 1], atol=1e-9)
+        np.testing.assert_allclose(
+            axes_of(grasp.root_T_grasp)[:, 2], [0, 0, 1], atol=1e-9
+        )
 
 
 def test_default_grasp_poses_approach_along_evenly_spaced_yaws(milk):
     approach_yaws = sorted(
-        np.arctan2(axes_of(pose)[1, 0], axes_of(pose)[0, 0])
-        for pose in milk.grasp_poses()
+        np.arctan2(axes_of(grasp.root_T_grasp)[1, 0], axes_of(grasp.root_T_grasp)[0, 0])
+        for grasp in milk.grasp_poses()
     )
     expected = np.linspace(0, 2 * np.pi, milk.grasp_pose_count, endpoint=False)
     np.testing.assert_allclose(
@@ -138,8 +152,8 @@ def test_default_grasp_poses_approach_along_evenly_spaced_yaws(milk):
 
 def test_bowl_grasps_sit_on_the_rim_wall(bowl):
     wall_center_radius = (BOWL_INNER_RADIUS + BOWL_OUTER_RADIUS) / 2
-    for pose in bowl.grasp_poses():
-        position = pose.to_np()[:3, 3]
+    for grasp in bowl.grasp_poses():
+        position = grasp.root_T_grasp.to_np()[:3, 3]
         assert np.linalg.norm(position[:2]) == pytest.approx(
             wall_center_radius, abs=1e-3
         )
@@ -147,13 +161,15 @@ def test_bowl_grasps_sit_on_the_rim_wall(bowl):
 
 def test_bowl_grasps_sit_below_the_rim_by_the_configured_depth(bowl):
     rim_height = BOWL_HEIGHT / 2 - bowl.rim_grasp_depth
-    for pose in bowl.grasp_poses():
-        assert pose.to_np()[2, 3] == pytest.approx(rim_height)
+    for grasp in bowl.grasp_poses():
+        assert grasp.root_T_grasp.to_np()[2, 3] == pytest.approx(rim_height)
 
 
 def test_bowl_grasps_approach_straight_down(bowl):
-    for pose in bowl.grasp_poses():
-        np.testing.assert_allclose(axes_of(pose)[:, 0], [0, 0, -1], atol=1e-9)
+    for grasp in bowl.grasp_poses():
+        np.testing.assert_allclose(
+            axes_of(grasp.root_T_grasp)[:, 0], [0, 0, -1], atol=1e-9
+        )
 
 
 def test_bowl_grasp_fingers_close_across_the_rim_wall(bowl):
@@ -161,12 +177,40 @@ def test_bowl_grasp_fingers_close_across_the_rim_wall(bowl):
     The finger axis must be radial, so the fingers straddle the wall rather than
     pinching along it.
     """
-    for pose in bowl.grasp_poses():
-        position = pose.to_np()[:3, 3]
+    for grasp in bowl.grasp_poses():
+        position = grasp.root_T_grasp.to_np()[:3, 3]
         radial = position / np.linalg.norm(position[:2])
         radial[2] = 0
-        finger_axis = axes_of(pose)[:, 1]
+        finger_axis = axes_of(grasp.root_T_grasp)[:, 1]
         assert abs(float(np.dot(finger_axis, radial))) == pytest.approx(1.0, abs=1e-6)
+
+
+# %% the frame a grasp is expressed in
+
+
+def test_a_grasp_in_a_foreign_frame_is_refused(milk, bowl):
+    """
+    A grasp written in another frame moves with the wrong body, so the approach would
+    clear the wrong geometry. Nothing downstream can tell, so it is refused here.
+    """
+    with pytest.raises(ReferenceFrameMismatchError):
+        GraspPose(milk, Pose(reference_frame=bowl.root))
+
+
+def test_a_grasp_without_a_frame_is_refused(milk):
+    """
+    A frameless pose names no body at all, so it cannot be a grasp on one.
+    """
+    with pytest.raises(MissingReferenceFrameError):
+        GraspPose(milk, Pose())
+
+
+def test_a_grasp_from_the_body_origin_takes_the_object_at_its_own_origin(milk):
+    grasp = GraspPose.from_body_origin(milk)
+
+    assert grasp.graspable is milk
+    assert grasp.root_T_grasp.reference_frame is milk.root
+    np.testing.assert_allclose(grasp.root_T_grasp.to_np(), np.eye(4), atol=1e-9)
 
 
 # %% the contract itself

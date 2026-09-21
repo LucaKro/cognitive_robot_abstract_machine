@@ -440,7 +440,7 @@ def test_detection_corrects_a_grasp_planned_before_it(immutable_model_world):
     )
 
     plan = execute_single(
-        PickUpAction(milk, Arms.RIGHT),
+        PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
         context=context,
     )
     plan.notify()

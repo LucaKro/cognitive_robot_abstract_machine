@@ -49,6 +49,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 )
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import Point3, Quaternion
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -79,7 +80,7 @@ def test_pick_up_motion(immutable_model_world):
     world, view, context = immutable_model_world
     test_world = deepcopy(world)
     milk = test_world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
 
     root = sequential(
         children=[
@@ -444,7 +445,7 @@ def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).tolerate_stall is False
@@ -460,7 +461,7 @@ def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT, tolerate_grasp_stall=True)
+    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT, tolerate_grasp_stall=True)
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).tolerate_stall is True
@@ -475,7 +476,7 @@ def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
 
     assert pick_up.pre_approach_linear_velocity is None
     assert pick_up.final_approach_linear_velocity is None
@@ -494,7 +495,9 @@ def test_place_action_velocity_fields_default_to_none(immutable_model_world):
     world, view, context = immutable_model_world
     target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
-    place = PlaceAction(world.get_body_by_name("milk.stl"), target_location, Arms.LEFT)
+    place = PlaceAction(
+        world.get_semantic_annotations_by_type(Milk)[0], target_location, Arms.LEFT
+    )
 
     assert place.placing_linear_velocity is None
     assert place.transport_linear_velocity is None
@@ -627,7 +630,9 @@ def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_wor
     make: the fingers meeting the object are the grasp, not a collision to give up on.
     """
     world, view, context = immutable_model_world
-    pick_up = PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT)
+    pick_up = PickUpAction(
+        world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0], Arms.LEFT
+    )
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).allow_gripper_collision is True
@@ -646,10 +651,10 @@ def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
     world, view, context = mutable_model_world
     target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     with world.modify_world():
         world.move_branch_with_fixed_connection(
-            milk, view.left_arm.end_effector.tool_frame
+            milk.root, view.left_arm.end_effector.tool_frame
         )
 
     place = PlaceAction(milk, target_location, Arms.LEFT)
@@ -878,7 +883,7 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    grasping = GraspingAction(milk, Arms.LEFT, Pose(reference_frame=milk.root))
+    grasping = GraspingAction(GraspPose.from_body_origin(milk), Arms.LEFT)
     sequential([grasping], context=context)
 
     grasping.plan_node.notify()

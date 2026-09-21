@@ -191,12 +191,11 @@ with simulated_robot:
              Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
          ),
          PickUpAction(
-             graspable_object=(milk := world.get_semantic_annotations_by_type(Milk)[0]),
+             grasp=(milk := world.get_semantic_annotations_by_type(Milk)[0]).grasp_poses()[0],
              arm=arm,
-             grasp_pose=next(iter(milk.grasp_poses())),
          ),
          PlaceAction(
-             object_designator=world.get_body_by_name("milk.stl"),
+             object_designator=milk,
              target_location=Pose.from_xyz_rpy(2.4, 2.2, 1, reference_frame=world.root),
              arm=arm,
          )],
@@ -262,7 +261,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 description = TransportAction(
-    world.get_semantic_annotations_by_type(Milk)[0],
+    world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
     Arms.LEFT,
     target_location=Pose.from_xyz_quaternion(
         3.0, 2.2, 1.04, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root

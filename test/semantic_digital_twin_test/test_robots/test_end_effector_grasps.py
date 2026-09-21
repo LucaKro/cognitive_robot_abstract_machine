@@ -193,7 +193,7 @@ def test_every_robot_states_its_axes_in_the_frame_they_belong_to(
 
 
 def test_tool_frame_goal_keeps_the_grasp_position(pr2_gripper, graspable_box):
-    grasp = next(iter(graspable_box.grasp_poses()))
+    grasp = graspable_box.grasp_poses()[0].root_T_grasp
 
     goal = pr2_gripper.tool_frame_goal(grasp)
 
@@ -207,7 +207,7 @@ def test_tool_frame_goal_applies_the_end_effectors_own_orientation(
     Two grippers pointing different ways must be sent different orientations for one
     and the same grasp.
     """
-    grasp = next(iter(graspable_box.grasp_poses()))
+    grasp = graspable_box.grasp_poses()[0].root_T_grasp
 
     goal = pr2_gripper.tool_frame_goal(grasp)
 
@@ -456,10 +456,13 @@ def test_grasp_poses_by_distance_offers_every_grasp_the_object_has(
 ):
     ranked = pr2_gripper.grasp_poses_by_distance(graspable_box, POSITION_TOLERANCE)
 
-    offered = [pose.to_np() for pose in graspable_box.grasp_poses()]
+    offered = [grasp.root_T_grasp.to_np() for grasp in graspable_box.grasp_poses()]
     assert len(ranked) == len(offered)
-    for pose in ranked:
-        assert any(np.allclose(pose.to_np(), other, atol=1e-9) for other in offered)
+    for grasp in ranked:
+        assert any(
+            np.allclose(grasp.root_T_grasp.to_np(), other, atol=1e-9)
+            for other in offered
+        )
 
 
 def test_grasp_poses_by_distance_puts_the_closest_grasp_first(
@@ -467,7 +470,7 @@ def test_grasp_poses_by_distance_puts_the_closest_grasp_first(
 ):
     ranked = pr2_gripper.grasp_poses_by_distance(graspable_box, POSITION_TOLERANCE)
 
-    distances = [pr2_gripper._distance_to_grasp(pose) for pose in ranked]
+    distances = [pr2_gripper._distance_to_grasp(grasp.root_T_grasp) for grasp in ranked]
     assert distances == sorted(distances)
 
 
@@ -479,7 +482,7 @@ def test_the_best_grasp_is_the_one_the_gripper_faces(pr2_gripper, graspable_box)
     best = pr2_gripper.grasp_poses_by_distance(graspable_box, POSITION_TOLERANCE)[0]
 
     world = graspable_box._world
-    world_T_grasp = world.transform(best.to_homogeneous_matrix(), world.root)
+    world_T_grasp = world.transform(best.root_T_grasp.to_homogeneous_matrix(), world.root)
     world_V_to_grasp = (
         world_T_grasp.to_position()
         - pr2_gripper.tool_frame.global_transform.to_position()

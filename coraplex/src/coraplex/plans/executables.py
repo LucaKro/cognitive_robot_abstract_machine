@@ -9,7 +9,13 @@ from coraplex.exceptions import (
     ConditionNotSatisfied,
     UnknownExecutionType,
 )
+from coraplex.plans.failures import (
+    EmptyUnderspecified,
+    MotionMadeNoProgress,
+    PlanFailure,
+)
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
@@ -231,6 +237,8 @@ class GiskardExecutable(Executable):
         """
         Completes the motion state chart and executes it according to the execution
         type.
+
+        :raises MotionMadeNoProgress: When the motion stops approaching its goal.
         """
         if len(self.motion_mappings) == 0:
             return
@@ -238,13 +246,16 @@ class GiskardExecutable(Executable):
             return
         self.prepare_for_execution()
 
-        match GiskardExecutable.execution_type:
-            case ExecutionType.SIMULATED:
-                self._execute_simulation()
-            case ExecutionType.REAL:
-                self._execute_real()
-            case _:
-                raise UnknownExecutionType(GiskardExecutable.execution_type)
+        try:
+            match GiskardExecutable.execution_type:
+                case ExecutionType.SIMULATED:
+                    self._execute_simulation()
+                case ExecutionType.REAL:
+                    self._execute_real()
+                case _:
+                    raise UnknownExecutionType(GiskardExecutable.execution_type)
+        except NoProgressError as stalled:
+            raise MotionMadeNoProgress(stalled) from stalled
 
     def _execute_simulation(self) -> None:
         """
@@ -255,7 +266,8 @@ class GiskardExecutable(Executable):
         that keeps converging is never cut off for taking many ticks.
 
         :raises NoProgressError: When the motion stops approaching its goal. The error
-            names the tasks that stalled.
+            names the tasks that stalled, and :meth:`execute` turns it into a
+            :class:`~coraplex.plans.failures.MotionMadeNoProgress`.
         """
         executor = Ros2Executor(
             context=MotionStatechartContext(
@@ -352,13 +364,11 @@ class UnderspecifiedExecutable(Executable):
     """
 
     def execute(self) -> None:
-        from coraplex.plans.failures import RECOVERABLE_FAILURES, EmptyUnderspecified
-
         while self.node.advance():
             try:
                 self.node.current_candidate.parse().execute()
                 self.node.stop_grounding()
                 return
-            except RECOVERABLE_FAILURES:
+            except PlanFailure:
                 continue
         raise EmptyUnderspecified()

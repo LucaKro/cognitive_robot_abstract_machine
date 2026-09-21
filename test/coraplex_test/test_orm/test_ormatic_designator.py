@@ -37,6 +37,7 @@ def simple_plan(immutable_model_world):
     ).plan
     return plan
 
+
 @pytest.mark.skip("Execution Data is not recorded right now")
 def test_plan_serialization(coraplex_testing_session, simple_plan):
     session = coraplex_testing_session
@@ -90,7 +91,7 @@ def complex_plan(mutable_model_world):
 
     plan = execute_single(
         TransportAction(
-            graspable_object=milk,
+            grasp=milk.grasp_poses()[0],
             target_location=Pose.from_xyz_quaternion(
                 2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root
             ),
@@ -100,6 +101,7 @@ def complex_plan(mutable_model_world):
     ).plan
 
     return plan
+
 
 @pytest.mark.skip("Execution Data is not recorded right now")
 def test_execution_data_of_complex_plan(coraplex_testing_session, complex_plan):

@@ -12,7 +12,6 @@ from krrood.entity_query_language.factories import (
     variable_from,
     ConditionType,
 )
-from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.locations.pose_validator import IsReachableBy
@@ -21,6 +20,7 @@ from coraplex.plans.plan_node import PlanNode
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.robot_plans.motions.container import OpeningMotion, ClosingMotion
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 from coraplex.view_manager import ViewManager
@@ -28,6 +28,7 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
 )
@@ -51,7 +52,7 @@ class OpenAction(ActionDescription):
     Arm that should be used for opening the container.
     """
 
-    approach_clearance: float = ActionConfig.approach_clearance
+    approach_clearance: float = HasApproachesGraspPoses.approach_clearance
     """
     The gap in meters between the handle and the gripper before it closes on it.
     """
@@ -61,9 +62,8 @@ class OpenAction(ActionDescription):
         return sequential(
             [
                 GraspingAction(
-                    self.handle,
+                    GraspPose.from_body_origin(self.handle),
                     self.arm,
-                    Pose(reference_frame=self.handle.root),
                     approach_clearance=self.approach_clearance,
                 ),
                 OpeningMotion(self.handle.root, self.arm),
@@ -93,7 +93,7 @@ class OpenAction(ActionDescription):
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
                 pose=end_effector.tool_frame_goal(
-                    Pose(reference_frame=kwargs["handle"].root)
+                    GraspPose.from_body_origin(kwargs["handle"]).root_T_grasp
                 ),
                 tip_link=end_effector.tool_frame,
             ),
@@ -141,7 +141,7 @@ class CloseAction(ActionDescription):
     Arm that should be used for closing.
     """
 
-    approach_clearance: float = ActionConfig.approach_clearance
+    approach_clearance: float = HasApproachesGraspPoses.approach_clearance
     """
     The gap in meters between the handle and the gripper before it closes on it.
     """
@@ -151,9 +151,8 @@ class CloseAction(ActionDescription):
         return sequential(
             [
                 GraspingAction(
-                    self.handle,
+                    GraspPose.from_body_origin(self.handle),
                     self.arm,
-                    Pose(reference_frame=self.handle.root),
                     approach_clearance=self.approach_clearance,
                 ),
                 ClosingMotion(self.handle.root, self.arm),

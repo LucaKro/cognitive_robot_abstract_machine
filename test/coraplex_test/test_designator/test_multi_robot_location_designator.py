@@ -44,9 +44,11 @@ from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tiago import Tiago
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
     Handle,
+    Milk,
 )
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -247,7 +249,7 @@ def test_new_reachability_location_body(
         world.notify_state_change()
 
         location = reachability_location(
-            world.get_body_by_name("milk.stl"),
+            GraspPose.from_body_origin(_graspable_milk(world)),
             context,
             ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
@@ -255,6 +257,25 @@ def test_new_reachability_location_body(
         pose = next(iter(location))
     assert len(pose.to_position().to_list()) == 4
     assert len(pose.to_quaternion().to_list()) == 4
+
+
+def _graspable_milk(world: World) -> Milk:
+    """
+    The milk as an annotation that offers grasps.
+
+    Registered in the world rather than built loose, since a reachability check runs in
+    a copy of it and has to find the same annotation there.
+
+    :param world: The apartment world, which holds the milk as a bare body.
+    :return: The annotation of that body.
+    """
+    annotated = world.get_semantic_annotations_by_type(Milk)
+    if annotated:
+        return annotated[0]
+    milk = Milk(root=world.get_body_by_name("milk.stl"))
+    with world.modify_world():
+        world.add_semantic_annotation(milk)
+    return milk
 
 
 def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
@@ -345,7 +366,7 @@ def test_giskard_location_pose(immutable_multiple_robot_simple_apartment, rclpy_
         world.notify_state_change()
 
         location = giskard_reachability_location(
-            world.get_body_by_name("milk.stl"),
+            GraspPose.from_body_origin(_graspable_milk(world)),
             context,
             ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
@@ -378,11 +399,11 @@ def test_accessing_location_validates_the_poses_the_grasp_will_reach(
 
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
     validator = accessing_location(drawer, context=context, arm=arm).validator
-    handle_body = drawer.handle.root
+    handle_grasp = GraspPose.from_body_origin(drawer.handle)
     reached = HasApproachesGraspPoses().grasp_pose_sequence(
-        handle_body.global_pose,
+        handle_grasp.world_T_grasp,
         arm.end_effector,
-        Pose(reference_frame=handle_body),
+        handle_grasp,
     )
 
     def in_world(pose):

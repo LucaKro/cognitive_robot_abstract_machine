@@ -15,6 +15,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 
@@ -37,11 +38,12 @@ def test_get_bound_variables(immutable_model_world):
     world, view, context = immutable_model_world
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_action = PickUpAction(milk, Arms.LEFT)
+    grasp = milk.grasp_poses()[0]
+    pick_action = PickUpAction(grasp, Arms.LEFT)
 
     bound_variables = pick_action._create_variables()
 
-    assert len(bound_variables) == 16
+    assert len(bound_variables) == 15
     assert list(bound_variables.keys()) == [
         "position_threshold",
         "orientation_threshold",
@@ -54,18 +56,15 @@ def test_get_bound_variables(immutable_model_world):
         "object_friction",
         "approach_clearance",
         "retreat_distance",
-        "graspable_object",
+        "grasp",
         "arm",
-        "grasp_pose",
         "tolerate_grasp_stall",
         "perceive_before_grasp",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms
-    assert list(bound_variables["graspable_object"]._domain_) == [
-        world.get_semantic_annotations_by_type(Milk)[0]
-    ]
-    assert bound_variables["graspable_object"]._type_ == Milk
+    assert list(bound_variables["grasp"]._domain_) == [grasp]
+    assert bound_variables["grasp"]._type_ == GraspPose
 
 
 def test_pick_up_pre_conditions(mutable_model_world, rclpy_node):
@@ -76,7 +75,7 @@ def test_pick_up_pre_conditions(mutable_model_world, rclpy_node):
     VizMarkerPublisher(_world=world, node=rclpy_node)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_action = PickUpAction(milk, Arms.LEFT)
+    pick_action = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
 
     plan = sequential([pick_action], context)
 
@@ -119,7 +118,7 @@ def test_pick_up_pre_conditions(mutable_model_world, rclpy_node):
 def test_pick_up_post_condition(mutable_model_world):
     world, view, context = mutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_action = PickUpAction(milk, Arms.LEFT)
+    pick_action = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
     # The standing pose test_pick_up_pre_condition establishes as reaching the milk.
     view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1.9, 1.4, 0

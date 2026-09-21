@@ -73,6 +73,7 @@ from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tiago import Tiago
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Elevator,
     FirstFloor,
@@ -401,7 +402,7 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
     left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    grasp_pose = Pose(Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root)
+    grasp_pose = Pose(reference_frame=milk.root)
     milk_body = milk.root
     milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1, -2, 0.8, reference_frame=world.root
@@ -415,8 +416,7 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
-                grasp_pose=grasp_pose,
-                graspable_object=milk,
+                grasp=GraspPose(milk, grasp_pose),
                 arm=Arms.LEFT,
             ),
         ],
@@ -504,9 +504,8 @@ def test_grasping(immutable_multiple_robot_apartment):
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     grasping_action = GraspingAction(
-        milk,
+        GraspPose.from_body_origin(milk),
         Arms.LEFT,
-        Pose(reference_frame=milk.root),
     )
 
     milk_body = milk.root
@@ -553,7 +552,10 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
     root = sequential(
         [
             ParkArmsAction(Arms.BOTH),
-            PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT),
+            PickUpAction(
+                world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
+                Arms.LEFT,
+            ),
         ],
         context,
     )
@@ -597,9 +599,12 @@ def test_place_multi(mutable_multiple_robot_apartment):
     root = sequential(
         [
             ParkArmsAction(Arms.BOTH),
-            PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT),
+            PickUpAction(
+                world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
+                Arms.LEFT,
+            ),
             PlaceAction(
-                world.get_body_by_name("milk.stl"),
+                world.get_semantic_annotations_by_type(Milk)[0],
                 Pose(Point3.from_iterable([1, -2.2, 0.6]), reference_frame=world.root),
                 Arms.LEFT,
             ),
@@ -759,7 +764,7 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
 
     description = TransportAction(
-        graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
+        grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
         target_location=Pose(
             Point3.from_iterable([3.1, 2.2, 0.95]),
             Quaternion.from_iterable([0.0, 0.0, 1.0, 0.0]),
@@ -781,7 +786,9 @@ def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = immutable_multiple_robot_apartment
     move_to_reach = MoveToReach(
         target_pose_offset_robot=Pose2D(0.2, -0.55),
-        grasp_pose=Pose.from_xyz_rpy(x=0.7, y=-1.3, z=0.9, reference_frame=world.root),
+        reference_T_tool_frame=Pose.from_xyz_rpy(
+            x=0.7, y=-1.3, z=0.9, reference_frame=world.root
+        ),
         hip_rotation=0.0,
         end_effector=world.get_semantic_annotations_by_type(EndEffector)[0],
     )
@@ -803,7 +810,7 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
         5.1, 3.25, 0.75, yaw=1.57, reference_frame=world.root
     )
     description = TransportAction(
-        graspable_object=world.get_semantic_annotations_by_type(Spoon)[0],
+        grasp=world.get_semantic_annotations_by_type(Spoon)[0].grasp_poses()[0],
         target_location=target_pose,
         arm=Arms.RIGHT,
     )

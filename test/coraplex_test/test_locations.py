@@ -7,12 +7,11 @@ import pytest
 from typing_extensions import Iterator, List
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
+from coraplex.datastructures.enums import Arms, ReachFraction
 from coraplex.locations.backends import GiskardLocationBackend
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.locations.costmaps import Costmap, RingCostmap
 from coraplex.locations.sampling import CandidateDraw
-from coraplex.config.action_conf import ActionConfig
 from coraplex.locations import factories
 from coraplex.locations.factories import accessing_location, reachability_location
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
@@ -25,9 +24,11 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
     Handle,
+    Milk,
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -407,7 +408,7 @@ def test_a_location_does_not_spend_its_budget_on_candidates_it_never_validates(
     is ever tried.
     """
     world, robot, context = single_robot_world
-    box = _box_in(world)
+    box = _box_in(world).root
     box_position = box.global_pose.to_position().to_np()[:2].ravel()
     validator = RefusesEveryCandidate(context=context)
     budget = Location.candidates_to_validate
@@ -428,14 +429,15 @@ def test_a_location_does_not_spend_its_budget_on_candidates_it_never_validates(
 # %% a reachability location for a body that is going to be somewhere else
 
 
-def _box_in(world: World) -> Body:
+def _box_in(world: World) -> Milk:
     """
-    A box with collision geometry, standing away from the robot.
+    A graspable box with collision geometry, standing away from the robot.
     """
     body = Body(
         name=PrefixedName("box"),
         collision=ShapeCollection([Box(scale=Scale(0.1, 0.1, 0.2))]),
     )
+    graspable = Milk(root=body)
     with world.modify_world():
         world.add_connection(
             FixedConnection(
@@ -446,20 +448,21 @@ def _box_in(world: World) -> Body:
                 ),
             )
         )
-    return body
+        world.add_semantic_annotation(graspable)
+    return graspable
 
 
 def test_a_reachability_location_for_a_body_stands_around_its_destination(
     single_robot_world,
 ):
     world, robot, context = single_robot_world
-    body = _box_in(world)
+    graspable = _box_in(world)
     destination = Pose.from_xyz_rpy(
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
 
     location = reachability_location(
-        body,
+        GraspPose.from_body_origin(graspable),
         context,
         ViewManager.get_arm_view(Arms.RIGHT, robot),
         destination=destination,
@@ -479,20 +482,22 @@ def test_a_reachability_location_for_a_body_reaches_the_grasp_at_its_destination
     backwards, so the check has to run it backwards too.
     """
     world, robot, context = single_robot_world
-    body = _box_in(world)
+    graspable = _box_in(world)
     destination = Pose.from_xyz_rpy(
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
-    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
+    grasp = GraspPose(
+        graspable, Pose.from_xyz_rpy(z=0.05, reference_frame=graspable.root)
+    )
 
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
 
     validator = reachability_location(
-        body, context, arm, grasp_pose=grasp, destination=destination
+        grasp, context, arm, destination=destination
     ).validator
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
-        destination.to_homogeneous_matrix() @ grasp,
+        grasp.moved_to(destination),
         arm.end_effector,
         grasp,
         reverse=True,
@@ -512,15 +517,17 @@ def test_a_reachability_location_for_a_body_where_it_is_reaches_the_grasp_onto_i
     grasp rather than withdrawing from it.
     """
     world, robot, context = single_robot_world
-    body = _box_in(world)
-    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
+    graspable = _box_in(world)
+    grasp = GraspPose(
+        graspable, Pose.from_xyz_rpy(z=0.05, reference_frame=graspable.root)
+    )
 
     arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
 
-    validator = reachability_location(body, context, arm, grasp_pose=grasp).validator
+    validator = reachability_location(grasp, context, arm).validator
 
     expected_sequence = HasApproachesGraspPoses().grasp_pose_sequence(
-        body.global_pose.to_homogeneous_matrix() @ grasp,
+        grasp.world_T_grasp,
         arm.end_effector,
         grasp,
     )
@@ -542,7 +549,7 @@ def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
     used for a grasp.
     """
     world, robot, context = single_robot_world
-    handle_body = _box_in(world)
+    handle_body = _box_in(world).root
     container = Drawer(root=handle_body, handle=Handle(root=handle_body))
     asked_for = {}
     monkeypatch.setattr(
@@ -553,7 +560,7 @@ def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
 
     accessing_location(container, context, ViewManager.get_arm_view(Arms.RIGHT, robot))
 
-    assert asked_for["reach_fraction"] == ActionConfig.accessing_reach_fraction
+    assert asked_for["reach_fraction"] == ReachFraction.ACCESSING
 
 
 # %% the giskard backend reports the pose it placed the robot at
@@ -567,9 +574,9 @@ def test_giskard_backend_yields_the_candidate_it_placed_the_robot_at(
     backend = GiskardLocationBackend(
         target_pose=candidate,
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
-        grasp_pose=candidate,
         robot=robot,
         world=world,
+        grasp=GraspPose.from_body_origin(_box_in(world)),
     )
     monkeypatch.setattr(
         GiskardLocationBackend,
@@ -596,16 +603,17 @@ def test_giskard_backend_solves_the_reach_its_location_validates(
     checks, including how far that approach stays off the grasped body.
     """
     world, robot, context = single_robot_world
-    body = _box_in(world)
-    grasp = Pose.from_xyz_rpy(z=0.05, reference_frame=body)
-    grasp_frame = body.global_pose.to_homogeneous_matrix() @ grasp
+    graspable = _box_in(world)
+    grasp = GraspPose(
+        graspable, Pose.from_xyz_rpy(z=0.05, reference_frame=graspable.root)
+    )
+    grasp_frame = grasp.world_T_grasp
     backend = GiskardLocationBackend(
-        target_pose=body.global_pose,
+        target_pose=graspable.root.global_pose,
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
-        grasp_pose=grasp_frame,
         robot=robot,
         world=world,
-        body_T_grasp=grasp,
+        grasp=grasp,
     )
     solved_sequences = []
 
@@ -689,9 +697,9 @@ def test_the_giskard_backend_drives_to_every_candidate(single_robot_world, monke
     backend = GiskardLocationBackend(
         target_pose=candidates[0],
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
-        grasp_pose=candidates[0],
         robot=robot,
         world=world,
+        grasp=GraspPose.from_body_origin(_box_in(world)),
     )
     monkeypatch.setattr(
         GiskardLocationBackend,
@@ -782,10 +790,10 @@ def test_a_giskard_backend_drives_to_no_more_candidates_than_it_says(
     backend = GiskardLocationBackend(
         target_pose=candidate,
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
-        grasp_pose=candidate,
         robot=robot,
         world=world,
         number_of_candidates=2,
+        grasp=GraspPose.from_body_origin(_box_in(world)),
     )
     monkeypatch.setattr(
         GiskardLocationBackend,
@@ -810,7 +818,9 @@ def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_wo
     context.sampling_seed = 5
 
     location = reachability_location(
-        _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+        GraspPose.from_body_origin(_box_in(world)),
+        context,
+        ViewManager.get_arm_view(Arms.RIGHT, robot),
     )
 
     assert location.draw.seed == 5
@@ -824,7 +834,9 @@ def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
     world, robot, context = single_robot_world
 
     location = reachability_location(
-        _box_in(world), context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+        GraspPose.from_body_origin(_box_in(world)),
+        context,
+        ViewManager.get_arm_view(Arms.RIGHT, robot),
     )
 
     assert location.draw.seed is None
@@ -861,9 +873,9 @@ def test_a_giskard_backend_draws_its_map_on_the_seed_it_was_given(
     backend = GiskardLocationBackend(
         target_pose=candidate,
         arm=ViewManager.get_arm_view(Arms.RIGHT, robot),
-        grasp_pose=candidate,
         robot=robot,
         world=world,
+        grasp=GraspPose.from_body_origin(_box_in(world)),
     )
     monkeypatch.setattr(
         GiskardLocationBackend, "setup_costmap", lambda self, pose: drawn_map

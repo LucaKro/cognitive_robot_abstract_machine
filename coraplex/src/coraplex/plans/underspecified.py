@@ -11,7 +11,7 @@ from coraplex.plans.executables import (
     GiskardExecutable,
     UnderspecifiedExecutable,
 )
-from coraplex.plans.failures import RECOVERABLE_FAILURES
+from coraplex.plans.failures import PlanFailure
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import ActionNode, ExecutionBoundaryNode
 from krrood.entity_query_language.query.match import Match
@@ -98,7 +98,7 @@ class ActionTrial:
             try:
                 candidate.perform()
                 return True
-            except RECOVERABLE_FAILURES:
+            except PlanFailure:
                 return False
             finally:
                 # Undo the model changes before leaving the reset context restores the

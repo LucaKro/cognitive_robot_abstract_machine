@@ -16,7 +16,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from giskardpy.motion_statechart.exceptions import NoProgressError
+from coraplex.plans.failures import MotionMadeNoProgress
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
@@ -33,6 +33,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tiago import Tiago
+from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import FixedConnection
@@ -68,9 +69,10 @@ def reach_action_executable(immutable_model_world):
     )
     plan = execute_single(
         ReachAction(
-            grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
+            grasp=GraspPose.from_body_origin(
+                world.get_semantic_annotations_by_type(Milk)[0]
+            ),
             arm=Arms.RIGHT,
-            graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -317,12 +319,14 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     to end the run rather than tick forever.
     """
     world, view, context = immutable_model_world
-    out_of_reach = Pose.from_xyz_rpy(2, 1.5, 50, reference_frame=world.root)
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        2, 1.5, 50, reference_frame=milk.root.parent_connection.parent
+    )
     plan = execute_single(
         ReachAction(
-            grasp_pose=out_of_reach,
+            grasp=GraspPose.from_body_origin(milk),
             arm=Arms.RIGHT,
-            graspable_object=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -330,5 +334,5 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     executable = plan.parse()
 
     with simulated_robot:
-        with pytest.raises(NoProgressError):
+        with pytest.raises(MotionMadeNoProgress):
             executable.execute()

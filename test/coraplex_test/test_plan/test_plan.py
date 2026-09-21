@@ -487,10 +487,10 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    milk_variable = variable_from([milk])
+    grasp_variable = variable_from(milk.grasp_poses())
 
     pick_up_description = a(PickUpAction)(
-        graspable_object=milk_variable,
+        grasp=grasp_variable,
         arm=...,
         approach_clearance=0.05,
     )
@@ -562,7 +562,7 @@ def test_motion_order_pick_up(mutable_model_world):
 
     root = sequential(
         [
-            PickUpAction(milk, Arms.LEFT),
+            PickUpAction(milk.grasp_poses()[0], Arms.LEFT),
         ],
         context,
     )
@@ -616,7 +616,7 @@ def test_motion_order_place(mutable_model_world):
     root = sequential(
         [
             PlaceAction(
-                world.get_body_by_name("milk.stl"),
+                world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
                 Arms.LEFT,
             ),
@@ -652,7 +652,7 @@ def test_node_expansion(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
-        [PickUpAction(graspable_object=milk, arm=Arms.RIGHT)],
+        [PickUpAction(grasp=milk.grasp_poses()[0], arm=Arms.RIGHT)],
         context=context,
     )
 
@@ -688,7 +688,7 @@ def test_context_back_reference(immutable_model_world):
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            PickUpAction(milk, Arms.RIGHT),
+            PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
         ],
         context=context,
     )
@@ -705,7 +705,7 @@ def test_action_nodes_unequal(immutable_model_world):
     plan = sequential(
         [
             ParkArmsAction(Arms.LEFT),
-            PickUpAction(milk, Arms.LEFT),
+            PickUpAction(milk.grasp_poses()[0], Arms.LEFT),
         ],
         context=context,
     )

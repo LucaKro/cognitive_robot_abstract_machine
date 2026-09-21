@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import TYPE_CHECKING, TypeAlias, Union, get_args
+from typing_extensions import TYPE_CHECKING
 
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from krrood.exceptions import DataclassException
@@ -33,20 +33,29 @@ class PlanFailure(DataclassException):
 
 # %% what a plan can recover from
 
-RecoverableFailure: TypeAlias = Union[PlanFailure, NoProgressError]
-"""
-A failure a plan may respond to by trying something else.
 
-A motion that stops approaching its goal is one: the chart cancels itself with a
-:class:`~giskardpy.motion_statechart.exceptions.NoProgressError`, which says this attempt
-did not work rather than that the plan cannot go on. It does not descend from
-:class:`PlanFailure`, so anything choosing between alternatives has to name it alongside.
-"""
+@dataclass
+class MotionMadeNoProgress(PlanFailure):
+    """
+    Raised when a motion stopped approaching its goal.
 
-RECOVERABLE_FAILURES = get_args(RecoverableFailure)
-"""
-:data:`RecoverableFailure` as a tuple, for use in an ``except`` clause.
-"""
+    The chart cancels itself with a
+    :class:`~giskardpy.motion_statechart.exceptions.NoProgressError`, which says this
+    attempt did not work rather than that the plan cannot go on. Wrapping it where it
+    crosses into a plan is what lets a plan choose an alternative by catching
+    :class:`PlanFailure` alone.
+    """
+
+    no_progress: NoProgressError
+    """
+    The stall the motion reported, which names the tasks that stopped converging.
+    """
+
+    def error_message(self) -> str:
+        return self.no_progress.error_message()
+
+    def suggest_correction(self) -> str:
+        return self.no_progress.suggest_correction()
 
 
 @dataclass
