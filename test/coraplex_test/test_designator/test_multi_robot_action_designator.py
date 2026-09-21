@@ -31,12 +31,12 @@ from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.container import OpenAction, CloseAction
 from coraplex.robot_plans.actions.core.misc import DetectAction, MoveToReach
 from coraplex.robot_plans.actions.core.navigation import (
-    PathPlanningNavigateAction,
-)
-from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
     LookAtAction,
     ElevatorNavigation,
+)
+from coraplex.robot_plans.actions.core.navigation import (
+    PathPlanningNavigateAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import (
     ReachAction,
