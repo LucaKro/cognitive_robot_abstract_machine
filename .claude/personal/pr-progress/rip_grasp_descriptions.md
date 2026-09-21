@@ -44,6 +44,15 @@ re-verified (76 passed). The only remaining failure is
 ORM regenerated. Docstrings formatted. Examples and docs updated
 (quickstart, action_designator, orm_example, location_designator, conditions).
 
+CI fix for 203b2d0 (2026-09-21, local only - user said do not commit/push yet):
+- `ReachableGrasps.__iter__` re-addresses the grasp into `self.context.world`;
+  `Location.__iter__` points the validator at a deep-copied test world, so the grasp
+  named the copy's annotation -> MismatchingWorld on attach in the bullet demo.
+  New test `test_reachable_grasps_are_on_the_annotation_the_caller_named`; stand-ins
+  of `test_reachable_grasps_sees_the_world_as_it_is_when_consumed` updated.
+- Stretch demo `a(PickUpAction)(graspable_object=...)` -> `grasp=cereal.grasp_poses()[0]`.
+- `coraplex/examples/location_designator.md`: missing `Milk` import.
+
 Deliberately not done:
 - `add_semantic_annotation` recursive by default (Tigul): own PR. The replay path
   inserts one annotation per modification entry and
