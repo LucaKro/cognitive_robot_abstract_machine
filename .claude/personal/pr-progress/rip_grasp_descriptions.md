@@ -1,64 +1,59 @@
 ## PR #588 (cram2) - rip_grasp_descriptions
 
-Addressing the 4 unresolved review threads that ask for a code change. Local
-edits only; no commits, no GitHub replies, no thread resolutions.
+Addressing the unresolved review threads. Local edits only; nothing committed,
+no GitHub replies, no thread resolutions.
 
 Done:
-1. `GraspPose` (frozen dataclass in `semantic_annotations/mixins.py`, pairs a
-   `HasGraspPoses` with a `Pose` and refuses one that is not in the object's own
-   frame). `grasp_poses()` returns `List[GraspPose]`. Threaded through
-   `EndEffector.grasp_poses_by_distance`, `HasApproachesGraspPoses`, the
-   validators, `GiskardLocationBackend`, the location factories and the actions.
-   `reachability_location`/`giskard_reachability_location` now take a `GraspPose`
-   instead of body + pose, and `GraspPose.global_pose` /
-   `pose_at_destination` replace the `target @ body_T_grasp` composition that
-   was written out in four places. `PlaceAction.object_designator` and
-   `MoveAndPlaceAction.object_designator` now take the annotation, not the body.
-   `ReachAction.grasp_pose` renamed to `target_pose` (it is a plain pose, and a
-   reach onto a bare pose with no object is still supported);
-   `MoveToReach.grasp_pose` likewise.
-2. The four action parameters moved out of `ActionConfig`:
-   `approach_clearance`/`retreat_distance` onto `HasApproachesGraspPoses`,
-   `reach_fraction` onto `RingCostmap`, `accessing_reach_fraction` into
-   `factories.ACCESSING_REACH_FRACTION`. `from_arm_reach_distance` now requires
-   the fraction rather than defaulting it.
+1. `GraspPose` in `semantic_annotations/mixins.py`: pairs a `HasGraspPoses` with a
+   `Pose` and refuses in `__post_init__` anything not in the object's own frame.
+   `grasp_poses()` returns `List[GraspPose]`. Threaded through
+   `grasp_poses_by_distance`, `HasApproachesGraspPoses`, the validators, the
+   giskard backend, the location factories and the actions.
+   `GraspPose.global_pose` / `pose_at_destination` replace the
+   `target @ body_T_grasp` composition that was written out in four places.
+   - `@dataclass(eq=False)`, NOT frozen and NOT compared by value. Two hard
+     constraints found by the tests: `World.rebind_world_entities` assigns to a
+     designator's dataclass fields to re-bind it to a world copy (frozen raises
+     `FrozenInstanceError`), and krrood's parameterizer hashes domain objects
+     (a plain `@dataclass` sets `__hash__ = None`). Grasps therefore compare by
+     identity, like every semantic annotation in that module.
+2. The four action parameters moved out of `ActionConfig`: clearances onto
+   `HasApproachesGraspPoses`, `reach_fraction` onto `RingCostmap`,
+   `accessing_reach_fraction` into `factories.ACCESSING_REACH_FRACTION`.
 3. `MotionMadeNoProgress(PlanFailure)` wraps `NoProgressError` in
-   `GiskardExecutable.execute`; `RecoverableFailure`/`RECOVERABLE_FAILURES`
-   deleted, five `except` sites now catch `PlanFailure`, `tool_based.py` catches
-   the new type.
+   `GiskardExecutable.execute`; `RecoverableFailure`/`RECOVERABLE_FAILURES` gone.
 4. `GraspReachabilityValidator` owns `__call__`, the loop and the
-   `reachable_grasp` bookkeeping; subclasses only supply `grasps_to_try`.
-   `IsGraspReachableBy` gained `reachable_grasp` and `copy_for_world`.
+   `reachable_grasp` bookkeeping; subclasses supply only `grasps_to_try`.
+5. No duplicated object: `HasGraspChoice` holds one `grasp: GraspPose` field with
+   `graspable_object` as a property over `self.grasp.graspable`.
+   `resolve_grasp_pose` and `OffersNoGrasp` are deleted - the action no longer
+   picks a grasp, so it has nothing to refuse. Call sites pass
+   `<annotation>.grasp_poses()[0]`. Post-conditions read
+   `kwargs["grasp"].graspable.root`.
+6. Naming: `grasp_pose_sequence(target_pose, end_effector, grasp, reverse)`;
+   `GiskardLocationBackend.grasp_pose` deleted as derivable from `grasp` +
+   `target_pose`; `ReachAction.grasp_pose` -> `target_pose` (it is a plain pose,
+   and a reach onto a bare pose with no object is still supported);
+   `MoveToReach.grasp_pose` -> `target_pose`.
+
+Tests: 383 passed across the affected coraplex and semantic_digital_twin suites.
+Two failures remain, neither from this work:
+  - `test_every_robot_states_its_axes_in_the_frame_they_belong_to`: the local
+    install has no `iai_daisy_description` ROS package.
+  - (resolved) `test_grasping[Tracy]` was a missing import, fixed.
+New tests: foreign-frame and frameless refusal, `from_body_origin`, the stall
+wrapper carrying its `NoProgressError`. Deleted: the two tests whose behaviour no
+longer exists (a pick-up resolving a default grasp, and refusing an object that
+offers none) plus the `GraspableOfferingNoGrasp` mimic.
 
 ORM regenerated. Docstrings formatted.
 
 Deliberately not done:
-- `add_semantic_annotation` recursive by default (Tigul,
-  action_designator.md:295): own PR. The replay path
-  (`AddSemanticAnnotationModification.apply`,
-  `RemoveSemanticAnnotationModification.revert`) inserts one annotation per
-  modification entry and `is_semantic_annotation_in_world` only recognises an
-  annotation whose `_world` is set - so it is not "a few lines".
-- robot_parts.py:774 heuristic (tomsch420): asked twice for an alternative, none
-  given.
-- mixins.py:432 axes / :1109 strategy pattern: both reviewers agreed to defer.
-
-Next: finish the test runs (coraplex grasp/placing/plan/designator suites) and
-report. Nothing committed.
-
-### On `graspable_object` next to `grasp_pose`
-
-Raised in review of the local work: `HasGraspChoice` holds both, and a `GraspPose`
-already names its `graspable`, so the object looked redundant. It cannot simply be
-derived: a description may name its grasp as an unbound EQL variable
-(`a(TransportAction)(graspable_object=bowl, grasp_pose=variable(GraspPose,
-domain=ReachableGrasps(...)))` in coraplex_bullet_world_demo), and until that variable
-is ground there is no grasp to read the object off. `_pick_up_location`,
-`can_take_hold` and `post_condition` all need the concrete object before then.
-
-So both stay, but they can no longer disagree: `HasGraspChoice.__post_init__` raises
-`GraspOnAnotherObject` when a concrete grasp belongs to a different object than the one
-the action names. Covered by
-`test_grasp_choice.py::test_a_grasp_on_another_object_is_refused`.
+- `add_semantic_annotation` recursive by default (Tigul): own PR. The replay path
+  inserts one annotation per modification entry and
+  `is_semantic_annotation_in_world` only recognises an annotation whose `_world`
+  is set - so it is not "a few lines".
+- robot_parts.py heuristic (tomsch420): asked twice for an alternative, none given.
+- mixins.py axes / strategy pattern: both reviewers agreed to defer.
 
 Full plan: ~/.claude/plans/please-have-a-look-composed-clock.md
