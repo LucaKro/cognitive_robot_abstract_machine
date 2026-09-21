@@ -447,9 +447,6 @@ class GraspPose:
     """
 
     def __post_init__(self):
-        # Neither frozen nor compared by value: World.rebind_world_entities assigns to
-        # these fields to re-bind a designator to a world copy, and the parameterizer
-        # hashes a grasp to put it in a variable's domain.
         if self.root_T_grasp.reference_frame is None:
             raise MissingReferenceFrameError(self.root_T_grasp)
         if self.root_T_grasp.reference_frame is not self.graspable.root:
