@@ -46,4 +46,19 @@ Deliberately not done:
 Next: finish the test runs (coraplex grasp/placing/plan/designator suites) and
 report. Nothing committed.
 
+### On `graspable_object` next to `grasp_pose`
+
+Raised in review of the local work: `HasGraspChoice` holds both, and a `GraspPose`
+already names its `graspable`, so the object looked redundant. It cannot simply be
+derived: a description may name its grasp as an unbound EQL variable
+(`a(TransportAction)(graspable_object=bowl, grasp_pose=variable(GraspPose,
+domain=ReachableGrasps(...)))` in coraplex_bullet_world_demo), and until that variable
+is ground there is no grasp to read the object off. `_pick_up_location`,
+`can_take_hold` and `post_condition` all need the concrete object before then.
+
+So both stay, but they can no longer disagree: `HasGraspChoice.__post_init__` raises
+`GraspOnAnotherObject` when a concrete grasp belongs to a different object than the one
+the action names. Covered by
+`test_grasp_choice.py::test_a_grasp_on_another_object_is_refused`.
+
 Full plan: ~/.claude/plans/please-have-a-look-composed-clock.md
