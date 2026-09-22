@@ -37,10 +37,10 @@ class BeliefContext(ContextExtension):
         :raises DuplicateBeliefError: If one of those quantities already has a belief,
             in which case nothing is added at all.
         """
-        for variable in belief.quantities:
+        for variable in belief.variables:
             if variable in self.beliefs:
                 raise DuplicateBeliefError(variable=variable)
-        for variable in belief.quantities:
+        for variable in belief.variables:
             self.beliefs[variable] = belief
 
     def require(self, variable: Continuous) -> GaussianBelief:
