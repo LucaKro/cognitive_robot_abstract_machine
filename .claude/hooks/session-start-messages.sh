@@ -28,12 +28,13 @@ plan_line_no_plans_tracked() {
 }
 
 # plan_line_no_item_tracks_branch: plans are in use, and none holds an item for
-# this branch. Even-handed on purpose: belonging to no plan is an ordinary
-# state for most branches and must not read as a reprimand.
+# this branch. Informational only: belonging to no plan is the ordinary state of
+# most branches, and an instruction here ("add its item before starting") sent
+# every session on such a branch into plan bookkeeping before the user's task.
 plan_line_no_item_tracks_branch() {
   local branch="$1"
   local tracked_plan_count="$2"
-  printf "no item tracks branch '%s' (%s plan(s) tracked) - if this session's work belongs to one of them, add its item before starting; if it belongs to none, there is nothing to do" \
+  printf "no item tracks branch '%s' (%s plan(s) tracked)" \
     "${branch}" "${tracked_plan_count}"
 }
 
