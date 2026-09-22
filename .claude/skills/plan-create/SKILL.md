@@ -1,218 +1,84 @@
 ---
 name: plan-create
 description: Create (or migrate an existing bespoke roadmap doc into) a new multi-PR/multi-session plan under .claude/personal/plans/<plan-id>/plan.yaml on the personal-notes branch, cross-checked against live GitHub, then bootstrap and publish it. Invoke as "/plan-create <plan-id>". Use when the user asks to start tracking something as a plan, set up a new plan/roadmap, or migrate an existing roadmap doc into the plan-dashboard system.
-allowed-tools: Bash, Read, Write, Grep, Glob, AskUserQuestion, Skill, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__issue_write, mcp__github__create_pull_request
+allowed-tools: Bash, Read, Write, Grep, Glob, AskUserQuestion, Skill, mcp__github__issue_write, mcp__github__create_pull_request
 ---
 
 # Plan Create
 
-Generic, plan-agnostic tooling — nothing in this file may hardcode a
-specific plan's id, branches, or PRs. This is the authoring half of the
-plan-dashboard system; `.claude/skills/plan-dashboard/SKILL.md` is the
-reading/publishing half. Read `.claude/skills/plan-dashboard/plan-schema.md`
-for the full `plan.yaml` schema before drafting
-anything — this skill must produce manifests that pass the exact same
-validation `plan-dashboard` step 2 runs, not a close approximation.
+Drafts a new plan's `plan.yaml` and `roadmap.md`, checks them against live
+GitHub, saves them to the personal-notes branch and publishes the dashboard.
+The schema is in `.claude/skills/plan-dashboard/plan-schema.md`; read it before
+drafting.
 
-The output of this skill is the same as if a session had hand-authored the
-manifest via the marker/`save-plan.sh` flow in `save-plan.sh`'s own header
-comment — this skill just does that authoring for you, with the same
-rigor a careful session would: draft, validate, cross-check live state,
-confirm judgment calls with the user, then bootstrap and publish. It never
-takes a shortcut a hand-written manifest wouldn't also have to clear.
-
-## 0. Check the setup is in place, and offer it if not
-
-Everything below writes to the personal-notes branch, which the user may not
-have set up yet. Follow
-`.claude/skills/setup-personal-notes/prerequisite-check.md` before step 1:
-run the check, and if it reports anything missing, offer `/setup-personal-notes`
-rather than failing partway through drafting a plan.
-
-## 1. Establish the plan id and refuse to silently overwrite
-
-Source the shared config script — it resolves the personal-notes
-remote/branch precedence into `NOTES_REMOTE`/`NOTES_BRANCH`, and defines
-`SAVE_PLAN_SCRIPT` (used in step 7):
+## 1. The plan id
 
 ```bash
 source .claude/hooks/resolve-personal-notes-config.sh
 git fetch "${NOTES_REMOTE}" "${NOTES_BRANCH}" --quiet
+git cat-file -e "FETCH_HEAD:${PLANS_DIR}/<plan-id>/plan.yaml" && echo "exists"
 ```
 
-Then check whether `${PLANS_DIR}/<plan-id>/plan.yaml` already
-exists on `FETCH_HEAD` (`PLANS_DIR` is defined by the config script sourced
-above).
-If it does, stop and tell the user — point them at editing the existing
-plan (`plan-dashboard`'s doc, or just ask a session to edit it) instead of
-silently clobbering it with a fresh draft. Recreating over an existing plan
-id is exactly the kind of destructive-by-accident action this system is
-meant to prevent, not cause.
+If no id was given, ask for one (short, kebab-case): it is the directory name and
+index key for good. If the plan already exists, stop and point at editing it
+instead. If the notes branch is missing, offer `/setup-personal-notes`.
 
-If no `<plan-id>` was given, ask for one (kebab-case, short) rather than
-inventing one — it's the directory name and the reverse-index key forever.
+## 2. Where the content comes from
 
-## 2. Figure out where the plan's content comes from
+Ask which applies; they can combine:
 
-Ask, don't assume, which of these applies (they can combine — a real plan
-might draw on all three):
+- **An existing document** - a roadmap file, notes in the conversation, or a plan
+  approved in plan mode earlier in this session. Read it in full, and keep its
+  detail: structured facts (branch, pull request, status, blockers) become items,
+  and everything else (rationale, history, conventions) goes into `roadmap.md`.
+- **Existing branches or pull requests to track** - check them live in step 4
+  rather than trusting a description of their state.
+- **From scratch** - ask for the title, a one-line description, the repository,
+  and whether the work has sequential waves and parallel tracks or is one flat
+  list. Do not impose waves and tracks on work that has none.
 
-- **Migrating an existing freeform doc** (a roadmap markdown file, a
-  planning doc on some branch, notes pasted into the conversation, **or an
-  already-approved Claude Code plan-mode plan from earlier in this same
-  conversation** — it counts just as much as a file on disk; there's
-  nothing to "find," just use it directly). Read it in full before drafting
-  anything structured from it — see step 3's "preserve, don't
-  summarize-then-lose" rule.
-- **Naming existing branches/PRs to track.** Don't take the user's verbal
-  description of what state they're in at face value if it's checkable —
-  cross-check live per step 4 before it ever goes in the manifest. A plan
-  that's stale on day one defeats the entire point of this system.
-- **Building from scratch via conversation.** Ask for: title, a one-line
-  description, the repo (default to this one unless told otherwise), and
-  whether the work has natural waves/phases and parallel tracks, or is
-  simple enough to be one track with a flat item list. A **wave** is a
-  sequential phase of the initiative (wave 2 generally starts once wave 1
-  has landed); a **track** is a parallel line of work within a wave — its
-  items can proceed independently of other tracks in the same wave. Don't
-  force a wave/track structure onto something that doesn't have one — an
-  over-modelled plan is worse than a flat one; see `plan-schema.md` on
-  why items are flat and tagged rather than nested.
+## 3. Draft the structure
 
-## 3. Draft the structure, surfacing judgment calls rather than guessing
+Waves, tracks, dependencies and statuses are the user's judgment calls: ask
+(`AskUserQuestion`) about anything costly to redo rather than inventing it. For
+each item, check whether it is really a change to an unlanded item rather than a
+new one, per `${SCOPE_DECISION_DOCUMENT}`.
 
-Waves, tracks, item dependency chains, and status assignments are genuine
-judgment calls specific to this plan — do not silently invent an answer to
-a structural question the source material doesn't settle. Use
-`AskUserQuestion` for anything that would be awkward or costly to redo
-later (e.g., "is this one track or does it actually split into two once
-the work starts stacking?", "should track X's items be sequenced or can
-they run in parallel?") — the same way the plan-dashboard system's own
-design was worked out via up-front questions before anything was written,
-not after.
+## 4. Validate and check against GitHub
 
-### Is it a new item, or a change to one already in flight?
-
-Ask this of every item before adding it, and prefer the change: an item that
-only modifies what an unlanded item introduces is that item's work, not a
-separate one. Follow `${SCOPE_DECISION_DOCUMENT}` — it holds the check and how
-to read it.
-
-For a single piece of work rather than a whole plan, `/add-plan-item` runs that
-same decision on its own and is the lighter-weight way in.
-
-If migrating a source doc: preserve its detail rather than compressing it
-away. Structured facts (branch, PR, base, status, blockers) become
-`plan.yaml` items; everything else (design rationale, history, "why",
-standing conventions) becomes `roadmap.md`'s narrative — don't drop
-content just because it doesn't fit a YAML field. If the source doc has
-its own per-branch detail files (this repo's convention:
-`.claude/personal/pr-progress/<branch>.md`), you do not need to fold their
-full content into `roadmap.md` — that mechanism keeps working independently
-of the plan; link to it in spirit (mention it exists) rather than
-duplicating it.
-
-## 4. Cross-check every named branch/PR against live GitHub state
-
-Same mechanism as `plan-dashboard` step 2, applied before the item is ever
-written down rather than after: write the draft manifest to `/tmp/plan.yaml`,
-run the one command in `plan-dashboard/pr-data-fetching.md`, and read each
-named pull request's state off the resulting `/tmp/pr_data.json` entry for it
-(a pull request in its `not_found` summary does not exist). Set each item's
-`status` from what's actually true (open/draft →
-`in_progress` or `not_started` as appropriate, merged → `done`, closed
-unmerged → `deferred` with a note), not from what a stale doc or a
-half-remembered conversation claims. If the source material and live
-GitHub disagree, that disagreement itself is worth a line in the item's
-`notes` — it's exactly the kind of drift this system exists to catch, and
-noting it once at creation time is cheaper than rediscovering it later.
-
-## 5. Create the tracking issue (coordination mailbox for structural changes)
-
-Ask whether the plan wants one (default yes for anything with more than one
-session/track likely to touch it — skip only for something so small a
-single session will obviously own it end to end). If yes:
-
-1. Create a GitHub **issue** titled `[plan-tracking] <plan-id>`, with a body
-   explaining its purpose (not a work item — here's how proposals/replies
-   work; see `plan-schema.md`'s "Proposing structural changes" section for
-   the convention to describe).
-2. Record its number as `tracking_issue` in the manifest you're about to
-   write in step 6.
-
-**Fallback if issue creation fails with a `410`** (Issues disabled on this
-repo — check by trying, don't assume): cut a branch off `main` named
-`plan-tracking-<plan-id>`, make a single **empty commit**
-(`git commit --allow-empty` — the branch carries no file changes, ever),
-open it as a **draft** PR (base `main`, same title, a body noting *why* it's
-a PR and not an issue), and still record its
-number as `tracking_issue` — the field names the mailbox's role, not the
-literal GitHub object type, since which one applies is a per-repo fact
-that can change if Issues get enabled later. Whoever later builds a link
-to it should check which kind it actually is rather than assuming
-`/issues/`.
-
-## 6. Write and validate `plan.yaml` + `roadmap.md`
-
-Follow the schema in `plan-schema.md` exactly: `schema_version: 1`, `id`,
-`title`, `description`, `default_repository`, `tracking_issue` (if step 5 created
-one), `waves[]`, `tracks[]` (each tagged with a `wave`), `items[]` (flat,
-each tagged with a `track`, `status` from the thin enum `not_started |
-in_progress | blocked | deferred | done`, `depends_on` — a *list* of item
-ids, so an item can depend on more than one prerequisite (e.g. a track that
-only starts once two other tracks have both landed) — and optional
-`pull_request_number`/`session`/`notes`/`blockers`).
-
-Before saving, validate exactly what `plan-dashboard` step 2 validates —
-do not diverge from that checklist, since a manifest this skill produces
-must pass that same check the first time `/plan-dashboard` runs against it:
-
-- Every `items[].id` (defaulting to `branch` if omitted) is unique.
-- Every `items[].track` resolves to a declared `tracks[].id`.
-- Every `tracks[].wave` resolves to a declared `waves[].id`.
-- Every id in `items[].depends_on` (which may list more than one id)
-  resolves to another `items[].id`.
-
-Parse with Python's `yaml` module to check this mechanically rather than
-eyeballing it — the same tooling `save-plan.sh` and `plan-dashboard` both
-already require.
-
-## 7. Bootstrap it through the existing write path — don't invent a new one
-
-This skill does not push directly. It uses exactly the flow
-`save-plan.sh`'s own header comment documents for a brand-new plan (there
-is still no separate create-plan.sh; this skill is what makes that flow
-convenient, not a replacement for it): write the drafted `plan.yaml` and
-`roadmap.md` content to two temporary files, then run
+Write the draft to `/tmp/plan.yaml` and run:
 
 ```bash
-bash "${SAVE_PLAN_SCRIPT}" <plan-id> --manifest <path/to/plan.yaml> --roadmap <path/to/roadmap.md>
+python3 -m "${PULL_REQUEST_STATE_MODULE}" --plan /tmp/plan.yaml --output /tmp/pr_data.json
 ```
 
-The id must be explicit here, since a brand-new plan has no entry in the
-reverse index yet for `save-plan.sh` to auto-derive it from. This reads the
-manifest/roadmap directly from the given files (no need to round-trip them
-through `CLAUDE.local.md`'s markers first), pushes both to the
-personal-notes branch, and regenerates the branch→plan-id index in the same
-commit.
+It validates the manifest first - a non-zero exit prints exactly what is wrong -
+then writes each named pull request's state. Set every item's `status` from that
+(merged → `done`, open → `in_progress`, closed unmerged → `deferred` with a note),
+and note any disagreement with the source material in the item's `notes`.
 
-## 8. Publish
+## 5. The tracking issue
 
-Invoke the `plan-dashboard` skill for `<plan-id>` to publish its first
-dashboard Artifact. Ask the user whether they also want the master index
-refreshed (`plan-dashboard` with no argument) — don't do it unprompted,
-same convention `plan-dashboard` itself already follows, since that
-republishes a second, separate page.
+Ask whether the plan wants one: it is where structural changes to the plan are
+recorded for other sessions to read. If yes, create an issue titled
+`[plan-tracking] <plan-id>` explaining that it is not a work item, and record its
+number as `tracking_issue`. If issues are disabled (a `410`), open a draft pull
+request of the same title from an empty-commit branch `plan-tracking-<plan-id>`
+instead, and record that number.
 
-If this was a migration from an existing freeform doc, offer — don't do it
-unprompted — to replace that old doc with a short pointer stub at its
-original location, so anyone still reading the old path finds the new one
-immediately.
+## 6. Save
 
-## 9. Report back
+```bash
+bash "${SAVE_PLAN_SCRIPT}" <plan-id> --manifest /tmp/plan.yaml --roadmap /tmp/roadmap.md
+```
 
-Plan id, item/wave/track counts, the dashboard URL, the tracking issue link
-if one was created, and — explicitly, not buried — every judgment call you
-made or flagged along the way (structural assumptions, any live-vs-source
-disagreement found in step 4) so the user can sanity-check them before
-relying on the plan.
+This pushes both files and regenerates the branch index in one commit.
+
+## 7. Publish and report
+
+Run `/plan-dashboard <plan-id>`. Do not refresh the master index or replace a
+migrated source document unasked; offer to.
+
+Report the plan id, item/wave/track counts, the dashboard and tracking-issue
+links, and - explicitly - every judgment call you made and every disagreement
+between the source and GitHub.

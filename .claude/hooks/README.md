@@ -212,6 +212,19 @@ the full manifest and roadmap or change them. It is found through a generated br
 that `save-plan.sh` regenerates from every manifest on each save, so it can't drift. The whole plan
 is deliberately not copied in: `CLAUDE.local.md` is part of every request a session makes.
 
+**What a plan dashboard shows.** Its point is drift between each item's manually kept
+`status` and GitHub's live state. One direction is corrected automatically on every refresh: an
+item whose pull request GitHub reports merged becomes `done` in the manifest, since that is never
+a judgment call. Every other disagreement (a bad pull request number, `done` while still open,
+closed unmerged against an active status) is flagged for a person. Items are stacked by
+dependency depth (capped at four levels), `done` items are hidden behind a toggle, and every
+unfinished item gets a copy-to-clipboard command for the skill that moves it on ("Start now",
+"Resolve", "Resume", "Reconsider") with a model picker. A draft pull request gets a "Review"
+link, and the sidebar's "Ready to review" list keeps the drafts worth reviewing now: not
+blocked, not deferred, every dependency with an open pull request of its own. The roadmap's
+plan-wide sections are shown in the page; each item links to its own history in the roadmap
+as GitHub renders it, rather than the page carrying every item's records.
+
 **Labels the dashboard reads**, all applied by this repo's convention rather than by GitHub itself:
 
 - `merged` — the changes landed but GitHub's merge API never recorded it (branch pushed directly,
