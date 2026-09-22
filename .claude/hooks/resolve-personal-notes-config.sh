@@ -323,6 +323,9 @@ PLAN_ITEM_BRIEF_MODULE="basstler.plan_item_brief"
 # plan_item_card: the lines about the current branch's plan item
 # session-start.sh writes into CLAUDE.local.md.
 PLAN_ITEM_CARD_MODULE="basstler.plan_item_card"
+# plan_stack: the branch an item's work starts from and the gh stack link
+# command registering it - see STACKS_DOCUMENT.
+PLAN_STACK_MODULE="basstler.plan_stack"
 # roadmap_location: where GitHub renders a plan's roadmap on the notes branch,
 # so the dashboard can link each item's history instead of carrying it.
 ROADMAP_LOCATION_MODULE="basstler.roadmap_location"
@@ -347,12 +350,6 @@ PLAN_MANIFEST_TOOLS_MODULE="basstler.plan_manifest_tools"
 # plan_updates_since_support: renders the plan-state delta
 # plan-updates-since.sh reports.
 PLAN_UPDATES_SINCE_SUPPORT_MODULE="basstler.plan_updates_since_support"
-# stack: read-only stacked-PR status tool (status/check/next/restack-plan)
-# - see its own module docstring and STACK_DIRECTORY/README.md.
-STACK_MODULE="basstler.stack"
-# maintenance: the deterministic maintenance executor a stacked-PR pass
-# runs - board export, fast-forward, restack, promote, run-report.
-MAINTENANCE_MODULE="basstler.maintenance"
 # check_scope_overlap: reports which of an item's paths a given branch
 # already touches - the mechanical half of add-plan-item's scope decision.
 CHECK_SCOPE_OVERLAP_MODULE="basstler.check_scope_overlap"
@@ -367,12 +364,12 @@ BASSTLER_DEPENDENCIES_MODULE="basstler.dependencies"
 # Actions workflow running a module, and by ./session-start.sh on every session
 # start (see install_dependencies below).
 BASSTLER_PYPROJECT_FILE="${BASSTLER_PACKAGE_DIRECTORY}/pyproject.toml"
-# stack.toml: the committed defaults stack.py's load_configuration layers a
-# personal-notes .claude/personal/stack.toml override on top of.
-STACK_CONFIG_FILE="${BASSTLER_PACKAGE_DIRECTORY}/stack.toml"
+# upstream.toml: the upstream repository fork pull requests are released to, and
+# the label a fork pull request carries once it has been.
+UPSTREAM_CONFIG_FILE="${BASSTLER_PACKAGE_DIRECTORY}/upstream.toml"
 # plan-item-modes.toml: the committed execution-mode defaults plan_item_mode
 # layers a personal-notes .claude/personal/plan-item-modes.toml override on
-# top of - the same committed-defaults/personal-override split as stack.toml.
+# top of.
 PLAN_ITEM_MODES_CONFIG_FILE="${BASSTLER_PACKAGE_DIRECTORY}/plan-item-modes.toml"
 PERSONAL_PLAN_ITEM_MODES_PATH=".claude/personal/plan-item-modes.toml"
 # test/basstler_test/: the one pytest suite covering every module above -
@@ -391,16 +388,14 @@ PLAN_DASHBOARD_DIRECTORY=".claude/skills/plan-dashboard"
 # refresh sequence /plan-dashboard runs for one plan.
 REFRESH_DASHBOARD_SCRIPT="${PLAN_DASHBOARD_DIRECTORY}/refresh_dashboard.sh"
 
-# STACK_DIRECTORY: where the stacked-PR workflow's own README lives. Its
-# Python moved into the package above; the document stays, because it is
-# read rather than run.
-STACK_DIRECTORY=".claude/stack"
-
 # plan-schema.md: the full plan.yaml field reference every plan-* skill
 # reads before drafting or interpreting a manifest. On main, next to the
 # tooling that enforces it, so every clone has it with no setup - unlike the
 # plan *data* it describes, which lives only on the personal-notes branch.
 PLAN_SCHEMA_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/plan-schema.md"
+# stacks.md: how kickoff and resolve place, restack and sync an item's branch
+# in a GitHub stack of pull requests (gh stack).
+STACKS_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/stacks.md"
 # dependency-readiness.md: the shared bulk-fetch-and-check procedure
 # plan-item-kickoff and plan-item-resolve both reference instead of each
 # restating it.
@@ -426,6 +421,9 @@ SETUP_PERSONAL_NOTES_DIRECTORY=".claude/skills/setup-personal-notes"
 # the single source of truth for that question, so no caller re-implements
 # "is the notes branch there?" with its own git plumbing.
 CHECK_SETUP_SCRIPT=".claude/hooks/check-setup.sh"
+# install-gh-stack.sh: makes `gh stack` runnable in a cloud session and prints
+# one line saying how that went - session-start.sh's "gh stack" row.
+INSTALL_GH_STACK_SCRIPT=".claude/hooks/install-gh-stack.sh"
 # prerequisite-check.md: the shared "run check-setup.sh, offer
 # /setup-personal-notes if it fails" procedure that plan-create,
 # plan-dashboard, plan-item-kickoff and plan-item-resolve each reference in

@@ -409,3 +409,19 @@ def test_running_the_module_prints_the_steps_for_its_own_clone(
     assert result.returncode == 0, result.stderr
     expected = SetupChecklist.for_clone(clone_with_fork_remote.project_root, {})
     assert result.stdout == expected.render() + "\n"
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("git@github.com:owner/repo.git", "owner/repo"),
+        ("https://github.com/owner/repo", "owner/repo"),
+        ("http://local_proxy@127.0.0.1:41729/git/owner/repo", "owner/repo"),
+    ],
+)
+def test_github_remotes_and_the_cloud_proxy_name_their_repository(url: str, expected: str) -> None:
+    """
+    A cloud session's remote points at a local proxy that never names GitHub; its last
+    two path segments are still the repository, as they are on GitHub itself.
+    """
+    assert Repository.from_remote_url(url).full_name == expected

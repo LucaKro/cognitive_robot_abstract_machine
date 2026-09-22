@@ -1,0 +1,8 @@
+# The upstream repository forks open their pull requests against, and the label that
+# marks a fork pull request as released there.
+#
+# Stacks themselves live on GitHub as native stacked pull requests (`gh stack`), so
+# nothing about their shape is recorded here.
+
+upstream_repository = "cram2/cognitive_robot_abstract_machine"
+in_review_label = "in-review"  # on a fork pull request whose layer has been opened upstream

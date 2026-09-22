@@ -421,6 +421,16 @@ else
     "$(printf '%s' "${DEPENDENCY_INSTALL_OUTPUT}" | tail -1)")"
 fi
 
+# gh stack, from ./install-gh-stack.sh: plan items that build on each other are
+# GitHub stacks of pull requests, and a cloud session starts without `gh`. The
+# script installs only in a cloud session and only when `gh stack` does not already
+# run, so on every other start this costs one probe. Never fatal, like the
+# dependency install above.
+SUMMARY_GH_STACK="unavailable - ${INSTALL_GH_STACK_SCRIPT} is missing"
+if [ -f "${PROJECT_ROOT}/${INSTALL_GH_STACK_SCRIPT}" ]; then
+  SUMMARY_GH_STACK="$(bash "${PROJECT_ROOT}/${INSTALL_GH_STACK_SCRIPT}" 2>/dev/null || true)"
+fi
+
 # Setup verdict, from ./check-setup.sh - the single read-only source of truth
 # for whether this clone is set up. Reported here because remembering to run it
 # is exactly what does not happen: a session that skips it discovers the same
@@ -463,6 +473,7 @@ session-start.sh summary:
   plan:            ${SUMMARY_PLAN}
   git identity:    ${SUMMARY_GIT_IDENTITY}
   dependencies:    ${SUMMARY_DEPENDENCIES}
+  gh stack:        ${SUMMARY_GH_STACK}
   setup:           ${SUMMARY_SETUP}
   plan state SHA:  $(git rev-parse FETCH_HEAD) (run plan-updates-since.sh <plan-id> to recheck from here later)
 SUMMARY

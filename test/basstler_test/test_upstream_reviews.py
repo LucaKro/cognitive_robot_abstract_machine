@@ -355,7 +355,7 @@ def test_the_configured_upstream_reaches_the_query():
 
 def test_the_upstream_is_read_from_the_configuration_file(tmp_path):
     configured = Repository("some-organization", "some-repository")
-    configuration = tmp_path / "stack.toml"
+    configuration = tmp_path / "upstream.toml"
     configuration.write_text(UPSTREAM_SETTING_TEMPLATE.format(repository=configured))
 
     assert resolve_upstream_repository(configuration) == configured
@@ -364,7 +364,7 @@ def test_the_upstream_is_read_from_the_configuration_file(tmp_path):
 def test_an_explicit_override_outranks_the_configuration_file(tmp_path):
     configured = Repository("some-organization", "some-repository")
     overriding = Repository("override-organization", "override-repository")
-    configuration = tmp_path / "stack.toml"
+    configuration = tmp_path / "upstream.toml"
     configuration.write_text(UPSTREAM_SETTING_TEMPLATE.format(repository=configured))
 
     assert resolve_upstream_repository(configuration, str(overriding)) == overriding

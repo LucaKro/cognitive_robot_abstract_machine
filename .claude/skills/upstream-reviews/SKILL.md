@@ -39,9 +39,12 @@ landed on the fork's default branch yet.
 The fork is this checkout's own repository — resolve it rather than assuming:
 
 ```bash
-source .claude/hooks/resolve-personal-notes-config.sh
-python3 -m "${STACK_MODULE}" configuration
+git remote get-url origin
 ```
+
+The fork is the last two path segments of that URL (`owner/name`); this holds for
+the local proxy URL a cloud session is given too. The upstream is not needed here:
+the workflow reads it from `basstler/upstream.toml`.
 
 Take the target from the skill's argument: a bare number is an upstream pull
 request number, anything else is a branch name. With no argument, use the

@@ -6,7 +6,7 @@ name: Upstream reviews
 # session cannot reach, so the read happens here and the session reads this job's
 # log. Dispatch-only on purpose: nothing about this should run on a timer.
 #
-# Runs unchanged in any fork - the upstream comes from basstler/stack.toml
+# Runs unchanged in any fork - the upstream comes from basstler/upstream.toml
 # and the fork owner from the runner's own context, so no repository is named here.
 #
 # A runner starts with nothing installed and no session hook runs on it, so this job

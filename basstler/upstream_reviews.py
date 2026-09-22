@@ -27,11 +27,17 @@ from typing import Any, TypeVar, ClassVar
 
 import tomllib
 
-from basstler.stack import CONFIGURATION_PATH, Repository
+from basstler.repository import Repository
 
 QUERY_DIRECTORY = Path(__file__).resolve().parent / "queries"
 """
 Where the ``.graphql`` documents live.
+"""
+
+
+UPSTREAM_CONFIGURATION_PATH = Path(__file__).with_name("upstream.toml")
+"""
+The package's committed upstream settings.
 """
 
 
@@ -872,7 +878,7 @@ class UpstreamReviewReader:
 
 
 def resolve_upstream_repository(
-    path: Path = CONFIGURATION_PATH, override: str | None = None
+    path: Path = UPSTREAM_CONFIGURATION_PATH, override: str | None = None
 ) -> Repository:
     """
     Decide which repository the fork's pull requests are reviewed on.
@@ -893,7 +899,7 @@ def resolve_upstream_repository(
 
 UPSTREAM_REPOSITORY_SETTING = "upstream_repository"
 """
-The ``stack.toml`` key naming the repository reviews happen on.
+The ``upstream.toml`` key naming the repository reviews happen on.
 """
 
 

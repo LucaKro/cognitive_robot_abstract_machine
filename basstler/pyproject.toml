@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "basstler"
-description = "Workflow tooling: stacked-pull-request maintenance, plan dashboards, personal-notes hooks and upstream review reading."
+description = "Workflow tooling: plan dashboards, plan item briefs, personal-notes hooks and upstream review reading."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "LGPL-3.0-only"
@@ -19,7 +19,7 @@ authors = [
 maintainers = [
     {name = "Abdelrhman Bassiouny", email = "abassiou@uni-bremen.de"}
 ]
-keywords = ["stacked-pull-requests", "developer-tooling", "github", "workflow", "agents"]
+keywords = ["developer-tooling", "github", "workflow", "agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -57,7 +57,7 @@ packages = ["basstler"]
 
 # The files the modules resolve beside themselves rather than by an argument:
 # render_common.py finds the page templates as `Path(__file__).parent / "templates"`,
-# stack.py and plan_item_mode.py find their committed defaults beside themselves, and
+# upstream_reviews.py and plan_item_mode.py find their committed defaults beside themselves, and
 # upstream_reviews.py finds its GraphQL documents as `Path(__file__).parent / "queries"`.
 # An install that left them out would import and then fail at the first render, the first
 # configuration read, or the first query. pyproject.toml is here because
@@ -66,7 +66,7 @@ packages = ["basstler"]
 basstler = [
     "templates/*.html",
     "queries/*.graphql",
-    "stack.toml",
+    "upstream.toml",
     "plan-item-modes.toml",
     "pyproject.toml",
 ]

@@ -26,6 +26,11 @@ set -uo pipefail
 #   STUB_GH_AUTH_TOKEN - the token to print; unset means "not logged in", which
 #                        the real CLI reports by exiting 1
 #
+# `gh --version` and `gh stack --help`, the probes install-gh-stack.sh makes:
+#   STUB_GH_VERSION    - the version to report, defaulting to 2.90.0
+#   STUB_GH_STACK_RUNS - 1 when the gh-stack extension should look installed; anything
+#                        else answers the way gh does for an unknown command
+#
 # Exits 64 on an invocation it doesn't recognize, rather than a plausible-looking
 # success: a test must fail loudly if a caller changes the call it makes.
 
@@ -45,6 +50,19 @@ fi
 
 if [ -n "${STUB_GH_CALL_LOG:-}" ]; then
   printf '%s\n' "$*" >> "${STUB_GH_CALL_LOG}"
+fi
+
+if [ "${1:-}" = "--version" ]; then
+  printf 'gh version %s (stub)\n' "${STUB_GH_VERSION:-2.90.0}"
+  exit 0
+fi
+
+if [ "${1:-}" = "stack" ]; then
+  if [ "${STUB_GH_STACK_RUNS:-}" = "1" ]; then
+    exit 0
+  fi
+  echo 'unknown command "stack" for "gh"' >&2
+  exit 1
 fi
 
 if [ "${1:-}" = "auth" ] && [ "${2:-}" = "token" ]; then

@@ -34,7 +34,7 @@ always is. Name the exact failing check or review thread rather than saying "CI 
 failing".
 
 Then add the one thing the brief cannot see: if the fork pull request carries the
-`in_review_label` from `.claude/stack/stack.toml` (`in-review` by default), or the
+`in_review_label` from `basstler/upstream.toml` (`in-review`), or the
 item's `notes`/`status` say it is under upstream review, the branch also has an
 upstream pull request whose review threads live there. Invoke `/upstream-reviews` for
 the item's `branch` and read every unresolved thread it reports. If that fails, mention
@@ -115,6 +115,10 @@ item is already underway rather than being started:
   pull request description rather than writing them from scratch. Update the
   item's `blockers`, `notes` and `status` where the resolution changed what
   the item means, then republish the dashboard with `/plan-dashboard`.
+- **Conflicts and moved dependencies go through the stack.** A conflict with a
+  lower layer, a fix that belongs in a lower layer, or a `main` that moved on is
+  handled with `${STACKS_DOCUMENT}`'s commands, not by merging branches into each
+  other by hand.
 - **The pull request goes back to draft after the push**, per the user's own
   convention, unless they marked it ready themselves — in which case the
   item was finished and this skill should not have been resolving it.

@@ -54,6 +54,12 @@ Every session start also installs whatever of the dependencies `basstler/pyproje
 is missing, for a clone whose personal-notes branch resolves — reported on its `dependencies:`
 line, never fatal, and described in `basstler/README.md`.
 
+Its `gh stack:` line says whether GitHub's stacked pull requests (`gh stack`) run here. Plan
+items that build on each other are layers of one stack; `.claude/skills/plan-dashboard/stacks.md`
+has the commands. In a cloud session, where neither `gh` nor the extension is preinstalled,
+`install-gh-stack.sh` installs both (building gh-stack with Go) and puts them on the session's
+`PATH`; elsewhere it only says how to install them. Never fatal.
+
 Every session start prints its own summary, so none of the three things below has to be
 remembered. Its `setup:` line runs `check-setup.sh` and names any check that still needs setup;
 its `plan:` line distinguishes *no plans are tracked here* from *plans exist and no item tracks

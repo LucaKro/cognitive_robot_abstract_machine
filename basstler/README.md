@@ -1,7 +1,8 @@
 # basstler
 
-The workflow tooling for this repository: the Python behind the stacked-pull-request
-tooling, the plan dashboards, the personal-notes hooks and the upstream review reader.
+The workflow tooling for this repository: the Python behind the plan dashboards, the
+plan item briefs, the personal-notes hooks and the upstream review reader. Stacks of
+pull requests are GitHub's own (`gh stack`); nothing here maintains them.
 
 The name is the German word for someone who builds things themselves, and shares its
 first letters with the surname of the person who wrote it, Bassiouny.
@@ -13,7 +14,7 @@ with no installation step - which is what a cloud session running on a fresh clo
 no `pip` step needs.
 
 ```python
-from basstler.stack import load_configuration
+from basstler.repository import Repository
 ```
 
 The `pyproject.toml` beside this file is for installing it somewhere that is not such a
@@ -29,8 +30,8 @@ pip install './basstler[rendering]'   # plus the dashboard build's Jinja2/markdo
 Every entry point is run as a module rather than by its file path:
 
 ```bash
-python3 -m basstler.stack configuration
-python3 -m basstler.maintenance run-report --json
+python3 -m basstler.plan_item_brief --help
+python3 -m basstler.plan_stack --help
 python3 -m basstler.build_dashboard --help
 ```
 

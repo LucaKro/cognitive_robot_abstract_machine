@@ -80,6 +80,7 @@ def session_start_repository(
         "session-start-messages.sh",
         "session-start.sh",
         "check-setup.sh",
+        "install-gh-stack.sh",
     )
     scratch_repository.install_package()
     scratch_repository.write_setup_prerequisites()
@@ -537,3 +538,22 @@ def test_every_summary_message_renders_something():
     """
     for message in SummaryMessage:
         assert summary_message(message, "first", "second", "third").strip() != ""
+
+
+def test_reports_whether_gh_stack_runs(
+    session_start_repository: ScratchRepository,
+    stub_bin: ExecutableStubDirectory,
+):
+    """
+    Stacked plan items need `gh stack`; the summary says whether this session has it.
+    """
+    stub_bin.install("gh")
+
+    result = publish_and_run(
+        session_start_repository,
+        PATH=stub_bin.ahead_of(os.environ.get("PATH", "")),
+        STUB_GH_STACK_RUNS="1",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert summary_value(result.stdout, "gh stack") == "ready (gh 2.90.0)"

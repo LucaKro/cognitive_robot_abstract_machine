@@ -208,7 +208,7 @@ def test_only_failing_checks_are_named_and_the_rest_are_counted():
 
 def test_every_unresolved_thread_is_listed_with_where_it_points():
     thread = ReviewThread(
-        path="basstler/stack.py", line=12, author="reviewer", body="rename this",
+        path="basstler/roadmap.py", line=12, author="reviewer", body="rename this",
         comment_count=3, is_outdated=False,
     )
     plan = make_plan([make_item("item", 17)])
@@ -216,7 +216,7 @@ def test_every_unresolved_thread_is_listed_with_where_it_points():
 
     text = brief_text(plan, "item", details=source)
 
-    assert "`basstler/stack.py:12`" in text
+    assert "`basstler/roadmap.py:12`" in text
     assert "rename this" in text
 
 

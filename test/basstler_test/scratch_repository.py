@@ -17,7 +17,6 @@ from enum import StrEnum
 from pathlib import Path
 
 from .script_runner import BashScriptRunner
-import basstler.stack
 
 from .constants import (
     NOTES_BRANCH,
@@ -284,23 +283,6 @@ class ScratchRepository:
         :param script_names: File names within the hooks directory.
         """
         install_hook_scripts_into(self.project_root, *script_names)
-
-    def install_stack_configuration(self, content: str) -> Path:
-        """
-        Write and commit the package's committed ``stack.toml`` defaults, beside the
-        shell file the personal-notes override is fetched through.
-
-        :param content: The configuration to write.
-        :return: The path :func:`basstler.stack.load_configuration` should be pointed at.
-        """
-        self.install_hook_scripts(
-            Path(basstler.stack.PERSONAL_NOTES_CONFIGURATION_SCRIPT).name
-        )
-        written = self.write(
-            f"{PACKAGE_DIRECTORY.name}/{basstler.stack.CONFIGURATION_PATH.name}", content
-        )
-        self.commit_everything("add stack.toml")
-        return written
 
     def install_package(self) -> None:
         """

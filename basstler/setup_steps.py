@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from enum import Enum, StrEnum
 from pathlib import Path
 
+from basstler.repository import Repository
 from basstler.package_layout import REPOSITORY_ROOT
 
 
@@ -235,61 +236,6 @@ class PersonalNotesSetting(PersonalNotesSettingSpecification, Enum):
 
 
 # %% the repository the steps are about
-
-
-@dataclass(frozen=True)
-class Repository:
-    """
-    A GitHub repository, named the way its URLs and the ``gh`` CLI name it.
-    """
-
-    owner: str
-    """
-    The user or organization that owns it.
-    """
-
-    name: str
-    """
-    The repository's own name.
-    """
-
-    @classmethod
-    def from_remote_url(cls, url: str) -> Repository | None:
-        """
-        Read a repository out of a git remote URL, in either the HTTPS or the SSH form.
-
-        :param url: The remote URL.
-        :return: The repository, or ``None`` if the URL names no GitHub repository.
-        """
-        if Host.GITHUB not in url:
-            return None
-        path = url.split(Host.GITHUB, 1)[1].lstrip(":/").removesuffix(".git")
-        segments = [segment for segment in path.split("/") if segment]
-        if len(segments) != 2:
-            return None
-        return cls(owner=segments[0], name=segments[1])
-
-    @property
-    def full_name(self) -> str:
-        """
-        The ``owner/name`` form the ``gh`` CLI and GitHub's own interface use.
-        """
-        return f"{self.owner}/{self.name}"
-
-    def blob_url(self, branch: str, path: str) -> str:
-        """
-        :param branch: The branch the file is on.
-        :param path: The file's path in the repository.
-        :return: The page GitHub renders the file at.
-        """
-        return f"{Host.GITHUB.url}/{self.full_name}/blob/{branch}/{path}"
-
-    @property
-    def labels_url(self) -> str:
-        """
-        The page where labels are created by hand.
-        """
-        return f"{Host.GITHUB.url}/{self.full_name}/labels"
 
 
 def resolve_repository(project_root: Path, notes_remote: str) -> Repository | None:

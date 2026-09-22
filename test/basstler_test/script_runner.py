@@ -91,7 +91,7 @@ class PythonModuleRunner(ScriptRunner):
 
     module_name: str
     """
-    The dotted import path, e.g. ``"basstler.stack"`` - read off the imported module
+    The dotted import path, e.g. ``"basstler.build_dashboard"`` - read off the imported module
     rather than spelled out, so a rename cannot leave this behind.
     """
 
