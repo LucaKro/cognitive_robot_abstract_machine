@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Where a plan item's branch sits in a GitHub stack of pull requests, and the ``gh stack``
-command that registers it there.
+Where a plan item's branch sits in a GitHub stack of pull requests.
 
 Stacks are GitHub's own (``gh stack``): GitHub keeps each layer's base, rebases the layers
 above a changed one with ``gh stack rebase --upstack``, and retargets them when one lands.
@@ -16,16 +15,16 @@ Usage:
     python3 -m basstler.plan_stack --plan /tmp/plan.yaml --item <item-id> [--trunk main]
 
 Prints one JSON document: ``base`` (the branch to create the item's branch from and open
-its pull request against), ``branches`` (the stack, bottom first, ending with the item's
-own) and ``link`` (the ``gh stack link`` command, or ``null`` when nothing unlanded lies
-below the item and it is a plain pull request against the trunk).
+its pull request against) and ``branches`` (the stack, bottom first, ending with the
+item's own; just the item's own when it is a plain pull request against the trunk).
+:mod:`basstler.stack_registration` registers the stack on GitHub once the item's pull
+request exists.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import shlex
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -33,7 +32,13 @@ from pathlib import Path
 
 import yaml
 
-from basstler.build_dashboard import Item, ItemStatus, Plan, PlanValidationError, validate_plan
+from basstler.build_dashboard import (
+    Item,
+    ItemStatus,
+    Plan,
+    PlanValidationError,
+    validate_plan,
+)
 
 DEFAULT_TRUNK = "main"
 """
@@ -109,24 +114,25 @@ class PlanStack:
     trunk: str
     """The branch the bottom layer targets."""
 
-    branches: list[str]
-    """The stack's branches, bottom first, ending with the item's own."""
+    repository: str
+    """The repository every layer's pull request lives in."""
+
+    layers: list[Item]
+    """The stack's items, bottom first, ending with the item itself."""
+
+    @property
+    def branches(self) -> list[str]:
+        """The stack's branches, bottom first, ending with the item's own."""
+        return [layer.branch for layer in self.layers]
 
     @property
     def base(self) -> str:
         """The branch directly below the item's: its branch point and pull request base."""
         return self.branches[-2] if len(self.branches) > 1 else self.trunk
 
-    @property
-    def link_command(self) -> str | None:
-        """The ``gh stack link`` call registering the stack, or ``None`` for a single layer."""
-        if len(self.branches) < 2:
-            return None
-        return shlex.join(["gh", "stack", "link", "--base", self.trunk, *self.branches])
-
     def as_document(self) -> dict[str, object]:
         """:return: What the command prints."""
-        return {"base": self.base, "branches": self.branches, "link": self.link_command}
+        return {"base": self.base, "branches": self.branches}
 
 
 def is_landed(item: Item) -> bool:
@@ -155,11 +161,13 @@ def plan_stack(plan: Plan, identifier: str, trunk: str = DEFAULT_TRUNK) -> PlanS
     top = items[identifier]
     repository = top.repository or plan.default_repository
 
-    branches: list[str] = []
+    layers: list[Item] = []
     current: Item | None = top
     while current is not None:
-        branches.append(current.branch)
-        unlanded = [items[name] for name in current.depends_on if not is_landed(items[name])]
+        layers.append(current)
+        unlanded = [
+            items[name] for name in current.depends_on if not is_landed(items[name])
+        ]
         if len(unlanded) > 1:
             raise NonLinearStackError(
                 current.identifier, [item.identifier for item in unlanded]
@@ -169,7 +177,7 @@ def plan_stack(plan: Plan, identifier: str, trunk: str = DEFAULT_TRUNK) -> PlanS
             dependency_repository = current.repository or plan.default_repository
             if dependency_repository != repository:
                 raise ForeignRepositoryError(current.identifier, dependency_repository)
-    return PlanStack(trunk=trunk, branches=list(reversed(branches)))
+    return PlanStack(trunk=trunk, repository=repository, layers=list(reversed(layers)))
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
@@ -181,7 +189,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--plan", required=True, help="Path to plan.yaml")
     parser.add_argument("--item", required=True, help="The item's id")
-    parser.add_argument("--trunk", default=DEFAULT_TRUNK, help="The branch the stack targets")
+    parser.add_argument(
+        "--trunk", default=DEFAULT_TRUNK, help="The branch the stack targets"
+    )
     parsed = parser.parse_args(arguments)
 
     raw_plan = yaml.safe_load(Path(parsed.plan).read_text())

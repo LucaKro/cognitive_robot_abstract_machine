@@ -323,9 +323,12 @@ PLAN_ITEM_BRIEF_MODULE="basstler.plan_item_brief"
 # plan_item_card: the lines about the current branch's plan item
 # session-start.sh writes into CLAUDE.local.md.
 PLAN_ITEM_CARD_MODULE="basstler.plan_item_card"
-# plan_stack: the branch an item's work starts from and the gh stack link
-# command registering it - see STACKS_DOCUMENT.
+# plan_stack: the branch an item's work starts from and the stack of branches
+# below it - see STACKS_DOCUMENT.
 PLAN_STACK_MODULE="basstler.plan_stack"
+# stack_registration: registers an item's pull request as the top layer of its
+# GitHub stack, over REST - see STACKS_DOCUMENT.
+STACK_REGISTRATION_MODULE="basstler.stack_registration"
 # roadmap_location: where GitHub renders a plan's roadmap on the notes branch,
 # so the dashboard can link each item's history instead of carrying it.
 ROADMAP_LOCATION_MODULE="basstler.roadmap_location"

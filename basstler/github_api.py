@@ -1,9 +1,10 @@
 """
-Authenticated reads from the GitHub REST API.
+Authenticated calls to the GitHub REST API.
 
 A web session carries a token in ``GH_TOKEN`` or ``GITHUB_TOKEN`` but no ``gh``; a local
-machine usually has ``gh`` logged in and neither variable set. :func:`resolve_github_token`
-accepts either, so no caller has to know which of the two it runs in.
+machine usually has ``gh`` logged in and neither variable set.
+:func:`resolve_github_token` accepts either, so no caller has to know which of the two
+it runs in.
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ HTTP_NOT_FOUND = 404
 The status the API answers a resource that does not exist with.
 """
 
-
 # %% failures
 
 
@@ -44,7 +44,9 @@ class GitHubCredentialUnavailableError(RuntimeError):
     """
 
     variables: tuple[str, ...]
-    """The environment variables that were consulted."""
+    """
+    The environment variables that were consulted.
+    """
 
     def __str__(self) -> str:
         """:return: What was looked for, so the caller can supply it."""
@@ -62,13 +64,19 @@ class GitHubApiRequestFailedError(RuntimeError):
     """
 
     status: int
-    """The HTTP status the API answered with."""
+    """
+    The HTTP status the API answered with.
+    """
 
     path: str
-    """The API path called, without the host."""
+    """
+    The API path called, without the host.
+    """
 
     detail: str
-    """The body of the refusal, which usually says why."""
+    """
+    The body of the refusal, which usually says why.
+    """
 
     def __str__(self) -> str:
         """:return: The call and the refusal, so the cause can be read off directly."""
@@ -83,7 +91,9 @@ class GitHubGraphQLError(RuntimeError):
     """
 
     messages: list[str]
-    """What each reported error says."""
+    """
+    What each reported error says.
+    """
 
     def __str__(self) -> str:
         """:return: Every reported error, in order."""
@@ -127,7 +137,7 @@ context-managed response with ``read()``.
 @dataclass(frozen=True)
 class GitHubApi:
     """
-    Reads from the REST API with one token.
+    Calls the REST API with one token.
     """
 
     token: str
@@ -167,6 +177,16 @@ class GitHubApi:
         """
         return self._send(path)
 
+    def post(self, path: str, payload: dict[str, Any]) -> Any | None:
+        """
+        :param path: The API path, starting with a slash.
+        :param payload: The JSON body to send.
+        :return: The decoded response, or ``None`` when the resource does not exist.
+        :raises GitHubApiRequestFailedError: If the API refuses the call for any other
+            reason.
+        """
+        return self._send(path, payload)
+
     def get_all(self, path: str) -> list[Any]:
         """
         Read every page of a list endpoint.
@@ -178,7 +198,9 @@ class GitHubApi:
         collected: list[Any] = []
         page = 1
         while True:
-            fetched = self._send(f"{path}{separator}per_page={self.page_size}&page={page}")
+            fetched = self._send(
+                f"{path}{separator}per_page={self.page_size}&page={page}"
+            )
             if not fetched:
                 return collected
             collected.extend(fetched)

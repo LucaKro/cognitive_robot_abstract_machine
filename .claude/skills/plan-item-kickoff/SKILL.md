@@ -99,12 +99,14 @@ its draft pull request yourself and hand the number over:
 ```bash
 source .claude/hooks/resolve-personal-notes-config.sh
 python3 -m "${PLAN_STACK_MODULE}" --plan /tmp/plan.yaml --item <item-id>
-# -> {"base": <base-branch>, "branches": [...], "link": <command or null>}
+# -> {"base": <base-branch>, "branches": [...]}
 git checkout -b <branch> origin/<base-branch>
 git commit --allow-empty -m "Bootstrap <item-id>"
 git push -u origin <branch>
-gh pr create --draft --base <base-branch> --title "<title>" --body "<body>"
-<link>    # when not null: registers the item as the top layer of its stack
+gh api "repos/<repository>/pulls" -f title="<title>" -f body="<body>" \
+    -f head=<branch> -f base=<base-branch> -F draft=true --jq .number
+python3 -m "${STACK_REGISTRATION_MODULE}" --plan /tmp/plan.yaml --item <item-id> \
+    --pull-request-number <number>    # top layer of its stack; nothing for a single layer
 python3 -m "${PLAN_ITEM_BOOTSTRAP_MODULE}" open \
     --plan <plan-id> --item <item-id> \
     --branch <branch> --base <base-branch> \
@@ -122,7 +124,9 @@ the item and flips it to `in_progress`; `record` appends the settled plan to
 `exit_code`.
 
 **Why a session creates the pull request rather than the script.** `gh` runs on
-your token, so the pull request is yours. The script
+your token, so the pull request is yours. Use `gh api` rather than `gh pr
+create`: the latter goes through GitHub's GraphQL API, which a cloud session's
+proxy refuses. The script
 can create one — with `--pull-request-title`/`--pull-request-body` instead of
 `--pull-request-number`, verified live — but a pull request it creates is
 attributed to the app its requests are proxied through rather than to the
@@ -136,7 +140,8 @@ The branch name is this skill's judgment: whatever this session is designated
 to develop on, else the item's `branch`. The base is `plan_stack`'s, and a
 refusal from it (two unlanded dependencies at once) is a question for the user,
 not a base to pick. If the item's `branch` differs from the one you created,
-pass the real one to `open`.
+pass the real one to `open`. `<repository>` is the item's `repository`, else the
+plan's `default_repository`.
 
 **Write the settled plan down in both places it belongs**, rather than
 leaving it only in the conversation that produced it — in `auto` mode this is
