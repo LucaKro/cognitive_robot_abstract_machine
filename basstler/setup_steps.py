@@ -276,6 +276,14 @@ class Repository:
         """
         return f"{self.owner}/{self.name}"
 
+    def blob_url(self, branch: str, path: str) -> str:
+        """
+        :param branch: The branch the file is on.
+        :param path: The file's path in the repository.
+        :return: The page GitHub renders the file at.
+        """
+        return f"{Host.GITHUB.url}/{self.full_name}/blob/{branch}/{path}"
+
     @property
     def labels_url(self) -> str:
         """

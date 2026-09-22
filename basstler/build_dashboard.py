@@ -35,6 +35,7 @@ render_common.create_template_environment), and the ``markdown`` package
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from abc import ABC, abstractmethod
@@ -47,7 +48,9 @@ from typing import Any, ClassVar
 import yaml
 
 from basstler.plan_model import ItemStatus
+from basstler.roadmap import item_histories, plan_wide_markdown
 from basstler.render_common import (
+    TEMPLATES_DIRECTORY,
     create_template_environment,
     render_markdown_to_html,
     sanitize_http_url,
@@ -758,6 +761,14 @@ class Item:
     all ready yet (starting now would build on unsafe state). Every other
     status always gets one: something is always actionable next."""
 
+    history_section_count: int = field(default=0, init=False)
+    """How many roadmap sections are about this item, filled in by
+    :meth:`DashboardRenderer.render`."""
+
+    history_url: str | None = field(default=None, init=False)
+    """Where GitHub renders the first of those sections, filled in by
+    :meth:`DashboardRenderer.render` when the roadmap's URL is known."""
+
     is_bug_fix: bool = field(default=False, init=False)
     """Whether this item's pull request carries :attr:`PullRequestLabel.BUG`,
     filled in by :meth:`DashboardRenderer.render`. Marks the item wherever it
@@ -1022,6 +1033,9 @@ class DashboardRenderer:
     tracking_url: str | None
     """The tracking issue's or pull request's ``html_url``, if the plan has one."""
 
+    roadmap_url: str | None = None
+    """Where GitHub renders the plan's ``roadmap.md``, to link each item's history."""
+
     items_by_identifier: dict[str, Item] = field(init=False)
     """Every item, keyed by :attr:`Item.identifier`."""
 
@@ -1041,8 +1055,19 @@ class DashboardRenderer:
             drift_items + ready_to_start + blocker_maybe_cleared + ready_to_review
         )
 
+        for identifier, history in item_histories(self.roadmap_text, self.plan).items():
+            item = self.items_by_identifier.get(identifier)
+            if item is None:
+                continue
+            item.history_section_count = history.section_count
+            if self.roadmap_url:
+                item.history_url = f"{self.roadmap_url}#{history.first_anchor}"
+
+        stylesheet, script = dashboard_assets()
         template = create_template_environment().get_template("dashboard.html")
         output = template.render(
+            stylesheet_name=stylesheet.name,
+            script_name=script.name,
             title=self.plan.title,
             description=self.plan.description,
             repository=self.plan.default_repository,
@@ -1056,7 +1081,9 @@ class DashboardRenderer:
             blocker_maybe_cleared=blocker_maybe_cleared,
             ready_to_review=ready_to_review,
             has_bug_fix_next_steps=any(item.is_bug_fix for item in next_step_items),
-            roadmap_html=render_markdown_to_html(self.roadmap_text),
+            roadmap_html=render_markdown_to_html(
+                plan_wide_markdown(self.roadmap_text, self.plan)
+            ),
             waves=self._build_wave_sections(),
             available_models=AVAILABLE_MODELS,
         )
@@ -1421,6 +1448,42 @@ def load_pull_requests_by_repository(
     return pull_requests_by_repository
 
 
+@dataclass(frozen=True)
+class DashboardAsset:
+    """
+    A file the page links to rather than carrying inline.
+
+    The stylesheet and script are the same on every publish; kept in the page, a session
+    would read them back each time it republishes. Named by their content, so a publish
+    uploads one only when it is not already beside the page under that name.
+    """
+
+    name: str
+    """The published file name, e.g. ``dashboard-1a2b3c4d5e.css``."""
+
+    content: str
+    """What it holds."""
+
+
+DASHBOARD_ASSET_TEMPLATES = ("dashboard.css", "dashboard.js")
+"""
+The page's stylesheet and script, in the templates directory, in that order.
+"""
+
+
+def dashboard_assets() -> list[DashboardAsset]:
+    """
+    :return: The stylesheet and the script, each named by a hash of its content.
+    """
+    assets = []
+    for template_name in DASHBOARD_ASSET_TEMPLATES:
+        content = (TEMPLATES_DIRECTORY / template_name).read_text()
+        stem, suffix = template_name.rsplit(".", 1)
+        digest = hashlib.sha256(content.encode()).hexdigest()[:10]
+        assets.append(DashboardAsset(f"{stem}-{digest}.{suffix}", content))
+    return assets
+
+
 def main() -> int:
     """Parse arguments, validate the manifest, render the dashboard, and
     print its summary. See the module docstring for the CLI contract."""
@@ -1441,6 +1504,11 @@ def main() -> int:
         "--tracking-url",
         default=None,
         help="The plan's tracking_issue html_url, if it has one",
+    )
+    parser.add_argument(
+        "--roadmap-url",
+        default=None,
+        help="Where GitHub renders roadmap.md, to link each item's history",
     )
     arguments = parser.parse_args()
 
@@ -1463,11 +1531,16 @@ def main() -> int:
         roadmap_text=roadmap_text,
         pull_requests_by_repository=pull_requests_by_repository,
         tracking_url=arguments.tracking_url,
+        roadmap_url=arguments.roadmap_url,
     )
     output, summary = renderer.render()
 
-    Path(arguments.output).write_text(output)
-    print(json.dumps(summary.to_json_dict()))
+    output_path = Path(arguments.output)
+    output_path.write_text(output)
+    assets = dashboard_assets()
+    for asset in assets:
+        (output_path.parent / asset.name).write_text(asset.content)
+    print(json.dumps({**summary.to_json_dict(), "assets": [asset.name for asset in assets]}))
     return 0
 
 

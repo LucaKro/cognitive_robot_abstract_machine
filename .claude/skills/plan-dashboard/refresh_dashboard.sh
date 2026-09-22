@@ -20,8 +20,10 @@ set -euo pipefail
 #     --output <dashboard.html output path> \
 #     [--tracking-url <url>]
 #
-# Prints one JSON summary to stdout, merging sync_manifest_status's own
-# {"corrected": [...]} with build_dashboard's status/drift/ready summary,
+# Writes the page to --output and its stylesheet and script beside it, under
+# content-hashed names. Prints one JSON summary to stdout, merging
+# sync_manifest_status's own {"corrected": [...]} with build_dashboard's
+# status/drift/ready summary and its "assets" list,
 # so the calling skill has everything step 4's report needs from one place.
 #
 # Requires PyYAML, Jinja2, and the markdown package - see the package's own
@@ -103,6 +105,15 @@ BUILD_ARGUMENTS=(
 )
 if [ -n "${TRACKING_URL}" ]; then
   BUILD_ARGUMENTS+=(--tracking-url "${TRACKING_URL}")
+fi
+# Each item links to its history where GitHub renders the roadmap, instead of the
+# page carrying it. A notes remote that is not on GitHub just means no links.
+ROADMAP_URL="$(python3 -m "${ROADMAP_LOCATION_MODULE}" \
+  --project-root "${PROJECT_ROOT}" --notes-remote "${NOTES_REMOTE}" \
+  --notes-branch "${NOTES_BRANCH}" --path "$(plan_roadmap_path "${PLAN_ID}")" \
+  2>/dev/null || true)"
+if [ -n "${ROADMAP_URL}" ]; then
+  BUILD_ARGUMENTS+=(--roadmap-url "${ROADMAP_URL}")
 fi
 BUILD_SUMMARY="$(python3 -m "${BUILD_DASHBOARD_MODULE}" "${BUILD_ARGUMENTS[@]}")"
 

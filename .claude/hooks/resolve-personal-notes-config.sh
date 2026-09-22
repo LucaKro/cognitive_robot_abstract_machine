@@ -323,6 +323,9 @@ PLAN_ITEM_BRIEF_MODULE="basstler.plan_item_brief"
 # plan_item_card: the lines about the current branch's plan item
 # session-start.sh writes into CLAUDE.local.md.
 PLAN_ITEM_CARD_MODULE="basstler.plan_item_card"
+# roadmap_location: where GitHub renders a plan's roadmap on the notes branch,
+# so the dashboard can link each item's history instead of carrying it.
+ROADMAP_LOCATION_MODULE="basstler.roadmap_location"
 # refresh_dashboard_support: the JSON-plumbing helpers
 # refresh_dashboard.sh calls between its two module calls.
 REFRESH_DASHBOARD_SUPPORT_MODULE="basstler.refresh_dashboard_support"
