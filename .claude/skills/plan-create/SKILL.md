@@ -115,10 +115,11 @@ duplicating it.
 ## 4. Cross-check every named branch/PR against live GitHub state
 
 Same mechanism as `plan-dashboard` step 2, applied before the item is ever
-written down rather than after: bulk-fetch `mcp__github__list_pull_requests`
-(`state: "all"`, paginated) for the repo, and use `mcp__github__pull_request_read`
-for anything outside that page window or referenced by number in the source
-doc. Set each item's `status` from what's actually true (open/draft →
+written down rather than after: write the draft manifest to `/tmp/plan.yaml`,
+run the one command in `plan-dashboard/pr-data-fetching.md`, and read each
+named pull request's state off the resulting `/tmp/pr_data.json` entry for it
+(a pull request in its `not_found` summary does not exist). Set each item's
+`status` from what's actually true (open/draft →
 `in_progress` or `not_started` as appropriate, merged → `done`, closed
 unmerged → `deferred` with a note), not from what a stale doc or a
 half-remembered conversation claims. If the source material and live

@@ -21,6 +21,11 @@ set -uo pipefail
 #   STUB_GH_CALL_LOG            - file the invocation is appended to, so a
 #                                 test can assert the exact call made
 #
+# `gh auth token`, the call basstler.github_api makes when neither GH_TOKEN nor
+# GITHUB_TOKEN is set:
+#   STUB_GH_AUTH_TOKEN - the token to print; unset means "not logged in", which
+#                        the real CLI reports by exiting 1
+#
 # Exits 64 on an invocation it doesn't recognize, rather than a plausible-looking
 # success: a test must fail loudly if a caller changes the call it makes.
 
@@ -40,6 +45,15 @@ fi
 
 if [ -n "${STUB_GH_CALL_LOG:-}" ]; then
   printf '%s\n' "$*" >> "${STUB_GH_CALL_LOG}"
+fi
+
+if [ "${1:-}" = "auth" ] && [ "${2:-}" = "token" ]; then
+  if [ -z "${STUB_GH_AUTH_TOKEN:-}" ]; then
+    echo "no oauth token found for github.com" >&2
+    exit 1
+  fi
+  printf '%s\n' "${STUB_GH_AUTH_TOKEN}"
+  exit 0
 fi
 
 if [ "${1:-}" = "api" ] && [ "${2:-}" = "--paginate" ]; then

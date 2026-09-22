@@ -15,9 +15,8 @@ shared" exists yet for it to point at):
 source .claude/hooks/resolve-personal-notes-config.sh
 ```
 
-For the item's `depends_on` list, follow `pr-data-fetching.md`'s procedure
-(next to this file) to bulk-fetch every referenced pull request's live
-state into `/tmp/pr_data.json`. Then run:
+Write the plan's live pull request state into `/tmp/pr_data.json` with the
+one command in `pr-data-fetching.md` (next to this file). Then run:
 
 ```bash
 python3 -m "${CHECK_DEPENDENCY_READINESS_MODULE}" \

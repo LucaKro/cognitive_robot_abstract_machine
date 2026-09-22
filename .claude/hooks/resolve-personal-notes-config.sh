@@ -312,6 +312,10 @@ SYNC_MANIFEST_STATUS_MODULE="basstler.sync_manifest_status"
 # check_dependency_readiness: classifies one item's dependencies as
 # ready or not-ready to build on - see dependency-readiness.md below.
 CHECK_DEPENDENCY_READINESS_MODULE="basstler.check_dependency_readiness"
+# pull_request_state: writes pr_data.json for exactly the pull requests a
+# plan names, reduced to the fields the dashboard reads - see
+# pr-data-fetching.md.
+PULL_REQUEST_STATE_MODULE="basstler.pull_request_state"
 # refresh_dashboard_support: the JSON-plumbing helpers
 # refresh_dashboard.sh calls between its two module calls.
 REFRESH_DASHBOARD_SUPPORT_MODULE="basstler.refresh_dashboard_support"
@@ -391,10 +395,9 @@ PLAN_SCHEMA_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/plan-schema.md"
 # plan-item-kickoff and plan-item-resolve both reference instead of each
 # restating it.
 DEPENDENCY_READINESS_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/dependency-readiness.md"
-# pr-data-fetching.md: the shared "how to bulk-fetch pull request state
-# into pr_data.json" procedure - referenced by dependency-readiness.md and
-# every plan-*/SKILL.md that assembles pr_data.json, instead of each
-# restating the GitHub API calls involved.
+# pr-data-fetching.md: the one command that writes pr_data.json -
+# referenced by dependency-readiness.md and every plan-*/SKILL.md that needs
+# live pull request state.
 PULL_REQUEST_DATA_FETCHING_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/pr-data-fetching.md"
 # write-personal-notes-file.sh: generic commit-and-push-one-file-to-the
 # personal-notes-branch helper, used by refresh_dashboard.sh (the manifest
@@ -455,19 +458,6 @@ EXECUTION_MODES_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/execution-modes.md"
 # plan-item-resolve both run it in full and then add only what their own
 # situation needs, instead of each carrying its own copy.
 PLAN_ITEM_GATHERING_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/plan-item-gathering.md"
-
-# GITHUB_LIST_PULL_REQUESTS_TOOL / GITHUB_PULL_REQUEST_READ_TOOL: the two
-# MCP tools every pr_data.json-gathering procedure in this system calls
-# (see pr-data-fetching.md), named once here so every doc references the
-# same constant instead of retyping the literal identifier. Documentation
-# aliases only, not live substitutions: Claude Code's tool-calling
-# mechanism has no notion of a shell-expanded tool name, so an actual call
-# always still has to type the literal name below - but a session that has
-# sourced this file can read `${GITHUB_LIST_PULL_REQUESTS_TOOL}` in a doc
-# and know exactly which tool that refers to, the same way it already does
-# for every script path above.
-GITHUB_LIST_PULL_REQUESTS_TOOL="mcp__github__list_pull_requests"
-GITHUB_PULL_REQUEST_READ_TOOL="mcp__github__pull_request_read"
 
 # plan_id_for_branch: prints the plan id that tracks the given branch, per
 # PLAN_BRANCH_INDEX_PATH on FETCH_HEAD, and returns 0. Returns 1 (prints

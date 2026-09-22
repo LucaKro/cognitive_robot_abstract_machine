@@ -104,9 +104,8 @@ when the fallback applies.
 
 ## 2. Cross-check every item's PR against live GitHub state, sync, then run the script
 
-Follow `pr-data-fetching.md`'s procedure (next to this file) to assemble
-`/tmp/pr_data.json` for every pull request referenced by any item in this
-plan.
+Write `/tmp/pr_data.json` with the one command in `pr-data-fetching.md` (next
+to this file). Read only the summary line it prints.
 
 Everything from here on is deterministic - **run `refresh_dashboard.sh`**
 rather than reproducing its steps by hand:
