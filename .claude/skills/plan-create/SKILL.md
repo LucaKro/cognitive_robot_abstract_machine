@@ -1,7 +1,7 @@
 ---
 name: plan-create
 description: Create (or migrate an existing bespoke roadmap doc into) a new multi-PR/multi-session plan under .claude/personal/plans/<plan-id>/plan.yaml on the personal-notes branch, cross-checked against live GitHub, then bootstrap and publish it. Invoke as "/plan-create <plan-id>". Use when the user asks to start tracking something as a plan, set up a new plan/roadmap, or migrate an existing roadmap doc into the plan-dashboard system.
-allowed-tools: Bash, Read, Write, Grep, Glob, AskUserQuestion, Skill, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__issue_write, mcp__github__create_pull_request, mcp__Claude_Code_Remote__subscribe_pr_activity
+allowed-tools: Bash, Read, Write, Grep, Glob, AskUserQuestion, Skill, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__issue_write, mcp__github__create_pull_request
 ---
 
 # Plan Create
@@ -137,10 +137,7 @@ single session will obviously own it end to end). If yes:
    explaining its purpose (not a work item — here's how proposals/replies
    work; see `plan-schema.md`'s "Proposing structural changes" section for
    the convention to describe).
-2. Subscribe to it (the same PR-activity subscription tool also works on a
-   plain issue number — confirmed empirically, not assumed; there is no
-   separate issue-subscription tool).
-3. Record its number as `tracking_issue` in the manifest you're about to
+2. Record its number as `tracking_issue` in the manifest you're about to
    write in step 6.
 
 **Fallback if issue creation fails with a `410`** (Issues disabled on this
@@ -148,7 +145,7 @@ repo — check by trying, don't assume): cut a branch off `main` named
 `plan-tracking-<plan-id>`, make a single **empty commit**
 (`git commit --allow-empty` — the branch carries no file changes, ever),
 open it as a **draft** PR (base `main`, same title, a body noting *why* it's
-a PR and not an issue), subscribe to that instead, and still record its
+a PR and not an issue), and still record its
 number as `tracking_issue` — the field names the mailbox's role, not the
 literal GitHub object type, since which one applies is a per-repo fact
 that can change if Issues get enabled later. Whoever later builds a link

@@ -1,7 +1,7 @@
 ---
 name: add-plan-item
 description: Decide where a newly described piece of work belongs - folded into an unlanded item, as a new item in an existing plan, as a new plan of its own, or tracked nowhere - by running the mechanical scope check against live branch and pull request state, then propose the outcome via plan mode without writing any code. Invoke as "/add-plan-item <description of the work>". Use when someone describes something new to build and asks where it goes, or says "add a plan item", "should this be its own PR", or "is this new work or part of <something>".
-allowed-tools: Bash, Read, Grep, Glob, AskUserQuestion, Skill, EnterPlanMode, ExitPlanMode, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__get_file_contents, mcp__github__issue_read, mcp__Claude_Code_Remote__subscribe_pr_activity
+allowed-tools: Bash, Read, Grep, Glob, AskUserQuestion, Skill, EnterPlanMode, ExitPlanMode, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__get_file_contents, mcp__github__issue_read
 ---
 
 # Add Plan Item

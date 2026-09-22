@@ -170,9 +170,8 @@ editing the manifest directly is technically allowed.
 Once confirmed, if a plan has a `tracking_issue` (its number, in the
 repository named by `default_repository`), the session **also comments on that
 issue describing the change**, in addition to editing `plan.yaml` directly —
-it's a coordination mailbox, not a work item, and is subscribable exactly like
-a PR (GitHub issue-comment subscription works identically whether the number
-is an issue or a PR). This is not a proposal awaiting approval from a
+it's a coordination mailbox, not a work item. Sessions do not subscribe to it;
+a session working an item sees the relevant comments in its brief. This is not a proposal awaiting approval from a
 gatekeeping session: the user reviews structural changes there themselves, and
 the comment is the shared record every other session working the plan can
 check. `/plan-create` creates the tracking issue (titled
@@ -182,8 +181,7 @@ number as `tracking_issue` in `plan.yaml`.
 **Fallback when a repo has Issues disabled**: some repos disable Issues
 entirely — GitHub returns a `410` on creation attempts. When that happens,
 `/plan-create` falls back to an empty-commit, permanently-draft **tracking
-PR** instead (same subscribable-mailbox mechanism, just a PR instead of an
-issue) and still records its number under the same `tracking_issue` field —
+PR** instead (the same mailbox, just a PR instead of an issue) and still records its number under the same `tracking_issue` field —
 the field name describes the *role* (a tracking mailbox), not literally "must
 be a GitHub Issue object." Whoever reads it should check which kind it
 actually is (an issue-vs-PR read call distinguishes them) before building a

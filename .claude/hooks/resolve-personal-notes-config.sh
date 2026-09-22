@@ -459,11 +459,10 @@ SAVE_PLAN_SCRIPT=".claude/hooks/save-plan.sh"
 EXECUTION_MODES_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/execution-modes.md"
 
 # PLAN_ITEM_GATHERING_DOCUMENT: the shared "what is already known and already
-# decided about this item?" procedure - the setup check, resolving the item off
-# the notes branch, the tracking-issue subscription, the full roadmap read, the
-# dependency chain and the standing conventions. plan-item-kickoff and
-# plan-item-resolve both run it in full and then add only what their own
-# situation needs, instead of each carrying its own copy.
+# decided about this item?" procedure - load the plan, read the item's brief,
+# pull any further roadmap section by heading. plan-item-kickoff and
+# plan-item-resolve both run it and then add only what their own situation
+# needs, instead of each carrying its own copy.
 PLAN_ITEM_GATHERING_DOCUMENT="${PLAN_DASHBOARD_DIRECTORY}/plan-item-gathering.md"
 
 # plan_id_for_branch: prints the plan id that tracks the given branch, per

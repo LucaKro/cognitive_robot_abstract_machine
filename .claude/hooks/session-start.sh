@@ -132,14 +132,11 @@ set -euo pipefail
 # which the same gaps surface one failure at a time, during unrelated work.
 # Never fatal: a setup gap is reported, never allowed to fail this hook.
 #
-# If the plan has a `tracking_issue` set, the written header also reminds a
-# session to always comment there when it makes a structural change (new
-# phases, deferring a track, etc.) in addition to editing the manifest
-# directly - any session may make structural changes, there is no
-# designated steward - and to subscribe to the tracking issue itself while
-# actively working an item, so another session's structural change reaches
-# it in real time - see plan-schema.md's "Proposing structural changes"
-# section for the full convention.
+# If the plan has a `tracking_issue` set, the item card also reminds a session
+# to describe a structural change (new phases, deferring a track, etc.) there
+# once the user has confirmed it - see plan-schema.md's "Proposing structural
+# changes" section. No session subscribes to it: the card is regenerated each
+# session, and the user's own notes rule out watching issues or pull requests.
 #
 # Recheck stamp: every run also records the personal-notes commit this
 # clone just fetched (gitignored, see PLAN_STATE_SYNC_STAMP in
