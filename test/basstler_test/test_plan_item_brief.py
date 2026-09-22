@@ -16,6 +16,7 @@ from basstler.build_dashboard import Item, ItemStatus, LiveState, Plan, Track, W
 from basstler.plan_item_brief import (
     MAXIMUM_BODY_CHARACTERS,
     MAXIMUM_LISTED_CHANGED_FILES,
+    MAXIMUM_OWN_HISTORY_CHARACTERS,
     ChangedFile,
     CheckRun,
     Comment,
@@ -25,6 +26,9 @@ from basstler.plan_item_brief import (
     UnknownPlanItemError,
     build_brief,
     render_brief,
+    render_roadmap_selection,
+    roadmap_section,
+    select_roadmap_sections,
 )
 from basstler.pull_request_state import PullRequestReference, PullRequestSource
 
@@ -292,3 +296,70 @@ def test_landed_items_of_the_same_track_are_listed_with_their_files_only():
 
     assert "`basstler/landed.py`" in text
     assert "elsewhere.py" not in text
+
+
+# %% the roadmap
+
+
+ROADMAP = """# Test plan roadmap
+
+Intro paragraph.
+
+## Why this plan exists
+
+Plan-wide rationale.
+
+## `item`
+
+Kickoff notes for the item.
+
+## `other`
+
+Kickoff notes for another item.
+
+## `item` — first review round
+
+Review of the item.
+"""
+
+
+def test_the_roadmap_contributes_plan_wide_sections_and_the_items_own_only():
+    plan = make_plan([make_item("item"), make_item("other")])
+
+    selection = select_roadmap_sections(ROADMAP, plan, plan.items[0])
+    text = render_roadmap_selection(selection)
+
+    assert "Plan-wide rationale." in text and "Intro paragraph." in text
+    assert "Kickoff notes for the item." in text and "Review of the item." in text
+    assert "Kickoff notes for another item." not in text
+    assert "## `other`" in text
+
+
+def test_an_item_is_recognized_by_its_branch_in_a_heading():
+    item = Item(title="Renamed", branch="the-branch", track="track-1",
+                status=ItemStatus.IN_PROGRESS, id="the-id")
+    plan = make_plan([item])
+
+    selection = select_roadmap_sections("## `the-branch` — resolution\n\nResolved.\n", plan, item)
+
+    assert [section.heading for section in selection.own] == ["## `the-branch` — resolution"]
+
+
+def test_an_over_long_history_keeps_its_newest_sections_whole():
+    sections = "".join(
+        f"## `item` — round {index}\n\n{'y' * (MAXIMUM_OWN_HISTORY_CHARACTERS // 3)}\n\n"
+        for index in range(6)
+    )
+    plan = make_plan([make_item("item")])
+
+    selection = select_roadmap_sections(sections, plan, plan.items[0])
+
+    assert selection.own[-1].heading == "## `item` — round 5"
+    assert sum(len(section.text) for section in selection.own) <= MAXIMUM_OWN_HISTORY_CHARACTERS
+    assert "## `item` — round 0" in selection.omitted_own_headings
+
+
+def test_one_section_can_be_pulled_by_its_heading():
+    assert roadmap_section(ROADMAP, "## `other`").strip() == (
+        "## `other`\n\nKickoff notes for another item."
+    )

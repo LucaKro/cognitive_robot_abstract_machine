@@ -11,15 +11,24 @@ which checks fail, which review threads are unresolved, which files changed and 
 much, the tracking-issue comments that mention it, and which files landed siblings in its
 track touched. A session then opens only the files the brief points at.
 
-Usage:
-    python3 -m basstler.plan_item_brief --plan /tmp/plan.yaml --item <item-id>
+The roadmap is handled the same way. Kickoffs, resolutions, review rounds and restacks
+append their records to it, so it grows without bound - one real plan's reached 236 KB,
+nearly all of it other items' history. With ``--roadmap`` the brief carries the
+plan-wide sections and this item's own sections (newest first within a budget), and
+lists every other section by heading so one can be pulled with ``--section``.
 
-Prints the brief as Markdown.
+Usage:
+    python3 -m basstler.plan_item_brief --plan /tmp/plan.yaml --roadmap /tmp/roadmap.md \
+        --item <item-id>
+    python3 -m basstler.plan_item_brief --roadmap /tmp/roadmap.md --section "<heading>"
+
+Prints the brief, or the one section, as Markdown.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -78,6 +87,18 @@ Check run conclusions that mean the check did not pass.
 COMPLETED = "completed"
 """
 The check run status of a run that has finished.
+"""
+
+MAXIMUM_OWN_HISTORY_CHARACTERS = 24_000
+"""
+Most of the item's own roadmap history carried whole; older sections are listed by
+heading instead.
+"""
+
+ITEM_SECTION_HEADING = re.compile(r"^## `([^`]+)`")
+"""
+How a roadmap section about one item is headed: its id or branch in backticks, as the
+bootstrap writes it.
 """
 
 
@@ -225,6 +246,52 @@ class LandedSibling:
     changed_files: list[ChangedFile]
 
 
+@dataclass(frozen=True)
+class RoadmapSection:
+    """
+    One level-two section of a roadmap, or the preamble before the first one.
+    """
+
+    heading: str
+    """The ``## ...`` line, or empty for the preamble."""
+
+    text: str
+    """The whole section, heading included."""
+
+
+@dataclass
+class RoadmapSelection:
+    """
+    What of the roadmap an item's brief carries, and what it only names.
+    """
+
+    plan_wide: list[RoadmapSection] = field(default_factory=list)
+    """Sections about no single item: the plan's rationale, decisions, conventions."""
+
+    own: list[RoadmapSection] = field(default_factory=list)
+    """The item's own most recent sections, within the history budget."""
+
+    omitted_own_headings: list[str] = field(default_factory=list)
+    """The item's older sections that did not fit."""
+
+    other_headings: list[str] = field(default_factory=list)
+    """Every other item's sections."""
+
+
+@dataclass
+class UnknownRoadmapSectionError(LookupError):
+    """
+    Raised when no roadmap section has the requested heading.
+    """
+
+    heading: str
+    """The heading asked for."""
+
+    def __str__(self) -> str:
+        """:return: Which heading was not found."""
+        return f"no roadmap section headed {self.heading!r}"
+
+
 @dataclass
 class PlanItemBrief:
     """
@@ -241,6 +308,8 @@ class PlanItemBrief:
     """Comments on the plan's tracking issue that mention the item."""
     tracking_comment_total: int = 0
     landed_siblings: list[LandedSibling] = field(default_factory=list)
+    roadmap: RoadmapSelection | None = None
+    """What of the roadmap is carried, if a roadmap was given."""
 
 
 # %% where the details come from
@@ -460,6 +529,110 @@ def build_brief(
     return brief
 
 
+# %% the roadmap
+
+
+def roadmap_sections(roadmap_text: str) -> list[RoadmapSection]:
+    """
+    :param roadmap_text: A whole roadmap.
+    :return: Its preamble, if any, then each level-two section, in order.
+    """
+    sections: list[RoadmapSection] = []
+    heading, lines = "", []
+    for line in roadmap_text.splitlines(keepends=True):
+        if line.startswith("## "):
+            if heading or "".join(lines).strip():
+                sections.append(RoadmapSection(heading, "".join(lines)))
+            heading, lines = line.rstrip("\n"), [line]
+        else:
+            lines.append(line)
+    if heading or "".join(lines).strip():
+        sections.append(RoadmapSection(heading, "".join(lines)))
+    return sections
+
+
+def section_subject(section: RoadmapSection, plan: Plan) -> Item | None:
+    """
+    :return: The item a section is about, recognized by id or branch in its heading, or
+        ``None`` for a section about no single item.
+    """
+    match = ITEM_SECTION_HEADING.match(section.heading)
+    if match is None:
+        return None
+    named = match.group(1)
+    return next(
+        (item for item in plan.items if named in (item.identifier, item.branch)), None
+    )
+
+
+def select_roadmap_sections(roadmap_text: str, plan: Plan, item: Item) -> RoadmapSelection:
+    """
+    :param roadmap_text: The plan's whole roadmap.
+    :param plan: The plan, to recognize which item a section is about.
+    :param item: The item the brief is for.
+    :return: The plan-wide sections, the item's newest sections within
+        :data:`MAXIMUM_OWN_HISTORY_CHARACTERS`, and the headings of everything else.
+    """
+    selection = RoadmapSelection()
+    own_sections: list[RoadmapSection] = []
+    for section in roadmap_sections(roadmap_text):
+        subject = section_subject(section, plan)
+        if subject is None:
+            selection.plan_wide.append(section)
+        elif subject is item:
+            own_sections.append(section)
+        else:
+            selection.other_headings.append(section.heading)
+
+    remaining = MAXIMUM_OWN_HISTORY_CHARACTERS
+    for index in range(len(own_sections) - 1, -1, -1):
+        section = own_sections[index]
+        if len(section.text) > remaining:
+            selection.omitted_own_headings = [
+                older.heading for older in own_sections[: index + 1]
+            ]
+            break
+        selection.own.insert(0, section)
+        remaining -= len(section.text)
+    return selection
+
+
+def roadmap_section(roadmap_text: str, heading: str) -> str:
+    """
+    :param roadmap_text: The plan's whole roadmap.
+    :param heading: A section's ``## ...`` line, as the brief lists it.
+    :return: That section.
+    :raises UnknownRoadmapSectionError: If no section has that heading.
+    """
+    for section in roadmap_sections(roadmap_text):
+        if section.heading == heading.strip():
+            return section.text
+    raise UnknownRoadmapSectionError(heading)
+
+
+def render_roadmap_selection(selection: RoadmapSelection) -> str:
+    """
+    :param selection: What of the roadmap to carry.
+    :return: It as Markdown, with the sections left out named at the end.
+    """
+    parts = ["# Roadmap: plan-wide sections\n"]
+    parts += [section.text.rstrip() + "\n" for section in selection.plan_wide]
+    parts.append("# Roadmap: this item's own history\n")
+    parts += [section.text.rstrip() + "\n" for section in selection.own] or ["None yet.\n"]
+    if selection.omitted_own_headings:
+        parts.append("Older sections of this item, not included:")
+        parts += [f"- {heading}" for heading in selection.omitted_own_headings]
+        parts.append("")
+    if selection.other_headings:
+        parts.append(
+            "Other items' sections, not included - pull one with "
+            "`--roadmap <path> --section \"<heading>\"` if it bears on this item:"
+        )
+        parts += [f"- {heading}" for heading in selection.other_headings]
+        parts.append("")
+    return "\n".join(parts)
+
+
 # %% rendering it
 
 
@@ -587,6 +760,9 @@ def render_brief(brief: PlanItemBrief) -> str:
                 + (f", … and {more} more" if more > 0 else "")
             )
 
+    if brief.roadmap is not None:
+        lines += ["", render_roadmap_selection(brief.roadmap).rstrip()]
+
     lines += [
         "",
         "## Reading further",
@@ -606,9 +782,23 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--plan", required=True, help="Path to plan.yaml")
-    parser.add_argument("--item", required=True, help="The item id (or branch)")
+    parser.add_argument("--plan", help="Path to plan.yaml")
+    parser.add_argument("--item", help="The item id (or branch)")
+    parser.add_argument("--roadmap", help="Path to roadmap.md")
+    parser.add_argument("--section", help="Print only this roadmap section")
     parsed = parser.parse_args(arguments)
+
+    if parsed.section is not None:
+        if parsed.roadmap is None:
+            parser.error("--section needs --roadmap")
+        try:
+            print(roadmap_section(Path(parsed.roadmap).read_text(), parsed.section), end="")
+        except UnknownRoadmapSectionError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        return 0
+    if parsed.plan is None or parsed.item is None:
+        parser.error("--plan and --item are required unless --section is given")
 
     raw_plan = yaml.safe_load(Path(parsed.plan).read_text())
     try:
@@ -629,6 +819,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     except UnknownPlanItemError as error:
         print(str(error), file=sys.stderr)
         return 1
+    if parsed.roadmap is not None:
+        brief.roadmap = select_roadmap_sections(
+            Path(parsed.roadmap).read_text(), plan, brief.item
+        )
     print(render_brief(brief), end="")
     return 0
 
