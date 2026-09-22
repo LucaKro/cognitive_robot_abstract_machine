@@ -295,60 +295,43 @@ else
     TRACKING_ISSUE="$(git show "FETCH_HEAD:${PLAN_MANIFEST_PATH}" 2>/dev/null \
       | grep -oE '^tracking_issue:[[:space:]]*[0-9]+' | head -1 \
       | grep -oE '[0-9]+$' || true)"
+    STRUCTURAL_CHANGE_NOTE="Structural changes (a new wave, deferring a track, splitting an
+  item, reprioritizing) are the user's call: ask first."
     if [ -n "${TRACKING_ISSUE}" ]; then
-      TRACKING_ISSUE_NOTE="Structural changes (a new wave/phase, deferring a track, splitting an
-item, reprioritizing) can be made directly to the manifest by any session -
-there is no designated steward gatekeeping them. Before making one, ask the
-user in this session (e.g. via AskUserQuestion) rather than deciding
-unilaterally - a structural change is the user's call, not something to
-infer and apply silently just because editing the manifest directly is
-technically allowed. Once they confirm, make the edit and always also leave
-a comment on the tracking issue (#${TRACKING_ISSUE}) describing it, since
-the user reviews structural changes there and it is the shared record other
-sessions working this plan can check - see plan-schema.md's 'Proposing
-structural changes' section. If this session is actively working an item in
-this plan, also subscribe to the tracking issue itself so a structural change
-another session makes reaches you while you're still working, not just next
-session start."
-    else
-      TRACKING_ISSUE_NOTE="This plan has no tracking_issue set, so there is no coordination
-mailbox for structural changes yet - edit the manifest directly as usual."
+      STRUCTURAL_CHANGE_NOTE="${STRUCTURAL_CHANGE_NOTE} Then describe the change on
+  tracking issue #${TRACKING_ISSUE}, the record other sessions on this plan read."
     fi
-    cat <<PLAN_HEADER >> "${OUTPUT_FILE}"
-<!--
-Plan manifest for '${PLAN_ID}', synced from '${NOTES_BRANCH}'
-(${PLAN_MANIFEST_PATH}) on remote '${ACTIVE_NOTES_REMOTE}' by
-session-start.sh. This branch is tracked as an item in this plan - see
-.claude/skills/plan-dashboard/plan-schema.md for the schema and
-.claude/skills/plan-dashboard/SKILL.md for how it's used and refreshed.
-To edit: change the manifest between the markers below, then run
-  "\$CLAUDE_PROJECT_DIR/.claude/hooks/save-plan.sh"
-to push the change back (this also regenerates the branch index), then run
-/plan-dashboard ${PLAN_ID} to refresh its dashboard - save-plan.sh can't call
-the Artifact tool itself. This header and the markers are regenerated every
-session - editing them has no effect; only content between the markers is
-ever saved.
-
-${TRACKING_ISSUE_NOTE}
--->
-<!-- BEGIN-PLAN-MANIFEST: ${PLAN_ID} -->
-PLAN_HEADER
-    git show "FETCH_HEAD:${PLAN_MANIFEST_PATH}" >> "${OUTPUT_FILE}"
-    echo "<!-- END-PLAN-MANIFEST -->" >> "${OUTPUT_FILE}"
-
-    printf '\n' >> "${OUTPUT_FILE}"
-    cat <<ROADMAP_HEADER >> "${OUTPUT_FILE}"
-<!--
-Plan roadmap (narrative) for '${PLAN_ID}' - the "why", history, and design
-decisions behind the manifest above. Same edit/save mechanism: change
-between the markers below, then run save-plan.sh.
--->
-<!-- BEGIN-PLAN-ROADMAP: ${PLAN_ID} -->
-ROADMAP_HEADER
-    if git cat-file -e "FETCH_HEAD:${PLAN_ROADMAP_PATH}" 2>/dev/null; then
-      git show "FETCH_HEAD:${PLAN_ROADMAP_PATH}" >> "${OUTPUT_FILE}"
+    # The card is this branch's item only. Copying the whole manifest and roadmap
+    # here put every other item's history and the plan's whole rationale into every
+    # request a session made; the brief and the roadmap are one command away when
+    # a session needs them. Rendering needs the package's dependencies, which a
+    # fresh clone may not have installed yet at this point, so a failed render
+    # falls back to naming the plan rather than failing the hook.
+    PLAN_MANIFEST_COPY="$(mktemp)"
+    git show "FETCH_HEAD:${PLAN_MANIFEST_PATH}" > "${PLAN_MANIFEST_COPY}"
+    PLAN_ITEM_CARD="$(python3 -m "${PLAN_ITEM_CARD_MODULE}" \
+      --plan "${PLAN_MANIFEST_COPY}" --branch "${CURRENT_BRANCH}" 2>/dev/null || true)"
+    rm -f "${PLAN_MANIFEST_COPY}"
+    if [ -z "${PLAN_ITEM_CARD}" ]; then
+      PLAN_ITEM_CARD="Plan '${PLAN_ID}' tracks this branch; its item card could not be rendered
+here. Read the item through the brief described above."
     fi
-    echo "<!-- END-PLAN-ROADMAP -->" >> "${OUTPUT_FILE}"
+    cat <<PLAN_CARD >> "${OUTPUT_FILE}"
+<!--
+Written by session-start.sh from plan '${PLAN_ID}' on '${NOTES_BRANCH}' and
+regenerated every session, so edits here are not saved.
+- Item context and live GitHub state: .claude/skills/plan-dashboard/plan-item-gathering.md
+- The plan's files: source .claude/hooks/resolve-personal-notes-config.sh, fetch
+  "\${NOTES_REMOTE}" "\${NOTES_BRANCH}", then
+  git show FETCH_HEAD:${PLAN_MANIFEST_PATH} > /tmp/plan.yaml
+  git show FETCH_HEAD:${PLAN_ROADMAP_PATH} > /tmp/roadmap.md
+- To change the plan, edit those two files, then run
+  "\$CLAUDE_PROJECT_DIR/.claude/hooks/save-plan.sh" ${PLAN_ID} --manifest /tmp/plan.yaml --roadmap /tmp/roadmap.md
+  and /plan-dashboard ${PLAN_ID} to republish it.
+- ${STRUCTURAL_CHANGE_NOTE}
+-->
+${PLAN_ITEM_CARD}
+PLAN_CARD
     WROTE_ANYTHING=1
     SUMMARY_PLAN="$(plan_line_tracked "${PLAN_ID}" "${TRACKING_ISSUE:-none}")"
   fi

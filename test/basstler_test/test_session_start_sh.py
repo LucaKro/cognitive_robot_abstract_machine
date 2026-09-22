@@ -43,6 +43,8 @@ PLAN_IDENTIFIER = "test-plan"
 
 MANIFEST_PATH = f".claude/personal/plans/{PLAN_IDENTIFIER}/plan.yaml"
 
+ROADMAP_PATH = f".claude/personal/plans/{PLAN_IDENTIFIER}/roadmap.md"
+
 CLAUDE_LOCAL_MD = "CLAUDE.local.md"
 
 
@@ -197,6 +199,39 @@ def test_reports_the_plan_that_tracks_this_branch(
     assert summary_value(result.stdout, "plan") == summary_message(
         SummaryMessage.BRANCH_TRACKED_IN_PLAN, PLAN_IDENTIFIER, TRACKING_ISSUE
     )
+
+
+def test_a_tracked_branch_gets_its_item_card_rather_than_the_whole_plan(
+    session_start_repository: ScratchRepository,
+):
+    """
+    Copying the whole manifest and roadmap into every turn's context cost about 20 KB
+    on a real plan; the card carries this branch's item and says how to read or change
+    the rest.
+    """
+    manifest = PLAN_MANIFEST_WITH_TRACKING_ISSUE.replace("item-a-branch", WORK_BRANCH) + (
+        "  - id: b\n"
+        "    title: Item B elsewhere\n"
+        "    branch: item-b-branch\n"
+        "    track: track-1\n"
+        "    status: not_started\n"
+    )
+    result = publish_and_run(
+        session_start_repository,
+        {
+            PersonalNotesPath.BRANCH_INDEX: branch_index({WORK_BRANCH: PLAN_IDENTIFIER}),
+            MANIFEST_PATH: manifest,
+            ROADMAP_PATH: "# Roadmap\n\nA long design rationale.\n",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    written = (session_start_repository.project_root / CLAUDE_LOCAL_MD).read_text()
+    assert "a: Item A" in written
+    assert "Item B elsewhere" not in written
+    assert "A long design rationale." not in written
+    assert "--manifest /tmp/plan.yaml --roadmap /tmp/roadmap.md" in written
+    assert "subscribe" not in written.lower()
 
 
 def test_reports_a_tracked_plan_that_has_no_tracking_issue(

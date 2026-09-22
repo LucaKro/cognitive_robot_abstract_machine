@@ -12,10 +12,12 @@ set -euo pipefail
 # full plan.yaml schema, and .claude/skills/plan-dashboard/SKILL.md for how
 # the manifest is consumed.
 #
-# This is the write half of the loop session-start.sh's own plan section
-# points a session at when it wants to update a plan it's already tracking:
-# edit CLAUDE.local.md between the BEGIN-PLAN-MANIFEST/END-PLAN-MANIFEST and
-# BEGIN-PLAN-ROADMAP/END-PLAN-ROADMAP markers, then run this script.
+# The usual way in is --manifest/--roadmap (below): write the plan's two
+# files out of the notes branch, edit them, and pass them here - the path the
+# item card session-start.sh writes points a session at. Reading them from
+# BEGIN-PLAN-MANIFEST/END-PLAN-MANIFEST and BEGIN-PLAN-ROADMAP/END-PLAN-ROADMAP
+# markers in CLAUDE.local.md still works for markers added by hand;
+# session-start.sh no longer writes them.
 #
 # Usage (from anywhere, after editing CLAUDE.local.md):
 #   "$CLAUDE_PROJECT_DIR/.claude/hooks/save-plan.sh" [<plan-id>]

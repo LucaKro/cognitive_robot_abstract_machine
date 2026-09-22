@@ -206,9 +206,11 @@ the narrative that doesn't belong in structured data.
   only the tracking-issue comments newer than it. Needs no Claude Code session: it prefers the `gh`
   CLI when installed, otherwise `GH_TOKEN`/`GITHUB_TOKEN` with `curl`.
 
-**Auto-discovery.** If your branch is an item in some plan, that plan's `plan.yaml` and `roadmap.md`
-are pulled into `CLAUDE.local.md` too, via a generated branch-to-plan index that `save-plan.sh`
-regenerates from every manifest on each save, so it can't drift.
+**Auto-discovery.** If your branch is an item in some plan, `CLAUDE.local.md` gets a short card for
+that item - its status, dependencies, pull request, notes and blockers - plus the commands to read
+the full manifest and roadmap or change them. It is found through a generated branch-to-plan index
+that `save-plan.sh` regenerates from every manifest on each save, so it can't drift. The whole plan
+is deliberately not copied in: `CLAUDE.local.md` is part of every request a session makes.
 
 **Labels the dashboard reads**, all applied by this repo's convention rather than by GitHub itself:
 

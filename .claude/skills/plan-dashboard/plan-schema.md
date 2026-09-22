@@ -119,10 +119,11 @@ the dashboard.
 hand-maintained, so it cannot drift out of sync with the manifests it's
 derived from.
 
-`session-start.sh` reads it to auto-load the parent plan's `plan.yaml` +
-`roadmap.md` into `CLAUDE.local.md` whenever the checked-out branch appears
-in some plan's `items[]`, exactly like the existing per-branch PR-progress
-lookup already does for `pr-progress/<branch>.md`.
+`session-start.sh` reads it to write a short card for the checked-out
+branch's item into `CLAUDE.local.md` whenever that branch appears in some
+plan's `items[]`. The card is the item only, plus the commands for reading or
+changing the full manifest and roadmap - not the whole plan, since
+`CLAUDE.local.md` is part of every request a session makes.
 
 ## Creating a new plan
 
@@ -136,12 +137,16 @@ itself.
 
 ## Editing an existing plan
 
-Edit `plans/<plan-id>/plan.yaml` and `roadmap.md` directly (in
-`CLAUDE.local.md` if a session already pulled the plan in, or by fetching the
-personal-notes branch otherwise), then run
+Write the plan's two files out of the personal-notes branch, edit them, and
+save them back:
 
 ```bash
-"$CLAUDE_PROJECT_DIR/.claude/hooks/save-plan.sh" <plan-id>
+source .claude/hooks/resolve-personal-notes-config.sh
+git fetch "${NOTES_REMOTE}" "${NOTES_BRANCH}" --quiet
+git show "FETCH_HEAD:${PLANS_DIR}/<plan-id>/plan.yaml" > /tmp/plan.yaml
+git show "FETCH_HEAD:${PLANS_DIR}/<plan-id>/roadmap.md" > /tmp/roadmap.md
+# edit both
+"$CLAUDE_PROJECT_DIR/.claude/hooks/save-plan.sh" <plan-id> --manifest /tmp/plan.yaml --roadmap /tmp/roadmap.md
 ```
 
 to push both files and regenerate the reverse index in one commit. This
@@ -173,15 +178,6 @@ the comment is the shared record every other session working the plan can
 check. `/plan-create` creates the tracking issue (titled
 `[plan-tracking] <plan-id>`) when bootstrapping a new plan and records its
 number as `tracking_issue` in `plan.yaml`.
-
-**Real-time awareness for sessions actively working an item.** A session
-working an item in a plan that has a `tracking_issue` should subscribe to that
-issue — not just the session making a structural change. Since every structural change is posted there, subscribing
-turns the tracking issue into a broadcast channel: a change lands in every
-actively subscribed session's conversation as it happens, not only picked up
-by `session-start.sh`'s auto-discovery on that session's *next* fresh start.
-`session-start.sh`'s written header reminds a session of this when it
-auto-discovers the plan.
 
 **Fallback when a repo has Issues disabled**: some repos disable Issues
 entirely — GitHub returns a `410` on creation attempts. When that happens,
