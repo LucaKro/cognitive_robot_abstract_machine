@@ -14,6 +14,7 @@ from probabilistic_model.distributions.multivariate_gaussian import (
 )
 from probabilistic_model.exceptions import (
     EventIsNotABoxError,
+    ProbabilisticCircuitRequiredError,
     ShapeMismatchError,
     VariableNotInDistributionError,
 )
@@ -38,7 +39,7 @@ def independent(horizontal, vertical) -> MultivariateGaussianDistribution:
     every answer can be checked against the univariate distribution already in this
     package.
     """
-    return MultivariateGaussianDistribution(
+    return MultivariateGaussianDistribution.from_mean_and_covariance(
         distribution_variables=(horizontal, vertical),
         mean=np.array([1.0, -2.0]),
         covariance=np.array([[4.0, 0.0], [0.0, 9.0]]),
@@ -51,7 +52,7 @@ def correlated(horizontal, vertical) -> MultivariateGaussianDistribution:
     Standard quantities correlated by 0.6, which is the case with no closed form for the
     probability of a box.
     """
-    return MultivariateGaussianDistribution(
+    return MultivariateGaussianDistribution.from_mean_and_covariance(
         distribution_variables=(horizontal, vertical),
         mean=np.array([0.0, 0.0]),
         covariance=np.array([[1.0, 0.6], [0.6, 1.0]]),
@@ -79,7 +80,7 @@ def one_variable(
     :return: A distribution over a single quantity, which several tests need and which
         carries no layout worth restating at each of them.
     """
-    return MultivariateGaussianDistribution(
+    return MultivariateGaussianDistribution.from_mean_and_covariance(
         distribution_variables=(variable,),
         mean=np.array([mean]),
         covariance=np.array([[variance]]),
@@ -105,7 +106,7 @@ class TestBuildingADistribution:
         assert correlated.covariance_between(vertical, horizontal) == 0.6
 
     def test_a_distribution_about_one_quantity_needs_no_layout(self, horizontal):
-        distribution = MultivariateGaussianDistribution(
+        distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
             distribution_variables=(horizontal,),
             mean=np.array([3.0]),
             covariance=np.array([[0.25]]),
@@ -118,7 +119,7 @@ class TestBuildingADistribution:
         self, horizontal, vertical
     ):
         with pytest.raises(ShapeMismatchError) as error:
-            MultivariateGaussianDistribution(
+            MultivariateGaussianDistribution.from_mean_and_covariance(
                 distribution_variables=(horizontal, vertical),
                 mean=np.array([0.0]),
                 covariance=np.zeros((2, 2)),
@@ -130,13 +131,41 @@ class TestBuildingADistribution:
         self, horizontal, vertical
     ):
         with pytest.raises(ShapeMismatchError) as error:
-            MultivariateGaussianDistribution(
+            MultivariateGaussianDistribution.from_mean_and_covariance(
                 distribution_variables=(horizontal, vertical),
                 mean=np.zeros(2),
                 covariance=np.zeros((2, 3)),
             )
         assert error.value.expected_shape == (2, 2)
         assert error.value.received_shape == (2, 3)
+
+    def test_only_the_lower_triangle_of_the_covariance_is_stored(self, correlated):
+        rows, columns = np.tril_indices(len(correlated.variables))
+        assert correlated.covariance_lower_triangle.tolist() == (
+            correlated.covariance[rows, columns].tolist()
+        )
+
+    def test_the_covariance_is_mirrored_from_the_lower_triangle(
+        self, horizontal, vertical
+    ):
+        distribution = MultivariateGaussianDistribution(
+            distribution_variables=(horizontal, vertical),
+            mean=np.zeros(2),
+            covariance_lower_triangle=np.array([1.0, 0.6, 2.0]),
+        )
+        assert distribution.covariance.tolist() == [[1.0, 0.6], [0.6, 2.0]]
+
+    def test_a_lower_triangle_of_the_wrong_length_is_rejected(
+        self, horizontal, vertical
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            MultivariateGaussianDistribution(
+                distribution_variables=(horizontal, vertical),
+                mean=np.zeros(2),
+                covariance_lower_triangle=np.zeros(4),
+            )
+        assert error.value.expected_shape == (3,)
+        assert error.value.received_shape == (4,)
 
     def test_reading_a_quantity_the_distribution_is_not_about_is_rejected(
         self, independent
@@ -289,7 +318,7 @@ class TestMode:
         )
 
 
-# %% conditioning on a value, which is the measurement update
+# %% conditioning on a value
 
 
 class TestConditioningOnAValue:
@@ -350,7 +379,7 @@ class TestConditioningOnAValue:
         unexplained uncertainty.
         """
         first, second, given = horizontal, Continuous("second"), Continuous("given")
-        distribution = MultivariateGaussianDistribution(
+        distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
             distribution_variables=(first, second, given),
             mean=np.zeros(3),
             covariance=np.array(
@@ -366,17 +395,16 @@ class TestConditioningOnAValue:
             first, second
         ) == conditioned.covariance_between(second, first)
 
-    def test_conditioning_on_every_quantity_leaves_a_point_mass(
+    def test_conditioning_on_every_quantity_needs_a_circuit(
         self, independent, horizontal, vertical
     ):
         """
-        Nothing is left free, so what remains is the Dirac impulse at the values given
-        rather than a Gaussian over nothing.
+        Nothing is left free, so what remains is a product of Dirac impulses, which only
+        a probabilistic circuit represents.
         """
-        conditioned, _ = independent.conditional({horizontal: 1.5, vertical: -0.5})
-        assert set(conditioned.variables) == {horizontal, vertical}
-        assert conditioned.likelihood(np.array([[1.5, -0.5]]))[0] == np.inf
-        assert conditioned.likelihood(np.array([[0.0, 0.0]]))[0] == 0.0
+        with pytest.raises(ProbabilisticCircuitRequiredError) as error:
+            independent.conditional({horizontal: 1.5, vertical: -0.5})
+        assert error.value.model is independent
 
     def test_conditioning_on_an_unknown_quantity_is_rejected(self, independent):
         absent = Continuous("absent")
@@ -385,79 +413,109 @@ class TestConditioningOnAValue:
         assert error.value.variable == absent
 
 
-# %% correcting an estimate with what a sensor reported
+# %% multiplying by the Gaussian likelihood of an observation
 
 
-class TestCorrectingWithAMeasurement:
-    def test_a_measurement_pulls_the_mean_toward_what_was_measured(
+class TestProductWithAGaussianLikelihood:
+    def test_the_density_is_the_product_of_the_two_densities_up_to_normalization(
+        self, correlated, horizontal, vertical
+    ):
+        """
+        Observing every quantity directly makes the likelihood a Gaussian density over
+        the same quantities, so the answer divided by the two densities it multiplies is
+        the same constant everywhere.
+        """
+        observed = np.array([1.0, -0.5])
+        observation_covariance = np.array([[0.5, 0.1], [0.1, 2.0]])
+        likelihood = MultivariateGaussianDistribution.from_mean_and_covariance(
+            distribution_variables=(horizontal, vertical),
+            mean=observed,
+            covariance=observation_covariance,
+        )
+        product = correlated.product_with_gaussian_likelihood(
+            observation_matrix=np.eye(2),
+            observed=observed,
+            observation_covariance=observation_covariance,
+        )
+        points = np.array([[0.0, 0.0], [1.0, 2.0], [-3.0, 0.5]])
+        log_normalization = (
+            correlated.log_likelihood(points)
+            + likelihood.log_likelihood(points)
+            - product.log_likelihood(points)
+        )
+        assert log_normalization == pytest.approx(
+            np.full(len(points), log_normalization[0])
+        )
+
+    def test_an_observation_pulls_the_mean_toward_what_was_observed(
         self, independent, horizontal
     ):
-        corrected = independent.conditional_on_measurement(
-            model=np.array([[1.0, 0.0]]),
-            measured=np.array([5.0]),
-            noise=np.array([[1.0]]),
+        corrected = independent.product_with_gaussian_likelihood(
+            observation_matrix=np.array([[1.0, 0.0]]),
+            observed=np.array([5.0]),
+            observation_covariance=np.array([[1.0]]),
         )
         assert independent.mean_of(horizontal) < corrected.mean_of(horizontal) < 5.0
 
-    def test_a_measurement_always_leaves_the_mean_more_certain(
+    def test_an_observation_always_leaves_the_mean_more_certain(
         self, independent, horizontal
     ):
-        corrected = independent.conditional_on_measurement(
-            model=np.array([[1.0, 0.0]]),
-            measured=np.array([5.0]),
-            noise=np.array([[4.0]]),
+        corrected = independent.product_with_gaussian_likelihood(
+            observation_matrix=np.array([[1.0, 0.0]]),
+            observed=np.array([5.0]),
+            observation_covariance=np.array([[4.0]]),
         )
         assert corrected.variance_of(horizontal) < independent.variance_of(horizontal)
 
-    def test_a_measurement_of_equal_certainty_lands_halfway(self, horizontal):
+    def test_an_observation_of_equal_certainty_lands_halfway(self, horizontal):
         """
-        With the mean and the measurement equally uncertain, neither outweighs the
+        With the mean and the observation equally uncertain, neither outweighs the
         other, so the corrected mean is their midpoint exactly.
         """
-        corrected = one_variable(horizontal, 0.0, 2.0).conditional_on_measurement(
-            model=np.array([[1.0]]),
-            measured=np.array([10.0]),
-            noise=np.array([[2.0]]),
+        corrected = one_variable(horizontal, 0.0, 2.0).product_with_gaussian_likelihood(
+            observation_matrix=np.array([[1.0]]),
+            observed=np.array([10.0]),
+            observation_covariance=np.array([[2.0]]),
         )
         assert corrected.mean_of(horizontal) == pytest.approx(5.0)
 
-    def test_repeated_measurements_accumulate_into_the_covariance(self, horizontal):
+    def test_repeated_observations_accumulate_into_the_covariance(self, horizontal):
         """
         Checked against the information form — precisions add — rather than against a
         stored number, so the recursion is verified against an independent formulation
         of the same law instead of a second copy of itself.
         """
-        starting_variance, measurement_variance, measurements = 1.0, 4.0, 100
+        starting_variance, observation_variance, observations = 1.0, 4.0, 100
         distribution = one_variable(horizontal, 0.0, starting_variance)
-        for _ in range(measurements):
-            distribution = distribution.conditional_on_measurement(
-                model=np.array([[1.0]]),
-                measured=np.array([1.0]),
-                noise=np.array([[measurement_variance]]),
+        for _ in range(observations):
+            distribution = distribution.product_with_gaussian_likelihood(
+                observation_matrix=np.array([[1.0]]),
+                observed=np.array([1.0]),
+                observation_covariance=np.array([[observation_variance]]),
             )
 
-        expected_precision = 1 / starting_variance + measurements / measurement_variance
+        expected_precision = 1 / starting_variance + observations / observation_variance
         assert distribution.variance_of(horizontal) == pytest.approx(
             1 / expected_precision
         )
 
-    def test_a_measurement_of_several_quantities_at_once_corrects_all_of_them(
+    def test_an_observation_of_several_quantities_at_once_corrects_all_of_them(
         self, horizontal, vertical
     ):
         """
         A sensor reporting the sum of two quantities says nothing about either one
-        alone, which is what stating a measurement model buys over reading a quantity
+        alone, which is what stating an observation matrix buys over reading a quantity
         itself.
         """
-        distribution = MultivariateGaussianDistribution(
+        distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
             distribution_variables=(horizontal, vertical),
             mean=np.zeros(2),
             covariance=np.eye(2),
         )
-        corrected = distribution.conditional_on_measurement(
-            model=np.array([[1.0, 1.0]]),
-            measured=np.array([4.0]),
-            noise=np.array([[1.0]]),
+        corrected = distribution.product_with_gaussian_likelihood(
+            observation_matrix=np.array([[1.0, 1.0]]),
+            observed=np.array([4.0]),
+            observation_covariance=np.array([[1.0]]),
         )
         assert corrected.mean_of(horizontal) > 0.0
         assert corrected.mean_of(vertical) > 0.0
@@ -465,42 +523,44 @@ class TestCorrectingWithAMeasurement:
             corrected.mean_of(vertical)
         )
 
-    def test_measuring_nothing_leaves_the_mean_alone(self, independent, horizontal):
-        corrected = independent.conditional_on_measurement(
-            model=np.zeros((0, 2)), measured=np.zeros(0), noise=np.zeros((0, 0))
+    def test_observing_nothing_leaves_the_mean_alone(self, independent, horizontal):
+        corrected = independent.product_with_gaussian_likelihood(
+            observation_matrix=np.zeros((0, 2)),
+            observed=np.zeros(0),
+            observation_covariance=np.zeros((0, 0)),
         )
         assert corrected.mean_of(horizontal) == independent.mean_of(horizontal)
         assert corrected.variance_of(horizontal) == independent.variance_of(horizontal)
 
-    def test_correcting_does_not_change_the_distribution_it_corrected(
+    def test_the_product_does_not_change_the_distribution_it_multiplied(
         self, independent, horizontal
     ):
         before = independent.mean_of(horizontal)
-        independent.conditional_on_measurement(
-            model=np.array([[1.0, 0.0]]),
-            measured=np.array([5.0]),
-            noise=np.array([[1.0]]),
+        independent.product_with_gaussian_likelihood(
+            observation_matrix=np.array([[1.0, 0.0]]),
+            observed=np.array([5.0]),
+            observation_covariance=np.array([[1.0]]),
         )
         assert independent.mean_of(horizontal) == before
 
-    def test_a_measurement_model_of_the_wrong_width_is_rejected(self, independent):
+    def test_an_observation_matrix_of_the_wrong_width_is_rejected(self, independent):
         with pytest.raises(ShapeMismatchError) as error:
-            independent.conditional_on_measurement(
-                model=np.array([[1.0]]),
-                measured=np.array([0.0]),
-                noise=np.array([[1.0]]),
+            independent.product_with_gaussian_likelihood(
+                observation_matrix=np.array([[1.0]]),
+                observed=np.array([0.0]),
+                observation_covariance=np.array([[1.0]]),
             )
         assert error.value.expected_shape == (1, 2)
         assert error.value.received_shape == (1, 1)
 
-    def test_measuring_more_numbers_than_the_model_describes_is_rejected(
+    def test_observing_more_numbers_than_the_observation_matrix_describes_is_rejected(
         self, independent
     ):
         with pytest.raises(ShapeMismatchError) as error:
-            independent.conditional_on_measurement(
-                model=np.array([[1.0, 0.0]]),
-                measured=np.array([0.0, 1.0]),
-                noise=np.array([[1.0]]),
+            independent.product_with_gaussian_likelihood(
+                observation_matrix=np.array([[1.0, 0.0]]),
+                observed=np.array([0.0, 1.0]),
+                observation_covariance=np.array([[1.0]]),
             )
         assert error.value.expected_shape == (1,)
         assert error.value.received_shape == (2,)
@@ -746,7 +806,7 @@ class TestTruncation:
         Two quantities that co-vary are not most likely where each of them on its own
         would be: confining one of them moves where the other is most likely with it.
         """
-        strongly_correlated = MultivariateGaussianDistribution(
+        strongly_correlated = MultivariateGaussianDistribution.from_mean_and_covariance(
             distribution_variables=(horizontal, vertical),
             mean=np.array([0.0, 0.0]),
             covariance=np.array([[1.0, 0.9], [0.9, 1.0]]),
@@ -879,15 +939,10 @@ class TestConditioningATruncatedDistribution:
         assert conditional is None
         assert log_density == -np.inf
 
-    def test_fixing_every_quantity_leaves_the_point_it_was_fixed_at(
+    def test_fixing_every_quantity_needs_a_circuit(
         self, correlated, horizontal, vertical
     ):
         box = box_over(horizontal, vertical, 0.0, 1.0).as_composite_set()
         truncated, _ = correlated.truncated(box)
-        conditional, log_density = truncated.log_conditional(
-            {horizontal: 0.25, vertical: 0.5}
-        )
-        assert conditional.likelihood(np.array([[0.25, 0.5]]))[0] == float("inf")
-        assert log_density == pytest.approx(
-            truncated.log_likelihood(np.array([[0.25, 0.5]]))[0]
-        )
+        with pytest.raises(ProbabilisticCircuitRequiredError):
+            truncated.log_conditional({horizontal: 0.25, vertical: 0.5})

@@ -24,6 +24,7 @@ from typing_extensions import (
 
 from probabilistic_model.exceptions import (
     EventIsNotABoxError,
+    ProbabilisticCircuitRequiredError,
     ShapeMismatchError,
     VariableNotInDistributionError,
 )
@@ -62,10 +63,11 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
     Its dimension corresponds to the variables in the same order.
     """
 
-    covariance: npt.NDArray
+    covariance_lower_triangle: npt.NDArray
     """
-    The covariance matrix. Both of its dimensions correspond to the variables in the
-    same order.
+    The entries of the covariance matrix on and below its diagonal, row by row.
+
+    A covariance matrix is symmetric, so these determine all of it.
     """
 
     def __post_init__(self):
@@ -75,17 +77,62 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         """
         self.distribution_variables = tuple(self.distribution_variables)
         self.mean = np.asarray(self.mean, dtype=float)
-        self.covariance = np.asarray(self.covariance, dtype=float)
+        self.covariance_lower_triangle = np.asarray(
+            self.covariance_lower_triangle, dtype=float
+        )
 
         amount = len(self.distribution_variables)
         if self.mean.shape != (amount,):
             raise ShapeMismatchError(self.mean.shape, (amount,))
-        if self.covariance.shape != (amount, amount):
-            raise ShapeMismatchError(self.covariance.shape, (amount, amount))
+        entries = amount * (amount + 1) // 2
+        if self.covariance_lower_triangle.shape != (entries,):
+            raise ShapeMismatchError(self.covariance_lower_triangle.shape, (entries,))
+
+    @classmethod
+    def from_mean_and_covariance(
+        cls,
+        distribution_variables: Iterable[Continuous],
+        mean: npt.ArrayLike,
+        covariance: npt.ArrayLike,
+    ) -> Self:
+        """
+        Build the distribution from a full covariance matrix, of which only the entries
+        on and below the diagonal are read.
+
+        :param distribution_variables: The variables of the distribution.
+        :param mean: The mean, laid out by the variables.
+        :param covariance: The covariance matrix, both of whose dimensions are laid out
+            by the variables.
+        :return: The distribution.
+        :raises ShapeMismatchError: If the mean or the covariance is not laid out by the
+            variables.
+        """
+        distribution_variables = tuple(distribution_variables)
+        covariance = np.asarray(covariance, dtype=float)
+        amount = len(distribution_variables)
+        if covariance.shape != (amount, amount):
+            raise ShapeMismatchError(covariance.shape, (amount, amount))
+        return cls(
+            distribution_variables=distribution_variables,
+            mean=mean,
+            covariance_lower_triangle=covariance[np.tril_indices(amount)],
+        )
 
     @property
     def variables(self) -> Tuple[Continuous, ...]:
         return tuple(self.distribution_variables)
+
+    @property
+    def covariance(self) -> npt.NDArray:
+        """
+        :return: The covariance matrix. Both of its dimensions correspond to the
+            variables in the same order.
+        """
+        rows, columns = np.tril_indices(len(self.distribution_variables))
+        covariance = np.empty((len(self.distribution_variables),) * 2)
+        covariance[rows, columns] = self.covariance_lower_triangle
+        covariance[columns, rows] = self.covariance_lower_triangle
+        return covariance
 
     @property
     def support(self) -> Event:
@@ -212,7 +259,7 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         :param rows: The rows to keep, in this distribution's own order.
         :return: The Gaussian over the variables those rows belong to.
         """
-        return type(self)(
+        return self.from_mean_and_covariance(
             distribution_variables=tuple(
                 self.distribution_variables[row] for row in rows
             ),
@@ -229,19 +276,20 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         Fix some of the variables at the values given and answer with the distribution
         over the rest, which stays Gaussian.
 
-        Fixing *every* variable leaves a point mass at the values given, which is a
-        product of Dirac impulses rather than a Gaussian.
-
         :param point: What each fixed variable is known to be.
         :return: The distribution over whatever is left, and the log-density of the
             values given.
         :raises VariableNotInDistributionError: If a fixed variable is not one of this
             distribution's.
+        :raises ProbabilisticCircuitRequiredError: If every variable is fixed, which
+            leaves a product of Dirac impulses rather than a Gaussian.
         """
         fixed_rows = [self.index_of(variable) for variable in point]
         free_rows = [
             row for row in range(len(self.variables)) if row not in set(fixed_rows)
         ]
+        if not free_rows:
+            raise ProbabilisticCircuitRequiredError(model=self)
 
         fixed_at = np.array([float(point[variable]) for variable in point])
         log_density = float(
@@ -250,37 +298,7 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             )[0]
         )
 
-        if not free_rows:
-            return self._point_mass_at(point), log_density
         return self._conditioned(free_rows, fixed_rows, fixed_at), log_density
-
-    def _point_mass_at(self, point: Dict[Variable, Any]) -> ProbabilisticModel:
-        """
-        :param point: What every variable is known to be.
-        :return: The product of one Dirac impulse per variable, which is what a
-            distribution conditioned on all of its own variables is.
-        """
-        from probabilistic_model.distributions.distributions import (
-            DiracDeltaDistribution,
-        )
-        from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
-            ProbabilisticCircuit,
-            ProductUnit,
-            leaf,
-        )
-
-        circuit = ProbabilisticCircuit()
-        product = ProductUnit(probabilistic_circuit=circuit)
-        for variable in self.variables:
-            product.add_subcircuit(
-                leaf(
-                    DiracDeltaDistribution(
-                        variable=variable, location=float(point[variable])
-                    ),
-                    circuit,
-                )
-            )
-        return product.probabilistic_circuit
 
     def _conditioned(
         self,
@@ -299,105 +317,103 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         explained = cross @ np.linalg.inv(
             self.covariance[np.ix_(fixed_rows, fixed_rows)]
         )
-        return type(self)(
+        return self.from_mean_and_covariance(
             distribution_variables=free.distribution_variables,
             mean=free.mean + explained @ (fixed_at - self.mean[fixed_rows]),
-            covariance=self._symmetrized(free.covariance - explained @ cross.T),
+            covariance=free.covariance - explained @ cross.T,
         )
 
-    @staticmethod
-    def _symmetrized(covariance: npt.NDArray) -> npt.NDArray:
-        """
-        A covariance is symmetric by definition, so any difference between a matrix and
-        its transpose is rounding. Averaging the two removes it exactly.
-
-        :param covariance: The covariance as the arithmetic left it.
-        :return: The same covariance, exactly symmetric.
-        """
-        return (covariance + covariance.T) / 2
-
-    def conditional_on_measurement(
+    def product_with_gaussian_likelihood(
         self,
-        model: npt.NDArray,
-        measured: npt.NDArray,
-        noise: npt.NDArray,
+        observation_matrix: npt.NDArray,
+        observed: npt.NDArray,
+        observation_covariance: npt.NDArray,
     ) -> Self:
         """
-        Correct the mean with what was measured.
+        Multiply this density by the Gaussian likelihood of an observation and normalize
+        the product.
 
-        The measurement and the mean are weighed against each other by how uncertain
-        each is. This is :meth:`conditional` applied to the joint distribution over
-        these variables together with what the measurement reports, which is what a
-        measurement update is.
+        The observation is ``observation_matrix`` applied to the variables plus Gaussian
+        noise with covariance ``observation_covariance``. Its likelihood as a function
+        of the variables is a Gaussian density, and so is the normalized product of two
+        Gaussian densities. That product is the Gaussian over these variables
+        conditioned on ``observed`` in their joint distribution with the observation.
 
-        :param model: How much each variable contributes to each measured number, with
-            one row per number measured.
-        :param measured: The numbers measured, one per row of ``model``.
-        :param noise: How far the measurement scatters, one row and column per number
-            measured.
-        :return: The corrected Gaussian over the same variables.
-        :raises ShapeMismatchError: If the three do not describe one measurement of
+        :param observation_matrix: How much each variable contributes to each observed
+            number, with one row per observed number.
+        :param observed: The numbers observed, one per row of ``observation_matrix``.
+        :param observation_covariance: The covariance of the observation noise, one row
+            and column per observed number.
+        :return: The normalized product, over the same variables.
+        :raises ShapeMismatchError: If the three do not describe one observation of
             these variables.
         """
-        model = np.atleast_2d(np.asarray(model, dtype=float))
-        measured = np.atleast_1d(np.asarray(measured, dtype=float))
-        noise = np.atleast_2d(np.asarray(noise, dtype=float))
+        observation_matrix = np.atleast_2d(np.asarray(observation_matrix, dtype=float))
+        observed = np.atleast_1d(np.asarray(observed, dtype=float))
+        observation_covariance = np.atleast_2d(
+            np.asarray(observation_covariance, dtype=float)
+        )
 
-        amount = len(model)
-        if model.shape != (amount, len(self.variables)):
-            raise ShapeMismatchError(model.shape, (amount, len(self.variables)))
-        if measured.shape != (amount,):
-            raise ShapeMismatchError(measured.shape, (amount,))
-        if noise.shape != (amount, amount):
-            raise ShapeMismatchError(noise.shape, (amount, amount))
+        amount = len(observation_matrix)
+        if observation_matrix.shape != (amount, len(self.variables)):
+            raise ShapeMismatchError(
+                observation_matrix.shape, (amount, len(self.variables))
+            )
+        if observed.shape != (amount,):
+            raise ShapeMismatchError(observed.shape, (amount,))
+        if observation_covariance.shape != (amount, amount):
+            raise ShapeMismatchError(observation_covariance.shape, (amount, amount))
 
         if amount == 0:
             return self
 
-        joint = self._joint_with_measurement(model, noise)
+        joint = self._joint_with_observation(observation_matrix, observation_covariance)
         return joint._conditioned(
             list(range(len(self.variables))),
             list(range(len(self.variables), len(joint.variables))),
-            measured,
+            observed,
         )
 
-    def _joint_with_measurement(self, model: npt.NDArray, noise: npt.NDArray) -> Self:
+    def _joint_with_observation(
+        self, observation_matrix: npt.NDArray, observation_covariance: npt.NDArray
+    ) -> Self:
         """
-        :param model: How much each variable contributes to each measured number.
-        :param noise: How far the measurement scatters.
-        :return: The Gaussian over these variables followed by what is measured.
+        :param observation_matrix: How much each variable contributes to each observed
+            number.
+        :param observation_covariance: The covariance of the observation noise.
+        :return: The Gaussian over these variables followed by the observed numbers.
         """
-        return type(self)(
+        covariance = self.covariance
+        return self.from_mean_and_covariance(
             distribution_variables=(
                 *self.distribution_variables,
-                *self._variables_for_measurement(len(model)),
+                *self._variables_for_observation(len(observation_matrix)),
             ),
-            mean=np.concatenate([self.mean, model @ self.mean]),
-            covariance=self._symmetrized(
-                np.block(
+            mean=np.concatenate([self.mean, observation_matrix @ self.mean]),
+            covariance=np.block(
+                [
+                    [covariance, covariance @ observation_matrix.T],
                     [
-                        [self.covariance, self.covariance @ model.T],
-                        [
-                            model @ self.covariance,
-                            model @ self.covariance @ model.T + noise,
-                        ],
-                    ]
-                )
+                        observation_matrix @ covariance,
+                        observation_matrix @ covariance @ observation_matrix.T
+                        + observation_covariance,
+                    ],
+                ]
             ),
         )
 
-    def _variables_for_measurement(self, amount: int) -> List[Continuous]:
+    def _variables_for_observation(self, amount: int) -> List[Continuous]:
         """
-        What is measured is a variable of the joint only while the measurement is being
-        applied, so it is named here rather than asked of the caller.
+        The observed numbers are variables of the joint only while the product is being
+        formed, so they are named here rather than asked of the caller.
 
-        :param amount: How many measured numbers need a name.
+        :param amount: How many observed numbers need a name.
         :return: That many names, none of which this distribution already uses.
         """
         taken = {variable.name for variable in self.variables}
         names = []
         for position in range(amount):
-            name = f"measurement {position}"
+            name = f"observation {position}"
             while name in taken:
                 name = f"{name} "
             taken.add(name)
@@ -501,7 +517,10 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         for variable, factor in scaling.items():
             factors[self.index_of(variable)] = factor
         self.mean = self.mean * factors
-        self.covariance = self.covariance * np.outer(factors, factors)
+        self.covariance_lower_triangle = (
+            self.covariance_lower_triangle
+            * np.outer(factors, factors)[np.tril_indices(len(self.variables))]
+        )
 
     # %% sampling
 
@@ -514,7 +533,7 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         return type(self)(
             distribution_variables=self.distribution_variables,
             mean=self.mean.copy(),
-            covariance=self.covariance.copy(),
+            covariance_lower_triangle=self.covariance_lower_triangle.copy(),
         )
 
 
@@ -694,6 +713,8 @@ class TruncatedMultivariateGaussianDistribution(ProbabilisticModel):
             at all if the box rules them out.
         :raises VariableNotInDistributionError: If a fixed variable is not one of this
             distribution's.
+        :raises ProbabilisticCircuitRequiredError: If every variable is fixed, which
+            leaves a product of Dirac impulses.
         """
         if any(
             not self.box[variable].contains(value) for variable, value in point.items()
@@ -704,9 +725,6 @@ class TruncatedMultivariateGaussianDistribution(ProbabilisticModel):
         log_density -= math.log(self.probability_of_the_box)
 
         free = [variable for variable in self.variables if variable not in point]
-        if not free:
-            return conditional, log_density
-
         slice_of_the_box = SimpleEvent.from_data(
             {variable: self.box[variable] for variable in free}
         ).as_composite_set()
@@ -738,27 +756,22 @@ class TruncatedMultivariateGaussianDistribution(ProbabilisticModel):
     def _sample_each_variable_on_its_own(self, amount: int) -> npt.NDArray:
         """
         Variables that do not co-vary stay independent once the box confines each of
-        them separately, so each is drawn from its own confined Gaussian and no sample
-        is ever thrown away.
+        them separately, so each is drawn from its own :mod:`scipy.stats.truncnorm` and
+        no sample is ever thrown away.
 
         :param amount: How many samples to draw.
         :return: That many samples, all of them inside the box.
         """
-        columns = []
-        for position, variable in enumerate(self.variables):
-            stretch = self.stretch_of(variable)
-            mean = self.untruncated.mean[position]
-            deviation = math.sqrt(self.untruncated.covariance[position, position])
-            columns.append(
-                truncnorm.rvs(
-                    a=(stretch.lower - mean) / deviation,
-                    b=(stretch.upper - mean) / deviation,
-                    loc=mean,
-                    scale=deviation,
-                    size=amount,
-                )
-            )
-        return np.column_stack(columns)
+        stretches = [self.stretch_of(variable) for variable in self.variables]
+        mean = self.untruncated.mean
+        deviation = np.sqrt(np.diag(self.untruncated.covariance))
+        return truncnorm.rvs(
+            a=(np.array([stretch.lower for stretch in stretches]) - mean) / deviation,
+            b=(np.array([stretch.upper for stretch in stretches]) - mean) / deviation,
+            loc=mean,
+            scale=deviation,
+            size=(amount, len(self.variables)),
+        )
 
     def _rejection_sample(self, amount: int) -> npt.NDArray:
         """

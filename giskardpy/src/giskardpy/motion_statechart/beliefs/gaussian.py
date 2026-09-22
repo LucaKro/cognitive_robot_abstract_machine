@@ -104,14 +104,17 @@ class GaussianBelief:
         """
         variables = tuple(variables)
         belief = cls(
-            distribution=MultivariateGaussianDistribution(
+            distribution=MultivariateGaussianDistribution.from_mean_and_covariance(
                 distribution_variables=variables,
                 mean=np.zeros(len(variables)),
                 covariance=np.zeros((len(variables), len(variables))),
             )
         )
-        belief.distribution.mean = belief.vector(estimates)
-        belief.distribution.covariance = belief.symmetric_matrix(uncertainty)
+        belief.distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
+            distribution_variables=variables,
+            mean=belief.vector(estimates),
+            covariance=belief.symmetric_matrix(uncertainty),
+        )
         return belief
 
     @classmethod
@@ -242,12 +245,12 @@ class GaussianBelief:
             belief is not about.
         """
         carried = self.matrix(transition)
-        grown = (
-            carried @ self.distribution.covariance @ carried.T
-            + self.symmetric_matrix(process_noise)
+        self.distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
+            distribution_variables=self.variables,
+            mean=carried @ self.distribution.mean,
+            covariance=carried @ self.distribution.covariance @ carried.T
+            + self.symmetric_matrix(process_noise),
         )
-        self.distribution.mean = carried @ self.distribution.mean
-        self.distribution.covariance = (grown + grown.T) / 2
         self.distribution.apply_translation(dict(offset or {}))
 
     def update(self, readings: List[Reading]) -> None:
@@ -264,12 +267,12 @@ class GaussianBelief:
         """
         if not readings:
             return
-        self.distribution = self.distribution.conditional_on_measurement(
-            model=np.array(
+        self.distribution = self.distribution.product_with_gaussian_likelihood(
+            observation_matrix=np.array(
                 [self.vector(reading.contributions) for reading in readings]
             ),
-            measured=np.array([reading.value for reading in readings]),
-            noise=np.diag([reading.variance for reading in readings]),
+            observed=np.array([reading.value for reading in readings]),
+            observation_covariance=np.diag([reading.variance for reading in readings]),
         )
 
     def vector(self, values: Mapping[Continuous, float]) -> npt.NDArray[np.float64]:

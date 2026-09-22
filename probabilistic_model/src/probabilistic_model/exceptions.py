@@ -46,18 +46,35 @@ class UndefinedOperationError(DataclassException):
 
 
 @dataclass
-class EventIsNotABoxError(DataclassException):
+class ProbabilisticCircuitRequiredError(DataclassException):
+    """
+    Exception raised when a distribution is asked for something whose answer only a
+    probabilistic circuit can represent.
+    """
+
+    model: ProbabilisticModel
+    """
+    The distribution that was asked.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.model} cannot answer this with a distribution of its own, since the "
+            f"answer needs a probabilistic circuit."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Wrap the distribution into a probabilistic circuit and ask the circuit."
+
+
+@dataclass
+class EventIsNotABoxError(ProbabilisticCircuitRequiredError):
     """
     Exception raised when a model is asked to confine itself to something other than a
     single box.
 
     A box is one unbroken stretch per variable. Anything wider leaves a shape no single
     truncated distribution describes.
-    """
-
-    model: ProbabilisticModel
-    """
-    The model that was asked.
     """
 
     event: Event
@@ -70,8 +87,8 @@ class EventIsNotABoxError(DataclassException):
 
     def suggest_correction(self) -> str:
         return (
-            "Confine it to one unbroken stretch per variable, or build a circuit over "
-            "the boxes the event is made of."
+            "Confine it to one unbroken stretch per variable, or wrap the distribution "
+            "into a probabilistic circuit and confine the circuit."
         )
 
 
