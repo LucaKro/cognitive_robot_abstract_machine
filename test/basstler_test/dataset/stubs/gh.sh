@@ -26,10 +26,12 @@ set -uo pipefail
 #   STUB_GH_AUTH_TOKEN - the token to print; unset means "not logged in", which
 #                        the real CLI reports by exiting 1
 #
-# `gh --version` and `gh stack --help`, the probes install-gh-stack.sh makes:
+# `gh --version`, `gh extension list` and `gh stack`, the probes install-gh-stack.sh
+# makes:
 #   STUB_GH_VERSION    - the version to report, defaulting to 2.90.0
 #   STUB_GH_STACK_RUNS - 1 when the gh-stack extension should look installed; anything
-#                        else answers the way gh does for an unknown command
+#                        else answers the way gh >= 2.90 does without it: `gh stack`
+#                        prints how to install the official extension and still exits 0
 #
 # Exits 64 on an invocation it doesn't recognize, rather than a plausible-looking
 # success: a test must fail loudly if a caller changes the call it makes.
@@ -57,12 +59,18 @@ if [ "${1:-}" = "--version" ]; then
   exit 0
 fi
 
-if [ "${1:-}" = "stack" ]; then
+if [ "${1:-}" = "extension" ] && [ "${2:-}" = "list" ]; then
   if [ "${STUB_GH_STACK_RUNS:-}" = "1" ]; then
-    exit 0
+    printf 'gh stack\tgithub/gh-stack\tv0.1.0\n'
   fi
-  echo 'unknown command "stack" for "gh"' >&2
-  exit 1
+  exit 0
+fi
+
+if [ "${1:-}" = "stack" ]; then
+  if [ "${STUB_GH_STACK_RUNS:-}" != "1" ]; then
+    printf 'gh stack is available as an official extension.\nTo install it, run:\n  gh extension install github/gh-stack\n'
+  fi
+  exit 0
 fi
 
 if [ "${1:-}" = "auth" ] && [ "${2:-}" = "token" ]; then

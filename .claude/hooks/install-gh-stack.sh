@@ -29,8 +29,12 @@ GH_DIRECTORY="${GH_STACK_TOOLS_DIRECTORY}/gh_${GH_STACK_GH_VERSION}"
 EXTENSION_DIRECTORY="${GH_STACK_TOOLS_DIRECTORY}/gh-stack"
 INSTALL_LOG="${GH_STACK_TOOLS_DIRECTORY}/install.log"
 
+# stack_runs: whether gh has the gh-stack extension installed. gh >= 2.90 answers
+# `gh stack` without it by printing how to install it and exiting 0, so the exit code
+# of `gh stack` itself says nothing.
 stack_runs() {
-  command -v gh >/dev/null 2>&1 && gh stack --help >/dev/null 2>&1
+  command -v gh >/dev/null 2>&1 \
+    && gh extension list 2>/dev/null | cut -f1 | grep -qx 'gh stack'
 }
 
 gh_version() {

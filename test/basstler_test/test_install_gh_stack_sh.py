@@ -1,7 +1,9 @@
 """
 Tests for install-gh-stack.sh: making ``gh stack`` runnable in a cloud session, and the
-one line session-start.sh reports about it. Nothing here reaches the network: ``gh`` and
-``curl`` are stubs, and a download is only ever attempted against the curl stub.
+one line session-start.sh reports about it.
+
+Nothing here reaches the network: ``gh`` and ``curl`` are stubs, and a download is only
+ever attempted against the curl stub.
 """
 
 from __future__ import annotations
@@ -54,8 +56,10 @@ def test_a_runnable_gh_stack_is_reported_ready_and_nothing_is_installed(
     tmp_path: Path, stub_bin: ExecutableStubDirectory
 ):
     result = run_installer(
-        tmp_path, stub_bin.ahead_of(os.environ["PATH"]),
-        STUB_GH_STACK_RUNS="1", CLAUDE_CODE_REMOTE="true",
+        tmp_path,
+        stub_bin.ahead_of(os.environ["PATH"]),
+        STUB_GH_STACK_RUNS="1",
+        CLAUDE_CODE_REMOTE="true",
     )
 
     assert result.returncode == 0
@@ -78,8 +82,10 @@ def test_a_failed_gh_download_is_reported_not_fatal(
     tmp_path: Path, stub_bin: ExecutableStubDirectory
 ):
     result = run_installer(
-        tmp_path, stub_bin.ahead_of(os.environ["PATH"]),
-        STUB_GH_VERSION="2.80.0", CLAUDE_CODE_REMOTE="true",
+        tmp_path,
+        stub_bin.ahead_of(os.environ["PATH"]),
+        STUB_GH_VERSION="2.80.0",
+        CLAUDE_CODE_REMOTE="true",
     )
 
     assert result.returncode == 1
@@ -95,4 +101,7 @@ def test_without_go_the_extension_is_reported_unbuildable(
     result = run_installer(tmp_path, search_path, GH_STACK_INSTALL="1")
 
     assert result.returncode == 1
-    assert result.stdout == "unavailable - gh-stack has to be built from source and there is no go\n"
+    assert (
+        result.stdout
+        == "unavailable - gh-stack has to be built from source and there is no go\n"
+    )
