@@ -72,7 +72,22 @@ class GitHubApiRequestFailedError(RuntimeError):
 
     def __str__(self) -> str:
         """:return: The call and the refusal, so the cause can be read off directly."""
-        return f"GET {self.path} was refused with {self.status}: {self.detail}"
+        return f"{self.path} was refused with {self.status}: {self.detail}"
+
+
+@dataclass
+class GitHubGraphQLError(RuntimeError):
+    """
+    Raised when a GraphQL query is answered with errors, which the API does with a
+    successful status and ``null`` data rather than a refusal.
+    """
+
+    messages: list[str]
+    """What each reported error says."""
+
+    def __str__(self) -> str:
+        """:return: Every reported error, in order."""
+        return "GraphQL query failed: " + "; ".join(self.messages)
 
 
 # %% the token
@@ -130,6 +145,11 @@ class GitHubApi:
     The API's base URL.
     """
 
+    page_size: int = 100
+    """
+    How many entries a list endpoint is asked for per page, the API's maximum.
+    """
+
     @classmethod
     def from_environment(cls) -> GitHubApi:
         """
@@ -145,11 +165,56 @@ class GitHubApi:
         :raises GitHubApiRequestFailedError: If the API refuses the call for any other
             reason.
         """
+        return self._send(path)
+
+    def get_all(self, path: str) -> list[Any]:
+        """
+        Read every page of a list endpoint.
+
+        :param path: The API path, starting with a slash, without paging parameters.
+        :return: Every entry, in the API's order; empty if the resource does not exist.
+        """
+        separator = "&" if "?" in path else "?"
+        collected: list[Any] = []
+        page = 1
+        while True:
+            fetched = self._send(f"{path}{separator}per_page={self.page_size}&page={page}")
+            if not fetched:
+                return collected
+            collected.extend(fetched)
+            if len(fetched) < self.page_size:
+                return collected
+            page += 1
+
+    def graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        """
+        :param query: The GraphQL document.
+        :param variables: Its variables.
+        :return: The response's ``data``.
+        :raises GitHubGraphQLError: If the response reports errors.
+        """
+        response = self._send("/graphql", {"query": query, "variables": variables})
+        if response.get("errors"):
+            raise GitHubGraphQLError(
+                [error.get("message", str(error)) for error in response["errors"]]
+            )
+        return response["data"]
+
+    def _send(self, path: str, payload: dict[str, Any] | None = None) -> Any | None:
+        """
+        :param path: The API path, starting with a slash.
+        :param payload: A JSON body to post, absent for a read.
+        :return: The decoded response, or ``None`` when the resource does not exist.
+        :raises GitHubApiRequestFailedError: If the API refuses the call for any other
+            reason.
+        """
         request = urllib.request.Request(
             f"{self.root}{path}",
+            data=None if payload is None else json.dumps(payload).encode(),
             headers={
                 "Authorization": f"Bearer {self.token}",
                 "Accept": "application/vnd.github+json",
+                "Content-Type": "application/json",
             },
         )
         try:

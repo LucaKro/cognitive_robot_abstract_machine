@@ -33,6 +33,7 @@ from basstler.github_api import (
     GitHubApi,
     GitHubApiRequestFailedError,
     GitHubCredentialUnavailableError,
+    GitHubGraphQLError,
     resolve_github_token,
 )
 from basstler.pull_request_state import (
@@ -375,3 +376,55 @@ def test_the_command_writes_the_file_and_summarizes_what_it_could_not_find(
         "pull_requests": 1,
         "not_found": [str(PullRequestReference(DEFAULT_REPOSITORY, 8))],
     }
+
+
+# %% paging and GraphQL
+
+
+@dataclass
+class PagedOpener:
+    """
+    Answers ``page=N`` requests from a list of pages and GraphQL posts with one body,
+    recording every request.
+    """
+
+    pages: list[list[Any]] = field(default_factory=list)
+    graphql_body: dict[str, Any] = field(default_factory=dict)
+    requests: list = field(default_factory=list)
+
+    def __call__(self, request) -> ResponseStandIn:
+        self.requests.append(request)
+        if request.full_url.endswith("/graphql"):
+            return ResponseStandIn(json.dumps(self.graphql_body).encode())
+        page = int(request.full_url.rsplit("page=", 1)[1])
+        answered = self.pages[page - 1] if page <= len(self.pages) else []
+        return ResponseStandIn(json.dumps(answered).encode())
+
+
+def test_every_page_is_read_until_a_short_one():
+    opener = PagedOpener(pages=[[1, 2], [3, 4], [5]])
+    api = GitHubApi(token="secret", opener=opener, page_size=2)
+
+    assert api.get_all("/repos/owner/repo/pulls/1/files") == [1, 2, 3, 4, 5]
+    assert len(opener.requests) == 3
+
+
+def test_a_graphql_query_returns_its_data_and_sends_the_variables():
+    opener = PagedOpener(graphql_body={"data": {"answer": 42}})
+    api = GitHubApi(token="secret", opener=opener)
+
+    assert api.graphql("query { answer }", {"number": 7}) == {"answer": 42}
+    (request,) = opener.requests
+    assert json.loads(request.data) == {"query": "query { answer }", "variables": {"number": 7}}
+
+
+def test_graphql_errors_fail_rather_than_reading_as_empty_data():
+    api = GitHubApi(
+        token="secret",
+        opener=PagedOpener(graphql_body={"data": None, "errors": [{"message": "bad field"}]}),
+    )
+
+    with pytest.raises(GitHubGraphQLError) as raised:
+        api.graphql("query { nope }", {})
+
+    assert raised.value.messages == ["bad field"]

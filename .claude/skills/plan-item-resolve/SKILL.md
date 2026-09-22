@@ -1,7 +1,7 @@
 ---
 name: plan-item-resolve
 description: Gather everything available about one already-underway tracked plan item (its plan.yaml entry, roadmap.md history, the real state of its branch/PR - conflicts, CI, review comments, and any unresolved review threads on its upstream pull request - and any relevant discussion on its plan's tracking issue), then resolve whatever is stalling it in whichever execution mode is in force - presenting a plan for approval, carrying it out directly on the item's existing branch, or asking which. Invoke as "/plan-item-resolve <plan-id> <item-id>". Use when resolving a blocked, in-progress, or deferred item from a plan-dashboard's "Resolve"/"Resume"/"Reconsider" link, or when the user asks to "resolve", "unblock", "resume", or "reconsider" a specific tracked item.
-allowed-tools: Bash, Read, Grep, Glob, Edit, Write, AskUserQuestion, Skill, EnterPlanMode, ExitPlanMode, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__issue_read, mcp__github__get_file_contents, mcp__github__update_pull_request, mcp__Claude_Code_Remote__subscribe_pr_activity
+allowed-tools: Bash, Read, Grep, Glob, Edit, Write, AskUserQuestion, Skill, EnterPlanMode, ExitPlanMode, mcp__github__update_pull_request
 ---
 
 # Plan Item Resolve
@@ -26,63 +26,22 @@ resume any other session.
 
 ## 1. Gather the item's context
 
-Follow `${PLAN_ITEM_GATHERING_DOCUMENT}` end to end — the setup check, the
-item's resolution off the personal-notes branch, the tracking-issue
-subscription, its recorded state, the full roadmap read, the dependency
-chain, and the standing conventions. `plan-item-kickoff` runs the same
-procedure, which is why it lives there rather than in either skill.
+Follow `${PLAN_ITEM_GATHERING_DOCUMENT}`: load the plan, read the item's brief,
+read the roadmap once. The brief already carries the live state of the work - failing
+checks by name, unresolved review threads, recent conversation, changed files and the
+tracking-issue comments that mention the item - which is where a stall's cause almost
+always is. Name the exact failing check or review thread rather than saying "CI is
+failing".
 
-Then add the part only a resolve needs — **the live state of work that
-already exists**, which is where the cause of a stall almost always is:
+Then add the one thing the brief cannot see: if the fork pull request carries the
+`in_review_label` from `.claude/stack/stack.toml` (`in-review` by default), or the
+item's `notes`/`status` say it is under upstream review, the branch also has an
+upstream pull request whose review threads live there. Invoke `/upstream-reviews` for
+the item's `branch` and read every unresolved thread it reports. If that fails, mention
+it when drafting the plan (step 3) and continue.
 
-- If `pull_request_number` is set: fetch the PR (`mcp__github__pull_request_read`,
-  `method: "get"`) for its mergeable state and CI status
-  (`method: "get_check_runs"`), then its review threads
-  (`method: "get_review_comments"`) and plain comments
-  (`method: "get_comments"`) — read every one, not just the most recent,
-  since an older unresolved thread is exactly the kind of thing this skill
-  exists to surface. A failing check or a requested-changes review is
-  usually the actual blocker; state exactly which one and why, don't just
-  say "CI is failing."
-- If the fork PR carries the `in_review_label` from `basstler/stack.toml`
-  (`in-review` by default, the recorded signal for "promoted upstream, under
-  review"), the branch also has a pull request on the upstream, whose review
-  threads none of the calls above can see — a fork PR can look entirely clean
-  while the item is in fact stalled on an upstream request for changes. Invoke
-  `/upstream-reviews` for the item's `branch` and read every unresolved thread
-  it reports. Invoke it even without the label when `notes`/`status` say the
-  item is under upstream review; skip it otherwise, since a branch never
-  promoted has no upstream PR to read. If the dispatch or the run fails, don't
-  let that fail the skill: mention it when presenting the plan (step 5) and
-  continue — upstream state is valuable context, not a precondition.
-- If the fork PR carries the `in_review_label` from `.claude/stack/stack.toml`
-  (`in-review` by default, the recorded signal for "promoted upstream, under
-  review"), the branch also has a pull request on the upstream, whose review
-  threads none of the calls above can see — a fork PR can look entirely clean
-  while the item is in fact stalled on an upstream request for changes. Invoke
-  `/upstream-reviews` for the item's `branch` and read every unresolved thread
-  it reports. Invoke it even without the label when `notes`/`status` say the
-  item is under upstream review; skip it otherwise, since a branch never
-  promoted has no upstream PR to read. If the dispatch or the run fails, don't
-  let that fail the skill: mention it when drafting the plan (step 3) and
-  continue — upstream state is valuable context, not a precondition.
-- If the item has no PR yet (e.g. blocked before ever starting): there is
-  no PR-side state to check — rely on `blockers`/`notes` and the tracking
-  issue instead.
-- If the plan has a `tracking_issue`, fetch its comments
-  (`mcp__github__issue_read`, `method: "get_comments"`) and read every one
-  that mentions this item by id, branch, or title — a structural change
-  proposed there (a dependency change, a scope split) can be exactly why
-  an item stalled.
-- If a branch or PR exists, read what's actually in it
-  (`mcp__github__pull_request_read` for the diff/description,
-  `mcp__github__get_file_contents` or a local `git fetch` + `git show` for
-  the real file contents) before proposing anything — the plan must resolve
-  the real, current state, not a guessed one. For sibling items in the same
-  track that already landed, read their merged diffs the same way
-  `plan-item-kickoff` does, when the resolution involves matching an
-  established pattern (e.g. a review comment asking this item to follow what
-  a later sibling already settled on).
+Read the item branch's actual file contents only where the brief points, before
+proposing changes to them.
 
 ## 2. Resolve how this item gets resolved
 

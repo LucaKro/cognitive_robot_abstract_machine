@@ -316,6 +316,10 @@ CHECK_DEPENDENCY_READINESS_MODULE="basstler.check_dependency_readiness"
 # plan names, reduced to the fields the dashboard reads - see
 # pr-data-fetching.md.
 PULL_REQUEST_STATE_MODULE="basstler.pull_request_state"
+# plan_item_brief: the compact account of one item plan-item-kickoff and
+# plan-item-resolve read instead of raw GitHub payloads - see
+# plan-item-gathering.md.
+PLAN_ITEM_BRIEF_MODULE="basstler.plan_item_brief"
 # refresh_dashboard_support: the JSON-plumbing helpers
 # refresh_dashboard.sh calls between its two module calls.
 REFRESH_DASHBOARD_SUPPORT_MODULE="basstler.refresh_dashboard_support"

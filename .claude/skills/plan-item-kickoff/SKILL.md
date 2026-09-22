@@ -1,7 +1,7 @@
 ---
 name: plan-item-kickoff
 description: Gather everything available about one tracked plan item (its plan.yaml entry, roadmap.md history/design context, its dependency chain's live GitHub state, and patterns from already-landed sibling items in the same track), then start it in whichever execution mode is in force - presenting a plan for approval, implementing it directly, or asking which - opening the item's branch and draft pull request and recording its manifest state before implementation begins. Invoke as "/plan-item-kickoff <plan-id> <item-id>". Use when starting work on a specific item from a plan-dashboard's "Start now" link, or when the user asks to "start", "kick off", or "plan out" a specific tracked item.
-allowed-tools: Bash, Read, Grep, Glob, Edit, Write, AskUserQuestion, Skill, EnterPlanMode, ExitPlanMode, mcp__github__list_pull_requests, mcp__github__pull_request_read, mcp__github__get_file_contents, mcp__github__create_pull_request, mcp__github__update_pull_request, mcp__Claude_Code_Remote__subscribe_pr_activity
+allowed-tools: Bash, Read, Grep, Glob, Edit, Write, AskUserQuestion, Skill, EnterPlanMode, ExitPlanMode, mcp__github__create_pull_request, mcp__github__update_pull_request
 ---
 
 # Plan Item Kickoff
@@ -24,27 +24,14 @@ the item stops reading as `not_started` the moment it isn't.
 
 ## 1. Gather the item's context
 
-Follow `${PLAN_ITEM_GATHERING_DOCUMENT}` end to end — the setup check, the
-item's resolution off the personal-notes branch, the tracking-issue
-subscription, its recorded state, the full roadmap read, the dependency
-chain, and the standing conventions. `plan-item-resolve` runs the same
-procedure, which is why it lives there rather than in either skill.
+Follow `${PLAN_ITEM_GATHERING_DOCUMENT}`: load the plan, read the item's brief,
+read the roadmap once.
 
-Then add the part only a kickoff needs — **what the item should look like,
-learned from what already landed**:
-
-- For other items in the **same track** that are already `done` (merged),
-  read what they actually changed — `mcp__github__pull_request_read` for the
-  diff/description, or `mcp__github__get_file_contents` for the merged
-  result — to learn the real pattern this item should follow, rather than
-  inventing a shape from roadmap prose alone. Note file layout, testing
-  conventions, and any review-driven design decisions recorded in those PRs'
-  descriptions that this item should also honor (a later sibling in a stack
-  often encodes a correction the reviewer made on an earlier one).
-- If the item's own branch already exists (partial work, e.g. from a false
-  start), read what's actually there via `mcp__github__get_file_contents` or
-  a local `git fetch` + `git show` before proposing anything — the plan must
-  build on real state, not restate a fresh start over existing work.
+Then learn the shape the item should take from what already landed: the brief lists the
+files each landed item in the same track changed. Open the few that show the pattern this
+item should follow (file layout, test conventions) with `git show origin/<default
+branch>:<path>`, rather than reading whole diffs. If the item's own branch already
+exists, read what is on it before proposing anything: the plan must build on real state.
 
 ## 2. Resolve how this item gets started
 
