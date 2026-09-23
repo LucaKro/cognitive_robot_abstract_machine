@@ -311,3 +311,26 @@ y = A x + b + N(0, Σ), with its shapes checked once, when it is built. It is us
 gains a sensor bias through the offset. This changes the signature of #22's method, so #22's
 tests for it move to the new signature in this PR. The term is Roweis & Ghahramani's
 "linear Gaussian model".
+
+## `tracy-sensor-mapping` — first review round: robot concepts move into semdt
+
+Resolved 2026-09-23 (auto mode). CI was green on `a730ab8c`. What held the PR up was the author's review: 15 unresolved threads asking to move the concepts into semantic_digital_twin, to use probabilistic_model's Gaussian, pint for units, no module-level constants, and numpy typing.
+
+**This reverses the item's recorded decision** ("no force/torque sensor is added to the CRAM robot model here; `simulated-sensors` owns the model change"). The user chose to **split by layer**:
+- **semdt** (84a590bb) gets a generic `ForceTorqueSensor(Sensor)` part. Tracy's arms are `HasSensors[Tracy*WristForceTorqueSensor]`, one sensor at each `<side>_tool0`, so Tracy has three sensors. `ObjectDetectionStatus` moves next to `Robotiq85Gripper`. `simulated-sensors`' notes now say to *simulate* these parts rather than add a sensor model.
+- **experiments** (9b87f33a) keeps the ROS binding and the measurement. Signals are built per semantic part (`WristWrench(sensor)`, `FingerPosition(gripper)`, `ArmJointEffort(arm)`, ...). `TracyDriverNamespace.of_part` finds a part's ROS namespace; semdt's robot models carry no topics.
+
+**Units: pint** (user decision, after checking: 0.26.1 released 2026-09-10, Python ≥ 3.12, already a coraplex dependency). It is declared in `experiments`, with a `PintUnitJSONSerializer` for krrood. It is kept out of semdt's dataclasses because the ORM maps every semdt dataclass. The gripper current is read back as register counts, inverting the driver's mapping onto 235. The arm effort is in amperes (`use_currents_as_efforts` defaults to true).
+
+**Statistics as distributions.** Each channel's values, and the time between samples, are a probabilistic_model `GaussianDistribution`, or a `DiracDeltaDistribution` when they never vary. There is no dependency on #22. A covariance across channels is `sensor-model-calibration`'s job.
+
+**AGENTS.md** (eabf5059) records two rules: numpy arrays are typed with `numpy.typing`, and there are no module-level constants (a `ClassVar` on the owning class, or an enum member).
+
+**Left open, with answers:**
+- krrood's EQL aggregators don't fit arrays of samples and have no variance.
+- segmind detects events from geometry, not a gripper's reported status; `coupling-belief` could feed it later.
+- semdt's `Actuator`/`PositionServo` describe how the simulator drives a dof, not what a driver reports.
+
+**Overlap.** `experiments/.../articulated_manipulation/__init__.py` is now empty here, while #24 adds it with a docstring. Whichever lands second reconciles it.
+
+**Tooling note.** `plan_item_brief` still crashes in cloud sessions, which refuse GraphQL. The threads were read and resolved through the GitHub MCP tools.

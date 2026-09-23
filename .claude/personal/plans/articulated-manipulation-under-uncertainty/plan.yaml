@@ -105,7 +105,9 @@ items:
   - ground-truth-separation
   notes: 'Actuated joints are deliberately not read back: the world holds their set points, so real finger
     qpos and effort need their own sensor. multi_sim has no force/torque support, so derive a wrist wrench
-    from MuJoCo contact forces. The handle detector is synthetic: field of view, occlusion via the existing
+    from MuJoCo contact forces, and simulate the ForceTorqueSensor parts tracy-sensor-mapping adds to Tracy''s
+    model (one per arm, at <side>_tool0, the wrench expressed in that frame) rather than adding a sensor
+    model of its own. The handle detector is synthetic: field of view, occlusion via the existing
     visible predicate, distance-dependent noise, dropout, and an optional bearing-only mode (needed only
     to match paper A''s hardest condition). Everything is seeded and configurable. Model the signals tracy-sensor-mapping
     establishes; the noise and failure models get fitted to real logs later, in sensor-model-calibration.'
@@ -160,7 +162,10 @@ items:
     the product specs, not verified on this Tracy: the UR e-Series has a built-in wrist force/torque sensor
     of coarse precision (about 5 N), and the 2F-85 reports finger position, motor current and its own
     object-detected flag. Confirm which of these the drivers expose, at what rate and noise. The CRAM
-    robot model has no force/torque sensor today.'
+    robot model has no force/torque sensor today. After review round 1 (user decision): the robot-side
+    concepts live in semantic_digital_twin (a generic ForceTorqueSensor part, Tracy''s wrist sensors,
+    the Robotiq ObjectDetectionStatus); the ROS binding and the measurement stay in experiments; units
+    use pint.'
 - id: real-sensor-dataset
   title: Record real drawer-opening episodes with independent ground truth
   branch: real-sensor-dataset
