@@ -168,3 +168,21 @@ empty `World` with a mimic node whose readings the test decides.
 - **Readings have independent noise** (diagonal R), and process noise is per variable
   (diagonal Q). A correlated sensor would need a full-covariance reading type. That is
   additive when a sensor needs it.
+
+Kicked off 2026-09-23 in auto mode. Branch `tracy-sensor-mapping` from `main`, draft PR #27.
+
+**What the drivers expose, according to their source and configs** (`iai_tracy@ros2-jazzy`, `ros2_robotiq_gripper@iai_dualarm`, `Universal_Robots_ROS2_Driver@jazzy`, `ros2_controllers@jazzy`). Not yet confirmed on the robot:
+- **Wrist wrench:** `/<side>_arm/force_torque_sensor_broadcaster/wrench`, 500 Hz. The value is UR's `actual_TCP_force`, rotated into the controller's TCP frame. It is labelled `<side>_tool0`, which is only correct while the TCP offset set on the pendant is zero. The `topic_name: ft_data` setting is ignored in Jazzy.
+- **Finger position** (`gPO`, 0–255) and **gripper motor current** (`gCU`) come as the position and effort of the knuckle joint on `/<side>_gripper/joint_states`. The driver maps the current linearly onto 0–235 and publishes it as "effort": it is a current, not a force. The velocity is a finite difference of the position, not a separate measurement. Messages are published at 100 Hz, but the serial port is polled every 10 ms plus the time of one Modbus transaction, so fresh values may arrive more slowly than that.
+- **Object-detected flag** (`gOBJ`: 0 moving, 1 stopped by an object while opening, 2 stopped by an object while closing, 3 at the requested position) is only on `/<side>_gripper/dynamic_joint_states`. The config's `extra_interfaces` is not a Jazzy parameter; the flag gets through only because the broadcaster publishes every interface there by default. giskard's `TracyVelocityInterface` syncs only `joint_states`, so it never sees the flag.
+- **Arm joint effort** on `/<side>_arm/joint_states` is motor current, either in amperes or converted to torque, depending on the driver's `use_currents_as_efforts`. It is an extra grasp-evidence candidate that the notes do not list.
+- **Camera:** an Orbbec Femto Mega (color 1920×1080, registered depth), not a RealSense.
+
+**Decisions**
+- The deliverable is a typed signal inventory plus an at-rest measurement tool in `experiments/articulated_manipulation`. The tool reports each signal's rate, interval jitter and longest gap, and each channel's mean, standard deviation and quantisation step. A signal that sends no messages is reported as not exposed. The statistics use numpy only, and their tests need no ROS; the message-reading and recorder tests run in the CI ROS image.
+- The camera is left out of the inventory. The estimators consume detections, not frames, and detector error is `real-sensor-dataset`'s and `sensor-model-calibration`'s to characterise.
+- No force/torque sensor is added to the CRAM robot model here. Where the simulated wrench sits (the wrist, in the controller's TCP frame) is recorded for `simulated-sensors`, which owns the model change.
+
+**Open.** This item is done only after the tool has been run on the real Tracy and its report committed. That needs someone at the robot. Bias drift and the noise under load are left to `sensor-model-calibration`.
+
+**Overlap.** Both `articulated_manipulation/__init__.py` files are also added by `sim-drawer-scene` (#24), with identical content.
