@@ -11,6 +11,7 @@ from types import NoneType
 from typing import List, Optional, TypeAlias, TYPE_CHECKING
 
 import numpy as np
+import pint
 from sortedcontainers import SortedSet
 from typing_extensions import Dict, Any, Self, Union, Type, TypeVar
 
@@ -584,6 +585,38 @@ class TimedeltaJSONSerializer(ExternalClassJSONSerializer[timedelta]):
             seconds=data[TimedeltaJSONKey.SECONDS],
             microseconds=data[TimedeltaJSONKey.MICROSECONDS],
         )
+
+
+class PintUnitJSONKey(enum.StrEnum):
+    """
+    The keys of the JSON a pint unit is serialized to.
+    """
+
+    UNIT = "unit"
+    """
+    The unit, spelled as pint parses it back.
+    """
+
+
+@dataclass
+class PintUnitJSONSerializer(ExternalClassJSONSerializer[pint.Unit]):
+    """
+    Serializes a pint unit by its spelling, and reads it back into pint's application
+    registry.
+    """
+
+    @classmethod
+    def to_json(cls, obj: pint.Unit, **kwargs) -> Dict[str, Any]:
+        return {
+            JSONField.TYPE: get_full_class_name(type(obj)),
+            PintUnitJSONKey.UNIT: str(obj),
+        }
+
+    @classmethod
+    def from_json(
+        cls, data: Dict[str, Any], clazz: Type[pint.Unit], **kwargs
+    ) -> pint.Unit:
+        return pint.get_application_registry().Unit(data[PintUnitJSONKey.UNIT])
 
 
 @dataclass

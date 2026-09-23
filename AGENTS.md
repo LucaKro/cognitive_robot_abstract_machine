@@ -1,7 +1,7 @@
 # Code Quality Rules
 
 ## Avoid Behaviour
-- Avoid using global variables
+- Avoid using global variables, and do not define constants either, neither at module level nor as a `ClassVar`: a named value is an enum member, a field of the dataclass that owns it (with a default where it is configuration), or read from the library that defines it (a unit conversion from pint, the limits of a type from numpy)
 - Avoid accessing any ormatic_interface.py files. if there are issues regarding the ormatic interface run the script `scripts/regenerate_all_orm.py`. If it does not fix the issue, consider consulting the developer.
 - ormatic_interface.py files are generated, never written, so the repository ignores them instead of tracking them (see the rule in `.gitignore`): the test suite builds them for its runs, and a local checkout builds them with `scripts/regenerate_all_orm.py`. Never track one again - git refuses to overwrite a tracked path a checkout has generated its own copy of, which is what used to make every branch switch fail.
 - Avoid using mutable objects as default arguments
@@ -80,7 +80,7 @@
 - Dont use try except blocks, programs in illegal states should raise appropriate exceptions.
 - Prefer structured data over bare strings, hardcoded values, and meaningless numbers. This is the default, not a preference to weigh: reach for the structured form first and justify the literal, never the other way round.
   - Never hardcode a string that names a fixed thing - a payload key, a state, a label, a filename, an environment variable, a command flag, a status. Give it a `StrEnum` member and use that. A value spelled in two places has no single source to rename, and nothing fails when the two drift apart.
-  - Replace a magic number with a named constant or an enum member. A bare literal that carries meaning is unreadable where it is used and unsearchable everywhere else.
+  - Replace a magic number with an enum member, a field of the dataclass that owns it, or the value the library that defines it provides - never a module-level or `ClassVar` constant. A bare literal that carries meaning is unreadable where it is used and unsearchable everywhere else.
   - For JSON our own classes round-trip, reuse `krrood.adapters.json_serializer.SubclassJSONSerializer` rather than hand-writing `to_json`/`from_json` - it already resolves the concrete subclass from the stored type name.
   - For data whose shape someone else controls - an API response, a configuration file - that serializer does not apply, since the payload carries no type of ours. Mirror the structure in dataclasses instead and parse into them the same way, with a `from_json` classmethod doing the reading, so the field names and the access path into the payload are written once rather than at every use site.
   - Replace a tuple whose positions carry meaning with a dataclass, or with an enum when the positions are a fixed set of alternatives rather than fields, so the parts are named rather than counted.
@@ -89,6 +89,7 @@
 
 ## Type Hints
 - Classes and methods should always have accurate type hints (including `Any`) where applicable
+- Type numpy arrays with `numpy.typing` (`npt.NDArray[np.float64]` and the like), never with a bare `np.ndarray`
 - When a family of classes each declares the type it handles, carry that type as a bound
   generic parameter, not as a `ClassVar`: inherit `Generic[T]` plus
   `krrood.patterns.subclass_safe_generic.SubClassSafeGeneric`, have each member bind it

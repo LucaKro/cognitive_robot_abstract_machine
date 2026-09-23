@@ -39,6 +39,7 @@ dependencies = [
     "ucimlrepo>=0.0.7",
     "pdbpp",
     "pytest",
+    "pint",
     "probabilistic_model",
     "random_events",
 ]

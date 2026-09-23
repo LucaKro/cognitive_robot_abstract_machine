@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Dict, Any, Self
 
 import numpy as np
+import pint
 import pytest
 from sortedcontainers import SortedSet
 
@@ -529,3 +530,20 @@ class TestListDiffWithRepeatedItems:
         dog.update_from_json_diff(shallow_diff_json(original_json, new_json))
 
         assert dog.owners == new_json["owners"]
+
+
+# %% units
+
+
+@pytest.mark.parametrize(
+    "unit_name", ["newton", "ampere", "radian", "count", "dimensionless"]
+)
+def test_unit_roundtrip(unit_name: str):
+    unit = pint.get_application_registry().Unit(unit_name)
+    assert from_json(to_json(unit)) == unit
+
+
+def test_compound_unit_roundtrip():
+    units = pint.get_application_registry()
+    unit = units.newton * units.meter
+    assert from_json(to_json(unit)) == unit
