@@ -1,12 +1,13 @@
-"""Compact, reproducible records of every request made to a model."""
+"""
+Records of every request made to a model, compact enough to keep one per attempt.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any
 
-from krrood.adapters.exceptions import JSON_TYPE_NAME
+from krrood.adapters.json_field import JSONField
 from krrood.utils import get_full_class_name
 from semantic_digital_twin.adapters.vision_language_model.message import (
     ImagePart,
@@ -14,35 +15,49 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
     PartKind,
     TextPart,
 )
+from typing_extensions import Any, Dict, List
 
 from experiments.warsaw.bases import JsonRecord
+from experiments.warsaw.exceptions import UnsupportedMessagePartError
 
 # %% the parts sent to a model
 
 
 @dataclass(frozen=True)
 class ModelCallPart(JsonRecord):
-    """One message part, retaining text and identifying image content."""
+    """
+    One part of a message sent to a model, with the text it held or the image it named.
+    """
 
     kind: PartKind
-    """Whether the part contains text or an image."""
+    """
+    Whether the part is text or an image.
+    """
 
     text: str | None = None
-    """The exact text sent, when this is a text part."""
+    """
+    The text exactly as it was sent, for a text part.
+    """
 
     image_sha256: str | None = None
-    """A stable digest of the exact image bytes, when this is an image part."""
+    """
+    The digest of the image's bytes, for an image part.
+    """
 
     image_bytes: int | None = None
-    """The image size in bytes, when this is an image part."""
+    """
+    How large the image was, for an image part.
+    """
 
     @classmethod
     def of(cls, part: MessagePart) -> ModelCallPart:
-        """Make a compact record from a model message part.
+        """
+        Record a part of a message, naming an image by its digest rather than copying it
+        into every trace.
 
-        :param part: The text or image sent to the model.
-        :return: The part without duplicating base64 image data in every trace.
-        :raises TypeError: If the caller supplies an unknown message-part type.
+        :param part: The text or image that was sent.
+        :return: The record of it.
+        :raises UnsupportedMessagePartError: If the part is neither text nor an image.
         """
         if isinstance(part, TextPart):
             return cls(kind=PartKind.TEXT, text=part.text)
@@ -52,7 +67,7 @@ class ModelCallPart(JsonRecord):
                 image_sha256=sha256(part.image).hexdigest(),
                 image_bytes=len(part.image),
             )
-        raise TypeError(f"Unsupported model message part: {type(part).__name__}")
+        raise UnsupportedMessagePartError(part_type=type(part))
 
 
 # %% one complete attempt
@@ -60,42 +75,66 @@ class ModelCallPart(JsonRecord):
 
 @dataclass(frozen=True)
 class ModelCallTrace:
-    """The request, raw response, and validation result for one attempt."""
+    """
+    What one attempt at a question sent, what came back, and what was wrong with it.
+    """
 
     question: str
-    """The stable key of the question being answered."""
+    """
+    The key of the question the attempt answers.
+    """
 
     attempt: int
-    """The one-based attempt number for this question."""
+    """
+    Which attempt at the question this was, counting from one.
+    """
 
     requested_model: str
-    """The model identifier configured for the request."""
+    """
+    The model the request was addressed to.
+    """
 
     system_prompt: str
-    """The exact system prompt sent with the request."""
+    """
+    The system prompt exactly as it was sent.
+    """
 
-    message_parts: list[ModelCallPart]
-    """The ordered text and image identities sent as the user message."""
+    message_parts: List[ModelCallPart]
+    """
+    The parts of the message, in the order they were sent.
+    """
 
-    response: dict[str, Any]
-    """The complete response payload returned by the provider or read from disk."""
+    response: Dict[str, Any]
+    """
+    The response exactly as the provider returned it.
+    """
 
-    problems: list[str]
-    """Validation problems found after reading this response."""
-
-    reused: bool
-    """Whether the response was loaded from a previously kept answer."""
+    problems: List[str]
+    """
+    What made the answer unusable, empty when nothing did.
+    """
 
     started_at: str
-    """The UTC time at which this attempt began."""
+    """
+    When the attempt began, in UTC.
+    """
 
     elapsed_seconds: float
-    """Wall-clock time spent waiting for this response."""
+    """
+    How long the response took to arrive.
+    """
 
-    def to_json(self) -> dict[str, Any]:
-        """Return a JSON-ready record while preserving the raw provider payload."""
+    def to_json(self) -> Dict[str, Any]:
+        """
+        Write the trace with the provider's response left exactly as it arrived.
+
+        The dataclass serializer would write the response as the keys and values of a
+        mapping, and a trace is read by people comparing it to what the provider sent.
+
+        :return: The trace as JSON-ready data.
+        """
         return {
-            JSON_TYPE_NAME: get_full_class_name(type(self)),
+            JSONField.TYPE: get_full_class_name(type(self)),
             "question": self.question,
             "attempt": self.attempt,
             "requested_model": self.requested_model,
@@ -103,7 +142,6 @@ class ModelCallTrace:
             "message_parts": [part.to_json() for part in self.message_parts],
             "response": self.response,
             "problems": self.problems,
-            "reused": self.reused,
             "started_at": self.started_at,
             "elapsed_seconds": self.elapsed_seconds,
         }

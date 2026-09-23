@@ -11,9 +11,8 @@ the following files in their run directory:
 | `model_calls/<stage>/<question>/attempt_N.json` | Every prompt attempt, raw response, validation result, model, and latency |
 | `evaluation_graph.json` | Database-independent final nodes and accepted or refused semantic edges |
 
-The existing answer directories remain available for replaying a run. They contain the
-latest answer per question; `model_calls` is the audit trail and does not overwrite a
-failed attempt when a correction succeeds.
+The answer directories hold the latest answer per question; `model_calls` is the audit
+trail and does not overwrite a failed attempt when a correction succeeds.
 
 ## Coordinate alignment
 

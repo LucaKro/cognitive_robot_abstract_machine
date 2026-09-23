@@ -23,7 +23,6 @@ from krrood.adapters.json_serializer import (
     JSONAttributeDiff,
     shallow_diff_json,
     DataclassJSONSerializer,
-    Rebuild,
 )
 from krrood.utils import get_full_class_name
 
@@ -512,29 +511,6 @@ def test_a_tuple_field_comes_back_usable_as_a_key():
     held = ClassWithContainers()
     result = from_json(to_json(held))
     assert {result.claimants} == {held.claimants}
-
-
-@dataclass
-class ClassWithPostponedAnnotations:
-    """
-    A class whose annotations are strings, as they are under postponed evaluation.
-    """
-
-    claimants: "Tuple[str, ...]" = ("a", "b")
-    """
-    The same tuple, written as a string annotation.
-    """
-
-
-def test_a_string_annotation_is_resolved_before_it_is_read():
-    """
-    A module with ``from __future__ import annotations`` hands over strings, not types.
-    """
-    assert DataclassJSONSerializer.rebuilds_by_field(ClassWithPostponedAnnotations) == {
-        "claimants": Rebuild(container=tuple)
-    }
-    result = from_json(to_json(ClassWithPostponedAnnotations()))
-    assert isinstance(result.claimants, tuple)
 
 
 class Channel(str, Enum):

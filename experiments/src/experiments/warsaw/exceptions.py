@@ -425,8 +425,33 @@ class BlankRenderError(DataclassException, RuntimeError):
 
     def suggest_correction(self) -> str:
         return (
-            "Renders are drawn into a hidden window, which many graphics drivers refuse "
-            "to draw into at all and hand back blank. Run the pipeline under "
-            "'xvfb-run -a', or set PipelineSettings.headless to False on a machine with "
-            "a display."
+            "Many graphics drivers refuse to draw into a hidden window and hand back "
+            "blank. If PipelineSettings.headless is True, set it to False on a machine "
+            "with a display; on a machine without one, run the pipeline under "
+            "'xvfb-run -a'."
+        )
+
+
+# %% keeping what a model was asked
+
+
+@dataclass
+class UnsupportedMessagePartError(DataclassException, TypeError):
+    """
+    Raised when a message part is neither text nor an image, so a trace has no way to
+    record it.
+    """
+
+    part_type: type
+    """
+    The type of the part that was sent.
+    """
+
+    def error_message(self) -> str:
+        return f"A model trace cannot record a message part of type {self.part_type.__name__}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Send text as a TextPart and pictures as an ImagePart, or teach "
+            "ModelCallPart.of to record the new kind of part."
         )

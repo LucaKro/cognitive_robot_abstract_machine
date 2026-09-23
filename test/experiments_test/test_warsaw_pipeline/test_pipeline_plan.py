@@ -19,7 +19,7 @@ from experiments.warsaw.pipeline.steps.adjudicate.step import AdjudicateOverlaps
 from experiments.warsaw.pipeline.steps.amend.step import AmendTaxonomy, RevertAmendments
 from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
 from experiments.warsaw.pipeline.steps.classify.step import ClassifyBodies
-from experiments.warsaw.pipeline.steps.evidence import MeasureScene
+from experiments.warsaw.pipeline.steps.evidence import FindOpenQuestions, MeasureScene
 from experiments.warsaw.pipeline.steps.split import SplitScene
 from experiments.warsaw.pipeline.steps.vocabulary.step import MapLabelVocabulary
 from experiments.warsaw.world_loader.viewpoints import Viewpoint, ViewpointChoice
@@ -46,7 +46,7 @@ def test_a_run_measures_asks_measures_again_and_then_builds(tmp_path):
     assert [type(one) for one in steps] == [
         MeasureScene,
         MapLabelVocabulary,
-        MeasureScene,
+        FindOpenQuestions,
         AdjudicateOverlaps,
         SplitScene,
         ClassifyBodies,
@@ -60,9 +60,9 @@ def test_the_first_measurement_renders_the_labels_and_asks_nothing_of_them(tmp_p
     yet to say what any pair may be.
     """
     first = planned(PipelineSettings(), tmp_path)[0]
-    assert first.exemplar_renders
-    assert not first.knowing_the_vocabulary
-    assert first.question_renders == 0
+    assert type(first) is MeasureScene
+    assert first.vocabulary().labels == []
+    assert not first.rewrites_first_pass
 
 
 def test_the_second_measurement_reads_the_vocabulary_and_renders_the_questions(
@@ -73,9 +73,8 @@ def test_the_second_measurement_reads_the_vocabulary_and_renders_the_questions(
     of the same measurement.
     """
     second = planned(PipelineSettings(), tmp_path)[2]
-    assert second.knowing_the_vocabulary
-    assert second.overwrite
-    assert second.question_renders
+    assert type(second) is FindOpenQuestions
+    assert second.rewrites_first_pass
 
 
 # %% what a run can be told to leave out

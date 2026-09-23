@@ -38,11 +38,12 @@ from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.scene_split import (
+    FaceDivision,
     Ownership,
     Pairing,
     SplitFaces,
     exclusive_faces,
-    owner_by_ontology,
+    owners_by_ontology,
     pairings,
     split_world,
 )
@@ -103,6 +104,9 @@ class SplitScene(PipelineStep):
             groups, adjudications, relations, labels, classes
         )
         self.report_unreached(unreached)
+        ownerships = self.divide_ties(
+            ownerships, FaceDivision(mesh=loader.scene_mesh, segment_faces=faces)
+        )
 
         split = exclusive_faces(faces, ownerships)
         self.report_split(split, ownerships, labels)
@@ -114,8 +118,6 @@ class SplitScene(PipelineStep):
         record = self.record_of(loader, split, carried, labels, world)
         self.run.write_record(RunFile.SPLIT, record)
         self.logger.info("written to %s", self.run.path(RunFile.SPLIT))
-
-    # %% applying the decisions
 
     # %% deciding whose the contested faces are
 
@@ -132,7 +134,9 @@ class SplitScene(PipelineStep):
 
         A set the ontology settled is answered from the ontology; the rest are answered
         by the class pattern they belong to, since that is the grain the question was
-        asked at.
+        asked at. Where several claimants carry the label the answer names, the first is
+        made the owner and the others are recorded as tied with it, for the faces to be
+        divided between them.
 
         :param groups: The sets of faces and who claims them.
         :param adjudications: What the adjudication wrote.
@@ -148,29 +152,58 @@ class SplitScene(PipelineStep):
         ownerships, unreached = [], []
         for group in groups:
             by_class = {name: classes.get(labels[name]) for name in group.names}
-            if tuple(group.names) in settled:
-                owner = owner_by_ontology(group.names, by_class)
-                settled_here = True
+            settled_here = tuple(group.names) in settled
+            if settled_here:
+                candidates = owners_by_ontology(group.names, by_class)
             else:
                 wanted = answers.get(
                     tuple(sorted(labels[name] for name in group.names))
                 )
-                claiming = [name for name in group.names if labels[name] == wanted]
-                owner = claiming[0] if len(claiming) == 1 else None
-                settled_here = False
+                candidates = [name for name in group.names if labels[name] == wanted]
 
-            if owner is None:
+            if len({labels[name] for name in candidates}) != 1:
                 unreached.append(group)
                 continue
             ownerships.append(
                 Ownership(
                     names=group.names,
-                    owner=owner,
+                    owner=candidates[0],
                     faces=group.faces,
                     settled_by_ontology=settled_here,
+                    tied_with=tuple(candidates[1:]),
                 )
             )
         return ownerships, unreached
+
+    def divide_ties(
+        self, ownerships: List[Ownership], division: FaceDivision
+    ) -> List[Ownership]:
+        """
+        Divide the faces of every tied decision between the claimants it tied.
+
+        :param ownerships: The decisions, some naming claimants tied with their owner.
+        :param division: What divides a set of faces between tied claimants.
+        :return: The decisions, with every tied one replaced by one per claimant.
+        """
+        divided: List[Ownership] = []
+        tied = 0
+        for ownership in ownerships:
+            shares = division.divide(ownership)
+            divided += shares
+            if not ownership.tied_with:
+                continue
+            tied += 1
+            if len(shares) == 1:
+                self.logger.warning(
+                    "  %s claim the same faces and are kept as one: %s",
+                    " & ".join((ownership.owner, *ownership.tied_with)),
+                    shares[0].owner,
+                )
+        if tied:
+            self.logger.info(
+                "%s sets of faces divided between objects of the same label", tied
+            )
+        return divided
 
     @staticmethod
     def named_pairings(
@@ -200,8 +233,6 @@ class SplitScene(PipelineStep):
             if answer.whole
         ]
         return carried
-
-    # %% building and recording
 
     # %% building the bodies
 
@@ -293,8 +324,6 @@ class SplitScene(PipelineStep):
             pairings=carried,
             world_id=world_id,
         )
-
-    # %% saying what it cost
 
     # %% saying what it cost
 

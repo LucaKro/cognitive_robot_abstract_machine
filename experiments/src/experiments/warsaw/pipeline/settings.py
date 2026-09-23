@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+import semantic_digital_twin
 from typing_extensions import Optional, Tuple
 
 from experiments.warsaw.world_loader.viewpoints import (
@@ -166,16 +167,20 @@ class PipelineSettings:
     a run deliberately made against an amended ontology needs.
     """
 
-    reuse_answers: bool = False
-    """
-    Whether to read back the responses a run already kept instead of asking again, which
-    re-reads a run without spending anything on it.
-    """
-
     runs_directory: Path = field(
         default_factory=lambda: Path(__file__).resolve().parents[1] / "pipeline_runs"
     )
     """
     Where the run's directory is made. The runs live beside the scenes they read, and
     neither is committed.
+    """
+
+    repository: Path = field(
+        default_factory=lambda: Path(semantic_digital_twin.__file__)
+        .resolve()
+        .parents[3]
+    )
+    """
+    The checkout the pipeline and the ontology it amends are written in, which a run
+    records the revision of and checks for edits an earlier run left behind.
     """

@@ -123,35 +123,8 @@ class Memberships:
 @dataclass
 class MeasureScene(PipelineStep):
     """
-    The scene as it was measured, and what the ontology makes of the measurements.
-
-    Run twice in one pipeline: once knowing no classes, to ask what the labels mean, and
-    once knowing them, to say what the ontology admits and what is left open.
-    """
-
-    exemplar_renders: bool = False
-    """
-    Whether to render one exemplar per label, which the vocabulary question needs.
-    """
-
-    question_renders: int = 0
-    """
-    How many of each kind of open question to render.
-
-    One picture per class pattern and per contested membership, not one per overlapping
-    pair: there are two hundred of those and a fifth as many questions in them.
-    """
-
-    knowing_the_vocabulary: bool = False
-    """
-    Whether to read the vocabulary the run has since answered, without which the
-    ontology has nothing to say about any pair.
-    """
-
-    overwrite: bool = False
-    """
-    Whether to write over what an earlier pass wrote, which is what the second pass
-    needs.
+    The scene as it was measured, knowing no classes yet, and one render per label for
+    the question asking what each label means.
     """
 
     question_template: str = "vocabulary_request.md"
@@ -173,11 +146,39 @@ class MeasureScene(PipelineStep):
 
     @property
     def name(self) -> str:
-        return (
-            "measure again, knowing the classes"
-            if self.knowing_the_vocabulary
-            else "measure the scene"
-        )
+        return "measure the scene"
+
+    @property
+    def rewrites_first_pass(self) -> bool:
+        """
+        :return: Whether this writes over what the first measurement wrote.
+        """
+        return False
+
+    def vocabulary(self) -> Vocabulary:
+        """
+        :return: What each label was answered to mean, which nothing has been yet.
+        """
+        return Vocabulary(model="", scene="")
+
+    def draw(
+        self,
+        loader: WarsawWorldLoader,
+        measured: SegmentRelations,
+        segments: Dict[str, LabelSegment],
+        request: VocabularyRequest,
+        open_now: WhatIsOpen,
+    ) -> None:
+        """
+        Render one exemplar per label, which the vocabulary question is put with.
+
+        :param loader: The loaded scene.
+        :param measured: The measured scene.
+        :param segments: The scene's segments by name.
+        :param request: The vocabulary question, which the renders are filled into.
+        :param open_now: What the measurement leaves open.
+        """
+        self.render_exemplars(loader, measured, segments, request)
 
     @property
     def viewpoints(self) -> Optional[List[str]]:
@@ -210,12 +211,9 @@ class MeasureScene(PipelineStep):
         """
         :return: What each label stands for, empty on the pass that has not asked yet.
         """
-        vocabulary = (
-            self.run.read_record(RunFile.VOCABULARY, Vocabulary)
-            if self.knowing_the_vocabulary
-            else Vocabulary(model="", scene="")
+        return VocabularyClasses(
+            vocabulary=self.vocabulary(), known=self.ontology_classes()
         )
-        return VocabularyClasses(vocabulary=vocabulary, known=self.ontology_classes())
 
     def carry_out(self) -> None:
         """
@@ -225,7 +223,7 @@ class MeasureScene(PipelineStep):
             RunFile.RELATIONS,
             RunFile.VOCABULARY_REQUEST,
             RunFile.QUESTIONS,
-            overwrite=self.overwrite,
+            overwrite=self.rewrites_first_pass,
         )
 
         loader = self.loader()
@@ -240,13 +238,8 @@ class MeasureScene(PipelineStep):
         relations = self.relations_of(loader, measured, classes)
 
         request = self.vocabulary_request(loader, measured)
-        if self.exemplar_renders:
-            self.render_exemplars(loader, measured, segments, request)
-        self.run.write_record(RunFile.VOCABULARY_REQUEST, request)
-
         open_now = self.open_questions(loader, measured, relations, classes)
         relations = replace(relations, settled=open_now.settled, forced=open_now.forced)
-        self.run.write_record(RunFile.RELATIONS, relations)
         self.logger.info(
             "%s class patterns and %s memberships are open; %s groups the ontology "
             "settles",
@@ -254,10 +247,10 @@ class MeasureScene(PipelineStep):
             len(open_now.questions.membership),
             len(open_now.settled),
         )
-        if self.question_renders:
-            self.render_questions(
-                loader, measured, segments, open_now.questions, open_now.contested
-            )
+
+        self.draw(loader, measured, segments, request, open_now)
+        self.run.write_record(RunFile.VOCABULARY_REQUEST, request)
+        self.run.write_record(RunFile.RELATIONS, relations)
         self.run.write_record(RunFile.QUESTIONS, open_now.questions)
 
         self.report(relations)
@@ -538,10 +531,7 @@ class MeasureScene(PipelineStep):
         :param questions: The questions to fill the renders into.
         :param contested: Per question, the faces all its objects claim.
         """
-        asked = (
-            questions.ownership[: self.question_renders]
-            + questions.membership[: self.question_renders]
-        )
+        asked = questions.ownership + questions.membership
         self.logger.info("rendering %s questions ...", len(asked))
         for question in asked:
             shown = [segments[name] for name in question.shown]
@@ -813,3 +803,55 @@ class MeasureScene(PipelineStep):
         for status, count in counted.most_common():
             self.logger.info("  %-20s %s", status.value, count)
         self.logger.info("written to %s", self.run.directory)
+
+
+# %% measuring again, knowing the classes
+
+
+@dataclass
+class FindOpenQuestions(MeasureScene):
+    """
+    The same measurement read again once the labels have been answered, saying what the
+    ontology admits between them and what is left open, with one render per open
+    question.
+    """
+
+    @property
+    def name(self) -> str:
+        return "measure again, knowing the classes"
+
+    @property
+    def rewrites_first_pass(self) -> bool:
+        """
+        :return: Whether this writes over what the first measurement wrote, which it
+            does: it is what an answered vocabulary makes of the same measurement.
+        """
+        return True
+
+    def vocabulary(self) -> Vocabulary:
+        """
+        :return: What each label was answered to mean.
+        """
+        return self.run.read_record(RunFile.VOCABULARY, Vocabulary)
+
+    def draw(
+        self,
+        loader: WarsawWorldLoader,
+        measured: SegmentRelations,
+        segments: Dict[str, LabelSegment],
+        request: VocabularyRequest,
+        open_now: WhatIsOpen,
+    ) -> None:
+        """
+        Render every open question, which the adjudication puts them with.
+
+        :param loader: The loaded scene.
+        :param measured: The measured scene.
+        :param segments: The scene's segments by name.
+        :param request: The vocabulary question, answered already.
+        :param open_now: What the measurement leaves open, whose questions the renders
+            are filled into.
+        """
+        self.render_questions(
+            loader, measured, segments, open_now.questions, open_now.contested
+        )

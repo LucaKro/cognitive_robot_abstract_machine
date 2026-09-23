@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from typing_extensions import List
 
@@ -36,7 +35,10 @@ from experiments.warsaw.pipeline.steps.adjudicate.step import AdjudicateOverlaps
 from experiments.warsaw.pipeline.steps.amend.step import AmendTaxonomy, RevertAmendments
 from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
 from experiments.warsaw.pipeline.steps.classify.step import ClassifyBodies
-from experiments.warsaw.pipeline.steps.evidence import MeasureScene
+from experiments.warsaw.pipeline.steps.evidence import (
+    FindOpenQuestions,
+    MeasureScene,
+)
 from experiments.warsaw.pipeline.steps.prepare import PrepareRun
 from experiments.warsaw.pipeline.steps.split import SplitScene
 from experiments.warsaw.pipeline.steps.step import PipelineStep
@@ -73,15 +75,9 @@ class WarsawPipeline(HasLogger):
         :return: The steps, after the preparation that had to happen first.
         """
         planned: List[PipelineStep] = [
-            MeasureScene(settings=self.settings, run=run, exemplar_renders=True),
+            MeasureScene(settings=self.settings, run=run),
             MapLabelVocabulary(settings=self.settings, run=run),
-            MeasureScene(
-                settings=self.settings,
-                run=run,
-                knowing_the_vocabulary=True,
-                question_renders=1000,
-                overwrite=True,
-            ),
+            FindOpenQuestions(settings=self.settings, run=run),
         ]
         if self.settings.ask_about_the_ontology:
             planned.append(AmendTaxonomy(settings=self.settings, run=run))
@@ -110,9 +106,7 @@ class WarsawPipeline(HasLogger):
         """
         run = Run.create(self.settings.runs_directory)
         record_run_provenance(
-            settings=self.settings,
-            run=run,
-            repository=Path(__file__).resolve().parents[5],
+            settings=self.settings, run=run, repository=self.settings.repository
         )
         schema = RunSchema.for_run(run.directory)
 

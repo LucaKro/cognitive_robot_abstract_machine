@@ -63,34 +63,35 @@ Two things about the file are easy to lose:
 Without a database, set `PipelineSettings.persist = False`. The run then stops after the
 split's report, since every step past it reads a world back.
 
-Somewhere to draw is the third requirement. Usually the display you are already sitting
-at will do; the next section is for when it will not.
+Somewhere to draw is the third requirement. By default every render opens a window on
+the display you are sitting at; the next section is for a machine that has none.
+
+A run rewrites two files of the checkout it runs from: `semantic_digital_twin`'s generated
+classes and its ORM interface. Run one pipeline at a time, and not while a test session
+is running in the same checkout — each would rewrite what the other just read.
 
 ## When the renders come back blank
 
-Every question comes with pictures. trimesh draws them by opening a window, keeping it
-hidden, and reading the picture back out of that window's colour buffer.
+Every question comes with pictures, and trimesh draws each into a window and reads the
+picture back out of that window's colour buffer. By default
+(`PipelineSettings.headless = False`) the window is shown, which works wherever there is
+a display to show it on. It fills the screen with renders while the run lasts.
 
-Whether a hidden window has a colour buffer worth reading is up to the graphics stack.
-Nothing obliges it to allocate or to draw into a window that was never shown, and where
-it does not, the read comes back blank instead of failing — trimesh warns of exactly this
-in `render_scene`. A desktop session with a working driver generally does keep the buffer,
-which is why the plain invocation above is usually all you need; a machine with no display
-at all, a virtual one, or a software renderer often does not.
+`PipelineSettings.headless = True` keeps the window hidden instead. Whether a hidden
+window has a colour buffer worth reading is up to the graphics stack: nothing obliges it
+to draw into a window that was never shown, and where it does not, the read comes back
+blank instead of failing — trimesh warns of exactly this in `render_scene`. On some
+machines a hidden window works and is faster; on others it draws nothing at all.
 
-When it does not, the run draws nothing but black, measures every object as invisible,
-and still pays for a hundred questions about black pictures. Both ways out below give
-the window somewhere real to be drawn.
+A blank render would have the run measure every object as invisible and still pay for a
+hundred questions about black pictures, so the first one raises `BlankRenderError` and
+stops the run before anything is asked. Two ways out of it:
 
-The first blank render raises `BlankRenderError` and stops the run before anything is
-asked. Two ways out of it:
-
-- **`xvfb-run -a python -m experiments.warsaw.pipeline.pipeline`** gives the run a
-  display of its own. This is the fallback that works anywhere, including over ssh, and
-  needs the `xvfb` package installed.
-- **`PipelineSettings.headless = False`** draws into a window you can see, on a machine
-  that has a display to put one on. Slower, and it fills your screen with renders, but it
-  is the quickest way to tell whether the renderer works at all.
+- **`PipelineSettings.headless = False`**, if it was set to `True`, on a machine that has
+  a display.
+- **`xvfb-run -a python -m experiments.warsaw.pipeline.pipeline`** on a machine that has
+  none, including over ssh. It gives the run a display of its own and needs the `xvfb`
+  package installed.
 
 ## What a run leaves behind
 
@@ -117,5 +118,4 @@ deleting the directory.
 7. **Classify** and **mount** — what each body is, and the hierarchy.
 
 Steps 3, 5 and 7 are the ones that cost money. Every reply is kept beside the question
-it answered, and `PipelineSettings.reuse_answers` reads a kept reply rather than asking
-again, which re-reads a run without spending anything on it.
+it answered, and every attempt at a question under `model_calls/`.

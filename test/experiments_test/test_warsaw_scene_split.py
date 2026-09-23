@@ -14,10 +14,12 @@ import pytest
 import trimesh
 
 from experiments.warsaw.scene_split import (
+    FaceDivision,
     Ownership,
     Pairing,
     exclusive_faces,
     owner_by_ontology,
+    owners_by_ontology,
     pairings,
     split_world,
 )
@@ -161,6 +163,86 @@ def test_a_pairing_whose_end_was_emptied_is_dropped():
         split,
     )
     assert [(one.whole, one.part) for one in carried] == [("drawer_1", "handle_1")]
+
+
+# %% dividing faces between objects of the same label
+
+
+@pytest.fixture
+def strip() -> trimesh.Trimesh:
+    """
+    :return: Six triangles in a row, each sharing an edge with the next.
+    """
+    vertices = np.array([[x, y, 0.0] for x in range(4) for y in range(2)], dtype=float)
+    faces = np.array([[0, 2, 1], [1, 2, 3], [2, 4, 3], [3, 4, 5], [4, 6, 5], [5, 6, 7]])
+    return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+
+
+def test_the_ontology_names_every_claimant_that_is_a_part(taxonomy):
+    """
+    Two drawers in one cabinet are both its parts, so neither is the leftover.
+    """
+    assert owners_by_ontology(
+        ("cabinet_1", "drawer_1", "drawer_2"),
+        {
+            "cabinet_1": taxonomy["Cabinet"],
+            "drawer_1": taxonomy["Drawer"],
+            "drawer_2": taxonomy["Drawer"],
+        },
+    ) == ["drawer_1", "drawer_2"]
+
+
+def test_tied_faces_go_to_the_claimant_whose_own_surface_is_nearer(strip):
+    """
+    Where two drawers claim the same faces, each face goes to the drawer it lies next
+    to.
+    """
+    division = FaceDivision(
+        mesh=strip,
+        segment_faces={
+            "cabinet_1": np.arange(6),
+            "drawer_1": np.array([0, 1, 2, 3]),
+            "drawer_2": np.array([2, 3, 4, 5]),
+        },
+    )
+    shares = division.divide(
+        Ownership(
+            names=("cabinet_1", "drawer_1", "drawer_2"),
+            owner="drawer_1",
+            faces=np.array([2, 3]),
+            tied_with=("drawer_2",),
+        )
+    )
+    assert {share.owner: share.faces.tolist() for share in shares} == {
+        "drawer_1": [2],
+        "drawer_2": [3],
+    }
+
+
+def test_claimants_with_no_surface_of_their_own_leave_the_set_whole(strip):
+    """
+    Two segments claiming exactly the same faces are one object labelled twice, so the
+    set is not cut in two.
+    """
+    division = FaceDivision(
+        mesh=strip,
+        segment_faces={
+            "cabinet_1": np.arange(6),
+            "drawer_1": np.array([2, 3]),
+            "drawer_2": np.array([2, 3]),
+        },
+    )
+    shares = division.divide(
+        Ownership(
+            names=("cabinet_1", "drawer_1", "drawer_2"),
+            owner="drawer_1",
+            faces=np.array([2, 3]),
+            tied_with=("drawer_2",),
+        )
+    )
+    assert [(share.owner, share.faces.tolist()) for share in shares] == [
+        ("drawer_1", [2, 3])
+    ]
 
 
 # %% the geometry the bodies are built with

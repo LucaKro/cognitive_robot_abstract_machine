@@ -1,4 +1,6 @@
-"""Portable graph snapshots of the SDT produced by a pipeline run."""
+"""
+Portable graph snapshots of the SDT produced by a pipeline run.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +19,9 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
 
 
 def test_graph_snapshot_keeps_accepted_and_refused_relations() -> None:
-    """Evaluation can distinguish a proposed edge from one present in the final SDT."""
+    """
+    Evaluation can distinguish a proposed edge from one present in the final SDT.
+    """
     accepted = Pairing(
         whole="cabinet_1",
         part="drawer_1",
@@ -72,13 +76,13 @@ def test_graph_snapshot_keeps_accepted_and_refused_relations() -> None:
     assert graph.edges[0].relation == "part"
     assert graph.edges[1].accepted is False
     assert graph.edges[1].refusal_reason == "class does not admit part"
-    written = graph.to_json()
-    assert written["nodes"][0]["predicted_class"] == "Cabinet"
-    assert written["edges"][1]["accepted"] is False
+    assert EvaluationGraph.from_json(graph.to_json()) == graph
 
 
 def test_unclassified_body_remains_visible_in_snapshot() -> None:
-    """A missed annotation is measurable rather than disappearing from evaluation."""
+    """
+    A missed annotation is measurable rather than disappearing from evaluation.
+    """
     split = SplitRecord(
         scene="apartment.glb",
         bodies=[SplitBody(name="unknown_1", label="object", faces=12, body_id="b1")],

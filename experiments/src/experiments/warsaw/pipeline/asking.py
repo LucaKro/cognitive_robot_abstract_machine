@@ -4,8 +4,8 @@ Putting a question to a model, and putting an unusable answer back to it.
 Four of the pipeline's steps ask a model something: which class a label means, whose a
 contested face is, which whole a part belongs to, what each body is. They differ in what
 is said and how the answer is read, and agree on everything around that -- keeping the
-reply as it came back, reading a kept one instead of asking again, checking the answer is
-usable, and asking once more with what was wrong when it is not.
+reply as it came back, checking the answer is usable, and asking once more with what was
+wrong when it is not.
 
 An answer naming a class that is not in the taxonomy is worth nothing, and saying so is
 cheaper than either dropping the question or letting a person correct it by hand.
@@ -271,22 +271,29 @@ class Answered(Generic[AnswerType]):
 
 @dataclass(frozen=True)
 class QuestionExchange:
-    """One response together with the request and timing that produced it."""
+    """
+    One reply, with the message that asked for it and how long it took.
+    """
 
     response: ModelResponse
-    """The raw response returned or loaded from a kept answer."""
+    """
+    The reply as the model returned it.
+    """
 
     message: List[MessagePart]
-    """The exact ordered message parts used for this attempt."""
-
-    reused: bool
-    """Whether the response came from a kept answer."""
+    """
+    The parts of the message, in the order they were sent.
+    """
 
     started_at: str
-    """The UTC time at which the attempt began."""
+    """
+    When the question was put, in UTC.
+    """
 
     elapsed_seconds: float
-    """Wall-clock time spent waiting for the response."""
+    """
+    How long the reply took to arrive.
+    """
 
 
 @dataclass
@@ -310,12 +317,6 @@ class Questioner(HasLogger):
     How often an unusable answer is put back to the model with what was wrong with it.
     """
 
-    reuse_answers: bool = False
-    """
-    Whether to read a kept reply rather than ask again, which re-reads a run without
-    spending anything on it.
-    """
-
     correction_preamble: str = "Your previous answer could not be used:"
     """
     How the model is told what was wrong with what it said.
@@ -327,10 +328,14 @@ class Questioner(HasLogger):
     """
 
     traces_directory: Path | None = None
-    """Where every individual request and response is kept, when requested."""
+    """
+    Where every attempt is kept, request and response together, or None to keep none.
+    """
 
     requested_model: str = ""
-    """The configured model identifier written into every trace."""
+    """
+    The model the requests are addressed to, as every trace records it.
+    """
 
     def answer(self, question: Question[AnswerType]) -> Answered[AnswerType]:
         """
@@ -342,7 +347,7 @@ class Questioner(HasLogger):
         problems: Sequence[str] = ()
         answered = None
         for attempt in range(1 + self.corrections):
-            exchange = self._exchange_with(question, problems)
+            exchange = self.exchange(question, problems)
             try:
                 answer = question.read(exchange.response)
             except ModelRefusedError as refused:
@@ -359,51 +364,30 @@ class Questioner(HasLogger):
                 self.logger.info("%s: %s, asking again ...", question.key, problems[0])
         return answered
 
-    def respond_to(
+    def exchange(
         self, question: Question[AnswerType], problems: Sequence[str]
-    ) -> ModelResponse:
+    ) -> QuestionExchange:
         """
-        Ask one question, or read back what the model already said about it.
+        Put one question to the model and keep the reply as it came back.
 
         :param question: What to ask.
         :param problems: What was wrong with the answer to the same question, when this is
             another attempt at it.
-        :return: The reply.
+        :return: The reply, with the message that asked for it and how long it took.
         """
-        return self._exchange_with(question, problems).response
-
-    def _exchange_with(
-        self, question: Question[AnswerType], problems: Sequence[str]
-    ) -> QuestionExchange:
-        """Ask one question while retaining request and timing metadata.
-
-        :param question: What to ask.
-        :param problems: What was wrong with an earlier answer to the question.
-        :return: The reply together with the request and its timing.
-        """
-        kept = self.kept_path(question)
         message = list(question.message())
         if problems:
             message.append(TextPart(self.correction_of(problems)))
         started_at = datetime.now(UTC).isoformat()
-        if self.reuse_answers and kept.exists() and not problems:
-            return QuestionExchange(
-                response=ModelResponse.from_json(json.loads(kept.read_text())),
-                message=message,
-                reused=True,
-                started_at=started_at,
-                elapsed_seconds=0.0,
-            )
 
         start = perf_counter()
         response = self.model.ask(message, question.system_prompt)
         elapsed_seconds = perf_counter() - start
         self.answers_directory.mkdir(parents=True, exist_ok=True)
-        kept.write_text(json.dumps(response.to_json(), indent=2))
+        self.kept_path(question).write_text(json.dumps(response.to_json(), indent=2))
         return QuestionExchange(
             response=response,
             message=message,
-            reused=False,
             started_at=started_at,
             elapsed_seconds=elapsed_seconds,
         )
@@ -415,12 +399,13 @@ class Questioner(HasLogger):
         exchange: QuestionExchange,
         problems: Sequence[str],
     ) -> None:
-        """Keep one attempt without overwriting another.
+        """
+        Keep one attempt beside the others made at the same question.
 
-        :param question: The question this attempt answers.
-        :param attempt: Its one-based attempt number.
-        :param exchange: The request, response, and timing.
-        :param problems: Validation problems found in the response.
+        :param question: The question the attempt answers.
+        :param attempt: Which attempt it was, counting from one.
+        :param exchange: What was sent, what came back, and how long it took.
+        :param problems: What made the answer unusable, empty when nothing did.
         """
         if self.traces_directory is None:
             return
@@ -434,7 +419,6 @@ class Questioner(HasLogger):
             message_parts=[ModelCallPart.of(part) for part in exchange.message],
             response=exchange.response.to_json(),
             problems=list(problems),
-            reused=exchange.reused,
             started_at=exchange.started_at,
             elapsed_seconds=exchange.elapsed_seconds,
         )

@@ -1,4 +1,6 @@
-"""Record everything needed to interpret and reproduce an expensive run."""
+"""
+Record everything needed to interpret and reproduce an expensive run.
+"""
 
 from __future__ import annotations
 
@@ -20,24 +22,35 @@ from experiments.warsaw.pipeline.settings import PipelineSettings
 
 @dataclass(frozen=True)
 class InputArtifact:
-    """One file consumed from the reconstructed scene directory."""
+    """
+    One file consumed from the reconstructed scene directory.
+    """
 
     path: str
-    """The path relative to the configured scene directory."""
+    """
+    The path relative to the configured scene directory.
+    """
 
     bytes: int
-    """The file size in bytes."""
+    """
+    The file size in bytes.
+    """
 
     sha256: str
-    """A digest of the exact file content."""
+    """
+    A digest of the exact file content.
+    """
 
     def to_json(self) -> dict[str, Any]:
-        """Return this input as a JSON-ready record."""
+        """
+        Return this input as a JSON-ready record.
+        """
         return {"path": self.path, "bytes": self.bytes, "sha256": self.sha256}
 
     @classmethod
     def inspect(cls, root: Path, path: Path) -> InputArtifact:
-        """Read an input file's stable identity.
+        """
+        Read an input file's stable identity.
 
         :param root: The directory against which the path is recorded.
         :param path: The file to inspect.
@@ -59,25 +72,39 @@ class InputArtifact:
 
 @dataclass(frozen=True)
 class SourceState:
-    """The Git revision and local modifications used by a run."""
+    """
+    The Git revision and local modifications used by a run.
+    """
 
     repository: str
-    """The source repository inspected for this run."""
+    """
+    The source repository inspected for this run.
+    """
 
     commit: str | None
-    """The checked-out commit, when the directory is a Git work tree."""
+    """
+    The checked-out commit, when the directory is a Git work tree.
+    """
 
     dirty: bool | None
-    """Whether tracked or untracked local changes were present."""
+    """
+    Whether tracked or untracked local changes were present.
+    """
 
     status: list[str]
-    """Git porcelain status lines identifying local changes."""
+    """
+    Git porcelain status lines identifying local changes.
+    """
 
     patch_sha256: str | None
-    """A digest of the tracked source patch written beside the manifest."""
+    """
+    A digest of the tracked source patch written beside the manifest.
+    """
 
     def to_json(self) -> dict[str, Any]:
-        """Return this source state as a JSON-ready record."""
+        """
+        Return this source state as a JSON-ready record.
+        """
         return {
             "repository": self.repository,
             "commit": self.commit,
@@ -88,7 +115,8 @@ class SourceState:
 
 
 def inspect_source(repository: Path) -> tuple[SourceState, bytes]:
-    """Inspect a Git work tree without changing it.
+    """
+    Inspect a Git work tree without changing it.
 
     :param repository: The expected repository root.
     :return: Its recorded state and a binary-capable patch of tracked changes.
@@ -182,28 +210,44 @@ def inspect_source(repository: Path) -> tuple[SourceState, bytes]:
 
 @dataclass(frozen=True)
 class RunProvenance:
-    """Configuration, data, interpreter, and source identity for one run."""
+    """
+    Configuration, data, interpreter, and source identity for one run.
+    """
 
     started_at: str
-    """The UTC time at which provenance was captured."""
+    """
+    The UTC time at which provenance was captured.
+    """
 
     command: list[str]
-    """The interpreter arguments that launched the process."""
+    """
+    The interpreter arguments that launched the process.
+    """
 
     settings: dict[str, Any]
-    """Every pipeline setting in JSON-ready form."""
+    """
+    Every pipeline setting in JSON-ready form.
+    """
 
     inputs: list[InputArtifact]
-    """Every file below the configured scene directory."""
+    """
+    Every file below the configured scene directory.
+    """
 
     python: dict[str, str]
-    """The interpreter and operating-system identity."""
+    """
+    The interpreter and operating-system identity.
+    """
 
     source: SourceState
-    """The Git revision and local source modifications."""
+    """
+    The Git revision and local source modifications.
+    """
 
     def to_json(self) -> dict[str, Any]:
-        """Return the versioned manifest as JSON-ready data."""
+        """
+        Return the versioned manifest as JSON-ready data.
+        """
         return {
             "schema_version": 1,
             "started_at": self.started_at,
@@ -216,7 +260,9 @@ class RunProvenance:
 
 
 def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
-    """Write every pipeline setting without serializing process-specific objects."""
+    """
+    Write every pipeline setting without serializing process-specific objects.
+    """
     return {
         "scene_directory": str(settings.scene_directory.resolve()),
         "model": settings.model.value,
@@ -238,13 +284,15 @@ def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
         "ask_about_the_ontology": settings.ask_about_the_ontology,
         "amend_the_ontology": settings.amend_the_ontology,
         "ignore_amendments": settings.ignore_amendments,
-        "reuse_answers": settings.reuse_answers,
         "runs_directory": str(settings.runs_directory.resolve()),
+        "repository": str(settings.repository.resolve()),
     }
 
 
 def python_environment() -> str:
-    """Return installed distribution versions in a stable text format."""
+    """
+    Return installed distribution versions in a stable text format.
+    """
     installed = {
         distribution.metadata["Name"]: distribution.version
         for distribution in distributions()
@@ -259,7 +307,8 @@ def python_environment() -> str:
 def record_run_provenance(
     *, settings: PipelineSettings, run: Run, repository: Path
 ) -> None:
-    """Write reproducibility evidence before the expensive work starts.
+    """
+    Write reproducibility evidence before the expensive work starts.
 
     :param settings: The exact configuration of the run.
     :param run: The newly created run directory.

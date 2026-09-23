@@ -26,6 +26,9 @@ from typing_extensions import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import trimesh
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import dijkstra
+from scipy.spatial import cKDTree
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
@@ -69,6 +72,12 @@ class Ownership:
     settled_by_ontology: bool = False
     """
     Whether the ontology decided it rather than a model being asked.
+    """
+
+    tied_with: Tuple[str, ...] = ()
+    """
+    The other claimants carrying the owner's label, which the decision could not tell
+    apart from the owner, so the faces are divided between them by where they lie.
     """
 
 
@@ -135,35 +144,50 @@ class SplitFaces:
 # %% giving the contested faces away
 
 
-def owner_by_ontology(
+def owners_by_ontology(
     names: Sequence[str], classes: Dict[str, Optional[type]]
-) -> Optional[str]:
+) -> List[str]:
     """
-    Say which claimant a set of faces belongs to, where the taxonomy already decides it.
+    Say which claimants of a set of faces the taxonomy makes parts of the others.
 
     A part keeps the surface it is made of: a drawer front is the drawer's, and the
-    cabinet is what is left over. So where every claimant but one can hold the others as
-    parts, the one that cannot is the one the faces are.
+    cabinet is what is left over. So a claimant that cannot hold any of the others as a
+    part is one the faces may be.
 
     :param names: The segments claiming the faces.
     :param classes: Per segment name, the class it was read as.
-    :return: The claimant that no other can hold as a part, or None where that is not
-        exactly one of them.
+    :return: The claimants no other can hold as a part, empty where a claimant's class
+        is unknown.
     """
     parts = []
     for name in names:
         mine = classes.get(name)
         if mine is None:
-            return None
+            return []
         others = [classes.get(other) for other in names if other != name]
         if any(other is None for other in others):
-            return None
+            return []
         if not any(
             relation.whole is mine
             for other in others
             for relation in admissible_relations(mine, other)
         ):
             parts.append(name)
+    return parts
+
+
+def owner_by_ontology(
+    names: Sequence[str], classes: Dict[str, Optional[type]]
+) -> Optional[str]:
+    """
+    Say which claimant a set of faces belongs to, where the taxonomy already decides it.
+
+    :param names: The segments claiming the faces.
+    :param classes: Per segment name, the class it was read as.
+    :return: The claimant that no other can hold as a part, or None where that is not
+        exactly one of them.
+    """
+    parts = owners_by_ontology(names, classes)
     return parts[0] if len(parts) == 1 else None
 
 
@@ -210,6 +234,128 @@ def exclusive_faces(
             face: sorted(names) for face, names in split.contested.items()
         }
     return split
+
+
+# %% dividing faces between claimants a decision could not tell apart
+
+
+@dataclass
+class FaceDivision:
+    """
+    The faces a decision gave to a label, divided between the objects carrying it.
+
+    A decision names the label a set of faces belongs to. Where two drawers both claim
+    the set, each face goes to the drawer whose own surface it is nearest to, measured
+    across the mesh from one face to the next.
+    """
+
+    mesh: trimesh.Trimesh
+    """
+    The scene's mesh, whose faces the segments are made of.
+    """
+
+    segment_faces: Dict[str, np.ndarray]
+    """
+    Per segment, every face it claims.
+    """
+
+    def divide(self, ownership: Ownership) -> List[Ownership]:
+        """
+        Divide one set of faces between the claimants its decision could not tell apart.
+
+        :param ownership: The decision, naming one of the tied claimants as its owner.
+        :return: One ownership per tied claimant that is given any of the faces. Where
+            none of them has a surface the others do not also claim, they are one object
+            labelled twice, and the owner keeps the whole set.
+        """
+        if not ownership.tied_with:
+            return [ownership]
+        own_surfaces = self.own_surfaces((ownership.owner, *ownership.tied_with))
+        if not own_surfaces:
+            return [ownership]
+
+        nearest = self.nearest_surface(own_surfaces, ownership.faces)
+        return [
+            Ownership(
+                names=ownership.names,
+                owner=name,
+                faces=ownership.faces[nearest == index],
+                settled_by_ontology=ownership.settled_by_ontology,
+                tied_with=tuple(other for other in own_surfaces if other != name),
+            )
+            for index, name in enumerate(own_surfaces)
+            if np.any(nearest == index)
+        ]
+
+    def own_surfaces(self, tied: Sequence[str]) -> Dict[str, np.ndarray]:
+        """
+        :param tied: The claimants to divide between.
+        :return: Per claimant that has any, the faces it claims and no other of them does.
+        """
+        surfaces = {}
+        for name in tied:
+            others = [self.segment_faces[other] for other in tied if other != name]
+            own = np.setdiff1d(self.segment_faces[name], np.concatenate(others))
+            if len(own):
+                surfaces[name] = own
+        return surfaces
+
+    def nearest_surface(
+        self, own_surfaces: Dict[str, np.ndarray], faces: np.ndarray
+    ) -> np.ndarray:
+        """
+        Find, for each face, the surface it is nearest to, walking across the mesh through
+        the claimants' own faces and the faces being divided.
+
+        :param own_surfaces: Per claimant, the faces that are its alone.
+        :param faces: The faces to divide.
+        :return: Per face, the position of the nearest surface in ``own_surfaces``. A face
+            no walk reaches goes to the surface whose nearest face centre is closest.
+        """
+        surfaces = list(own_surfaces.values())
+        region = np.unique(np.concatenate([faces, *surfaces]))
+        local = {int(face): index for index, face in enumerate(region)}
+
+        adjacency = self.mesh.face_adjacency
+        inside = np.isin(adjacency, region).all(axis=1)
+        pairs = adjacency[inside]
+        centres = self.mesh.triangles_center
+        lengths = np.linalg.norm(centres[pairs[:, 0]] - centres[pairs[:, 1]], axis=1)
+        graph = coo_matrix(
+            (
+                lengths,
+                (
+                    [local[int(one)] for one in pairs[:, 0]],
+                    [local[int(other)] for other in pairs[:, 1]],
+                ),
+            ),
+            shape=(len(region), len(region)),
+        ).tocsr()
+
+        starts = np.concatenate(surfaces)
+        surface_of_start = np.concatenate(
+            [np.full(len(surface), index) for index, surface in enumerate(surfaces)]
+        )
+        distances, _, reached_from = dijkstra(
+            graph,
+            directed=False,
+            indices=[local[int(face)] for face in starts],
+            return_predecessors=True,
+            min_only=True,
+        )
+        start_position = {local[int(face)]: index for index, face in enumerate(starts)}
+        targets = np.array([local[int(face)] for face in faces])
+
+        nearest = np.empty(len(faces), dtype=int)
+        reached = np.isfinite(distances[targets])
+        nearest[reached] = [
+            surface_of_start[start_position[int(source)]]
+            for source in reached_from[targets[reached]]
+        ]
+        if not reached.all():
+            _, closest = cKDTree(centres[starts]).query(centres[faces[~reached]])
+            nearest[~reached] = surface_of_start[closest]
+        return nearest
 
 
 # %% the mounts that survive the split

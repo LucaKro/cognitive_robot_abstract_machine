@@ -18,45 +18,18 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import semantic_digital_twin
 from semantic_digital_twin.semantic_annotations.in_memory_builder import (
     SemanticAnnotationFilePaths,
 )
 from typing_extensions import List, Tuple
 
-from experiments.warsaw.exceptions import (
-    OntologyLeftAmendedError,
-    SubprocessStepFailedError,
-)
+from experiments.warsaw.exceptions import OntologyLeftAmendedError
+from experiments.warsaw.pipeline.database.ontology_export import OntologyExport
+from experiments.warsaw.pipeline.records import PreparedOntology
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.templates import PipelineTemplates
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.steps.step import PipelineStep
-
-# %% the ontology a run starts from
-
-
-@dataclass
-class PreparedOntology:
-    """
-    What reading the ontology out and building its tables produced.
-    """
-
-    classes: int
-    """
-    How many classes the run may name.
-    """
-
-    mixins: int
-    """
-    How many of them a new class can be composed from.
-    """
-
-    tables: int
-    """
-    How many tables were built in the run's schema.
-    """
-
 
 # %% getting a run ready
 
@@ -91,7 +64,7 @@ class PrepareRun(PipelineStep):
         """
         :return: The checkout the ontology is written in.
         """
-        return Path(semantic_digital_twin.__file__).resolve().parents[3]
+        return self.settings.repository
 
     @property
     def generated_classes_file(self) -> Path:
@@ -99,14 +72,6 @@ class PrepareRun(PipelineStep):
         :return: The ontology's own file that a run's generated classes are kept out of.
         """
         return Path(SemanticAnnotationFilePaths.GENERATED_CLASSES_FILE.value)
-
-    @property
-    def orm_generator(self) -> Path:
-        """
-        :return: The script that rebuilds the ORM from the classes that are left.
-        """
-        root = Path(semantic_digital_twin.__file__).resolve().parent
-        return root.parent.parent / "scripts" / "generate_orm.py"
 
     def carry_out(self) -> None:
         """
@@ -119,7 +84,7 @@ class PrepareRun(PipelineStep):
         self.logger.info("  %s", self.generated_classes_file)
 
         self.logger.info("rebuilding the ORM without them ...")
-        self.regenerate_orm()
+        self.rebuild_orm()
 
         schema = RunSchema.for_run(self.run.directory)
         self.logger.info("making the run its own schema in the database ...")
@@ -175,47 +140,6 @@ class PrepareRun(PipelineStep):
             self.templates.render(self.empty_classes_template)
         )
 
-    def regenerate_orm(self) -> None:
-        """
-        Rebuild the ORM from the classes that are left.
-
-        The generator reads the interface it is about to replace, and the one standing
-        there still names the classes just removed -- so it cannot be imported and the
-        rebuild dies on the very staleness it was run to cure. Moved aside, the
-        generator builds from the ontology alone; put back if it fails, so a failure
-        costs nothing.
-
-        :raises SubprocessStepFailedError: If the rebuild fails.
-        """
-        interface = (
-            Path(semantic_digital_twin.__file__).resolve().parent
-            / "orm"
-            / "ormatic_interface.py"
-        )
-        aside = interface.with_suffix(".py.aside")
-        if interface.exists():
-            interface.replace(aside)
-
-        rebuilt = False
-        try:
-            self.in_new_interpreter(
-                "import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')",
-                [str(self.orm_generator)],
-                what="rebuilding the ORM",
-            )
-            rebuilt = interface.exists()
-        finally:
-            if rebuilt:
-                aside.unlink(missing_ok=True)
-            elif aside.exists():
-                aside.replace(interface)
-
-        if not rebuilt:
-            raise SubprocessStepFailedError(
-                what="rebuilding the ORM",
-                output=f"the generator finished but wrote no {interface}",
-            )
-
     def export_and_build(self, schema: RunSchema) -> PreparedOntology:
         """
         Read the ontology out into the run, and build the tables it asks for.
@@ -228,33 +152,9 @@ class PrepareRun(PipelineStep):
         :return: What was read out and what was built.
         :raises SubprocessStepFailedError: If either fails.
         """
-        # The export runs before the ORM is imported, and has to. The generated interface
-        # names every mapped class, robots and their fingers included, and importing it
-        # puts all of them into the annotation hierarchy the export then walks: the same
-        # ontology came out as 441 classes rather than 139, and every question would have
-        # carried three hundred robot parts for a model to choose a countertop from.
-        program = (
-            "import sys\n"
-            "from pathlib import Path\n"
-            "from semantic_digital_twin.semantic_annotations.taxonomy_export import "
-            "export_taxonomy\n"
-            "from semantic_digital_twin.world_description.world_entity import "
-            "SemanticAnnotation\n"
-            "taxonomy = export_taxonomy(SemanticAnnotation, Path(sys.argv[1]))\n"
-            "from semantic_digital_twin.orm.ormatic_interface import Base\n"
-            "from semantic_digital_twin.orm.utils import "
-            "semantic_digital_twin_sessionmaker\n"
-            "Base.metadata.create_all(bind=semantic_digital_twin_sessionmaker()().bind)\n"
-            "print(len(taxonomy['classes']), len(taxonomy['part_whole_mixins']), "
-            "len(Base.metadata.tables))\n"
-        )
-        printed = self.in_new_interpreter(
-            program,
-            [str(self.run.path(RunFile.TAXONOMY))],
+        self.in_new_interpreter(
+            OntologyExport,
             what="reading the ontology out and building the run's tables",
             environment=schema.environment(),
         )
-        classes, mixins, tables = printed.split()[-3:]
-        return PreparedOntology(
-            classes=int(classes), mixins=int(mixins), tables=int(tables)
-        )
+        return self.run.read_record(RunFile.PREPARED_ONTOLOGY, PreparedOntology)

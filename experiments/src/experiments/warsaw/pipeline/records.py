@@ -366,6 +366,31 @@ class ForcedMembership(MeasuredMeeting):
     """
 
 
+# %% prepared_ontology.json
+
+
+@dataclass
+class PreparedOntology(JsonRecord):
+    """
+    What reading the ontology out and building its tables produced.
+    """
+
+    classes: int
+    """
+    How many classes the run may name.
+    """
+
+    mixins: int
+    """
+    How many of them a new class can be composed from.
+    """
+
+    tables: int
+    """
+    How many tables were built in the run's schema.
+    """
+
+
 # %% relations.json
 
 

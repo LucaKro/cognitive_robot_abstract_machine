@@ -22,11 +22,12 @@ adjudication; if any of those is wrong, this writes it faithfully into the world
 from __future__ import annotations
 
 import inspect
+import logging
+import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import semantic_digital_twin
 from semantic_digital_twin.exceptions import UsageError
 from semantic_digital_twin.world import World
 from semantic_digital_twin.semantic_annotations.in_memory_builder import (
@@ -56,9 +57,6 @@ from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.scene_split import Pairing
-
-# %% a mount the world would not carry out
-
 
 # %% what the mounting came to
 
@@ -312,14 +310,6 @@ class AnnotateAndMount(PipelineStep):
         """
         return "dataclass_template.py.jinja"
 
-    @property
-    def orm_generator(self) -> Path:
-        """
-        :return: The script that rebuilds the ORM.
-        """
-        root = Path(semantic_digital_twin.__file__).resolve().parent
-        return root.parent.parent / "scripts" / "generate_orm.py"
-
     def carry_out(self) -> None:
         """
         Generate what the ontology lacks, rebuild the ORM, then annotate in a new one.
@@ -336,7 +326,7 @@ class AnnotateAndMount(PipelineStep):
         if generated:
             self.logger.info("generated %s: %s", len(generated), ", ".join(generated))
             self.logger.info("regenerating the ORM ...")
-            self.regenerate_orm()
+            self.rebuild_orm()
         else:
             self.logger.info("every class the scene needs is already in the ontology")
 
@@ -344,15 +334,7 @@ class AnnotateAndMount(PipelineStep):
         # annotated in an interpreter that starts after they exist.
         self.logger.info("annotating in a new interpreter ...")
         printed = self.in_new_interpreter(
-            "import sys\n"
-            "from pathlib import Path\n"
-            "import logging\n"
-            "logging.basicConfig(level=logging.INFO, format='%(message)s', "
-            "stream=sys.stdout)\n"
-            "from experiments.warsaw.pipeline.steps.annotate import MountAnnotations\n"
-            "MountAnnotations(directory=Path(sys.argv[1])).carry_out()\n",
-            [str(self.run.directory)],
-            what="annotating the world and mounting its parts",
+            MountAnnotations, what="annotating the world and mounting its parts"
         )
         for line in printed.splitlines():
             self.logger.info(line)
@@ -441,28 +423,9 @@ class AnnotateAndMount(PipelineStep):
             )
         return generated
 
-    def regenerate_orm(self) -> None:
-        """
-        Rebuild the ORM so the database knows the classes this run generated.
 
-        Run in a new interpreter with the run's directory at the front of the
-        annotations package's search path: the generator finds classes by walking that
-        path, so the run's file is the one it maps, without the generator being told
-        anything and without the classes ever being written into the ontology's own
-        package.
-
-        :raises SubprocessStepFailedError: If the rebuild fails.
-        """
-        self.in_new_interpreter(
-            "import importlib.util, sys\n"
-            "from pathlib import Path\n"
-            "from experiments.warsaw.pipeline.run_classes import GeneratedClasses\n"
-            "GeneratedClasses(directory=Path(sys.argv[1])).use()\n"
-            "specification = importlib.util.spec_from_file_location("
-            "'generate_orm', sys.argv[2])\n"
-            "generator = importlib.util.module_from_spec(specification)\n"
-            "specification.loader.exec_module(generator)\n"
-            "generator.generate_orm()\n",
-            [str(self.run.directory.resolve()), str(self.orm_generator)],
-            what="rebuilding the ORM with the run's generated classes",
-        )
+if __name__ == "__main__":
+    # What the annotating says goes to standard output, which the step that started this
+    # interpreter reads and says again.
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+    MountAnnotations(directory=Path(sys.argv[1])).carry_out()
