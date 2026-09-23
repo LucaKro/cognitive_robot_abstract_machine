@@ -13,7 +13,7 @@ from semantic_digital_twin.collision_checking.collision_detector import ClosestP
 if TYPE_CHECKING:
     from random_events.variable import Variable
 
-    from giskardpy.motion_statechart.beliefs.belief import Belief, VariableStatistic
+    from giskardpy.motion_statechart.beliefs.estimator import PublishedValue
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         NodeStateVariable,
@@ -703,82 +703,6 @@ class BeliefError(MotionStatechartError, ABC):
 
 
 @dataclass
-class NegativeVarianceError(BeliefError):
-    """
-    Raised when a variance, which cannot be negative, is given as negative.
-    """
-
-    variance: float
-    """
-    The variance given.
-    """
-
-    def error_message(self) -> str:
-        return f"A variance cannot be negative, but {self.variance} was given."
-
-    def suggest_correction(self) -> str:
-        return "State how far the value scatters as a variance of zero or more."
-
-
-@dataclass
-class ProbabilityOutOfRangeError(BeliefError):
-    """
-    Raised when a probability is given outside of the unit interval.
-    """
-
-    probability: float
-    """
-    The probability given.
-    """
-
-    def error_message(self) -> str:
-        return f"A probability lies between 0 and 1, but {self.probability} was given."
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class NegativeLikelihoodError(BeliefError):
-    """
-    Raised when the likelihood of an observation is given as negative.
-    """
-
-    likelihood: float
-    """
-    The likelihood given.
-    """
-
-    def error_message(self) -> str:
-        return f"A likelihood cannot be negative, but {self.likelihood} was given."
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class ImpossibleEvidenceError(BeliefError):
-    """
-    Raised when a belief is updated with evidence it considers impossible, which leaves
-    no posterior to normalize.
-    """
-
-    belief: Belief
-    """
-    The belief that was updated.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.belief} considers the evidence it was updated with impossible."
-
-    def suggest_correction(self) -> str:
-        return (
-            "Give the evidence a nonzero likelihood under every state the belief "
-            "considers possible."
-        )
-
-
-@dataclass
 class DuplicateBeliefError(BeliefError):
     """
     Raised when a belief is added about a variable something is already believed about.
@@ -815,9 +739,9 @@ class VariableWithoutBeliefError(BeliefError):
 
 
 @dataclass
-class UnpublishedStatisticError(BeliefError):
+class UnpublishedValueError(BeliefError):
     """
-    Raised when an estimator is asked for a statistic its belief does not report.
+    Raised when an estimator is asked for a value it does not publish about a variable.
     """
 
     node: MotionStatechartNode
@@ -825,16 +749,24 @@ class UnpublishedStatisticError(BeliefError):
     The estimator asked.
     """
 
-    statistic: VariableStatistic
+    variable: Variable
     """
-    The statistic requested.
+    The variable the value was asked about.
+    """
+
+    value: PublishedValue
+    """
+    What was asked for.
     """
 
     def error_message(self) -> str:
         return (
-            f'Node "{self.node.unique_name}" does not publish the '
-            f'{self.statistic.statistic} of "{self.statistic.variable.name}".'
+            f'Node "{self.node.unique_name}" does not publish the {self.value} of '
+            f'"{self.variable.name}".'
         )
 
     def suggest_correction(self) -> str:
-        return ""
+        return (
+            "A mean and a variance are published for numeric variables, and a "
+            "probability for each value of a symbolic one."
+        )

@@ -580,6 +580,107 @@ class TestProductWithAGaussianLikelihood:
         assert error.value.received_shape == (2,)
 
 
+# %% moving the variables one step on through a linear transition with Gaussian noise
+
+
+class TestLinearGaussianTransition:
+    def test_the_mean_and_covariance_follow_the_transition(self, correlated):
+        """
+        Checked against the moments of a linear map written out directly, so the
+        transition is verified against the law it implements rather than a second copy
+        of itself.
+        """
+        transition_matrix = np.array([[1.0, 0.1], [0.0, 1.0]])
+        offset = np.array([0.5, -0.25])
+        transition_covariance = np.array([[0.2, 0.05], [0.05, 0.3]])
+
+        transitioned = correlated.linear_gaussian_transition(
+            transition_matrix=transition_matrix,
+            offset=offset,
+            transition_covariance=transition_covariance,
+        )
+
+        assert transitioned.mean == pytest.approx(
+            transition_matrix @ correlated.mean + offset
+        )
+        assert transitioned.covariance == pytest.approx(
+            transition_matrix @ correlated.covariance @ transition_matrix.T
+            + transition_covariance
+        )
+
+    def test_standing_still_only_adds_the_noise(self, independent):
+        transition_covariance = np.diag([0.5, 1.5])
+
+        transitioned = independent.linear_gaussian_transition(
+            transition_matrix=np.eye(2),
+            offset=np.zeros(2),
+            transition_covariance=transition_covariance,
+        )
+
+        assert transitioned.mean == pytest.approx(independent.mean)
+        assert transitioned.covariance == pytest.approx(
+            independent.covariance + transition_covariance
+        )
+
+    def test_the_transition_keeps_the_variables_and_their_layout(self, correlated):
+        transitioned = correlated.linear_gaussian_transition(
+            transition_matrix=np.eye(2),
+            offset=np.zeros(2),
+            transition_covariance=np.zeros((2, 2)),
+        )
+
+        assert transitioned.variables == correlated.variables
+
+    def test_the_transition_does_not_change_the_distribution_it_moved(
+        self, independent
+    ):
+        before = independent.mean.copy()
+
+        independent.linear_gaussian_transition(
+            transition_matrix=np.eye(2),
+            offset=np.ones(2),
+            transition_covariance=np.eye(2),
+        )
+
+        assert independent.mean == pytest.approx(before)
+
+    def test_a_transition_matrix_that_is_not_laid_out_by_the_variables_is_rejected(
+        self, independent
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.linear_gaussian_transition(
+                transition_matrix=np.eye(3),
+                offset=np.zeros(2),
+                transition_covariance=np.eye(2),
+            )
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (3, 3)
+
+    def test_an_offset_that_is_not_laid_out_by_the_variables_is_rejected(
+        self, independent
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.linear_gaussian_transition(
+                transition_matrix=np.eye(2),
+                offset=np.zeros(3),
+                transition_covariance=np.eye(2),
+            )
+        assert error.value.expected_shape == (2,)
+        assert error.value.received_shape == (3,)
+
+    def test_a_transition_covariance_that_is_not_laid_out_by_the_variables_is_rejected(
+        self, independent
+    ):
+        with pytest.raises(ShapeMismatchError) as error:
+            independent.linear_gaussian_transition(
+                transition_matrix=np.eye(2),
+                offset=np.zeros(2),
+                transition_covariance=np.eye(1),
+            )
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (1, 1)
+
+
 # %% reading fewer variables than the distribution is about
 
 

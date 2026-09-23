@@ -384,23 +384,90 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         :param observation_covariance: The covariance of the observation noise.
         :return: The Gaussian over these variables followed by the observed numbers.
         """
+        observation = self._linearly_transformed(
+            matrix=observation_matrix,
+            offset=np.zeros(len(observation_matrix)),
+            noise_covariance=observation_covariance,
+            distribution_variables=self._variables_for_observation(
+                len(observation_matrix)
+            ),
+        )
         covariance = self.covariance
         return self.from_mean_and_covariance(
             distribution_variables=(
                 *self.distribution_variables,
-                *self._variables_for_observation(len(observation_matrix)),
+                *observation.distribution_variables,
             ),
-            mean=np.concatenate([self.mean, observation_matrix @ self.mean]),
+            mean=np.concatenate([self.mean, observation.mean]),
             covariance=np.block(
                 [
                     [covariance, covariance @ observation_matrix.T],
-                    [
-                        observation_matrix @ covariance,
-                        observation_matrix @ covariance @ observation_matrix.T
-                        + observation_covariance,
-                    ],
+                    [observation_matrix @ covariance, observation.covariance],
                 ]
             ),
+        )
+
+    # %% moving the variables one step on
+
+    def linear_gaussian_transition(
+        self,
+        transition_matrix: npt.ArrayLike,
+        offset: npt.ArrayLike,
+        transition_covariance: npt.ArrayLike,
+    ) -> Self:
+        """
+        The distribution of the variables one step later, when each becomes a linear
+        combination of their current values, shifted by an offset, plus Gaussian noise.
+
+        :param transition_matrix: How much each current value contributes to each next
+            value, both dimensions laid out by the variables.
+        :param offset: What is added to each next value, laid out by the variables.
+        :param transition_covariance: The covariance of the noise the step adds, both
+            dimensions laid out by the variables.
+        :return: The distribution one step later, over the same variables.
+        :raises ShapeMismatchError: If any of the three is not laid out by these
+            variables.
+        """
+        transition_matrix = np.atleast_2d(np.asarray(transition_matrix, dtype=float))
+        offset = np.atleast_1d(np.asarray(offset, dtype=float))
+        transition_covariance = np.atleast_2d(
+            np.asarray(transition_covariance, dtype=float)
+        )
+
+        amount = len(self.variables)
+        if transition_matrix.shape != (amount, amount):
+            raise ShapeMismatchError(transition_matrix.shape, (amount, amount))
+        if offset.shape != (amount,):
+            raise ShapeMismatchError(offset.shape, (amount,))
+        if transition_covariance.shape != (amount, amount):
+            raise ShapeMismatchError(transition_covariance.shape, (amount, amount))
+
+        return self._linearly_transformed(
+            matrix=transition_matrix,
+            offset=offset,
+            noise_covariance=transition_covariance,
+            distribution_variables=self.distribution_variables,
+        )
+
+    def _linearly_transformed(
+        self,
+        matrix: npt.NDArray,
+        offset: npt.NDArray,
+        noise_covariance: npt.NDArray,
+        distribution_variables: Iterable[Continuous],
+    ) -> Self:
+        """
+        :param matrix: How much each variable contributes to each resulting number.
+        :param offset: What is added to each resulting number.
+        :param noise_covariance: The covariance of the Gaussian noise added to them.
+        :param distribution_variables: The variables the resulting numbers are named by.
+        :return: The Gaussian of ``matrix`` applied to these variables, shifted by
+            ``offset``, plus the noise.
+        """
+        return self.from_mean_and_covariance(
+            distribution_variables=distribution_variables,
+            mean=matrix @ self.mean + offset,
+            covariance=matrix @ self.covariance @ matrix.T + noise_covariance,
         )
 
     def _variables_for_observation(self, amount: int) -> List[Continuous]:

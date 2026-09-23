@@ -1,34 +1,47 @@
+import numpy as np
 import pytest
-from random_events.variable import Continuous
+from probabilistic_model.distributions.distributions import SymbolicDistribution
+from probabilistic_model.distributions.multivariate_gaussian import (
+    MultivariateGaussianDistribution,
+)
+from probabilistic_model.utils import MissingDict
+from random_events.set import Set
+from random_events.variable import Continuous, Symbolic
 
-from giskardpy.motion_statechart.beliefs.binary import BinaryBelief
 from giskardpy.motion_statechart.beliefs.context import BeliefContext
-from giskardpy.motion_statechart.beliefs.gaussian import GaussianBelief
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.exceptions import (
     DuplicateBeliefError,
     VariableWithoutBeliefError,
 )
-from probabilistic_model.distributions.multivariate_gaussian import (
-    MultivariateGaussianDistribution,
-)
 from semantic_digital_twin.world import World
 
+# %% helpers
 
-def gaussian_belief_over(*variables: Continuous) -> GaussianBelief:
+
+def standard_normal_over(*variables: Continuous) -> MultivariateGaussianDistribution:
     """
-    :return: A standard normal belief over the variables.
+    :return: A standard normal distribution over the variables.
     """
-    return GaussianBelief(
-        distribution=MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=variables,
-            mean=[0.0] * len(variables),
-            covariance=[
-                [float(row == column) for column in range(len(variables))]
-                for row in range(len(variables))
-            ],
-        )
+    return MultivariateGaussianDistribution.from_mean_and_covariance(
+        distribution_variables=variables,
+        mean=np.zeros(len(variables)),
+        covariance=np.eye(len(variables)),
     )
+
+
+def even_odds_about(name: str) -> SymbolicDistribution:
+    """
+    :return: A distribution giving a binary state even odds of holding.
+    """
+    variable = Symbolic(name, domain=Set.from_iterable((False, True)))
+    probabilities = MissingDict(float)
+    probabilities[hash(False)] = 0.5
+    probabilities[hash(True)] = 0.5
+    return SymbolicDistribution(variable=variable, probabilities=probabilities)
+
+
+# %% the context
 
 
 def test_from_context_adds_the_beliefs_once_and_returns_them_after():
@@ -41,41 +54,60 @@ def test_from_context_adds_the_beliefs_once_and_returns_them_after():
     assert context.require_extension(BeliefContext) is first
 
 
-def test_each_variable_of_an_added_belief_leads_to_it():
+def test_each_variable_of_an_added_distribution_leads_to_it():
     x, y = Continuous("x"), Continuous("y")
     beliefs = BeliefContext()
-    belief = gaussian_belief_over(x, y)
+    distribution = standard_normal_over(x, y)
 
-    beliefs.add(belief)
+    beliefs.add(distribution)
 
-    assert beliefs.belief_of(x) is belief
-    assert beliefs.belief_of(y) is belief
+    assert beliefs.distribution_of(x) is distribution
+    assert beliefs.distribution_of(y) is distribution
 
 
-def test_beliefs_of_different_kinds_live_side_by_side():
+def test_distributions_of_different_kinds_live_side_by_side():
     x = Continuous("x")
     beliefs = BeliefContext()
-    gaussian = gaussian_belief_over(x)
-    binary = BinaryBelief.about("coupled", probability=0.5)
+    gaussian = standard_normal_over(x)
+    symbolic = even_odds_about("coupled")
 
     beliefs.add(gaussian)
-    beliefs.add(binary)
+    beliefs.add(symbolic)
 
-    assert beliefs.belief_of(binary.variable) is binary
-    assert beliefs.belief_of(x) is gaussian
+    assert beliefs.distribution_of(symbolic.variable) is symbolic
+    assert beliefs.distribution_of(x) is gaussian
 
 
-def test_a_second_belief_about_the_same_variable_is_rejected():
+def test_a_second_distribution_over_the_same_variable_is_rejected():
     x, y = Continuous("x"), Continuous("y")
     beliefs = BeliefContext()
-    beliefs.add(gaussian_belief_over(x, y))
+    beliefs.add(standard_normal_over(x, y))
 
     with pytest.raises(DuplicateBeliefError):
-        beliefs.add(gaussian_belief_over(y))
+        beliefs.add(standard_normal_over(y))
 
 
 def test_asking_about_a_variable_nothing_believes_in_is_rejected():
     beliefs = BeliefContext()
 
     with pytest.raises(VariableWithoutBeliefError):
-        beliefs.belief_of(Continuous("x"))
+        beliefs.distribution_of(Continuous("x"))
+
+
+def test_replacing_a_distribution_leads_each_of_its_variables_to_the_new_one():
+    x, y = Continuous("x"), Continuous("y")
+    beliefs = BeliefContext()
+    beliefs.add(standard_normal_over(x, y))
+    replacement = standard_normal_over(x, y)
+
+    beliefs.replace(replacement)
+
+    assert beliefs.distribution_of(x) is replacement
+    assert beliefs.distribution_of(y) is replacement
+
+
+def test_replacing_a_distribution_over_a_variable_nothing_believes_in_is_rejected():
+    beliefs = BeliefContext()
+
+    with pytest.raises(VariableWithoutBeliefError):
+        beliefs.replace(standard_normal_over(Continuous("x")))

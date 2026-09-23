@@ -2,39 +2,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
 import pytest
-from random_events.variable import Continuous
-from typing_extensions import List
+from probabilistic_model.distributions.distributions import SymbolicDistribution
+from probabilistic_model.distributions.multivariate_gaussian import (
+    MultivariateGaussianDistribution,
+)
+from probabilistic_model.utils import MissingDict
+from random_events.product_algebra import SimpleEvent
+from random_events.set import Set
+from random_events.variable import Continuous, Symbolic
+from typing_extensions import List, Optional
 
 from giskardpy.executor import Executor
-from giskardpy.motion_statechart.beliefs.belief import Statistic
 from giskardpy.motion_statechart.beliefs.context import BeliefContext
 from giskardpy.motion_statechart.beliefs.estimator import EstimatorNode
-from giskardpy.motion_statechart.beliefs.gaussian import (
-    GaussianBelief,
-    LinearPrediction,
-    Reading,
-)
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.exceptions import (
     DuplicateBeliefError,
     NodeNotBuiltError,
-    UnpublishedStatisticError,
+    UnpublishedValueError,
 )
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from probabilistic_model.distributions.multivariate_gaussian import (
-    MultivariateGaussianDistribution,
-)
 from semantic_digital_twin.world import World
 
-# %% an estimator whose readings the test decides
+# %% estimators whose evidence the test decides
 
 
 @dataclass(eq=False, repr=False)
-class ScriptedReadingsEstimator(EstimatorNode[LinearPrediction, Reading]):
+class ScriptedObservationsEstimator(EstimatorNode[MultivariateGaussianDistribution]):
     """
-    Estimates one variable from readings the test decides, one list per control cycle.
+    Estimates one continuous variable with a Kalman filter, from observations the test
+    decides, one per control cycle.
     """
 
     variable: Continuous = field(kw_only=True)
@@ -47,41 +47,116 @@ class ScriptedReadingsEstimator(EstimatorNode[LinearPrediction, Reading]):
     How uncertain the estimate is before any cycle.
     """
 
-    process_noise: float = field(kw_only=True, default=0.0)
+    transition_variance: float = field(kw_only=True, default=0.0)
     """
     How much less certain the estimate becomes each cycle.
     """
 
-    readings_per_cycle: List[List[Reading]] = field(kw_only=True, default_factory=list)
+    observation_variance: float = field(kw_only=True, default=0.5)
     """
-    What the sensors report in each cycle; cycles past its end report nothing.
-    """
-
-    cycles_measured: int = field(init=False, default=0)
-    """
-    How many cycles have been measured so far.
+    How far each observation scatters around the true value.
     """
 
-    def create_initial_belief(self, context: MotionStatechartContext) -> GaussianBelief:
-        return GaussianBelief(
-            distribution=MultivariateGaussianDistribution.from_mean_and_covariance(
-                distribution_variables=[self.variable],
-                mean=[0.0],
-                covariance=[[self.prior_variance]],
-            )
+    observations_per_cycle: List[Optional[float]] = field(
+        kw_only=True, default_factory=list
+    )
+    """
+    What is observed in each cycle, None for a cycle without an observation; cycles past
+    its end observe nothing.
+    """
+
+    cycles_updated: int = field(init=False, default=0)
+    """
+    How many cycles have asked for an update so far.
+    """
+
+    def create_initial_distribution(
+        self, context: MotionStatechartContext
+    ) -> MultivariateGaussianDistribution:
+        return MultivariateGaussianDistribution.from_mean_and_covariance(
+            distribution_variables=[self.variable],
+            mean=[0.0],
+            covariance=[[self.prior_variance]],
         )
 
-    def create_prediction(self, context: MotionStatechartContext) -> LinearPrediction:
-        return LinearPrediction(process_noise={self.variable: self.process_noise})
-
-    def measure(self, context: MotionStatechartContext) -> List[Reading]:
-        readings = (
-            self.readings_per_cycle[self.cycles_measured]
-            if self.cycles_measured < len(self.readings_per_cycle)
-            else []
+    def predict(
+        self,
+        context: MotionStatechartContext,
+        distribution: MultivariateGaussianDistribution,
+    ) -> MultivariateGaussianDistribution:
+        return distribution.linear_gaussian_transition(
+            transition_matrix=np.eye(1),
+            offset=np.zeros(1),
+            transition_covariance=np.array([[self.transition_variance]]),
         )
-        self.cycles_measured += 1
-        return readings
+
+    def update(
+        self,
+        context: MotionStatechartContext,
+        distribution: MultivariateGaussianDistribution,
+    ) -> Optional[MultivariateGaussianDistribution]:
+        observed = self.observation_in(self.cycles_updated)
+        self.cycles_updated += 1
+        if observed is None:
+            return None
+        return self.corrected(distribution, observed)
+
+    def observation_in(self, cycle: int) -> Optional[float]:
+        """
+        :param cycle: The index of a control cycle.
+        :return: What is observed in it, None if nothing is.
+        """
+        if cycle >= len(self.observations_per_cycle):
+            return None
+        return self.observations_per_cycle[cycle]
+
+    def corrected(
+        self, distribution: MultivariateGaussianDistribution, observed: float
+    ) -> MultivariateGaussianDistribution:
+        """
+        :return: The distribution corrected by one observation of the variable.
+        """
+        return distribution.product_with_gaussian_likelihood(
+            observation_matrix=np.eye(1),
+            observed=np.array([observed]),
+            observation_covariance=np.array([[self.observation_variance]]),
+        )
+
+
+@dataclass(eq=False, repr=False)
+class ScriptedLikelihoodsEstimator(EstimatorNode[SymbolicDistribution]):
+    """
+    Estimates whether a binary state holds with a discrete Bayes filter, from the
+    likelihoods the test decides for the first cycle.
+    """
+
+    variable: Symbolic = field(kw_only=True)
+    """
+    The state estimated.
+    """
+
+    likelihoods: List[float] = field(kw_only=True)
+    """
+    How likely the first cycle's observation is under each value of the state.
+    """
+
+    def create_initial_distribution(
+        self, context: MotionStatechartContext
+    ) -> SymbolicDistribution:
+        probabilities = MissingDict(float)
+        for element in self.variable.domain.simple_sets:
+            probabilities[hash(element)] = 1 / len(self.variable.domain.simple_sets)
+        return SymbolicDistribution(variable=self.variable, probabilities=probabilities)
+
+    def predict(
+        self, context: MotionStatechartContext, distribution: SymbolicDistribution
+    ) -> SymbolicDistribution:
+        return distribution
+
+    def update(
+        self, context: MotionStatechartContext, distribution: SymbolicDistribution
+    ) -> Optional[SymbolicDistribution]:
+        return distribution.product_with_likelihood(self.likelihoods)
 
 
 def compiled_executor(*estimators: EstimatorNode) -> Executor:
@@ -96,89 +171,115 @@ def compiled_executor(*estimators: EstimatorNode) -> Executor:
     return executor
 
 
+def published_value(executor: Executor, variable) -> float:
+    """
+    :return: The value currently written to a published float variable.
+    """
+    return executor.context.float_variable_data.get_value(variable)
+
+
 # %% the tick
 
 
-def test_published_variables_hold_the_belief_statistics():
+def test_the_mean_and_variance_of_a_numeric_variable_are_published():
     x = Continuous("x")
-    estimator = ScriptedReadingsEstimator(
-        variable=x,
-        process_noise=0.1,
-        readings_per_cycle=[[Reading(value=1.0, contributions={x: 1.0}, variance=0.5)]],
+    estimator = ScriptedObservationsEstimator(
+        variable=x, transition_variance=0.1, observations_per_cycle=[1.0]
     )
     executor = compiled_executor(estimator)
 
     executor.tick()
     executor.tick()
 
-    for statistic, value in estimator.belief.statistics().items():
-        published = estimator.published_variable(
-            statistic.variable, statistic.statistic
-        )
-        assert executor.context.float_variable_data.get_value(published) == value
+    distribution = estimator.distribution
+    assert published_value(executor, estimator.mean_variable(x)) == pytest.approx(
+        distribution.expectation([x])[x]
+    )
+    assert published_value(executor, estimator.variance_variable(x)) == pytest.approx(
+        distribution.variance([x])[x]
+    )
+
+
+def test_the_probability_of_each_value_of_a_symbolic_variable_is_published():
+    state = Symbolic("coupled", domain=Set.from_iterable((False, True)))
+    estimator = ScriptedLikelihoodsEstimator(variable=state, likelihoods=[0.2, 0.8])
+    executor = compiled_executor(estimator)
+
+    executor.tick()
+
+    for value in (False, True):
+        event = SimpleEvent.from_data({state: value}).as_composite_set()
+        assert published_value(
+            executor, estimator.probability_variable(state, value)
+        ) == pytest.approx(estimator.distribution.probability(event))
 
 
 def test_estimator_observes_true_exactly_in_cycles_with_evidence():
     x = Continuous("x")
-    reading = Reading(value=1.0, contributions={x: 1.0}, variance=0.5)
-    readings_per_cycle = [[], [reading], [], [reading], []]
-    estimator = ScriptedReadingsEstimator(
-        variable=x, readings_per_cycle=readings_per_cycle
+    observations_per_cycle = [None, 1.0, None, 2.0, None]
+    estimator = ScriptedObservationsEstimator(
+        variable=x, observations_per_cycle=observations_per_cycle
     )
     executor = compiled_executor(estimator)
 
-    for _ in range(len(readings_per_cycle) - 1):
+    for _ in range(len(observations_per_cycle) - 1):
         executor.tick()
-        cycle = estimator.cycles_measured - 1
+        cycle = estimator.cycles_updated - 1
         expected = (
-            ObservationStateValues.TRUE
-            if readings_per_cycle[cycle]
-            else ObservationStateValues.FALSE
+            ObservationStateValues.FALSE
+            if estimator.observation_in(cycle) is None
+            else ObservationStateValues.TRUE
         )
         assert estimator.observation_state == expected
 
 
-def test_evidence_measured_in_a_cycle_corrects_the_belief():
+def test_evidence_in_a_cycle_corrects_the_distribution():
     x = Continuous("x")
-    reading = Reading(value=1.0, contributions={x: 1.0}, variance=0.5)
-    estimator = ScriptedReadingsEstimator(variable=x, readings_per_cycle=[[reading]])
+    observed = 1.0
+    estimator = ScriptedObservationsEstimator(
+        variable=x, observations_per_cycle=[observed]
+    )
     executor = compiled_executor(estimator)
-    expected = estimator.create_initial_belief(executor.context)
+    expected = estimator.corrected(
+        estimator.create_initial_distribution(executor.context), observed
+    )
 
     executor.tick()
 
-    expected.update([reading])
-    assert estimator.belief.mean_of(x) == pytest.approx(expected.mean_of(x))
-    assert estimator.belief.variance_of(x) == pytest.approx(expected.variance_of(x))
+    assert estimator.distribution.mean == pytest.approx(expected.mean)
+    assert estimator.distribution.covariance == pytest.approx(expected.covariance)
 
 
 def test_prediction_runs_every_cycle():
     x = Continuous("x")
-    prior_variance, process_noise = 1.0, 0.25
-    estimator = ScriptedReadingsEstimator(
-        variable=x, prior_variance=prior_variance, process_noise=process_noise
+    prior_variance, transition_variance = 1.0, 0.25
+    estimator = ScriptedObservationsEstimator(
+        variable=x,
+        prior_variance=prior_variance,
+        transition_variance=transition_variance,
     )
     executor = compiled_executor(estimator)
 
     executor.tick()
     executor.tick()
 
-    assert estimator.belief.variance_of(x) == pytest.approx(
-        prior_variance + estimator.cycles_measured * process_noise
+    assert estimator.distribution.variance([x])[x] == pytest.approx(
+        prior_variance + estimator.cycles_updated * transition_variance
     )
 
 
 # %% the build
 
 
-def test_estimator_registers_its_belief_in_the_context():
+def test_estimator_keeps_its_distribution_in_the_context():
     x = Continuous("x")
-    estimator = ScriptedReadingsEstimator(variable=x)
-
+    estimator = ScriptedObservationsEstimator(variable=x, observations_per_cycle=[1.0])
     executor = compiled_executor(estimator)
 
+    executor.tick()
+
     beliefs = executor.context.require_extension(BeliefContext)
-    assert beliefs.belief_of(x) is estimator.belief
+    assert beliefs.distribution_of(x) is estimator.distribution
 
 
 def test_two_estimators_of_one_variable_fail_to_compile():
@@ -186,20 +287,21 @@ def test_two_estimators_of_one_variable_fail_to_compile():
 
     with pytest.raises(DuplicateBeliefError):
         compiled_executor(
-            ScriptedReadingsEstimator(variable=x), ScriptedReadingsEstimator(variable=x)
+            ScriptedObservationsEstimator(variable=x),
+            ScriptedObservationsEstimator(variable=x),
         )
 
 
-def test_published_variable_is_unavailable_before_the_build():
-    estimator = ScriptedReadingsEstimator(variable=Continuous("x"))
+def test_the_distribution_is_unavailable_before_the_build():
+    estimator = ScriptedObservationsEstimator(variable=Continuous("x"))
 
     with pytest.raises(NodeNotBuiltError):
-        estimator.published_variable(estimator.variable, Statistic.MEAN)
+        estimator.mean_variable(estimator.variable)
 
 
-def test_a_statistic_the_belief_does_not_report_is_not_published():
-    estimator = ScriptedReadingsEstimator(variable=Continuous("x"))
+def test_a_value_the_distribution_does_not_have_is_not_published():
+    estimator = ScriptedObservationsEstimator(variable=Continuous("x"))
     compiled_executor(estimator)
 
-    with pytest.raises(UnpublishedStatisticError):
-        estimator.published_variable(estimator.variable, Statistic.PROBABILITY)
+    with pytest.raises(UnpublishedValueError):
+        estimator.probability_variable(estimator.variable, True)

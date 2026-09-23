@@ -5,6 +5,8 @@ from enum import IntEnum
 from krrood.adapters.json_serializer import to_json, from_json
 
 from probabilistic_model.distributions.distributions import *
+from probabilistic_model.distributions.multinomial import MultinomialDistribution
+from probabilistic_model.exceptions import ImpossibleEvidenceError, ShapeMismatchError
 from probabilistic_model.utils import (
     MissingDict,
     event_compatible_for_truncation_with_singletons,
@@ -175,8 +177,9 @@ class SymbolicDistributionTestCase(unittest.TestCase):
         self.assertEqual(prob, 1)
 
     def test_likelihood_survives_a_category_whose_hash_exceeds_the_modulus(self):
-        """A category still scores its true probability when its Python `hash()`
-        falls outside `sys.hash_info.modulus`.
+        """
+        A category still scores its true probability when its Python `hash()` falls
+        outside `sys.hash_info.modulus`.
 
         `probabilities` is keyed by `hash(category)`; `log_likelihood` used to hash
         that already-hashed key a second time. `int.__hash__` reduces any value
@@ -198,6 +201,80 @@ class SymbolicDistributionTestCase(unittest.TestCase):
 
         self.assertTrue(np.isfinite(log_likelihood[0]))
         self.assertAlmostEqual(log_likelihood[0], 0.0)
+
+
+class SymbolicBayesFilteringTestCase(unittest.TestCase):
+    """
+    One step of a discrete Bayes filter: a Markov transition of the state, then the
+    product with the likelihood of what was observed.
+    """
+
+    state = Symbolic(name="state", domain=Set.from_iterable(TestEnum))
+    next_state = Symbolic(name="next_state", domain=Set.from_iterable(TestEnum))
+    model: SymbolicDistribution
+
+    def setUp(self):
+        probabilities = MissingDict(float)
+        probabilities[hash(TestEnum.A)] = 7 / 20
+        probabilities[hash(TestEnum.B)] = 13 / 20
+        self.model = SymbolicDistribution(
+            variable=self.state, probabilities=probabilities
+        )
+
+    def probabilities_of(self, model: SymbolicDistribution) -> np.ndarray:
+        """
+        :return: The probability of each state, laid out by the domain.
+        """
+        return np.array([model.probabilities[hash(element)] for element in TestEnum])
+
+    def test_a_transition_sums_over_where_each_state_came_from(self):
+        transition = np.array([[0.9, 0.1, 0.0], [0.2, 0.5, 0.3], [0.0, 0.0, 1.0]])
+        transition_model = MultinomialDistribution(
+            distribution_variables=(self.state, self.next_state),
+            probabilities=transition,
+        )
+
+        transitioned = self.model.markov_transition(transition_model)
+
+        self.assertEqual(transitioned.variable, self.state)
+        np.testing.assert_allclose(
+            self.probabilities_of(transitioned),
+            self.probabilities_of(self.model) @ transition,
+        )
+
+    def test_a_transition_over_other_states_is_rejected(self):
+        other = Symbolic(name="other", domain=Set.from_iterable(["a", "b"]))
+        transition_model = MultinomialDistribution(
+            distribution_variables=(other, other), probabilities=np.eye(2)
+        )
+
+        with self.assertRaises(ShapeMismatchError):
+            self.model.markov_transition(transition_model)
+
+    def test_the_product_with_a_likelihood_follows_bayes_rule(self):
+        likelihoods = np.array([0.9, 0.3, 0.5])
+
+        product = self.model.product_with_likelihood(likelihoods)
+
+        unnormalized = self.probabilities_of(self.model) * likelihoods
+        np.testing.assert_allclose(
+            self.probabilities_of(product), unnormalized / unnormalized.sum()
+        )
+
+    def test_the_product_does_not_change_the_distribution_it_multiplied(self):
+        before = self.probabilities_of(self.model)
+
+        self.model.product_with_likelihood(np.array([0.9, 0.3, 0.5]))
+
+        np.testing.assert_array_equal(self.probabilities_of(self.model), before)
+
+    def test_evidence_impossible_under_the_distribution_is_rejected(self):
+        with self.assertRaises(ImpossibleEvidenceError):
+            self.model.product_with_likelihood(np.array([0.0, 0.0, 1.0]))
+
+    def test_likelihoods_not_laid_out_by_the_domain_are_rejected(self):
+        with self.assertRaises(ShapeMismatchError):
+            self.model.product_with_likelihood(np.array([0.5, 0.5]))
 
 
 class DiracDeltaDistributionTestCase(unittest.TestCase):

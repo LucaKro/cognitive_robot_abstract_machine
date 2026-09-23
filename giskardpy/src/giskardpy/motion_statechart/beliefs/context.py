@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from probabilistic_model.probabilistic_model import ProbabilisticModel
 from random_events.variable import Variable
 from typing_extensions import Dict, Self
 
-from giskardpy.motion_statechart.beliefs.belief import Belief
 from giskardpy.motion_statechart.context import (
     ContextExtension,
     MotionStatechartContext,
@@ -19,13 +19,13 @@ from giskardpy.motion_statechart.exceptions import (
 @dataclass
 class BeliefContext(ContextExtension):
     """
-    The beliefs a motion statechart holds about the world, each reachable by the
-    variables it is about.
+    What a motion statechart believes about the world: one distribution per group of
+    variables it estimates, each reachable by the variables it is over.
     """
 
-    beliefs: Dict[Variable, Belief] = field(default_factory=dict)
+    distributions: Dict[Variable, ProbabilisticModel] = field(default_factory=dict)
     """
-    The belief about each variable.
+    The distribution over each variable.
     """
 
     @classmethod
@@ -39,24 +39,42 @@ class BeliefContext(ContextExtension):
             context.add_extension(cls())
         return context.require_extension(cls)
 
-    def add(self, belief: Belief):
+    def add(self, distribution: ProbabilisticModel):
         """
-        :param belief: A belief about variables nothing is believed about yet.
-        :raises DuplicateBeliefError: If something is already believed about one of
-            its variables, in which case none of them is added.
+        :param distribution: A distribution over variables nothing is believed about yet.
+        :raises DuplicateBeliefError: If something is already believed about one of its
+            variables, in which case none of them is added.
         """
-        for variable in belief.variables:
-            if variable in self.beliefs:
+        for variable in distribution.variables:
+            if variable in self.distributions:
                 raise DuplicateBeliefError(variable=variable)
-        for variable in belief.variables:
-            self.beliefs[variable] = belief
+        self._assign(distribution)
 
-    def belief_of(self, variable: Variable) -> Belief:
+    def replace(self, distribution: ProbabilisticModel):
+        """
+        :param distribution: What is now believed about variables something was already
+            believed about.
+        :raises VariableWithoutBeliefError: If nothing is believed about one of its
+            variables yet, in which case none of them is replaced.
+        """
+        for variable in distribution.variables:
+            if variable not in self.distributions:
+                raise VariableWithoutBeliefError(variable=variable)
+        self._assign(distribution)
+
+    def distribution_of(self, variable: Variable) -> ProbabilisticModel:
         """
         :param variable: A variable something is believed about.
-        :return: The belief about it.
+        :return: The distribution over it.
         :raises VariableWithoutBeliefError: If nothing is believed about it.
         """
-        if variable not in self.beliefs:
+        if variable not in self.distributions:
             raise VariableWithoutBeliefError(variable=variable)
-        return self.beliefs[variable]
+        return self.distributions[variable]
+
+    def _assign(self, distribution: ProbabilisticModel):
+        """
+        Lead each variable of the distribution to it.
+        """
+        for variable in distribution.variables:
+            self.distributions[variable] = distribution
