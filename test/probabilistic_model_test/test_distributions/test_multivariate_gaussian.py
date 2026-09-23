@@ -10,6 +10,7 @@ from scipy.stats._multivariate import multivariate_normal_frozen
 
 from probabilistic_model.distributions.gaussian import GaussianDistribution
 from probabilistic_model.distributions.multivariate_gaussian import (
+    Covariance,
     LinearGaussianModel,
     MultivariateGaussianDistribution,
     TruncatedMultivariateGaussianDistribution,
@@ -43,7 +44,7 @@ def independent(horizontal, vertical) -> MultivariateGaussianDistribution:
     package.
     """
     return MultivariateGaussianDistribution.from_mean_and_covariance(
-        distribution_variables=(horizontal, vertical),
+        variables=(horizontal, vertical),
         mean=np.array([1.0, -2.0]),
         covariance=np.array([[4.0, 0.0], [0.0, 9.0]]),
     )
@@ -56,7 +57,7 @@ def correlated(horizontal, vertical) -> MultivariateGaussianDistribution:
     probability of a box.
     """
     return MultivariateGaussianDistribution.from_mean_and_covariance(
-        distribution_variables=(horizontal, vertical),
+        variables=(horizontal, vertical),
         mean=np.array([0.0, 0.0]),
         covariance=np.array([[1.0, 0.6], [0.6, 1.0]]),
     )
@@ -98,10 +99,65 @@ def one_variable(
         carries no layout worth restating at each of them.
     """
     return MultivariateGaussianDistribution.from_mean_and_covariance(
-        distribution_variables=(variable,),
+        variables=(variable,),
         mean=np.array([mean]),
         covariance=np.array([[variance]]),
     )
+
+
+# %% the covariance matrix
+
+
+class TestCovariance:
+    matrix = np.array([[1.0, 0.6, 0.0], [0.6, 2.0, -0.3], [0.0, -0.3, 3.0]])
+
+    def test_only_the_lower_triangle_of_the_matrix_is_stored(self):
+        covariance = Covariance.from_matrix(self.matrix)
+        rows, columns = np.tril_indices(len(self.matrix))
+        assert covariance.lower_triangle.tolist() == self.matrix[rows, columns].tolist()
+
+    def test_the_matrix_is_mirrored_from_the_lower_triangle(self):
+        assert Covariance.from_matrix(self.matrix).matrix.tolist() == (
+            self.matrix.tolist()
+        )
+
+    def test_its_dimension_is_the_size_of_the_matrix(self):
+        assert Covariance.from_matrix(self.matrix).dimension == len(self.matrix)
+
+    def test_an_entry_is_read_in_either_direction(self):
+        covariance = Covariance.from_matrix(self.matrix)
+        assert covariance.between(2, 1) == self.matrix[2, 1]
+        assert covariance.between(1, 2) == self.matrix[1, 2]
+
+    def test_the_variances_are_the_diagonal(self):
+        assert Covariance.from_matrix(self.matrix).variances.tolist() == (
+            np.diag(self.matrix).tolist()
+        )
+
+    def test_a_marginal_keeps_the_rows_and_columns_asked_for(self):
+        marginal = Covariance.from_matrix(self.matrix).marginal([2, 0])
+        assert marginal.matrix.tolist() == self.matrix[np.ix_([2, 0], [2, 0])].tolist()
+
+    def test_scaling_multiplies_each_entry_once_per_index_it_relates(self):
+        factors = np.array([2.0, 1.0, 3.0])
+        scaled = Covariance.from_matrix(self.matrix).scaled(factors)
+        assert scaled.matrix == pytest.approx(self.matrix * np.outer(factors, factors))
+
+    def test_a_matrix_with_entries_off_the_diagonal_is_not_diagonal(self):
+        assert not Covariance.from_matrix(self.matrix).is_diagonal
+        assert Covariance.from_matrix(np.diag(np.diag(self.matrix))).is_diagonal
+
+    def test_a_lower_triangle_of_the_wrong_length_is_rejected(self):
+        with pytest.raises(ShapeMismatchError) as error:
+            Covariance(lower_triangle=np.zeros(4))
+        assert error.value.expected_shape == (3,)
+        assert error.value.received_shape == (4,)
+
+    def test_a_matrix_that_is_not_square_is_rejected(self):
+        with pytest.raises(ShapeMismatchError) as error:
+            Covariance.from_matrix(np.zeros((2, 3)))
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (2, 3)
 
 
 # %% what the distribution is built from and holds
@@ -124,7 +180,7 @@ class TestBuildingADistribution:
 
     def test_a_distribution_about_one_variable_needs_no_layout(self, horizontal):
         distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=(horizontal,),
+            variables=(horizontal,),
             mean=np.array([3.0]),
             covariance=np.array([[0.25]]),
         )
@@ -137,7 +193,7 @@ class TestBuildingADistribution:
     ):
         with pytest.raises(ShapeMismatchError) as error:
             MultivariateGaussianDistribution.from_mean_and_covariance(
-                distribution_variables=(horizontal, vertical),
+                variables=(horizontal, vertical),
                 mean=np.array([0.0]),
                 covariance=np.zeros((2, 2)),
             )
@@ -149,40 +205,22 @@ class TestBuildingADistribution:
     ):
         with pytest.raises(ShapeMismatchError) as error:
             MultivariateGaussianDistribution.from_mean_and_covariance(
-                distribution_variables=(horizontal, vertical),
+                variables=(horizontal, vertical),
                 mean=np.zeros(2),
                 covariance=np.zeros((2, 3)),
             )
         assert error.value.expected_shape == (2, 2)
         assert error.value.received_shape == (2, 3)
 
-    def test_only_the_lower_triangle_of_the_covariance_is_stored(self, correlated):
-        rows, columns = np.tril_indices(len(correlated.variables))
-        assert correlated.covariance_lower_triangle.tolist() == (
-            correlated.covariance[rows, columns].tolist()
-        )
-
-    def test_the_covariance_is_mirrored_from_the_lower_triangle(
-        self, horizontal, vertical
-    ):
-        distribution = MultivariateGaussianDistribution(
-            distribution_variables=(horizontal, vertical),
-            mean=np.zeros(2),
-            covariance_lower_triangle=np.array([1.0, 0.6, 2.0]),
-        )
-        assert distribution.covariance.tolist() == [[1.0, 0.6], [0.6, 2.0]]
-
-    def test_a_lower_triangle_of_the_wrong_length_is_rejected(
-        self, horizontal, vertical
-    ):
+    def test_a_covariance_of_another_dimension_is_rejected(self, horizontal, vertical):
         with pytest.raises(ShapeMismatchError) as error:
             MultivariateGaussianDistribution(
-                distribution_variables=(horizontal, vertical),
+                variables=(horizontal, vertical),
                 mean=np.zeros(2),
-                covariance_lower_triangle=np.zeros(4),
+                covariance=Covariance(lower_triangle=np.ones(1)),
             )
-        assert error.value.expected_shape == (3,)
-        assert error.value.received_shape == (4,)
+        assert error.value.expected_shape == (2, 2)
+        assert error.value.received_shape == (1, 1)
 
     def test_reading_a_variable_the_distribution_is_not_about_is_rejected(
         self, independent
@@ -201,7 +239,7 @@ class TestBuildingADistribution:
         self, independent, horizontal, vertical
     ):
         assert independent.mean.tolist() == [1.0, -2.0]
-        assert independent.covariance.tolist() == [[4.0, 0.0], [0.0, 9.0]]
+        assert independent.covariance.matrix.tolist() == [[4.0, 0.0], [0.0, 9.0]]
 
     def test_the_support_is_every_value_the_variables_can_take(self, independent):
         """
@@ -398,7 +436,7 @@ class TestConditioningOnAValue:
         """
         first, second, given = horizontal, Continuous("second"), Continuous("given")
         distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=(first, second, given),
+            variables=(first, second, given),
             mean=np.zeros(3),
             covariance=np.array(
                 [
@@ -439,23 +477,15 @@ class TestProductWithAGaussianLikelihood:
         self, correlated, horizontal, vertical
     ):
         """
-        Observing every variable directly makes the likelihood a Gaussian density over
-        the same variables, so the answer divided by the two densities it multiplies is
-        the same constant everywhere.
+        The answer divided by the two densities it multiplies is the same constant
+        everywhere.
         """
-        observed = np.array([1.0, -0.5])
-        observation_covariance = np.array([[0.5, 0.1], [0.1, 2.0]])
         likelihood = MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=(horizontal, vertical),
-            mean=observed,
-            covariance=observation_covariance,
+            variables=(horizontal, vertical),
+            mean=np.array([1.0, -0.5]),
+            covariance=np.array([[0.5, 0.1], [0.1, 2.0]]),
         )
-        product = correlated.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.eye(2), covariance=observation_covariance
-            ),
-            observed=observed,
-        )
+        product = correlated.product_with_gaussian_likelihood(likelihood)
         points = np.array([[0.0, 0.0], [1.0, 2.0], [-3.0, 0.5]])
         log_normalization = (
             correlated.log_likelihood(points)
@@ -466,154 +496,80 @@ class TestProductWithAGaussianLikelihood:
             np.full(len(points), log_normalization[0])
         )
 
-    def test_an_observation_pulls_the_mean_toward_what_was_observed(
-        self, independent, horizontal
+    def test_a_density_over_fewer_variables_multiplies_only_those(
+        self, correlated, horizontal, vertical
     ):
+        """
+        A density over one of the variables is constant along the others, so the product
+        divided by the two densities is again the same constant everywhere.
+        """
+        likelihood = one_variable(vertical, 2.0, 0.5)
+        product = correlated.product_with_gaussian_likelihood(likelihood)
+        points = np.array([[0.0, 0.0], [1.0, 2.0], [-3.0, 0.5]])
+        log_normalization = (
+            correlated.log_likelihood(points)
+            + likelihood.log_likelihood(points[:, [1]])
+            - product.log_likelihood(points)
+        )
+        assert product.variables == correlated.variables
+        assert log_normalization == pytest.approx(
+            np.full(len(points), log_normalization[0])
+        )
+
+    def test_the_mean_moves_toward_the_other_mean(self, independent, horizontal):
         product = independent.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.array([[1.0, 0.0]]), covariance=np.array([[1.0]])
-            ),
-            observed=np.array([5.0]),
+            one_variable(horizontal, 5.0, 1.0)
         )
         assert mean_of(independent, horizontal) < mean_of(product, horizontal) < 5.0
 
-    def test_an_observation_always_leaves_the_mean_more_certain(
+    def test_the_product_is_more_certain_than_either_factor(
         self, independent, horizontal
     ):
         product = independent.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.array([[1.0, 0.0]]), covariance=np.array([[4.0]])
-            ),
-            observed=np.array([5.0]),
+            one_variable(horizontal, 5.0, 4.0)
         )
         assert variance_of(product, horizontal) < variance_of(independent, horizontal)
 
-    def test_an_observation_of_equal_certainty_lands_halfway(self, horizontal):
+    def test_two_equally_certain_densities_meet_halfway(self, horizontal):
         """
-        With the mean and the observation equally uncertain, neither outweighs the
-        other, so the product mean is their midpoint exactly.
+        With both densities equally uncertain, neither outweighs the other, so the
+        product mean is their midpoint exactly.
         """
         product = one_variable(horizontal, 0.0, 2.0).product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.array([[1.0]]), covariance=np.array([[2.0]])
-            ),
-            observed=np.array([10.0]),
+            one_variable(horizontal, 10.0, 2.0)
         )
         assert mean_of(product, horizontal) == pytest.approx(5.0)
 
-    def test_repeated_observations_accumulate_into_the_covariance(self, horizontal):
+    def test_repeated_products_accumulate_into_the_covariance(self, horizontal):
         """
         Checked against the information form — precisions add — rather than against a
         stored number, so the recursion is verified against an independent formulation
         of the same law instead of a second copy of itself.
         """
-        starting_variance, observation_variance, observations = 1.0, 4.0, 100
+        starting_variance, likelihood_variance, products = 1.0, 4.0, 100
         distribution = one_variable(horizontal, 0.0, starting_variance)
-        for _ in range(observations):
+        for _ in range(products):
             distribution = distribution.product_with_gaussian_likelihood(
-                observation_model=LinearGaussianModel.without_offset(
-                    matrix=np.array([[1.0]]),
-                    covariance=np.array([[observation_variance]]),
-                ),
-                observed=np.array([1.0]),
+                one_variable(horizontal, 1.0, likelihood_variance)
             )
 
-        expected_precision = 1 / starting_variance + observations / observation_variance
+        expected_precision = 1 / starting_variance + products / likelihood_variance
         assert variance_of(distribution, horizontal) == pytest.approx(
             1 / expected_precision
         )
-
-    def test_an_observation_of_several_variables_at_once_moves_all_of_them(
-        self, horizontal, vertical
-    ):
-        """
-        An observation of the sum of two variables says nothing about either one alone,
-        which is what stating an observation matrix buys over reading a variable itself.
-        """
-        distribution = MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=(horizontal, vertical),
-            mean=np.zeros(2),
-            covariance=np.eye(2),
-        )
-        product = distribution.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.array([[1.0, 1.0]]), covariance=np.array([[1.0]])
-            ),
-            observed=np.array([4.0]),
-        )
-        assert mean_of(product, horizontal) > 0.0
-        assert mean_of(product, vertical) > 0.0
-        assert mean_of(product, horizontal) == pytest.approx(mean_of(product, vertical))
-
-    def test_observing_nothing_leaves_the_mean_alone(self, independent, horizontal):
-        product = independent.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.zeros((0, 2)), covariance=np.zeros((0, 0))
-            ),
-            observed=np.zeros(0),
-        )
-        assert mean_of(product, horizontal) == mean_of(independent, horizontal)
-        assert variance_of(product, horizontal) == variance_of(independent, horizontal)
 
     def test_the_product_does_not_change_the_distribution_it_multiplied(
         self, independent, horizontal
     ):
         before = mean_of(independent, horizontal)
-        independent.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.array([[1.0, 0.0]]), covariance=np.array([[1.0]])
-            ),
-            observed=np.array([5.0]),
-        )
+        independent.product_with_gaussian_likelihood(one_variable(horizontal, 5.0, 1.0))
         assert mean_of(independent, horizontal) == before
 
-    def test_an_observation_offset_is_taken_off_what_was_observed(self, correlated):
-        """
-        A sensor that reads a bias on top of the variables says the same as one without
-        it that observed that much less.
-        """
-        matrix, covariance = np.array([[1.0, 0.5]]), np.array([[0.4]])
-        offset, observed = np.array([2.0]), np.array([3.0])
-
-        biased = correlated.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel(
-                matrix=matrix, offset=offset, covariance=covariance
-            ),
-            observed=observed,
-        )
-        unbiased = correlated.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=matrix, covariance=covariance
-            ),
-            observed=observed - offset,
-        )
-
-        assert biased.mean == pytest.approx(unbiased.mean)
-        assert biased.covariance == pytest.approx(unbiased.covariance)
-
-    def test_an_observation_matrix_of_the_wrong_width_is_rejected(self, independent):
-        with pytest.raises(ShapeMismatchError) as error:
-            independent.product_with_gaussian_likelihood(
-                observation_model=LinearGaussianModel.without_offset(
-                    matrix=np.array([[1.0]]), covariance=np.array([[1.0]])
-                ),
-                observed=np.array([0.0]),
-            )
-        assert error.value.expected_shape == (1, 2)
-        assert error.value.received_shape == (1, 1)
-
-    def test_observing_more_numbers_than_the_observation_matrix_describes_is_rejected(
-        self, independent
-    ):
-        with pytest.raises(ShapeMismatchError) as error:
-            independent.product_with_gaussian_likelihood(
-                observation_model=LinearGaussianModel.without_offset(
-                    matrix=np.array([[1.0, 0.0]]), covariance=np.array([[1.0]])
-                ),
-                observed=np.array([0.0, 1.0]),
-            )
-        assert error.value.expected_shape == (1,)
-        assert error.value.received_shape == (2,)
+    def test_a_density_over_a_variable_it_is_not_over_is_rejected(self, independent):
+        absent = Continuous("absent")
+        with pytest.raises(VariableNotInDistributionError) as error:
+            independent.product_with_gaussian_likelihood(one_variable(absent, 0.0, 1.0))
+        assert error.value.variable == absent
 
 
 # %% moving the variables one step on through a linear transition with Gaussian noise
@@ -634,15 +590,15 @@ class TestLinearGaussianTransition:
             LinearGaussianModel(
                 matrix=transition_matrix,
                 offset=offset,
-                covariance=transition_covariance,
+                covariance=Covariance.from_matrix(transition_covariance),
             )
         )
 
         assert transitioned.mean == pytest.approx(
             transition_matrix @ correlated.mean + offset
         )
-        assert transitioned.covariance == pytest.approx(
-            transition_matrix @ correlated.covariance @ transition_matrix.T
+        assert transitioned.covariance.matrix == pytest.approx(
+            transition_matrix @ correlated.covariance.matrix @ transition_matrix.T
             + transition_covariance
         )
 
@@ -651,19 +607,23 @@ class TestLinearGaussianTransition:
 
         transitioned = independent.linear_gaussian_transition(
             LinearGaussianModel(
-                matrix=np.eye(2), offset=np.zeros(2), covariance=transition_covariance
+                matrix=np.eye(2),
+                offset=np.zeros(2),
+                covariance=Covariance.from_matrix(transition_covariance),
             )
         )
 
         assert transitioned.mean == pytest.approx(independent.mean)
-        assert transitioned.covariance == pytest.approx(
-            independent.covariance + transition_covariance
+        assert transitioned.covariance.matrix == pytest.approx(
+            independent.covariance.matrix + transition_covariance
         )
 
     def test_the_transition_keeps_the_variables_and_their_layout(self, correlated):
         transitioned = correlated.linear_gaussian_transition(
             LinearGaussianModel(
-                matrix=np.eye(2), offset=np.zeros(2), covariance=np.zeros((2, 2))
+                matrix=np.eye(2),
+                offset=np.zeros(2),
+                covariance=Covariance.from_matrix(np.zeros((2, 2))),
             )
         )
 
@@ -676,7 +636,9 @@ class TestLinearGaussianTransition:
 
         independent.linear_gaussian_transition(
             LinearGaussianModel(
-                matrix=np.eye(2), offset=np.ones(2), covariance=np.eye(2)
+                matrix=np.eye(2),
+                offset=np.ones(2),
+                covariance=Covariance.from_matrix(np.eye(2)),
             )
         )
 
@@ -686,7 +648,9 @@ class TestLinearGaussianTransition:
         with pytest.raises(ShapeMismatchError) as error:
             independent.linear_gaussian_transition(
                 LinearGaussianModel(
-                    matrix=np.eye(3), offset=np.zeros(3), covariance=np.eye(3)
+                    matrix=np.eye(3),
+                    offset=np.zeros(3),
+                    covariance=Covariance.from_matrix(np.eye(3)),
                 )
             )
         assert error.value.expected_shape == (2, 2)
@@ -699,23 +663,20 @@ class TestLinearGaussianTransition:
 class TestLinearGaussianModel:
     def test_the_sizes_are_read_from_the_matrix(self):
         model = LinearGaussianModel(
-            matrix=np.ones((3, 2)), offset=np.zeros(3), covariance=np.eye(3)
+            matrix=np.ones((3, 2)),
+            offset=np.zeros(3),
+            covariance=Covariance.from_matrix(np.eye(3)),
         )
 
         assert model.number_of_inputs == 2
         assert model.number_of_outputs == 3
 
-    def test_a_model_without_offset_adds_nothing(self):
-        model = LinearGaussianModel.without_offset(
-            matrix=np.ones((3, 2)), covariance=np.eye(3)
-        )
-
-        assert model.offset == pytest.approx(np.zeros(3))
-
     def test_an_offset_not_laid_out_by_the_outputs_is_rejected(self):
         with pytest.raises(ShapeMismatchError) as error:
             LinearGaussianModel(
-                matrix=np.eye(2), offset=np.zeros(3), covariance=np.eye(2)
+                matrix=np.eye(2),
+                offset=np.zeros(3),
+                covariance=Covariance.from_matrix(np.eye(2)),
             )
         assert error.value.expected_shape == (2,)
         assert error.value.received_shape == (3,)
@@ -723,7 +684,9 @@ class TestLinearGaussianModel:
     def test_a_covariance_not_laid_out_by_the_outputs_is_rejected(self):
         with pytest.raises(ShapeMismatchError) as error:
             LinearGaussianModel(
-                matrix=np.eye(2), offset=np.zeros(2), covariance=np.eye(1)
+                matrix=np.eye(2),
+                offset=np.zeros(2),
+                covariance=Covariance.from_matrix(np.eye(1)),
             )
         assert error.value.expected_shape == (2, 2)
         assert error.value.received_shape == (1, 1)
@@ -815,7 +778,7 @@ class TestTranslationAndScaling:
         self, independent, horizontal
     ):
         independent.apply_scaling({horizontal: 2.0, Continuous("absent"): 5.0})
-        assert independent.covariance.tolist() == [[16.0, 0.0], [0.0, 9.0]]
+        assert independent.covariance.matrix.tolist() == [[16.0, 0.0], [0.0, 9.0]]
 
     def test_a_variable_left_out_of_a_scaling_keeps_its_size(
         self, independent, vertical
@@ -855,14 +818,16 @@ class TestCopying:
         copied = copy.deepcopy(correlated)
         assert copied.variables == correlated.variables
         assert copied.mean.tolist() == correlated.mean.tolist()
-        assert copied.covariance.tolist() == correlated.covariance.tolist()
+        assert (
+            copied.covariance.matrix.tolist() == correlated.covariance.matrix.tolist()
+        )
 
     def test_a_deep_copy_moves_without_moving_the_original(
         self, independent, horizontal
     ):
         copied = copy.deepcopy(independent)
         copied.apply_scaling({horizontal: 2.0})
-        assert independent.covariance.tolist() == [[4.0, 0.0], [0.0, 9.0]]
+        assert independent.covariance.matrix.tolist() == [[4.0, 0.0], [0.0, 9.0]]
 
     def test_a_deep_copy_of_a_truncated_distribution_keeps_its_box(
         self, correlated, horizontal, vertical
@@ -1008,7 +973,7 @@ class TestTruncation:
         would be: confining one of them moves where the other is most likely with it.
         """
         strongly_correlated = MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=(horizontal, vertical),
+            variables=(horizontal, vertical),
             mean=np.array([0.0, 0.0]),
             covariance=np.array([[1.0, 0.9], [0.9, 1.0]]),
         )

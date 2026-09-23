@@ -24,7 +24,7 @@ def standard_normal_over(*variables: Continuous) -> MultivariateGaussianDistribu
     :return: A standard normal distribution over the variables.
     """
     return MultivariateGaussianDistribution.from_mean_and_covariance(
-        distribution_variables=variables,
+        variables=variables,
         mean=np.zeros(len(variables)),
         covariance=np.eye(len(variables)),
     )

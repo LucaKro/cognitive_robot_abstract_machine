@@ -7,6 +7,7 @@ import pytest
 from probabilistic_model.distributions.distributions import SymbolicDistribution
 from probabilistic_model.distributions.multinomial import MultinomialDistribution
 from probabilistic_model.distributions.multivariate_gaussian import (
+    Covariance,
     LinearGaussianModel,
     MultivariateGaussianDistribution,
 )
@@ -76,7 +77,7 @@ class ScriptedObservationsEstimator(EstimatorNode[MultivariateGaussianDistributi
         self, context: MotionStatechartContext
     ) -> MultivariateGaussianDistribution:
         return MultivariateGaussianDistribution.from_mean_and_covariance(
-            distribution_variables=[self.variable],
+            variables=[self.variable],
             mean=[0.0],
             covariance=[[self.prior_variance]],
         )
@@ -90,7 +91,7 @@ class ScriptedObservationsEstimator(EstimatorNode[MultivariateGaussianDistributi
             LinearGaussianModel(
                 matrix=np.eye(1),
                 offset=np.zeros(1),
-                covariance=np.array([[self.transition_variance]]),
+                covariance=Covariance.from_matrix([[self.transition_variance]]),
             )
         )
 
@@ -121,10 +122,11 @@ class ScriptedObservationsEstimator(EstimatorNode[MultivariateGaussianDistributi
         :return: The distribution corrected by one observation of the variable.
         """
         return distribution.product_with_gaussian_likelihood(
-            observation_model=LinearGaussianModel.without_offset(
-                matrix=np.eye(1), covariance=np.array([[self.observation_variance]])
-            ),
-            observed=np.array([observed]),
+            MultivariateGaussianDistribution.from_mean_and_covariance(
+                variables=[self.variable],
+                mean=[observed],
+                covariance=[[self.observation_variance]],
+            )
         )
 
 
@@ -312,7 +314,9 @@ def test_evidence_in_a_cycle_corrects_the_distribution():
     executor.tick()
 
     assert estimator.distribution.mean == pytest.approx(expected.mean)
-    assert estimator.distribution.covariance == pytest.approx(expected.covariance)
+    assert estimator.distribution.covariance.matrix == pytest.approx(
+        expected.covariance.matrix
+    )
 
 
 def test_prediction_runs_every_cycle():
