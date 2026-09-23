@@ -372,3 +372,9 @@ Kicked off 2026-09-23 in auto mode. Branch `ground-truth-separation`, stacked on
 **Acceptance tests** (TDD, MuJoCo ones CI-only): an unobserved hinge that the world sets is not moved in the physics; a falling free body that is unobserved stays put in the world while the physics moves it; the divergence log holds both values; observed connections are still read back. In the cabinet scene, giskard commanding the unobserved drawer leaves the world's drawer open and the physical drawer closed, and the log records the gap.
 
 **Overlap.** Shares `multi_sim.py` and `cabinet_scene.py` with `sim-drawer-scene`. This item adds the read direction plus the set; the write rule it extends stays that item's.
+
+**What the implementation settled (2026-09-23, 96073ff3, aa1b1708)**
+- A connection that shares a degree of freedom with an unobserved one (a mimicking joint) is unobserved too, in both directions. The pendulum fixture's mirrored hinge showed the leak: its read-back overwrote the shared degree of freedom. Divergence is recorded only for the listed connections.
+- Building a `MujocoSim` re-roots the world and gives free bodies new free connections. So connections are looked up after the simulation is built; `environment_connections` is a property for that reason.
+- `_read_6dof_from_qpos`/`_read_1dof_from_qpos` keep their names (`test_multi_sim.py` patches one by name) but now return positions, which the read and the divergence share.
+- Verified locally (no ROS): the semdt MuJoCo tests give 40 passed, 2 skipped. The Tracy cabinet tests are CI-only; the same giskard scenario on a cabinet-only world gave believed ≈ fully open, physics 0.0, log matching.
