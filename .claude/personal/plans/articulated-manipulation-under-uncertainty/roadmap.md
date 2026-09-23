@@ -86,3 +86,16 @@ Closed-loop hardware trials stay in wave 4. `coupling-belief` and `handle-pose-e
 - **Fork only.** Never push to, comment on, or open PRs against `cram2`; releasing there is the user's action.
 - **Targeted test files only**; never the full suite. Do not read `ormatic_interface.py` files.
 - **Items with two unlanded dependencies** (`joint-state-estimator`, `handle-pose-estimator`, `sensor-model-calibration`, `estimator-replay-harness`) cannot be stacked by `plan_stack`. Ask the user at kickoff.
+
+Kicked off 2026-09-23 in auto mode. Branch `sim-drawer-scene` from `main`, draft PR #24.
+
+**Finding that shapes the item.** `MujocoSynchronizer._write_connections_to_qpos` writes every world-state change of an unactuated 1-DOF joint straight into `qpos` (`_write_1dof_to_qpos`). So a drawer that giskard integrates as a decision variable is teleported in the physics every cycle, and the read-back after the step then confirms it. That breaks the acceptance rule directly. The *write* direction is this item's to fix.
+
+**Decisions**
+- In stepped simulation, a 1-DOF joint without a hardware interface (`is_controlled` is false) is owned by the physics, and the world never writes it into `qpos`. The world reaches the physics only through the servos, as it would on a real robot. Threaded simulation keeps today's behaviour, so existing users that set environment joints through the world are not affected. The rule is keyed on the existing `has_hardware_interface` flag rather than a new per-scene list.
+- The scene is library code in `experiments`, not a test fixture, because `baseline-stock-cram` and the evaluator reuse it. It is built from the existing `Cabinet`/`Drawer`/`Door`/`Slider`/`Hinge`/`Handle` factories.
+- The acceptance is shown twice: (a) giskard commanding the drawer joint leaves the physical drawer where it is; (b) Tracy's hand pushing the drawer front moves it, and the world reads the new position back. The same pair is checked for the door variant.
+
+**Overlap.** `ground-truth-separation` owns the *read* direction (the physics overwriting the controller's belief). The two directions should converge into one concept when that item lands.
+
+**Open.** MuJoCo tests run only in CI, and Tracy's description comes from the CI image, so the Tracy scene tests are verified in CI.
