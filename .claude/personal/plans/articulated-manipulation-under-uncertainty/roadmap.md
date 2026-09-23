@@ -202,3 +202,58 @@ Resolved 2026-09-23 (auto mode). What was holding the PR up: the one unresolved 
 **Tooling note.** `plan_item_brief` crashed in this cloud session because it reads review threads over GraphQL, which cloud sessions refuse. The thread was read over REST (`/pulls/{n}/ccr/review_threads`).
 
 **Second review round (2026-09-23).** The review pointed out that `front_distance` and `sideways_offset` together were a 2D pose. They are now one field, `table_T_cabinet_front: Pose2D`: the centre of the cabinet's open front in Tracy's table frame, whose yaw turns the cabinet about that point. That gives the later cabinet-yaw sweeps their parameter. The push test places its waypoints in the cabinet's own frame (131d75ca).
+
+## `belief-core` — first review round: the probability concepts move to probabilistic_model
+
+Resolved 2026-09-23 (auto mode). CI was green on `23df0ae6`, ORM regeneration included.
+What held the PR up was the author's review, with four unresolved threads:
+
+- The review body: *"make sure that there are no duplications with Probabilistic model,
+  and to adhere to its naming conventions"*.
+- `belief.py` and `binary.py`: *"arent these things that could go into probabilistic model?"*
+- `gaussian.py:63` (`Reading`): *"i dont like these names"*.
+- `gaussian.py`, whole file: *"this as well"*.
+
+**This reverses the item's recorded note** ("predict and update live here, not in
+probabilistic_model"). The user decided to move them into probabilistic_model, within
+this PR. They did not go into #22 or into a new item.
+
+### What moves, and what it replaces
+
+- **`MultivariateGaussianDistribution.linear_gaussian_transition(transition_matrix,
+  offset, transition_covariance)`** is the Kalman prediction. It returns the
+  distribution of `F x + b + w`, `w ~ N(0, Q)`, and takes arrays laid out by the
+  variables, the same way #22's `product_with_gaussian_likelihood(observation_matrix,
+  observed, observation_covariance)` does. The same `ShapeMismatchError` checks apply.
+  #22's `_joint_with_observation` computed `H m` and `H P Hᵀ + R`, which is this
+  transition with no offset, so it now reuses it instead of keeping a second copy.
+  `LinearPrediction` and `Reading` go away, and so do their names: the update is #22's
+  product, called directly.
+- **`SymbolicDistribution.markov_transition(transition_model)`** is the discrete
+  prediction. The transition model is a `MultinomialDistribution` over `(state,
+  next_state)`, indexed `[state, next_state]` by domain order, as `markov_chain.py`'s
+  `transition_model` is. **`SymbolicDistribution.product_with_likelihood(likelihoods)`**
+  is the discrete update. The likelihoods are laid out by the variable's domain. A
+  product that is zero everywhere raises `ImpossibleEvidenceError`, now in
+  probabilistic_model. This covers any finite state, not only binary. `BinaryBelief`,
+  `BinaryTransition` and `BinaryEvidence` go away.
+- **`Belief`, `Statistic` and `VariableStatistic` go away.** A belief *is* a
+  `ProbabilisticModel`. What gets published is read through probabilistic_model's own
+  `expectation`, `variance` and `probability`.
+
+### What stays in giskardpy
+
+- `BeliefContext` holds the statechart's distributions by variable: `add`,
+  `distribution_of` and `replace`. It keeps `DuplicateBeliefError` and
+  `VariableWithoutBeliefError`.
+- `EstimatorNode[ModelT]`. A subclass states `create_initial_distribution`, `predict` and
+  `update`. `update` returns `None` in a cycle without evidence. The node publishes the
+  mean and variance of every numeric variable and the probability of every value of every
+  symbolic variable. It still observes TRUE only in a cycle with evidence.
+- The giskardpy-side validation exceptions (`NegativeVarianceError`,
+  `ProbabilityOutOfRangeError`, `NegativeLikelihoodError`) go with the types they checked.
+
+### Overlap
+
+This branch now also edits #22's `multivariate_gaussian.py` and its test file. When #22
+changes, carry it up through the stack (`gh stack rebase --upstack`). Do not merge by hand.
