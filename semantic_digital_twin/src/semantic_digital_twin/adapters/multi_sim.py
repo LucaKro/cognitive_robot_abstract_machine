@@ -3138,6 +3138,13 @@ class MujocoSynchronizer(MultiSimSynchronizer):
     opposite extreme: sync on every call, with no throttling at all.
     """
 
+    physics_moves_uncommanded_joints: bool = False
+    """
+    Whether a 1-DOF joint with neither a hardware interface nor an actuator, such as a
+    drawer's slider, is moved only by the physics: its position in the world is then
+    never written into MuJoCo, so it moves only when something pushes it.
+    """
+
     _last_sync_time: float = field(init=False, default=0.0, repr=False)
 
     def __post_init__(self):
@@ -3285,15 +3292,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                         actuator_name = actuator_name_by_dof_id.get(
                             connection.raw_dof.id
                         )
-                        if actuator_name is None:
-                            self._write_1dof_to_qpos(
-                                connection,
-                                joint_backed.qpos_address,
-                                positions,
-                                previous_positions,
-                                state_index,
-                            )
-                        else:
+                        if actuator_name is not None:
                             self._command_actuator(
                                 connection,
                                 actuator_name,
@@ -3301,8 +3300,27 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                                 previous_positions,
                                 state_index,
                             )
+                        elif not self._is_moved_only_by_physics(connection):
+                            self._write_1dof_to_qpos(
+                                connection,
+                                joint_backed.qpos_address,
+                                positions,
+                                previous_positions,
+                                state_index,
+                            )
                     case _:
                         self._warn_unsupported_connection("world→sim", connection)
+
+    def _is_moved_only_by_physics(self, connection: ActiveConnection1DOF) -> bool:
+        """
+        :param connection: A 1-DOF connection that no actuator drives.
+        :return: Whether the world's position for ``connection`` must not be written
+            into MuJoCo (see :attr:`physics_moves_uncommanded_joints`).
+        """
+        return (
+            self.physics_moves_uncommanded_joints
+            and not connection.has_hardware_interface
+        )
 
     def _actuator_names_by_degree_of_freedom(self) -> Dict[Any, str]:
         """
@@ -3684,13 +3702,16 @@ class MujocoSim(MultiSim):
         than at the synchronizer's throttled rate.
 
         Every servo is handed the position its joint currently holds in the world, so
-        nothing rushes towards zero the moment the physics starts.
+        nothing rushes towards zero the moment the physics starts. A joint no controller
+        commands is left to the physics from then on
+        (see :attr:`MujocoSynchronizer.physics_moves_uncommanded_joints`).
 
         :raises SimulationAlreadyRunningError: If the simulation is already running.
         """
         if self.simulator.state == SimulatorState.RUNNING:
             raise SimulationAlreadyRunningError(self.world.root.name.name)
         self.synchronizer.sync_rate_hz = MujocoSynchronizer.UNTHROTTLED_SYNC_RATE_HZ
+        self.synchronizer.physics_moves_uncommanded_joints = True
         self.simulator.start(simulate_in_thread=False, render_in_thread=False)
         self.synchronizer.command_actuators_from_world_state()
 
