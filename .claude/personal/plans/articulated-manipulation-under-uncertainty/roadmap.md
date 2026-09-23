@@ -200,3 +200,5 @@ Resolved 2026-09-23 (auto mode). What was holding the PR up: the one unresolved 
 - The cabinet is fixed to the world root rather than the table, so it is not part of Tracy's subtree.
 
 **Tooling note.** `plan_item_brief` crashed in this cloud session because it reads review threads over GraphQL, which cloud sessions refuse. The thread was read over REST (`/pulls/{n}/ccr/review_threads`).
+
+**Second review round (2026-09-23).** The review pointed out that `front_distance` and `sideways_offset` together were a 2D pose. They are now one field, `table_T_cabinet_front: Pose2D`: the centre of the cabinet's open front in Tracy's table frame, whose yaw turns the cabinet about that point. That gives the later cabinet-yaw sweeps their parameter. The push test places its waypoints in the cabinet's own frame (131d75ca).
