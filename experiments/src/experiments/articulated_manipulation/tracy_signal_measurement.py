@@ -20,50 +20,38 @@ from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from typing_extensions import Any, List, Optional
+from typing_extensions import ClassVar, Generic, List, Optional, TypeVar
 
 from krrood.adapters.json_serializer import to_json
 
 from experiments.articulated_manipulation.signal_statistics import (
-    MINIMUM_SAMPLE_COUNT,
     SignalRecording,
     SignalStatistics,
 )
 from experiments.articulated_manipulation.tracy_signals import (
+    SignalChannel,
     TracySignal,
     TracySignalInventory,
 )
+from semantic_digital_twin.adapters.urdf import URDFParser
+from semantic_digital_twin.robots.tracy import Tracy
 
-RECEIVE_QUEUE_DEPTH = 1_000
-"""
-How many messages a subscription holds before dropping the oldest: two seconds of the
-fastest signal, so that a late callback does not drop samples and make the driver look
-slower than it is.
-"""
-
-NODE_NAME = "tracy_signal_measurement"
-"""
-The name of the node that records the signals.
-"""
-
-JSON_INDENTATION = 2
-"""
-Spaces per nesting level in the written report, so it can be read and diffed.
-"""
+MessageType = TypeVar("MessageType")
 
 # %% recording
 
 
 @dataclass
-class SignalRecorder:
+class SignalRecorder(Generic[MessageType]):
     """
     Collects the samples of one signal from the messages it is published in.
     """
 
-    signal: TracySignal
+    signal: TracySignal[MessageType]
     """
     The signal being recorded.
     """
@@ -73,12 +61,12 @@ class SignalRecorder:
     When each recorded sample was taken, in seconds.
     """
 
-    values: List[np.ndarray] = field(default_factory=list, init=False)
+    values: List[npt.NDArray[np.float64]] = field(default_factory=list, init=False)
     """
     The channels' values of each recorded sample.
     """
 
-    def receive(self, message: Any) -> None:
+    def receive(self, message: MessageType) -> None:
         """
         Record the sample the message carries, unless it does not carry the signal.
 
@@ -93,11 +81,11 @@ class SignalRecorder:
         """
         :return: Every sample recorded so far.
         """
+        channels = self.signal.channels
         return SignalRecording(
             stamps=np.array(self.stamps),
-            values=np.array(self.values).reshape(
-                len(self.stamps), len(self.signal.channels)
-            ),
+            values=np.array(self.values).reshape(len(self.stamps), len(channels)),
+            channel_names=[channel.name for channel in channels],
         )
 
 
@@ -110,9 +98,14 @@ class SignalMeasurement:
     Whether one signal arrived during a measurement, and if so, how it behaved.
     """
 
-    signal: TracySignal
+    topic: str
     """
-    The signal measured.
+    The topic the signal was expected on.
+    """
+
+    channels: List[SignalChannel]
+    """
+    The values the signal carries.
     """
 
     statistics: Optional[SignalStatistics]
@@ -122,17 +115,18 @@ class SignalMeasurement:
     """
 
     @classmethod
-    def from_recording(
-        cls, signal: TracySignal, recording: SignalRecording
-    ) -> SignalMeasurement:
+    def from_recorder(cls, recorder: SignalRecorder) -> SignalMeasurement:
         """
-        :param signal: The signal measured.
-        :param recording: Every sample of it that arrived.
+        :param recorder: The recorder of the signal, once the measurement is over.
         :return: The measurement of the signal.
         """
-        if recording.stamps.size < MINIMUM_SAMPLE_COUNT:
-            return cls(signal=signal, statistics=None)
-        return cls(signal=signal, statistics=recording.statistics())
+        recording = recorder.recording()
+        arrived = recording.stamps.size >= SignalRecording.minimum_sample_count
+        return cls(
+            topic=recorder.signal.topic,
+            channels=recorder.signal.channels,
+            statistics=recording.statistics() if arrived else None,
+        )
 
     @property
     def is_exposed(self) -> bool:
@@ -157,6 +151,17 @@ class TracySignalReport:
     """
     The measurement of each signal, in the order of the inventory.
     """
+
+    json_indentation: ClassVar[int] = 2
+    """
+    Spaces per nesting level in the written report, so it can be read and diffed.
+    """
+
+    def write(self, path: Path) -> None:
+        """
+        :param path: Where to write the report as JSON.
+        """
+        path.write_text(json.dumps(to_json(self), indent=self.json_indentation))
 
 
 # %% measuring
@@ -185,6 +190,13 @@ class AtRestMeasurement:
     How long to record, in seconds.
     """
 
+    receive_queue_depth: ClassVar[int] = 1_000
+    """
+    How many messages a subscription holds before dropping the oldest: two seconds of
+    the fastest signal, so that a late callback does not drop samples and make the
+    driver look slower than it is.
+    """
+
     def run(self) -> TracySignalReport:
         """
         :return: The measurement of every signal, recorded for :attr:`duration`.
@@ -195,7 +207,7 @@ class AtRestMeasurement:
                 recorder.signal.message_type(),
                 recorder.signal.topic,
                 recorder.receive,
-                RECEIVE_QUEUE_DEPTH,
+                self.receive_queue_depth,
             )
             for recorder in recorders
         ]
@@ -205,10 +217,7 @@ class AtRestMeasurement:
         return TracySignalReport(
             duration=self.duration,
             measurements=[
-                SignalMeasurement.from_recording(
-                    signal=recorder.signal, recording=recorder.recording()
-                )
-                for recorder in recorders
+                SignalMeasurement.from_recorder(recorder) for recorder in recorders
             ],
         )
 
@@ -248,6 +257,11 @@ class MeasurementSettings:
     Where to write the JSON report.
     """
 
+    node_name: ClassVar[str] = "tracy_signal_measurement"
+    """
+    The name of the node that records the signals.
+    """
+
     @classmethod
     def from_command_line(cls) -> MeasurementSettings:
         """
@@ -265,18 +279,21 @@ def main() -> None:
     Measure every signal of Tracy and write the report.
     """
     settings = MeasurementSettings.from_command_line()
+    world = URDFParser.from_file(file_path=Tracy.get_ros_file_path()).parse()
+    Tracy.from_world(world)
+    tracy = world.get_semantic_annotations_by_type(Tracy)[0]
     rclpy.init()
-    node = rclpy.create_node(NODE_NAME)
+    node = rclpy.create_node(settings.node_name)
     executor = SingleThreadedExecutor()
     executor.add_node(node)
     spinner = threading.Thread(target=executor.spin, daemon=True)
     spinner.start()
     report = AtRestMeasurement(
         node=node,
-        inventory=TracySignalInventory.of_tracy(),
+        inventory=TracySignalInventory.of_tracy(tracy),
         duration=settings.duration,
     ).run()
-    settings.output.write_text(json.dumps(to_json(report), indent=JSON_INDENTATION))
+    report.write(settings.output)
     executor.shutdown()
     spinner.join()
     node.destroy_node()
