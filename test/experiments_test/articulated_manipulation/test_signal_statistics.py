@@ -119,10 +119,8 @@ def test_smallest_step_is_the_quantisation_of_a_register_value():
 # %% invalid recordings
 
 
-def test_too_few_samples_have_no_statistics():
-    recording = recording_of_one_channel(
-        np.arange(SignalRecording.minimum_sample_count - 1) * 0.01
-    )
+def test_a_single_sample_has_no_statistics():
+    recording = recording_of_one_channel(np.zeros(1))
 
     with pytest.raises(TooFewSamplesError):
         recording.statistics()

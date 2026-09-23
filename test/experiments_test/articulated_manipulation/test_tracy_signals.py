@@ -15,23 +15,19 @@ from control_msgs.msg import DynamicJointState, InterfaceValue
 from geometry_msgs.msg import WrenchStamped
 from sensor_msgs.msg import JointState
 
-from krrood.adapters.json_serializer import from_json, to_json
-
 from experiments.articulated_manipulation.tracy_signals import (
     ArmJointEffort,
     DriverInterface,
     FingerPosition,
     GripperMotorCurrent,
     ObjectDetection,
+    ObjectDetectionStatus,
     PartWithoutDriverError,
-    SignalChannel,
     TopicName,
     TracyDriverNamespace,
     TracySignalInventory,
-    WrenchComponent,
     WristWrench,
 )
-from semantic_digital_twin.robots.robotiq_85_gripper import ObjectDetectionStatus
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.utils import tracy_installed
 
@@ -142,13 +138,13 @@ def test_finger_position_reads_the_knuckle_joint_position(tracy):
 
 
 def test_gripper_motor_current_is_read_back_as_register_counts(tracy):
-    gripper = tracy.right_arm.end_effector
-    message = gripper_joint_state(gripper.knuckle_joint.name.name)
-    message.effort = [0.0, GripperMotorCurrent.driver_maximum_force]
+    signal = GripperMotorCurrent(gripper=tracy.right_arm.end_effector)
+    message = gripper_joint_state(signal.gripper.knuckle_joint.name.name)
+    message.effort = [0.0, signal.driver_maximum_force]
 
-    values = GripperMotorCurrent(gripper=gripper).read(message)
+    values = signal.read(message)
 
-    np.testing.assert_allclose(values, [GripperMotorCurrent.register_maximum])
+    np.testing.assert_allclose(values, [signal.register_maximum])
 
 
 def test_joint_state_without_the_joint_is_not_read(tracy):
@@ -210,18 +206,6 @@ def test_dynamic_joint_state_without_the_status_interface_is_not_read(tracy):
 def test_part_without_a_driver_has_no_namespace(tracy):
     with pytest.raises(PartWithoutDriverError):
         TracyDriverNamespace.of_part(tracy.get_default_camera())
-
-
-# %% units
-
-
-def test_channel_survives_a_round_trip_through_json():
-    units = pint.get_application_registry()
-    channel = SignalChannel(
-        name=WrenchComponent.TORQUE_X, unit=units.newton * units.meter
-    )
-
-    assert from_json(to_json(channel)) == channel
 
 
 # %% inventory

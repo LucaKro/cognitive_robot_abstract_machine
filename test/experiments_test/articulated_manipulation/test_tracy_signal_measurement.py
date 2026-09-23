@@ -14,7 +14,6 @@ from sensor_msgs.msg import JointState
 
 from krrood.adapters.json_serializer import from_json, to_json
 
-from experiments.articulated_manipulation.signal_statistics import SignalRecording
 from experiments.articulated_manipulation.tracy_signal_measurement import (
     AtRestMeasurement,
     SignalMeasurement,
@@ -101,11 +100,8 @@ def test_recorder_skips_messages_that_do_not_carry_the_signal(tracy):
 # %% measurements
 
 
-def test_signal_that_barely_arrived_is_not_exposed(tracy):
-    recorder = wrench_recorder(
-        WristWrench(sensor=tracy.left_arm.sensors[0]),
-        SignalRecording.minimum_sample_count - 1,
-    )
+def test_signal_with_a_single_sample_is_not_exposed(tracy):
+    recorder = wrench_recorder(WristWrench(sensor=tracy.left_arm.sensors[0]), 1)
 
     measurement = SignalMeasurement.from_recorder(recorder)
 

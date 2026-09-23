@@ -24,7 +24,7 @@ import numpy.typing as npt
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from typing_extensions import ClassVar, Generic, List, Optional, TypeVar
+from typing_extensions import Generic, List, Optional, TypeVar
 
 from krrood.adapters.json_serializer import to_json
 
@@ -37,7 +37,7 @@ from experiments.articulated_manipulation.tracy_signals import (
     TracySignal,
     TracySignalInventory,
 )
-from semantic_digital_twin.adapters.urdf import URDFParser
+from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.robots.tracy import Tracy
 
 MessageType = TypeVar("MessageType")
@@ -121,11 +121,10 @@ class SignalMeasurement:
         :return: The measurement of the signal.
         """
         recording = recorder.recording()
-        arrived = recording.stamps.size >= SignalRecording.minimum_sample_count
         return cls(
             topic=recorder.signal.topic,
             channels=recorder.signal.channels,
-            statistics=recording.statistics() if arrived else None,
+            statistics=recording.statistics() if recording.is_timed else None,
         )
 
     @property
@@ -152,16 +151,12 @@ class TracySignalReport:
     The measurement of each signal, in the order of the inventory.
     """
 
-    json_indentation: ClassVar[int] = 2
-    """
-    Spaces per nesting level in the written report, so it can be read and diffed.
-    """
-
-    def write(self, path: Path) -> None:
+    def write(self, path: Path, indentation: int) -> None:
         """
         :param path: Where to write the report as JSON.
+        :param indentation: Spaces per nesting level in the written JSON.
         """
-        path.write_text(json.dumps(to_json(self), indent=self.json_indentation))
+        path.write_text(json.dumps(to_json(self), indent=indentation))
 
 
 # %% measuring
@@ -190,7 +185,7 @@ class AtRestMeasurement:
     How long to record, in seconds.
     """
 
-    receive_queue_depth: ClassVar[int] = 1_000
+    receive_queue_depth: int = field(default=1_000, kw_only=True)
     """
     How many messages a subscription holds before dropping the oldest: two seconds of
     the fastest signal, so that a late callback does not drop samples and make the
@@ -257,9 +252,14 @@ class MeasurementSettings:
     Where to write the JSON report.
     """
 
-    node_name: ClassVar[str] = "tracy_signal_measurement"
+    node_name: str = field(default="tracy_signal_measurement", kw_only=True)
     """
     The name of the node that records the signals.
+    """
+
+    report_indentation: int = field(default=2, kw_only=True)
+    """
+    Spaces per nesting level in the written report, so it can be read and diffed.
     """
 
     @classmethod
@@ -279,8 +279,7 @@ def main() -> None:
     Measure every signal of Tracy and write the report.
     """
     settings = MeasurementSettings.from_command_line()
-    world = URDFParser.from_file(file_path=Tracy.get_ros_file_path()).parse()
-    Tracy.from_world(world)
+    world = WorldSpecification(robots=[RobotSpecification(Tracy)]).to_domain_object()
     tracy = world.get_semantic_annotations_by_type(Tracy)[0]
     rclpy.init()
     node = rclpy.create_node(settings.node_name)
@@ -293,7 +292,7 @@ def main() -> None:
         inventory=TracySignalInventory.of_tracy(tracy),
         duration=settings.duration,
     ).run()
-    report.write(settings.output)
+    report.write(settings.output, settings.report_indentation)
     executor.shutdown()
     spinner.join()
     node.destroy_node()

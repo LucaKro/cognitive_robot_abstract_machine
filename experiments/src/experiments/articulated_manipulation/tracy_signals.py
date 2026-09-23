@@ -14,8 +14,8 @@ measured; how often the signals really arrive and how noisy they are is measured
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import StrEnum
+from dataclasses import dataclass, field
+from enum import IntEnum, StrEnum
 
 import numpy as np
 import numpy.typing as npt
@@ -23,13 +23,10 @@ import pint
 from control_msgs.msg import DynamicJointState, InterfaceValue
 from geometry_msgs.msg import WrenchStamped
 from sensor_msgs.msg import JointState
-from typing_extensions import Any, ClassVar, Dict, Generic, List, Type, TypeVar
+from typing_extensions import Dict, Generic, List, Type, TypeVar
 
-from krrood.adapters.json_field import JSONField
-from krrood.adapters.json_serializer import ExternalClassJSONSerializer
 from krrood.exceptions import DataclassException
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
-from krrood.utils import get_full_class_name
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobotPart,
     Arm,
@@ -148,6 +145,33 @@ class DriverInterface(StrEnum):
     OBJECT_DETECTION_STATUS = "object_detection_status"
 
 
+class ObjectDetectionStatus(IntEnum):
+    """
+    What a Robotiq gripper reports about its fingers' motion, as its ``gOBJ`` register
+    holds it.
+    """
+
+    MOVING = 0
+    """
+    The fingers are moving towards the requested position.
+    """
+
+    OBJECT_DETECTED_OPENING = 1
+    """
+    The fingers stopped while opening because they touched something.
+    """
+
+    OBJECT_DETECTED_CLOSING = 2
+    """
+    The fingers stopped while closing because they touched something.
+    """
+
+    AT_REQUESTED_POSITION = 3
+    """
+    The fingers reached the requested position without touching anything.
+    """
+
+
 # %% channels
 
 
@@ -168,38 +192,6 @@ class SignalChannel:
     """
 
 
-class PintUnitJSONKey(StrEnum):
-    """
-    The keys of the JSON a pint unit is serialized to.
-    """
-
-    UNIT = "unit"
-    """
-    The unit, spelled as pint parses it back.
-    """
-
-
-@dataclass
-class PintUnitJSONSerializer(ExternalClassJSONSerializer[pint.Unit]):
-    """
-    Serializes a pint unit by its spelling, and reads it back into pint's application
-    registry.
-    """
-
-    @classmethod
-    def to_json(cls, obj: pint.Unit, **kwargs) -> Dict[str, Any]:
-        return {
-            JSONField.TYPE: get_full_class_name(type(obj)),
-            PintUnitJSONKey.UNIT: str(obj),
-        }
-
-    @classmethod
-    def from_json(
-        cls, data: Dict[str, Any], clazz: Type[pint.Unit], **kwargs
-    ) -> pint.Unit:
-        return pint.get_application_registry().Unit(data[PintUnitJSONKey.UNIT])
-
-
 # %% signals
 
 
@@ -208,16 +200,6 @@ class TracySignal(Generic[MessageType], SubClassSafeGeneric, ABC):
     """
     A signal about one part of Tracy, published by the part's driver as messages of
     the bound type.
-    """
-
-    nominal_rate: ClassVar[float]
-    """
-    How often the driver is configured to publish the signal, in Hz.
-    """
-
-    nanoseconds_per_second: ClassVar[float] = 1e9
-    """
-    Nanoseconds in a second, for converting a message stamp to seconds.
     """
 
     @classmethod
@@ -274,10 +256,12 @@ class TracySignal(Generic[MessageType], SubClassSafeGeneric, ABC):
         :param message: A message that carries the signal.
         :return: When the driver took the sample, in seconds.
         """
-        return (
-            message.header.stamp.sec
-            + message.header.stamp.nanosec / self.nanoseconds_per_second
+        units = pint.get_application_registry()
+        stamp = (
+            message.header.stamp.sec * units.second
+            + message.header.stamp.nanosec * units.nanosecond
         )
+        return stamp.to(units.second).magnitude
 
 
 @dataclass
@@ -285,7 +269,8 @@ class WristWrench(TracySignal[WrenchStamped]):
     """
     The force and torque a UR10e's built-in sensor measures at its flange, expressed
     in the tool frame configured on the robot's controller and compensated for the
-    configured payload.
+    configured payload. It is published at the rate the UR10e's controller manager runs
+    at, 500 Hz (``ur10e_update_rate.yaml`` of the UR driver).
 
     ..note:: The header names ``<side>_tool0`` as the frame, which is only right while
         the tool frame configured on the controller is the flange itself.
@@ -294,12 +279,6 @@ class WristWrench(TracySignal[WrenchStamped]):
     sensor: ForceTorqueSensor
     """
     The wrist sensor the wrench is measured by.
-    """
-
-    nominal_rate: ClassVar[float] = 500.0
-    """
-    How often the UR10e's controller manager runs, which is how often its broadcasters
-    publish (``ur10e_update_rate.yaml`` of the UR driver).
     """
 
     @property
@@ -383,19 +362,15 @@ class GripperJointStateSignal(JointStateSignal, ABC):
     """
     One field of a gripper's driven knuckle joint, the only gripper joint its driver
     reports.
+
+    It is published at the rate the gripper's controller manager runs at, 100 Hz
+    (``robotiq_controllers_85.yaml`` of ``iai_tracy``). The driver reads the gripper over
+    its serial connection in a separate loop, so new values may arrive less often.
     """
 
     gripper: Robotiq85Gripper
     """
     The gripper the signal is about.
-    """
-
-    nominal_rate: ClassVar[float] = 100.0
-    """
-    How often the gripper's controller manager runs, which is how often its joint state
-    broadcaster publishes (``robotiq_controllers_85.yaml`` of ``iai_tracy``). The driver
-    reads the gripper over its serial connection in a separate loop, so new values may
-    arrive less often than this.
     """
 
     @property
@@ -434,16 +409,19 @@ class GripperMotorCurrent(GripperJointStateSignal):
     current and not a force.
     """
 
-    register_maximum: ClassVar[int] = 255
+    driver_maximum_force: float = field(default=235.0, kw_only=True)
     """
-    The largest count the gripper's current register holds.
+    The driver's ``gripper_max_force``, which the register's largest count is mapped
+    onto; 235 is its default for the 2F-85 (``2f_85.ros2_control.xacro`` of
+    ``ros2_robotiq_gripper``).
     """
 
-    driver_maximum_force: ClassVar[float] = 235.0
-    """
-    The driver's ``gripper_max_force`` for the 2F-85, which the register's largest count
-    is mapped onto (``2f_85.ros2_control.xacro`` of ``ros2_robotiq_gripper``).
-    """
+    @property
+    def register_maximum(self) -> int:
+        """
+        The largest count the gripper's current register holds, which is one byte.
+        """
+        return int(np.iinfo(np.uint8).max)
 
     @property
     def unit(self) -> pint.Unit:
@@ -462,6 +440,9 @@ class ArmJointEffort(JointStateSignal):
     The motor current of every joint of the arm, which rises when the arm pulls or
     pushes against something.
 
+    It is published with the arm's joint states at the rate the UR10e's controller
+    manager runs at, 500 Hz (``ur10e_update_rate.yaml`` of the UR driver).
+
     ..note:: The UR driver reports the current as the joints' effort unless its
         ``use_currents_as_efforts`` is turned off, in which case it is converted to a
         torque.
@@ -470,12 +451,6 @@ class ArmJointEffort(JointStateSignal):
     arm: Arm
     """
     The arm the signal is about.
-    """
-
-    nominal_rate: ClassVar[float] = 500.0
-    """
-    How often the UR10e's controller manager runs, which is how often its broadcasters
-    publish (``ur10e_update_rate.yaml`` of the UR driver).
     """
 
     @property
@@ -498,7 +473,8 @@ class ArmJointEffort(JointStateSignal):
 class ObjectDetection(TracySignal[DynamicJointState]):
     """
     The gripper's own verdict on whether its fingers stopped on an object, as an
-    :class:`~semantic_digital_twin.robots.robotiq_85_gripper.ObjectDetectionStatus`.
+    :class:`ObjectDetectionStatus`. It is published with the gripper's joint states, at
+    100 Hz.
 
     ..note:: It is only published in the dynamic joint states, which the joint state
         broadcaster fills with every interface the driver exports.
@@ -507,11 +483,6 @@ class ObjectDetection(TracySignal[DynamicJointState]):
     gripper: Robotiq85Gripper
     """
     The gripper the signal is about.
-    """
-
-    nominal_rate: ClassVar[float] = 100.0
-    """
-    How often the gripper's controller manager runs, as for its joint states.
     """
 
     @property

@@ -15,7 +15,7 @@ from probabilistic_model.distributions.distributions import (
 )
 from probabilistic_model.distributions.gaussian import GaussianDistribution
 from random_events.variable import Continuous
-from typing_extensions import ClassVar, List, Optional
+from typing_extensions import List, Optional
 
 from krrood.exceptions import DataclassException
 
@@ -35,8 +35,8 @@ class TooFewSamplesError(DataclassException):
 
     def error_message(self) -> str:
         return (
-            f"A recording needs at least {SignalRecording.minimum_sample_count} "
-            f"samples, but has {self.sample_count}."
+            "A recording needs an interval between two samples to be timed, but has "
+            f"{self.sample_count} sample(s)."
         )
 
     def suggest_correction(self) -> str:
@@ -135,19 +135,14 @@ class SignalRecording:
     The name of each channel, in the order of the columns of :attr:`values`.
     """
 
-    minimum_sample_count: ClassVar[int] = 2
-    """
-    The fewest samples a recording needs, since its timing is measured between samples.
-    """
-
     def statistics(self) -> SignalStatistics:
         """
         :return: How often the samples arrived and how each channel varied.
         :raises TooFewSamplesError: If the recording has too few samples to time them.
         """
-        if self.stamps.size < self.minimum_sample_count:
+        if not self.is_timed:
             raise TooFewSamplesError(sample_count=self.stamps.size)
-        intervals = np.diff(self.stamps)
+        intervals = self.intervals
         return SignalStatistics(
             sample_count=self.stamps.size,
             interval=self.distribution_of(TimingVariable.INTERVAL, intervals),
@@ -160,6 +155,20 @@ class SignalRecording:
                 for name, channel in zip(self.channel_names, self.values.T)
             ],
         )
+
+    @property
+    def intervals(self) -> npt.NDArray[np.float64]:
+        """
+        The time between each two consecutive samples, in seconds.
+        """
+        return np.diff(self.stamps)
+
+    @property
+    def is_timed(self) -> bool:
+        """
+        Whether the recording has an interval between two samples to time.
+        """
+        return self.intervals.size > 0
 
     @staticmethod
     def distribution_of(
@@ -186,7 +195,7 @@ class SignalRecording:
         :return: The smallest difference between two distinct values, or ``None`` if
             the values never differ.
         """
-        distinct_values = np.unique(values)
-        if distinct_values.size < SignalRecording.minimum_sample_count:
+        steps = np.diff(np.unique(values))
+        if steps.size == 0:
             return None
-        return float(np.min(np.diff(distinct_values)))
+        return float(np.min(steps))
