@@ -719,7 +719,7 @@ class EndEffector(AbstractRobotPart, ABC):
         :param grasp_pose: The grasp frame to reach.
         :return: The distance in meters.
         """
-        return float(self._vector_to_grasp(grasp_pose).norm())
+        return float(self._world_V_tool_frame_to_grasp(grasp_pose).norm())
 
     def _misalignment_with_grasp(self, grasp_pose: Pose) -> float:
         """
@@ -737,7 +737,7 @@ class EndEffector(AbstractRobotPart, ABC):
             self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
         )
         world_V_approach = world_T_goal.to_rotation_matrix() @ self.approach_axis
-        world_V_to_grasp = self._vector_to_grasp(grasp_pose)
+        world_V_to_grasp = self._world_V_tool_frame_to_grasp(grasp_pose)
         if not float(world_V_to_grasp.norm()):
             world_V_to_grasp = (
                 self.tool_frame.global_transform.to_rotation_matrix()
@@ -745,7 +745,7 @@ class EndEffector(AbstractRobotPart, ABC):
             )
         return float(world_V_approach.angle_between(world_V_to_grasp))
 
-    def _vector_to_grasp(self, grasp_pose: Pose) -> Vector3:
+    def _world_V_tool_frame_to_grasp(self, grasp_pose: Pose) -> Vector3:
         """
         :param grasp_pose: The grasp frame to reach.
         :return: From the tool frame to where it has to sit to hold the grasp, whose

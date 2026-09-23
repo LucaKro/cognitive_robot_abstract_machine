@@ -468,7 +468,7 @@ class GraspPose:
 
     def moved_to(self, reference_T_object: Pose) -> Pose:
         """
-        This grasp once the object it is on has been moved to a given pose.
+        Transform this grasp pose to where it would be, once the object is placed.
 
         :param reference_T_object: The pose the object is going to have.
         :return: ``reference_T_grasp``, the grasp in the same frame that pose is in.

@@ -254,10 +254,10 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                 # Every backend offers headings, so the pose the drive ended at is
                 # turned back into one rather than handed over in the robot's own axes.
                 stood_at = robot.root.global_pose
-                reached = HomogeneousTransformationMatrix.from_point_rotation_matrix(
+                reached = Pose(
                     stood_at.to_position(),
-                    stood_at.to_rotation_matrix() @ robot.mobile_base.base_T_front,
+                    (stood_at.to_rotation_matrix() @ robot.mobile_base.base_T_front.to_rotation_matrix()).to_quaternion(),
                     reference_frame=stood_at.reference_frame,
-                ).to_pose()
+                )
 
             yield reached.copy_for_world(self.world)
