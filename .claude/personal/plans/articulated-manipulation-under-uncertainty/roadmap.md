@@ -388,3 +388,19 @@ Resolved 2026-09-24 (auto mode). CI was green on `9b87f33a`. Eight new threads f
 - **`ObjectDetectionStatus` moved back to experiments**, because nothing in semdt used it. `robotiq_85_gripper.py` is identical to `main` again. semdt keeps only `ForceTorqueSensor` and Tracy's wrist sensors.
 - **The measurement builds Tracy through `WorldSpecification`/`RobotSpecification`** (`b9d733e1`).
 - **Left open:** "the ros stuff may move to semdt at some point". It stays in experiments for now, per the reviewer. This is a possible later move, not scheduled in any item.
+
+## `ground-truth-separation` — first review round: a computed property, not an exclusion set
+
+Resolved 2026-09-23 (auto mode) in 44b9ca07. CI was green on `aa1b1708`. The author left two threads, both now answered and resolved:
+
+- `DivergenceRecord.simulation_time`: *"is this really a float, or is it a datetime or sth"*. It is now a `timedelta` (the simulated time elapsed since the start), like the durations `step_simulation` takes.
+- `unobserved_connections`: *"this should be a computed property in the world class. but dont call it 'unobserved'"*.
+
+**This reverses the item's recorded note** ("add an exclusion set"). `World.uncontrolled_connections` sits next to `controlled_connections`: the connections with degrees of freedom and no hardware interface. In a stepped simulation, `MujocoSynchronizer.physics_alone_moves_uncontrolled_connections` leaves them to the physics in both directions. That flag is #24's `physics_moves_uncommanded_joints` renamed and widened, which is the convergence `sim-drawer-scene`'s roadmap entry asked for.
+
+**Why the computed rule is safe for robots.** A robot without a mobile base is attached by a `FixedConnection`. A mobile base's drive gets a hardware interface (`api.py`). Tracy sets one on every active connection of its arms and grippers. A mimicking joint shares its original's degree of freedom, and so its hardware interface, which made the separate shared-degree-of-freedom check unnecessary. `CabinetScene.environment_connections` went away with the set it fed.
+
+**Divergence is recorded once per degree of freedom per read.** A mimic reports its original's degree of freedom again. Both sync directions ignore a mimic's `multiplier`/`offset` when converting to and from `qpos`; that was already the case before this item and is left as is.
+
+**Overlap.** This branch renames #24's flag. If #24 changes, carry it up through the stack (`gh stack rebase --upstack`).
+

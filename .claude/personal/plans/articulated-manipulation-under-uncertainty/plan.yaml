@@ -93,9 +93,11 @@ items:
   - sim-drawer-scene
   session: https://claude.ai/code/session_01MBNzVhT7JDagesKCYmsk1h
   notes: 'multi_sim._read_connections_from_qpos copies every unactuated joint (the drawer) from physics
-    into world.state with no filter, so the controller''s belief is currently the ground truth. Add an
-    exclusion set for environment joints and object poses; the evaluator reads MuJoCo directly. Acceptance:
-    the controller''s world and physics can diverge, and the divergence is logged.'
+    into world.state with no filter, so the controller''s belief is currently the ground truth. After review
+    round 1 (user decision): no caller-supplied exclusion set; World.uncontrolled_connections (degrees of
+    freedom, no hardware interface) is computed, and in stepped simulation the physics alone moves those
+    connections in both directions; the evaluator reads MuJoCo directly. Acceptance: the controller''s world
+    and physics can diverge, and the divergence is logged.'
 - id: simulated-sensors
   title: Realistic simulated sensors for fingers, wrist wrench and a handle detector
   branch: simulated-sensors
