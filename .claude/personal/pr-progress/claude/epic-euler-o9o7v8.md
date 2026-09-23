@@ -1,10 +1,9 @@
-PR #22 (draft, base main): MultivariateGaussianDistribution extracted from #11
-(179c0a36), then circuits made to hold it as a leaf + naming aligned with PM
-(f5aaed48): MultivariateLeaf, LeafUnit.replace_by_mixture, leaf columns in the
-distribution's own order, mean_of/variance_of dropped for expectation/variance,
-normalizing_constant, rejection_sample, "interval" not "stretch".
-#11 has NOT been synced with f5aaed48 (its GaussianBelief still calls mean_of etc.).
-Open upstream on #11 (awaiting tomsch420): discrete variables; scipy method question.
-Pre-existing bug found, not fixed: ProbabilisticCircuit.log_conditional returns 0.0
-log-density when the root is simplified away (reproduces on main) - separate bug PR.
-Next: user review.
+PR #22 (fork, draft) = upstream cram2#672, same branch. cram2/main merged in (27df0019).
+Tom's upstream review (18 threads) applied in d10d969f: Covariance class, plain `variables`
+field, validate(), product_with_gaussian_likelihood(other), Event.is_box and
+SimpleInterval.nearest_contained_value in random_events, scipy moments/logpdf/cdf,
+lsq_linear mode. Never reply on the upstream PR; answers go to the user in chat.
+#11 / #25 (belief-core) still use the old product signature - they need syncing.
+Pre-existing bug, not fixed: ProbabilisticCircuit.log_conditional returns 0.0 when the
+root is simplified away (separate bug PR).
+Next: user review, then upstream re-review.
