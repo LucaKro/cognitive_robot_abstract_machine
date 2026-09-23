@@ -16,5 +16,8 @@ test_beliefs, run with --noconftest (root conftest needs ROS msgs for ORM).
 Env recipe: pip deps + `pip install -e <member> --no-deps` for workspace members,
 root package with --ignore-requires-python, urdf_parser_py/xacro copied from sdist.
 
-Done: branch, draft PR #25, stack #26, manifest in_progress, roadmap section.
-Next: tests + implementation, format docstrings, push, update PR description.
+Done: branch, draft PR #25 (stack #26), manifest in_progress, roadmap section;
+implementation 23df0ae6 - 33 tests pass locally, mutation-checked; PR body current.
+Decided: BinaryBelief update is atomic; plain Generic (no SubClassSafeGeneric -
+params only type signatures, package ORM-excluded).
+Next: CI on 23df0ae6 (ORM regeneration is CI-only); author review. #22 lands first.
