@@ -8,6 +8,7 @@ is appended below by the bootstrap under `` ## `item-id` `` headings.
 This plan supersedes `aicon-belief-integration` (retired 2026-09-23; see that plan's `## Retired` section). A critical reassessment of AICON found that its shipped estimators are mostly hand-shaped gradient devices, and that its task sequencing is hand-engineered rather than emergent. So its mechanism is not worth adopting.
 
 **One real gap in CRAM survived:** articulated environment joints are QP decision variables, and their state is integrated from giskard's *own commands*.
+
 - No synchroniser corrects them on a real robot.
 - In MuJoCo they are hard-overwritten from physics.
 - In a stuck-drawer probe, the model reported the drawer 0.30 m open, with the "opened" monitor TRUE from cycle 31, while the hand never moved.
@@ -39,12 +40,14 @@ The goal is to **match AICON's task-level capabilities with explicit machinery**
 ## Benchmark and metrics
 
 Tracy in MuJoCo, driven live by giskard (precedent: `test_mujoco_live_control.py`). The disturbance protocol follows AICON paper A:
+
 - prior error on location and on joint parameters, at four levels;
 - cabinet moved;
 - drawer pulled from the hand;
 - plus drawer re-closed mid-task, and the arm-pose and cabinet-yaw sweeps from the AICON ablation.
 
 Metrics:
+
 - success rate;
 - **false-success rate**;
 - time to completion;
@@ -58,6 +61,7 @@ AICON's paper-A real-robot numbers are indicative only, since the robot and simu
 Simulation validates an estimator's logic. It cannot validate the sensor models the estimator runs on, and those decide whether it works on hardware. Invented simulation noise matches the filter's own assumptions, so a filter looks justifiably confident there — exactly the confident-but-wrong failure AICON showed.
 
 So real data comes early, as open-loop recordings replayed offline, not as closed-loop trials:
+
 - `real-sensor-dataset` records real episodes with ground truth independent of the robot's perception;
 - `sensor-model-calibration` fits the simulated sensors to those recordings;
 - `estimator-replay-harness` scores each estimator's consistency (NEES/NIS) on them.
