@@ -1,15 +1,18 @@
 ## sim-drawer-scene (draft PR #24, plan articulated-manipulation-under-uncertainty)
 
-Plan (roadmap section "sim-drawer-scene" has the reasons):
-1. TDD in test/semantic_digital_twin_test: in stepped MuJoCo simulation, a
-   world-side change of an uncontrolled 1-DOF joint (no hardware interface)
-   must not move the physical joint. Fails on main (_write_1dof_to_qpos
-   teleports it). Fix in MujocoSynchronizer's write path, stepped mode only.
-2. Scene builder in experiments: Tracy + cabinet with drawer (slider + handle),
-   door (hinge + handle) variant, from existing semantic-annotation factories.
-3. Scene tests (CI only, Tracy): giskard commanding the drawer joint leaves the
-   physical drawer put; Tracy's hand pushing the front moves it, and the world
-   reads it back. Same for the door.
+Done (pushed, 553b7a8b):
+- multi_sim: MujocoSynchronizer.physics_moves_uncommanded_joints (on in
+  start_stepped_simulation) stops writing 1-DOF joints with no hardware
+  interface and no actuator. Tests in test_mujoco_servos.py (TDD: failed first).
+- experiments/articulated_manipulation/cabinet_scene.py: CabinetSceneBuilder
+  (ArticulatedPart.DRAWER | DOOR) -> CabinetScene (world, robot, cabinet, part,
+  handle, mechanism, set_opening). Cabinet fixed on Tracy's table, front 0.85 m
+  from the arms' edge, 0.35 m left.
+- test/experiments_test/articulated_manipulation/test_cabinet_scene.py: joint
+  command does not move part (fails on main: drawer 0.248 m, door 1.569 rad);
+  hand push closes it (drawer 0.15->0, door 0.6->0).
 
-Done: branch + draft PR + manifest/roadmap recorded.
-Next: step 1 (local env: mujoco + workspace install, Tracy likely CI-only).
+Local Tracy setup (CI-free runs): /tmp/claude-0/rosws with a hand-made ament
+index; AMENT_PREFIX_PATH + PYTHONPATH=ament_index_python; CI=true; --orm-build never.
+
+Next: check CI on PR #24; fix anything red.
