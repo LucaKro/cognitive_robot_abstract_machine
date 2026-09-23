@@ -126,7 +126,7 @@ class Costmap(PoseGeneratorBackend):
         :param size: Size of the chunks
         :return: A list of the given size taken from the items
         """
-        for start in range(0, len(items), size):
+        for start in range(len(items), size):
             yield items[start : start + size]
 
     def close_visualization(self) -> None:
@@ -260,8 +260,8 @@ class Costmap(PoseGeneratorBackend):
         rectangles = []
 
         # for every index pair (row, column) in the occupancy locations
-        for row in range(0, self.map.shape[0]):
-            for column in range(0, self.map.shape[1]):
+        for row in range(self.map.shape[0]):
+            for column in range(self.map.shape[1]):
 
                 # if this index has not been used yet
                 if remaining_map[row][column] > 0:

@@ -874,7 +874,7 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         """
 
     @property
-    def base_T_front(self) -> RotationMatrix:
+    def base_R_front(self) -> RotationMatrix:
         """
         The rotation from this base's own axes to the frame whose x-axis is its front.
 
@@ -893,7 +893,7 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         """
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
             heading.to_position(),
-            heading.to_rotation_matrix() @ self.base_T_front.inverse(),
+            heading.to_rotation_matrix() @ self.base_R_front.inverse(),
             reference_frame=heading.reference_frame,
         ).to_pose()
 

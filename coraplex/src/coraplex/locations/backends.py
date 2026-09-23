@@ -256,7 +256,7 @@ class GiskardLocationBackend(PoseGeneratorBackend, HasApproachesGraspPoses):
                 stood_at = robot.root.global_pose
                 reached = Pose(
                     stood_at.to_position(),
-                    (stood_at.to_rotation_matrix() @ robot.mobile_base.base_T_front.to_rotation_matrix()).to_quaternion(),
+                    (stood_at.to_rotation_matrix() @ robot.mobile_base.base_R_front).to_quaternion(),
                     reference_frame=stood_at.reference_frame,
                 )
 

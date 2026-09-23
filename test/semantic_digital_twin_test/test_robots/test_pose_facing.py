@@ -242,7 +242,7 @@ def test_the_heading_of_a_base_pose_is_the_heading_it_was_placed_at(
 
     read_back = HomogeneousTransformationMatrix.from_point_rotation_matrix(
         base_pose.to_position(),
-        base_pose.to_rotation_matrix() @ mobile_base.base_T_front,
+        base_pose.to_rotation_matrix() @ mobile_base.base_R_front,
         reference_frame=base_pose.reference_frame,
     ).to_pose()
 
