@@ -8,6 +8,9 @@ Done:
   stacks.md and kickoff use `gh api` for PRs, `gh stack init` to adopt a stack,
   REST merge-upstream for the fork. Verified live with a 3-layer stack
   (#18-#20, stack #21, since closed/unstacked).
+- Items are looked up only under `items:` (db0df9f5 test, d8a3d08f fix):
+  bootstrap `open`/`record` and sync_manifest_status used to match a track
+  sharing the item's id (hit belief-core; its manifest was hand-corrected).
 
 Open:
 - User must delete the leftover stack-test/{bottom,middle,top} branches on the
