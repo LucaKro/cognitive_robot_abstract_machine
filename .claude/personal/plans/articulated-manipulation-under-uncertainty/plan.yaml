@@ -208,12 +208,15 @@ items:
   status: in_progress
   depends_on:
   - multivariate-gaussian
-  notes: 'Written clean by user decision, not salvaged from the closed #10/#12. BeliefContext(ContextExtension);
-    a Gaussian belief with full covariance on top of #22''s distribution (predict and update live here,
-    not in probabilistic_model); a discrete Bayes belief for binary latent states; an EstimatorNode base
-    that registers FloatVariables at build and calls set_value on tick (precedents: segmind''s SegmindContext,
-    wiggle_insert.py). Continuous values go through float_variable_data and never into observations, which
-    only transition on exact trinary values.'
+  notes: 'Written clean by user decision, not salvaged from the closed #10/#12. The filter
+    steps live in probabilistic_model after review round 1 (user decision, reversing the
+    original note): MultivariateGaussianDistribution.linear_gaussian_transition beside #22''s
+    product_with_gaussian_likelihood, and SymbolicDistribution.markov_transition and
+    product_with_likelihood. giskardpy keeps BeliefContext(ContextExtension), holding
+    ProbabilisticModels by variable, and an EstimatorNode base that registers FloatVariables
+    at build and calls set_value on tick (precedents: segmind''s SegmindContext,
+    wiggle_insert.py). Continuous values go through float_variable_data and never into
+    observations, which only transition on exact trinary values.'
 - id: joint-state-estimator
   title: Estimate articulated environment joint state instead of dead-reckoning it
   branch: joint-state-estimator
