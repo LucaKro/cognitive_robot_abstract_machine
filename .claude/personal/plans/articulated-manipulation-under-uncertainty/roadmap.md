@@ -53,6 +53,17 @@ Metrics:
 
 AICON's paper-A real-robot numbers are indicative only, since the robot and simulator differ.
 
+## Real data
+
+Simulation validates an estimator's logic. It cannot validate the sensor models the estimator runs on, and those decide whether it works on hardware. Invented simulation noise matches the filter's own assumptions, so a filter looks justifiably confident there — exactly the confident-but-wrong failure AICON showed.
+
+So real data comes early, as open-loop recordings replayed offline, not as closed-loop trials:
+- `real-sensor-dataset` records real episodes with ground truth independent of the robot's perception;
+- `sensor-model-calibration` fits the simulated sensors to those recordings;
+- `estimator-replay-harness` scores each estimator's consistency (NEES/NIS) on them.
+
+Closed-loop hardware trials stay in wave 4. `coupling-belief` and `handle-pose-estimator` are the most exposed: simulated contact forces are clean, and a synthetic detector flatters any filter.
+
 ## Gates
 
 - **After `baseline-stock-cram`:** if stock CRAM already succeeds on most conditions and its failures are not about environment state, stop. That is a valid outcome.
@@ -63,10 +74,11 @@ AICON's paper-A real-robot numbers are indicative only, since the robot and simu
 - **Robot: Tracy**, in simulation and on hardware.
 - **#22** (multivariate Gaussian) is tracked as the belief foundation. `belief-core` is written clean, not salvaged from the closed #10/#12.
 - **The condition-monitor rework** (`executables.py:175`) is owned by someone else. Whether `live-precondition-monitors` waits for it is decided at that item's kickoff.
+- **Real-world ground truth** for `real-sensor-dataset` — a fiducial seen by a separate camera, a draw-wire encoder, or motion capture — is decided at that item's kickoff.
 - **Out of scope:** gradient-based action selection; planning-free Blocks World; differentiating through beliefs; contact-rich pushing (AICON paper B).
 
 ## Conventions
 
 - **Fork only.** Never push to, comment on, or open PRs against `cram2`; releasing there is the user's action.
 - **Targeted test files only**; never the full suite. Do not read `ormatic_interface.py` files.
-- **Items with two unlanded dependencies** (`joint-state-estimator`, `handle-pose-estimator`) cannot be stacked by `plan_stack`. Ask the user at kickoff.
+- **Items with two unlanded dependencies** (`joint-state-estimator`, `handle-pose-estimator`, `sensor-model-calibration`, `estimator-replay-harness`) cannot be stacked by `plan_stack`. Ask the user at kickoff.

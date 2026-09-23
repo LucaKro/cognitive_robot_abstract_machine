@@ -1,341 +1,368 @@
 schema_version: 1
 id: articulated-manipulation-under-uncertainty
 title: Articulated Manipulation Under Uncertainty
-description: >-
-  Match the task-level capabilities AICON demonstrates on articulated objects - opening
-  drawers and doors under uncertainty about their location and kinematics, and recovering
-  from disturbances - with CRAM's explicit, inspectable machinery instead of gradient
-  arbitration. Everything is judged on a MuJoCo benchmark with Tracy in which the
-  simulator's ground truth is kept apart from the robot's belief, then on the real Tracy.
-  Supersedes aicon-belief-integration.
+description: Match the task-level capabilities AICON demonstrates on articulated objects - opening drawers
+  and doors under uncertainty about their location and kinematics, and recovering from disturbances -
+  with CRAM's explicit, inspectable machinery instead of gradient arbitration. Everything is judged on
+  a MuJoCo benchmark with Tracy in which the simulator's ground truth is kept apart from the robot's belief,
+  then on the real Tracy. Supersedes aicon-belief-integration.
 default_repository: LucaKro/cognitive_robot_abstract_machine
 tracking_issue: 23
-
 waves:
-  - id: wave-0-benchmark
-    name: "Wave 0: Benchmark harness"
-    description: >-
-      The MuJoCo benchmark every later wave is judged against, and the stock-CRAM baseline
-      on it. Ends in a go/no-go gate.
-  - id: wave-1-estimation
-    name: "Wave 1: Environment state estimation"
-    description: >-
-      Estimate the state of articulated environment joints instead of dead-reckoning them
-      from the controller's own commands, and fail specifically when the mechanism does not
-      follow. Ends in a gate on the false-success rate.
-  - id: wave-2-kinematics-and-perception
-    name: "Wave 2: Uncertain kinematics and perception"
-    description: >-
-      Two independent tracks: estimate the articulation model online, and keep perception
-      in the loop with explicit active-perception tasks.
-  - id: wave-3-reachievement
-    name: "Wave 3: Generic precondition re-achievement"
-    description: >-
-      Re-achieve lost preconditions with one generic statechart mechanism, instead of
-      writing recovery transitions per failure class.
-  - id: wave-4-real-tracy
-    name: "Wave 4: Real Tracy"
-    description: The same capabilities, and a reduced disturbance protocol, on the real robot.
-
+- id: wave-0-benchmark
+  name: 'Wave 0: Benchmark harness'
+  description: The MuJoCo benchmark every later wave is judged against, and the stock-CRAM baseline on
+    it. Ends in a go/no-go gate.
+- id: wave-1-estimation
+  name: 'Wave 1: Environment state estimation'
+  description: Estimate the state of articulated environment joints instead of dead-reckoning them from
+    the controller's own commands, and fail specifically when the mechanism does not follow. Ends in a
+    gate on the false-success rate.
+- id: wave-2-kinematics-and-perception
+  name: 'Wave 2: Uncertain kinematics and perception'
+  description: 'Two independent tracks: estimate the articulation model online, and keep perception in
+    the loop with explicit active-perception tasks.'
+- id: wave-3-reachievement
+  name: 'Wave 3: Generic precondition re-achievement'
+  description: Re-achieve lost preconditions with one generic statechart mechanism, instead of writing
+    recovery transitions per failure class.
+- id: wave-4-real-tracy
+  name: 'Wave 4: Real Tracy'
+  description: The same capabilities, and a reduced disturbance protocol, on the real robot.
 tracks:
-  - id: sim-harness
-    name: Simulation harness
-    wave: wave-0-benchmark
-    description: Tracy and cabinet scene, ground-truth separation, simulated sensors.
-  - id: evaluation
-    name: Evaluation
-    wave: wave-0-benchmark
-    description: Disturbance protocol, metrics, stock-CRAM baseline, AICON reference.
-  - id: belief-core
-    name: Belief core
-    wave: wave-1-estimation
-    description: Distributions, belief container and estimator node base.
-  - id: environment-estimation
-    name: Environment estimation
-    wave: wave-1-estimation
-    description: Joint-state and coupling estimation, and the divergence failure built on them.
-  - id: articulation
-    name: Articulation model
-    wave: wave-2-kinematics-and-perception
-    description: Online joint type and axis estimation, and opening along the estimate.
-  - id: active-perception
-    name: Active perception
-    wave: wave-2-kinematics-and-perception
-    description: Filtered handle pose, and explicit tasks to keep and improve the view.
-  - id: reachievement
-    name: Re-achievement
-    wave: wave-3-reachievement
-    description: Live precondition monitors and the generic re-achievement template.
-  - id: hardware
-    name: Hardware
-    wave: wave-4-real-tracy
-    description: Sensor mapping, continuous perception, hardware protocol.
-
+- id: sim-harness
+  name: Simulation harness
+  wave: wave-0-benchmark
+  description: Tracy and cabinet scene, ground-truth separation, simulated sensors.
+- id: evaluation
+  name: Evaluation
+  wave: wave-0-benchmark
+  description: Disturbance protocol, metrics, stock-CRAM baseline, AICON reference.
+- id: real-data
+  name: Real sensor data
+  wave: wave-0-benchmark
+  description: What Tracy actually senses, recorded real episodes with independent ground truth, and simulated
+    sensors calibrated against them.
+- id: belief-core
+  name: Belief core
+  wave: wave-1-estimation
+  description: Distributions, belief container and estimator node base.
+- id: environment-estimation
+  name: Environment estimation
+  wave: wave-1-estimation
+  description: Joint-state and coupling estimation, and the divergence failure built on them.
+- id: estimator-validation
+  name: Estimator validation
+  wave: wave-1-estimation
+  description: Offline replay of the estimators on real logged episodes, scored for accuracy and consistency.
+- id: articulation
+  name: Articulation model
+  wave: wave-2-kinematics-and-perception
+  description: Online joint type and axis estimation, and opening along the estimate.
+- id: active-perception
+  name: Active perception
+  wave: wave-2-kinematics-and-perception
+  description: Filtered handle pose, and explicit tasks to keep and improve the view.
+- id: reachievement
+  name: Re-achievement
+  wave: wave-3-reachievement
+  description: Live precondition monitors and the generic re-achievement template.
+- id: hardware
+  name: Hardware
+  wave: wave-4-real-tracy
+  description: Continuous perception and the closed-loop hardware protocol.
 items:
-  - id: sim-drawer-scene
-    title: Tracy and an articulated cabinet in MuJoCo, driven live by giskard
-    branch: sim-drawer-scene
-    pull_request_number: null
-    track: sim-harness
-    status: not_started
-    notes: >-
-      Build on test/giskardpy_test/test_executor/test_mujoco_live_control.py, which already
-      drives a physically simulated Tracy from giskard's loop in lockstep
-      (SteppedSimulationPacer), with servoed grippers and named finger pads. Add a cabinet
-      with a physically simulated drawer, and a door variant. Acceptance: the drawer moves
-      only through contact, never because giskard commands its joint.
-
-  - id: ground-truth-separation
-    title: Keep the simulator's ground truth out of the controller's world
-    branch: ground-truth-separation
-    pull_request_number: null
-    track: sim-harness
-    status: not_started
-    depends_on: [sim-drawer-scene]
-    notes: >-
-      multi_sim._read_connections_from_qpos copies every unactuated joint (the drawer) from
-      physics into world.state with no filter, so the controller's belief is currently the
-      ground truth. Add an exclusion set for environment joints and object poses; the
-      evaluator reads MuJoCo directly. Acceptance: the controller's world and physics can
-      diverge, and the divergence is logged.
-
-  - id: simulated-sensors
-    title: Realistic simulated sensors for fingers, wrist wrench and a handle detector
-    branch: simulated-sensors
-    pull_request_number: null
-    track: sim-harness
-    status: not_started
-    depends_on: [ground-truth-separation]
-    notes: >-
-      Actuated joints are deliberately not read back: the world holds their set points, so
-      real finger qpos and effort need their own sensor. multi_sim has no force/torque
-      support, so derive a wrist wrench from MuJoCo contact forces. The handle detector is
-      synthetic: field of view, occlusion via the existing visible predicate,
-      distance-dependent noise, dropout, and an optional bearing-only mode (needed only to
-      match paper A's hardest condition). Everything is seeded and configurable.
-
-  - id: disturbance-protocol
-    title: Scripted, seeded disturbance protocol and metrics
-    branch: disturbance-protocol
-    pull_request_number: null
-    track: evaluation
-    status: not_started
-    depends_on: [ground-truth-separation]
-    notes: >-
-      Paper A's conditions: prior error on drawer location and on joint parameters (none,
-      low, medium, high); cabinet moved mid-task; drawer pulled out of the hand after
-      grasping. Plus the drawer re-closed mid-task, and the arm-pose and cabinet-yaw sweeps
-      from the AICON ablation. Metrics: success; false-success rate (the plan says done while
-      physics disagrees); time; task-specific recovery transitions authored; cycle time via
-      experiments/control_loop_experiments/control_loop_profiler.py.
-
-  - id: baseline-stock-cram
-    title: Run today's CRAM drawer opening through the protocol (go/no-go gate)
-    branch: baseline-stock-cram
-    pull_request_number: null
-    track: evaluation
-    status: not_started
-    depends_on: [disturbance-protocol]
-    notes: >-
-      Record a failure taxonomy per condition. GATE: if stock CRAM already succeeds on most
-      conditions and its failures are not about environment state, stop the plan here. That
-      is a legitimate outcome. Expected from the toy probe: false successes, because the
-      drawer joint is dead-reckoned from giskard's own commands (in the model it reached
-      0.30 m while the hand never moved).
-
-  - id: aicon-reference
-    title: AICON's own drawer tutorial under a matched subset of the protocol (optional)
-    branch: aicon-reference
-    pull_request_number: null
-    track: evaluation
-    status: not_started
-    depends_on: [disturbance-protocol]
-    notes: >-
-      Optional. Runs in AICON's robosuite environment, so the physics differs and the numbers
-      are indicative only. AICON publishes no simulation numbers, so this gives comparison
-      figures under our own protocol. Paper A's real-robot figures are the other reference:
-      100/100/90/90 by uncertainty level and 100/90/100 by disturbance.
-
-  - id: multivariate-gaussian
-    title: Multivariate Gaussian distribution in probabilistic_model
-    branch: claude/epic-euler-o9o7v8
-    pull_request_number: 22
-    track: belief-core
-    status: in_progress
-    notes: >-
-      Carried over from the retired plan by user decision. Adds
-      MultivariateGaussianDistribution and TruncatedMultivariateGaussianDistribution, with
-      the covariance stored as a lower triangle so it is symmetric by construction, and
-      support for them as rx-circuit leaves. No belief-layer code. Extracted from #11 with
-      #11's review comments applied.
-
-  - id: belief-core
-    title: Belief container, beliefs and estimator node base class
-    branch: belief-core
-    pull_request_number: null
-    track: belief-core
-    status: not_started
-    depends_on: [multivariate-gaussian]
-    notes: >-
-      Written clean by user decision, not salvaged from the closed #10/#12.
-      BeliefContext(ContextExtension); a Gaussian belief with full covariance on top of #22's
-      distribution (predict and update live here, not in probabilistic_model); a discrete
-      Bayes belief for binary latent states; an EstimatorNode base that registers
-      FloatVariables at build and calls set_value on tick (precedents: segmind's
-      SegmindContext, wiggle_insert.py). Continuous values go through float_variable_data and
-      never into observations, which only transition on exact trinary values.
-
-  - id: joint-state-estimator
-    title: Estimate articulated environment joint state instead of dead-reckoning it
-    branch: joint-state-estimator
-    pull_request_number: null
-    track: environment-estimation
-    status: not_started
-    depends_on: [belief-core, simulated-sensors]
-    notes: >-
-      Posterior over the drawer or door joint, from the measured end-effector pose while
-      coupled and from the detector otherwise. It is written into the environment joint's
-      state each cycle, replacing the integration of giskard's own command. The joint stays a
-      QP decision variable, a valid closed-chain model; only its state becomes an estimate.
-      It has two unlanded dependencies, which plan_stack cannot stack, so resolve that at
-      kickoff.
-
-  - id: coupling-belief
-    title: Discrete belief that the hand is coupled to the handle
-    branch: coupling-belief
-    pull_request_number: null
-    track: environment-estimation
-    status: not_started
-    depends_on: [joint-state-estimator]
-    notes: >-
-      Two-state Bayes filter fed by finger width against handle width, finger effort, the
-      wrist wrench, and kinematic consistency: does the handle follow the hand? Replaces the
-      retired plan's grasp raycast, which is self-confirming against the model. It also
-      gates how much commanded motion the joint estimator's prediction step credits.
-
-  - id: mechanism-divergence-failure
-    title: Fail specifically when the mechanism does not follow
-    branch: mechanism-divergence-failure
-    pull_request_number: null
-    track: environment-estimation
-    status: not_started
-    depends_on: [coupling-belief]
-    notes: >-
-      An explicit monitor on the coupling belief and the joint-state innovation raises a
-      dedicated PlanFailure with suggest_correction, instead of a generic NoProgressError
-      seconds later. After the failure the twin keeps the estimated joint state, not the
-      commanded one; coraplex does not roll back real failures. GATE after this item: if the
-      false-success rate does not drop on the benchmark, do not build waves 2 and 3.
-
-  - id: articulation-model-estimator
-    title: Online estimation of joint type, axis and limits
-    branch: articulation-model-estimator
-    pull_request_number: null
-    track: articulation
-    status: not_started
-    depends_on: [joint-state-estimator]
-    notes: >-
-      Prismatic versus revolute, the axis, and the limits as they become observable, from the
-      end-effector trajectory while coupled. This is the equivalent of AICON's
-      KinematicJointEstimator. Prior art: Sturm et al. (JAIR 2011), and Martin-Martin &
-      Brock, which AICON itself builds on.
-
-  - id: open-along-estimated-axis
-    title: Open along the estimated axis without recompiling
-    branch: open-along-estimated-axis
-    pull_request_number: null
-    track: articulation
-    status: not_started
-    depends_on: [articulation-model-estimator]
-    notes: >-
-      A goal whose pull direction is a runtime FloatVariable, holding the handle compliantly.
-      The estimated model is committed into the twin with modify_world once it has converged,
-      not every cycle, because a model change recompiles and clears caches. Acceptance:
-      paper A's joint-parameter uncertainty levels.
-
-  - id: handle-pose-estimator
-    title: Filtered handle and cabinet pose instead of a hard overwrite
-    branch: handle-pose-estimator
-    pull_request_number: null
-    track: active-perception
-    status: not_started
-    depends_on: [belief-core, simulated-sensors]
-    notes: >-
-      Replaces Detection.apply_to's hard overwrite of the 6-DoF origin with a filtered
-      estimate that carries a covariance. Uses every pose hypothesis, not just coraplex's
-      pose[0]. Two unlanded dependencies: resolve the stacking at kickoff.
-
-  - id: active-perception-tasks
-    title: Explicit keep-in-view and uncertainty-reducing viewpoint tasks
-    branch: active-perception-tasks
-    pull_request_number: null
-    track: active-perception
-    status: not_started
-    depends_on: [handle-pose-estimator]
-    notes: >-
-      Keep-in-view with giskard's existing PointingCone, plus an explicit viewpoint goal
-      driven by the handle covariance. Gating transitions: approach only once the covariance
-      is below a threshold, and re-view when visibility is lost. This mirrors what AICON's
-      authors do in their 2026 paper (explicit Tr(Sigma) costs), not the unverifiable
-      emergence claim. Acceptance: the location-uncertainty conditions, including
-      bearing-only detection.
-
-  - id: live-precondition-monitors
-    title: Evaluate action pre- and post-conditions live over estimated predicates
-    branch: live-precondition-monitors
-    pull_request_number: null
-    track: reachievement
-    status: not_started
-    depends_on: [mechanism-divergence-failure]
-    notes: >-
-      ConditionNode.condition_monitor exists but is marked "currently unused ... being
-      reworked" (coraplex/plans/executables.py:175). Someone else owns that rework. The user
-      decides at kickoff whether to wait for it or go ahead; do not fork it silently.
-
-  - id: reachievement-template
-    title: Generic re-achievement of lost preconditions
-    branch: reachievement-template
-    pull_request_number: null
-    track: reachievement
-    status: not_started
-    depends_on: [live-precondition-monitors]
-    notes: >-
-      A teleo-reactive, backchaining statechart template: while step k runs, if a
-      precondition an earlier step established becomes false, re-enter the step that
-      achieves it. One generic mechanism, no per-failure transitions. Prior art: Nilsson's
-      teleo-reactive programs, and backchained behaviour trees (Colledanchise & Ogren).
-      Acceptance: drawer pulled from the hand, drawer re-closed and cabinet moved are all
-      handled with zero task-specific recovery code.
-
-  - id: tracy-sensor-mapping
-    title: Map the simulated sensors onto the real Tracy
-    branch: tracy-sensor-mapping
-    pull_request_number: null
-    track: hardware
-    status: not_started
-    depends_on: [simulated-sensors]
-    notes: >-
-      Which signals exist on the hardware: finger effort, a wrist force/torque sensor (not
-      verified), camera placement. Can start as soon as the simulated sensors are defined.
-
-  - id: robokudo-continuous-tracking
-    title: Continuous perception with confidence and pose covariance
-    branch: robokudo-continuous-tracking
-    pull_request_number: null
-    track: hardware
-    status: not_started
-    depends_on: [handle-pose-estimator]
-    notes: >-
-      robokudo_msgs/ObjectDesignator has no confidence or covariance field, so this needs a
-      message change in that separate package. It also needs continuous tracking
-      (ByteTrackAnnotator exists) instead of the one-shot blocking query.
-
-  - id: hardware-protocol
-    title: Reduced disturbance protocol on the real Tracy
-    branch: hardware-protocol
-    pull_request_number: null
-    track: hardware
-    status: not_started
-    depends_on: [reachievement-template, open-along-estimated-axis, active-perception-tasks, tracy-sensor-mapping, robokudo-continuous-tracking]
-    notes: >-
-      The subset of the benchmark protocol that is safe and practical on hardware.
+- id: sim-drawer-scene
+  title: Tracy and an articulated cabinet in MuJoCo, driven live by giskard
+  branch: sim-drawer-scene
+  pull_request_number: null
+  track: sim-harness
+  status: not_started
+  notes: 'Build on test/giskardpy_test/test_executor/test_mujoco_live_control.py, which already drives
+    a physically simulated Tracy from giskard''s loop in lockstep (SteppedSimulationPacer), with servoed
+    grippers and named finger pads. Add a cabinet with a physically simulated drawer, and a door variant.
+    Acceptance: the drawer moves only through contact, never because giskard commands its joint.'
+- id: ground-truth-separation
+  title: Keep the simulator's ground truth out of the controller's world
+  branch: ground-truth-separation
+  pull_request_number: null
+  track: sim-harness
+  status: not_started
+  depends_on:
+  - sim-drawer-scene
+  notes: 'multi_sim._read_connections_from_qpos copies every unactuated joint (the drawer) from physics
+    into world.state with no filter, so the controller''s belief is currently the ground truth. Add an
+    exclusion set for environment joints and object poses; the evaluator reads MuJoCo directly. Acceptance:
+    the controller''s world and physics can diverge, and the divergence is logged.'
+- id: simulated-sensors
+  title: Realistic simulated sensors for fingers, wrist wrench and a handle detector
+  branch: simulated-sensors
+  pull_request_number: null
+  track: sim-harness
+  status: not_started
+  depends_on:
+  - ground-truth-separation
+  notes: 'Actuated joints are deliberately not read back: the world holds their set points, so real finger
+    qpos and effort need their own sensor. multi_sim has no force/torque support, so derive a wrist wrench
+    from MuJoCo contact forces. The handle detector is synthetic: field of view, occlusion via the existing
+    visible predicate, distance-dependent noise, dropout, and an optional bearing-only mode (needed only
+    to match paper A''s hardest condition). Everything is seeded and configurable. Model the signals tracy-sensor-mapping
+    establishes; the noise and failure models get fitted to real logs later, in sensor-model-calibration.'
+- id: disturbance-protocol
+  title: Scripted, seeded disturbance protocol and metrics
+  branch: disturbance-protocol
+  pull_request_number: null
+  track: evaluation
+  status: not_started
+  depends_on:
+  - ground-truth-separation
+  notes: 'Paper A''s conditions: prior error on drawer location and on joint parameters (none, low, medium,
+    high); cabinet moved mid-task; drawer pulled out of the hand after grasping. Plus the drawer re-closed
+    mid-task, and the arm-pose and cabinet-yaw sweeps from the AICON ablation. Metrics: success; false-success
+    rate (the plan says done while physics disagrees); time; task-specific recovery transitions authored;
+    cycle time via experiments/control_loop_experiments/control_loop_profiler.py.'
+- id: baseline-stock-cram
+  title: Run today's CRAM drawer opening through the protocol (go/no-go gate)
+  branch: baseline-stock-cram
+  pull_request_number: null
+  track: evaluation
+  status: not_started
+  depends_on:
+  - disturbance-protocol
+  notes: 'Record a failure taxonomy per condition. GATE: if stock CRAM already succeeds on most conditions
+    and its failures are not about environment state, stop the plan here. That is a legitimate outcome.
+    Expected from the toy probe: false successes, because the drawer joint is dead-reckoned from giskard''s
+    own commands (in the model it reached 0.30 m while the hand never moved). Stock-CRAM episodes recorded
+    on the real Tracy in real-sensor-dataset feed this gate too, and are the stronger evidence of whether
+    the failure happens in practice.'
+- id: aicon-reference
+  title: AICON's own drawer tutorial under a matched subset of the protocol (optional)
+  branch: aicon-reference
+  pull_request_number: null
+  track: evaluation
+  status: not_started
+  depends_on:
+  - disturbance-protocol
+  notes: 'Optional. Runs in AICON''s robosuite environment, so the physics differs and the numbers are
+    indicative only. AICON publishes no simulation numbers, so this gives comparison figures under our
+    own protocol. Paper A''s real-robot figures are the other reference: 100/100/90/90 by uncertainty
+    level and 100/90/100 by disturbance.'
+- id: tracy-sensor-mapping
+  title: Establish which signals the real Tracy provides
+  branch: tracy-sensor-mapping
+  pull_request_number: null
+  track: real-data
+  status: not_started
+  notes: 'Moved to wave 0 with no dependencies: the simulation should model the sensors Tracy actually
+    has, so this comes first. Tracy is two UR10e arms, two Robotiq 2F-85 grippers and one camera. From
+    the product specs, not verified on this Tracy: the UR e-Series has a built-in wrist force/torque sensor
+    of coarse precision (about 5 N), and the 2F-85 reports finger position, motor current and its own
+    object-detected flag. Confirm which of these the drivers expose, at what rate and noise. The CRAM
+    robot model has no force/torque sensor today.'
+- id: real-sensor-dataset
+  title: Record real drawer-opening episodes with independent ground truth
+  branch: real-sensor-dataset
+  pull_request_number: null
+  track: real-data
+  status: not_started
+  depends_on:
+  - tracy-sensor-mapping
+  notes: 'Open-loop recording, scripted or teleoperated, of Tracy opening real drawers. Log joint states,
+    gripper position/current/object flag, wrist wrench, and camera plus robokudo detections. Include the
+    failure cases deliberately: slip, a missed grasp, a stuck drawer. Also record stock-CRAM episodes
+    for the baseline gate. Ground truth must be independent of the pipeline under test - never the robot''s
+    own perception camera. Which source to use (a fiducial seen by a separate camera, a draw-wire encoder,
+    or motion capture) is decided at kickoff.'
+- id: sensor-model-calibration
+  title: Fit the simulated sensors' noise and failure models to real logs
+  branch: sensor-model-calibration
+  pull_request_number: null
+  track: real-data
+  status: not_started
+  depends_on:
+  - real-sensor-dataset
+  - simulated-sensors
+  notes: 'Replace invented noise with models fitted to real-sensor-dataset: wrench bias and drift, gripper
+    current and object-flag behaviour, and detector error including non-Gaussian failures such as pose
+    flips (coraplex already corrects FoundationPose''s upside-down returns). Also set domain-randomisation
+    ranges for drawer friction, damping and contact. This is what makes the simulation benchmark trustworthy
+    for the estimators. Two unlanded dependencies: resolve the stacking at kickoff.'
+- id: multivariate-gaussian
+  title: Multivariate Gaussian distribution in probabilistic_model
+  branch: claude/epic-euler-o9o7v8
+  pull_request_number: 22
+  track: belief-core
+  status: in_progress
+  notes: 'Carried over from the retired plan by user decision. Adds MultivariateGaussianDistribution and
+    TruncatedMultivariateGaussianDistribution, with the covariance stored as a lower triangle so it is
+    symmetric by construction, and support for them as rx-circuit leaves. No belief-layer code. Extracted
+    from #11 with #11''s review comments applied.'
+- id: belief-core
+  title: Belief container, beliefs and estimator node base class
+  branch: belief-core
+  pull_request_number: null
+  track: belief-core
+  status: not_started
+  depends_on:
+  - multivariate-gaussian
+  notes: 'Written clean by user decision, not salvaged from the closed #10/#12. BeliefContext(ContextExtension);
+    a Gaussian belief with full covariance on top of #22''s distribution (predict and update live here,
+    not in probabilistic_model); a discrete Bayes belief for binary latent states; an EstimatorNode base
+    that registers FloatVariables at build and calls set_value on tick (precedents: segmind''s SegmindContext,
+    wiggle_insert.py). Continuous values go through float_variable_data and never into observations, which
+    only transition on exact trinary values.'
+- id: joint-state-estimator
+  title: Estimate articulated environment joint state instead of dead-reckoning it
+  branch: joint-state-estimator
+  pull_request_number: null
+  track: environment-estimation
+  status: not_started
+  depends_on:
+  - belief-core
+  - simulated-sensors
+  notes: Posterior over the drawer or door joint, from the measured end-effector pose while coupled and
+    from the detector otherwise. It is written into the environment joint's state each cycle, replacing
+    the integration of giskard's own command. The joint stays a QP decision variable, a valid closed-chain
+    model; only its state becomes an estimate. It has two unlanded dependencies, which plan_stack cannot
+    stack, so resolve that at kickoff. Acceptance also requires consistency on real logs - NEES/NIS against
+    independent ground truth through estimator-replay-harness - not only success in simulation.
+- id: coupling-belief
+  title: Discrete belief that the hand is coupled to the handle
+  branch: coupling-belief
+  pull_request_number: null
+  track: environment-estimation
+  status: not_started
+  depends_on:
+  - joint-state-estimator
+  notes: 'Two-state Bayes filter fed by finger width against handle width, finger effort, the wrist wrench,
+    and kinematic consistency: does the handle follow the hand? Replaces the retired plan''s grasp raycast,
+    which is self-confirming against the model. It also gates how much commanded motion the joint estimator''s
+    prediction step credits. Acceptance also requires consistency on real logs - NEES/NIS against independent
+    ground truth through estimator-replay-harness - not only success in simulation. This estimator is
+    the most exposed to the simulation gap: MuJoCo contact forces are clean, and real wrist wrench and
+    gripper current are not.'
+- id: mechanism-divergence-failure
+  title: Fail specifically when the mechanism does not follow
+  branch: mechanism-divergence-failure
+  pull_request_number: null
+  track: environment-estimation
+  status: not_started
+  depends_on:
+  - coupling-belief
+  notes: 'An explicit monitor on the coupling belief and the joint-state innovation raises a dedicated
+    PlanFailure with suggest_correction, instead of a generic NoProgressError seconds later. After the
+    failure the twin keeps the estimated joint state, not the commanded one; coraplex does not roll back
+    real failures. GATE after this item: if the false-success rate does not drop on the benchmark, do
+    not build waves 2 and 3.'
+- id: estimator-replay-harness
+  title: Replay estimators offline on real logs and score their consistency
+  branch: estimator-replay-harness
+  pull_request_number: null
+  track: estimator-validation
+  status: not_started
+  depends_on:
+  - belief-core
+  - real-sensor-dataset
+  notes: 'Runs EstimatorNodes offline on logged episodes and reports RMSE and NEES/NIS consistency against
+    the independent ground truth. It guards against the failure AICON showed: an estimate that is confident
+    and wrong. With invented simulation noise a filter''s confidence always looks justified; only real
+    data tests it. Two unlanded dependencies: resolve the stacking at kickoff.'
+- id: articulation-model-estimator
+  title: Online estimation of joint type, axis and limits
+  branch: articulation-model-estimator
+  pull_request_number: null
+  track: articulation
+  status: not_started
+  depends_on:
+  - joint-state-estimator
+  notes: 'Prismatic versus revolute, the axis, and the limits as they become observable, from the end-effector
+    trajectory while coupled. This is the equivalent of AICON''s KinematicJointEstimator. Prior art: Sturm
+    et al. (JAIR 2011), and Martin-Martin & Brock, which AICON itself builds on. Acceptance also requires
+    consistency on real logs - NEES/NIS against independent ground truth through estimator-replay-harness
+    - not only success in simulation.'
+- id: open-along-estimated-axis
+  title: Open along the estimated axis without recompiling
+  branch: open-along-estimated-axis
+  pull_request_number: null
+  track: articulation
+  status: not_started
+  depends_on:
+  - articulation-model-estimator
+  notes: 'A goal whose pull direction is a runtime FloatVariable, holding the handle compliantly. The
+    estimated model is committed into the twin with modify_world once it has converged, not every cycle,
+    because a model change recompiles and clears caches. Acceptance: paper A''s joint-parameter uncertainty
+    levels.'
+- id: handle-pose-estimator
+  title: Filtered handle and cabinet pose instead of a hard overwrite
+  branch: handle-pose-estimator
+  pull_request_number: null
+  track: active-perception
+  status: not_started
+  depends_on:
+  - belief-core
+  - simulated-sensors
+  notes: 'Replaces Detection.apply_to''s hard overwrite of the 6-DoF origin with a filtered estimate that
+    carries a covariance. Uses every pose hypothesis, not just coraplex''s pose[0]. Two unlanded dependencies:
+    resolve the stacking at kickoff. Acceptance also requires consistency on real logs - NEES/NIS against
+    independent ground truth through estimator-replay-harness - not only success in simulation.'
+- id: active-perception-tasks
+  title: Explicit keep-in-view and uncertainty-reducing viewpoint tasks
+  branch: active-perception-tasks
+  pull_request_number: null
+  track: active-perception
+  status: not_started
+  depends_on:
+  - handle-pose-estimator
+  notes: 'Keep-in-view with giskard''s existing PointingCone, plus an explicit viewpoint goal driven by
+    the handle covariance. Gating transitions: approach only once the covariance is below a threshold,
+    and re-view when visibility is lost. This mirrors what AICON''s authors do in their 2026 paper (explicit
+    Tr(Sigma) costs), not the unverifiable emergence claim. Acceptance: the location-uncertainty conditions,
+    including bearing-only detection.'
+- id: live-precondition-monitors
+  title: Evaluate action pre- and post-conditions live over estimated predicates
+  branch: live-precondition-monitors
+  pull_request_number: null
+  track: reachievement
+  status: not_started
+  depends_on:
+  - mechanism-divergence-failure
+  notes: ConditionNode.condition_monitor exists but is marked "currently unused ... being reworked" (coraplex/plans/executables.py:175).
+    Someone else owns that rework. The user decides at kickoff whether to wait for it or go ahead; do
+    not fork it silently.
+- id: reachievement-template
+  title: Generic re-achievement of lost preconditions
+  branch: reachievement-template
+  pull_request_number: null
+  track: reachievement
+  status: not_started
+  depends_on:
+  - live-precondition-monitors
+  notes: 'A teleo-reactive, backchaining statechart template: while step k runs, if a precondition an
+    earlier step established becomes false, re-enter the step that achieves it. One generic mechanism,
+    no per-failure transitions. Prior art: Nilsson''s teleo-reactive programs, and backchained behaviour
+    trees (Colledanchise & Ogren). Acceptance: drawer pulled from the hand, drawer re-closed and cabinet
+    moved are all handled with zero task-specific recovery code.'
+- id: robokudo-continuous-tracking
+  title: Continuous perception with confidence and pose covariance
+  branch: robokudo-continuous-tracking
+  pull_request_number: null
+  track: hardware
+  status: not_started
+  depends_on:
+  - handle-pose-estimator
+  notes: robokudo_msgs/ObjectDesignator has no confidence or covariance field, so this needs a message
+    change in that separate package. It also needs continuous tracking (ByteTrackAnnotator exists) instead
+    of the one-shot blocking query.
+- id: hardware-protocol
+  title: Reduced disturbance protocol on the real Tracy
+  branch: hardware-protocol
+  pull_request_number: null
+  track: hardware
+  status: not_started
+  depends_on:
+  - reachievement-template
+  - open-along-estimated-axis
+  - active-perception-tasks
+  - tracy-sensor-mapping
+  - robokudo-continuous-tracking
+  notes: The subset of the benchmark protocol that is safe and practical on hardware.
