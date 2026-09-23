@@ -86,11 +86,12 @@ items:
 - id: ground-truth-separation
   title: Keep the simulator's ground truth out of the controller's world
   branch: ground-truth-separation
-  pull_request_number: null
+  pull_request_number: 28
   track: sim-harness
-  status: not_started
+  status: in_progress
   depends_on:
   - sim-drawer-scene
+  session: https://claude.ai/code/session_01MBNzVhT7JDagesKCYmsk1h
   notes: 'multi_sim._read_connections_from_qpos copies every unactuated joint (the drawer) from physics
     into world.state with no filter, so the controller''s belief is currently the ground truth. Add an
     exclusion set for environment joints and object poses; the evaluator reads MuJoCo directly. Acceptance:
