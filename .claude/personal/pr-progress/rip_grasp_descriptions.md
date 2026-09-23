@@ -53,6 +53,16 @@ CI fix for 203b2d0 (2026-09-21, local only - user said do not commit/push yet):
 - Stretch demo `a(PickUpAction)(graspable_object=...)` -> `grasp=cereal.grasp_poses()[0]`.
 - `coraplex/examples/location_designator.md`: missing `Milk` import.
 
+Merge of cram2/main (2a9c17c38, 2026-09-23, staged, NOT committed):
+- executables.py conflict: kept the branch's stall-monitor loop (no tick budget,
+  no MotionDidNotFinish) inside main's MotionPlanHistory/ExitStack bookkeeping.
+- main's test_exhausted_execution_ends_started_motion_observation ->
+  test_stalled_execution_ends_started_motion_observation (NoProgressError from tick).
+- MoveAndPickUpAction now takes `grasp: GraspPose` (was graspable_object +
+  grasp_poses()[0]); sage_10k demos updated; test in test_transporting.py;
+  designators.md wording fixed.
+- Still graspable_object-shaped: PickAndPlaceAction (no callers found).
+
 Deliberately not done:
 - `add_semantic_annotation` recursive by default (Tigul): own PR. The replay path
   inserts one annotation per modification entry and
