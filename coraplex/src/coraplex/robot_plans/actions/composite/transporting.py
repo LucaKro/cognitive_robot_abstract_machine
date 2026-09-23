@@ -262,9 +262,9 @@ class MoveAndPickUpAction(ActionDescription):
     """
     The pose to stand before trying to pick up the object.
     """
-    graspable_object: HasGraspPoses
+    grasp: GraspPose
     """
-    The annotation of the object to pick up.
+    The grasp to take hold by, which also names the object to pick up.
     """
     arm: Arms
     """
@@ -281,8 +281,8 @@ class MoveAndPickUpAction(ActionDescription):
             [
                 NavigateAction(self.standing_position, self.keep_joint_states),
                 FaceAtAction(
-                    self.graspable_object.root.global_pose, self.keep_joint_states
+                    self.grasp.graspable.root.global_pose, self.keep_joint_states
                 ),
-                PickUpAction(self.graspable_object.grasp_poses()[0], self.arm),
+                PickUpAction(self.grasp, self.arm),
             ]
         )

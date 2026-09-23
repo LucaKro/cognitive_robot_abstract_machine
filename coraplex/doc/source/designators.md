@@ -89,8 +89,9 @@ The grounded designator is carried out. If it fails (e.g., object moved, pose bl
 Objects the robot acts on are not a separate designator class. They are referenced directly as entities of the
 semantic digital twin world, usually obtained from the world model (for example via `world.get_body_by_name(...)`)
 or by querying the belief state with the Entity Query Language. An action designator that takes hold of an object
-takes the semantic annotation saying where it may be grasped as its `graspable_object` argument; one that releases an
-object it already holds, such as placing, takes that same annotation as its `object_designator` argument.
+takes one of the grasps that annotation offers (`annotation.grasp_poses()`) as its `grasp` argument, and the grasp
+names the object it is on; one that releases an object it already holds, such as placing, takes the annotation
+itself as its `object_designator` argument.
 
 ## How designators fit into a plan
 
