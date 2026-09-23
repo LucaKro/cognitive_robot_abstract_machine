@@ -257,3 +257,57 @@ this PR. They did not go into #22 or into a new item.
 
 This branch now also edits #22's `multivariate_gaussian.py` and its test file. When #22
 changes, carry it up through the stack (`gh stack rebase --upstack`). Do not merge by hand.
+
+## `belief-core` — second review round
+
+Resolved 2026-09-23 (auto mode) on `e9ed7221`. Three new threads from the author:
+
+1. `context.py:42`: *"Make sure that a ProbabilisticModel is really the right technology to
+   use here regarding its capabilities and uses."*
+2. `estimator.py:129` (`mean_variable`): *"is this also how probabilistic model names these
+   kinds of methods?"*
+3. `multivariate_gaussian.py:438`: should matrix, offset and covariance be one shared data
+   structure, or would that be bloat?
+
+### 1. `ProbabilisticModel` stays, and its per-cycle cost is fixed
+
+It is the right type for what a belief *is*: a joint distribution over `random_events`
+variables. It answers the queries a monitor will want (the probability of an event, the
+mode, marginals, conditionals). Probabilistic circuits are `ProbabilisticModel`s too, and #22
+added `MultivariateLeaf`, so a mixture belief (`handle-pose-estimator`'s "every pose
+hypothesis") fits without another type. What it does not have is a filtering concept, so
+prediction and update stay on the concrete distributions, and `EstimatorNode` leaves them
+to its subclass.
+
+**What measuring its uses in a control loop showed.** Per cycle, on six variables:
+prediction 42 µs, update 294 µs. Reading the published values through the generic
+queries, though, cost 0.93 ms for mean and variance (`moment` builds one univariate
+Gaussian per variable, and `variance` computes the expectation again). Two symbolic
+probabilities cost 158 µs, most of it building events. Fixes:
+
+- `MultivariateGaussianDistribution` overrides `expectation` and `variance` in closed form,
+  from the mean and the covariance's diagonal. This is still the generic interface, so
+  every caller benefits, not only the estimator.
+- `EstimatorNode` builds each published value's event once, at build time, and asks
+  `probability_of_simple_event` each cycle (2 µs for two values).
+
+The update's 294 µs is #22's conditioning. It is left as is, and noted.
+
+### 2. Named as probabilistic_model names them
+
+`mean_variable` becomes `expectation_variable`, and `PublishedValue.MEAN` becomes
+`EXPECTATION`, matching `ProbabilisticModel.expectation`. `variance_variable` and
+`probability_variable` already match. The `_variable` suffix is giskardpy's own convention
+for accessors that return a `FloatVariable` (`observation_variable`,
+`life_cycle_variable`). `predict` and `update` are filter vocabulary, which probabilistic_model
+has none of.
+
+### 3. `LinearGaussianModel`, for both the transition and #22's product
+
+The user chose this at resolve time. `LinearGaussianModel(matrix, offset, covariance)` is
+y = A x + b + N(0, Σ), with its shapes checked once, when it is built. It is used as
+`linear_gaussian_transition(transition_model)` and
+`product_with_gaussian_likelihood(observation_model, observed)`. The product therefore
+gains a sensor bias through the offset. This changes the signature of #22's method, so #22's
+tests for it move to the new signature in this PR. The term is Roweis & Ghahramani's
+"linear Gaussian model".
