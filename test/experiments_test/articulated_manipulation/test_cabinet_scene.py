@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy
 import pytest
 
 from ...pytest_environment import runs_in_continuous_integration
@@ -16,7 +17,7 @@ from ...pytest_environment import runs_in_continuous_integration
 from experiments.articulated_manipulation.cabinet_scene import (
     ArticulatedPart,
     CabinetScene,
-    CabinetSceneBuilder,
+    CabinetSceneSpecification,
 )
 from giskardpy.executor import Executor, SteppedSimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -26,6 +27,8 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.adapters.multi_sim import MujocoSim
+from semantic_digital_twin.robots.tracy import Tracy
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Cabinet
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.spatial_types.spatial_types import Point3
 from semantic_digital_twin.utils import tracy_installed
@@ -48,17 +51,17 @@ The control frequency giskard runs at, in Hz.
 
 
 @pytest.fixture
-def builder(request) -> CabinetSceneBuilder:
-    return CabinetSceneBuilder(articulated_part=request.param)
+def specification(request) -> CabinetSceneSpecification:
+    return CabinetSceneSpecification(articulated_part=request.param)
 
 
 @pytest.fixture
-def scene(builder) -> CabinetScene:
-    return builder.build()
+def scene(specification) -> CabinetScene:
+    return specification.to_domain_object()
 
 
 every_part = pytest.mark.parametrize(
-    "builder", list(ArticulatedPart), indirect=True, ids=lambda part: part.name
+    "specification", list(ArticulatedPart), indirect=True, ids=lambda part: part.name
 )
 
 
@@ -96,13 +99,43 @@ def run_live(scene: CabinetScene, motion: MotionStatechart, cycles: int) -> floa
 
 
 @every_part
+def test_the_world_specification_holds_tracy_and_the_cabinet(specification):
+    world_specification = specification.world_specification()
+
+    [robot] = world_specification.robots
+    [cabinet] = world_specification.objects
+    assert robot.semantic_annotation_type is Tracy
+    assert cabinet.semantic_annotation_type is Cabinet
+
+
+@every_part
+def test_the_cabinet_stands_on_tracys_table(specification, scene):
+    assert numpy.allclose(
+        scene.robot.root.global_transform.to_np(),
+        specification.world_T_table.to_np(),
+    )
+    cabinet_bottom = scene.cabinet.root.global_transform.to_np()[2, 3] - (
+        specification.cabinet_scale.z / 2
+    )
+    assert cabinet_bottom == pytest.approx(specification.world_T_table.to_np()[2, 3])
+
+
+@every_part
+def test_every_body_has_its_own_name(scene):
+    """
+    MuJoCo refuses a model in which two bodies share a name.
+    """
+    names = [body.name.name for body in scene.world.bodies]
+    assert len(set(names)) == len(names)
+
+
+@every_part
 def test_no_controller_commands_the_moving_part(scene):
     assert not scene.mechanism.has_hardware_interface
 
 
 @every_part
 def test_the_handle_moves_with_the_moving_part(scene):
-    assert scene.part.handle is scene.handle
     assert (
         scene.handle.root.get_first_parent_connection_of_type(ActiveConnection1DOF)
         is scene.mechanism
@@ -180,16 +213,16 @@ PUSHES = {
 
 @every_part
 @mujoco_runs_only_in_continuous_integration
-def test_the_hand_pushing_the_moving_part_moves_it(builder, scene):
-    push = PUSHES[builder.articulated_part]
+def test_the_hand_pushing_the_moving_part_moves_it(specification, scene):
+    push = PUSHES[specification.articulated_part]
     scene.set_opening(push.opening)
     table = scene.robot.root
     tool_frame = scene.robot.left_arm.end_effector.tool_frame
-    line = builder.sideways_offset + push.sideways_offset
+    line = specification.sideways_offset + push.sideways_offset
     waypoints = [
-        (builder.front_distance - push.standoff, line, push.approach_height),
-        (builder.front_distance - push.standoff, line, push.height),
-        (builder.front_distance - push.depth, line, push.height),
+        (specification.front_distance - push.standoff, line, push.approach_height),
+        (specification.front_distance - push.standoff, line, push.height),
+        (specification.front_distance - push.depth, line, push.height),
     ]
     motion = MotionStatechart()
     motion.add_node(

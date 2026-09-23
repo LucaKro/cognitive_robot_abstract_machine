@@ -9,7 +9,11 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from semantic_digital_twin.api import RobotSpecification
+from semantic_digital_twin.api import (
+    RobotSpecification,
+    SemanticAnnotationWithRootSpecification,
+    WorldSpecification,
+)
 from semantic_digital_twin.datastructures.definitions import StaticJointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tracy import Tracy
@@ -35,7 +39,6 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.geometry import Scale
-from semantic_digital_twin.world_description.world_entity import Body
 
 # %% the scene
 
@@ -86,17 +89,19 @@ class CabinetScene:
     The cabinet's moving part.
     """
 
-    handle: Handle
-    """
-    The handle on the moving part's front.
-    """
-
     @property
     def mechanism(self) -> ActiveConnection1DOF:
         """
         The joint the moving part slides or turns on; zero is closed.
         """
         return self.part.mechanical_joint.root.parent_connection
+
+    @property
+    def handle(self) -> Handle:
+        """
+        The handle on the moving part's front.
+        """
+        return self.part.handle
 
     def set_opening(self, position: float) -> None:
         """
@@ -112,22 +117,37 @@ class CabinetScene:
         self.world.notify_state_change()
 
 
-# %% building it
+# %% describing it
 
 
 @dataclass
-class CabinetSceneBuilder:
+class CabinetSceneSpecification:
     """
-    Builds a :class:`CabinetScene` whose cabinet has one moving part.
+    World-independent description of a :class:`CabinetScene` whose cabinet has one
+    moving part.
 
-    Lengths are in metres and positions are relative to Tracy's table frame, which lies
-    on the table top at the edge the arms are mounted at, with x pointing across the
-    table.
+    Lengths are in metres. The cabinet is placed relative to Tracy's table frame, which
+    lies on the table top at the edge the arms are mounted at, with x pointing across
+    the table.
     """
 
     articulated_part: ArticulatedPart
     """
     Which part of the cabinet moves.
+    """
+
+    world_root_name: str = "floor"
+    """
+    The name of the world's root body, which must differ from the ``map`` link Tracy's
+    description brings along: MuJoCo refuses two bodies of the same name.
+    """
+
+    world_T_table: HomogeneousTransformationMatrix = field(
+        default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(z=0.88)
+    )
+    """
+    Where Tracy's description places its table frame in the world (``table_joint`` in
+    ``tracy.urdf.xacro``).
     """
 
     cabinet_scale: Scale = field(default_factory=lambda: Scale(x=0.4, y=0.4, z=0.3))
@@ -190,155 +210,161 @@ class CabinetSceneBuilder:
     The size of the handle; x is how far it stands off the front.
     """
 
-    def build(self) -> CabinetScene:
+    def world_specification(self) -> WorldSpecification:
         """
-        :return: A new world with Tracy parked at its table and the cabinet on it.
+        :return: The world with Tracy and the cabinet, before the arms are parked.
         """
-        world = World()
-        with world.modify_world():
-            world.add_kinematic_structure_entity(Body(name=PrefixedName("floor")))
-        robot = RobotSpecification(Tracy).spawn(world)
+        return WorldSpecification(
+            robots=[RobotSpecification(Tracy)],
+            objects=[self.cabinet_specification()],
+        )
+
+    def to_domain_object(self) -> CabinetScene:
+        """
+        Build a new world from :meth:`world_specification`, with both arms parked.
+
+        :return: The scene in the new world.
+        """
+        world = self.world_specification().to_domain_object()
+        world.force_root_name(PrefixedName(self.world_root_name))
+        [robot] = world.get_semantic_annotations_by_type(Tracy)
         for arm in robot.get_arms():
             arm.get_joint_state_by_type(StaticJointState.PARK).apply_to(world)
         world.notify_state_change()
+        [cabinet] = world.get_semantic_annotations_by_type(Cabinet)
+        [part] = cabinet.drawers + cabinet.doors
+        part.mechanical_joint.root.parent_connection.dynamics = self.mechanism_dynamics
+        return CabinetScene(world=world, robot=robot, cabinet=cabinet, part=part)
 
-        world_T_cabinet = (
-            robot.root.global_transform
+    def cabinet_specification(
+        self,
+    ) -> SemanticAnnotationWithRootSpecification[Cabinet]:
+        """
+        :return: The cabinet standing on the table, with its moving part.
+        """
+        root_specification = (
+            Cabinet.get_default_root_kinematic_structure_entity_specification(
+                scale=self.cabinet_scale, wall_thickness=self.wall_thickness
+            )
+        )
+        root_specification.parent_T_self = (
+            self.world_T_table
             @ HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=self.front_distance + self.cabinet_scale.x / 2,
                 y=self.sideways_offset,
                 z=self.cabinet_scale.z / 2,
             )
         )
-        with world.modify_world():
-            cabinet = Cabinet.get_annotation_specification(
-                "cabinet",
-                Cabinet.get_default_root_kinematic_structure_entity_specification(
-                    scale=self.cabinet_scale, wall_thickness=self.wall_thickness
-                ),
-            ).spawn(world, parent_T_self=world_T_cabinet)
-            match self.articulated_part:
-                case ArticulatedPart.DRAWER:
-                    part, handle = self._add_drawer(world, world_T_cabinet)
-                case ArticulatedPart.DOOR:
-                    part, handle = self._add_door(world, world_T_cabinet)
-            cabinet.add(part)
-        part.mechanical_joint.root.parent_connection.dynamics = self.mechanism_dynamics
-        return CabinetScene(
-            world=world, robot=robot, cabinet=cabinet, part=part, handle=handle
+        match self.articulated_part:
+            case ArticulatedPart.DRAWER:
+                part_specifications = {"drawers": self._drawer_specification()}
+            case ArticulatedPart.DOOR:
+                part_specifications = {"doors": self._door_specification()}
+        return Cabinet.get_annotation_specification(
+            "cabinet", root_specification, part_specifications=part_specifications
         )
 
-    def _add_drawer(
-        self, world: World, world_T_cabinet: HomogeneousTransformationMatrix
-    ) -> tuple[Drawer, Handle]:
+    def _drawer_specification(self) -> SemanticAnnotationWithRootSpecification[Drawer]:
         """
-        Add a drawer that slides out of the cabinet's front, with a handle on its face.
-
-        :param world: The world to add the drawer to.
-        :param world_T_cabinet: The pose of the cabinet's centre.
-        :return: The drawer and its handle.
+        :return: A drawer that slides out of the cabinet's front, with a handle on its
+            face.
         """
-        world_T_drawer = world_T_cabinet @ HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=-self.cabinet_scale.x / 2 + self.drawer_depth / 2
-        )
         drawer_scale = Scale(
             x=self.drawer_depth,
             y=self.cabinet_scale.y - 2 * self.wall_thickness,
             z=self.cabinet_scale.z - 2 * self.wall_thickness,
         )
-        drawer = Drawer.create_with_new_body_in_world(
-            name="drawer",
-            world=world,
-            world_root_T_self=world_T_drawer,
-            scale=drawer_scale,
-        )
-        slider = Slider.create_with_new_body_in_world(
-            name="drawer_slider",
-            world=world,
-            world_root_T_self=world_T_drawer,
+        slider = Slider.get_annotation_specification(
+            "drawer_slider",
+            Slider.get_default_root_kinematic_structure_entity_specification(),
             parent_connection_specification=Slider.parent_connection_specification(
                 axis=Vector3.NEGATIVE_X(),
                 dof_limits=self._mechanism_limits(self.drawer_travel),
             ),
         )
-        drawer.add(slider)
-        handle = self._add_handle(
-            world,
+        handle = self._handle_specification(
             "drawer_handle",
-            world_T_drawer
-            @ HomogeneousTransformationMatrix.from_xyz_rpy(
+            HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=-self.drawer_depth / 2,
                 z=drawer_scale.z / 2 - 2 * self.handle_scale.z,
             ),
         )
-        drawer.add(handle)
-        return drawer, handle
-
-    def _add_door(
-        self, world: World, world_T_cabinet: HomogeneousTransformationMatrix
-    ) -> tuple[Door, Handle]:
-        """
-        Add a door just in front of the cabinet's front, hinged at its right edge as
-        seen from the robot, with a handle near its free edge.
-
-        :param world: The world to add the door to.
-        :param world_T_cabinet: The pose of the cabinet's centre.
-        :return: The door and its handle.
-        """
-        world_T_hinge = world_T_cabinet @ HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=-self.cabinet_scale.x / 2 - self.door_thickness,
-            y=-self.cabinet_scale.y / 2,
+        root_specification = (
+            Drawer.get_default_root_kinematic_structure_entity_specification(
+                scale=drawer_scale
+            )
         )
-        hinge = Hinge.create_with_new_body_in_world(
-            name="door_hinge",
-            world=world,
-            world_root_T_self=world_T_hinge,
+        root_specification.parent_T_self = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=-self.cabinet_scale.x / 2 + self.drawer_depth / 2
+        )
+        return Drawer.get_annotation_specification(
+            "drawer",
+            root_specification,
+            part_specifications={"mechanical_joint": slider, "handle": handle},
+        )
+
+    def _door_specification(self) -> SemanticAnnotationWithRootSpecification[Door]:
+        """
+        :return: A door just in front of the cabinet's front, hinged at its right edge
+            as seen from the robot, with a handle near its free edge.
+        """
+        hinge_root_specification = (
+            Hinge.get_default_root_kinematic_structure_entity_specification()
+        )
+        hinge_root_specification.parent_T_self = (
+            HomogeneousTransformationMatrix.from_xyz_rpy(y=-self.cabinet_scale.y / 2)
+        )
+        hinge = Hinge.get_annotation_specification(
+            "door_hinge",
+            hinge_root_specification,
             parent_connection_specification=Hinge.parent_connection_specification(
                 axis=Vector3.Z(),
                 dof_limits=self._mechanism_limits(self.door_swing),
             ),
         )
-        door = Door.create_with_new_body_in_world(
-            name="door",
-            world=world,
-            world_root_T_self=world_T_hinge
-            @ HomogeneousTransformationMatrix.from_xyz_rpy(y=self.cabinet_scale.y / 2),
-            scale=Scale(
-                x=self.door_thickness, y=self.cabinet_scale.y, z=self.cabinet_scale.z
-            ),
-        )
-        door.add(hinge)
-        handle = self._add_handle(
-            world,
+        handle = self._handle_specification(
             "door_handle",
-            world_T_hinge
-            @ HomogeneousTransformationMatrix.from_xyz_rpy(
+            HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=-self.door_thickness / 2,
-                y=self.cabinet_scale.y - self.handle_scale.y / 2 - self.wall_thickness,
+                y=self.cabinet_scale.y / 2
+                - self.handle_scale.y / 2
+                - self.wall_thickness,
                 z=self.cabinet_scale.z / 2 - 2 * self.handle_scale.z,
             ),
         )
-        door.add(handle)
-        return door, handle
+        root_specification = (
+            Door.get_default_root_kinematic_structure_entity_specification(
+                scale=Scale(
+                    x=self.door_thickness,
+                    y=self.cabinet_scale.y,
+                    z=self.cabinet_scale.z,
+                )
+            )
+        )
+        root_specification.parent_T_self = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=-self.cabinet_scale.x / 2 - self.door_thickness
+        )
+        return Door.get_annotation_specification(
+            "door",
+            root_specification,
+            part_specifications={"mechanical_joint": hinge, "handle": handle},
+        )
 
-    def _add_handle(
-        self,
-        world: World,
-        name: str,
-        world_T_handle: HomogeneousTransformationMatrix,
-    ) -> Handle:
+    def _handle_specification(
+        self, name: str, part_T_handle: HomogeneousTransformationMatrix
+    ) -> SemanticAnnotationWithRootSpecification[Handle]:
         """
-        :param world: The world to add the handle to.
         :param name: The name of the handle.
-        :param world_T_handle: Where the handle is mounted on its part's front.
-        :return: The new handle.
+        :param part_T_handle: Where the handle is mounted on its part's front.
+        :return: The handle.
         """
-        return Handle.get_annotation_specification(
-            name,
+        root_specification = (
             Handle.get_default_root_kinematic_structure_entity_specification(
                 scale=self.handle_scale, thickness=self.handle_scale.z
-            ),
-        ).spawn(world, parent_T_self=world_T_handle)
+            )
+        )
+        root_specification.parent_T_self = part_T_handle
+        return Handle.get_annotation_specification(name, root_specification)
 
     def _mechanism_limits(self, fully_open: float) -> DegreeOfFreedomLimits:
         """
