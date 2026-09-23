@@ -334,3 +334,28 @@ Resolved 2026-09-23 (auto mode). CI was green on `a730ab8c`. What held the PR up
 **Overlap.** `experiments/.../articulated_manipulation/__init__.py` is now empty here, while #24 adds it with a docstring. Whichever lands second reconciles it.
 
 **Tooling note.** `plan_item_brief` still crashes in cloud sessions, which refuse GraphQL. The threads were read and resolved through the GitHub MCP tools.
+
+## `belief-core` — merging #22 after its maintainer review
+
+2026-09-23, at the user's request ("merge #22 into this branch … utilize the updates
+from #22 where possible"). `cd21dea7`.
+
+#22 took the probabilistic_model maintainer's review (`d10d969f`):
+- the covariance became a `Covariance` class;
+- the variables became a plain `variables` field (`7609b0de` made `ProbabilisticModel`
+  allow that);
+- `product_with_gaussian_likelihood(other)` now multiplies by another Gaussian over some
+  of the same variables.
+
+The conflicts were in `multivariate_gaussian.py` and its tests, and are resolved onto
+#22's version:
+
+- **The update is #22's product, unchanged.** This undoes part of round 2's choice: the
+  observation form of `LinearGaussianModel` is gone, and with it observing a linear
+  combination of the variables or a sensor bias. #22's own design wins in #22's file. An
+  estimator that needs a general observation can linearise into a Gaussian over the
+  variables it observes. If that turns out too narrow, the extension belongs in #22.
+- `LinearGaussianModel` stays for the transition, with #22's `Covariance` as its noise.
+- The closed-form `expectation`/`variance` read `Covariance.variances`. Per cycle on six
+  variables: prediction 60 µs, update 90 µs (was 293 µs with the old product), publishing
+  27 µs.
