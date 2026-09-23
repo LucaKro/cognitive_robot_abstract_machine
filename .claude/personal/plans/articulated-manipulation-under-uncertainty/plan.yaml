@@ -117,11 +117,12 @@ items:
 - id: disturbance-protocol
   title: Scripted, seeded disturbance protocol and metrics
   branch: disturbance-protocol
-  pull_request_number: null
+  pull_request_number: 30
   track: evaluation
-  status: not_started
+  status: in_progress
   depends_on:
   - ground-truth-separation
+  session: https://claude.ai/code/session_01YXkiKdY5cbpP3ney3GrQ6e
   notes: 'Paper A''s conditions: prior error on drawer location and on joint parameters (none, low, medium,
     high); cabinet moved mid-task; drawer pulled out of the hand after grasping. Plus the drawer re-closed
     mid-task, and the arm-pose and cabinet-yaw sweeps from the AICON ablation. Metrics: success; false-success

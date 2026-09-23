@@ -403,4 +403,3 @@ Resolved 2026-09-23 (auto mode) in 44b9ca07. CI was green on `aa1b1708`. The aut
 **Divergence is recorded once per degree of freedom per read.** A mimic reports its original's degree of freedom again. Both sync directions ignore a mimic's `multiplier`/`offset` when converting to and from `qpos`; that was already the case before this item and is left as is.
 
 **Overlap.** This branch renames #24's flag. If #24 changes, carry it up through the stack (`gh stack rebase --upstack`).
-
