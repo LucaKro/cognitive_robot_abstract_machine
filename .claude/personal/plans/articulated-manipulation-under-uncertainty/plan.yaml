@@ -47,10 +47,6 @@ tracks:
   name: Belief core
   wave: wave-1-estimation
   description: Distributions, belief container and estimator node base.
-  branch: belief-core
-  pull_request_number: 25
-  session: https://claude.ai/code/session_01RtVjCbQt3SfzeLLVs3nyJe
-  status: in_progress
 - id: environment-estimation
   name: Environment estimation
   wave: wave-1-estimation
@@ -205,9 +201,10 @@ items:
 - id: belief-core
   title: Belief container, beliefs and estimator node base class
   branch: belief-core
-  pull_request_number: null
+  pull_request_number: 25
+  session: https://claude.ai/code/session_01RtVjCbQt3SfzeLLVs3nyJe
   track: belief-core
-  status: not_started
+  status: in_progress
   depends_on:
   - multivariate-gaussian
   notes: 'Written clean by user decision, not salvaged from the closed #10/#12. BeliefContext(ContextExtension);
