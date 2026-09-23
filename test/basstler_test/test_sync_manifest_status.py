@@ -196,6 +196,28 @@ def test_raises_if_an_item_has_no_status_line():
         apply_status_corrections(text, [{"id": "a", "branch": "a"}])
 
 
+TRACK_SHARING_AN_ITEM_ID_MANIFEST_TEXT = (
+    DATASET_DIRECTORY / "track-sharing-an-item-id-plan.yaml"
+).read_text()
+
+
+def test_corrects_the_item_and_not_a_track_of_the_same_id():
+    data = yaml.safe_load(TRACK_SHARING_AN_ITEM_ID_MANIFEST_TEXT)
+
+    patched_text, corrections = apply_status_corrections(
+        TRACK_SHARING_AN_ITEM_ID_MANIFEST_TEXT, [data["items"][0]]
+    )
+
+    patched = yaml.safe_load(patched_text)
+    assert patched["items"][0]["status"] == ItemStatus.DONE.value
+    assert {key: value for key, value in patched.items() if key != "items"} == {
+        key: value for key, value in data.items() if key != "items"
+    }
+    assert [correction.item_identifier for correction in corrections] == [
+        data["items"][0]["id"]
+    ]
+
+
 # %% main - manifest validation
 
 

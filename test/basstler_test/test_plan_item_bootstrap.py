@@ -1,6 +1,6 @@
 """
-Tests for basstler.plan_item_bootstrap.py's two operations, recording an item and opening
-its work.
+Tests for basstler.plan_item_bootstrap.py's two operations, recording an item and
+opening its work.
 
 Run against the local scratch repository fixture rather than a real remote, and against
 a recording pull request opener rather than GitHub, so nothing here needs network access
@@ -597,6 +597,48 @@ def test_patching_a_field_matches_the_items_own_indentation_rather_than_a_fixed_
     item = yaml.safe_load(patched)[ManifestKey.ITEMS.key][0]
     assert item[ManifestKey.STATUS.key] == ItemStatus.IN_PROGRESS.value
     assert item[ManifestKey.TITLE.key] == "An item indented two spaces, not four"
+
+
+TRACK_SHARING_AN_ITEM_ID_MANIFEST = (
+    DATASET_DIRECTORY / "track-sharing-an-item-id-plan.yaml"
+).read_text()
+"""
+A manifest whose one track and one item share an id, with the track listed first - the
+way a plan names a track after the item that makes it up.
+"""
+
+
+def test_patching_an_item_leaves_a_track_of_the_same_id_untouched():
+    """
+    Waves and tracks are lists of ``- id:`` entries too, so an item is found only among
+    the plan's items, or a field meant for the item lands on the track.
+    """
+    shared_identifier = "shared-name"
+    original = yaml.safe_load(TRACK_SHARING_AN_ITEM_ID_MANIFEST)
+
+    patched = yaml.safe_load(
+        apply_item_fields(
+            TRACK_SHARING_AN_ITEM_ID_MANIFEST,
+            original[ManifestKey.IDENTIFIER.key],
+            shared_identifier,
+            {ManifestKey.PULL_REQUEST_NUMBER: "25"},
+        )
+    )
+
+    assert patched[ManifestKey.ITEMS.key][0][ManifestKey.PULL_REQUEST_NUMBER.key] == 25
+    assert without_items(patched) == without_items(original)
+
+
+def without_items(manifest: dict) -> dict:
+    """
+    :param manifest: A parsed manifest.
+    :return: Every section of it except its items.
+    """
+    return {
+        key: section
+        for key, section in manifest.items()
+        if key != ManifestKey.ITEMS.key
+    }
 
 
 def test_a_key_quotes_its_own_value_when_its_style_says_to():
