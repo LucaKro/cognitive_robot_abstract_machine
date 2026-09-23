@@ -176,8 +176,8 @@ def test_no_controller_commands_the_moving_part(scene):
 
 
 @every_part
-def test_the_environment_connections_are_the_cabinets_moving_joints(scene):
-    assert scene.environment_connections == [scene.mechanism]
+def test_the_moving_part_is_the_only_connection_no_controller_drives(scene):
+    assert scene.world.uncontrolled_connections == [scene.mechanism]
 
 
 @every_part
@@ -309,7 +309,6 @@ def test_the_controllers_world_and_the_physics_diverge_over_the_moving_part(scen
         )
     )
     simulation = MujocoSim(world=scene.world, headless=True)
-    simulation.synchronizer.unobserved_connections.update(scene.environment_connections)
     simulation.start_stepped_simulation()
     try:
         drive(simulation, scene, motion, cycles=200)

@@ -875,6 +875,20 @@ class World(HasSimulatorProperties):
         ]
 
     @property
+    def uncontrolled_connections(self) -> List[Connection]:
+        """
+        The connections that can move but that no controller drives, such as a drawer's
+        slider or the free connection of an object lying on a table.
+
+        No hardware reports their state either, so it is what a robot has to estimate.
+        """
+        return [
+            connection
+            for connection in self.connections
+            if connection.dofs and not connection.is_controlled
+        ]
+
+    @property
     def semantic_annotations_topologically_sorted(self) -> List[SemanticAnnotation]:
         """
         Return a list of all semantic annotations in the world, sorted topologically

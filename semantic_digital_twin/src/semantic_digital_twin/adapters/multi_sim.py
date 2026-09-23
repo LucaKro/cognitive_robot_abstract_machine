@@ -3138,18 +3138,18 @@ class DegreeOfFreedomDivergence:
 @dataclass
 class DivergenceRecord:
     """
-    How far the world and the physics disagreed about every unobserved degree of freedom
-    at one moment of the simulation.
+    How far the world and the physics disagreed about every degree of freedom the physics
+    alone moves, at one moment of the simulation.
     """
 
-    simulation_time: float
+    simulation_time: timedelta
     """
-    The simulated time of the comparison, in seconds.
+    How much simulated time had passed since the simulation started.
     """
 
     divergences: List[DegreeOfFreedomDivergence]
     """
-    One comparison per unobserved degree of freedom.
+    One comparison per degree of freedom the physics alone moves.
     """
 
 
@@ -3184,30 +3184,24 @@ class MujocoSynchronizer(MultiSimSynchronizer):
     opposite extreme: sync on every call, with no throttling at all.
     """
 
-    physics_moves_uncommanded_joints: bool = False
+    physics_alone_moves_uncontrolled_connections: bool = False
     """
-    Whether a 1-DOF joint with neither a hardware interface nor an actuator, such as a
-    drawer's slider, is moved only by the physics: its position in the world is then
-    never written into MuJoCo, so it moves only when something pushes it.
-    """
+    Whether the physics alone moves the world's
+    :attr:`~semantic_digital_twin.world.World.uncontrolled_connections`, such as a
+    drawer's slider or a loose object's pose.
 
-    unobserved_connections: set[Connection] = field(default_factory=set)
-    """
-    Connections whose simulated state is ground truth kept from the world, such as an
-    environment joint or an object's pose that the controller has to estimate.
-
-    The physics alone moves them: their state is neither read back into the world nor
-    written from it into MuJoCo, and how far the two disagree is recorded in
-    :attr:`divergence_log`. The same holds for every other connection moving one of
-    their degrees of freedom, such as a joint mimicking one of them.
+    Their state is then ground truth kept from the world, as it would be from a real
+    robot: it is neither written from the world into MuJoCo nor read back into the
+    world, so the two can diverge, and how far they do is recorded in
+    :attr:`divergence_log`.
     """
 
     divergence_log: List[DivergenceRecord] = field(
         init=False, default_factory=list, repr=False
     )
     """
-    How far the world and the physics disagreed about the
-    :attr:`unobserved_connections`, recorded on every read of the physics.
+    How far the world and the physics disagreed about the connections the physics
+    alone moves, recorded on every read of the physics.
     """
 
     _last_sync_time: float = field(init=False, default=0.0, repr=False)
@@ -3290,8 +3284,9 @@ class MujocoSynchronizer(MultiSimSynchronizer):
     def _read_connections_from_qpos(self) -> bool:
         """
         Copy ``_mj_data.qpos`` into ``world.state`` for every joint-backed
-        connection the world observes, and record how far the world diverges from
-        the physics for the :attr:`unobserved_connections`.
+        connection, except those the physics alone moves, for which it records how far
+        the world diverges from the physics instead
+        (see :attr:`physics_alone_moves_uncontrolled_connections`).
 
         Held under ``_model_lock`` so the whole pull sees one coherent
         post-step state rather than a mixture of poses from either side of an
@@ -3300,8 +3295,9 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         :return: Whether any connection was read into the world.
         """
         changed = False
-        divergences = []
+        divergence_by_degree_of_freedom = {}
         actuator_name_by_dof_id = self._actuator_names_by_degree_of_freedom()
+        moved_only_by_physics = self._connections_moved_only_by_physics()
         with self.simulator._model_lock:
             for joint_backed in self._joint_backed_connections():
                 connection = joint_backed.connection
@@ -3322,17 +3318,23 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                     case _:
                         self._warn_unsupported_connection("sim→world", connection)
                         continue
-                if connection in self.unobserved_connections:
-                    divergences.extend(self._divergences_from(physics_positions))
-                if self._is_unobserved(connection):
+                if connection in moved_only_by_physics:
+                    # A joint mimicking another reports the same degree of freedom,
+                    # which is recorded once.
+                    for divergence in self._divergences_from(physics_positions):
+                        divergence_by_degree_of_freedom.setdefault(
+                            divergence.degree_of_freedom, divergence
+                        )
                     continue
                 self._write_positions_to_world(physics_positions)
                 changed = True
-        if divergences:
+        if divergence_by_degree_of_freedom:
             self.divergence_log.append(
                 DivergenceRecord(
-                    simulation_time=self.simulator.current_simulation_time,
-                    divergences=divergences,
+                    simulation_time=timedelta(
+                        seconds=self.simulator.current_simulation_time
+                    ),
+                    divergences=list(divergence_by_degree_of_freedom.values()),
                 )
             )
         return changed
@@ -3386,12 +3388,13 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         """
         state_index = self._world.state._index
         actuator_name_by_dof_id = self._actuator_names_by_degree_of_freedom()
+        moved_only_by_physics = self._connections_moved_only_by_physics()
         with self.simulator._model_lock:
             for joint_backed in self._joint_backed_connections():
                 connection = joint_backed.connection
                 match connection:
                     case Connection6DoF():
-                        if self._is_moved_only_by_physics(connection):
+                        if connection in moved_only_by_physics:
                             continue
                         self._write_6dof_to_qpos(
                             connection,
@@ -3412,7 +3415,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                                 previous_positions,
                                 state_index,
                             )
-                        elif not self._is_moved_only_by_physics(connection):
+                        elif connection not in moved_only_by_physics:
                             self._write_1dof_to_qpos(
                                 connection,
                                 joint_backed.qpos_address,
@@ -3423,37 +3426,14 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                     case _:
                         self._warn_unsupported_connection("world→sim", connection)
 
-    def _is_unobserved(self, connection: Connection) -> bool:
+    def _connections_moved_only_by_physics(self) -> set[Connection]:
         """
-        :param connection: A connection in the world.
-        :return: Whether ``connection`` is one of the :attr:`unobserved_connections`,
-            or moves one of their degrees of freedom as a joint mimicking one of them
-            does, so that syncing it would carry that degree of freedom between the
-            world and the physics.
+        :return: The connections whose state must be neither written into MuJoCo nor
+            read back into the world (see :attr:`physics_alone_moves_uncontrolled_connections`).
         """
-        if connection in self.unobserved_connections:
-            return True
-        unobserved_degrees_of_freedom = {
-            degree_of_freedom
-            for unobserved in self.unobserved_connections
-            for degree_of_freedom in unobserved.dofs
-        }
-        return not unobserved_degrees_of_freedom.isdisjoint(connection.dofs)
-
-    def _is_moved_only_by_physics(self, connection: Connection) -> bool:
-        """
-        :param connection: A connection that no actuator drives.
-        :return: Whether the world's state for ``connection`` must not be written into
-            MuJoCo (see :attr:`unobserved_connections` and
-            :attr:`physics_moves_uncommanded_joints`).
-        """
-        if self._is_unobserved(connection):
-            return True
-        return (
-            self.physics_moves_uncommanded_joints
-            and isinstance(connection, ActiveConnection1DOF)
-            and not connection.has_hardware_interface
-        )
+        if not self.physics_alone_moves_uncontrolled_connections:
+            return set()
+        return set(self._world.uncontrolled_connections)
 
     def _actuator_names_by_degree_of_freedom(self) -> Dict[Any, str]:
         """
@@ -3837,16 +3817,16 @@ class MujocoSim(MultiSim):
         than at the synchronizer's throttled rate.
 
         Every servo is handed the position its joint currently holds in the world, so
-        nothing rushes towards zero the moment the physics starts. A joint no controller
-        commands is left to the physics from then on
-        (see :attr:`MujocoSynchronizer.physics_moves_uncommanded_joints`).
+        nothing rushes towards zero the moment the physics starts. A connection no
+        controller drives is left to the physics from then on
+        (see :attr:`MujocoSynchronizer.physics_alone_moves_uncontrolled_connections`).
 
         :raises SimulationAlreadyRunningError: If the simulation is already running.
         """
         if self.simulator.state == SimulatorState.RUNNING:
             raise SimulationAlreadyRunningError(self.world.root.name.name)
         self.synchronizer.sync_rate_hz = MujocoSynchronizer.UNTHROTTLED_SYNC_RATE_HZ
-        self.synchronizer.physics_moves_uncommanded_joints = True
+        self.synchronizer.physics_alone_moves_uncontrolled_connections = True
         self.simulator.start(simulate_in_thread=False, render_in_thread=False)
         self.synchronizer.command_actuators_from_world_state()
 

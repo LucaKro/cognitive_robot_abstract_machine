@@ -1,7 +1,7 @@
 """
-Tests for keeping the simulated ground truth of a connection out of the world: the
-physics and the world hold their own values for an unobserved connection, and the
-synchronizer records how far they diverge.
+Tests for keeping the simulated ground truth out of the world: in a stepped simulation
+the physics and the world hold their own values for every connection no controller
+drives, and the synchronizer records how far they diverge.
 """
 
 from __future__ import annotations
@@ -32,11 +32,11 @@ mujoco_runs_only_in_continuous_integration = pytest.mark.skipif(
     not runs_in_continuous_integration(), reason="MuJoCo tests only run in CI"
 )
 
-# %% an unobserved joint
+# %% an uncontrolled joint
 
 
 @mujoco_runs_only_in_continuous_integration
-def test_the_physics_does_not_overwrite_an_unobserved_joint_in_the_world():
+def test_the_physics_does_not_overwrite_an_uncontrolled_joint_in_the_world():
     """
     Neither the hinge nor the mirrored hinge sharing its degree of freedom carries the
     physics into the world.
@@ -44,7 +44,6 @@ def test_the_physics_does_not_overwrite_an_unobserved_joint_in_the_world():
     pendulum = _pendulum_world()
     world = pendulum.world
     simulation = MujocoSim(world=world, headless=True)
-    simulation.synchronizer.unobserved_connections.add(pendulum.hinge)
     believed = 0.5
     simulation.start_stepped_simulation()
     try:
@@ -61,29 +60,14 @@ def test_the_physics_does_not_overwrite_an_unobserved_joint_in_the_world():
 
 
 @mujoco_runs_only_in_continuous_integration
-def test_the_physics_still_overwrites_an_observed_joint_in_the_world():
+def test_the_divergence_of_an_uncontrolled_joint_is_logged():
+    """
+    The hinge's degree of freedom is logged once, though the mirrored hinge moves it
+    too.
+    """
     pendulum = _pendulum_world()
     world = pendulum.world
     simulation = MujocoSim(world=world, headless=True)
-    simulation.start_stepped_simulation()
-    try:
-        simulator = simulation.simulator
-        world.state[pendulum.hinge.raw_dof.id].position = 0.5
-        world.notify_state_change()
-        simulation.step_simulation(timedelta(seconds=simulator.step_size))
-        simulated = simulator.get_joint_value(pendulum.hinge.name.name).result
-    finally:
-        simulation.stop_simulation()
-
-    assert world.state[pendulum.hinge.raw_dof.id].position == pytest.approx(simulated)
-
-
-@mujoco_runs_only_in_continuous_integration
-def test_the_divergence_of_an_unobserved_joint_is_logged():
-    pendulum = _pendulum_world()
-    world = pendulum.world
-    simulation = MujocoSim(world=world, headless=True)
-    simulation.synchronizer.unobserved_connections.add(pendulum.hinge)
     simulation.start_stepped_simulation()
     try:
         simulator = simulation.simulator
@@ -97,15 +81,17 @@ def test_the_divergence_of_an_unobserved_joint_is_logged():
 
     record = simulation.synchronizer.divergence_log[-1]
     [divergence] = record.divergences
-    assert record.simulation_time == pytest.approx(simulation_time)
+    assert record.simulation_time == timedelta(seconds=simulation_time)
     assert divergence.degree_of_freedom is pendulum.hinge.raw_dof
     assert divergence.world_position == world.state[pendulum.hinge.raw_dof.id].position
     assert divergence.physics_position == pytest.approx(simulated)
 
 
 @mujoco_runs_only_in_continuous_integration
-def test_nothing_is_logged_while_every_connection_is_observed():
+def test_nothing_is_logged_while_every_connection_is_controlled():
     pendulum = _pendulum_world()
+    with pendulum.world.modify_world():
+        pendulum.world.set_dofs_has_hardware_interface([pendulum.hinge.raw_dof], True)
     simulation = MujocoSim(world=pendulum.world, headless=True)
     simulation.start_stepped_simulation()
     try:
@@ -116,7 +102,7 @@ def test_nothing_is_logged_while_every_connection_is_observed():
     assert simulation.synchronizer.divergence_log == []
 
 
-# %% an unobserved object pose
+# %% an uncontrolled object pose
 
 
 @dataclass
@@ -185,15 +171,13 @@ def _falling_box_world(height: float) -> FallingBoxWorld:
 
 
 @mujoco_runs_only_in_continuous_integration
-def test_the_physics_does_not_move_an_unobserved_object_in_the_world():
+def test_the_physics_does_not_move_an_uncontrolled_object_in_the_world():
     """
     The box falls in the physics while the world keeps it where it was believed to be.
     """
     height = 1.0
     falling = _falling_box_world(height)
     simulation = MujocoSim(world=falling.world, headless=True)
-    box_connection = falling.box.parent_connection
-    simulation.synchronizer.unobserved_connections.add(box_connection)
     simulation.start_stepped_simulation()
     try:
         simulation.step_simulation(timedelta(seconds=0.3))
@@ -203,25 +187,25 @@ def test_the_physics_does_not_move_an_unobserved_object_in_the_world():
     finally:
         simulation.stop_simulation()
 
-    believed_height = box_connection.origin.to_np()[2, 3]
+    believed_height = falling.box.global_transform.to_np()[2, 3]
     assert believed_height == pytest.approx(height)
     assert simulated_height < height - 0.3
 
 
 @mujoco_runs_only_in_continuous_integration
-def test_moving_an_unobserved_object_in_the_world_does_not_move_it_in_the_physics():
+def test_moving_an_uncontrolled_object_in_the_world_does_not_move_it_in_the_physics():
     """
     A belief about where the box is never teleports the box itself.
     """
     height = 1.0
     falling = _falling_box_world(height)
     simulation = MujocoSim(world=falling.world, headless=True)
-    box_connection = falling.box.parent_connection
-    simulation.synchronizer.unobserved_connections.add(box_connection)
     simulation.start_stepped_simulation()
     try:
-        box_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=0.5, z=height, reference_frame=falling.world.root
+        falling.box.parent_connection.origin = (
+            HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=0.5, z=height, reference_frame=falling.world.root
+            )
         )
         simulation.step_simulation(timedelta(seconds=simulation.simulator.step_size))
         simulated_x = simulation.simulator.get_body_position(
