@@ -11,6 +11,9 @@ from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
 
 if TYPE_CHECKING:
+    from random_events.variable import Variable
+
+    from giskardpy.motion_statechart.beliefs.belief import Belief, VariableStatistic
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         NodeStateVariable,
@@ -683,6 +686,154 @@ class NodeStateVariableNotSerializableError(JSONSerializationError):
         return (
             f"Cannot serialize {self.variable}, since JSON cannot refer to the node it "
             f"belongs to."
+        )
+
+    def suggest_correction(self) -> str:
+        return ""
+
+
+# %% beliefs
+
+
+@dataclass
+class BeliefError(MotionStatechartError, ABC):
+    """
+    Base class for errors in estimating the state of the world as a belief.
+    """
+
+
+@dataclass
+class NegativeVarianceError(BeliefError):
+    """
+    Raised when a variance, which cannot be negative, is given as negative.
+    """
+
+    variance: float
+    """
+    The variance given.
+    """
+
+    def error_message(self) -> str:
+        return f"A variance cannot be negative, but {self.variance} was given."
+
+    def suggest_correction(self) -> str:
+        return "State how far the value scatters as a variance of zero or more."
+
+
+@dataclass
+class ProbabilityOutOfRangeError(BeliefError):
+    """
+    Raised when a probability is given outside of the unit interval.
+    """
+
+    probability: float
+    """
+    The probability given.
+    """
+
+    def error_message(self) -> str:
+        return f"A probability lies between 0 and 1, but {self.probability} was given."
+
+    def suggest_correction(self) -> str:
+        return ""
+
+
+@dataclass
+class NegativeLikelihoodError(BeliefError):
+    """
+    Raised when the likelihood of an observation is given as negative.
+    """
+
+    likelihood: float
+    """
+    The likelihood given.
+    """
+
+    def error_message(self) -> str:
+        return f"A likelihood cannot be negative, but {self.likelihood} was given."
+
+    def suggest_correction(self) -> str:
+        return ""
+
+
+@dataclass
+class ImpossibleEvidenceError(BeliefError):
+    """
+    Raised when a belief is updated with evidence it considers impossible, which leaves
+    no posterior to normalize.
+    """
+
+    belief: Belief
+    """
+    The belief that was updated.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.belief} considers the evidence it was updated with impossible."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give the evidence a nonzero likelihood under every state the belief "
+            "considers possible."
+        )
+
+
+@dataclass
+class DuplicateBeliefError(BeliefError):
+    """
+    Raised when a belief is added about a variable something is already believed about.
+    """
+
+    variable: Variable
+    """
+    The variable believed about twice.
+    """
+
+    def error_message(self) -> str:
+        return f'There already is a belief about "{self.variable.name}".'
+
+    def suggest_correction(self) -> str:
+        return "Estimate each variable in exactly one belief."
+
+
+@dataclass
+class VariableWithoutBeliefError(BeliefError):
+    """
+    Raised when the belief about a variable is requested that nothing believes about.
+    """
+
+    variable: Variable
+    """
+    The variable requested.
+    """
+
+    def error_message(self) -> str:
+        return f'There is no belief about "{self.variable.name}".'
+
+    def suggest_correction(self) -> str:
+        return "Add an estimator of this variable to the motion statechart."
+
+
+@dataclass
+class UnpublishedStatisticError(BeliefError):
+    """
+    Raised when an estimator is asked for a statistic its belief does not report.
+    """
+
+    node: MotionStatechartNode
+    """
+    The estimator asked.
+    """
+
+    statistic: VariableStatistic
+    """
+    The statistic requested.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'Node "{self.node.unique_name}" does not publish the '
+            f'{self.statistic.statistic} of "{self.statistic.variable.name}".'
         )
 
     def suggest_correction(self) -> str:

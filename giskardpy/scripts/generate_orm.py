@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 
 import giskardpy
+import giskardpy.motion_statechart.beliefs
 import giskardpy.qp.solvers
 import semantic_digital_twin.orm.ormatic_interface
 from krrood.adapters.json_serializer import SubclassJSONSerializer
@@ -19,6 +20,7 @@ from krrood.ormatic.utils import classes_of_package
 
 
 ignored_classes = set(classes_of_package(giskardpy.qp.solvers))
+ignored_classes |= set(classes_of_package(giskardpy.motion_statechart.beliefs))
 ignored_classes |= {SubclassJSONSerializer}
 
 dependencies = [semantic_digital_twin.orm.ormatic_interface]
