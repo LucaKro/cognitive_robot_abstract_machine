@@ -163,10 +163,10 @@ items:
     the product specs, not verified on this Tracy: the UR e-Series has a built-in wrist force/torque sensor
     of coarse precision (about 5 N), and the 2F-85 reports finger position, motor current and its own
     object-detected flag. Confirm which of these the drivers expose, at what rate and noise. The CRAM
-    robot model has no force/torque sensor today. After review round 1 (user decision): the robot-side
-    concepts live in semantic_digital_twin (a generic ForceTorqueSensor part, Tracy''s wrist sensors,
-    the Robotiq ObjectDetectionStatus); the ROS binding and the measurement stay in experiments; units
-    use pint.'
+    robot model has no force/torque sensor today. After review rounds 1 and 2 (user decisions): the robot
+    model in semantic_digital_twin gets a generic ForceTorqueSensor part and Tracy''s wrist sensors; the
+    ROS binding, the Robotiq ObjectDetectionStatus and the measurement stay in experiments (the ROS
+    binding may move to semdt later); units use pint, with its unit serializer in krrood.'
 - id: real-sensor-dataset
   title: Record real drawer-opening episodes with independent ground truth
   branch: real-sensor-dataset

@@ -378,3 +378,13 @@ Kicked off 2026-09-23 in auto mode. Branch `ground-truth-separation`, stacked on
 - Building a `MujocoSim` re-roots the world and gives free bodies new free connections. So connections are looked up after the simulation is built; `environment_connections` is a property for that reason.
 - `_read_6dof_from_qpos`/`_read_1dof_from_qpos` keep their names (`test_multi_sim.py` patches one by name) but now return positions, which the read and the divergence share.
 - Verified locally (no ROS): the semdt MuJoCo tests give 40 passed, 2 skipped. The Tracy cabinet tests are CI-only; the same giskard scenario on a cabinet-only world gave believed ≈ fully open, physics 0.0, log matching.
+
+## `tracy-sensor-mapping` — second review round: no ClassVars
+
+Resolved 2026-09-24 (auto mode). CI was green on `9b87f33a`. Eight new threads from the author:
+
+- **No `ClassVar` constants either** ("also no classvars", "no. class. vars."). The rate constants became documentation, since nothing read them. The stamp conversion goes through pint. The gripper register's range comes from `np.iinfo(np.uint8)`. `driver_maximum_force` is a `kw_only` field defaulting to 235, because it is driver configuration. Queue depth, node name and report indentation are fields. A recording is timed once it has an interval between two samples, so the two-sample minimum is gone. AGENTS.md now rules out `ClassVar` constants too (`c11d417c`), which supersedes round 1's "a `ClassVar` on the owning class".
+- **The pint serializer moved into krrood** (`df308b97`, `krrood/adapters/json_serializer.py`). krrood declares `pint`, a third-party package, so krrood stays self-contained.
+- **`ObjectDetectionStatus` moved back to experiments**, because nothing in semdt used it. `robotiq_85_gripper.py` is identical to `main` again. semdt keeps only `ForceTorqueSensor` and Tracy's wrist sensors.
+- **The measurement builds Tracy through `WorldSpecification`/`RobotSpecification`** (`b9d733e1`).
+- **Left open:** "the ros stuff may move to semdt at some point". It stays in experiments for now, per the reviewer. This is a possible later move, not scheduled in any item.
