@@ -7,6 +7,7 @@ Skipped where Tracy's description is not installed.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy
@@ -30,7 +31,11 @@ from semantic_digital_twin.adapters.multi_sim import MujocoSim
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Cabinet
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.spatial_types.spatial_types import Point3
+from semantic_digital_twin.spatial_types.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Point3,
+    Pose2D,
+)
 from semantic_digital_twin.utils import tracy_installed
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 
@@ -120,6 +125,30 @@ def test_the_cabinet_stands_on_tracys_table(specification, scene):
     assert cabinet_bottom == pytest.approx(specification.world_T_table.to_np()[2, 3])
 
 
+def test_the_cabinet_front_lies_at_its_pose_on_the_table():
+    specification = CabinetSceneSpecification(
+        articulated_part=ArticulatedPart.DRAWER,
+        table_T_cabinet_front=Pose2D(x=0.8, y=0.2, yaw=math.pi / 6),
+    )
+
+    scene = specification.to_domain_object()
+
+    world_T_cabinet_front = (
+        scene.cabinet.root.global_transform
+        @ HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=-specification.cabinet_scale.x / 2,
+            z=-specification.cabinet_scale.z / 2,
+        )
+    )
+    assert numpy.allclose(
+        world_T_cabinet_front.to_np(),
+        (
+            specification.world_T_table
+            @ specification.table_T_cabinet_front.to_homogeneous_matrix()
+        ).to_np(),
+    )
+
+
 @every_part
 def test_every_body_has_its_own_name(scene):
     """
@@ -183,20 +212,20 @@ class Push:
     How far to the left of the cabinet's centre line the hand pushes, in metres.
     """
 
-    standoff: float = 0.4
-    """
-    How far in front of the cabinet's front the hand comes down, in metres.
-    """
-
     height: float = 0.12
     """
-    How high above the table top the hand pushes, in metres.
+    How high above the cabinet's bottom the hand pushes, in metres.
     """
 
     approach_height: float = 0.42
     """
-    How high above the table top the hand travels to the point it comes down at, in
-    metres.
+    How high above the cabinet's bottom the hand travels to the point it comes down
+    at, in metres.
+    """
+
+    standoff: float = 0.4
+    """
+    How far in front of the cabinet's front the hand comes down, in metres.
     """
 
     depth: float = 0.13
@@ -216,13 +245,13 @@ PUSHES = {
 def test_the_hand_pushing_the_moving_part_moves_it(specification, scene):
     push = PUSHES[specification.articulated_part]
     scene.set_opening(push.opening)
-    table = scene.robot.root
     tool_frame = scene.robot.left_arm.end_effector.tool_frame
-    line = specification.sideways_offset + push.sideways_offset
+    front = -specification.cabinet_scale.x / 2
+    bottom = -specification.cabinet_scale.z / 2
     waypoints = [
-        (specification.front_distance - push.standoff, line, push.approach_height),
-        (specification.front_distance - push.standoff, line, push.height),
-        (specification.front_distance - push.depth, line, push.height),
+        (front - push.standoff, push.sideways_offset, bottom + push.approach_height),
+        (front - push.standoff, push.sideways_offset, bottom + push.height),
+        (front - push.depth, push.sideways_offset, bottom + push.height),
     ]
     motion = MotionStatechart()
     motion.add_node(
@@ -232,7 +261,7 @@ def test_the_hand_pushing_the_moving_part_moves_it(specification, scene):
                     name=f"waypoint {index}",
                     root_link=scene.world.root,
                     tip_link=tool_frame,
-                    goal_point=Point3(x, y, z, reference_frame=table),
+                    goal_point=Point3(x, y, z, reference_frame=scene.cabinet.root),
                 )
                 for index, (x, y, z) in enumerate(waypoints)
             ]

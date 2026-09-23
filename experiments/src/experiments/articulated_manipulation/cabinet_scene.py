@@ -28,6 +28,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
+    Pose2D,
     Vector3,
 )
 from semantic_digital_twin.world import World
@@ -155,16 +156,15 @@ class CabinetSceneSpecification:
     The outer size of the cabinet's case; x is its depth.
     """
 
-    front_distance: float = 0.85
+    table_T_cabinet_front: Pose2D = field(
+        default_factory=lambda: Pose2D(x=0.85, y=0.35)
+    )
     """
-    How far from the arms' edge of the table the cabinet's open front stands, which
-    leaves the hand room to come down in front of it.
-    """
+    Where the centre of the cabinet's open front stands on the table top; the cabinet
+    extends along the pose's x axis and turns with its yaw about that point.
 
-    sideways_offset: float = 0.35
-    """
-    How far to the left of the table's centre line the cabinet stands, in front of the
-    left arm.
+    The default puts the front in front of the left arm, far enough across the table to
+    leave the hand room to come down in front of it.
     """
 
     wall_thickness: float = 0.02
@@ -249,10 +249,9 @@ class CabinetSceneSpecification:
         )
         root_specification.parent_T_self = (
             self.world_T_table
+            @ self.table_T_cabinet_front.to_homogeneous_matrix()
             @ HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=self.front_distance + self.cabinet_scale.x / 2,
-                y=self.sideways_offset,
-                z=self.cabinet_scale.z / 2,
+                x=self.cabinet_scale.x / 2, z=self.cabinet_scale.z / 2
             )
         )
         match self.articulated_part:
