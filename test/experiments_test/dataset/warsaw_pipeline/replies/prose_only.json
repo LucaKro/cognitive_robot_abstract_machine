@@ -1,0 +1,10 @@
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "This object appears to be a kitchen drawer of some kind."
+      }
+    }
+  ]
+}

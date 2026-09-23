@@ -1,0 +1,10 @@
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "Here you go:\n```json\n{\"class\": \"Drawer\", \"is_new_class\": false}\n```"
+      }
+    }
+  ]
+}

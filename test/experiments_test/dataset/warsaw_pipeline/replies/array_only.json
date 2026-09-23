@@ -1,0 +1,10 @@
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "[{\"name\": \"drawer_1\", \"class\": \"Drawer\"}]"
+      }
+    }
+  ]
+}

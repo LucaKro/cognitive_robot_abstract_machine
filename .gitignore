@@ -18,6 +18,7 @@ msg/*Result.msg
 msg/_*.py
 *muh*
 *.txt
+!cramera/src/cramera/web/vendor/licenses/*.txt
 # The hook tests' scratch clone needs a real requirements.txt at the path
 # check-setup.sh looks for, so this one fixture is checked in.
 !.claude/hooks/tests/fixtures/set-up-clone/**/*.txt
@@ -111,6 +112,7 @@ test/krrood_test/test_ripple_down_rules/test_generated_rdrs
 *.lo
 *.o
 *.obj
+!test/cramera_test/dataset/material.obj
 
 # Precompiled Headers
 *.gch
@@ -188,3 +190,17 @@ CLAUDE.local.md
 # Tracking a generated file made every branch switch fail while a checkout held its own
 # copy, which is what git refuses to overwrite.
 **/ormatic_interface.py
+# The Warsaw pipeline's scenes and its output. A run writes a directory of its own beside
+# the scene it read, and none of it belongs in the repository: the scans are hundreds of
+# megabytes and a run's conclusions are a run's, not the project's.
+experiments/src/experiments/warsaw/dataset/
+experiments/src/experiments/warsaw/pipeline_runs/
+# The self-collision matrix a collision test saves. It is written into whatever directory
+# the tests were started from, so it lands at the root of a checkout and gets swept into a
+# commit; the matrices the project keeps live in
+# semantic_digital_twin/resources/collision_configs/ under the robot's own name.
+test.srdf
+
+# Local data produced by the Python coverage checks.
+/.coverage
+/.coverage.*

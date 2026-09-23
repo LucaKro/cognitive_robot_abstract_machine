@@ -1,0 +1,22 @@
+## The proposal
+Give {{ whole }} the mixin {{ mixin }}, which introduces: {{ granted }}.
+
+## The class as it stands
+{{ whole_as_it_stands }}
+
+## The part
+{{ part_as_it_stands }}
+{% if held_onwards %}
+
+{# What the class holds is not enough to judge by, since what *those* hold is a relation
+   further away and often decides it -- a cabinet holds doors and a door holds a handle.
+   Reported as structure and nothing else: what follows from it is the question being
+   asked, not something to answer in the asking. #}
+## What those parts hold in turn
+{% for held in held_onwards %}
+{{ held }}
+{% endfor %}
+{% endif %}
+
+## What was measured
+In one scanned room, objects labelled {{ whole_labels | join(", ") }} were read as {{ whole }}, and objects labelled {{ part_labels | join(", ") }} as {{ part }}. They share faces over {{ measured_pairs }} measured pairs, {{ shared_faces }} shared faces in all.
