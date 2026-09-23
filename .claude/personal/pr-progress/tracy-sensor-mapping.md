@@ -1,21 +1,20 @@
 ## tracy-sensor-mapping (PR #27, draft, base main)
 
-Plan item of articulated-manipulation-under-uncertainty. Review round 1
-resolved (auto mode); record in roadmap.md, "first review round" section.
+Plan item of articulated-manipulation-under-uncertainty. Review rounds 1 and 2
+resolved (auto mode); record in roadmap.md "review round" sections.
 
-Done (pushed 9b87f33a): semdt ForceTorqueSensor + Tracy wrist sensors at
-<side>_tool0 + Robotiq ObjectDetectionStatus (84a590bb); experiments signals
-keyed by semantic parts, pint units, Gaussian/Dirac statistics, ClassVars,
-npt typing (9b87f33a); AGENTS.md rules (eabf5059). 12 threads resolved;
-krrood / segmind / actuator threads answered and left open for the user.
-simulated-sensors notes updated; tracking issue #23 commented.
+State (pushed b9d733e1):
+- semdt: ForceTorqueSensor + Tracy wrist sensors at <side>_tool0 (only).
+- krrood: PintUnitJSONSerializer (df308b97); krrood declares pint.
+- experiments: signals keyed by semantic parts, ObjectDetectionStatus here,
+  pint units + stamp conversion, Gaussian/Dirac statistics, no ClassVars,
+  Tracy built via WorldSpecification/RobotSpecification.
+- AGENTS.md: npt typing; no constants, module-level or ClassVar (c11d417c).
+- Open threads for the user: krrood aggregations, segmind, actuators
+  (round 1), "ros stuff may move to semdt later" (round 2, no action).
 
 Next:
-- Check CI on 9b87f33a: semdt Tracy tests and the experiments tests only run
-  there (Tracy description + ROS). test_tracy_semantic_annotation's sensor
-  count was changed on purpose (1 camera + 1 F/T per arm).
-- User's call on the three open threads.
-- #24 still adds articulated_manipulation/__init__.py with a docstring; this
-  PR empties it - reconcile whichever lands second.
+- Check CI on b9d733e1 (Tracy/ROS tests only run there; 9b87f33a was green).
+- #24 adds articulated_manipulation/__init__.py with a docstring; here empty.
 - Run the tool on the real Tracy; commit the report. Only then done.
 Plan tooling: worktree of basstler_experiments in the scratchpad.
