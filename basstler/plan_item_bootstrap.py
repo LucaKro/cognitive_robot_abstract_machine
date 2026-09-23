@@ -335,12 +335,20 @@ ITEM_START_PATTERN = re.compile(rf"^\s*- {re.escape(ManifestKey.IDENTIFIER.key)}
 """
 Matches the first line of an item block, which is always its ``id``.
 
-Same anchor ``sync_manifest_status.py`` uses to find item boundaries in raw text.
+A wave or a track opens the same way, so it is only matched within the items section.
 """
 
-TOP_LEVEL_KEY_PATTERN = re.compile(r"^\S")
+TOP_LEVEL_KEY_PATTERN = re.compile(r"^[^\s#-]")
 """
-Matches a top-level ``plan.yaml`` key, which is where the last item block ends.
+Matches a top-level ``plan.yaml`` key, which is where a section ends.
+
+A list entry written without indentation and a comment both start in the first column
+too, and neither ends a section.
+"""
+
+ITEMS_SECTION_PATTERN = re.compile(rf"^{re.escape(ManifestKey.ITEMS.key)}:")
+"""
+Matches the line opening the manifest's list of items.
 """
 
 BLOCK_VALUE_PATTERN = re.compile(
@@ -836,6 +844,38 @@ class PlanDocuments:
 # %% patching one item's fields in the manifest text
 
 
+def items_section_bounds(manifest_lines: list[str]) -> tuple[int, int]:
+    """
+    The half-open line range of the manifest's list of items.
+
+    Waves and tracks are lists of ``- id:`` entries too, so an item is only ever looked
+    for here.
+
+    :param manifest_lines: The manifest, split into lines.
+    :return: The lines below the ``items:`` key up to the next top-level key, or every
+        line when there is no ``items:`` key, which makes the text the items list alone.
+    """
+    opener = next(
+        (
+            index
+            for index, line in enumerate(manifest_lines)
+            if ITEMS_SECTION_PATTERN.match(line)
+        ),
+        None,
+    )
+    if opener is None:
+        return 0, len(manifest_lines)
+    end = next(
+        (
+            index
+            for index in range(opener + 1, len(manifest_lines))
+            if TOP_LEVEL_KEY_PATTERN.match(manifest_lines[index])
+        ),
+        len(manifest_lines),
+    )
+    return opener + 1, end
+
+
 def item_block_bounds(manifest_lines: list[str]) -> list[tuple[int, int]]:
     """
     The half-open line range of every item block in the manifest.
@@ -843,22 +883,22 @@ def item_block_bounds(manifest_lines: list[str]) -> list[tuple[int, int]]:
     :param manifest_lines: The manifest, split into lines.
     :return: One ``(start, end)`` pair per item, in manifest order.
     """
+    section_start, section_end = items_section_bounds(manifest_lines)
     starts = [
         index
-        for index, line in enumerate(manifest_lines)
-        if ITEM_START_PATTERN.match(line)
+        for index in range(section_start, section_end)
+        if ITEM_START_PATTERN.match(manifest_lines[index])
     ]
-    if not starts:
-        return []
-    end_of_items = next(
-        (
-            index
-            for index in range(starts[-1] + 1, len(manifest_lines))
-            if TOP_LEVEL_KEY_PATTERN.match(manifest_lines[index])
-        ),
-        len(manifest_lines),
-    )
-    return list(zip(starts, starts[1:] + [end_of_items]))
+    return list(zip(starts, starts[1:] + [section_end]))
+
+
+def item_identifier_of(opening_line: str) -> str:
+    """
+    :param opening_line: The ``- id:`` line an item block opens with.
+    :return: The item's id.
+    """
+    opener = f"- {ManifestKey.IDENTIFIER.key}:"
+    return opening_line.strip().removeprefix(opener).strip()
 
 
 def locate_item_block(
@@ -870,15 +910,11 @@ def locate_item_block(
     :param manifest_lines: The manifest, split into lines.
     :param plan_identifier: The plan being edited, for the error message.
     :param item_identifier: The item's id.
-    :raises UnknownItemError: If no block starts with that id.
+    :raises UnknownItemError: If no item block starts with that id.
     :return: The block's half-open line range.
     """
-    opener = f"- {ManifestKey.IDENTIFIER.key}:"
     for start, end in item_block_bounds(manifest_lines):
-        if (
-            manifest_lines[start].strip().removeprefix(opener).strip()
-            == item_identifier
-        ):
+        if item_identifier_of(manifest_lines[start]) == item_identifier:
             return start, end
     raise UnknownItemError(
         plan_identifier=plan_identifier, item_identifier=item_identifier

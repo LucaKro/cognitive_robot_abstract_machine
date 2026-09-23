@@ -58,8 +58,8 @@ from basstler.build_dashboard import (
     load_pull_requests_by_repository,
     validate_plan,
 )
+from basstler.plan_item_bootstrap import item_block_bounds, item_identifier_of
 
-_ITEM_START_PATTERN = re.compile(r"^\s*- id:")
 _STATUS_LINE_PATTERN = re.compile(r"^(\s*status:\s*)(\S+)\s*$")
 
 
@@ -138,14 +138,10 @@ def apply_status_corrections(
         item.get("id") or item.get("branch") for item in items_to_correct
     }
     lines = plan_text.split("\n")
-    item_starts = [
-        index for index, line in enumerate(lines) if _ITEM_START_PATTERN.match(line)
-    ]
-    item_starts.append(len(lines))
 
     corrections: list[StatusCorrection] = []
-    for start, end in zip(item_starts, item_starts[1:]):
-        item_identifier = lines[start].strip().removeprefix("- id:").strip()
+    for start, end in item_block_bounds(lines):
+        item_identifier = item_identifier_of(lines[start])
         if item_identifier not in identifiers_to_correct:
             continue
         status_line_index = next(
