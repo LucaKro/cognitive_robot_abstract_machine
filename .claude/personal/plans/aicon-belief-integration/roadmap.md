@@ -13,6 +13,19 @@ independently of the plan — it is not duplicated here.
 
 ---
 
+## Retired
+
+**Retired on 2026-09-23. Superseded by `articulated-manipulation-under-uncertainty` (tracking issue #23).**
+
+A critical reassessment, re-reading both codebases and all three AICON papers, found that the plan's premises did not hold:
+
+- AICON's shipped estimators are mostly gradient-shaping devices. The grasp likelihood has no memory: its value is recomputed from force and the gripper *command*, while its gradient comes from a different formula. The end-effector estimate is overwritten with the raw measurement. The detach guard is disabled in the showcase update.
+- AICON's "emergent" sequencing is hand-engineered: `if` guards, an injected open-hand gradient, forced derivative signs, and a bang-bang gripper latch. No shipped goal has an uncertainty term. The authors' 2026 follow-up drops steepest-path selection themselves.
+- In CRAM, a continuous observation never fires a statechart transition, because `is_true()` tests exact equality with 1. Scaling task weights by a probability does almost nothing until the weight nearly vanishes (measured). Scaling the hold-handle weight toward zero opens the modelled drawer without the hand (measured).
+- The one real gap is that CRAM dead-reckons articulated environment joints from its own commands. In a stuck-drawer probe, the model concluded the drawer was 0.30 m open while the hand never moved.
+
+The successor plan matches AICON's task-level capabilities with explicit machinery, on a MuJoCo benchmark with ground truth kept apart from belief. Its pull requests are closed by the user and their branches are kept. #22 (multivariate Gaussian) continues in the successor plan.
+
 ## Why this plan exists
 
 Three facts, established by reading both codebases, decide the whole thing.

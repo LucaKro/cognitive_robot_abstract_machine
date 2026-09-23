@@ -1,449 +1,406 @@
 schema_version: 1
 id: aicon-belief-integration
 title: AICON Belief Integration
-description: >-
-  Add continuously-updated, uncertainty-bearing state estimates to the stack,
-  and let the controller differentiate through them. Wave 1 stops discarding
-  uncertainty the stack already receives; wave 2 adds a belief layer as
-  motion-statechart nodes; wave 3 extends the symbolic chain rule through those
-  beliefs so the QP can see the path action to belief to goal. Ideas are drawn
-  from AICON; the framework itself is deliberately not adopted.
+description: 'RETIRED 2026-09-23 - superseded by articulated-manipulation-under-uncertainty (tracking
+  issue #23). Add continuously-updated, uncertainty-bearing state estimates to the stack, and let the
+  controller differentiate through them. Wave 1 stops discarding uncertainty the stack already receives;
+  wave 2 adds a belief layer as motion-statechart nodes; wave 3 extends the symbolic chain rule through
+  those beliefs so the QP can see the path action to belief to goal. Ideas are drawn from AICON; the framework
+  itself is deliberately not adopted.'
 default_repository: LucaKro/cognitive_robot_abstract_machine
 tracking_issue: 7
-
 waves:
-  - id: wave-1
-    name: "Wave 1: Stop discarding uncertainty"
-    description: >-
-      Three independent, shippable changes that keep information the stack
-      already receives and currently throws away. No new abstractions.
-  - id: wave-2
-    name: "Wave 2: A belief layer"
-    description: >-
-      Per-quantity Gaussian beliefs carried across ticks in a ContextExtension,
-      updated by statechart nodes, usable in constraints and transitions.
-  - id: wave-3
-    name: "Wave 3: Differentiate through the estimator"
-    description: >-
-      Extend the symbolic chain rule past joint positions into estimated
-      quantities, so epistemic action falls out of the QP rather than a plan.
-
+- id: wave-1
+  name: 'Wave 1: Stop discarding uncertainty'
+  description: Three independent, shippable changes that keep information the stack already receives and
+    currently throws away. No new abstractions.
+- id: wave-2
+  name: 'Wave 2: A belief layer'
+  description: Per-quantity Gaussian beliefs carried across ticks in a ContextExtension, updated by statechart
+    nodes, usable in constraints and transitions.
+- id: wave-3
+  name: 'Wave 3: Differentiate through the estimator'
+  description: Extend the symbolic chain rule past joint positions into estimated quantities, so epistemic
+    action falls out of the QP rather than a plan.
 tracks:
-  - id: uncertainty-plumbing
-    name: Uncertainty plumbing
-    wave: wave-1
-    description: Carry existing confidence and covariance signals through instead of dropping them.
-  - id: belief-core
-    name: Belief core
-    wave: wave-2
-    description: The belief container and the estimator node base class.
-  - id: belief-application
-    name: First estimator and validation
-    wave: wave-2
-    description: A concrete grasp belief, its use in a goal, and the experiment that judges it.
-  - id: differentiable-beliefs
-    name: Differentiable beliefs
-    wave: wave-3
-    description: Symbolic estimator means, the chain rule through them, and the gradient-flow guard.
-
+- id: uncertainty-plumbing
+  name: Uncertainty plumbing
+  wave: wave-1
+  description: Carry existing confidence and covariance signals through instead of dropping them.
+- id: belief-core
+  name: Belief core
+  wave: wave-2
+  description: The belief container and the estimator node base class.
+- id: belief-application
+  name: First estimator and validation
+  wave: wave-2
+  description: A concrete grasp belief, its use in a goal, and the experiment that judges it.
+- id: differentiable-beliefs
+  name: Differentiable beliefs
+  wave: wave-3
+  description: Symbolic estimator means, the chain rule through them, and the gradient-flow guard.
 items:
-  - id: grasp-likelihood-continuous
-    title: Keep the grasp likelihood continuous instead of thresholding it away
-    branch: claude/plan-item-kickoff-aicon-belief-84kl68
-    pull_request_number: 8
-    track: uncertainty-plumbing
-    status: in_progress
-    session: https://claude.ai/code/session_01Fw9Svyih3RfDVQEWeSH28e
-    notes: >-
-      is_body_in_gripper (robot_predicates.py:162) already returns a float its
-      own docstring calls a marginal probability; is_body_gripped discards it
-      with > threshold on the next line. Trinary logic is already a [0,1]
-      algebra (False=0, Unknown=0.5, True=1; not=1-x, and=min, or=max), so the
-      float is type-compatible with a giskard observation today. Add a
-      continuous path without breaking the existing boolean predicate, which is
-      used in EQL preconditions. Guard is_unknown(), which tests ca.eq(x, 0.5)
-      exactly and will never fire on a continuous value.
-      Correction from the implementation: the type-compatibility claim above
-      holds for the trinary algebra but not for the four sites that compare
-      against the three constants exactly, so a continuous value must not be a
-      node's observation. It is carried by a registered FloatVariable instead,
-      and only a trinary view of it is observed - see this item's roadmap
-      section. Dependents should read the likelihood off GraspLikelihood's
-      FloatVariable, not off its observation.
-      Review settled the one question it raised: trinary_logic_from_continuous
-      stays in krrood on its single call site, because the observation is still
-      used as a trinary view of the FloatVariable. Both review threads are
-      resolved; the item's remaining history is the restack against main.
-
-  - id: odometry-covariance-capture
-    title: Stop discarding the odometry pose covariance
-    branch: claude/jolly-edison-k0zkiq
-    pull_request_number: 9
-    track: uncertainty-plumbing
-    status: in_progress
-    session: https://claude.ai/code/session_01JziQZTMtT3k4wuoBg4B6TG
-    notes: >-
-      OdometrySynchronizer.apply_message (input_synchronization.py:266) reads
-      message.pose.pose and never touches message.pose.covariance, dropping all
-      36 numbers on every message. Capture it into a registered FloatVariable
-      (even just its trace to begin with) so the statechart can condition on
-      base uncertainty. Enables conditions of the form "do not begin the final
-      approach while base uncertainty exceeds X".
-      Correction from review: PoseCovariance and the six degrees of freedom it
-      relates live in semantic_digital_twin, not giskardpy, and the flat row-major
-      ROS layout is a converter's knowledge. The degrees of freedom are
-      SpatialVariables, not an enum of this item's own - PoseAxis was removed in
-      the second round because its translational half restated them. Dependents
-      should read a covariance by variable (variance_of, covariance_between) and
-      build one with PoseCovariance.of, never by row index.
-
-  - id: detection-confidence-field
-    title: Carry perception confidence across the process boundary
-    branch: detection-confidence-field
-    pull_request_number: null
-    track: uncertainty-plumbing
-    status: not_started
-    notes: >-
-      robokudo produces a per-classification confidence; coraplex Detection
-      (perception.py:137) has exactly two fields, semantic_annotation and pose,
-      so it dies at the action-server boundary. Note the ORM consequence:
-      ORMatic.from_package maps every dataclass it finds, so a new field
-      becomes a new column automatically.
-
-  - id: belief-context-and-gaussian
-    title: BeliefContext and a scalar/vector Gaussian belief with predict and update
-    branch: claude/belief-integration-gaussian-zi1o82
-    pull_request_number: 10
-    track: belief-core
-    status: in_progress
-    session: https://claude.ai/code/session_01QKaPHenZW9umY47JiBjtXA
-    notes: >-
-      A ContextExtension holding per-quantity beliefs, following the shape
-      segmind already uses (SegmindContext, detectors/base.py:36, retrieved with
-      context.require_extension). Deliberately not in WorldState, whose row axis
-      is the Derivatives enum hard-coded to 4 and assumed by the ORM
-      (orm/model.py:95), the ROS sync, the FK memory binding and the trajectory
-      recorder. Write the Kalman update directly - probabilistic_model's
-      GaussianDistribution is strictly univariate, has no covariance, and its
-      conditioning is truncation or Dirac collapse, not a measurement update.
-
-  - id: probability-concepts-in-probabilistic-model
-    title: Move the belief layer's probability concepts into probabilistic_model
-    branch: claude/probability-concepts-probabilistic-model-m0i2n0
-    pull_request_number: 11
-    track: belief-core
-    status: in_progress
-    depends_on: [belief-context-and-gaussian]
-    session: https://claude.ai/code/session_01VpDYNqmbxmxKma7aB9B1Y9
-    notes: >-
-      probabilistic_model has no multivariate Gaussian only because nobody has
-      needed one; its maintainer would welcome it. ProbabilisticModel is already
-      multivariate and keyed by random_events variables, and its
-      conditional(point) is the Kalman measurement update in closed form, so the
-      distribution belongs there rather than hand-written in giskardpy. The same
-      goes for covariance and the other probability concepts
-      belief-context-and-gaussian currently keeps locally - Quantities, which is
-      an ordered set of random variables plus the layout of arrays over them, and
-      the measurement model a Reading carries. Two of ProbabilisticModel's eight
-      abstract methods are the real work:
-      probability_of_simple_event (the probability of an axis-aligned box under a
-      correlated Gaussian has no closed form and needs numerical integration) and
-      log_truncated (a truncated correlated Gaussian is not Gaussian, so it
-      cannot return Self). Once it exists, swap GaussianBelief's internals onto
-      it; the interface is already variable-keyed, so no dependent has to move.
-      Second review round, answered in 0c081d59. Truncation is now supported only over
-      a box - one unbroken stretch per variable - which is what made the truncated
-      distribution's mode and conditional answerable rather than intractable: a strictly
-      log-concave density on a convex box has exactly one maximum, and conditioning is the
-      Gaussian conditional confined to the slice the box makes. Sampling is exact through
-      scipy.stats.truncnorm where the quantities do not co-vary. The prediction step
-      (apply_linear_map, apply_added_covariance) moved into GaussianBelief.predict, because
-      a general linear map changes what the variables mean and a Kalman transition does not;
-      conditional_on_measurement stays here, since conditional(point) being the Kalman update
-      in closed form is this item's premise. Dependents read a covariance through
-      covariance_between and build the distribution from distribution_variables plus plain
-      mean and covariance arrays - Quantities, Mean and Covariance no longer exist.
-      Four threads are open for the maintainer rather than blocked on us: whether
-      _point_mass_at should build a circuit (his two comments contradict each other),
-      triangular covariance storage, discrete variables via an encoding, and what
-      conditional_on_measurement should be.
-
-  - id: pose-covariance-on-shared-quantities
-    title: Lay a pose covariance out with the shared quantity layout
-    branch: claude/jolly-heisenberg-7n8zi8
-    pull_request_number: 15
-    track: belief-core
-    status: in_progress
-    depends_on: [probability-concepts-in-probabilistic-model, odometry-covariance-capture, pose-uncertainty-through-transforms]
-    session: https://claude.ai/code/session_0186RZZUq8orJoQjS2uK33Xi
-    notes: >-
-      PoseCovariance builds and reads its matrix from its own private row lookup
-      over SpatialVariables.pose, which is the same job Quantities does for a
-      belief - an ordered set of random variables plus the layout of arrays over
-      them. It could not reuse Quantities when it was written: Quantities lives in
-      giskardpy, giskardpy depends on semantic_digital_twin and not the reverse, so
-      the import direction forbids it. Once
-      probability-concepts-in-probabilistic-model moves Quantities into
-      probabilistic_model, which semantic_digital_twin already depends on, the
-      layout becomes importable and PoseCovariance's private _row_of, its own
-      symmetric fill in of() and VariableNotInPoseError all collapse onto it. The
-      public interface is already keyed by random_events variables, so this is
-      internals only and no caller moves.
-      Two corrections from the kickoff, both settled with the user. The base is #13
-      rather than #9: #13 already moved _row_of onto SpatialVariables.row_in_pose to
-      leave this item one place to collapse rather than two, and added
-      PoseDisplacementMap as that second place, so pose-uncertainty-through-transforms
-      is now a dependency. And the collapse goes further than "no caller moves":
-      PoseCovariance stops holding a bare array and holds the uncertainty of each pair
-      of degrees of freedom with of/from_array/as_array, the shape #11's Covariance
-      took, which #11, #13 and #9 each recorded as costing least here. The one caller
-      that moves is PoseWithCovarianceToSemDTConverter, onto from_array.
-      Superseded by #11's second review round: Quantities and its module are deleted, so
-      this item's whole premise - collapsing PoseCovariance onto the shared layout - no
-      longer has anything to collapse onto. The branch already implements against it, so
-      this needs its own resolve round to decide what SpatialVariables.pose becomes now.
-      Earlier resolution, still true of the branch as pushed: the only thing that stalled
-      this was one missed site of that rename. SpatialVariables.pose is a Quantities,
-      whose lookup is index_of and has no index, and the transposed-read assertion in
-      test_convert_pose_covariance_reads_the_entries_row_by_row still called the
-      tuple's .index - so it raised AttributeError and took
-      test_each_lib (semantic_digital_twin) red while the other 22 checks passed.
-      The converter tests cannot run outside CI, because geometry_msgs has no PyPI
-      distribution, so a whole-branch grep for the removed name is what catches this
-      class of miss rather than a local run.
-
-  - id: pose-uncertainty-through-transforms
-    title: Carry a pose's uncertainty through the transforms applied to it
-    branch: claude/plan-item-kickoff-belief-pose-j36vt3
-    pull_request_number: 13
-    track: belief-core
-    status: in_progress
-    depends_on: [odometry-covariance-capture]
-    session: https://claude.ai/code/session_013atde1a9jns6QBbyL4RQT6
-    notes: >-
-      Raised in review on #9: a covariance sounds like something that should be
-      associated directly with a pose. Attaching it is mechanically easy - ORMatic
-      skips fields whose name starts with an underscore (wrapped_table.py:628) and
-      Pose.to_json/_from_json are hand-written over position and rotation only, so
-      a private field is invisible to both the ORM scan and the JSON round-trip.
-      What is not easy is that Pose composes and inverts, a covariance is
-      frame-dependent, and transforming a pose must rotate its covariance. A field
-      that silently survives or silently vanishes across those operations is worse
-      than no field, because a wrong covariance is worse than an absent one - the
-      plan's own standing caveat about manufacturing confident beliefs. So this item
-      is the propagation, not the field: rotate the covariance with the transform,
-      decide what an operation between an uncertain and a certain pose yields, and
-      only then attach it. Most Pose instances are symbolic forward-kinematics
-      expressions with no measured uncertainty at all, which is the other reason the
-      field alone would mislead.
-
-  - id: uncertain-pose-composition
-    title: Compose two uncertain poses, once their correlation is settled
-    branch: uncertain-pose-composition
-    pull_request_number: null
-    track: belief-core
-    status: not_started
-    depends_on: [pose-uncertainty-through-transforms]
-    notes: >-
-      Raised in review on #13 and deferred there rather than decided.
-      UncertainPose.dot extends an uncertain pose by a certain transform, which is
-      exact and carries the covariance unchanged. Two uncertain poses in series - an
-      uncertain drawer connection holding a bottle whose own pose is also uncertain -
-      have no answer without a model of how the two uncertainties relate. To first
-      order the independent case is covariance = own + displacement_map(own_pose) @
-      other @ displacement_map(own_pose).T, which is the standard formula and assumes
-      they are unrelated; two joints driven by the same miscalibrated encoder are not.
-      #13 therefore raises UncertaintyCorrelationUnknownError rather than assuming.
-      This item decides the model and implements it. Nothing else in the plan needs it
-      - no other item composes two uncertain poses - and the refusal is a strictly
-      narrower contract than any answer, so replacing it later breaks no caller that
-      could exist in the meantime.
-
-  - id: estimator-node-base
-    title: EstimatorNode base class with the register/set_value tick lifecycle
-    branch: claude/plan-item-kickoff-aicon-0t046w
-    pull_request_number: 12
-    track: belief-core
-    status: in_progress
-    depends_on: [belief-context-and-gaussian]
-    session: https://claude.ai/code/session_011zwGR4mjhPuLoavbHkAZZi
-    notes: >-
-      A MotionStatechartNode whose build_artifacts registers a FloatVariable for
-      the mean and whose on_tick runs predict/update and writes the value with
-      float_variable_data.set_value. wiggle_insert.py:202 and :250 are the
-      working precedent for that register-then-write-per-cycle pattern. Watch
-      the critical path: notify_state_change is synchronous and already
-      triggers a full FK recompute.
-
-  - id: grasp-belief-node
-    title: First concrete estimator - a recursive grasp belief
-    branch: claude/plan-item-kickoff-belief-integration-6uj1wv
-    pull_request_number: 14
-    track: belief-application
-    status: in_progress
-    depends_on: [estimator-node-base, grasp-likelihood-continuous]
-    session: https://claude.ai/code/session_01PwjdsrBhZTjeAVdZ8ThNyF
-    notes: >-
-      Scalar Kalman update on the logit of is_body_in_gripper, with a prediction
-      step that decays toward the prior when the gripper is open. Roughly 60
-      lines following segmind/detectors/base.py. This is the first quantity in
-      the stack that has a memory - the existing predicate is a stateless
-      Monte-Carlo raycast against the point-estimate world.
-
-  - id: belief-weighted-open-goal
-    title: Scale the Open goal's hold-handle weight by the grasp belief
-    branch: claude/adoring-bell-hilm79
-    pull_request_number: 16
-    track: belief-application
-    status: in_progress
-    depends_on: [grasp-belief-node]
-    session: https://claude.ai/code/session_018xNiHCXAJUP7vLv1HHGWNm
-    notes: >-
-      goals/open_close.py:20 opens with "Assumes that the grasped part has
-      already been grasped" and pins grasp_weight to the constant
-      WEIGHT_ABOVE_COLLISION_AVOIDANCE. Make it a function of the belief so a
-      failed or degrading grasp is representable at all. Keep the change behind
-      an opt-in field so stock Open behaviour is unchanged by default.
-
-  - id: task-weights-through-the-constraint-seam
-    title: Let every task's weight follow the constraint seam, not just the grip's
-    branch: task-weights-through-the-constraint-seam
-    pull_request_number: null
-    track: belief-application
-    status: not_started
-    depends_on: [belief-weighted-open-goal]
-    notes: >-
-      belief-weighted-open-goal adds Task.constraint_weight, a property returning
-      self.weight that a task whose weight follows something measured overrides,
-      and points CartesianPosition and CartesianOrientation at it - the two leaves
-      the Open goal's hold-handle CartesianPose expands into, and the only ones a
-      belief-scaled weight reaches. The other 17 quadratic_weight=self.weight sites
-      were left on the field, in feature_functions, pointing, wiggle_insert,
-      align_planes, grasp_bar and the Cartesian trajectory, straight and
-      velocity-limit tasks. That was the user's call at that item's kickoff, to keep
-      it inside its recorded scope. It leaves AGENTS.md's "one operation, one name,
-      throughout a module" half-held: the property is declared on the base class, so
-      it is formalized rather than a convention, but a later task that wants weight
-      scaling and reads self.weight gets none and says nothing. Mechanical, and worth
-      a baseline diff of the failure sets rather than a claim, since it touches seven
-      task modules at once.
-  - id: belief-pickup-experiment
-    title: Four-condition cube pickup judging whether the belief changes outcomes
-    branch: claude/zealous-maxwell-93feuw
-    pull_request_number: 17
-    track: belief-application
-    status: in_progress
-    depends_on: [belief-weighted-open-goal]
-    session: https://claude.ai/code/session_014rNxpUmTFMhXdyncTyUR6C
-    notes: >-
-      A two-by-two in a MuJoCo simulation on the vendored Franka: the carry either keeps
-      its full weight or follows the grasp belief, and the gripper either closes on the
-      cube or closes on nothing because the cube sits clear of it. The cell that decides
-      the plan is the believed carry on nothing. Everything is read from the physics -
-      the likelihood is the share of the gripper's fingers the simulator reports against
-      the cube - never from the world the controller planned in.
-      The measured result: a believed carry on nothing ends a quarter of a metre from
-      where it was going and never delivers, at every evidence strength tried, while the
-      unconditional one takes an empty gripper the whole way and reports success. A
-      believed carry on the cube is the unconditional one to the hundredth of a
-      millimetre once a reading is worth 200 samples or more; below that a successful
-      carry is degraded too, which is the mechanism's working band and the honest cost.
-      A weight needs something to lose against or it changes nothing in a quadratic
-      program, so the carry is performed against returning to the arm's starting posture
-      at WEIGHT_BELOW_COLLISION_AVOIDANCE - the same weight the drawer's mechanism
-      carried. The drawer's arithmetic does not carry over: the ordering flips at
-      p = 0.26 here rather than p = 4e-4, because a ratio of weights is not what decides
-      a quadratic program.
-      Originally specified as a drawer sweep and run as one; review rejected that basis
-      because it integrated commanded velocities and read contact off the world's own
-      collision detector. The author then asked for a MuJoCo setup with a real arm,
-      confirmed the vendored Franka pick-and-place, and asked for the experiment to be
-      done on the cube alone. The drawer version is now its own optional item.
-      Three defects in the vendored-arm path are repaired on the parsed world rather than
-      in the adapter, and two of them are adapter bugs worth their own PRs:
-      MJCFParser.parse_actuator cannot follow a tendon transmission to a joint, and a
-      mimic coupling leaves both fingers carrying a degree of freedom named after the
-      first. MJCF also carries no velocity limits.
-
-  - id: belief-drawer-experiment
-    title: The same comparison on a drawer, if a mechanism ever needs to be shown
-    branch: belief-drawer-experiment
-    pull_request_number: null
-    track: belief-application
-    status: deferred
-    depends_on: [belief-pickup-experiment]
-    notes: >-
-      Optional, at the author's own call. Nothing in this plan depends on it and the
-      roadmap can be finished to the end without it - epistemic-action-demo depends on
-      belief-pickup-experiment instead, which is the cell that decides the plan. It exists
-      so the drawer version can be picked up later rather than rediscovered.
-      What it would add over the cube is a mechanism with a degree of freedom of its own.
-      That is also what made it the weaker experiment and why the cube replaced it:
-      JointPositionList commands the drawer's own joint, so the drawer opens whatever the
-      grip weighs and "the drawer does not open" is not an outcome this stack can produce.
-      A cube has no such escape hatch - it is on the table or it is not.
-      The deleted implementation is on this branch's history at c7d73963 if it is ever
-      wanted back. Rebuilding it on the physics would mean a MuJoCo cabinet and drawer
-      beside the vendored Franka, and scaling the mechanism weight by the belief as well
-      as the grip.
-
-  - id: symbolic-estimator-means
-    title: Expose estimator means as symbolic expressions with rate variables
-    branch: symbolic-estimator-means
-    pull_request_number: null
-    track: differentiable-beliefs
-    status: not_started
-    depends_on: [estimator-node-base]
-    notes: >-
-      An estimator currently contributes an opaque number. Give it a
-      mean_expression over joint positions plus a registered rate variable.
-      Where the measurement model is forward kinematics the expression is
-      already available from compose_forward_kinematics_expression and its
-      Jacobian is one .jacobian(active_variables) call - ik_solver.py:528-542 is
-      the worked precedent.
-
-  - id: chain-rule-through-beliefs
-    title: Let the error-signal chain rule see through estimated quantities
-    branch: chain-rule-through-beliefs
-    pull_request_number: null
-    track: differentiable-beliefs
-    status: not_started
-    depends_on: [symbolic-estimator-means]
-    notes: >-
-      joint_position_and_velocity_variables (error_signals.py:17) deliberately
-      treats every free variable that is not a joint position as a constant, and
-      the docstring says perception-driven goals must fall back to
-      SampledErrorSignal. total_derivative is ca.jtimes and is fully general in
-      its variables, so the restriction is one function above it. This item is
-      the single structural thing AICON has that CRAM does not.
-
-  - id: gradient-flow-guard
-    title: Decide and enforce which quantities the gradient may flow into
-    branch: gradient-flow-guard
-    pull_request_number: null
-    track: differentiable-beliefs
-    status: not_started
-    depends_on: [chain-rule-through-beliefs]
-    notes: >-
-      Once the gradient reaches a filter, "reduce the cost by becoming more
-      certain" becomes available to the optimizer. AICON hit exactly this and
-      had to detach the Kalman gain (ekf.py:41-44, with a comment naming it
-      gradient descent on inference). In a QP the failure looks different - a
-      constraint satisfied by moving confidence rather than the robot - but it
-      is the same pathology. Decide explicitly before behaviour looks odd, not
-      after.
-
-  - id: epistemic-action-demo
-    title: Demonstrate uncertainty-reducing motion emerging from the QP
-    branch: epistemic-action-demo
-    pull_request_number: null
-    track: differentiable-beliefs
-    status: not_started
-    depends_on: [gradient-flow-guard, belief-pickup-experiment]
-    notes: >-
-      The payoff and the publishable claim - an MPC controller with hard joint,
-      jerk and collision limits taking exact symbolic derivatives through a
-      recursive estimator, producing epistemic action without a planner and
-      without forced derivative signs. AICON shows the behaviour but with
-      normalized gradient steps, no limits, no collision avoidance, and
-      hand-forced signs doing load-bearing work.
+- id: grasp-likelihood-continuous
+  title: Keep the grasp likelihood continuous instead of thresholding it away
+  branch: claude/plan-item-kickoff-aicon-belief-84kl68
+  pull_request_number: 8
+  track: uncertainty-plumbing
+  status: deferred
+  session: https://claude.ai/code/session_01Fw9Svyih3RfDVQEWeSH28e
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: is_body_in_gripper (robot_predicates.py:162)
+    already returns a float its own docstring calls a marginal probability; is_body_gripped discards it
+    with > threshold on the next line. Trinary logic is already a [0,1] algebra (False=0, Unknown=0.5,
+    True=1; not=1-x, and=min, or=max), so the float is type-compatible with a giskard observation today.
+    Add a continuous path without breaking the existing boolean predicate, which is used in EQL preconditions.
+    Guard is_unknown(), which tests ca.eq(x, 0.5) exactly and will never fire on a continuous value. Correction
+    from the implementation: the type-compatibility claim above holds for the trinary algebra but not
+    for the four sites that compare against the three constants exactly, so a continuous value must not
+    be a node''s observation. It is carried by a registered FloatVariable instead, and only a trinary
+    view of it is observed - see this item''s roadmap section. Dependents should read the likelihood off
+    GraspLikelihood''s FloatVariable, not off its observation. Review settled the one question it raised:
+    trinary_logic_from_continuous stays in krrood on its single call site, because the observation is
+    still used as a trinary view of the FloatVariable. Both review threads are resolved; the item''s remaining
+    history is the restack against main.'
+- id: odometry-covariance-capture
+  title: Stop discarding the odometry pose covariance
+  branch: claude/jolly-edison-k0zkiq
+  pull_request_number: 9
+  track: uncertainty-plumbing
+  status: deferred
+  session: https://claude.ai/code/session_01JziQZTMtT3k4wuoBg4B6TG
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: OdometrySynchronizer.apply_message (input_synchronization.py:266)
+    reads message.pose.pose and never touches message.pose.covariance, dropping all 36 numbers on every
+    message. Capture it into a registered FloatVariable (even just its trace to begin with) so the statechart
+    can condition on base uncertainty. Enables conditions of the form "do not begin the final approach
+    while base uncertainty exceeds X". Correction from review: PoseCovariance and the six degrees of freedom
+    it relates live in semantic_digital_twin, not giskardpy, and the flat row-major ROS layout is a converter''s
+    knowledge. The degrees of freedom are SpatialVariables, not an enum of this item''s own - PoseAxis
+    was removed in the second round because its translational half restated them. Dependents should read
+    a covariance by variable (variance_of, covariance_between) and build one with PoseCovariance.of, never
+    by row index.'
+- id: detection-confidence-field
+  title: Carry perception confidence across the process boundary
+  branch: detection-confidence-field
+  pull_request_number: null
+  track: uncertainty-plumbing
+  status: deferred
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: robokudo
+    produces a per-classification confidence; coraplex Detection (perception.py:137) has exactly two fields,
+    semantic_annotation and pose, so it dies at the action-server boundary. Note the ORM consequence:
+    ORMatic.from_package maps every dataclass it finds, so a new field becomes a new column automatically.'
+- id: belief-context-and-gaussian
+  title: BeliefContext and a scalar/vector Gaussian belief with predict and update
+  branch: claude/belief-integration-gaussian-zi1o82
+  pull_request_number: 10
+  track: belief-core
+  status: deferred
+  session: https://claude.ai/code/session_01QKaPHenZW9umY47JiBjtXA
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: A ContextExtension holding per-quantity
+    beliefs, following the shape segmind already uses (SegmindContext, detectors/base.py:36, retrieved
+    with context.require_extension). Deliberately not in WorldState, whose row axis is the Derivatives
+    enum hard-coded to 4 and assumed by the ORM (orm/model.py:95), the ROS sync, the FK memory binding
+    and the trajectory recorder. Write the Kalman update directly - probabilistic_model''s GaussianDistribution
+    is strictly univariate, has no covariance, and its conditioning is truncation or Dirac collapse, not
+    a measurement update.'
+- id: probability-concepts-in-probabilistic-model
+  title: Move the belief layer's probability concepts into probabilistic_model
+  branch: claude/probability-concepts-probabilistic-model-m0i2n0
+  pull_request_number: 11
+  track: belief-core
+  status: deferred
+  depends_on:
+  - belief-context-and-gaussian
+  session: https://claude.ai/code/session_01VpDYNqmbxmxKma7aB9B1Y9
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: probabilistic_model has no multivariate
+    Gaussian only because nobody has needed one; its maintainer would welcome it. ProbabilisticModel is
+    already multivariate and keyed by random_events variables, and its conditional(point) is the Kalman
+    measurement update in closed form, so the distribution belongs there rather than hand-written in giskardpy.
+    The same goes for covariance and the other probability concepts belief-context-and-gaussian currently
+    keeps locally - Quantities, which is an ordered set of random variables plus the layout of arrays
+    over them, and the measurement model a Reading carries. Two of ProbabilisticModel''s eight abstract
+    methods are the real work: probability_of_simple_event (the probability of an axis-aligned box under
+    a correlated Gaussian has no closed form and needs numerical integration) and log_truncated (a truncated
+    correlated Gaussian is not Gaussian, so it cannot return Self). Once it exists, swap GaussianBelief''s
+    internals onto it; the interface is already variable-keyed, so no dependent has to move. Second review
+    round, answered in 0c081d59. Truncation is now supported only over a box - one unbroken stretch per
+    variable - which is what made the truncated distribution''s mode and conditional answerable rather
+    than intractable: a strictly log-concave density on a convex box has exactly one maximum, and conditioning
+    is the Gaussian conditional confined to the slice the box makes. Sampling is exact through scipy.stats.truncnorm
+    where the quantities do not co-vary. The prediction step (apply_linear_map, apply_added_covariance)
+    moved into GaussianBelief.predict, because a general linear map changes what the variables mean and
+    a Kalman transition does not; conditional_on_measurement stays here, since conditional(point) being
+    the Kalman update in closed form is this item''s premise. Dependents read a covariance through covariance_between
+    and build the distribution from distribution_variables plus plain mean and covariance arrays - Quantities,
+    Mean and Covariance no longer exist. Four threads are open for the maintainer rather than blocked
+    on us: whether _point_mass_at should build a circuit (his two comments contradict each other), triangular
+    covariance storage, discrete variables via an encoding, and what conditional_on_measurement should
+    be.'
+- id: pose-covariance-on-shared-quantities
+  title: Lay a pose covariance out with the shared quantity layout
+  branch: claude/jolly-heisenberg-7n8zi8
+  pull_request_number: 15
+  track: belief-core
+  status: deferred
+  depends_on:
+  - probability-concepts-in-probabilistic-model
+  - odometry-covariance-capture
+  - pose-uncertainty-through-transforms
+  session: https://claude.ai/code/session_0186RZZUq8orJoQjS2uK33Xi
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: PoseCovariance builds and reads its
+    matrix from its own private row lookup over SpatialVariables.pose, which is the same job Quantities
+    does for a belief - an ordered set of random variables plus the layout of arrays over them. It could
+    not reuse Quantities when it was written: Quantities lives in giskardpy, giskardpy depends on semantic_digital_twin
+    and not the reverse, so the import direction forbids it. Once probability-concepts-in-probabilistic-model
+    moves Quantities into probabilistic_model, which semantic_digital_twin already depends on, the layout
+    becomes importable and PoseCovariance''s private _row_of, its own symmetric fill in of() and VariableNotInPoseError
+    all collapse onto it. The public interface is already keyed by random_events variables, so this is
+    internals only and no caller moves. Two corrections from the kickoff, both settled with the user.
+    The base is #13 rather than #9: #13 already moved _row_of onto SpatialVariables.row_in_pose to leave
+    this item one place to collapse rather than two, and added PoseDisplacementMap as that second place,
+    so pose-uncertainty-through-transforms is now a dependency. And the collapse goes further than "no
+    caller moves": PoseCovariance stops holding a bare array and holds the uncertainty of each pair of
+    degrees of freedom with of/from_array/as_array, the shape #11''s Covariance took, which #11, #13 and
+    #9 each recorded as costing least here. The one caller that moves is PoseWithCovarianceToSemDTConverter,
+    onto from_array. Superseded by #11''s second review round: Quantities and its module are deleted,
+    so this item''s whole premise - collapsing PoseCovariance onto the shared layout - no longer has anything
+    to collapse onto. The branch already implements against it, so this needs its own resolve round to
+    decide what SpatialVariables.pose becomes now. Earlier resolution, still true of the branch as pushed:
+    the only thing that stalled this was one missed site of that rename. SpatialVariables.pose is a Quantities,
+    whose lookup is index_of and has no index, and the transposed-read assertion in test_convert_pose_covariance_reads_the_entries_row_by_row
+    still called the tuple''s .index - so it raised AttributeError and took test_each_lib (semantic_digital_twin)
+    red while the other 22 checks passed. The converter tests cannot run outside CI, because geometry_msgs
+    has no PyPI distribution, so a whole-branch grep for the removed name is what catches this class of
+    miss rather than a local run.'
+- id: pose-uncertainty-through-transforms
+  title: Carry a pose's uncertainty through the transforms applied to it
+  branch: claude/plan-item-kickoff-belief-pose-j36vt3
+  pull_request_number: 13
+  track: belief-core
+  status: deferred
+  depends_on:
+  - odometry-covariance-capture
+  session: https://claude.ai/code/session_013atde1a9jns6QBbyL4RQT6
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: Raised in review on #9: a covariance
+    sounds like something that should be associated directly with a pose. Attaching it is mechanically
+    easy - ORMatic skips fields whose name starts with an underscore (wrapped_table.py:628) and Pose.to_json/_from_json
+    are hand-written over position and rotation only, so a private field is invisible to both the ORM
+    scan and the JSON round-trip. What is not easy is that Pose composes and inverts, a covariance is
+    frame-dependent, and transforming a pose must rotate its covariance. A field that silently survives
+    or silently vanishes across those operations is worse than no field, because a wrong covariance is
+    worse than an absent one - the plan''s own standing caveat about manufacturing confident beliefs.
+    So this item is the propagation, not the field: rotate the covariance with the transform, decide what
+    an operation between an uncertain and a certain pose yields, and only then attach it. Most Pose instances
+    are symbolic forward-kinematics expressions with no measured uncertainty at all, which is the other
+    reason the field alone would mislead.'
+- id: uncertain-pose-composition
+  title: Compose two uncertain poses, once their correlation is settled
+  branch: uncertain-pose-composition
+  pull_request_number: null
+  track: belief-core
+  status: deferred
+  depends_on:
+  - pose-uncertainty-through-transforms
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: Raised
+    in review on #13 and deferred there rather than decided. UncertainPose.dot extends an uncertain pose
+    by a certain transform, which is exact and carries the covariance unchanged. Two uncertain poses in
+    series - an uncertain drawer connection holding a bottle whose own pose is also uncertain - have no
+    answer without a model of how the two uncertainties relate. To first order the independent case is
+    covariance = own + displacement_map(own_pose) @ other @ displacement_map(own_pose).T, which is the
+    standard formula and assumes they are unrelated; two joints driven by the same miscalibrated encoder
+    are not. #13 therefore raises UncertaintyCorrelationUnknownError rather than assuming. This item decides
+    the model and implements it. Nothing else in the plan needs it - no other item composes two uncertain
+    poses - and the refusal is a strictly narrower contract than any answer, so replacing it later breaks
+    no caller that could exist in the meantime.'
+- id: estimator-node-base
+  title: EstimatorNode base class with the register/set_value tick lifecycle
+  branch: claude/plan-item-kickoff-aicon-0t046w
+  pull_request_number: 12
+  track: belief-core
+  status: deferred
+  depends_on:
+  - belief-context-and-gaussian
+  session: https://claude.ai/code/session_011zwGR4mjhPuLoavbHkAZZi
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: A MotionStatechartNode whose build_artifacts
+    registers a FloatVariable for the mean and whose on_tick runs predict/update and writes the value
+    with float_variable_data.set_value. wiggle_insert.py:202 and :250 are the working precedent for that
+    register-then-write-per-cycle pattern. Watch the critical path: notify_state_change is synchronous
+    and already triggers a full FK recompute.'
+- id: grasp-belief-node
+  title: First concrete estimator - a recursive grasp belief
+  branch: claude/plan-item-kickoff-belief-integration-6uj1wv
+  pull_request_number: 14
+  track: belief-application
+  status: deferred
+  depends_on:
+  - estimator-node-base
+  - grasp-likelihood-continuous
+  session: https://claude.ai/code/session_01PwjdsrBhZTjeAVdZ8ThNyF
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: Scalar Kalman update on the logit of
+    is_body_in_gripper, with a prediction step that decays toward the prior when the gripper is open.
+    Roughly 60 lines following segmind/detectors/base.py. This is the first quantity in the stack that
+    has a memory - the existing predicate is a stateless Monte-Carlo raycast against the point-estimate
+    world.'
+- id: belief-weighted-open-goal
+  title: Scale the Open goal's hold-handle weight by the grasp belief
+  branch: claude/adoring-bell-hilm79
+  pull_request_number: 16
+  track: belief-application
+  status: deferred
+  depends_on:
+  - grasp-belief-node
+  session: https://claude.ai/code/session_018xNiHCXAJUP7vLv1HHGWNm
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: goals/open_close.py:20 opens with "Assumes
+    that the grasped part has already been grasped" and pins grasp_weight to the constant WEIGHT_ABOVE_COLLISION_AVOIDANCE.
+    Make it a function of the belief so a failed or degrading grasp is representable at all. Keep the
+    change behind an opt-in field so stock Open behaviour is unchanged by default.'
+- id: task-weights-through-the-constraint-seam
+  title: Let every task's weight follow the constraint seam, not just the grip's
+  branch: task-weights-through-the-constraint-seam
+  pull_request_number: null
+  track: belief-application
+  status: deferred
+  depends_on:
+  - belief-weighted-open-goal
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: belief-weighted-open-goal
+    adds Task.constraint_weight, a property returning self.weight that a task whose weight follows something
+    measured overrides, and points CartesianPosition and CartesianOrientation at it - the two leaves the
+    Open goal''s hold-handle CartesianPose expands into, and the only ones a belief-scaled weight reaches.
+    The other 17 quadratic_weight=self.weight sites were left on the field, in feature_functions, pointing,
+    wiggle_insert, align_planes, grasp_bar and the Cartesian trajectory, straight and velocity-limit tasks.
+    That was the user''s call at that item''s kickoff, to keep it inside its recorded scope. It leaves
+    AGENTS.md''s "one operation, one name, throughout a module" half-held: the property is declared on
+    the base class, so it is formalized rather than a convention, but a later task that wants weight scaling
+    and reads self.weight gets none and says nothing. Mechanical, and worth a baseline diff of the failure
+    sets rather than a claim, since it touches seven task modules at once.'
+- id: belief-pickup-experiment
+  title: Four-condition cube pickup judging whether the belief changes outcomes
+  branch: claude/zealous-maxwell-93feuw
+  pull_request_number: 17
+  track: belief-application
+  status: deferred
+  depends_on:
+  - belief-weighted-open-goal
+  session: https://claude.ai/code/session_014rNxpUmTFMhXdyncTyUR6C
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Its pull request is
+    being closed by the user; the branch is kept. Previous notes: A two-by-two in a MuJoCo simulation
+    on the vendored Franka: the carry either keeps its full weight or follows the grasp belief, and the
+    gripper either closes on the cube or closes on nothing because the cube sits clear of it. The cell
+    that decides the plan is the believed carry on nothing. Everything is read from the physics - the
+    likelihood is the share of the gripper''s fingers the simulator reports against the cube - never from
+    the world the controller planned in. The measured result: a believed carry on nothing ends a quarter
+    of a metre from where it was going and never delivers, at every evidence strength tried, while the
+    unconditional one takes an empty gripper the whole way and reports success. A believed carry on the
+    cube is the unconditional one to the hundredth of a millimetre once a reading is worth 200 samples
+    or more; below that a successful carry is degraded too, which is the mechanism''s working band and
+    the honest cost. A weight needs something to lose against or it changes nothing in a quadratic program,
+    so the carry is performed against returning to the arm''s starting posture at WEIGHT_BELOW_COLLISION_AVOIDANCE
+    - the same weight the drawer''s mechanism carried. The drawer''s arithmetic does not carry over: the
+    ordering flips at p = 0.26 here rather than p = 4e-4, because a ratio of weights is not what decides
+    a quadratic program. Originally specified as a drawer sweep and run as one; review rejected that basis
+    because it integrated commanded velocities and read contact off the world''s own collision detector.
+    The author then asked for a MuJoCo setup with a real arm, confirmed the vendored Franka pick-and-place,
+    and asked for the experiment to be done on the cube alone. The drawer version is now its own optional
+    item. Three defects in the vendored-arm path are repaired on the parsed world rather than in the adapter,
+    and two of them are adapter bugs worth their own PRs: MJCFParser.parse_actuator cannot follow a tendon
+    transmission to a joint, and a mimic coupling leaves both fingers carrying a degree of freedom named
+    after the first. MJCF also carries no velocity limits.'
+- id: belief-drawer-experiment
+  title: The same comparison on a drawer, if a mechanism ever needs to be shown
+  branch: belief-drawer-experiment
+  pull_request_number: null
+  track: belief-application
+  status: deferred
+  depends_on:
+  - belief-pickup-experiment
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: Optional,
+    at the author''s own call. Nothing in this plan depends on it and the roadmap can be finished to the
+    end without it - epistemic-action-demo depends on belief-pickup-experiment instead, which is the cell
+    that decides the plan. It exists so the drawer version can be picked up later rather than rediscovered.
+    What it would add over the cube is a mechanism with a degree of freedom of its own. That is also what
+    made it the weaker experiment and why the cube replaced it: JointPositionList commands the drawer''s
+    own joint, so the drawer opens whatever the grip weighs and "the drawer does not open" is not an outcome
+    this stack can produce. A cube has no such escape hatch - it is on the table or it is not. The deleted
+    implementation is on this branch''s history at c7d73963 if it is ever wanted back. Rebuilding it on
+    the physics would mean a MuJoCo cabinet and drawer beside the vendored Franka, and scaling the mechanism
+    weight by the belief as well as the grip.'
+- id: symbolic-estimator-means
+  title: Expose estimator means as symbolic expressions with rate variables
+  branch: symbolic-estimator-means
+  pull_request_number: null
+  track: differentiable-beliefs
+  status: deferred
+  depends_on:
+  - estimator-node-base
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: An estimator
+    currently contributes an opaque number. Give it a mean_expression over joint positions plus a registered
+    rate variable. Where the measurement model is forward kinematics the expression is already available
+    from compose_forward_kinematics_expression and its Jacobian is one .jacobian(active_variables) call
+    - ik_solver.py:528-542 is the worked precedent.'
+- id: chain-rule-through-beliefs
+  title: Let the error-signal chain rule see through estimated quantities
+  branch: chain-rule-through-beliefs
+  pull_request_number: null
+  track: differentiable-beliefs
+  status: deferred
+  depends_on:
+  - symbolic-estimator-means
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: joint_position_and_velocity_variables
+    (error_signals.py:17) deliberately treats every free variable that is not a joint position as a constant,
+    and the docstring says perception-driven goals must fall back to SampledErrorSignal. total_derivative
+    is ca.jtimes and is fully general in its variables, so the restriction is one function above it. This
+    item is the single structural thing AICON has that CRAM does not.'
+- id: gradient-flow-guard
+  title: Decide and enforce which quantities the gradient may flow into
+  branch: gradient-flow-guard
+  pull_request_number: null
+  track: differentiable-beliefs
+  status: deferred
+  depends_on:
+  - chain-rule-through-beliefs
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: Once
+    the gradient reaches a filter, "reduce the cost by becoming more certain" becomes available to the
+    optimizer. AICON hit exactly this and had to detach the Kalman gain (ekf.py:41-44, with a comment
+    naming it gradient descent on inference). In a QP the failure looks different - a constraint satisfied
+    by moving confidence rather than the robot - but it is the same pathology. Decide explicitly before
+    behaviour looks odd, not after.'
+- id: epistemic-action-demo
+  title: Demonstrate uncertainty-reducing motion emerging from the QP
+  branch: epistemic-action-demo
+  pull_request_number: null
+  track: differentiable-beliefs
+  status: deferred
+  depends_on:
+  - gradient-flow-guard
+  - belief-pickup-experiment
+  notes: 'Retired 2026-09-23: the aicon-belief-integration plan is superseded by articulated-manipulation-under-uncertainty
+    (tracking issue #23), after a critical reassessment of the AICON integration. Previous notes: The
+    payoff and the publishable claim - an MPC controller with hard joint, jerk and collision limits taking
+    exact symbolic derivatives through a recursive estimator, producing epistemic action without a planner
+    and without forced derivative signs. AICON shows the behaviour but with normalized gradient steps,
+    no limits, no collision avoidance, and hand-forced signs doing load-bearing work.'
