@@ -767,6 +767,6 @@ class UnpublishedValueError(BeliefError):
 
     def suggest_correction(self) -> str:
         return (
-            "A mean and a variance are published for numeric variables, and a "
+            "An expectation and a variance are published for numeric variables, and a "
             "probability for each value of a symbolic one."
         )

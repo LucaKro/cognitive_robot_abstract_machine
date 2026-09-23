@@ -8,7 +8,7 @@ from krrood.symbolic_math.symbolic_math import FloatVariable
 from probabilistic_model.probabilistic_model import ProbabilisticModel
 from random_events.product_algebra import SimpleEvent
 from random_events.variable import Symbolic, Variable
-from typing_extensions import Dict, Generic, Hashable, Optional, TypeVar
+from typing_extensions import Dict, Generic, Hashable, Optional, Self, TypeVar
 
 from giskardpy.motion_statechart.beliefs.context import BeliefContext
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -33,7 +33,7 @@ class PublishedValue(StrEnum):
     What an estimator publishes about one variable of its distribution.
     """
 
-    MEAN = "mean"
+    EXPECTATION = "expectation"
     """
     The expectation of a numeric variable.
     """
@@ -49,13 +49,53 @@ class PublishedValue(StrEnum):
     """
 
 
+@dataclass(frozen=True)
+class PublishedProbability:
+    """
+    Where the probability of one value of a symbolic variable is published, and the
+    event it is the probability of.
+    """
+
+    float_variable: FloatVariable
+    """
+    The float variable the probability is written to.
+    """
+
+    event: SimpleEvent
+    """
+    The variable taking the value, with every other variable of the distribution left
+    free.
+
+    Built once, since building an event costs more than asking its probability.
+    """
+
+    @classmethod
+    def of_value(
+        cls,
+        float_variable: FloatVariable,
+        variable: Symbolic,
+        value: Hashable,
+        distribution: ProbabilisticModel,
+    ) -> Self:
+        """
+        :param float_variable: The float variable the probability is written to.
+        :param variable: A symbolic variable of the distribution.
+        :param value: One of the values in its domain.
+        :param distribution: The distribution the probability is asked of.
+        :return: Where the probability of the variable taking the value is published.
+        """
+        event = SimpleEvent.from_data({variable: value})
+        event.fill_missing_variables(distribution.variables)
+        return cls(float_variable=float_variable, event=event)
+
+
 @dataclass(eq=False, repr=False)
 class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
     """
     Estimates some variables of the world as a distribution, refined every control
     cycle, and publishes what it believes as float variables other nodes can build on:
-    the mean and variance of every numeric variable, and the probability of every value
-    of every symbolic one.
+    the expectation and variance of every numeric variable, and the probability of every
+    value of every symbolic one.
 
     It observes true in a cycle in which evidence arrived, and false in one in which the
     distribution ran on prediction alone.
@@ -68,11 +108,11 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
     It is the one the statechart's :class:`BeliefContext` holds for its variables.
     """
 
-    _means: Dict[Variable, FloatVariable] = field(
+    _expectations: Dict[Variable, FloatVariable] = field(
         default_factory=dict, init=False, repr=False
     )
     """
-    The float variable the mean of each numeric variable is published to.
+    The float variable the expectation of each numeric variable is published to.
     """
 
     _variances: Dict[Variable, FloatVariable] = field(
@@ -82,12 +122,12 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
     The float variable the variance of each numeric variable is published to.
     """
 
-    _probabilities: Dict[Variable, Dict[Hashable, FloatVariable]] = field(
+    _probabilities: Dict[Variable, Dict[Hashable, PublishedProbability]] = field(
         default_factory=dict, init=False, repr=False
     )
     """
-    The float variable the probability of each value of each symbolic variable is
-    published to.
+    Where the probability of each value of each symbolic variable is published, and the
+    event it is the probability of.
     """
 
     @abstractmethod
@@ -126,14 +166,14 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
             raise NodeNotBuiltError(node=self)
         return self._distribution
 
-    def mean_variable(self, variable: Variable) -> FloatVariable:
+    def expectation_variable(self, variable: Variable) -> FloatVariable:
         """
         :param variable: A numeric variable this node estimates.
-        :return: The float variable its mean is published to.
+        :return: The float variable its expectation is published to.
         :raises NodeNotBuiltError: If the node has not been built yet.
-        :raises UnpublishedValueError: If no mean of the variable is published.
+        :raises UnpublishedValueError: If no expectation of the variable is published.
         """
-        return self._published(self._means, variable, PublishedValue.MEAN)
+        return self._published(self._expectations, variable, PublishedValue.EXPECTATION)
 
     def variance_variable(self, variable: Variable) -> FloatVariable:
         """
@@ -161,7 +201,7 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
             raise UnpublishedValueError(
                 node=self, variable=variable, value=PublishedValue.PROBABILITY
             )
-        return by_value[value]
+        return by_value[value].float_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
@@ -174,7 +214,7 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
         distribution = self.create_initial_distribution(context)
         BeliefContext.from_context(context).add(distribution)
         for variable in distribution.variables:
-            self._register_published_values_of(variable, context)
+            self._register_published_values_of(variable, distribution, context)
         self._distribution = distribution
         self._publish(context)
         return NodeArtifacts()
@@ -190,22 +230,31 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
         return ObservationStateValues.TRUE
 
     def _register_published_values_of(
-        self, variable: Variable, context: MotionStatechartContext
+        self,
+        variable: Variable,
+        distribution: ModelT,
+        context: MotionStatechartContext,
     ):
         """
-        Register a float variable for everything published about one variable.
+        Register a float variable for everything published about one variable of the
+        distribution.
         """
         if variable.is_numeric:
-            self._means[variable] = self._registered(
-                context, variable, PublishedValue.MEAN
+            self._expectations[variable] = self._registered(
+                context, variable, PublishedValue.EXPECTATION
             )
             self._variances[variable] = self._registered(
                 context, variable, PublishedValue.VARIANCE
             )
         if isinstance(variable, Symbolic):
             self._probabilities[variable] = {
-                element.element: self._registered(
-                    context, variable, PublishedValue.PROBABILITY, element.element
+                element.element: PublishedProbability.of_value(
+                    float_variable=self._registered(
+                        context, variable, PublishedValue.PROBABILITY, element.element
+                    ),
+                    variable=variable,
+                    value=element.element,
+                    distribution=distribution,
                 )
                 for element in variable.domain.simple_sets
             }
@@ -252,14 +301,18 @@ class EstimatorNode(MotionStatechartNode, Generic[ModelT], ABC):
         Write what is currently believed to the published float variables.
         """
         data = context.float_variable_data
-        numeric = list(self._means)
+        numeric = list(self._expectations)
         if numeric:
-            means = self.distribution.expectation(numeric)
+            expectations = self.distribution.expectation(numeric)
             variances = self.distribution.variance(numeric)
             for variable in numeric:
-                data.set_value(self._means[variable], float(means[variable]))
+                data.set_value(
+                    self._expectations[variable], float(expectations[variable])
+                )
                 data.set_value(self._variances[variable], float(variances[variable]))
-        for variable, by_value in self._probabilities.items():
-            for value, float_variable in by_value.items():
-                event = SimpleEvent.from_data({variable: value}).as_composite_set()
-                data.set_value(float_variable, self.distribution.probability(event))
+        for by_value in self._probabilities.values():
+            for published in by_value.values():
+                data.set_value(
+                    published.float_variable,
+                    self.distribution.probability_of_simple_event(published.event),
+                )

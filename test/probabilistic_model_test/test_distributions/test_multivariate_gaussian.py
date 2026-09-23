@@ -10,6 +10,7 @@ from scipy.stats._multivariate import multivariate_normal_frozen
 
 from probabilistic_model.distributions.gaussian import GaussianDistribution
 from probabilistic_model.distributions.multivariate_gaussian import (
+    LinearGaussianModel,
     MultivariateGaussianDistribution,
     TruncatedMultivariateGaussianDistribution,
 )
@@ -450,9 +451,10 @@ class TestProductWithAGaussianLikelihood:
             covariance=observation_covariance,
         )
         product = correlated.product_with_gaussian_likelihood(
-            observation_matrix=np.eye(2),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.eye(2), covariance=observation_covariance
+            ),
             observed=observed,
-            observation_covariance=observation_covariance,
         )
         points = np.array([[0.0, 0.0], [1.0, 2.0], [-3.0, 0.5]])
         log_normalization = (
@@ -468,9 +470,10 @@ class TestProductWithAGaussianLikelihood:
         self, independent, horizontal
     ):
         product = independent.product_with_gaussian_likelihood(
-            observation_matrix=np.array([[1.0, 0.0]]),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.array([[1.0, 0.0]]), covariance=np.array([[1.0]])
+            ),
             observed=np.array([5.0]),
-            observation_covariance=np.array([[1.0]]),
         )
         assert mean_of(independent, horizontal) < mean_of(product, horizontal) < 5.0
 
@@ -478,9 +481,10 @@ class TestProductWithAGaussianLikelihood:
         self, independent, horizontal
     ):
         product = independent.product_with_gaussian_likelihood(
-            observation_matrix=np.array([[1.0, 0.0]]),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.array([[1.0, 0.0]]), covariance=np.array([[4.0]])
+            ),
             observed=np.array([5.0]),
-            observation_covariance=np.array([[4.0]]),
         )
         assert variance_of(product, horizontal) < variance_of(independent, horizontal)
 
@@ -490,9 +494,10 @@ class TestProductWithAGaussianLikelihood:
         other, so the product mean is their midpoint exactly.
         """
         product = one_variable(horizontal, 0.0, 2.0).product_with_gaussian_likelihood(
-            observation_matrix=np.array([[1.0]]),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.array([[1.0]]), covariance=np.array([[2.0]])
+            ),
             observed=np.array([10.0]),
-            observation_covariance=np.array([[2.0]]),
         )
         assert mean_of(product, horizontal) == pytest.approx(5.0)
 
@@ -506,9 +511,11 @@ class TestProductWithAGaussianLikelihood:
         distribution = one_variable(horizontal, 0.0, starting_variance)
         for _ in range(observations):
             distribution = distribution.product_with_gaussian_likelihood(
-                observation_matrix=np.array([[1.0]]),
+                observation_model=LinearGaussianModel.without_offset(
+                    matrix=np.array([[1.0]]),
+                    covariance=np.array([[observation_variance]]),
+                ),
                 observed=np.array([1.0]),
-                observation_covariance=np.array([[observation_variance]]),
             )
 
         expected_precision = 1 / starting_variance + observations / observation_variance
@@ -529,9 +536,10 @@ class TestProductWithAGaussianLikelihood:
             covariance=np.eye(2),
         )
         product = distribution.product_with_gaussian_likelihood(
-            observation_matrix=np.array([[1.0, 1.0]]),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.array([[1.0, 1.0]]), covariance=np.array([[1.0]])
+            ),
             observed=np.array([4.0]),
-            observation_covariance=np.array([[1.0]]),
         )
         assert mean_of(product, horizontal) > 0.0
         assert mean_of(product, vertical) > 0.0
@@ -539,9 +547,10 @@ class TestProductWithAGaussianLikelihood:
 
     def test_observing_nothing_leaves_the_mean_alone(self, independent, horizontal):
         product = independent.product_with_gaussian_likelihood(
-            observation_matrix=np.zeros((0, 2)),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.zeros((0, 2)), covariance=np.zeros((0, 0))
+            ),
             observed=np.zeros(0),
-            observation_covariance=np.zeros((0, 0)),
         )
         assert mean_of(product, horizontal) == mean_of(independent, horizontal)
         assert variance_of(product, horizontal) == variance_of(independent, horizontal)
@@ -551,18 +560,44 @@ class TestProductWithAGaussianLikelihood:
     ):
         before = mean_of(independent, horizontal)
         independent.product_with_gaussian_likelihood(
-            observation_matrix=np.array([[1.0, 0.0]]),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.array([[1.0, 0.0]]), covariance=np.array([[1.0]])
+            ),
             observed=np.array([5.0]),
-            observation_covariance=np.array([[1.0]]),
         )
         assert mean_of(independent, horizontal) == before
+
+    def test_an_observation_offset_is_taken_off_what_was_observed(self, correlated):
+        """
+        A sensor that reads a bias on top of the variables says the same as one without
+        it that observed that much less.
+        """
+        matrix, covariance = np.array([[1.0, 0.5]]), np.array([[0.4]])
+        offset, observed = np.array([2.0]), np.array([3.0])
+
+        biased = correlated.product_with_gaussian_likelihood(
+            observation_model=LinearGaussianModel(
+                matrix=matrix, offset=offset, covariance=covariance
+            ),
+            observed=observed,
+        )
+        unbiased = correlated.product_with_gaussian_likelihood(
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=matrix, covariance=covariance
+            ),
+            observed=observed - offset,
+        )
+
+        assert biased.mean == pytest.approx(unbiased.mean)
+        assert biased.covariance == pytest.approx(unbiased.covariance)
 
     def test_an_observation_matrix_of_the_wrong_width_is_rejected(self, independent):
         with pytest.raises(ShapeMismatchError) as error:
             independent.product_with_gaussian_likelihood(
-                observation_matrix=np.array([[1.0]]),
+                observation_model=LinearGaussianModel.without_offset(
+                    matrix=np.array([[1.0]]), covariance=np.array([[1.0]])
+                ),
                 observed=np.array([0.0]),
-                observation_covariance=np.array([[1.0]]),
             )
         assert error.value.expected_shape == (1, 2)
         assert error.value.received_shape == (1, 1)
@@ -572,9 +607,10 @@ class TestProductWithAGaussianLikelihood:
     ):
         with pytest.raises(ShapeMismatchError) as error:
             independent.product_with_gaussian_likelihood(
-                observation_matrix=np.array([[1.0, 0.0]]),
+                observation_model=LinearGaussianModel.without_offset(
+                    matrix=np.array([[1.0, 0.0]]), covariance=np.array([[1.0]])
+                ),
                 observed=np.array([0.0, 1.0]),
-                observation_covariance=np.array([[1.0]]),
             )
         assert error.value.expected_shape == (1,)
         assert error.value.received_shape == (2,)
@@ -595,9 +631,11 @@ class TestLinearGaussianTransition:
         transition_covariance = np.array([[0.2, 0.05], [0.05, 0.3]])
 
         transitioned = correlated.linear_gaussian_transition(
-            transition_matrix=transition_matrix,
-            offset=offset,
-            transition_covariance=transition_covariance,
+            LinearGaussianModel(
+                matrix=transition_matrix,
+                offset=offset,
+                covariance=transition_covariance,
+            )
         )
 
         assert transitioned.mean == pytest.approx(
@@ -612,9 +650,9 @@ class TestLinearGaussianTransition:
         transition_covariance = np.diag([0.5, 1.5])
 
         transitioned = independent.linear_gaussian_transition(
-            transition_matrix=np.eye(2),
-            offset=np.zeros(2),
-            transition_covariance=transition_covariance,
+            LinearGaussianModel(
+                matrix=np.eye(2), offset=np.zeros(2), covariance=transition_covariance
+            )
         )
 
         assert transitioned.mean == pytest.approx(independent.mean)
@@ -624,9 +662,9 @@ class TestLinearGaussianTransition:
 
     def test_the_transition_keeps_the_variables_and_their_layout(self, correlated):
         transitioned = correlated.linear_gaussian_transition(
-            transition_matrix=np.eye(2),
-            offset=np.zeros(2),
-            transition_covariance=np.zeros((2, 2)),
+            LinearGaussianModel(
+                matrix=np.eye(2), offset=np.zeros(2), covariance=np.zeros((2, 2))
+            )
         )
 
         assert transitioned.variables == correlated.variables
@@ -637,45 +675,55 @@ class TestLinearGaussianTransition:
         before = independent.mean.copy()
 
         independent.linear_gaussian_transition(
-            transition_matrix=np.eye(2),
-            offset=np.ones(2),
-            transition_covariance=np.eye(2),
+            LinearGaussianModel(
+                matrix=np.eye(2), offset=np.ones(2), covariance=np.eye(2)
+            )
         )
 
         assert independent.mean == pytest.approx(before)
 
-    def test_a_transition_matrix_that_is_not_laid_out_by_the_variables_is_rejected(
-        self, independent
-    ):
+    def test_a_transition_model_not_over_the_variables_is_rejected(self, independent):
         with pytest.raises(ShapeMismatchError) as error:
             independent.linear_gaussian_transition(
-                transition_matrix=np.eye(3),
-                offset=np.zeros(2),
-                transition_covariance=np.eye(2),
+                LinearGaussianModel(
+                    matrix=np.eye(3), offset=np.zeros(3), covariance=np.eye(3)
+                )
             )
         assert error.value.expected_shape == (2, 2)
         assert error.value.received_shape == (3, 3)
 
-    def test_an_offset_that_is_not_laid_out_by_the_variables_is_rejected(
-        self, independent
-    ):
+
+# %% a linear map of some numbers plus Gaussian noise
+
+
+class TestLinearGaussianModel:
+    def test_the_sizes_are_read_from_the_matrix(self):
+        model = LinearGaussianModel(
+            matrix=np.ones((3, 2)), offset=np.zeros(3), covariance=np.eye(3)
+        )
+
+        assert model.number_of_inputs == 2
+        assert model.number_of_outputs == 3
+
+    def test_a_model_without_offset_adds_nothing(self):
+        model = LinearGaussianModel.without_offset(
+            matrix=np.ones((3, 2)), covariance=np.eye(3)
+        )
+
+        assert model.offset == pytest.approx(np.zeros(3))
+
+    def test_an_offset_not_laid_out_by_the_outputs_is_rejected(self):
         with pytest.raises(ShapeMismatchError) as error:
-            independent.linear_gaussian_transition(
-                transition_matrix=np.eye(2),
-                offset=np.zeros(3),
-                transition_covariance=np.eye(2),
+            LinearGaussianModel(
+                matrix=np.eye(2), offset=np.zeros(3), covariance=np.eye(2)
             )
         assert error.value.expected_shape == (2,)
         assert error.value.received_shape == (3,)
 
-    def test_a_transition_covariance_that_is_not_laid_out_by_the_variables_is_rejected(
-        self, independent
-    ):
+    def test_a_covariance_not_laid_out_by_the_outputs_is_rejected(self):
         with pytest.raises(ShapeMismatchError) as error:
-            independent.linear_gaussian_transition(
-                transition_matrix=np.eye(2),
-                offset=np.zeros(2),
-                transition_covariance=np.eye(1),
+            LinearGaussianModel(
+                matrix=np.eye(2), offset=np.zeros(2), covariance=np.eye(1)
             )
         assert error.value.expected_shape == (2, 2)
         assert error.value.received_shape == (1, 1)

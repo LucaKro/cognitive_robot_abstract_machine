@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 from probabilistic_model.distributions.distributions import SymbolicDistribution
+from probabilistic_model.distributions.multinomial import MultinomialDistribution
 from probabilistic_model.distributions.multivariate_gaussian import (
+    LinearGaussianModel,
     MultivariateGaussianDistribution,
 )
 from probabilistic_model.utils import MissingDict
@@ -85,9 +87,11 @@ class ScriptedObservationsEstimator(EstimatorNode[MultivariateGaussianDistributi
         distribution: MultivariateGaussianDistribution,
     ) -> MultivariateGaussianDistribution:
         return distribution.linear_gaussian_transition(
-            transition_matrix=np.eye(1),
-            offset=np.zeros(1),
-            transition_covariance=np.array([[self.transition_variance]]),
+            LinearGaussianModel(
+                matrix=np.eye(1),
+                offset=np.zeros(1),
+                covariance=np.array([[self.transition_variance]]),
+            )
         )
 
     def update(
@@ -117,9 +121,10 @@ class ScriptedObservationsEstimator(EstimatorNode[MultivariateGaussianDistributi
         :return: The distribution corrected by one observation of the variable.
         """
         return distribution.product_with_gaussian_likelihood(
-            observation_matrix=np.eye(1),
+            observation_model=LinearGaussianModel.without_offset(
+                matrix=np.eye(1), covariance=np.array([[self.observation_variance]])
+            ),
             observed=np.array([observed]),
-            observation_covariance=np.array([[self.observation_variance]]),
         )
 
 
@@ -159,6 +164,46 @@ class ScriptedLikelihoodsEstimator(EstimatorNode[SymbolicDistribution]):
         return distribution.product_with_likelihood(self.likelihoods)
 
 
+@dataclass(eq=False, repr=False)
+class JointStatesEstimator(EstimatorNode[MultinomialDistribution]):
+    """
+    Holds one joint distribution over two binary states, without evidence.
+    """
+
+    first: Symbolic = field(kw_only=True)
+    """
+    One of the states.
+    """
+
+    second: Symbolic = field(kw_only=True)
+    """
+    The other state.
+    """
+
+    probabilities: np.ndarray = field(kw_only=True)
+    """
+    The joint table, indexed by the two states' domains in order.
+    """
+
+    def create_initial_distribution(
+        self, context: MotionStatechartContext
+    ) -> MultinomialDistribution:
+        return MultinomialDistribution(
+            distribution_variables=(self.first, self.second),
+            probabilities=self.probabilities,
+        )
+
+    def predict(
+        self, context: MotionStatechartContext, distribution: MultinomialDistribution
+    ) -> MultinomialDistribution:
+        return distribution
+
+    def update(
+        self, context: MotionStatechartContext, distribution: MultinomialDistribution
+    ) -> Optional[MultinomialDistribution]:
+        return None
+
+
 def compiled_executor(*estimators: EstimatorNode) -> Executor:
     """
     :return: An executor that has compiled a statechart holding the estimators.
@@ -181,7 +226,7 @@ def published_value(executor: Executor, variable) -> float:
 # %% the tick
 
 
-def test_the_mean_and_variance_of_a_numeric_variable_are_published():
+def test_the_expectation_and_variance_of_a_numeric_variable_are_published():
     x = Continuous("x")
     estimator = ScriptedObservationsEstimator(
         variable=x, transition_variance=0.1, observations_per_cycle=[1.0]
@@ -192,9 +237,9 @@ def test_the_mean_and_variance_of_a_numeric_variable_are_published():
     executor.tick()
 
     distribution = estimator.distribution
-    assert published_value(executor, estimator.mean_variable(x)) == pytest.approx(
-        distribution.expectation([x])[x]
-    )
+    assert published_value(
+        executor, estimator.expectation_variable(x)
+    ) == pytest.approx(distribution.expectation([x])[x])
     assert published_value(executor, estimator.variance_variable(x)) == pytest.approx(
         distribution.variance([x])[x]
     )
@@ -212,6 +257,26 @@ def test_the_probability_of_each_value_of_a_symbolic_variable_is_published():
         assert published_value(
             executor, estimator.probability_variable(state, value)
         ) == pytest.approx(estimator.distribution.probability(event))
+
+
+def test_the_probability_of_a_value_is_its_marginal_in_a_joint_distribution():
+    coupled = Symbolic("coupled", domain=Set.from_iterable((False, True)))
+    moving = Symbolic("moving", domain=Set.from_iterable((False, True)))
+    probabilities = np.array([[0.1, 0.2], [0.3, 0.4]])
+    estimator = JointStatesEstimator(
+        first=coupled, second=moving, probabilities=probabilities
+    )
+    executor = compiled_executor(estimator)
+
+    executor.tick()
+
+    for index, value in enumerate((False, True)):
+        assert published_value(
+            executor, estimator.probability_variable(coupled, value)
+        ) == pytest.approx(probabilities[index].sum())
+        assert published_value(
+            executor, estimator.probability_variable(moving, value)
+        ) == pytest.approx(probabilities[:, index].sum())
 
 
 def test_estimator_observes_true_exactly_in_cycles_with_evidence():
@@ -296,7 +361,7 @@ def test_the_distribution_is_unavailable_before_the_build():
     estimator = ScriptedObservationsEstimator(variable=Continuous("x"))
 
     with pytest.raises(NodeNotBuiltError):
-        estimator.mean_variable(estimator.variable)
+        estimator.expectation_variable(estimator.variable)
 
 
 def test_a_value_the_distribution_does_not_have_is_not_published():

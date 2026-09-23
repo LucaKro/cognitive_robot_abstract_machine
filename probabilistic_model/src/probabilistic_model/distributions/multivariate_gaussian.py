@@ -39,6 +39,76 @@ from probabilistic_model.probabilistic_model import (
 if TYPE_CHECKING:
     from scipy.stats._multivariate import multivariate_normal_frozen
 
+# %% a linear map of some numbers plus Gaussian noise
+
+
+@dataclass
+class LinearGaussianModel:
+    """
+    Numbers that depend on others linearly, up to Gaussian noise: ``matrix`` applied to
+    the inputs, plus ``offset``, plus noise with covariance ``covariance``.
+
+    It describes how the variables of a
+    :class:`MultivariateGaussianDistribution` change over one step, and what a sensor
+    reading them reports. Both are fixed per process and per sensor, while what is
+    observed changes with every reading.
+    """
+
+    matrix: npt.NDArray
+    """
+    How much each input contributes to each output, with one row per output.
+    """
+
+    offset: npt.NDArray
+    """
+    What is added to each output.
+    """
+
+    covariance: npt.NDArray
+    """
+    The covariance of the noise on the outputs.
+    """
+
+    def __post_init__(self):
+        """
+        :raises ShapeMismatchError: If the offset or the covariance is not laid out by
+            the outputs the matrix has.
+        """
+        self.matrix = np.atleast_2d(np.asarray(self.matrix, dtype=float))
+        self.offset = np.atleast_1d(np.asarray(self.offset, dtype=float))
+        self.covariance = np.atleast_2d(np.asarray(self.covariance, dtype=float))
+
+        outputs = self.number_of_outputs
+        if self.offset.shape != (outputs,):
+            raise ShapeMismatchError(self.offset.shape, (outputs,))
+        if self.covariance.shape != (outputs, outputs):
+            raise ShapeMismatchError(self.covariance.shape, (outputs, outputs))
+
+    @classmethod
+    def without_offset(cls, matrix: npt.ArrayLike, covariance: npt.ArrayLike) -> Self:
+        """
+        :param matrix: How much each input contributes to each output.
+        :param covariance: The covariance of the noise on the outputs.
+        :return: The model that adds nothing on top of the linear map.
+        """
+        matrix = np.atleast_2d(np.asarray(matrix, dtype=float))
+        return cls(matrix=matrix, offset=np.zeros(len(matrix)), covariance=covariance)
+
+    @property
+    def number_of_inputs(self) -> int:
+        """
+        :return: How many numbers the model is applied to.
+        """
+        return self.matrix.shape[1]
+
+    @property
+    def number_of_outputs(self) -> int:
+        """
+        :return: How many numbers the model produces.
+        """
+        return self.matrix.shape[0]
+
+
 # %% a Gaussian over several variables at once
 
 
@@ -325,74 +395,53 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         )
 
     def product_with_gaussian_likelihood(
-        self,
-        observation_matrix: npt.NDArray,
-        observed: npt.NDArray,
-        observation_covariance: npt.NDArray,
+        self, observation_model: LinearGaussianModel, observed: npt.ArrayLike
     ) -> Self:
         """
         Multiply this density by the Gaussian likelihood of an observation and normalize
         the product.
 
-        The observation is ``observation_matrix`` applied to the variables plus Gaussian
-        noise with covariance ``observation_covariance``. Its likelihood as a function
-        of the variables is a Gaussian density, and so is the normalized product of two
-        Gaussian densities. That product is the Gaussian over these variables
-        conditioned on ``observed`` in their joint distribution with the observation.
+        The observation is ``observation_model`` applied to the variables. Its
+        likelihood as a function of the variables is a Gaussian density, and so is the
+        normalized product of two Gaussian densities. That product is the Gaussian over
+        these variables conditioned on ``observed`` in their joint distribution with the
+        observation.
 
-        :param observation_matrix: How much each variable contributes to each observed
-            number, with one row per observed number.
-        :param observed: The numbers observed, one per row of ``observation_matrix``.
-        :param observation_covariance: The covariance of the observation noise, one row
-            and column per observed number.
+        :param observation_model: How the observed numbers depend on the variables.
+        :param observed: The numbers observed, one per output of the model.
         :return: The normalized product, over the same variables.
-        :raises ShapeMismatchError: If the three do not describe one observation of
-            these variables.
+        :raises ShapeMismatchError: If the model is not applied to these variables, or
+            the numbers observed are not one per output.
         """
-        observation_matrix = np.atleast_2d(np.asarray(observation_matrix, dtype=float))
         observed = np.atleast_1d(np.asarray(observed, dtype=float))
-        observation_covariance = np.atleast_2d(
-            np.asarray(observation_covariance, dtype=float)
-        )
+        self._require_inputs_of(observation_model)
+        outputs = observation_model.number_of_outputs
+        if observed.shape != (outputs,):
+            raise ShapeMismatchError(observed.shape, (outputs,))
 
-        amount = len(observation_matrix)
-        if observation_matrix.shape != (amount, len(self.variables)):
-            raise ShapeMismatchError(
-                observation_matrix.shape, (amount, len(self.variables))
-            )
-        if observed.shape != (amount,):
-            raise ShapeMismatchError(observed.shape, (amount,))
-        if observation_covariance.shape != (amount, amount):
-            raise ShapeMismatchError(observation_covariance.shape, (amount, amount))
-
-        if amount == 0:
+        if outputs == 0:
             return self
 
-        joint = self._joint_with_observation(observation_matrix, observation_covariance)
+        joint = self._joint_with_observation(observation_model)
         return joint._conditional_over_variable_indices(
             list(range(len(self.variables))),
             list(range(len(self.variables), len(joint.variables))),
             observed,
         )
 
-    def _joint_with_observation(
-        self, observation_matrix: npt.NDArray, observation_covariance: npt.NDArray
-    ) -> Self:
+    def _joint_with_observation(self, observation_model: LinearGaussianModel) -> Self:
         """
-        :param observation_matrix: How much each variable contributes to each observed
-            number.
-        :param observation_covariance: The covariance of the observation noise.
+        :param observation_model: How the observed numbers depend on the variables.
         :return: The Gaussian over these variables followed by the observed numbers.
         """
         observation = self._linearly_transformed(
-            matrix=observation_matrix,
-            offset=np.zeros(len(observation_matrix)),
-            noise_covariance=observation_covariance,
+            observation_model,
             distribution_variables=self._variables_for_observation(
-                len(observation_matrix)
+                observation_model.number_of_outputs
             ),
         )
         covariance = self.covariance
+        matrix = observation_model.matrix
         return self.from_mean_and_covariance(
             distribution_variables=(
                 *self.distribution_variables,
@@ -401,73 +450,53 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             mean=np.concatenate([self.mean, observation.mean]),
             covariance=np.block(
                 [
-                    [covariance, covariance @ observation_matrix.T],
-                    [observation_matrix @ covariance, observation.covariance],
+                    [covariance, covariance @ matrix.T],
+                    [matrix @ covariance, observation.covariance],
                 ]
             ),
         )
 
     # %% moving the variables one step on
 
-    def linear_gaussian_transition(
-        self,
-        transition_matrix: npt.ArrayLike,
-        offset: npt.ArrayLike,
-        transition_covariance: npt.ArrayLike,
-    ) -> Self:
+    def linear_gaussian_transition(self, transition_model: LinearGaussianModel) -> Self:
         """
-        The distribution of the variables one step later, when each becomes a linear
-        combination of their current values, shifted by an offset, plus Gaussian noise.
+        The distribution of the variables one step later, when each becomes what
+        ``transition_model`` makes of their current values.
 
-        :param transition_matrix: How much each current value contributes to each next
-            value, both dimensions laid out by the variables.
-        :param offset: What is added to each next value, laid out by the variables.
-        :param transition_covariance: The covariance of the noise the step adds, both
-            dimensions laid out by the variables.
+        :param transition_model: How each next value depends on the current ones.
         :return: The distribution one step later, over the same variables.
-        :raises ShapeMismatchError: If any of the three is not laid out by these
-            variables.
+        :raises ShapeMismatchError: If the model does not take these variables to
+            themselves.
         """
-        transition_matrix = np.atleast_2d(np.asarray(transition_matrix, dtype=float))
-        offset = np.atleast_1d(np.asarray(offset, dtype=float))
-        transition_covariance = np.atleast_2d(
-            np.asarray(transition_covariance, dtype=float)
-        )
-
         amount = len(self.variables)
-        if transition_matrix.shape != (amount, amount):
-            raise ShapeMismatchError(transition_matrix.shape, (amount, amount))
-        if offset.shape != (amount,):
-            raise ShapeMismatchError(offset.shape, (amount,))
-        if transition_covariance.shape != (amount, amount):
-            raise ShapeMismatchError(transition_covariance.shape, (amount, amount))
-
+        if transition_model.matrix.shape != (amount, amount):
+            raise ShapeMismatchError(transition_model.matrix.shape, (amount, amount))
         return self._linearly_transformed(
-            matrix=transition_matrix,
-            offset=offset,
-            noise_covariance=transition_covariance,
-            distribution_variables=self.distribution_variables,
+            transition_model, distribution_variables=self.distribution_variables
         )
+
+    def _require_inputs_of(self, model: LinearGaussianModel):
+        """
+        :param model: A model meant to be applied to these variables.
+        :raises ShapeMismatchError: If it takes a different number of inputs.
+        """
+        expected_shape = (model.number_of_outputs, len(self.variables))
+        if model.matrix.shape != expected_shape:
+            raise ShapeMismatchError(model.matrix.shape, expected_shape)
 
     def _linearly_transformed(
-        self,
-        matrix: npt.NDArray,
-        offset: npt.NDArray,
-        noise_covariance: npt.NDArray,
-        distribution_variables: Iterable[Continuous],
+        self, model: LinearGaussianModel, distribution_variables: Iterable[Continuous]
     ) -> Self:
         """
-        :param matrix: How much each variable contributes to each resulting number.
-        :param offset: What is added to each resulting number.
-        :param noise_covariance: The covariance of the Gaussian noise added to them.
+        :param model: How the resulting numbers depend on these variables.
         :param distribution_variables: The variables the resulting numbers are named by.
-        :return: The Gaussian of ``matrix`` applied to these variables, shifted by
-            ``offset``, plus the noise.
+        :return: The Gaussian of the numbers ``model`` makes of these variables.
         """
         return self.from_mean_and_covariance(
             distribution_variables=distribution_variables,
-            mean=matrix @ self.mean + offset,
-            covariance=matrix @ self.covariance @ matrix.T + noise_covariance,
+            mean=model.matrix @ self.mean + model.offset,
+            covariance=model.matrix @ self.covariance @ model.matrix.T
+            + model.covariance,
         )
 
     def _variables_for_observation(self, amount: int) -> List[Continuous]:
@@ -534,6 +563,46 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         return box
 
     # %% moments
+
+    def expectation(self, variables: Optional[Iterable[Variable]] = None) -> MomentType:
+        """
+        Read off the mean rather than integrating for it, since this is asked of a
+        filtered belief on every control cycle.
+
+        :param variables: The variables to answer for, every variable if None.
+        :return: The expectation of each of them.
+        """
+        return VariableMap(
+            {
+                variable: float(self.mean[self.index_of(variable)])
+                for variable in self._variables_or_all(variables)
+            }
+        )
+
+    def variance(self, variables: Optional[Iterable[Variable]] = None) -> MomentType:
+        """
+        Read off the covariance's diagonal rather than integrating for it, since this is
+        asked of a filtered belief on every control cycle.
+
+        :param variables: The variables to answer for, every variable if None.
+        :return: The variance of each of them.
+        """
+        diagonal = np.diag(self.covariance)
+        return VariableMap(
+            {
+                variable: float(diagonal[self.index_of(variable)])
+                for variable in self._variables_or_all(variables)
+            }
+        )
+
+    def _variables_or_all(
+        self, variables: Optional[Iterable[Variable]]
+    ) -> Tuple[Variable, ...]:
+        """
+        :param variables: Some of this distribution's variables, or None.
+        :return: Those variables, or every variable if None was given.
+        """
+        return self.variables if variables is None else tuple(variables)
 
     def moment(self, order: OrderType, center: CenterType) -> MomentType:
         """
