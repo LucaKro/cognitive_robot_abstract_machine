@@ -359,3 +359,16 @@ The conflicts were in `multivariate_gaussian.py` and its tests, and are resolved
 - The closed-form `expectation`/`variance` read `Covariance.variances`. Per cycle on six
   variables: prediction 60 µs, update 90 µs (was 293 µs with the old product), publishing
   27 µs.
+
+Kicked off 2026-09-23 in auto mode. Branch `ground-truth-separation`, stacked on `sim-drawer-scene` (#24).
+
+**Plan**
+- `MujocoSynchronizer.unobserved_connections`: a set of connections whose physical state is ground truth the world is not told. The sim→world read skips them, so the controller's world keeps its own value. The world→sim write skips them too, so a belief never teleports the physics. That second half is where this item converges with `sim-drawer-scene`'s write rule: one predicate (`_is_moved_only_by_physics`) now answers "does the physics own this connection?" for both the stepped-simulation rule on joints without a hardware interface and the unobserved set.
+- Both 1-DOF joints (the drawer) and 6-DoF connections (a loose object's pose) can be unobserved. Nothing changes by default: the set starts empty, because robot-internal joints without a hardware interface must still be read back.
+- Divergence is *recorded*, not only printed. On every read, the synchronizer appends a `DivergenceRecord` (simulation time plus, per degree of freedom, the world's position and the physics' position) to `divergence_log`. The evaluator and the later false-success metric read it directly. The physics' values come from the same qpos→state conversion the read direction uses, so both share one code path.
+- `CabinetScene.environment_connections`: the cabinet's connections that carry degrees of freedom, including the cabinet's own parent connection. Today that is just the mechanism, since the cabinet is fixed; once the cabinet can be moved, its pose joins the set automatically.
+- The evaluator reads MuJoCo directly (`simulator.get_joint_value`, as `sim-drawer-scene`'s tests already do); this item adds no separate reader.
+
+**Acceptance tests** (TDD, MuJoCo ones CI-only): an unobserved hinge that the world sets is not moved in the physics; a falling free body that is unobserved stays put in the world while the physics moves it; the divergence log holds both values; observed connections are still read back. In the cabinet scene, giskard commanding the unobserved drawer leaves the world's drawer open and the physical drawer closed, and the log records the gap.
+
+**Overlap.** Shares `multi_sim.py` and `cabinet_scene.py` with `sim-drawer-scene`. This item adds the read direction plus the set; the write rule it extends stays that item's.
