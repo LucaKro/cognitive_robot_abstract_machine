@@ -82,22 +82,34 @@ def run_live(scene: CabinetScene, motion: MotionStatechart, cycles: int) -> floa
     simulation = MujocoSim(world=scene.world, headless=True)
     simulation.start_stepped_simulation()
     try:
-        executor = Executor(
-            context=MotionStatechartContext(
-                world=scene.world,
-                qp_controller_config=QPControllerConfig(
-                    target_frequency=CONTROL_FREQUENCY
-                ),
-            ),
-            pacer=SteppedSimulationPacer(simulation),
-        )
-        executor.compile(motion_statechart=motion)
-        for _ in range(cycles):
-            executor.tick()
-            executor.pacer.sleep()
+        drive(simulation, scene, motion, cycles)
         return simulation.simulator.get_joint_value(scene.mechanism.name.name).result
     finally:
         simulation.stop_simulation()
+
+
+def drive(
+    simulation: MujocoSim, scene: CabinetScene, motion: MotionStatechart, cycles: int
+) -> None:
+    """
+    Run giskard in lockstep with a started stepped simulation.
+
+    :param simulation: The running simulation of the scene.
+    :param scene: The scene to run in.
+    :param motion: What giskard does.
+    :param cycles: How many control cycles to run.
+    """
+    executor = Executor(
+        context=MotionStatechartContext(
+            world=scene.world,
+            qp_controller_config=QPControllerConfig(target_frequency=CONTROL_FREQUENCY),
+        ),
+        pacer=SteppedSimulationPacer(simulation),
+    )
+    executor.compile(motion_statechart=motion)
+    for _ in range(cycles):
+        executor.tick()
+        executor.pacer.sleep()
 
 
 # %% the scene
@@ -161,6 +173,11 @@ def test_every_body_has_its_own_name(scene):
 @every_part
 def test_no_controller_commands_the_moving_part(scene):
     assert not scene.mechanism.has_hardware_interface
+
+
+@every_part
+def test_the_environment_connections_are_the_cabinets_moving_joints(scene):
+    assert scene.environment_connections == [scene.mechanism]
 
 
 @every_part
@@ -271,3 +288,41 @@ def test_the_hand_pushing_the_moving_part_moves_it(specification, scene):
     simulated = run_live(scene, motion, cycles=600)
 
     assert simulated < push.opening / 2
+
+
+# %% kept from the controller
+
+
+@every_part
+@mujoco_runs_only_in_continuous_integration
+def test_the_controllers_world_and_the_physics_diverge_over_the_moving_part(scene):
+    """
+    Giskard opens the part in its own world while the untouched part stays closed in
+    the physics, and the gap is logged.
+    """
+    fully_open = scene.mechanism.dof.limits.upper.position
+    motion = MotionStatechart()
+    motion.add_node(
+        JointPositionList(
+            name="open without touching",
+            goal_state=JointState.from_mapping({scene.mechanism: fully_open}),
+        )
+    )
+    simulation = MujocoSim(world=scene.world, headless=True)
+    simulation.synchronizer.unobserved_connections.update(scene.environment_connections)
+    simulation.start_stepped_simulation()
+    try:
+        drive(simulation, scene, motion, cycles=200)
+        simulated = simulation.simulator.get_joint_value(
+            scene.mechanism.name.name
+        ).result
+    finally:
+        simulation.stop_simulation()
+
+    believed = scene.world.state[scene.mechanism.raw_dof.id].position
+    [divergence] = simulation.synchronizer.divergence_log[-1].divergences
+    assert believed == pytest.approx(fully_open, abs=0.01)
+    assert simulated == pytest.approx(0.0, abs=1e-3)
+    assert divergence.degree_of_freedom is scene.mechanism.raw_dof
+    assert divergence.world_position == believed
+    assert divergence.physics_position == pytest.approx(simulated)

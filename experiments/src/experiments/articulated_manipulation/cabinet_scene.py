@@ -9,6 +9,8 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
+from typing_extensions import TYPE_CHECKING
+
 from semantic_digital_twin.api import (
     RobotSpecification,
     SemanticAnnotationWithRootSpecification,
@@ -40,6 +42,9 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.geometry import Scale
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.world_description.world_entity import Connection
 
 # %% the scene
 
@@ -96,6 +101,18 @@ class CabinetScene:
         The joint the moving part slides or turns on; zero is closed.
         """
         return self.part.mechanical_joint.root.parent_connection
+
+    @property
+    def environment_connections(self) -> list[Connection]:
+        """
+        The cabinet's connections that can move, including the one placing the cabinet
+        itself: the state a controller has to estimate rather than be told, which a
+        simulation keeps from the world by leaving them unobserved.
+        """
+        connections = [
+            self.cabinet.root.parent_connection
+        ] + self.world.get_connections_of_branch(self.cabinet.root)
+        return [connection for connection in connections if connection.dofs]
 
     @property
     def handle(self) -> Handle:
