@@ -403,3 +403,24 @@ Resolved 2026-09-23 (auto mode) in 44b9ca07. CI was green on `aa1b1708`. The aut
 **Divergence is recorded once per degree of freedom per read.** A mimic reports its original's degree of freedom again. Both sync directions ignore a mimic's `multiplier`/`offset` when converting to and from `qpos`; that was already the case before this item and is left as is.
 
 **Overlap.** This branch renames #24's flag. If #24 changes, carry it up through the stack (`gh stack rebase --upstack`).
+
+## `disturbance-protocol`
+
+Kicked off 2026-09-23 in auto mode. Branch `disturbance-protocol` from `ground-truth-separation`, draft PR #30, the top layer of stack 29 (#24 → #28 → #30). The stack was registered over the Stacks REST endpoint: `gh stack link` needs GraphQL, which cloud sessions refuse.
+
+**Plan**
+- `experiments/.../articulated_manipulation/disturbance_protocol.py`: the conditions. Prior-error levels (none, low, medium, high) for the location and for the joint parameters; the disturbances (cabinet moved, drawer pulled from the hand, drawer re-closed); the arm-pose and cabinet-yaw sweeps; one seed per episode, so every episode replays exactly.
+- **Prior error is belief-only.** The physics is built from the true scene; the controller's world from a believed scene whose specification differs by the sampled error (the cabinet's `table_T_cabinet_front`, and a tilt of the mechanism's axis). Both worlds share body and joint names, so the synchroniser pairs them. This needs `MultiSim` to accept the world the physics is built from separately from the world it synchronises with.
+- **Disturbances act on the physics alone**, triggered by simulated time or by the physical opening. The controller learns of them only through what it senses, per the ground-truth separation #28 established.
+- `episode.py`: runs a task under evaluation live against the stepped physics for one condition, up to a timeout, and records the outcome.
+- `metrics.py`: success (the task reports done and the physics says the part is open); false success (reports done, physics disagrees); time to completion; task-specific recovery transitions authored; control-cycle time via `ControlLoopProfiler`, with `Executor.tick` as the cycle.
+- Tests first. The protocol and metrics are tested without MuJoCo; every episode test runs only in CI, like the scene's own. The acceptance episode is the stuck-drawer probe: a task that commands the drawer joint directly must be counted as a false success.
+
+**Decisions**
+- The prior-error magnitudes are configurable; the defaults are placeholders, not sourced from paper A (user decision at kickoff). They are marked as such in the code.
+
+**Overlap.** `cabinet_scene.py` (sim-drawer-scene, ground-truth-separation) gains the mechanism-axis parameter the believed scene needs; `multi_sim.py` (ground-truth-separation) gains the separate physics world. Carry any change to either up the stack with `gh stack rebase --upstack`.
+
+**Open**
+- How "task-specific recovery transitions authored" is counted: declared by the task under evaluation for now. `baseline-stock-cram` supplies the first real task and may settle a counting rule.
+- Moving the cabinet, which is fixed to the world root, means moving a static body in MuJoCo; whether that needs a public method in `physics_simulators` is settled during implementation.
