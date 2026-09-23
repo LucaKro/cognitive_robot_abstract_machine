@@ -75,9 +75,10 @@ items:
 - id: sim-drawer-scene
   title: Tracy and an articulated cabinet in MuJoCo, driven live by giskard
   branch: sim-drawer-scene
-  pull_request_number: null
+  pull_request_number: 24
   track: sim-harness
-  status: not_started
+  status: in_progress
+  session: https://claude.ai/code/session_01DvNsKhnYd1oiBoFJBARNBx
   notes: 'Build on test/giskardpy_test/test_executor/test_mujoco_live_control.py, which already drives
     a physically simulated Tracy from giskard''s loop in lockstep (SteppedSimulationPacer), with servoed
     grippers and named finger pads. Add a cabinet with a physically simulated drawer, and a door variant.
