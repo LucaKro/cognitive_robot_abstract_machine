@@ -186,3 +186,13 @@ Kicked off 2026-09-23 in auto mode. Branch `tracy-sensor-mapping` from `main`, d
 **Open.** This item is done only after the tool has been run on the real Tracy and its report committed. That needs someone at the robot. Bias drift and the noise under load are left to `sensor-model-calibration`.
 
 **Overlap.** Both `articulated_manipulation/__init__.py` files are also added by `sim-drawer-scene` (#24), with identical content.
+
+Resolved 2026-09-23 (auto mode). What was holding the PR up: the one unresolved review thread, "can't this be written with a WorldSpecification?". CI was green on 553b7a8b.
+
+**What the implementation settled**
+- The scene is a `CabinetSceneSpecification` (was `CabinetSceneBuilder`). `world_specification()` is a `WorldSpecification`: Tracy as a `RobotSpecification`, and the cabinet as one object whose drawer or door, with its slider or hinge and its handle, are nested part specifications. `to_domain_object()` builds the world, parks the arms and sets the joint dynamics, which connection specifications cannot carry.
+- A `WorldSpecification` with no environment roots the world in `map`, which Tracy's URDF also defines, and MuJoCo rejects duplicate body names. The root is renamed with `World.force_root_name` (default `floor`).
+- Objects are placed in the world frame, so the spec carries `world_T_table` (z = 0.88, `table_joint` in `tracy.urdf.xacro`). A test checks it against the built world.
+- The cabinet is fixed to the world root rather than the table, so it is not part of Tracy's subtree.
+
+**Tooling note.** `plan_item_brief` crashed in this cloud session because it reads review threads over GraphQL, which cloud sessions refuse. The thread was read over REST (`/pulls/{n}/ccr/review_threads`).
