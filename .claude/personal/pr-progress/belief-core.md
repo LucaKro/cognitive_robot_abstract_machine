@@ -1,23 +1,22 @@
 ## belief-core (PR #25, draft, stacked on #22)
 
-Plan (auto mode; full record in the plan roadmap under `belief-core`):
-package giskardpy.motion_statechart.beliefs, ORM-excluded by package;
-giskardpy declares probabilistic_model + random_events.
-- Belief[PredictionT, EvidenceT] base, Statistic StrEnum, VariableStatistic key.
-- GaussianBelief on #22's distribution: predict(LinearPrediction) written here,
-  update(Reading list) via product_with_gaussian_likelihood.
-- BinaryBelief (BinaryTransition, BinaryEvidence), plain probability.
-- BeliefContext(ContextExtension): add / belief_of / from_context.
-- EstimatorNode: prior/prediction/measure abstract; FloatVariable per statistic;
-  observes TRUE iff evidence this cycle.
+Review round 1 (4 threads, all answered + resolved): user chose to move the
+filter steps into probabilistic_model within this PR (reverses original note).
+Now (e9ed7221):
+- probabilistic_model: MultivariateGaussianDistribution.linear_gaussian_transition
+  (Kalman predict; _joint_with_observation reuses _linearly_transformed),
+  SymbolicDistribution.markov_transition(MultinomialDistribution) and
+  product_with_likelihood; ImpossibleEvidenceError.
+- giskardpy.motion_statechart.beliefs: BeliefContext (ProbabilisticModel by
+  variable: add/replace/distribution_of), EstimatorNode[ModelT]
+  (create_initial_distribution/predict/update->None if no evidence; publishes
+  mean/variance of numeric, probability per value of symbolic vars;
+  PublishedValue StrEnum names them; UnpublishedValueError).
+This branch edits #22's multivariate_gaussian.py + its tests: carry #22 changes up
+with gh stack, never merge by hand.
 
-Testing: fixture-free tests under test/giskardpy_test/test_motion_statechart/
-test_beliefs, run with --noconftest (root conftest needs ROS msgs for ORM).
-Env recipe: pip deps + `pip install -e <member> --no-deps` for workspace members,
-root package with --ignore-requires-python, urdf_parser_py/xacro copied from sdist.
+Testing: giskardpy belief tests fixture-free, run with --noconftest. Env recipe:
+pip deps + `pip install -e <member> --no-deps`, root package with
+--ignore-requires-python, urdf_parser_py/xacro copied from sdist.
 
-Done: branch, draft PR #25 (stack #26), manifest in_progress, roadmap section;
-implementation 23df0ae6 - 33 tests pass locally, mutation-checked; PR body current.
-Decided: BinaryBelief update is atomic; plain Generic (no SubClassSafeGeneric -
-params only type signatures, package ORM-excluded).
-Next: CI on 23df0ae6 (ORM regeneration is CI-only); author review. #22 lands first.
+Next: CI on e9ed7221; author review round 2. #22 lands first.
