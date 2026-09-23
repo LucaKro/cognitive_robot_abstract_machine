@@ -28,7 +28,11 @@ from semantic_digital_twin.robots.pr2 import (
     PR2RightGripperRightFinger,
     PR2KinectV1,
 )
-from semantic_digital_twin.robots.robot_parts import KinematicChain
+from semantic_digital_twin.robots.robot_parts import (
+    Camera,
+    ForceTorqueSensor,
+    KinematicChain,
+)
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.spatial_computations.ik_solver import (
@@ -46,6 +50,7 @@ from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
     RevoluteConnection,
     ActiveConnection1DOF,
+    FixedConnection,
 )
 
 
@@ -470,7 +475,28 @@ def test_tracy_semantic_annotation(tracy_world):
     tracy_world._notify_model_change()
 
     assert len(tracy.get_end_effectors()) == 2
-    assert len(tracy.get_sensors()) == 1
+    sensors = tracy.get_sensors()
+    assert len([sensor for sensor in sensors if isinstance(sensor, Camera)]) == 1
+    assert len(
+        [sensor for sensor in sensors if isinstance(sensor, ForceTorqueSensor)]
+    ) == len(tracy.arms)
+
+
+def test_each_tracy_arm_carries_a_force_torque_sensor_fixed_to_its_tip(tracy_world):
+    tracy = tracy_world.get_semantic_annotations_by_type(Tracy)[0]
+
+    for arm in tracy.arms:
+        [sensor] = arm.sensors
+        chain = tracy_world.compute_chain_of_kinematic_structure_entities(
+            arm.tip, sensor.root
+        )
+
+        assert isinstance(sensor, ForceTorqueSensor)
+        assert chain[0] == arm.tip
+        assert all(
+            isinstance(entity.parent_connection, FixedConnection)
+            for entity in chain[1:]
+        )
 
 
 def test_hsrb_semantic_annotation(_hsr_world_setup):

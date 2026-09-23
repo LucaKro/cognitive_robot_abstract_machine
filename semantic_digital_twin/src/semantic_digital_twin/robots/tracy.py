@@ -32,6 +32,7 @@ from semantic_digital_twin.robots.robot_parts import (
     Camera,
     EndEffector,
     Finger,
+    ForceTorqueSensor,
 )
 from semantic_digital_twin.robots.robotiq_85_gripper import Robotiq85Gripper
 from semantic_digital_twin.robots.ur10e_arm import UR10eArm
@@ -258,7 +259,53 @@ class TracyRightGripper(
 
 
 @dataclass(eq=False)
-class TracyLeftArm(UR10eArm[TracyLeftGripper]):
+class TracyLeftWristForceTorqueSensor(ForceTorqueSensor):
+    """
+    The force/torque sensor built into the flange of Tracy's left UR10e.
+    """
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "left_tool0"),
+        )
+
+
+@dataclass(eq=False)
+class TracyRightWristForceTorqueSensor(ForceTorqueSensor):
+    """
+    The force/torque sensor built into the flange of Tracy's right UR10e.
+    """
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "right_tool0"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class TracyLeftArm(
+    UR10eArm[TracyLeftGripper], HasSensors[TracyLeftWristForceTorqueSensor]
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -285,7 +332,9 @@ class TracyLeftArm(UR10eArm[TracyLeftGripper]):
 
 
 @dataclass(eq=False)
-class TracyRightArm(UR10eArm[TracyRightGripper]):
+class TracyRightArm(
+    UR10eArm[TracyRightGripper], HasSensors[TracyRightWristForceTorqueSensor]
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -408,9 +457,11 @@ class Tracy(
     def _setup_velocity_limits(self):
         """
         Slow the arms down to 0.2 rad/s at their fastest joint, keeping the joints'
-        proportions. The grippers keep the description's own limits: a finger is no
-        danger at that speed, and scaling it down with the arms would leave it too slow
-        to close within a motion.
+        proportions.
+
+        The grippers keep the description's own limits: a finger is no danger at that
+        speed, and scaling it down with the arms would leave it too slow to close within
+        a motion.
         """
         end_effector_connections = {
             connection

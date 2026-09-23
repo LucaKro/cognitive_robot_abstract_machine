@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
+from enum import IntEnum
 
 from typing_extensions import Generic
 
@@ -17,6 +18,33 @@ from semantic_digital_twin.world_description.connection_properties import (
     ServoGains,
 )
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
+
+
+class ObjectDetectionStatus(IntEnum):
+    """
+    What a Robotiq gripper reports about its fingers' motion, as its ``gOBJ`` register
+    holds it.
+    """
+
+    MOVING = 0
+    """
+    The fingers are moving towards the requested position.
+    """
+
+    OBJECT_DETECTED_OPENING = 1
+    """
+    The fingers stopped while opening because they touched something.
+    """
+
+    OBJECT_DETECTED_CLOSING = 2
+    """
+    The fingers stopped while closing because they touched something.
+    """
+
+    AT_REQUESTED_POSITION = 3
+    """
+    The fingers reached the requested position without touching anything.
+    """
 
 
 @dataclass(eq=False)

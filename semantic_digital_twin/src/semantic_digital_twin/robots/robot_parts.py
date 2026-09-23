@@ -512,6 +512,16 @@ class Sensor(AbstractRobotPart, ABC):
 
 
 @dataclass(eq=False)
+class ForceTorqueSensor(Sensor, ABC):
+    """
+    A sensor that measures the force and torque acting where it is mounted, such as
+    the wrist sensor built into many arms.
+
+    The wrench it reports is expressed in the frame of its root body.
+    """
+
+
+@dataclass(eq=False)
 class Camera(Sensor, ABC):
     """
     A camera is a sensor that captures images of the environment.
