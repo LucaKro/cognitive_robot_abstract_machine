@@ -99,3 +99,72 @@ Kicked off 2026-09-23 in auto mode. Branch `sim-drawer-scene` from `main`, draft
 **Overlap.** `ground-truth-separation` owns the *read* direction (the physics overwriting the controller's belief). The two directions should converge into one concept when that item lands.
 
 **Open.** MuJoCo tests run only in CI, and Tracy's description comes from the CI image, so the Tracy scene tests are verified in CI.
+
+## `belief-core`
+
+The plan settled at kickoff (auto mode), and the calls it makes beyond the item's `notes`.
+
+### Where it sits
+
+- **Branch `belief-core`, stacked on #22** (`claude/epic-euler-o9o7v8`), which is where
+  `MultivariateGaussianDistribution` exists. The session was designated
+  `basstler_experiments`, but that branch holds the basstler tooling, so the user chose
+  the item's own branch name at kickoff.
+- **Package `giskardpy.motion_statechart.beliefs`**, the same place the retired #10/#12
+  used. It is excluded from giskardpy's ORM by package in `generate_orm.py`, so later
+  modules in it are excluded without touching the script. The code is written clean;
+  only the location and the review lessons carry over.
+- **giskardpy declares `probabilistic_model` and `random_events`** in `[project]
+  dependencies` and `[dependency-groups] workspace`. `test_imported_workspace_members_are_declared`
+  caught exactly this on #10.
+
+### What it contains
+
+- `Belief[PredictionT, EvidenceT]`: the abstract base class. It is keyed by `random_events`
+  variables, predicts, updates from a list of evidence, and reports its `statistics()`
+  as `VariableStatistic -> float`. `Statistic` is a `StrEnum` (mean, variance,
+  probability), so the names of the published values exist once.
+- `GaussianBelief`: holds #22's `MultivariateGaussianDistribution`. `predict(LinearPrediction)`
+  is written here (mean `F m + offset`, covariance `F P Fᵀ + Q`), per the item notes.
+  `update(readings)` builds the observation matrix from each `Reading`'s variable-keyed
+  contributions and reuses #22's `product_with_gaussian_likelihood`. That is the
+  conditioning on the distribution, which #11's review round settled belongs in
+  probabilistic_model. The Kalman step itself (building F/H/Q/R from the named inputs)
+  stays in the belief. Transitions, offsets, process noise and readings are all keyed by
+  variable, not by position (lesson from #10's first review round).
+- `BinaryBelief`: a discrete Bayes filter for one binary latent state, over a
+  two-valued `Symbolic` variable. `BinaryTransition` (probability the state persists or
+  arises) and `BinaryEvidence` (the likelihood of the observation if the state holds or
+  does not). It keeps a plain probability rather than wrapping `SymbolicDistribution`:
+  the two-state update is three lines, and the distribution's hash-keyed probabilities
+  would add machinery without adding anything.
+- `BeliefContext(ContextExtension)`: beliefs keyed by variable. `add` rejects a second
+  belief about the same variable with `DuplicateBeliefError`. `belief_of` raises
+  `VariableWithoutBeliefError`. `from_context(context)` returns the statechart's beliefs
+  and adds the extension on first use (precedent: `SegmindContext`).
+- `EstimatorNode[PredictionT, EvidenceT]`: the abstract node. A subclass states
+  `create_initial_belief`, `create_prediction` and `measure`. The base registers the
+  belief and one `FloatVariable` per statistic at build, and on each tick runs predict,
+  measure, update and `float_variable_data.set_value` (precedent: `WiggleInsert.on_tick`).
+  It observes TRUE when evidence arrived that cycle and FALSE when it ran on prediction
+  alone. Only exact trinary values reach the observation; continuous values go only
+  through `float_variable_data`. `published_variable(variable, statistic)` gives a goal
+  or monitor the symbol to build on, and raises `NodeNotBuiltError` before build.
+
+### Verification
+
+Tests first, in `test/giskardpy_test/test_motion_statechart/test_beliefs/`, fixture-free,
+so they run under `--noconftest`. The root conftest regenerates the ORM, which needs ROS
+message packages this container cannot install. The Gaussian update is checked against
+the closed-form scalar Kalman gain. The estimator is driven through an `Executor` on an
+empty `World` with a mimic node whose readings the test decides.
+
+### Open / assumptions
+
+- **ORM exclusion is CI's to confirm.** Regenerating the ORM cannot run in this container.
+- **Nothing reads the published variables yet.** `joint-state-estimator` is the first
+  consumer. Reset behaviour (belief back to prior on `on_reset`) is not built. No item
+  asks for it yet, and adding it later is additive.
+- **Readings have independent noise** (diagonal R), and process noise is per variable
+  (diagonal Q). A correlated sensor would need a full-covariance reading type. That is
+  additive when a sensor needs it.
