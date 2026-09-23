@@ -1,0 +1,72 @@
+# Articulated Manipulation Under Uncertainty — roadmap
+
+Plan-wide context. It is carried into every item brief, so keep it short. Per-item history
+is appended below by the bootstrap under `` ## `item-id` `` headings.
+
+## Why this plan exists
+
+This plan supersedes `aicon-belief-integration` (retired 2026-09-23; see that plan's `## Retired` section). A critical reassessment of AICON found that its shipped estimators are mostly hand-shaped gradient devices, and that its task sequencing is hand-engineered rather than emergent. So its mechanism is not worth adopting.
+
+**One real gap in CRAM survived:** articulated environment joints are QP decision variables, and their state is integrated from giskard's *own commands*.
+- No synchroniser corrects them on a real robot.
+- In MuJoCo they are hard-overwritten from physics.
+- In a stuck-drawer probe, the model reported the drawer 0.30 m open, with the "opened" monitor TRUE from cycle 31, while the hand never moved.
+
+The goal is to **match AICON's task-level capabilities with explicit machinery**, not its mechanism.
+
+## Capability targets
+
+| AICON capability | This plan |
+|---|---|
+| Opens under a wrong prior on the drawer *location* | handle-pose-estimator, active-perception-tasks |
+| Opens under a wrong prior on the *joint parameters* | articulation-model-estimator, open-along-estimated-axis |
+| Does not mistake "commanded" for "happened" | joint-state-estimator, mechanism-divergence-failure |
+| Recovers when the cabinet is moved | handle-pose-estimator, reachievement-template |
+| Recovers when the drawer is pulled from the hand | coupling-belief, reachievement-template |
+| Re-opens a drawer closed again mid-task | reachievement-template |
+| Re-establishes lost visibility | active-perception-tasks |
+| Respects joint limits and avoids self-collision | already exceeded: giskard has hard constraints |
+
+## Design principles
+
+- **Transitions stay explicit.** Continuous values go into `float_variable_data`, never into observations: `is_true()` and the verdict test exact trinary values, so an observation of 0.95 never transitions.
+- **Do not scale task weights by probabilities.** Measured: a ×0.01 weight changes nothing, and the task only switches off near zero. Scaling the hold-handle weight toward zero opens the *modelled* drawer without the hand. Belief-driven behaviour belongs in monitors and gating transitions.
+- **Estimate; don't dead-reckon.** The environment joint stays a QP variable (closed-chain model), but its *state* is the estimator's posterior.
+- **Grasp evidence comes from real signals** — finger width and effort, wrist wrench, whether the handle follows the hand — never from a raycast against the model, which confirms itself.
+- **Re-achievement is generic**, not enumerated per failure class. This is the answer to AICON's "explicit designs must enumerate transitions" argument, and the benchmark tests it.
+- **Ground truth is kept apart from belief** in simulation, or every test is circular.
+
+## Benchmark and metrics
+
+Tracy in MuJoCo, driven live by giskard (precedent: `test_mujoco_live_control.py`). The disturbance protocol follows AICON paper A:
+- prior error on location and on joint parameters, at four levels;
+- cabinet moved;
+- drawer pulled from the hand;
+- plus drawer re-closed mid-task, and the arm-pose and cabinet-yaw sweeps from the AICON ablation.
+
+Metrics:
+- success rate;
+- **false-success rate**;
+- time to completion;
+- **task-specific recovery transitions authored** (target zero);
+- control-cycle time, via `control_loop_profiler.py`.
+
+AICON's paper-A real-robot numbers are indicative only, since the robot and simulator differ.
+
+## Gates
+
+- **After `baseline-stock-cram`:** if stock CRAM already succeeds on most conditions and its failures are not about environment state, stop. That is a valid outcome.
+- **After `mechanism-divergence-failure`:** if the false-success rate does not drop, do not build waves 2 and 3.
+
+## Decisions taken
+
+- **Robot: Tracy**, in simulation and on hardware.
+- **#22** (multivariate Gaussian) is tracked as the belief foundation. `belief-core` is written clean, not salvaged from the closed #10/#12.
+- **The condition-monitor rework** (`executables.py:175`) is owned by someone else. Whether `live-precondition-monitors` waits for it is decided at that item's kickoff.
+- **Out of scope:** gradient-based action selection; planning-free Blocks World; differentiating through beliefs; contact-rich pushing (AICON paper B).
+
+## Conventions
+
+- **Fork only.** Never push to, comment on, or open PRs against `cram2`; releasing there is the user's action.
+- **Targeted test files only**; never the full suite. Do not read `ormatic_interface.py` files.
+- **Items with two unlanded dependencies** (`joint-state-estimator`, `handle-pose-estimator`) cannot be stacked by `plan_stack`. Ask the user at kickoff.
