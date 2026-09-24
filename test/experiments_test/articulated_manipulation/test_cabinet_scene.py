@@ -7,6 +7,7 @@ Skipped where Tracy's description is not installed.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass
 
@@ -186,6 +187,37 @@ def test_the_handle_moves_with_the_moving_part(scene):
         scene.handle.root.get_first_parent_connection_of_type(ActiveConnection1DOF)
         is scene.mechanism
     )
+
+
+@every_part
+def test_the_mechanisms_axis_turns_by_its_deviation(specification, scene):
+    deviation = 0.2
+    turned = dataclasses.replace(
+        specification, mechanism_axis_deviation=deviation
+    ).to_domain_object()
+
+    angle = turned.mechanism.axis.angle_between(scene.mechanism.axis)
+    assert float(angle.to_np()[0]) == pytest.approx(deviation)
+
+
+def test_a_turned_drawer_still_slides_level():
+    specification = CabinetSceneSpecification(
+        articulated_part=ArticulatedPart.DRAWER, mechanism_axis_deviation=0.2
+    )
+
+    axis = specification.to_domain_object().mechanism.axis
+
+    assert axis.to_np()[2] == pytest.approx(0.0)
+
+
+def test_a_turned_doors_hinge_stays_in_the_cabinets_front():
+    specification = CabinetSceneSpecification(
+        articulated_part=ArticulatedPart.DOOR, mechanism_axis_deviation=0.2
+    )
+
+    axis = specification.to_domain_object().mechanism.axis
+
+    assert axis.to_np()[0] == pytest.approx(0.0)
 
 
 # %% moved only through contact
