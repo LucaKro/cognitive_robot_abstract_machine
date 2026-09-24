@@ -77,6 +77,20 @@ CONTROL_CYCLE_PHASES: Tuple[PhaseDefinition, ...] = (
 The phases of one control cycle, in the order they are entered.
 """
 
+EXECUTOR_CONTROL_CYCLE_PHASES: Tuple[PhaseDefinition, ...] = (
+    PhaseDefinition(Executor, "tick", CONTROL_CYCLE_PHASE),
+    PhaseDefinition(CollisionManager, "compute_collisions", "compute_collisions"),
+    PhaseDefinition(MotionStatechart, "tick", "statechart_tick"),
+    PhaseDefinition(QPController, "compute_command", "qp_solve"),
+    PhaseDefinition(World, "apply_control_commands", "apply_control_commands"),
+    PhaseDefinition(World, "notify_state_change", "notify_state_change"),
+    PhaseDefinition(ForwardKinematicsManager, "recompute", "forward_kinematics"),
+)
+"""
+The phases of one control cycle when the executor is ticked directly, such as in
+lockstep with a stepped simulation, rather than by the ROS control loop.
+"""
+
 # %% samples
 
 

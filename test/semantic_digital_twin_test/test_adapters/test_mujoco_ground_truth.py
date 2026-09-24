@@ -12,7 +12,7 @@ from datetime import timedelta
 import pytest
 
 from ...pytest_environment import runs_in_continuous_integration
-from .test_mujoco_servos import _pendulum_world
+from .test_mujoco_servos import _pendulum_world, _servoed_pendulum_world
 
 from semantic_digital_twin.adapters.multi_sim import MujocoSim
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -215,3 +215,59 @@ def test_moving_an_uncontrolled_object_in_the_world_does_not_move_it_in_the_phys
         simulation.stop_simulation()
 
     assert simulated_x == pytest.approx(0.0)
+
+
+# %% a ground truth the world only believes in
+
+
+@mujoco_runs_only_in_continuous_integration
+def test_the_physics_is_built_from_the_ground_truth():
+    """
+    The pendulum's base stands elsewhere in the ground truth than the world believes,
+    and the physics has it where it really is.
+    """
+    root_T_base = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.3)
+    believed = _pendulum_world()
+    ground_truth = _pendulum_world(root_T_base)
+    simulation = MujocoSim(
+        world=believed.world, ground_truth=ground_truth.world, headless=True
+    )
+    simulation.start_stepped_simulation()
+    try:
+        simulation.step_simulation(timedelta(seconds=simulation.simulator.step_size))
+        simulated_base = simulation.simulator.get_body_position("base").result
+    finally:
+        simulation.stop_simulation()
+
+    assert simulated_base[0] == pytest.approx(root_T_base.to_np()[0, 3])
+    assert believed.world.get_body_by_name("base").global_transform.to_np()[
+        0, 3
+    ] == pytest.approx(0.0)
+
+
+@mujoco_runs_only_in_continuous_integration
+def test_the_believed_world_commands_the_ground_truths_servos():
+    """
+    The servo is paired by name, so commanding the believed hinge drives the hinge the
+    physics was built from.
+    """
+    believed = _servoed_pendulum_world()
+    ground_truth = _servoed_pendulum_world(
+        HomogeneousTransformationMatrix.from_xyz_rpy(x=0.3)
+    )
+    set_point = 0.5
+    simulation = MujocoSim(
+        world=believed.world, ground_truth=ground_truth.world, headless=True
+    )
+    simulation.start_stepped_simulation()
+    try:
+        believed.world.state[believed.hinge.raw_dof.id].position = set_point
+        believed.world.notify_state_change()
+        simulation.step_simulation(timedelta(seconds=2.0))
+        simulated = simulation.simulator.get_joint_value(
+            believed.hinge.name.name
+        ).result
+    finally:
+        simulation.stop_simulation()
+
+    assert simulated == pytest.approx(set_point, abs=0.05)

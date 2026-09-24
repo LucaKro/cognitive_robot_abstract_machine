@@ -89,13 +89,22 @@ class PendulumWorld:
     """
 
 
-def _pendulum_world() -> PendulumWorld:
+def _pendulum_world(
+    root_T_base: HomogeneousTransformationMatrix | None = None,
+) -> PendulumWorld:
+    """
+    :param root_T_base: Where the pendulum's base is mounted; at the root if not given.
+    """
     world = World()
     with world.modify_world():
         root = Body(name=PrefixedName("root"))
         world.add_body(root)
         base = Body(name=PrefixedName("base"))
-        world.add_connection(FixedConnection(parent=root, child=base))
+        world.add_connection(
+            FixedConnection(
+                parent=root, child=base, parent_T_connection_expression=root_T_base
+            )
+        )
         arm = Body(name=PrefixedName("arm"))
         mirrored_arm = Body(name=PrefixedName("mirrored_arm"))
         # the two arms hang at different heights so they never touch each other
@@ -138,8 +147,13 @@ def _pendulum_world() -> PendulumWorld:
     return PendulumWorld(world=world, hinge=hinge, mirrored_hinge=mirrored_hinge)
 
 
-def _servoed_pendulum_world() -> PendulumWorld:
-    pendulum = _pendulum_world()
+def _servoed_pendulum_world(
+    root_T_base: HomogeneousTransformationMatrix | None = None,
+) -> PendulumWorld:
+    """
+    :param root_T_base: Where the pendulum's base is mounted; at the root if not given.
+    """
+    pendulum = _pendulum_world(root_T_base)
     servo = PositionServo(
         name=PrefixedName("hinge_servo"),
         gains=ServoGains(stiffness=50.0, damping=5.0, torque_limit=2.0),

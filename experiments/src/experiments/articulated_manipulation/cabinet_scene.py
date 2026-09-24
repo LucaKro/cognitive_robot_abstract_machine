@@ -29,6 +29,7 @@ from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
     Pose2D,
+    RotationMatrix,
     Vector3,
 )
 from semantic_digital_twin.world import World
@@ -192,6 +193,16 @@ class CabinetSceneSpecification:
     How far the door turns outwards when fully open, in radians.
     """
 
+    mechanism_axis_deviation: float = 0.0
+    """
+    How far the moving part's joint axis is turned away from the cabinet's own axes, in
+    radians. A drawer's slider turns about the vertical, so the drawer still slides
+    level; a door's hinge tilts within the cabinet's front.
+
+    A believed scene whose deviation differs from the true scene's has a wrong prior on
+    the joint's parameters.
+    """
+
     mechanism_velocity_limit: float = 1.0
     """
     The velocity limit of the moving part's joint, in the joint's own unit per second.
@@ -247,13 +258,7 @@ class CabinetSceneSpecification:
                 scale=self.cabinet_scale, wall_thickness=self.wall_thickness
             )
         )
-        root_specification.parent_T_self = (
-            self.world_T_table
-            @ self.table_T_cabinet_front.to_homogeneous_matrix()
-            @ HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=self.cabinet_scale.x / 2, z=self.cabinet_scale.z / 2
-            )
-        )
+        root_specification.parent_T_self = self.world_T_cabinet()
         match self.articulated_part:
             case ArticulatedPart.DRAWER:
                 part_specifications = {"drawers": self._drawer_specification()}
@@ -261,6 +266,18 @@ class CabinetSceneSpecification:
                 part_specifications = {"doors": self._door_specification()}
         return Cabinet.get_annotation_specification(
             "cabinet", root_specification, part_specifications=part_specifications
+        )
+
+    def world_T_cabinet(self) -> HomogeneousTransformationMatrix:
+        """
+        :return: Where the centre of the cabinet's case stands in the world.
+        """
+        return (
+            self.world_T_table
+            @ self.table_T_cabinet_front.to_homogeneous_matrix()
+            @ HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=self.cabinet_scale.x / 2, z=self.cabinet_scale.z / 2
+            )
         )
 
     def _drawer_specification(self) -> SemanticAnnotationWithRootSpecification[Drawer]:
@@ -277,7 +294,7 @@ class CabinetSceneSpecification:
             "drawer_slider",
             Slider.get_default_root_kinematic_structure_entity_specification(),
             parent_connection_specification=Slider.parent_connection_specification(
-                axis=Vector3.NEGATIVE_X(),
+                axis=self._turned_axis(Vector3.NEGATIVE_X(), turned_about=Vector3.Z()),
                 dof_limits=self._mechanism_limits(self.drawer_travel),
             ),
         )
@@ -317,7 +334,7 @@ class CabinetSceneSpecification:
             "door_hinge",
             hinge_root_specification,
             parent_connection_specification=Hinge.parent_connection_specification(
-                axis=Vector3.Z(),
+                axis=self._turned_axis(Vector3.Z(), turned_about=Vector3.X()),
                 dof_limits=self._mechanism_limits(self.door_swing),
             ),
         )
@@ -364,6 +381,17 @@ class CabinetSceneSpecification:
         )
         root_specification.parent_T_self = part_T_handle
         return Handle.get_annotation_specification(name, root_specification)
+
+    def _turned_axis(self, axis: Vector3, turned_about: Vector3) -> Vector3:
+        """
+        :param axis: The joint axis the mechanism has without a deviation.
+        :param turned_about: The axis the deviation turns it about.
+        :return: The joint axis turned by :attr:`mechanism_axis_deviation`.
+        """
+        return (
+            RotationMatrix.from_axis_angle(turned_about, self.mechanism_axis_deviation)
+            @ axis
+        )
 
     def _mechanism_limits(self, fully_open: float) -> DegreeOfFreedomLimits:
         """
