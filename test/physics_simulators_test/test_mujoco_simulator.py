@@ -541,6 +541,87 @@ class TestMujocoSimulator:
             result.type is SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION
         )
 
+    # %% fixed body pose
+
+    def test_set_fixed_body_pose_moves_the_body_and_what_hangs_on_it(self, simulator):
+        """
+        A body without a joint of its own is placed relative to its parent by the model,
+        so moving it moves every body attached below it by the same amount.
+        """
+        simulator.start(simulate_in_thread=False, render_in_thread=False)
+        simulator.step()
+        base_before = simulator.get_body_position("link0").result.copy()
+        link_before = simulator.get_body_position("link1").result.copy()
+        shift = numpy.array([0.1, -0.2, 0.05])
+
+        result = simulator.callbacks["set_fixed_body_pose"](
+            body_name="link0",
+            position=base_before + shift,
+            quaternion=numpy.array([1.0, 0.0, 0.0, 0.0]),
+        )
+
+        assert (
+            result.type
+            is SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL
+        )
+        assert numpy.allclose(
+            simulator.get_body_position("link0").result, base_before + shift
+        )
+        assert numpy.allclose(
+            simulator.get_body_position("link1").result, link_before + shift
+        )
+
+    def test_set_fixed_body_pose_fails_for_a_body_with_a_joint(self, simulator):
+        result = simulator.callbacks["set_fixed_body_pose"](
+            body_name="link1",
+            position=numpy.zeros(3),
+            quaternion=numpy.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        assert (
+            result.type is SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION
+        )
+
+    def test_set_fixed_body_pose_fails_for_unknown_body(self, simulator):
+        result = simulator.callbacks["set_fixed_body_pose"](
+            body_name="this_body_does_not_exist",
+            position=numpy.zeros(3),
+            quaternion=numpy.array([1.0, 0.0, 0.0, 0.0]),
+        )
+        assert (
+            result.type is SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION
+        )
+
+    # %% applied joint force
+
+    def test_set_joint_applied_force_pushes_the_joint(self, simulator):
+        """
+        The force stays applied across steps, so a free-swinging joint accelerates in
+        its direction.
+        """
+        simulator.start(simulate_in_thread=False, render_in_thread=False)
+        position_before = simulator.get_joint_value("joint1").result
+
+        result = simulator.callbacks["set_joint_applied_force"](
+            joint_name="joint1", force=50.0
+        )
+        for _ in range(100):
+            simulator.step()
+
+        assert (
+            result.type
+            is SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA
+        )
+        assert simulator.get_joint("joint1").result.qfrc_applied[0] == 50.0
+        assert simulator.get_joint_value("joint1").result > position_before
+
+    def test_set_joint_applied_force_fails_for_unknown_joint(self, simulator):
+        result = simulator.callbacks["set_joint_applied_force"](
+            joint_name="this_joint_does_not_exist", force=1.0
+        )
+        assert (
+            result.type is SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION
+        )
+
 
 class TestMujocoSimulatorComplex:
     file_path = os.path.join(resources_path, "mjx_single_cube_no_mesh.xml")

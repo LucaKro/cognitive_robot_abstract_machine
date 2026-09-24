@@ -809,6 +809,69 @@ class MujocoSimulator(BaseSimulator):
         )
 
     @BaseSimulator.simulator_callback
+    def set_fixed_body_pose(
+        self, body_name: str, position: numpy.ndarray, quaternion: numpy.ndarray
+    ) -> SimulatorCallbackResult:
+        """
+        Move a body that has no joint of its own, together with every body attached
+        below it, to a new pose relative to its parent.
+
+        :param body_name: The name of the body
+        :param position: The new position relative to the parent body
+        :param quaternion: The new orientation relative to the parent body, as w, x, y,
+            z
+        :return: A SimulatorCallbackResult indicating the success or failure of the
+            operation
+        """
+        body_id = mujoco.mj_name2id(
+            m=self._mj_model, type=mujoco.mjtObj.mjOBJ_BODY, name=body_name
+        )
+        if body_id == -1:
+            return SimulatorCallbackResult(
+                type=SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                info=f"Body {body_name} not found",
+            )
+        body = self._mj_model.body(body_id)
+        if body.jntnum[0] != 0:
+            return SimulatorCallbackResult(
+                type=SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
+                info=f"Body {body_name} has a joint, so its pose is simulation state",
+            )
+        body.pos[:] = position
+        body.quat[:] = quaternion
+        if self.simulation_thread is None:
+            mujoco.mj_step1(self._mj_model, self._mj_data)
+        return SimulatorCallbackResult(
+            type=SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_MODEL,
+            info=f"Set body {body_name} to position {position} and quaternion {quaternion}",
+        )
+
+    @BaseSimulator.simulator_callback
+    def set_joint_applied_force(
+        self, joint_name: str, force: float
+    ) -> SimulatorCallbackResult:
+        """
+        Apply a generalised force to a joint, a force along a sliding joint or a torque
+        about a hinge, which stays applied until it is set again.
+
+        :param joint_name: The name of the joint
+        :param force: The generalised force; zero removes it
+        :return: A SimulatorCallbackResult indicating the success or failure of the
+            operation
+        """
+        get_joint = self.get_joint(joint_name)
+        if (
+            get_joint.type
+            != SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
+        ):
+            return get_joint
+        get_joint.result.qfrc_applied[0] = force
+        return SimulatorCallbackResult(
+            type=SimulatorCallbackResult.ResultType.SUCCESS_AFTER_EXECUTION_ON_DATA,
+            info=f"Applied a force of {force} to joint {joint_name}",
+        )
+
+    @BaseSimulator.simulator_callback
     def attach(
         self,
         body_1_name: str,
