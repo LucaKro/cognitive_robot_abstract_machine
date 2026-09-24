@@ -424,3 +424,20 @@ Kicked off 2026-09-23 in auto mode. Branch `disturbance-protocol` from `ground-t
 **Open**
 - How "task-specific recovery transitions authored" is counted: declared by the task under evaluation for now. `baseline-stock-cram` supplies the first real task and may settle a counting rule.
 - Moving the cabinet, which is fixed to the world root, means moving a static body in MuJoCo; whether that needs a public method in `physics_simulators` is settled during implementation.
+
+## `disturbance-protocol` — what the implementation settled
+
+Implemented 2026-09-24 in auto mode, in c66ef840 on PR #30.
+
+- **Prior error is belief-only.** `MultiSim(..., ground_truth=world)` builds the physics from the true scene. The controller's world is built from the believed scene, and the two are synchronized by name. The location error moves the believed front by the level's distance in a random direction. The joint error turns the believed axis (`CabinetSceneSpecification.mechanism_axis_deviation`) by the level's angle, in a random sense.
+- **Disturbances go through two new public `MujocoSimulator` callbacks.** `set_fixed_body_pose` moves the cabinet; `set_joint_applied_force` pushes the part along its joint. "Pulled from the hand" and "closed again" are both the part pushed shut, triggered once it is 20 % and 60 % open. The cabinet is shoved after 2 s of simulated time.
+- **Verdict.** An episode ends when the task's statechart reaches an `EndMotion`, or at the timeout. It is judged against the physics at that moment: success, false success, or unfinished. The success threshold is 80 % of the part's travel.
+- **Metrics.** Outcomes carry the control-cycle durations rather than the whole profile, so `metrics` does not import the ROS-bound profiler module. The cycle is `Executor.tick` (`EXECUTOR_CONTROL_CYCLE_PHASES`).
+- **Every number is a placeholder**, as the user decided at kickoff: the levels, forces, timings, triggers, sweeps, timeout and threshold. None is sourced from paper A.
+
+**Open for `baseline-stock-cram`**
+- A task under evaluation supplies a `MotionStatechart`. Coraplex motions yield statechart nodes, so stock CRAM should adapt to it, but this is unverified.
+- Recovery transitions are declared by the task, not counted.
+- A cancelled motion raises out of the episode rather than being recorded as a verdict.
+
+**Local verification.** Tracy's description (iai_tracy, ros2_robotiq_gripper, Universal_Robots_ROS2_Description) was assembled under a hand-made ament index in the session scratchpad. With a stub for the ROS Python modules, the MuJoCo/Tracy tests also ran outside CI.
