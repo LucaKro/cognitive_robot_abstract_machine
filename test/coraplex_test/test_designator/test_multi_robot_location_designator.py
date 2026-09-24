@@ -1,6 +1,5 @@
 from copy import deepcopy
 
-import numpy as np
 import pytest
 import rclpy
 from typing_extensions import Generator, List, Tuple
@@ -16,13 +15,11 @@ from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveS
 from coraplex.datastructures.dataclasses import Context
 
 from coraplex.datastructures.enums import Arms
-from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import (
     reachability_location,
     visibility_location,
     accessing_location,
-    giskard_reachability_location,
 )
 from krrood.entity_query_language.factories import variable
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -44,11 +41,9 @@ from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tiago import Tiago
-from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
     Handle,
-    Milk,
 )
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -249,7 +244,7 @@ def test_new_reachability_location_body(
         world.notify_state_change()
 
         location = reachability_location(
-            GraspPose.from_body_origin(_graspable_milk(world)),
+            world.get_body_by_name("milk.stl").global_pose,
             context,
             ViewManager.get_arm_view(Arms.RIGHT, robot),
         )
@@ -257,25 +252,6 @@ def test_new_reachability_location_body(
         pose = next(iter(location))
     assert len(pose.to_position().to_list()) == 4
     assert len(pose.to_quaternion().to_list()) == 4
-
-
-def _graspable_milk(world: World) -> Milk:
-    """
-    The milk as an annotation that offers grasps.
-
-    Registered in the world rather than built loose, since a reachability check runs in
-    a copy of it and has to find the same annotation there.
-
-    :param world: The apartment world, which holds the milk as a bare body.
-    :return: The annotation of that body.
-    """
-    annotated = world.get_semantic_annotations_by_type(Milk)
-    if annotated:
-        return annotated[0]
-    milk = Milk(root=world.get_body_by_name("milk.stl"))
-    with world.modify_world():
-        world.add_semantic_annotation(milk)
-    return milk
 
 
 def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
@@ -348,77 +324,3 @@ def test_accessing_location_pose(immutable_model_world):
 
     assert len(pose.to_position().to_list()) == 4
     assert len(pose.to_quaternion().to_list()) == 4
-
-
-def test_giskard_location_pose(immutable_multiple_robot_simple_apartment, rclpy_node):
-    world, robot, context = immutable_multiple_robot_simple_apartment
-    plan = sequential(
-        [
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
-        ],
-        context,
-    )
-
-    with simulated_robot:
-        plan.perform()
-
-        world.notify_state_change()
-
-        location = giskard_reachability_location(
-            GraspPose.from_body_origin(_graspable_milk(world)),
-            context,
-            ViewManager.get_arm_view(Arms.RIGHT, robot),
-        )
-
-        pose = next(iter(location))
-
-    assert len(pose.to_position().to_list()) == 4
-    assert len(pose.to_quaternion().to_list()) == 4
-
-
-def test_accessing_location_validates_the_poses_the_grasp_will_reach(
-    immutable_model_world,
-):
-    """
-    Opening a container reaches a pre-pose set off the handle's own geometry.
-
-    Handing the location the handle's pose rather than the handle drops that geometry,
-    which collapses the pre-pose onto the grasp pose, so every candidate is validated
-    for a reach the plan never performs.
-    """
-    world, robot, context = immutable_model_world
-
-    with world.modify_world():
-        world.add_semantic_annotation_recursively(
-            drawer := Drawer(
-                root=world.get_body_by_name("cabinet10_drawer_middle"),
-                handle=Handle(root=world.get_body_by_name("handle_cab10_m")),
-            )
-        )
-
-    arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
-    validator = accessing_location(drawer, context=context, arm=arm).validator
-    handle_grasp = GraspPose.from_body_origin(drawer.handle)
-    reached = HasApproachesGraspPoses().grasp_pose_sequence(
-        handle_grasp.world_T_grasp,
-        arm.end_effector,
-        handle_grasp,
-    )
-
-    def in_world(pose):
-        """
-        :return: ``pose`` expressed in the world frame, since the two sequences are
-            given relative to different frames.
-        """
-        if pose.reference_frame is world.root:
-            return pose
-        return world.compute_forward_kinematics(world.root, pose.reference_frame) @ pose
-
-    assert len(validator.pose_sequence) == len(reached)
-    for validated_pose, reached_pose in zip(validator.pose_sequence, reached):
-        np.testing.assert_allclose(
-            in_world(validated_pose).to_position().to_np(),
-            in_world(reached_pose).to_position().to_np(),
-            atol=1e-6,
-        )

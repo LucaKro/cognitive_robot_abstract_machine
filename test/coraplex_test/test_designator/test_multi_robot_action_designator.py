@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 from rustworkx.rustworkx import NoEdgeBetweenNodes
-from typing_extensions import Iterable, Iterator, List, Tuple, Generator
+from typing_extensions import Iterable, Tuple, Generator
 
 from coraplex.alternative_motion_mappings.hsrb_motion_mapping import HSRBMoveMotion
 from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
@@ -24,7 +24,6 @@ from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.exceptions import NoFloorBelowRobot
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.execution_environment import simulated_robot
-from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
@@ -50,7 +49,6 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     FollowToolCenterPointPathAction,
 )
-from coraplex.locations.sampling import CandidateDraw
 from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
@@ -762,7 +760,9 @@ def test_facing(immutable_multiple_robot_apartment):
 
 def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
-
+    VizMarkerPublisher(_world=world, node=rclpy_node)
+    context.ros_node = rclpy_node
+    context.debug = True
     description = TransportAction(
         grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
         target_location=Pose(
@@ -824,79 +824,6 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     np.testing.assert_allclose(spoon_position, target_pose, atol=0.02)
 
     plan.plan.validate()
-
-
-# %% a location candidate is a heading, not a base pose
-
-
-@dataclass
-class SinglePoseGenerator(PoseGeneratorBackend):
-    """
-    Offers one fixed candidate, so a test can say exactly what is validated.
-    """
-
-    pose: Pose
-
-    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
-        """
-        Offers its one candidate, whatever terms the draw asks on.
-        """
-        yield self.pose
-
-
-@dataclass
-class BasePoseRecorder(PoseValidator):
-    """
-    Accepts every candidate and records where the robot stood while it was checked.
-    """
-
-    base_poses: List[HomogeneousTransformationMatrix] = field(default_factory=list)
-
-    def __call__(self, *args, **kwargs) -> bool:
-        self.base_poses.append(self.robot.root.global_transform)
-        return True
-
-
-def test_a_location_validates_a_candidate_where_navigating_to_it_would_stand(
-    mutable_multiple_robot_apartment,
-):
-    """
-    A candidate is a heading, the same form
-    :class:`~coraplex.robot_plans.actions.core.navigation.NavigateAction` takes, so a
-    validator has to see the base pose that heading turns into.
-
-    A base that does not face along its x-axis is otherwise judged from an orientation
-    it never stands in.
-    """
-    world, robot, context = mutable_multiple_robot_apartment
-    # Clear of the multi-storey building's floor slab, which every robot would otherwise
-    # stand on: a candidate in collision is dropped before any validator sees it.
-    heading = Pose.from_xyz_rpy(5, -2.4, 0, yaw=0.7, reference_frame=world.root)
-    recorder = BasePoseRecorder()
-    location = Location(context, heading, SinglePoseGenerator(heading), recorder)
-
-    assert list(location) == [heading]
-    np.testing.assert_allclose(
-        recorder.base_poses[0].to_np(),
-        robot.mobile_base.pose_facing(heading).to_homogeneous_matrix().to_np(),
-        atol=1e-9,
-    )
-
-
-def test_a_location_accepts_a_candidate_standing_on_the_floor(
-    mutable_multiple_robot_apartment,
-):
-    """
-    The floor is what the robot drives on, so resting on it is not the collision that
-    disqualifies a place to stand.
-    """
-    world, robot, context = mutable_multiple_robot_apartment
-    # An open stretch of the apartment, so the floor is the only thing any of these
-    # robots touches while standing there.
-    heading = Pose.from_xyz_rpy(11, 2.5, 0, yaw=0.7, reference_frame=world.root)
-    location = Location(context, heading, SinglePoseGenerator(heading), None)
-
-    assert list(location) == [heading]
 
 
 def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment, rclpy_node):

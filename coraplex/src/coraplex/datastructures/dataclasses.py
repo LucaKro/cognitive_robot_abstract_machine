@@ -4,12 +4,15 @@ import logging
 from dataclasses import dataclass, field, replace
 
 from typing_extensions import (
+    Any,
+    Dict,
     Optional,
     TYPE_CHECKING,
     List,
     Type,
 )
 
+from coraplex.locations.sampling import CandidateDraw
 from coraplex.plans.plan_entity import PlanEntity
 from krrood.entity_query_language.backends import (
     QueryBackend,
@@ -141,6 +144,23 @@ class Context(PlanEntity):
         logging.getLogger("coraplex").setLevel(
             logging.DEBUG if self.debug else logging.INFO
         )
+
+    @property
+    def candidate_draw(self) -> CandidateDraw:
+        """
+        :return: The terms the locations of this plan draw their candidates on.
+        """
+        return CandidateDraw(seed=self.sampling_seed)
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Context:
+        """
+        :return: This context itself.
+
+        A context is the run an object belongs to, holding the world it acts on and the
+        ROS node it talks through, so a copy of that object belongs to the same run. A
+        run that needs a world of its own builds a context for it.
+        """
+        return self
 
     def __eq__(self, other):
         return self is other

@@ -5,17 +5,12 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Any, Dict, Optional
 
-from coraplex.locations.pose_validator import (
-    AreReachableBy,
-    IsGraspReachableBy,
-)
 from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
-    and_,
     or_,
     not_,
     variable_from,
@@ -59,19 +54,17 @@ class HasGraspChoice:
     Adds to an action the grasp it takes hold by.
 
     Shared by every action that closes a gripper on something: which grasp is taken, and
-    whether that grasp can be reached, are the same questions however much the action
-    goes on to do with the object afterwards. The grasp names the object it is on, so
-    that is not asked for separately.
+    whether the gripper is free to take it, are the same questions however much the
+    action goes on to do with the object afterwards. The grasp names the object it is
+    on, so that is not asked for separately.
     """
 
     grasp: GraspPose
     """
     The grasp to take hold by.
 
-    A caller with no preference takes one of the object's own
-    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`;
-    one that worked out which grasp is reachable from where the robot will stand passes
-    that one.
+    One of the object's own
+    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`.
     """
 
     arm: Arms
@@ -84,27 +77,15 @@ class HasGraspChoice:
         variables: Dict[str, Any], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper needs to be free, and the grasp the action takes needs to be
-        reachable.
+        The gripper needs to be free.
 
         :param variables: The action's bound variables.
         :param context: The context the check runs in.
         :param kwargs: The action's parameters.
         :return: The condition.
         """
-        return and_(
-            GripperIsFree(
-                ViewManager.get_end_effector_view(variables["arm"], context.robot)
-            ),
-            IsGraspReachableBy(
-                context=Context(
-                    robot=context.robot,
-                    world=context.world,
-                    alternative_motion_mappings=context.alternative_motion_mappings,
-                ),
-                arm=ViewManager.get_arm_view(variables["arm"], context.robot),
-                grasp=kwargs["grasp"],
-            ),
+        return GripperIsFree(
+            ViewManager.get_end_effector_view(variables["arm"], context.robot)
         )
 
 
@@ -196,26 +177,6 @@ class ReachAction(
 
     def execute(self) -> Any:
         self.add_subplan(self.action_plan).perform()
-
-    @staticmethod
-    def pre_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
-    ) -> ConditionType:
-        """
-        The sequence in which the robot would reach the grasp needs to be achievable.
-        """
-        return and_(
-            IsGraspReachableBy(
-                context=Context(
-                    robot=context.robot,
-                    world=context.world,
-                    alternative_motion_mappings=context.alternative_motion_mappings,
-                ),
-                arm=ViewManager.get_arm_view(variables["arm"], context.robot),
-                grasp=kwargs["grasp"],
-                reverse=kwargs["reverse_reach_order"],
-            ),
-        )
 
     @staticmethod
     def post_condition(
@@ -334,10 +295,7 @@ class PickUpAction(
         variables: Dict, context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper needs to be free and a grasp this pick-up may take needs to be
-        reachable.
-
-        The same question the grasp it is built from asks, so it is asked once.
+        The gripper needs to be free.
         """
         return HasGraspChoice.can_take_hold(variables, context, kwargs)
 
@@ -426,8 +384,7 @@ class GraspingAction(
         variables: Dict[str, Any], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper needs to be free and a grasp this action may take needs to be
-        reachable.
+        The gripper needs to be free.
         """
         return HasGraspChoice.can_take_hold(variables, context, kwargs)
 

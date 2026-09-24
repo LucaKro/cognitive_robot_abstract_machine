@@ -19,7 +19,7 @@ from typing_extensions import (
     TYPE_CHECKING,
 )
 
-from coraplex.locations.base import PoseGeneratorBackend
+from coraplex.locations.base import Location
 from coraplex.locations.sampling import CandidateDraw
 from semantic_digital_twin.datastructures.camera_resolution import CameraResolution
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
@@ -67,7 +67,7 @@ class Rectangle:
 
 
 @dataclass
-class Costmap(PoseGeneratorBackend):
+class Costmap(Location):
     """
     The base class of all Costmaps.
     Costmaps describe regions in the world that are suitable for a certaint task.
@@ -191,7 +191,8 @@ class Costmap(PoseGeneratorBackend):
         If any of these constrains is not fulfilled a ValueError will be raised.
 
         :param other: The other locations with which this locations should be merged.
-        :return: A new locations that contains the merged values
+        :return: A new locations that contains the merged values, drawn on this
+            location's :attr:`draw`.
         """
         if self.width != other.width or self.height != other.height:
             raise ValueError("You can only merge locations of the same size.")
@@ -228,6 +229,7 @@ class Costmap(PoseGeneratorBackend):
             origin=self.origin,
             map=new_map,
             world=self.world,
+            draw=self.draw,
         )
 
     def __add__(self, other: Costmap) -> Costmap:
@@ -642,6 +644,7 @@ class OccupancyCostmap(Costmap):
             distance_to_obstacle=context.robot.mobile_base.base_radius,
             robot_view=context.robot,
             origin=ground_pose,
+            draw=context.candidate_draw,
         )
 
 
@@ -971,6 +974,7 @@ class RingCostmap(Costmap):
             distance=arm.approximate_length() * reach_fraction,
             world=context.world,
             origin=origin,
+            draw=context.candidate_draw,
         )
 
     def ring(self) -> np.ndarray:

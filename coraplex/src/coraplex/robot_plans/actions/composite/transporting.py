@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import List
 
-from typing_extensions import Optional, Any
+from typing_extensions import Any
 
 from krrood.entity_query_language.factories import (
     a,
@@ -22,7 +22,6 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
-from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import HasGraspChoice, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
@@ -30,7 +29,10 @@ from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Drawer,
+    Handle,
+)
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -39,15 +41,15 @@ from semantic_digital_twin.world_description.world_entity import Body
 class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses):
     """
     Transports an object to a position using an arm.
+
+    Where the robot stands for each step is left open and grounded together with the
+    step itself, so a standing pose is only taken once the pick-up, place or opening
+    from it has been tried.
     """
 
     target_location: Pose = field(kw_only=True)
     """
     Target Location to which the object should be transported.
-
-    The navigation this action plans aims at the same grasp the pick-up takes, so a
-    caller that worked out which grasp is reachable passes it as :attr:`grasp` and
-    both follow it.
     """
 
     def inside_container(self) -> List[Body]:
@@ -73,11 +75,9 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
         drawer_annotation = list(drawer_annotation.evaluate())
         if len(drawer_annotation) == 0:
             return []
-        handle = drawer_annotation[0].handle
-
         return [
-            a(NavigateAction)(
-                target_location=variable(
+            a(MoveAndOpenAction)(
+                standing_position=variable(
                     Pose,
                     domain=accessing_location(
                         container=drawer_annotation[0],
@@ -85,9 +85,10 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
                         arm=ViewManager.get_arm_view(self.arm, self.robot),
                     ),
                 ),
+                handle=drawer_annotation[0].handle,
+                arm=self.arm,
                 keep_joint_states=True,
             ),
-            OpenAction(handle, self.arm),
         ]
 
     @property
@@ -100,25 +101,26 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
         children.extend(
             [
                 ParkArmsAction(Arms.BOTH),
-                a(NavigateAction)(
-                    target_location=variable(
+                a(MoveAndPickUpAction)(
+                    standing_position=variable(
                         Pose, domain=DeferredLocation(self._pick_up_location)
                     ),
-                    keep_joint_states=True,
-                ),
-                a(PickUpAction)(
                     grasp=self.grasp,
                     arm=self.arm,
+                    keep_joint_states=True,
                     approach_clearance=self.approach_clearance,
                     retreat_distance=self.retreat_distance,
                 ),
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
-                self._make_navigate_action_for_placing(self.grasp),
-                a(PlaceAction)(
+                a(MoveAndPlaceAction)(
+                    standing_position=variable(
+                        Pose, domain=DeferredLocation(self._place_location)
+                    ),
                     object_designator=self.grasp.graspable,
                     target_location=self.target_location,
                     arm=self.arm,
+                    keep_joint_states=True,
                 ),
                 ParkArmsAction(Arms.BOTH),
             ]
@@ -128,52 +130,23 @@ class TransportAction(ActionDescription, HasGraspChoice, HasApproachesGraspPoses
 
     def _pick_up_location(self) -> Location:
         """
-        :return: The standing poses from which the arm reaches :attr:`grasp` on
-            the object where it is.
+        :return: The standing poses around the object where it is.
         """
         return reachability_location(
-            grasp=self.grasp,
+            target_pose=self.grasp.graspable.root.global_pose,
             context=self.context,
             arm=ViewManager.get_arm_view(self.arm, self.robot),
-            approach_clearance=self.approach_clearance,
-            retreat_distance=self.retreat_distance,
         )
 
-    def _make_navigate_action_for_placing(self, chosen_grasp: GraspPose):
+    def _place_location(self) -> Location:
         """
-        :param chosen_grasp: The grasp the pick-up was told to take. The grasp the gripper
-            actually holds the object by is preferred once the navigation runs, since
-            the pick-up may have corrected it.
-        :return: The navigate action that will be used to place the object.
+        :return: The standing poses around :attr:`target_location`.
         """
-        return a(NavigateAction)(
-            target_location=variable(
-                Pose,
-                domain=DeferredLocation(
-                    lambda: reachability_location(
-                        grasp=self._grasp_held_now() or chosen_grasp,
-                        context=self.context,
-                        arm=ViewManager.get_arm_view(self.arm, self.robot),
-                        destination=self.target_location,
-                        approach_clearance=self.approach_clearance,
-                        retreat_distance=self.retreat_distance,
-                    )
-                ),
-            ),
-            keep_joint_states=True,
+        return reachability_location(
+            target_pose=self.target_location,
+            context=self.context,
+            arm=ViewManager.get_arm_view(self.arm, self.robot),
         )
-
-    def _grasp_held_now(self) -> Optional[GraspPose]:
-        """
-        :return: The grasp the gripper holds the object by, or ``None``
-            when it is not holding it yet.
-        """
-        held = ViewManager.get_end_effector_view(self.arm, self.robot).grasp_on(
-            self.grasp.graspable.root
-        )
-        if held is None:
-            return None
-        return GraspPose(self.grasp.graspable, held)
 
 
 @dataclass
@@ -214,8 +187,7 @@ class PickAndPlaceAction(ActionDescription):
 @dataclass
 class MoveAndPlaceAction(ActionDescription):
     """
-    Navigate to `standing_position`, then turn towards the target and place the
-    object.
+    Navigate to `standing_position`, facing the target, and place the object.
     """
 
     standing_position: Pose
@@ -244,18 +216,20 @@ class MoveAndPlaceAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self.standing_position, self.keep_joint_states),
-                FaceAtAction(self.target_location, self.keep_joint_states),
+                FaceAtAction(
+                    self.target_location,
+                    self.keep_joint_states,
+                    standing_position=self.standing_position,
+                ),
                 PlaceAction(self.object_designator, self.target_location, self.arm),
             ]
         )
 
 
 @dataclass
-class MoveAndPickUpAction(ActionDescription):
+class MoveAndPickUpAction(ActionDescription, HasApproachesGraspPoses):
     """
-    Navigate to `standing_position`, then turn towards the object and pick it
-    up.
+    Navigate to `standing_position`, facing the object, and pick it up.
     """
 
     standing_position: Pose
@@ -279,10 +253,56 @@ class MoveAndPickUpAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self.standing_position, self.keep_joint_states),
                 FaceAtAction(
-                    self.grasp.graspable.root.global_pose, self.keep_joint_states
+                    self.grasp.graspable.root.global_pose,
+                    self.keep_joint_states,
+                    standing_position=self.standing_position,
                 ),
-                PickUpAction(self.grasp, self.arm),
+                PickUpAction(
+                    self.grasp,
+                    self.arm,
+                    approach_clearance=self.approach_clearance,
+                    retreat_distance=self.retreat_distance,
+                ),
+            ]
+        )
+
+
+@dataclass
+class MoveAndOpenAction(ActionDescription):
+    """
+    Navigate to `standing_position`, facing the handle, and open its container.
+    """
+
+    standing_position: Pose
+    """
+    The pose to stand at while opening the container.
+    """
+
+    handle: Handle
+    """
+    The handle of the container to open.
+    """
+
+    arm: Arms
+    """
+    The arm to use.
+    """
+
+    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
+    """
+    Keep the joint states of the robot the same during the navigation.
+    """
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        return sequential(
+            [
+                FaceAtAction(
+                    self.handle.root.global_pose,
+                    self.keep_joint_states,
+                    standing_position=self.standing_position,
+                ),
+                OpenAction(self.handle, self.arm),
             ]
         )

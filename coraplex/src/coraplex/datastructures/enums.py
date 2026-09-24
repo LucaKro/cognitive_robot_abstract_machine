@@ -118,6 +118,23 @@ class VisualizationBackend(StrEnum):
     """Use an installed browser visualization provider."""
 
 
+class ActionTrialVisualization(StrEnum):
+    """
+    Where the world copy an action trial runs in is published while debugging, apart
+    from the world it copies.
+    """
+
+    FRAME_PREFIX = "action_trial/"
+    """
+    Put in front of every tf frame of the copy.
+    """
+
+    MARKER_TOPIC = "/semworld/action_trial/viz_marker"
+    """
+    The topic the markers of the copy are published on.
+    """
+
+
 class VisualizationOption(StrEnum):
     """
     Configuration names for optional visualization providers.

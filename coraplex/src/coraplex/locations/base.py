@@ -1,253 +1,61 @@
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
-from copy import deepcopy
-from dataclasses import dataclass, field, replace
-from typing import cast
+from dataclasses import dataclass, field
 
-from typing_extensions import (
-    Callable,
-    List,
-    Iterator,
-    Optional,
-    Iterable,
-    Type,
-    TYPE_CHECKING,
-)
+from typing_extensions import Callable, Iterator, Iterable
 
-from coraplex.datastructures.dataclasses import Context
-from krrood.entity_query_language.predicate import Predicate
-from krrood.entity_query_language.verbalization.vocabulary.parts_of_speech import (
-    Adjective,
-    clause,
-    Copula,
-    Noun,
-)
 from coraplex.locations.sampling import CandidateDraw
-
-if TYPE_CHECKING:
-    from coraplex.alternative_motion_mapping import AlternativeMotion
-
-try:
-    from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-        VizMarkerPublisher,
-    )
-except ImportError:
-    VizMarkerPublisher = None
-from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
-from semantic_digital_twin.collision_checking.collision_rules import (
-    AvoidExternalCollisions,
-    AllowCollisionBetweenGroups,
-    AllowSelfCollisions,
-)
-from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor
-from semantic_digital_twin.spatial_types.spatial_types import (
-    Point3,
-    Pose,
-    Quaternion,
-)
-from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.world_entity import Body
-
-logger = logging.getLogger("coraplex")
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class Location(Iterable[Pose]):
+class Location(Iterable[Pose], ABC):
     """
-    Base for all locations that can be used to plan movements.
-    """
-
-    context: Optional[Context]
-    """
-    The context where the location can extract information about the robot and world
-    from.
+    A region of poses the robot can be sent to, iterated as the pose candidates drawn
+    from it.
     """
 
-    target_pose: Pose
-    """
-    The target pose for the location.
-    """
-
-    generator: PoseGeneratorBackend
-    """
-    Backend that generates pose candidates.
-    """
-
-    validator: Optional[PoseValidator] = None
-    """
-    What a generated pose is checked against, or ``None`` to take every pose the
-    generator offers.
-
-    One rather than several: a location asks one question, and a caller reading the
-    answer off afterwards needs to know which validator to read it from.
-    """
-
-    standing_violated_distance: float = 0.05
-    """
-    How close in meters the robot may come to its surroundings at a candidate pose
-    before that pose counts as in collision.
-    """
-
-    draw: CandidateDraw = field(default_factory=CandidateDraw)
+    draw: CandidateDraw = field(default_factory=CandidateDraw, kw_only=True)
     """
     The terms this location's candidates are drawn on.
-
-    Belongs here rather than to any one of the maps that constrain this location: the
-    terms decide how the merged result is drawn from, which is what this location
-    iterates. Its sample count is far more than :attr:`candidates_to_validate`, since
-    most candidates are refused cheaply before any of them is judged properly.
     """
 
-    candidates_to_validate: int = 50
-    """
-    How many candidates are checked for reachability before the location gives up.
-
-    Only candidates that got that far count: judging one drives the robot to see whether
-    it arrives, while a pose standing in collision is thrown out cheaply beforehand. A
-    budget spent on the cheap refusals would leave a target hemmed in by furniture with
-    none of its reachable poses ever tried.
-    """
-
-    def __post_init__(self) -> None:
+    @abstractmethod
+    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
         """
-        Fix this location's draw to the plan it belongs to.
+        Draw pose candidates from this location.
 
-        A plan that pins its seed is asking every location inside it to repeat, so a
-        draw that names no seed of its own takes the plan's. A draw handed one already
-        keeps it.
+        Every location says what it does with the terms it is given, so none of them is
+        chosen on a caller's behalf.
+
+        :param draw: The terms to draw the candidates on.
+        :return: The pose candidates, in the order they should be tried.
         """
-        if self.draw.seed is not None or self.context is None:
-            return
-        self.draw = replace(self.draw, seed=self.context.sampling_seed)
-
-    @property
-    def world(self):
-        return self.context.world
-
-    @property
-    def robot(self):
-        return self.context.robot
 
     def ground(self) -> Pose:
         """
-        :return: The first pose generated by this location designator
+        :return: The first pose candidate of this location.
         """
         return next(iter(self))
 
-    def _floor_contact(
-        self, robot: AbstractRobot, floors: List[Body]
-    ) -> AllowCollisionBetweenGroups:
-        """
-        :param robot: The robot standing at a candidate pose.
-        :param floors: The bodies of the floors of the robot's world.
-        :return: The rule under which the robot resting on a floor is not a collision.
-        """
-        return AllowCollisionBetweenGroups(
-            body_group_a=robot.bodies_with_collision,
-            body_group_b=floors,
-        )
-
-    def _standing_clearance(
-        self, robot: AbstractRobot, floors: List[Body]
-    ) -> List[CollisionRule]:
-        """
-        :param robot: The robot standing at a candidate pose.
-        :param floors: The bodies of the floors of the robot's world.
-        :return: The rules a candidate is judged in collision under.
-
-        A standing pose only has to be clear of the surroundings; the arms are wherever
-        the previous motion left them, so the robot touching itself says nothing about
-        the pose, and neither does it resting on the floor it drives on.
-        """
-        return [
-            AvoidExternalCollisions(
-                robot=robot,
-                violated_distance=self.standing_violated_distance,
-            ),
-            AllowSelfCollisions(robot=robot),
-            self._floor_contact(robot, floors),
-        ]
-
     def __iter__(self) -> Iterator[Pose]:
-        test_world = deepcopy(self.world)
-        test_robot = cast(
-            AbstractRobot, test_world.get_semantic_annotation_by_id(self.robot.id)
-        )
-        if self.validator is not None:
-            self.validator.context = Context(
-                world=test_world,
-                robot=test_robot,
-                alternative_motion_mappings=self.context.alternative_motion_mappings,
-                motion_tolerances=self.context.motion_tolerances,
-            )
+        """
+        :return: The candidates drawn on :attr:`draw`.
 
-        if self.context.debug:
-            VizMarkerPublisher(
-                _world=test_world, node=self.context.ros_node
-            ).with_collision_visualization()
-
-        floor_bodies = [
-            floor.root for floor in test_world.get_semantic_annotations_by_type(Floor)
-        ]
-
-        # Save to current rules to restore them later
-        rules_of_the_run = list(test_world.collision_manager.temporary_rules)
-
-        validated = 0
-        for pose_candidate in self.generator.candidates(self.draw):
-
-            # A candidate says where to stand and which way to look, which is the
-            # heading NavigateAction is handed. Turning it into a base pose the same way
-            # is what makes the checks below see the configuration the robot ends up in
-            # rather than one rotated by whatever its forward axis is.
-            test_robot.set_root_pose(
-                test_robot.mobile_base.pose_facing(pose_candidate)
-                if isinstance(test_robot, HasMobileBase)
-                else pose_candidate
-            )
-
-            collision_manager = test_world.collision_manager
-            collision_manager.clear_temporary_rules()
-            collision_manager.extend_temporary_rule(
-                self._standing_clearance(test_robot, floor_bodies)
-            )
-            collision_manager.update_collision_matrix()
-
-            stands_in_collision = test_robot.is_in_collision
-
-            collision_manager.clear_temporary_rules()
-            collision_manager.extend_temporary_rule(rules_of_the_run)
-            collision_manager.extend_temporary_rule(
-                [self._floor_contact(test_robot, floor_bodies)]
-            )
-            collision_manager.update_collision_matrix()
-
-            if stands_in_collision:
-                logger.debug(f"Candidate pose in collision, skipping")
-                continue
-
-            validated += 1
-            if self.validator is None or self.validator(pose_candidate=pose_candidate):
-                yield pose_candidate
-
-            if validated >= self.candidates_to_validate:
-                logger.debug(
-                    f"Validated {validated} candidates without another one to offer, "
-                    f"giving up"
-                )
-                return
+        .. warning::
+            Must stay a generator, so nothing is drawn before the first ``next``. EQL's
+            ``variable`` calls :func:`iter` on its domain while the plan is built.
+        """
+        yield from self.candidates(self.draw)
 
 
 @dataclass
 class DeferredLocation(Iterable[Pose]):
     """
     Lazily rebuilds a concrete :class:`Location` from current world state on each
-    iteration, so its pose generator and validator reflect the world at the moment the
-    location is consumed (execution time) rather than when the plan was constructed.
+    iteration, so it reflects the world at the moment the location is consumed
+    (execution time) rather than when the plan was constructed.
 
     .. warning::
         :meth:`__iter__` must stay a generator (``yield from``). Returning
@@ -264,79 +72,3 @@ class DeferredLocation(Iterable[Pose]):
 
     def __iter__(self) -> Iterator[Pose]:
         yield from self.location_factory()
-
-
-@dataclass
-class PoseGeneratorBackend(ABC):
-    """
-    Generator backend base class for poses, generates pose candidates which are checked
-    against a validator.
-    """
-
-    @abstractmethod
-    def candidates(self, draw: CandidateDraw) -> Iterator[Pose]:
-        """
-        Draw pose candidates from this backend.
-
-        The only way to draw from a backend, so the terms are always named where the
-        draw is asked for: every backend says what it does with the ones it is given,
-        and none of them is chosen on a caller's behalf.
-
-        :param draw: The terms to draw the candidates on.
-        :return: The pose candidates, in the order they should be tried.
-        """
-
-    def merge(self, other: PoseGeneratorBackend) -> PoseGeneratorBackend:
-        """
-        Merge this pose generator backend with another pose generator backend.
-
-        The resulting pose generator backend generates pose candidates that are
-        generated by both pose generator backends.
-
-        :param other: The other pose generator backend to merge with.
-        :return: A new pose generator backend that is the merge of this pose generator
-            backend and the other pose generator backend.
-        """
-        pass
-
-    def __and__(self, other: PoseGeneratorBackend) -> PoseGeneratorBackend:
-        return self.merge(other)
-
-
-@dataclass
-class PoseValidator(Predicate):
-    """
-    Validates a pose candidate.
-    """
-
-    context: Context = field(default=None, kw_only=True)
-    """
-    Context that holds the important information about the robot and world.
-    """
-
-    @abstractmethod
-    def __call__(self, *args, **kwargs) -> bool:
-        pass
-
-    @classmethod
-    def _verbalization_fragment_(cls, fields):
-        """
-        Default clause for a pose validator — *"a pose candidate is valid"*.
-
-        A validator is a validity *check*, agnostic of who performs it, so it says the
-        candidate is valid rather than naming an agent. Concrete validators (visibility
-        / reachability) may override this with their own surface.
-        """
-        return clause(Noun("pose candidate"), Copula(), Adjective("valid"))
-
-    @property
-    def world(self) -> World:
-        return self.context.world
-
-    @property
-    def robot(self) -> AbstractRobot:
-        return self.context.robot
-
-    @property
-    def alternative_motion_mappings(self) -> List[Type[AlternativeMotion]]:
-        return self.context.alternative_motion_mappings

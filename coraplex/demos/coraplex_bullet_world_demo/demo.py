@@ -7,9 +7,8 @@ world to Rviz, so the run can be watched while it happens.
 
 The bowl is the interesting one. It offers a grasp all around its rim and only some of
 them can be reached from anywhere the robot may stand, so the plan names its grasp as a
-variable rather than letting the action take the first one the bowl generates. The
-domain is worked out when that transport grounds -- by which time the milk has been put
-down and the robot has moved -- rather than when the plan is built.
+variable over every grasp the bowl offers rather than fixing the first one. Each
+candidate is tried out before it is executed, and the first that succeeds is taken.
 """
 
 import os
@@ -21,12 +20,10 @@ from typing_extensions import List, Optional, Tuple, Type
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.demonstrations import RobotDemonstration
-from coraplex.locations.factories import ReachableGrasps
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import (
     a,
     an,
@@ -500,14 +497,7 @@ class BulletWorldDemonstration(RobotDemonstration):
                 a(TransportAction)(
                     target_location=self.bowl.target_location(world),
                     arm=Arms.LEFT,
-                    grasp=variable(
-                        GraspPose,
-                        domain=ReachableGrasps(
-                            graspable=bowl,
-                            context=context,
-                            arm=ViewManager.get_arm_view(Arms.LEFT, context.robot),
-                        ),
-                    ),
+                    grasp=variable(GraspPose, domain=bowl.grasp_poses()),
                 ),
                 TransportAction(
                     self.spoon.annotation_in(world).grasp_poses()[0],

@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+
+import pytest
 from uuid import UUID, uuid4
 
 from typing_extensions import Dict, List, Optional
@@ -10,7 +12,7 @@ from krrood.entity_query_language.backends import (
 from krrood.entity_query_language.factories import a, an, variable_from
 from giskardpy.motion_statechart.data_types import LifeCycleValues
 
-from coraplex.datastructures.enums import Arms
+from coraplex.datastructures.enums import ActionTrialVisualization, Arms
 
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from coraplex.language import SequentialNode
@@ -19,6 +21,7 @@ from coraplex.plans.executables import Executable
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.failures import PlanFailure
 from coraplex.plans.plan_node import ExecutionBoundaryNode, PlanNode
+from coraplex.plans.underspecified import ActionTrial
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -388,3 +391,120 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
     assert probe.calls[3].position_at_entry == 2
 
     assert world.state[dof.id].position == 4
+
+
+# %% a trial copy is published while debugging
+
+
+@pytest.fixture
+def debugging_context(apartment_world_pr2_copy_with_context, rclpy_node):
+    """
+    The apartment with a PR2, in a context that is debugging.
+    """
+    world, robot, context = apartment_world_pr2_copy_with_context
+    context.ros_node = rclpy_node
+    context.debug = True
+    yield world, robot, context
+    context.debug = False
+
+
+def test_a_trial_publishes_its_copy_while_debugging(debugging_context):
+    """
+    The candidates are tried in the copy, so a run being watched would otherwise show
+    the robot standing still through every candidate it rejects.
+    """
+    world, robot, context = debugging_context
+    trial = ActionTrial(context=context)
+
+    copied = trial._copy()
+
+    assert trial._visualization.world is copied.world
+    assert trial._visualization.is_rendering
+    trial.discard()
+
+
+def test_a_trial_publishes_its_copy_apart_from_the_world_it_copies(debugging_context):
+    """
+    The copy has the same frame names and markers as the world it was taken from, so it
+    is published under a prefix and on a topic of its own rather than over that world.
+    """
+    world, robot, context = debugging_context
+    trial = ActionTrial(context=context)
+
+    trial._copy()
+
+    publisher = trial._visualization.publisher
+    assert (
+        publisher.tf_publisher.frame_names.prefix
+        == ActionTrialVisualization.FRAME_PREFIX
+    )
+    assert publisher.topic_name == ActionTrialVisualization.MARKER_TOPIC
+    trial.discard()
+
+
+def test_a_trial_copy_is_drawn_see_through(debugging_context):
+    world, robot, context = debugging_context
+    trial = ActionTrial(context=context)
+
+    trial._copy()
+
+    assert trial._visualization.publisher.alpha == trial.copy_marker_alpha
+    trial.discard()
+
+
+def test_a_trial_publishes_nothing_without_debugging(
+    apartment_world_pr2_copy_with_context,
+):
+    world, robot, context = apartment_world_pr2_copy_with_context
+    trial = ActionTrial(context=context)
+
+    trial._copy()
+
+    assert trial._visualization is None
+
+
+def test_a_discarded_trial_stops_publishing_its_copy(debugging_context):
+    world, robot, context = debugging_context
+    trial = ActionTrial(context=context)
+    trial._copy()
+    visualization = trial._visualization
+
+    trial.discard()
+
+    assert not visualization.is_rendering
+    assert trial._visualization is None
+
+
+def test_a_replaced_copy_stops_being_published(debugging_context):
+    """
+    A copy that no longer matches the world is replaced, and only the one candidates are
+    tried in is shown.
+    """
+    world, robot, context = debugging_context
+    trial = ActionTrial(context=context)
+    trial._copy()
+    first = trial._visualization
+    dof = world.degrees_of_freedom[0]
+    world.state[dof.id].position = world.state[dof.id].position + 0.1
+    world.notify_state_change()
+
+    copied = trial._copy()
+
+    assert not first.is_rendering
+    assert trial._visualization.world is copied.world
+    trial.discard()
+
+
+def test_a_trial_tries_an_action_that_already_belongs_to_a_plan(debugging_context):
+    """
+    An action attached to a plan reaches that plan's context, and with it the ROS node
+    the run publishes through, which a trial must not try to copy.
+    """
+    world, robot, context = debugging_context
+    stand_where_it_is = robot.root.global_pose
+    action = NavigateAction(stand_where_it_is, keep_joint_states=True)
+    sequential([action], context)
+    trial = ActionTrial(context=context)
+
+    assert trial.succeeds(action)
+    trial.discard()

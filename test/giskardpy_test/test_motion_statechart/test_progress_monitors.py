@@ -527,6 +527,88 @@ class TestErrorDrivesObservation:
         )
 
 
+# %% a task that has reached its goal
+
+GOAL_DISTANCE = 1.0
+"""
+How far from where the cylinder bot starts the task's goal lies, in meters.
+"""
+
+THRESHOLD_WIDER_THAN_THE_GOAL_DISTANCE = 2.0
+"""
+A threshold the bot starts inside of, so the task counts as having reached its goal
+from the first cycle, yet small enough that the bot moving towards the goal changes
+the error by far more than the minimum convergence rate.
+"""
+
+MOTION_DURATION = timedelta(seconds=1)
+"""
+How long the bot is driven, so its error keeps changing throughout.
+"""
+
+
+def position_task_at_its_goal(world: World) -> CartesianPosition:
+    """
+    A position task already within its threshold, whose error keeps changing because it
+    still drives the bot.
+    """
+    return CartesianPosition(
+        root_link=world.root,
+        tip_link=world.get_kinematic_structure_entity_by_name("bot"),
+        goal_point=Point3(GOAL_DISTANCE, 0, 0, reference_frame=world.root),
+        threshold=THRESHOLD_WIDER_THAN_THE_GOAL_DISTANCE,
+    )
+
+
+def trajectory_task_at_its_goal(world: World) -> CartesianPositionTrajectory:
+    """
+    A trajectory task already within its threshold, whose error is sampled rather than
+    differentiated and keeps changing as the bot follows the trajectory.
+    """
+    return CartesianPositionTrajectory(
+        root_link=world.root,
+        tip_link=world.get_kinematic_structure_entity_by_name("bot"),
+        goal_points=[
+            Point3(GOAL_DISTANCE * x / 100, 0, 0, reference_frame=world.root)
+            for x in range(100)
+        ],
+        threshold=THRESHOLD_WIDER_THAN_THE_GOAL_DISTANCE,
+    )
+
+
+class TestTaskAtItsGoal:
+
+    @pytest.mark.parametrize(
+        "task_at_its_goal", [position_task_at_its_goal, trajectory_task_at_its_goal]
+    )
+    def test_a_task_at_its_goal_is_not_approaching_it(
+        self, cylinder_bot_world: World, task_at_its_goal
+    ):
+        """
+        A task holding its goal, like a grip held while something else moves, can see
+        its error move within the threshold for as long as the motion runs.
+
+        That movement is not progress, so it must not keep a stuck motion from being
+        given up on.
+        """
+        task = task_at_its_goal(cylinder_bot_world)
+        motion_statechart = MotionStatechart()
+        motion_statechart.add_node(task)
+        not_approaching = NotApproachingGoal(monitored_task=task)
+        motion_statechart.add_node(not_approaching)
+        timer = CountSimulationTimeSeconds(seconds=MOTION_DURATION.total_seconds())
+        motion_statechart.add_node(timer)
+        motion_statechart.add_node(EndMotion.when_true(timer))
+
+        executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
+        executor.compile(motion_statechart=motion_statechart)
+        recorded = tick_until_end_recording(
+            executor, motion_statechart, [not_approaching]
+        )
+
+        assert ObservationStateValues.FALSE not in recorded[not_approaching]
+
+
 # %% nodes with nothing converging beneath them
 
 

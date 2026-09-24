@@ -37,6 +37,11 @@ class NotApproachingGoal(MotionStatechartNode):
     not approaching. That makes this node safe to combine with others, but it means the
     node only says something useful about a task while that task runs.
 
+    A task that has reached its goal is reported as not approaching too: its error can
+    keep moving within the threshold for as long as it holds the goal, as a grip held
+    while something else moves does, and that movement is not progress. Counting it
+    would keep a motion whose other tasks are stuck from ever being given up on.
+
     .. note:: The rate passes through zero whenever the error turns around, for instance
         when the robot drives around an obstacle, so this node on its own is not evidence
         that a task is stuck. :class:`StillProgressing` requires it to hold for a while.
@@ -93,6 +98,7 @@ class NotApproachingGoal(MotionStatechartNode):
         return NodeArtifacts(
             observation=sm.trinary_logic_or(
                 self._monitored_task_is_not_running(),
+                self.monitored_task.observation_variable,
                 sm.abs(self._normalized_rate(error_signal, rate))
                 <= self.minimum_convergence_rate,
             )
@@ -141,6 +147,9 @@ class NotApproachingGoal(MotionStatechartNode):
         if self._sampled_error is None:
             return None
         if self.monitored_task.life_cycle_state != LifeCycleValues.RUNNING:
+            self._previous_error = None
+            return ObservationStateValues.TRUE
+        if self.monitored_task.observation_state == ObservationStateValues.TRUE:
             self._previous_error = None
             return ObservationStateValues.TRUE
         error = float(self._sampled_error.expression.evaluate()[0])

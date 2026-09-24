@@ -14,7 +14,6 @@ from krrood.entity_query_language.factories import (
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
-from coraplex.locations.pose_validator import IsReachableBy
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.querying.predicates import GripperIsFree
@@ -78,25 +77,10 @@ class OpenAction(ActionDescription):
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper with which to open the container has to be free and the handle has
-        to be reachable.
+        The gripper with which to open the container has to be free.
         """
-        end_effector = ViewManager.get_end_effector_view(
-            variables["arm"], context.robot
-        )
-        return and_(
-            GripperIsFree(end_effector),
-            IsReachableBy(
-                context=Context(
-                    robot=context.robot,
-                    world=context.world,
-                    alternative_motion_mappings=context.alternative_motion_mappings,
-                ),
-                pose=end_effector.tool_frame_goal(
-                    GraspPose.from_body_origin(kwargs["handle"]).root_T_grasp
-                ),
-                tip_link=end_effector.tool_frame,
-            ),
+        return GripperIsFree(
+            ViewManager.get_end_effector_view(variables["arm"], context.robot)
         )
 
     @staticmethod

@@ -102,11 +102,9 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.factories import reachability_location
 from coraplex.view_manager import ViewManager
-from semantic_digital_twin.semantic_annotations.mixins import GraspPose
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 location = reachability_location(
-    GraspPose.from_body_origin(world.get_semantic_annotations_by_type(Milk)[0]),
+    world.get_body_by_name("milk.stl").global_pose,
     context=context,
     arm=ViewManager.get_arm_view(Arms.LEFT, context.robot),
 )
@@ -119,8 +117,8 @@ with simulated_robot:
 pr2_view.root.parent_connection.origin = origin_pose.to_homogeneous_matrix()
 ```
 
-As you can see we get a pose near the countertop where the robot can be placed without colliding with it. Furthermore,
-we get a list of arms with which the robot can reach the given object.
+As you can see we get a pose near the countertop where the robot can be placed without colliding with it, at the
+distance from which the arm can reach the given object.
 
 ## Visible
 

@@ -33,10 +33,22 @@ class FaceAtAction(ActionDescription):
     Keep the joint states of the robot the same during the navigation.
     """
 
+    standing_position: Optional[Pose] = None
+    """
+    Where the robot faces :attr:`pose` from, or ``None`` for where it stands when this
+    action's plan is built.
+
+    A plan is built before any of it runs, so a step that follows a navigation names
+    where that navigation sends the robot rather than reading where it stands now.
+    """
+
     @property
     def _action_plan(self) -> PlanNode:
-        # get the robot position
-        robot_position = self.robot.root.global_transform
+        robot_position = (
+            self.robot.root.global_transform
+            if self.standing_position is None
+            else self.standing_position.to_homogeneous_matrix()
+        )
 
         # calculate orientation for robot to face the object
         angle = (

@@ -90,6 +90,35 @@ def test_merge_costmap(immutable_model_world):
     assert np.all(o3.map == o2.map)
 
 
+def test_a_merged_map_draws_on_the_terms_of_the_map_it_was_merged_into(
+    immutable_model_world,
+):
+    world, robot_view, context = immutable_model_world
+    origin = Pose.from_xyz_quaternion(0, 0, 0, 0, 0, 0, 1, world.root)
+    drawn_on = CandidateDraw(number_of_samples=17, seed=3)
+    first = GaussianCostmap(
+        resolution=0.02,
+        height=200,
+        width=200,
+        mean=200,
+        sigma=15,
+        origin=origin,
+        world=world,
+        draw=drawn_on,
+    )
+    second = GaussianCostmap(
+        resolution=0.02,
+        height=200,
+        width=200,
+        mean=200,
+        sigma=15,
+        origin=origin,
+        world=world,
+    )
+
+    assert (first & second).draw == drawn_on
+
+
 def test_occupancy_robot_exclusion(immutable_model_world):
     world, robot_view, context = immutable_model_world
     robot_view.root.parent_connection.origin = (
