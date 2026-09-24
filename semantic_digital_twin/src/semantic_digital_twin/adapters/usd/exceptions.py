@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing_extensions import List
+from typing_extensions import List, Type
+
+from krrood.exceptions import DataclassException
 
 from semantic_digital_twin.exceptions import ParsingError
+from semantic_digital_twin.world_description.geometry import Shape
+from semantic_digital_twin.world_description.world_entity import Connection
 
 
 @dataclass
@@ -105,3 +109,103 @@ class UnsupportedUsdGeometryTypeError(ParsingError):
         if not self.supported_types:
             return ""
         return f"Use one of the supported types: {', '.join(sorted(self.supported_types))}."
+
+
+@dataclass
+class UnsupportedConnectionForUsdExportError(DataclassException):
+    """
+    Raised when a world has a connection of a type no USD physics joint describes.
+
+    Leaving it out would leave its child without a joint, which a USD stage reads as a
+    free rigid body rather than as part of the articulation.
+    """
+
+    connection_name: str = field(kw_only=True)
+    """
+    The name of the unsupported connection.
+    """
+
+    connection_type: Type[Connection] = field(kw_only=True)
+    """
+    The type of the unsupported connection.
+    """
+
+    supported_types: List[Type[Connection]] = field(kw_only=True, default_factory=list)
+    """
+    The connection types that can be written as USD physics joints.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Connection '{self.connection_name}' is a "
+            f"{self.connection_type.__name__}, which no USD physics joint describes."
+        )
+
+    def suggest_correction(self) -> str:
+        supported_names = sorted(
+            connection_type.__name__ for connection_type in self.supported_types
+        )
+        return f"Use one of the supported types: {', '.join(supported_names)}."
+
+
+@dataclass
+class UnsupportedShapeForUsdExportError(DataclassException):
+    """
+    Raised when a body has a shape of a type no USD geometry prim is written for.
+    """
+
+    body_name: str = field(kw_only=True)
+    """
+    The name of the body the shape belongs to.
+    """
+
+    shape_type: Type[Shape] = field(kw_only=True)
+    """
+    The type of the unsupported shape.
+    """
+
+    supported_types: List[Type[Shape]] = field(kw_only=True, default_factory=list)
+    """
+    The shape types that can be written as USD geometry prims.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Body '{self.body_name}' has a shape of type "
+            f"{self.shape_type.__name__}, which is not written to USD."
+        )
+
+    def suggest_correction(self) -> str:
+        supported_names = sorted(
+            shape_type.__name__ for shape_type in self.supported_types
+        )
+        return f"Use one of the supported types: {', '.join(supported_names)}."
+
+
+@dataclass
+class UsdPrimNameCollisionError(DataclassException):
+    """
+    Raised when more than one exported entity would be written to the same USD prim.
+
+    A USD prim name is a body's name made a valid identifier, so bodies whose names
+    differ only in their prefix or in characters USD does not allow share one.
+    """
+
+    prim_name: str = field(kw_only=True)
+    """
+    The prim name the entities share.
+    """
+
+    entity_names: List[str] = field(kw_only=True)
+    """
+    The names of the entities that share :attr:`prim_name`.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{', '.join(self.entity_names)} would all be written to the USD prim "
+            f"'{self.prim_name}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Rename the bodies, or choose a different default prim name."

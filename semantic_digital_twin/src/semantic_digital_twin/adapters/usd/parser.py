@@ -20,6 +20,7 @@ from semantic_digital_twin.adapters.package_resolver import (
     PathResolver,
 )
 from semantic_digital_twin.adapters.usd.exceptions import (
+    UnsupportedConnectionForUsdExportError,
     UnsupportedUsdGeometryTypeError,
     UnsupportedUsdPhysicsJointTypeError,
     UsdPhysicsJointMissingChildBodyError,
@@ -230,6 +231,23 @@ class UsdPhysicsJointType(StrEnum):
             UsdPhysicsJointType.REVOLUTE: RevoluteConnection,
             UsdPhysicsJointType.PRISMATIC: PrismaticConnection,
         }[self]
+
+    @classmethod
+    def for_connection(cls, connection: Connection) -> UsdPhysicsJointType:
+        """
+        :param connection: The connection to describe as a joint.
+        :return: The joint type whose :attr:`connection_type` ``connection`` is.
+        :raises UnsupportedConnectionForUsdExportError: If no joint type describes
+            ``connection``.
+        """
+        for joint_type in cls:
+            if isinstance(connection, joint_type.connection_type):
+                return joint_type
+        raise UnsupportedConnectionForUsdExportError(
+            connection_name=str(connection.name),
+            connection_type=type(connection),
+            supported_types=[joint_type.connection_type for joint_type in cls],
+        )
 
 
 class UsdAxis(StrEnum):
@@ -477,6 +495,74 @@ class UsdMeshShapeBuilder(UsdShapeBuilder):
 
 
 @dataclass
+class UsdGeometryPrim:
+    """
+    A geometry prim of a link, with the Shape it was parsed into.
+    """
+
+    prim: Usd.Prim
+    """
+    The geometry prim.
+    """
+
+    shape: Shape
+    """
+    The Shape :attr:`prim` describes, relative to its link.
+    """
+
+    @property
+    def is_collider(self) -> bool:
+        """
+        Whether the prim has :class:`~pxr.UsdPhysics.CollisionAPI` applied.
+        """
+        return self.prim.HasAPI(UsdPhysics.CollisionAPI)
+
+    @property
+    def is_rendered(self) -> bool:
+        """
+        Whether the prim is rendered, i.e. its computed purpose is not ``guide``, the
+        purpose a collision-only prim is authored with.
+        """
+        return UsdGeom.Imageable(self.prim).ComputePurpose() != UsdGeom.Tokens.guide
+
+
+@dataclass
+class UsdLinkGeometry:
+    """
+    The geometry prims of one link, split into its visual and collision geometry.
+    """
+
+    geometry_prims: List[UsdGeometryPrim]
+    """
+    Every geometry prim in the link's subtree.
+    """
+
+    @property
+    def visual_shapes(self) -> List[Shape]:
+        """
+        The shapes of every rendered geometry prim.
+        """
+        return [
+            geometry_prim.shape
+            for geometry_prim in self.geometry_prims
+            if geometry_prim.is_rendered
+        ]
+
+    @property
+    def collision_shapes(self) -> List[Shape]:
+        """
+        The shapes of every collider, or of every geometry prim if the link has no
+        collider at all.
+        """
+        colliders = [
+            geometry_prim
+            for geometry_prim in self.geometry_prims
+            if geometry_prim.is_collider
+        ] or self.geometry_prims
+        return [geometry_prim.shape for geometry_prim in colliders]
+
+
+@dataclass
 class USDParser(WorldModelParser):
     """
     Parses Universal Scene Description (USD) stages into worlds.
@@ -641,11 +727,15 @@ class USDParser(WorldModelParser):
         if root_prim is not None:
             world = World.create_with_root_body(root_prim.GetName(), self.prefix)
             root_body = world.root
-            shapes = self._shapes_in_subtree(root_prim)
-            shape_collection = ShapeCollection(shapes, reference_frame=root_body)
-            shape_collection.transform_all_shapes_to_own_frame()
-            root_body.visual = shape_collection
-            root_body.collision = shape_collection
+            geometry = self._link_geometry(root_prim)
+            root_body.visual = ShapeCollection(
+                geometry.visual_shapes, reference_frame=root_body
+            )
+            root_body.collision = ShapeCollection(
+                geometry.collision_shapes, reference_frame=root_body
+            )
+            root_body.visual.transform_all_shapes_to_own_frame()
+            root_body.collision.transform_all_shapes_to_own_frame()
             with world.modify_world():
                 self._attach_semantic_labels(world, root_prim, root_body)
             return world
@@ -849,42 +939,41 @@ class USDParser(WorldModelParser):
 
     def _create_link_body(self, link_prim: Usd.Prim) -> Body:
         """
-        Creates the Body for one rigid link, with a Shape for every mesh/primitive in
-        its USD subtree and its :class:`~pxr.UsdPhysics.MassAPI` inertial properties, if
-        applied.
+        Creates the Body for one rigid link, with its visual and collision geometry (see
+        :meth:`_link_geometry`) and its :class:`~pxr.UsdPhysics.MassAPI` inertial
+        properties, if applied.
 
         :param link_prim: The link's root USD prim.
         :return: The created body, not yet added to a world.
         """
-        shapes = self._shapes_in_subtree(link_prim)
-        shape_collection = ShapeCollection(shapes)
+        geometry = self._link_geometry(link_prim)
         body = Body(
             name=PrefixedName(link_prim.GetName(), self.prefix),
-            visual=shape_collection,
-            collision=shape_collection,
+            visual=ShapeCollection(geometry.visual_shapes),
+            collision=ShapeCollection(geometry.collision_shapes),
         )
         inertial = self._parse_inertial(link_prim, body)
         if inertial is not None:
             body.inertial = inertial
         return body
 
-    def _shapes_in_subtree(self, link_prim: Usd.Prim) -> List[Shape]:
+    def _link_geometry(self, link_prim: Usd.Prim) -> UsdLinkGeometry:
         """
         Creates the Shape for every mesh/primitive prim in a link's subtree.
 
         :param link_prim: The link the shapes are positioned relative to, and the root
             of the subtree to search for them.
-        :return: The created shapes.
+        :return: The link's shapes, each with the prim it was created from.
         """
         link_to_world = UsdGeom.Xformable(link_prim).ComputeLocalToWorldTransform(
             Usd.TimeCode.Default()
         )
-        shapes = []
+        geometry_prims = []
         for prim in Usd.PrimRange(link_prim):
             shape = self._create_shape(prim, link_to_world)
             if shape is not None:
-                shapes.append(shape)
-        return shapes
+                geometry_prims.append(UsdGeometryPrim(prim=prim, shape=shape))
+        return UsdLinkGeometry(geometry_prims=geometry_prims)
 
     def _create_shape(
         self, prim: Usd.Prim, link_to_world: Gf.Matrix4d

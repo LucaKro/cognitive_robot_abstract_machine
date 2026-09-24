@@ -19,7 +19,7 @@ from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
     RevoluteConnection,
 )
-from semantic_digital_twin.world_description.geometry import Box, Cylinder, Sphere
+from semantic_digital_twin.world_description.geometry import Box, Cylinder, Mesh, Sphere
 from semantic_digital_twin.world_description.world_entity import Body
 
 from .usd_stages import (
@@ -29,6 +29,7 @@ from .usd_stages import (
     build_jointless_stage_with_multiple_top_level_prims,
     build_jointless_stage_with_unsupported_geometry,
     build_single_joint_stage,
+    build_single_joint_stage_with_a_collider,
     build_single_joint_stage_with_mass,
     build_single_joint_stage_with_semantic_labels,
     build_stage_with_ambiguous_root_and_a_joint,
@@ -258,6 +259,38 @@ def test_parse_applies_scale_along_the_cylinders_own_axis_not_the_shapes():
     ]
     assert cylinder.height == pytest.approx(2.0 * 5.0)
     assert cylinder.width == pytest.approx(1.0)
+
+
+# %% visual and collision geometry
+
+
+def _child_body(world: World) -> Body:
+    [child] = [body for body in world.bodies if body is not world.root]
+    return child
+
+
+def test_parse_uses_every_shape_for_collision_when_no_prim_is_a_collider():
+    world = parse(build_single_joint_stage("FixedJoint"))
+
+    child = _child_body(world)
+    assert [type(shape) for shape in child.collision.shapes] == [Mesh]
+    assert [type(shape) for shape in child.visual.shapes] == [Mesh]
+
+
+def test_parse_uses_only_colliders_for_collision_once_a_link_has_one():
+    world = parse(build_single_joint_stage_with_a_collider(collider_is_guide=False))
+
+    child = _child_body(world)
+    assert [type(shape) for shape in child.collision.shapes] == [Box]
+    assert [type(shape) for shape in child.visual.shapes] == [Mesh, Box]
+
+
+def test_parse_leaves_a_guide_purpose_collider_out_of_the_visual_geometry():
+    world = parse(build_single_joint_stage_with_a_collider(collider_is_guide=True))
+
+    child = _child_body(world)
+    assert [type(shape) for shape in child.collision.shapes] == [Box]
+    assert [type(shape) for shape in child.visual.shapes] == [Mesh]
 
 
 # %% inertials

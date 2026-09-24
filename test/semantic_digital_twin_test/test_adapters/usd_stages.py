@@ -135,7 +135,8 @@ def build_stage_with_mesh_targeted_body0() -> Usd.Stage:
 
 def build_stage_with_textured_mesh(texture_file_path: str) -> Usd.Stage:
     """
-    A minimal in-memory stage with a single quad mesh, per-point ``st`` UV
+    A minimal in-memory stage with a single quad mesh, per-point ``st`` UV.
+
     coordinates, and a material whose ``diffuseColor`` is driven by a texture read
     from ``texture_file_path`` - the layout
     ``USDParser._diffuse_texture_path``/``_uv_coordinates`` read.
@@ -348,5 +349,24 @@ def build_single_joint_stage_with_semantic_labels() -> Usd.Stage:
     UsdSemantics.LabelsAPI.Apply(link_prim, "category").CreateLabelsAttr().Set(
         ["seating"]
     )
+
+    return stage
+
+
+def build_single_joint_stage_with_a_collider(*, collider_is_guide: bool) -> Usd.Stage:
+    """
+    A minimal in-memory stage like :func:`build_single_joint_stage`, whose child link
+    also holds a ``Cube`` with :class:`~pxr.UsdPhysics.CollisionAPI` applied, next to
+    its mesh, which has none.
+
+    :param collider_is_guide: Whether the cube's purpose is ``guide``, which keeps it
+        out of rendering, making it collision-only geometry.
+    :return: The built in-memory stage.
+    """
+    stage = build_single_joint_stage("FixedJoint")
+    collider = UsdGeom.Cube.Define(stage, "/object/child/collider")
+    UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+    if collider_is_guide:
+        collider.CreatePurposeAttr(UsdGeom.Tokens.guide)
 
     return stage
