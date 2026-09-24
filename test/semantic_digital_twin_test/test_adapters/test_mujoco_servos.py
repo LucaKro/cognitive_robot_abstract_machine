@@ -1,6 +1,7 @@
 """
-Tests for the MuJoCo actuator a position servo becomes, and for a servoed joint being
-driven rather than teleported.
+Tests for the MuJoCo actuator a position servo becomes, for a servoed joint being driven
+rather than teleported, and for a joint no controller commands being left to the
+physics.
 """
 
 from __future__ import annotations
@@ -229,3 +230,59 @@ def test_starting_the_simulation_holds_a_servoed_joint_where_the_world_has_it():
         simulation.stop_simulation()
 
     assert held == pytest.approx(0.7, abs=0.02)
+
+
+# %% a joint no controller commands
+
+
+@pytest.mark.skipif(
+    not runs_in_continuous_integration(), reason="MuJoCo tests only run in CI"
+)
+def test_a_stepped_simulation_leaves_a_joint_no_controller_commands_to_the_physics():
+    """
+    A joint without a hardware interface, such as a drawer's slider, moves only when
+    something pushes it: writing its position into the world does not teleport it.
+    """
+    pendulum = _pendulum_world()
+    world = pendulum.world
+    simulation = MujocoSim(world=world, headless=True)
+    simulation.start_stepped_simulation()
+    try:
+        simulator = simulation.simulator
+        before = simulator.get_joint_value("hinge").result
+        world.state[pendulum.hinge.raw_dof.id].position = 0.5
+        world.notify_state_change()
+        simulation.step_simulation(timedelta(seconds=simulator.step_size))
+        after = simulator.get_joint_value("hinge").result
+    finally:
+        simulation.stop_simulation()
+
+    assert not pendulum.hinge.has_hardware_interface
+    assert after == pytest.approx(before)
+
+
+@pytest.mark.skipif(
+    not runs_in_continuous_integration(), reason="MuJoCo tests only run in CI"
+)
+def test_a_stepped_simulation_still_writes_a_commanded_joint_without_a_servo():
+    """
+    A joint with a hardware interface but no servo keeps being written into the physics
+    as the world holds it.
+    """
+    pendulum = _pendulum_world()
+    world = pendulum.world
+    with world.modify_world():
+        world.set_dofs_has_hardware_interface([pendulum.hinge.raw_dof], True)
+    set_point = 0.5
+    simulation = MujocoSim(world=world, headless=True)
+    simulation.start_stepped_simulation()
+    try:
+        simulator = simulation.simulator
+        world.state[pendulum.hinge.raw_dof.id].position = set_point
+        world.notify_state_change()
+        simulation.step_simulation(timedelta(seconds=simulator.step_size))
+        after = simulator.get_joint_value("hinge").result
+    finally:
+        simulation.stop_simulation()
+
+    assert after == pytest.approx(set_point, abs=0.01)
