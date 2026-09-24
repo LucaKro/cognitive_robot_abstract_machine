@@ -23,6 +23,7 @@ from typing_extensions import (
     Type,
     Optional,
     Union,
+    TYPE_CHECKING,
 )
 
 import numpy
@@ -86,6 +87,11 @@ from semantic_digital_twin.world_description.world_entity import (
     Actuator,
     PositionServo,
 )
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.world_description.degree_of_freedom import (
+        DegreeOfFreedom,
+    )
 from semantic_digital_twin.mixin import (
     SimulatorAttributeName,
     SimulatorAdditionalProperty,
@@ -3107,6 +3113,46 @@ class JointBackedConnection:
     """
 
 
+@dataclass
+class DegreeOfFreedomDivergence:
+    """
+    Where the world believes one degree of freedom is, next to where the physics has it.
+    """
+
+    degree_of_freedom: DegreeOfFreedom
+    """
+    The degree of freedom compared.
+    """
+
+    world_position: float
+    """
+    The position the world holds for it.
+    """
+
+    physics_position: float
+    """
+    The position the physics has it at, in the world's coordinates.
+    """
+
+
+@dataclass
+class DivergenceRecord:
+    """
+    How far the world and the physics disagreed about every degree of freedom the physics
+    alone moves, at one moment of the simulation.
+    """
+
+    simulation_time: timedelta
+    """
+    How much simulated time had passed since the simulation started.
+    """
+
+    divergences: List[DegreeOfFreedomDivergence]
+    """
+    One comparison per degree of freedom the physics alone moves.
+    """
+
+
 @dataclass(eq=False)
 class MujocoSynchronizer(MultiSimSynchronizer):
     simulator: MujocoSimulator
@@ -3138,11 +3184,24 @@ class MujocoSynchronizer(MultiSimSynchronizer):
     opposite extreme: sync on every call, with no throttling at all.
     """
 
-    physics_moves_uncommanded_joints: bool = False
+    physics_alone_moves_uncontrolled_connections: bool = False
     """
-    Whether a 1-DOF joint with neither a hardware interface nor an actuator, such as a
-    drawer's slider, is moved only by the physics: its position in the world is then
-    never written into MuJoCo, so it moves only when something pushes it.
+    Whether the physics alone moves the world's
+    :attr:`~semantic_digital_twin.world.World.uncontrolled_connections`, such as a
+    drawer's slider or a loose object's pose.
+
+    Their state is then ground truth kept from the world, as it would be from a real
+    robot: it is neither written from the world into MuJoCo nor read back into the
+    world, so the two can diverge, and how far they do is recorded in
+    :attr:`divergence_log`.
+    """
+
+    divergence_log: List[DivergenceRecord] = field(
+        init=False, default_factory=list, repr=False
+    )
+    """
+    How far the world and the physics disagreed about the connections the physics
+    alone moves, recorded on every read of the physics.
     """
 
     _last_sync_time: float = field(init=False, default=0.0, repr=False)
@@ -3225,34 +3284,87 @@ class MujocoSynchronizer(MultiSimSynchronizer):
     def _read_connections_from_qpos(self) -> bool:
         """
         Copy ``_mj_data.qpos`` into ``world.state`` for every joint-backed
-        connection.
+        connection, except those the physics alone moves, for which it records how far
+        the world diverges from the physics instead
+        (see :attr:`physics_alone_moves_uncontrolled_connections`).
 
         Held under ``_model_lock`` so the whole pull sees one coherent
         post-step state rather than a mixture of poses from either side of an
         ``mj_step`` running on the physics thread.
 
-        :return: Whether any connection was read.
+        :return: Whether any connection was read into the world.
         """
         changed = False
+        divergence_by_degree_of_freedom = {}
         actuator_name_by_dof_id = self._actuator_names_by_degree_of_freedom()
+        moved_only_by_physics = self._connections_moved_only_by_physics()
         with self.simulator._model_lock:
             for joint_backed in self._joint_backed_connections():
                 connection = joint_backed.connection
                 match connection:
                     case Connection6DoF():
-                        self._read_6dof_from_qpos(connection, joint_backed.qpos_address)
-                        changed = True
+                        physics_positions = self._read_6dof_from_qpos(
+                            connection, joint_backed.qpos_address
+                        )
                     case ActiveConnection1DOF():
                         # An actuated joint's world position is the set point it was
                         # commanded to, which the position it has reached so far must
                         # not overwrite.
                         if connection.raw_dof.id in actuator_name_by_dof_id:
                             continue
-                        self._read_1dof_from_qpos(connection, joint_backed.qpos_address)
-                        changed = True
+                        physics_positions = self._read_1dof_from_qpos(
+                            connection, joint_backed.qpos_address
+                        )
                     case _:
                         self._warn_unsupported_connection("sim→world", connection)
+                        continue
+                if connection in moved_only_by_physics:
+                    # A joint mimicking another reports the same degree of freedom,
+                    # which is recorded once.
+                    for divergence in self._divergences_from(physics_positions):
+                        divergence_by_degree_of_freedom.setdefault(
+                            divergence.degree_of_freedom, divergence
+                        )
+                    continue
+                self._write_positions_to_world(physics_positions)
+                changed = True
+        if divergence_by_degree_of_freedom:
+            self.divergence_log.append(
+                DivergenceRecord(
+                    simulation_time=timedelta(
+                        seconds=self.simulator.current_simulation_time
+                    ),
+                    divergences=list(divergence_by_degree_of_freedom.values()),
+                )
+            )
         return changed
+
+    def _write_positions_to_world(
+        self, positions: Dict[DegreeOfFreedom, float]
+    ) -> None:
+        """
+        :param positions: The positions to give each degree of freedom in
+            ``world.state``.
+        """
+        for degree_of_freedom, position in positions.items():
+            self._world.state[degree_of_freedom.id].position = position
+
+    def _divergences_from(
+        self, physics_positions: Dict[DegreeOfFreedom, float]
+    ) -> List[DegreeOfFreedomDivergence]:
+        """
+        :param physics_positions: Where the physics has each degree of freedom.
+        :return: Each degree of freedom's position in the world next to its position
+            in the physics.
+        """
+        return [
+            DegreeOfFreedomDivergence(
+                degree_of_freedom=degree_of_freedom,
+                world_position=float(self._world.state[degree_of_freedom.id].position),
+                physics_position=physics_position,
+            )
+            for degree_of_freedom, physics_position in physics_positions.items()
+        ]
 
     def _write_connections_to_qpos(
         self, positions: numpy.ndarray, previous_positions: numpy.ndarray
@@ -3276,11 +3388,14 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         """
         state_index = self._world.state._index
         actuator_name_by_dof_id = self._actuator_names_by_degree_of_freedom()
+        moved_only_by_physics = self._connections_moved_only_by_physics()
         with self.simulator._model_lock:
             for joint_backed in self._joint_backed_connections():
                 connection = joint_backed.connection
                 match connection:
                     case Connection6DoF():
+                        if connection in moved_only_by_physics:
+                            continue
                         self._write_6dof_to_qpos(
                             connection,
                             joint_backed.qpos_address,
@@ -3300,7 +3415,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                                 previous_positions,
                                 state_index,
                             )
-                        elif not self._is_moved_only_by_physics(connection):
+                        elif connection not in moved_only_by_physics:
                             self._write_1dof_to_qpos(
                                 connection,
                                 joint_backed.qpos_address,
@@ -3311,16 +3426,14 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                     case _:
                         self._warn_unsupported_connection("world→sim", connection)
 
-    def _is_moved_only_by_physics(self, connection: ActiveConnection1DOF) -> bool:
+    def _connections_moved_only_by_physics(self) -> set[Connection]:
         """
-        :param connection: A 1-DOF connection that no actuator drives.
-        :return: Whether the world's position for ``connection`` must not be written
-            into MuJoCo (see :attr:`physics_moves_uncommanded_joints`).
+        :return: The connections whose state must be neither written into MuJoCo nor
+            read back into the world (see :attr:`physics_alone_moves_uncontrolled_connections`).
         """
-        return (
-            self.physics_moves_uncommanded_joints
-            and not connection.has_hardware_interface
-        )
+        if not self.physics_alone_moves_uncontrolled_connections:
+            return set()
+        return set(self._world.uncontrolled_connections)
 
     def _actuator_names_by_degree_of_freedom(self) -> Dict[Any, str]:
         """
@@ -3381,16 +3494,16 @@ class MujocoSynchronizer(MultiSimSynchronizer):
 
     def _read_6dof_from_qpos(
         self, connection: Connection6DoF, qpos_address: int
-    ) -> None:
+    ) -> Dict[DegreeOfFreedom, float]:
         """
-        Copy a 6DoF MuJoCo free-joint qpos block into ``world.state`` for
-        ``connection``.
+        Convert a 6DoF MuJoCo free-joint qpos block into the positions of
+        ``connection``'s degrees of freedom.
 
-        :param connection: The 6DoF connection whose DoFs are written.
+        :param connection: The 6DoF connection whose DoFs are read.
         :param qpos_address: Index of the free joint's 7-value qpos block.
+        :return: The position of each of ``connection``'s degrees of freedom.
         """
         mj_data = self.simulator._mj_data
-        state = self._world.state
 
         xyz = mj_data.qpos[qpos_address : qpos_address + 3]
         qwxyz = mj_data.qpos[qpos_address + 3 : qpos_address + 7]
@@ -3403,26 +3516,28 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         conn_T_child = inverse_frame(parent_T_conn) @ mj_T_world
         dof_xyz, dof_quat_xyzw = self._decompose_pose_matrix(conn_T_child)
 
-        state[connection.x.id].position = float(dof_xyz[0])
-        state[connection.y.id].position = float(dof_xyz[1])
-        state[connection.z.id].position = float(dof_xyz[2])
-        state[connection.qw.id].position = float(dof_quat_xyzw[3])
-        state[connection.qx.id].position = float(dof_quat_xyzw[0])
-        state[connection.qy.id].position = float(dof_quat_xyzw[1])
-        state[connection.qz.id].position = float(dof_quat_xyzw[2])
+        return {
+            connection.x: float(dof_xyz[0]),
+            connection.y: float(dof_xyz[1]),
+            connection.z: float(dof_xyz[2]),
+            connection.qw: float(dof_quat_xyzw[3]),
+            connection.qx: float(dof_quat_xyzw[0]),
+            connection.qy: float(dof_quat_xyzw[1]),
+            connection.qz: float(dof_quat_xyzw[2]),
+        }
 
     def _read_1dof_from_qpos(
         self, connection: ActiveConnection1DOF, qpos_address: int
-    ) -> None:
+    ) -> Dict[DegreeOfFreedom, float]:
         """
-        Copy a single MuJoCo qpos slot into ``world.state`` for ``connection``.
+        Convert a single MuJoCo qpos slot into the position of ``connection``'s degree
+        of freedom.
 
-        :param connection: The 1DoF connection whose DoF is written.
+        :param connection: The 1DoF connection whose DoF is read.
         :param qpos_address: Index of the joint's single qpos slot.
+        :return: The position of ``connection``'s degree of freedom.
         """
-        self._world.state[connection.raw_dof.id].position = float(
-            self.simulator._mj_data.qpos[qpos_address]
-        )
+        return {connection.raw_dof: float(self.simulator._mj_data.qpos[qpos_address])}
 
     def _sim_to_world(self) -> None:
         """
@@ -3702,16 +3817,16 @@ class MujocoSim(MultiSim):
         than at the synchronizer's throttled rate.
 
         Every servo is handed the position its joint currently holds in the world, so
-        nothing rushes towards zero the moment the physics starts. A joint no controller
-        commands is left to the physics from then on
-        (see :attr:`MujocoSynchronizer.physics_moves_uncommanded_joints`).
+        nothing rushes towards zero the moment the physics starts. A connection no
+        controller drives is left to the physics from then on
+        (see :attr:`MujocoSynchronizer.physics_alone_moves_uncontrolled_connections`).
 
         :raises SimulationAlreadyRunningError: If the simulation is already running.
         """
         if self.simulator.state == SimulatorState.RUNNING:
             raise SimulationAlreadyRunningError(self.world.root.name.name)
         self.synchronizer.sync_rate_hz = MujocoSynchronizer.UNTHROTTLED_SYNC_RATE_HZ
-        self.synchronizer.physics_moves_uncommanded_joints = True
+        self.synchronizer.physics_alone_moves_uncontrolled_connections = True
         self.simulator.start(simulate_in_thread=False, render_in_thread=False)
         self.synchronizer.command_actuators_from_world_state()
 

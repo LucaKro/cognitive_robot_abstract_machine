@@ -2990,3 +2990,20 @@ def test_replace_with_clears_other_world():
     assert other_world.root is None
     assert len(other_world.kinematic_structure_entities) == 0
     assert len(other_world.connections) == 0
+
+
+# %% uncontrolled connections
+
+
+def test_uncontrolled_connections_have_degrees_of_freedom_but_no_hardware_interface(
+    world_setup,
+):
+    """
+    The revolute connection shares the prismatic connection's degree of freedom, so the
+    hardware interface given to that degree of freedom controls both.
+    """
+    world, l1, l2, bf, r1, r2 = world_setup
+    with world.modify_world():
+        world.set_dofs_has_hardware_interface(l2.parent_connection.active_dofs, True)
+
+    assert world.uncontrolled_connections == [bf.parent_connection]
