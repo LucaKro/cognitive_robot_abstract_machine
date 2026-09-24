@@ -38,6 +38,8 @@ dependencies = [
     "PyQT5>=5.15.11",
     "krrood",
     "semantic_digital_twin",
+    "probabilistic_model",
+    "random_events",
 ]
 license = "LGPL-3.0-only"
 
@@ -56,6 +58,8 @@ version = {attr = "giskardpy._version.__version__"}
 workspace = [
     "krrood",
     "semantic_digital_twin",
+    "probabilistic_model",
+    "random_events",
 ]
 
 [project.optional-dependencies]

@@ -8,10 +8,23 @@ from typing import Optional, Set as PythonSet
 import numpy as np
 import numpy.typing as npt
 import plotly.graph_objects as go
-from probabilistic_model.exceptions import UndefinedOperationError
+from probabilistic_model.exceptions import (
+    ImpossibleEvidenceError,
+    ShapeMismatchError,
+    UndefinedOperationError,
+)
 from random_events.interval import Interval, SimpleInterval, Bound, singleton, closed
 from random_events.product_algebra import Event, SimpleEvent, VariableMap
-from typing_extensions import Union, Iterable, Any, Self, Dict, List, Tuple
+from typing_extensions import (
+    TYPE_CHECKING,
+    Union,
+    Iterable,
+    Any,
+    Self,
+    Dict,
+    List,
+    Tuple,
+)
 
 from probabilistic_model.constants import SCALING_FACTOR_FOR_EXPECTATION_IN_PLOT
 from probabilistic_model.probabilistic_model import (
@@ -28,6 +41,9 @@ from probabilistic_model.utils import (
 from random_events.set import SetElement, Set
 from random_events.sigma_algebra import AbstractCompositeSet
 from random_events.variable import Variable, Continuous, Symbolic, Integer
+
+if TYPE_CHECKING:
+    from probabilistic_model.distributions.multinomial import MultinomialDistribution
 
 
 @dataclass
@@ -504,6 +520,74 @@ class SymbolicDistribution(DiscreteDistribution):
             probabilities[hash(set_element)] = count / len(data)
         self.probabilities = probabilities
         return self
+
+    # %% one step of a discrete Bayes filter
+
+    @property
+    def probabilities_by_domain(self) -> npt.NDArray:
+        """
+        :return: The probability of each value, laid out by the variable's domain.
+        """
+        return np.array(
+            [
+                self.probabilities[hash(element)]
+                for element in self.variable.domain.simple_sets
+            ]
+        )
+
+    def _with_probabilities_by_domain(self, probabilities: npt.NDArray) -> Self:
+        """
+        :param probabilities: The probability of each value, laid out by the variable's
+            domain.
+        :return: A distribution over the same variable with those probabilities.
+        """
+        by_hash = MissingDict(float)
+        for element, probability in zip(
+            self.variable.domain.simple_sets, probabilities
+        ):
+            by_hash[hash(element)] = float(probability)
+        return self.__class__(variable=self.variable, probabilities=by_hash)
+
+    def markov_transition(self, transition_model: MultinomialDistribution) -> Self:
+        """
+        The distribution of the variable one step later, summed over the value it had
+        before.
+
+        :param transition_model: The table over ``(state, next_state)``, indexed by the
+            domain's order and row-stochastic given ``state``.
+        :return: The distribution one step later, over the same variable.
+        :raises ShapeMismatchError: If the transition is not over two variables with
+            this variable's domain.
+        """
+        received_domains = tuple(
+            variable.domain for variable in transition_model.variables
+        )
+        expected_domains = (self.variable.domain, self.variable.domain)
+        if received_domains != expected_domains:
+            raise ShapeMismatchError(received_domains, expected_domains)
+        return self._with_probabilities_by_domain(
+            self.probabilities_by_domain @ transition_model.probabilities
+        )
+
+    def product_with_likelihood(self, likelihoods: npt.ArrayLike) -> Self:
+        """
+        Multiply this distribution by the likelihood of an observation and normalize the
+        product.
+
+        :param likelihoods: How likely the observation is under each value, laid out by
+            the variable's domain.
+        :return: The normalized product, over the same variable.
+        :raises ShapeMismatchError: If the likelihoods are not laid out by the domain.
+        :raises ImpossibleEvidenceError: If the product is zero for every value.
+        """
+        likelihoods = np.asarray(likelihoods, dtype=float)
+        expected_shape = (len(self.variable.domain.simple_sets),)
+        if likelihoods.shape != expected_shape:
+            raise ShapeMismatchError(likelihoods.shape, expected_shape)
+        product = self.probabilities_by_domain * likelihoods
+        if product.sum() == 0:
+            raise ImpossibleEvidenceError(model=self)
+        return self._with_probabilities_by_domain(product / product.sum())
 
     def fit_from_indices(self, data: npt.NDArray) -> Self:
         """

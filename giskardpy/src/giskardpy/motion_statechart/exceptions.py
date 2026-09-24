@@ -11,6 +11,9 @@ from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
 
 if TYPE_CHECKING:
+    from random_events.variable import Variable
+
+    from giskardpy.motion_statechart.beliefs.estimator import PublishedValue
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         NodeStateVariable,
@@ -687,3 +690,83 @@ class NodeStateVariableNotSerializableError(JSONSerializationError):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+# %% beliefs
+
+
+@dataclass
+class BeliefError(MotionStatechartError, ABC):
+    """
+    Base class for errors in estimating the state of the world as a belief.
+    """
+
+
+@dataclass
+class DuplicateBeliefError(BeliefError):
+    """
+    Raised when a belief is added about a variable something is already believed about.
+    """
+
+    variable: Variable
+    """
+    The variable believed about twice.
+    """
+
+    def error_message(self) -> str:
+        return f'There already is a belief about "{self.variable.name}".'
+
+    def suggest_correction(self) -> str:
+        return "Estimate each variable in exactly one belief."
+
+
+@dataclass
+class VariableWithoutBeliefError(BeliefError):
+    """
+    Raised when the belief about a variable is requested that nothing believes about.
+    """
+
+    variable: Variable
+    """
+    The variable requested.
+    """
+
+    def error_message(self) -> str:
+        return f'There is no belief about "{self.variable.name}".'
+
+    def suggest_correction(self) -> str:
+        return "Add an estimator of this variable to the motion statechart."
+
+
+@dataclass
+class UnpublishedValueError(BeliefError):
+    """
+    Raised when an estimator is asked for a value it does not publish about a variable.
+    """
+
+    node: MotionStatechartNode
+    """
+    The estimator asked.
+    """
+
+    variable: Variable
+    """
+    The variable the value was asked about.
+    """
+
+    value: PublishedValue
+    """
+    What was asked for.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'Node "{self.node.unique_name}" does not publish the {self.value} of '
+            f'"{self.variable.name}".'
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "An expectation and a variance are published for numeric variables, and a "
+            "probability for each value of a symbolic one."
+        )

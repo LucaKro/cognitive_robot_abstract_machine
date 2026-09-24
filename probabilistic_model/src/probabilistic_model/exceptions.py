@@ -142,3 +142,25 @@ class VariableNotInDistributionError(DataclassException):
 
     def suggest_correction(self) -> str:
         return "Name one of the variables the distribution is over."
+
+
+@dataclass
+class ImpossibleEvidenceError(DataclassException):
+    """
+    Exception raised when a distribution is multiplied by the likelihood of evidence it
+    considers impossible, which leaves no product to normalize.
+    """
+
+    model: ProbabilisticModel
+    """
+    The distribution that was multiplied.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.model} considers the evidence impossible."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give the evidence a nonzero likelihood under some value the distribution "
+            "considers possible."
+        )

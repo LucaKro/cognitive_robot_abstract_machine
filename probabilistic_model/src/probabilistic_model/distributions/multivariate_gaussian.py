@@ -138,6 +138,69 @@ class Covariance:
         )
 
 
+# %% a linear map of some numbers plus Gaussian noise
+
+
+@dataclass
+class LinearGaussianModel:
+    """
+    Numbers that depend on others linearly, up to Gaussian noise: ``matrix`` applied to
+    the inputs, plus ``offset``, plus noise with covariance ``covariance``.
+
+    It describes how the variables of a :class:`MultivariateGaussianDistribution`
+    change over one step, which is fixed per process while the distribution it moves
+    changes every step.
+    """
+
+    matrix: npt.NDArray
+    """
+    How much each input contributes to each output, with one row per output.
+    """
+
+    offset: npt.NDArray
+    """
+    What is added to each output.
+    """
+
+    covariance: Covariance
+    """
+    The covariance of the noise on the outputs.
+    """
+
+    def __post_init__(self):
+        self.matrix = np.atleast_2d(np.asarray(self.matrix, dtype=float))
+        self.offset = np.atleast_1d(np.asarray(self.offset, dtype=float))
+        self.validate()
+
+    def validate(self):
+        """
+        :raises ShapeMismatchError: If the offset or the covariance is not laid out by
+            the outputs the matrix has.
+        """
+        outputs = self.number_of_outputs
+        if self.offset.shape != (outputs,):
+            raise ShapeMismatchError(self.offset.shape, (outputs,))
+        if self.covariance.dimension != outputs:
+            raise ShapeMismatchError(
+                (self.covariance.dimension, self.covariance.dimension),
+                (outputs, outputs),
+            )
+
+    @property
+    def number_of_inputs(self) -> int:
+        """
+        :return: How many numbers the model is applied to.
+        """
+        return self.matrix.shape[1]
+
+    @property
+    def number_of_outputs(self) -> int:
+        """
+        :return: How many numbers the model produces.
+        """
+        return self.matrix.shape[0]
+
+
 # %% a Gaussian over several variables at once
 
 
@@ -416,6 +479,29 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
             covariance=Covariance.from_matrix(matrix - gain @ cross.T),
         )
 
+    # %% moving the variables one step on
+
+    def linear_gaussian_transition(self, transition_model: LinearGaussianModel) -> Self:
+        """
+        The distribution of the variables one step later, when each becomes what
+        ``transition_model`` makes of their current values.
+
+        :param transition_model: How each next value depends on the current ones.
+        :return: The distribution one step later, over the same variables.
+        :raises ShapeMismatchError: If the model does not take these variables to
+            themselves.
+        """
+        amount = len(self.variables)
+        if transition_model.matrix.shape != (amount, amount):
+            raise ShapeMismatchError(transition_model.matrix.shape, (amount, amount))
+        matrix = transition_model.matrix
+        return self.from_mean_and_covariance(
+            variables=self.variables,
+            mean=matrix @ self.mean + transition_model.offset,
+            covariance=matrix @ self.covariance.matrix @ matrix.T
+            + transition_model.covariance.matrix,
+        )
+
     # %% confining it to an event
 
     def log_truncated(
@@ -450,6 +536,46 @@ class MultivariateGaussianDistribution(ProbabilisticModel):
         )
 
     # %% moments
+
+    def expectation(self, variables: Optional[Iterable[Variable]] = None) -> MomentType:
+        """
+        Read off the mean rather than integrating for it, since this is asked of a
+        filtered belief on every control cycle.
+
+        :param variables: The variables to answer for, every variable if None.
+        :return: The expectation of each of them.
+        """
+        return VariableMap(
+            {
+                variable: float(self.mean[self.index_of(variable)])
+                for variable in self._variables_or_all(variables)
+            }
+        )
+
+    def variance(self, variables: Optional[Iterable[Variable]] = None) -> MomentType:
+        """
+        Read off the covariance's diagonal rather than integrating for it, since this is
+        asked of a filtered belief on every control cycle.
+
+        :param variables: The variables to answer for, every variable if None.
+        :return: The variance of each of them.
+        """
+        variances = self.covariance.variances
+        return VariableMap(
+            {
+                variable: float(variances[self.index_of(variable)])
+                for variable in self._variables_or_all(variables)
+            }
+        )
+
+    def _variables_or_all(
+        self, variables: Optional[Iterable[Variable]]
+    ) -> Tuple[Variable, ...]:
+        """
+        :param variables: Some of this distribution's variables, or None.
+        :return: Those variables, or every variable if None was given.
+        """
+        return self.variables if variables is None else tuple(variables)
 
     def moment(self, order: OrderType, center: CenterType) -> MomentType:
         """
