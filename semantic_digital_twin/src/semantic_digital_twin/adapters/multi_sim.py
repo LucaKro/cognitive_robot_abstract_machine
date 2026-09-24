@@ -3736,6 +3736,7 @@ class MultiSim(ABC):
         world: World,
         headless: bool = False,
         step_size: float = 1e-3,
+        ground_truth: Optional[World] = None,
         **kwargs,
     ):
         """
@@ -3745,9 +3746,17 @@ class MultiSim(ABC):
         :param viewer: The MultiverseViewer to read/write objects.
         :param headless: Whether to run the simulation in headless mode.
         :param step_size: The step size for the simulation.
+        :param ground_truth: The world the physics is built from, when ``world`` is
+            only a belief about it that may be wrong, such as about where an object
+            stands. Its bodies, joints and actuators must carry the same names as
+            ``world``'s, which is how the two are synchronized. If not given, the
+            physics is built from ``world`` itself.
         """
         self.world = world
-        self.builder_class().build_world(world=world, file_path=self.default_file_path)
+        self.builder_class().build_world(
+            world=world if ground_truth is None else ground_truth,
+            file_path=self.default_file_path,
+        )
         self.simulator = self.simulator_class(
             file_path=self.default_file_path,
             _headless=headless,
