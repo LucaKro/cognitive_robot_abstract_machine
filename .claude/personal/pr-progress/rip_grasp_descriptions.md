@@ -1,44 +1,27 @@
 ## PR #588 (cram2) - rip_grasp_descriptions
 
-State: review threads addressed and cram2/main merged (both committed, a2834ad92).
-Overhaul of 2026-09-24 is local only, NOT committed - no commit/push/PR-description
-update until the user asks. Plan: ~/.claude/plans/okay-my-coworkers-and-agile-starfish.md
+Committed by the user: d01fa026c "first batch on changes to merge costmaps and
+locations" (reachability validation removed, Move-and-X transport, FaceAt standing
+position, trial RViz publishing with TF prefix, rebind memo, stall rule for tasks at
+their goal). Plan: ~/.claude/plans/okay-my-coworkers-and-agile-starfish.md
 
-Done (all tested):
-- No reachability validation anywhere: preconditions are cheap state checks
-  (PickUp/Grasping/Open = GripperIsFree; ReachAction none). pose_validator.py,
-  backends.py (GiskardLocationBackend), TipLinkDoesNotMatchAnyArm, ReachableGrasps,
-  grasping_location, giskard_reachability_location deleted.
-- Location (locations/base.py) = abstract costmap base (draw, candidates, generator
-  __iter__, ground); PoseGeneratorBackend gone; Costmap(Location). Seed via
-  Context.candidate_draw; Costmap.merge carries self.draw.
-  reachability_location(target_pose, context, arm, reach_fraction).
-- TransportAction grounds a(MoveAndPickUpAction)/a(MoveAndPlaceAction)/a(MoveAndOpenAction)
-  (new) so ActionTrial tries the move and the act together. MoveAndPickUp takes clearances.
-- FaceAtAction.standing_position: Move-and-X face the target from their standing pose.
-  Bug (pre-existing on main): plans are built before they run, so FaceAt read the start
-  pose and navigated the robot back there before acting.
-- ActionTrial publishes its copy while context.debug: RvizVisualization with
-  frame_prefix/marker_topic from ActionTrialVisualization (StrEnum), copy_marker_alpha 0.9.
-  TfFrameNames.prefix + TFPublisher joins a prefixed tree to the unprefixed root via a
-  latched tf_static identity (TfTopic.STATIC).
-- World.rebind_world_entities -> WorldEntityRebinding with memo (cycles/shared refs,
-  honours __deepcopy__). Context.__deepcopy__ returns self (holds the ROS node).
-- Demo: bowl grasp domain = bowl.grasp_poses().
+Uncommitted on top (2026-09-24, user reviewed the round):
+- keep_joint_states removed everywhere (it was dead: MoveMotion never read it).
+- Location classes in coraplex/locations/locations.py: CostmapLocation (context, seeds
+  draw from context.sampling_seed, abstract costmap(), costmap built when drawn from,
+  targets resolved via world.transform so a body-frame Pose follows the body),
+  ReachabilityLocation(target_pose, arm, reach_fraction), VisibilityLocation(target_pose)
+  Pose only. factories.py, DeferredLocation, accessing_location, occupancy_location,
+  Context.candidate_draw deleted. Do not describe them as "deferred" (user).
+- TransportAction.standing_poses_to_try = 50, applied as .limit() on each Move-and-X.
+- WorldEntityRebinding.rebind: list/dict branches collapsed; ORM ignores it.
+Tests: fast affected set green; transport set 7/8 - test_transport_open_container[stretch]
+hung once (gripper close juddering against the handle: CloseGripper not at goal,
+LocalMinimumReached FAILED, NotApproachingGoal reads approaching). Passed when run alone.
+User said "nvm" - not pursuing for now.
 
-Formerly failing transport tests all pass (pr2/stretch, open container, parse, replay,
-memory leak). Regression sweep was running when this note was written.
+Still to run: transport-plan + demo tests (filtered out by a -k mistake).
+Open for the user: delete the unused helpers (explained why unused, awaiting decision).
 
-Open, waiting on the user:
-- Cap on trial candidates (unbounded; a place that never succeeds runs forever).
-- Unused helpers: ViewManager.get_arm_by_tool_frame, Context.for_world,
-  GraspPose.copy_for_world, GraspPose.world_T_grasp, EndEffector.grasp_poses_by_distance.
-- ORM now maps WorldEntityRebinding (transient helper) - ignore it?
-
-Debugging: always publish robot-behaviour runs to RViz; scratchpad pytest plugin
-rviz_debug_plugin.py (-p, PYTHONPATH). Known local-only failures: iai_daisy_description,
-cramera.live missing.
-
-Deliberately not done (earlier review): recursive add_semantic_annotation (own PR),
-robot_parts.py heuristic, mixins.py axes/strategy pattern. PickAndPlaceAction still
-takes graspable_object.
+Debugging: publish robot-behaviour runs (scratchpad rviz_debug_plugin.py, -p, HUNG_TICKS).
+Tests: --orm-build never, systemd MemoryMax cap, <= 8 workers.
