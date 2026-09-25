@@ -1,27 +1,27 @@
 ## PR #588 (cram2) - rip_grasp_descriptions
 
-Committed by the user: d01fa026c "first batch on changes to merge costmaps and
-locations" (reachability validation removed, Move-and-X transport, FaceAt standing
-position, trial RViz publishing with TF prefix, rebind memo, stall rule for tasks at
-their goal). Plan: ~/.claude/plans/okay-my-coworkers-and-agile-starfish.md
+Committed by the user: d01fa026c (reachability validation removed, Move-and-X transport,
+FaceAt standing position, trial RViz publishing, rebind memo, at-goal stall rule).
 
-Uncommitted on top (2026-09-24, user reviewed the round):
-- keep_joint_states removed everywhere (it was dead: MoveMotion never read it).
-- Location classes in coraplex/locations/locations.py: CostmapLocation (context, seeds
-  draw from context.sampling_seed, abstract costmap(), costmap built when drawn from,
-  targets resolved via world.transform so a body-frame Pose follows the body),
-  ReachabilityLocation(target_pose, arm, reach_fraction), VisibilityLocation(target_pose)
-  Pose only. factories.py, DeferredLocation, accessing_location, occupancy_location,
-  Context.candidate_draw deleted. Do not describe them as "deferred" (user).
-- TransportAction.standing_poses_to_try = 50, applied as .limit() on each Move-and-X.
-- WorldEntityRebinding.rebind: list/dict branches collapsed; ORM ignores it.
-Tests: fast affected set green; transport set 7/8 - test_transport_open_container[stretch]
-hung once (gripper close juddering against the handle: CloseGripper not at goal,
-LocalMinimumReached FAILED, NotApproachingGoal reads approaching). Passed when run alone.
-User said "nvm" - not pursuing for now.
+Uncommitted on top (2026-09-25), all reviewed with the user:
+- Lazy location classes (CostmapLocation/ReachabilityLocation/VisibilityLocation) in
+  locations/locations.py; never call them "deferred". keep_joint_states gone everywhere.
+- TransportAction(pick_up: MoveAndPickUpAction, place: MoveAndPlaceAction) + from_grasp();
+  pick-up step opens drawers; place step places what the arm holds (NothingToPlace).
+  PickAndPlaceAction(pick_up, place) likewise. BoundsItsCandidates caps each step at 50.
+  Step fields carry JSONMetadata(serialize=False) until EQL queries serialize.
+- CollisionViolatedError -> MotionViolatedCollisionAvoidance (PlanFailure); previous_nodes
+  depth-first; helpers deleted; docstrings never mention underspecified queries.
 
-Still to run: transport-plan + demo tests (filtered out by a -k mistake).
-Open for the user: delete the unused helpers (explained why unused, awaiting decision).
+test_transport_open_container diagnosis (HSR->Stretch->TIAGo order):
+- Stretch: not a hang - finger velocity limit 0.0067 rad/s (stretch.py, from main) makes
+  each gripper close ~25 s sim. The 3000-tick debug cutoff was too short.
+- TIAGo: real hang in the pick-up grasp. Base penetrates the opened drawer (-1.7 cm);
+  MoveTCP error flat but its rate flips sign every tick, so NotApproachingGoal flips and
+  StillProgressing's timer resets forever. Proposed fix (awaiting user): judge progress by
+  net improvement over the best error so far, not the instantaneous rate.
 
-Debugging: publish robot-behaviour runs (scratchpad rviz_debug_plugin.py, -p, HUNG_TICKS).
-Tests: --orm-build never, systemd MemoryMax cap, <= 8 workers.
+Still to verify: designator sweep, bullet demo, experiment tests, notebooks
+(action_designator.md, orm_example.md, location_designator.md).
+Debugging: scratchpad rviz_debug_plugin.py (-p, HUNG_TICKS). Tests: --orm-build never,
+systemd MemoryMax cap, <= 8 workers. Nothing committed/pushed by Claude.
