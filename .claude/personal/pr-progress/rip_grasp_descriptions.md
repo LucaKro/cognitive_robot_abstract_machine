@@ -25,7 +25,7 @@ designator/transport/locations/ORM/demo sweep, detect+transport x4.
 Open question to user: remove now test-only rate machinery (create_rate_expression,
 time_derivative_from_joint_motion, Symbolic/Sampled distinction)?
 
-Still to verify: experiment tests, notebooks
+All verification green (experiments 184, notebooks 3/3)
 (action_designator.md, orm_example.md, location_designator.md).
 Debugging: scratchpad rviz_debug_plugin.py (-p, HUNG_TICKS). Tests: --orm-build never,
 systemd MemoryMax cap, <= 8 workers. Nothing committed/pushed by Claude.
