@@ -7,26 +7,17 @@ import pytest
 from typing_extensions import Iterator, List
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ReachFraction
+from coraplex.datastructures.enums import Arms
 from coraplex.locations.base import Location
 from coraplex.locations.costmaps import RingCostmap
 from coraplex.locations.sampling import CandidateDraw
-from coraplex.locations import factories
-from coraplex.locations.factories import (
-    accessing_location,
-    reachability_location,
-    visibility_location,
-)
+from coraplex.locations.locations import ReachabilityLocation, VisibilityLocation
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.robots.pr2 import PR2
-from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Drawer,
-    Handle,
-    Milk,
-)
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
@@ -220,12 +211,12 @@ def test_a_reachability_location_is_drawn_around_its_target(single_robot_world):
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
 
-    location = reachability_location(
-        target, context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+    location = ReachabilityLocation(
+        target, ViewManager.get_arm_view(Arms.RIGHT, robot), context=context
     )
 
     np.testing.assert_allclose(
-        location.origin.to_position().to_np()[:2],
+        location.costmap().origin.to_position().to_np()[:2],
         target.to_position().to_np()[:2],
     )
 
@@ -238,10 +229,10 @@ def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_wo
     world, robot, context = single_robot_world
     context.sampling_seed = 5
 
-    location = reachability_location(
+    location = ReachabilityLocation(
         _box_in(world).root.global_pose,
-        context,
         ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context=context,
     )
 
     assert location.draw.seed == context.sampling_seed
@@ -254,52 +245,66 @@ def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
     """
     world, robot, context = single_robot_world
 
-    location = reachability_location(
+    location = ReachabilityLocation(
         _box_in(world).root.global_pose,
-        context,
         ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context=context,
     )
 
     assert location.draw.seed is None
 
 
-# %% opening a container is reached for by its own standing distance
+# %% a location reflects the world when it is drawn from
 
 
-def test_an_accessing_location_stands_off_by_the_accessing_reach_fraction(
+def test_a_costmap_location_builds_its_costmap_only_when_drawn_from(
     single_robot_world, monkeypatch
 ):
     """
-    Opening a container is reached for by its own standing distance rather than the one
-    used for a grasp.
+    Handing a location to a plan must not build its costmap, so the map describes the
+    world as the plan finds it when it gets there.
     """
     world, robot, context = single_robot_world
-    handle_body = _box_in(world).root
-    container = Drawer(root=handle_body, handle=Handle(root=handle_body))
-    asked_for = {}
+    location = ReachabilityLocation(
+        _box_in(world).root.global_pose,
+        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context=context,
+    )
+    built = []
+    build_costmap = ReachabilityLocation.costmap
     monkeypatch.setattr(
-        factories,
-        "reachability_location",
-        lambda *args, **kwargs: asked_for.update(kwargs),
+        ReachabilityLocation,
+        "costmap",
+        lambda self: built.append(True) or build_costmap(self),
     )
 
-    accessing_location(container, context, ViewManager.get_arm_view(Arms.RIGHT, robot))
+    candidates = iter(location)
+    assert built == []
 
-    assert asked_for["reach_fraction"] == ReachFraction.ACCESSING
+    next(candidates)
+    assert built == [True]
 
 
-def test_an_accessing_location_is_drawn_around_the_handle(single_robot_world):
+def test_a_target_given_in_a_body_frame_follows_the_body(single_robot_world):
+    """
+    A target named relative to a body is where that body is when the location is drawn
+    from, not where it was when the location was made.
+    """
     world, robot, context = single_robot_world
-    handle_body = _box_in(world).root
-    container = Drawer(root=handle_body, handle=Handle(root=handle_body))
-
-    location = accessing_location(
-        container, context, ViewManager.get_arm_view(Arms.RIGHT, robot)
+    box = _box_in(world).root
+    location = ReachabilityLocation(
+        Pose(reference_frame=box),
+        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context=context,
     )
+    with world.modify_world():
+        box.parent_connection.parent_T_connection_expression = (
+            HomogeneousTransformationMatrix.from_xyz_rpy(*REACHABILITY_TARGET_POSITION)
+        )
 
     np.testing.assert_allclose(
-        location.origin.to_position().to_np()[:2],
-        handle_body.global_pose.to_position().to_np()[:2],
+        location.costmap().origin.to_position().to_np()[:2],
+        box.global_pose.to_position().to_np()[:2],
     )
 
 
@@ -310,9 +315,9 @@ def test_a_visibility_location_takes_its_seed_from_the_context(single_robot_worl
     world, robot, context = single_robot_world
     context.sampling_seed = 5
 
-    location = visibility_location(
+    location = VisibilityLocation(
         Pose.from_xyz_rpy(*REACHABILITY_TARGET_POSITION, reference_frame=world.root),
-        context,
+        context=context,
     )
 
     assert location.draw.seed == context.sampling_seed

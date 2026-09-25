@@ -16,8 +16,13 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from coraplex.plans.failures import MotionMadeNoProgress
+from coraplex.plans.failures import (
+    MotionMadeNoProgress,
+    MotionViolatedCollisionAvoidance,
+)
+from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.templates import Sequence
+from giskardpy.ros_executor import Ros2Executor
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     EndMotion,
@@ -336,3 +341,25 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     with simulated_robot:
         with pytest.raises(MotionMadeNoProgress):
             executable.execute()
+
+
+def test_a_motion_that_violates_collision_avoidance_fails_as_a_plan_failure(
+    reach_action_executable, monkeypatch
+):
+    """
+    A motion that brings the robot closer to something than collision avoidance allows
+    did not work from where it started, so a plan can try another candidate instead of
+    stopping.
+    """
+    violation = CollisionViolatedError(violated_collisions=[], thresholds=[])
+
+    def violate_collision_avoidance(executor):
+        raise violation
+
+    monkeypatch.setattr(Ros2Executor, "tick", violate_collision_avoidance)
+
+    with simulated_robot:
+        with pytest.raises(MotionViolatedCollisionAvoidance) as failure:
+            reach_action_executable.execute()
+
+    assert failure.value.violation is violation

@@ -120,14 +120,15 @@ def test_transporting_a_bowl_grasps_it_at_its_rim(pr2_and_bowl):
     world, robot, bowl = pr2_and_bowl
     context = Context(world, robot, sampling_seed=SAMPLING_SEED)
     context.evaluate_conditions = False
-    transport = TransportAction(
+    transport = TransportAction.from_grasp(
         bowl.grasp_poses()[0],
+        Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
         Arms.LEFT,
-        target_location=Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
+        context,
     )
 
     sequential([transport], context=context)
     transport._action_plan
 
-    grasp_position = transport.grasp.root_T_grasp.to_np()[:3, 3]
+    grasp_position = transport.pick_up.kwargs["grasp"].root_T_grasp.to_np()[:3, 3]
     assert distances_to_surface(bowl, grasp_position[None, :])[0] < GRIPPABLE_DISTANCE

@@ -28,7 +28,6 @@ def simple_plan(immutable_model_world):
                 Pose.from_xyz_quaternion(
                     1.6, 1.9, 0, 0, 0, 0, 1, reference_frame=world.root
                 ),
-                True,
             ),
             MoveTorsoAction(TorsoState.HIGH),
             ParkArmsAction(Arms.BOTH),
@@ -90,12 +89,13 @@ def complex_plan(mutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = execute_single(
-        TransportAction(
-            grasp=milk.grasp_poses()[0],
-            target_location=Pose.from_xyz_quaternion(
+        TransportAction.from_grasp(
+            milk.grasp_poses()[0],
+            Pose.from_xyz_quaternion(
                 2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root
             ),
-            arm=Arms.LEFT,
+            Arms.LEFT,
+            context,
         ),
         context=context,
     ).plan

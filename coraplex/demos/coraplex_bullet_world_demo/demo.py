@@ -6,9 +6,9 @@ scaffolding in :mod:`coraplex.demonstrations` owns the ROS session and publishes
 world to Rviz, so the run can be watched while it happens.
 
 The bowl is the interesting one. It offers a grasp all around its rim and only some of
-them can be reached from anywhere the robot may stand, so the plan names its grasp as a
-variable over every grasp the bowl offers rather than fixing the first one. Each
-candidate is tried out before it is executed, and the first that succeeds is taken.
+them can be reached from where the robot may stand, so its pick-up leaves both the grasp
+and the standing pose open. Each pair is tried out before it is executed, and the first
+that succeeds is taken.
 """
 
 import os
@@ -22,7 +22,13 @@ from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
-from coraplex.robot_plans.actions.composite.transporting import TransportAction
+from coraplex.locations.locations import ReachabilityLocation
+from coraplex.robot_plans.actions.composite.transporting import (
+    MoveAndPickUpAction,
+    MoveAndPlaceAction,
+    TransportAction,
+)
+from coraplex.view_manager import ViewManager
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from krrood.entity_query_language.factories import (
     a,
@@ -485,24 +491,47 @@ class BulletWorldDemonstration(RobotDemonstration):
         """
         world = context.world
         bowl = self.bowl.annotation_in(world)
+        bowl_target = self.bowl.target_location(world)
+        left_arm = ViewManager.get_arm_view(Arms.LEFT, context.robot)
         return sequential(
             [
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
-                TransportAction(
+                TransportAction.from_grasp(
                     self.milk.annotation_in(world).grasp_poses()[0],
+                    self.milk.target_location(world),
                     Arms.LEFT,
-                    target_location=self.milk.target_location(world),
-                ),
-                a(TransportAction)(
-                    target_location=self.bowl.target_location(world),
-                    arm=Arms.LEFT,
-                    grasp=variable(GraspPose, domain=bowl.grasp_poses()),
+                    context,
                 ),
                 TransportAction(
+                    pick_up=a(MoveAndPickUpAction)(
+                        standing_position=variable(
+                            Pose,
+                            domain=ReachabilityLocation(
+                                Pose(reference_frame=bowl.root),
+                                left_arm,
+                                context=context,
+                            ),
+                        ),
+                        grasp=variable(GraspPose, domain=bowl.grasp_poses()),
+                        arm=Arms.LEFT,
+                    ),
+                    place=a(MoveAndPlaceAction)(
+                        standing_position=variable(
+                            Pose,
+                            domain=ReachabilityLocation(
+                                bowl_target, left_arm, context=context
+                            ),
+                        ),
+                        target_location=bowl_target,
+                        arm=Arms.LEFT,
+                    ),
+                ),
+                TransportAction.from_grasp(
                     self.spoon.annotation_in(world).grasp_poses()[0],
+                    self.spoon.target_location(world),
                     Arms.LEFT,
-                    target_location=self.spoon.target_location(world),
+                    context,
                 ),
             ],
             context=context,

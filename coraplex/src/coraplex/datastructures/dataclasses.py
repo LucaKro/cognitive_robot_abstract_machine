@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 from typing_extensions import (
     Any,
@@ -12,7 +12,6 @@ from typing_extensions import (
     Type,
 )
 
-from coraplex.locations.sampling import CandidateDraw
 from coraplex.plans.plan_entity import PlanEntity
 from krrood.entity_query_language.backends import (
     QueryBackend,
@@ -145,13 +144,6 @@ class Context(PlanEntity):
             logging.DEBUG if self.debug else logging.INFO
         )
 
-    @property
-    def candidate_draw(self) -> CandidateDraw:
-        """
-        :return: The terms the locations of this plan draw their candidates on.
-        """
-        return CandidateDraw(seed=self.sampling_seed)
-
     def __deepcopy__(self, memo: Dict[int, Any]) -> Context:
         """
         :return: This context itself.
@@ -214,16 +206,3 @@ class Context(PlanEntity):
         if plan:
             plan.add_plan_entity(result)
         return result
-
-    def for_world(self, world: World, robot: AbstractRobot) -> Context:
-        """
-        The same settings, addressing another world.
-
-        Anything run against a copy of the world -- a check, a what-if -- has to be run
-        the way the plan itself is, or it answers about something the plan never does.
-
-        :param world: The world the new context addresses.
-        :param robot: The robot of ``world`` that acts in it.
-        :return: A context over ``world``, belonging to no plan.
-        """
-        return replace(self, world=world, robot=robot, plan=None)

@@ -175,7 +175,9 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.robot_plans.actions.composite.transporting import NavigateAction, PickUpAction, PlaceAction
+from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.placing import PlaceAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 import rclpy
@@ -260,12 +262,11 @@ from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
-description = TransportAction(
+description = TransportAction.from_grasp(
     world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
+    Pose.from_xyz_quaternion(3.0, 2.2, 1.04, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root),
     Arms.LEFT,
-    target_location=Pose.from_xyz_quaternion(
-        3.0, 2.2, 1.04, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root
-    ),
+    context,
 )
 with simulated_robot:
     sequential([MoveTorsoAction(TorsoState.HIGH),

@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Optional, Any, Dict
 
-from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from coraplex.plans.attachment_nodes import ReAttachNode
@@ -50,18 +49,10 @@ class NavigateAction(ActionDescription):
     x-axis.
     """
 
-    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
-    """
-    Keep the joint states of the robot the same during the navigation.
-    """
-
     @property
     def _action_plan(self) -> PlanNode:
         return execute_single(
-            MoveMotion(
-                self.robot.mobile_base.pose_facing(self.target_location),
-                self.keep_joint_states,
-            )
+            MoveMotion(self.robot.mobile_base.pose_facing(self.target_location))
         )
 
     @staticmethod
@@ -122,8 +113,8 @@ class PathPlanningNavigateAction(ActionDescription):
     The free space is decomposed into a graph of convex sets, so the robot drives around
     the furniture and walls between it and the target instead of straight at them.
 
-
-    This works for obstacles which are known in the environment beforehand not such that are added during navigation.
+     This works for obstacles which are known in the environment beforehand not such
+    that are added during navigation.
     """
 
     target: Pose

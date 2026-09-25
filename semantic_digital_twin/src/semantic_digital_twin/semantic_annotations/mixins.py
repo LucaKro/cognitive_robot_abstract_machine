@@ -475,25 +475,6 @@ class GraspPose:
         """
         return reference_T_object.to_homogeneous_matrix() @ self.root_T_grasp
 
-    @property
-    def world_T_grasp(self) -> Pose:
-        """
-        :return: The grasp frame relative to the world, where the object stands now.
-        """
-        return self.moved_to(self.graspable.root.global_pose)
-
-    def copy_for_world(self, world: World) -> GraspPose:
-        """
-        Address this grasp in another copy of the world it was taken from.
-
-        :param world: The copy to address.
-        :return: The same grasp, on that copy's annotation.
-        """
-        return GraspPose(
-            world.get_semantic_annotation_by_id(self.graspable.id),
-            self.root_T_grasp.copy_for_world(world),
-        )
-
 
 @dataclass(eq=False)
 class HasGraspPoses(HasRootBody):

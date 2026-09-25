@@ -571,15 +571,16 @@ class WorldEntityRebinding:
             return self._rebound_entity(obj)
         if id(obj) in self.rebound:
             return self.rebound[id(obj)]
-        if type(obj) is list:
-            return self._rebound_list(obj)
-        if isinstance(obj, list_like_classes):
-            return type(obj)(self.rebind(item) for item in obj)
-        if isinstance(obj, dict):
-            return self._rebound_dict(obj)
         if self._is_walked_dataclass(obj):
             return self._rebound_dataclass(obj)
-        return deepcopy(obj, self.rebound)
+        if isinstance(obj, list_like_classes):
+            rebound = type(obj)(self.rebind(item) for item in obj)
+        elif isinstance(obj, dict):
+            rebound = {key: self.rebind(value) for key, value in obj.items()}
+        else:
+            return deepcopy(obj, self.rebound)
+        self.rebound[id(obj)] = rebound
+        return rebound
 
     def _rebound_entity(self, entity: WorldEntityWithID) -> WorldEntityWithID:
         """
@@ -598,28 +599,6 @@ class WorldEntityRebinding:
                 world=self.world, world_entity=found
             )
         return found
-
-    def _rebound_list(self, items: list) -> list:
-        """
-        :param items: The list to rebind.
-        :return: A new list of the rebound items, registered before its items are
-            rebound so an item referring back to the list finds it.
-        """
-        result = []
-        self.rebound[id(items)] = result
-        result.extend(self.rebind(item) for item in items)
-        return result
-
-    def _rebound_dict(self, mapping: dict) -> dict:
-        """
-        :param mapping: The dict to rebind.
-        :return: A new dict of the rebound values under the same keys, registered
-            before its values are rebound so a value referring back to it finds it.
-        """
-        result = {}
-        self.rebound[id(mapping)] = result
-        result.update((key, self.rebind(value)) for key, value in mapping.items())
-        return result
 
     @staticmethod
     def _is_walked_dataclass(obj: Any) -> bool:

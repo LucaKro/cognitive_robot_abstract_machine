@@ -55,8 +55,6 @@ from semantic_digital_twin.robots.robot_part_mixins import (
     RobotPartMixin,
 )
 from semantic_digital_twin.semantic_annotations.mixins import (
-    GraspPose,
-    HasGraspPoses,
     HasRootBody,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -709,79 +707,6 @@ class EndEffector(AbstractRobotPart, ABC):
         if self.held_body is not body:
             return None
         return self.held_body_T_grasp
-
-    def _distance_to_grasp(self, grasp_pose: Pose) -> float:
-        """
-        How far this gripper is from closing on a grasp.
-
-        ..note:: A geometric ranking, not a reachability test.
-
-        :param grasp_pose: The grasp frame to reach.
-        :return: The distance in meters.
-        """
-        return float(self._world_V_tool_frame_to_grasp(grasp_pose).norm())
-
-    def _misalignment_with_grasp(self, grasp_pose: Pose) -> float:
-        """
-        How far this gripper has to turn to enter a grasp the way it must be entered.
-
-        Measured between the direction the grasp is approached from and the direction
-        of the grasp itself, or, standing on it already, the direction the gripper
-        points now. Roll about that direction is not counted, as turning the wrist about
-        the direction it approaches along costs the arm little.
-
-        :param grasp_pose: The grasp frame to reach.
-        :return: The angle in radians.
-        """
-        world_T_goal = self._world.transform(
-            self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
-        )
-        world_V_approach = world_T_goal.to_rotation_matrix() @ self.approach_axis
-        world_V_to_grasp = self._world_V_tool_frame_to_grasp(grasp_pose)
-        if not float(world_V_to_grasp.norm()):
-            world_V_to_grasp = (
-                self.tool_frame.global_transform.to_rotation_matrix()
-                @ self.approach_axis
-            )
-        return float(world_V_approach.angle_between(world_V_to_grasp))
-
-    def _world_V_tool_frame_to_grasp(self, grasp_pose: Pose) -> Vector3:
-        """
-        :param grasp_pose: The grasp frame to reach.
-        :return: From the tool frame to where it has to sit to hold the grasp, whose
-            length is the distance to it and whose direction is where it lies.
-        """
-        world_T_goal = self._world.transform(
-            self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
-        )
-        return (
-            world_T_goal.to_position() - self.tool_frame.global_transform.to_position()
-        )
-
-    def grasp_poses_by_distance(
-        self,
-        graspable: HasGraspPoses,
-        position_tolerance: float,
-    ) -> List[GraspPose]:
-        """
-        The grasps an object offers, the ones this gripper is closest to first.
-
-        Grasps whose distances the robot cannot tell apart are ordered by how far the
-        gripper has to turn to enter them, which is what decides between the grasps an
-        object offers at one and the same point.
-
-        :param graspable: The object to be grasped.
-        :param position_tolerance: How close two distances have to be, in meters, to
-            count as the same distance.
-        :return: Its grasps, nearest first.
-        """
-        return sorted(
-            graspable.grasp_poses(),
-            key=lambda grasp: (
-                self._distance_to_grasp(grasp.root_T_grasp) // position_tolerance,
-                self._misalignment_with_grasp(grasp.root_T_grasp),
-            ),
-        )
 
     @property
     def held_bodies(self) -> list[Body]:

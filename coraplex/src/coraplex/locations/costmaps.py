@@ -644,7 +644,6 @@ class OccupancyCostmap(Costmap):
             distance_to_obstacle=context.robot.mobile_base.base_radius,
             robot_view=context.robot,
             origin=ground_pose,
-            draw=context.candidate_draw,
         )
 
 
@@ -974,7 +973,6 @@ class RingCostmap(Costmap):
             distance=arm.approximate_length() * reach_fraction,
             world=context.world,
             origin=origin,
-            draw=context.candidate_draw,
         )
 
     def ring(self) -> np.ndarray:

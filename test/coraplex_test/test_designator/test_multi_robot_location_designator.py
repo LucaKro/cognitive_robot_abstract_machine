@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import pytest
 import rclpy
-from typing_extensions import Generator, List, Tuple
+from typing_extensions import Generator, Tuple
 
 from coraplex.alternative_motion_mappings.hsrb_motion_mapping import HSRBMoveMotion
 from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
@@ -15,13 +15,7 @@ from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveS
 from coraplex.datastructures.dataclasses import Context
 
 from coraplex.datastructures.enums import Arms
-from coraplex.locations.base import DeferredLocation
-from coraplex.locations.factories import (
-    reachability_location,
-    visibility_location,
-    accessing_location,
-)
-from krrood.entity_query_language.factories import variable
+from coraplex.locations.locations import ReachabilityLocation, VisibilityLocation
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
@@ -41,10 +35,6 @@ from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tiago import Tiago
-from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Drawer,
-    Handle,
-)
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
 )
@@ -184,51 +174,6 @@ def mutable_multiple_robot_simple_apartment(setup_multi_robot_simple_apartment):
     )
 
 
-def test_deferred_location_factory_runs_at_execution_not_construction():
-    """A :class:`DeferredLocation` must not build its :class:`Location` until the EQL
-    variable domain is actually consumed.
-
-    ``variable`` wraps the domain in :func:`filter`, whose builtin implementation calls
-    :func:`iter` on its argument at construction time. An eagerly-iterating
-    ``DeferredLocation`` would therefore run the factory while the plan is being parsed,
-    reintroducing the stale-pose bug.
-    """
-    factory_calls = []
-
-    def build_poses() -> List[Pose]:
-        factory_calls.append(True)
-        return [Pose.from_xyz_rpy(0.0, 0.0, 0.0)]
-
-    domain_variable = variable(Pose, domain=DeferredLocation(build_poses))
-
-    assert factory_calls == []
-
-    next(iter(domain_variable._re_enterable_domain_generator_), None)
-
-    assert factory_calls == [True]
-
-
-def test_deferred_location_reflects_state_changed_after_construction():
-    """
-    The deferred factory observes the world state as it is when the location is
-    consumed, not as it was when the underspecified action was constructed.
-    """
-    observed_positions = []
-    moving_pose = {"value": Pose.from_xyz_rpy(0.0, 0.0, 0.0)}
-
-    def build_poses() -> List[Pose]:
-        observed_positions.append(moving_pose["value"].to_position().to_list())
-        return [moving_pose["value"]]
-
-    domain_variable = variable(Pose, domain=DeferredLocation(build_poses))
-
-    moving_pose["value"] = Pose.from_xyz_rpy(3.1, 2.2, 0.95)
-
-    next(iter(domain_variable._re_enterable_domain_generator_), None)
-
-    assert observed_positions == [[3.1, 2.2, 0.95, 1.0]]
-
-
 def test_new_reachability_location_body(
     immutable_multiple_robot_simple_apartment, rclpy_node
 ):
@@ -243,10 +188,10 @@ def test_new_reachability_location_body(
 
         world.notify_state_change()
 
-        location = reachability_location(
+        location = ReachabilityLocation(
             world.get_body_by_name("milk.stl").global_pose,
-            context,
             ViewManager.get_arm_view(Arms.RIGHT, robot),
+            context=context,
         )
 
         pose = next(iter(location))
@@ -266,8 +211,8 @@ def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
 
         world.notify_state_change()
 
-        location = visibility_location(
-            world.get_body_by_name("milk.stl").global_pose, context
+        location = VisibilityLocation(
+            world.get_body_by_name("milk.stl").global_pose, context=context
         )
 
         pose = next(iter(location))
@@ -288,39 +233,11 @@ def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
 
         world.notify_state_change()
 
-        location = visibility_location(world.get_body_by_name("milk.stl"), context)
-
-        pose = next(iter(location))
-
-    assert len(pose.to_position().to_list()) == 4
-    assert len(pose.to_quaternion().to_list()) == 4
-
-
-def test_accessing_location_pose(immutable_model_world):
-    world, robot, context = immutable_model_world
-    plan = sequential(
-        [
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
-        ],
-        context,
-    )
-    with simulated_robot:
-        plan.perform()
-
-    with world.modify_world():
-        world.add_semantic_annotation_recursively(
-            drawer := Drawer(
-                root=world.get_body_by_name("cabinet10_drawer_middle"),
-                handle=Handle(root=world.get_body_by_name("handle_cab10_m")),
-            )
+        location = VisibilityLocation(
+            Pose(reference_frame=world.get_body_by_name("milk.stl")), context=context
         )
 
-    location_desig = accessing_location(
-        drawer, context=context, arm=ViewManager.get_arm_view(Arms.RIGHT, robot)
-    )
-    with simulated_robot:
-        pose = next(iter(location_desig))
+        pose = next(iter(location))
 
     assert len(pose.to_position().to_list()) == 4
     assert len(pose.to_quaternion().to_list()) == 4

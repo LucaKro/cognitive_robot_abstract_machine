@@ -183,7 +183,6 @@ def test_underspecified_action(apartment_world_pr2_copy_with_context):
                 Pose.from_xyz_quaternion(2, -1, 0, reference_frame=world.root),
             ]
         ),
-        keep_joint_states=True,
     )
 
     plan = execute_single(action_like=action, context=context).plan
@@ -221,7 +220,6 @@ def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_conte
             yaw=0.0,
             reference_frame=context.robot.root,
         ),
-        keep_joint_states=...,
     )
 
     plan = execute_single(action_like=action, context=context).plan
@@ -255,7 +253,6 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
                         ]
                     )
                 ),
-                keep_joint_states=True,
             ),
             a(PickUpAction)(arm=..., grasp=milk.grasp_poses()[0]),
         ],
@@ -502,7 +499,7 @@ def test_a_trial_tries_an_action_that_already_belongs_to_a_plan(debugging_contex
     """
     world, robot, context = debugging_context
     stand_where_it_is = robot.root.global_pose
-    action = NavigateAction(stand_where_it_is, keep_joint_states=True)
+    action = NavigateAction(stand_where_it_is)
     sequential([action], context)
     trial = ActionTrial(context=context)
 

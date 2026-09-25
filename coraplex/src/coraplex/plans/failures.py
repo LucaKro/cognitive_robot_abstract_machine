@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 from typing_extensions import TYPE_CHECKING
 
-from giskardpy.motion_statechart.exceptions import NoProgressError
+from giskardpy.motion_statechart.exceptions import (
+    CollisionViolatedError,
+    NoProgressError,
+)
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -56,6 +59,29 @@ class MotionMadeNoProgress(PlanFailure):
 
     def suggest_correction(self) -> str:
         return self.no_progress.suggest_correction()
+
+
+@dataclass
+class MotionViolatedCollisionAvoidance(PlanFailure):
+    """
+    Raised when a motion brought bodies closer to each other than collision avoidance
+    allows.
+
+    Like :class:`MotionMadeNoProgress`, this says the attempt did not work from where it
+    started rather than that the plan cannot go on, so a plan can try another candidate
+    by catching :class:`PlanFailure` alone.
+    """
+
+    violation: CollisionViolatedError
+    """
+    The violation the motion reported, which names the body pairs that came too close.
+    """
+
+    def error_message(self) -> str:
+        return self.violation.error_message()
+
+    def suggest_correction(self) -> str:
+        return self.violation.suggest_correction()
 
 
 @dataclass

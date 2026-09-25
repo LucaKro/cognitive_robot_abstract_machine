@@ -1067,6 +1067,9 @@ def test_collision_for_robot_with_static_base(
             )
 
 
+# Wall-clock medians of a few short runs jitter by more than the allowed margin when
+# other processes share the CPU.
+@pytest.mark.flaky(reruns=3)
 def test_repeated_collision_pr2_apartment_does_not_increase_execution_time(
     pr2_apartment_world,
 ):

@@ -386,6 +386,26 @@ def test_get_previous_nodes():
     assert node1.right_siblings == [node3]
 
 
+def test_previous_nodes_follow_the_tree_not_the_order_nodes_were_added():
+    """
+    A plan is expanded as it goes, so the children of an earlier node can be added after
+    a later node already is.
+
+    Previous still means earlier in the tree.
+    """
+    root = PlanNode()
+    first = PlanNode()
+    second = PlanNode()
+    child_of_first = PlanNode()
+
+    plan = Plan()
+    plan.add_edge(root, first)
+    plan.add_edge(root, second)
+    plan.add_edge(first, child_of_first)
+
+    assert second.previous_nodes == [root, first, child_of_first]
+
+
 # ---- Tests interacting with simulated robot/world ----
 
 

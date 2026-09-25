@@ -180,6 +180,25 @@ class ConditionNotSatisfied(PlanFailure):
 
 
 @dataclass
+class NothingToPlace(DataclassException):
+    """
+    Raised when a place is asked of an arm that neither holds an object nor follows a
+    pick-up that is going to give it one.
+    """
+
+    arm: Arms
+    """
+    The arm that was to place something.
+    """
+
+    def error_message(self) -> str:
+        return f"The {self.arm.name} arm holds nothing to place."
+
+    def suggest_correction(self) -> str:
+        return "place after a pick-up with the same arm."
+
+
+@dataclass
 class UnknownExecutionType(DataclassException):
     """
     Raised when an executable is run with an execution type it does not handle.

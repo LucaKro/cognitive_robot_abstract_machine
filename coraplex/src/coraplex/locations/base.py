@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from typing_extensions import Callable, Iterator, Iterable
+from typing_extensions import Iterator, Iterable
 
 from coraplex.locations.sampling import CandidateDraw
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -48,27 +48,3 @@ class Location(Iterable[Pose], ABC):
             ``variable`` calls :func:`iter` on its domain while the plan is built.
         """
         yield from self.candidates(self.draw)
-
-
-@dataclass
-class DeferredLocation(Iterable[Pose]):
-    """
-    Lazily rebuilds a concrete :class:`Location` from current world state on each
-    iteration, so it reflects the world at the moment the location is consumed
-    (execution time) rather than when the plan was constructed.
-
-    .. warning::
-        :meth:`__iter__` must stay a generator (``yield from``). Returning
-        ``iter(self.location_factory())`` would invoke the factory eagerly, because EQL's
-        ``variable`` wraps the domain in :func:`filter`, which calls :func:`iter` on its
-        argument at plan-construction time. A generator defers the factory call to the
-        first ``next``, which only happens once the underspecified action is grounded.
-    """
-
-    location_factory: Callable[[], Location]
-    """
-    Builds a fresh :class:`Location` from the current world state.
-    """
-
-    def __iter__(self) -> Iterator[Pose]:
-        yield from self.location_factory()

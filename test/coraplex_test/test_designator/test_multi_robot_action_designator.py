@@ -642,11 +642,9 @@ def test_look_at(immutable_multiple_robot_apartment):
         plan.perform()
 
 
-def test_detect(immutable_multiple_robot_apartment):
-    world, robot, context = immutable_multiple_robot_apartment
+def test_detect(mutable_multiple_robot_apartment):
+    world, robot, context = mutable_multiple_robot_apartment
     milk_body = world.get_body_by_name("milk.stl")
-    with world.modify_world():
-        world.add_semantic_annotation(Milk(root=milk_body))
 
     # East of the multi-storey building the fixture merges in, so that the robot looks
     # at the milk rather than at one of the building's room walls.
@@ -741,7 +739,7 @@ def test_facing(immutable_multiple_robot_apartment):
 
     with simulated_robot:
         milk_pose = world.get_body_by_name("milk.stl").global_pose
-        plan = execute_single(FaceAtAction(milk_pose, True), context)
+        plan = execute_single(FaceAtAction(milk_pose), context)
         plan.perform()
         milk_in_base_frame = world.transform(
             world.get_body_by_name("milk.stl").global_transform,
@@ -763,14 +761,15 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     VizMarkerPublisher(_world=world, node=rclpy_node)
     context.ros_node = rclpy_node
     context.debug = True
-    description = TransportAction(
-        grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
-        target_location=Pose(
+    description = TransportAction.from_grasp(
+        world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
+        Pose(
             Point3.from_iterable([3.1, 2.2, 0.95]),
             Quaternion.from_iterable([0.0, 0.0, 1.0, 0.0]),
             reference_frame=world.root,
         ),
-        arm=Arms.RIGHT,
+        Arms.RIGHT,
+        context,
     )
     plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], context)
     with simulated_robot:
@@ -809,10 +808,11 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     target_pose = Pose.from_xyz_rpy(
         5.1, 3.25, 0.75, yaw=1.57, reference_frame=world.root
     )
-    description = TransportAction(
-        grasp=world.get_semantic_annotations_by_type(Spoon)[0].grasp_poses()[0],
-        target_location=target_pose,
-        arm=Arms.RIGHT,
+    description = TransportAction.from_grasp(
+        world.get_semantic_annotations_by_type(Spoon)[0].grasp_poses()[0],
+        target_pose,
+        Arms.RIGHT,
+        context,
     )
     plan = sequential(
         [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH), description],

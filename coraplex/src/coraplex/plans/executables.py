@@ -14,11 +14,15 @@ from coraplex.exceptions import (
 from coraplex.plans.failures import (
     EmptyUnderspecified,
     MotionMadeNoProgress,
+    MotionViolatedCollisionAvoidance,
     PlanFailure,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import LifeCycleValues
-from giskardpy.motion_statechart.exceptions import NoProgressError
+from giskardpy.motion_statechart.exceptions import (
+    CollisionViolatedError,
+    NoProgressError,
+)
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
@@ -345,6 +349,8 @@ class GiskardExecutable(Executable):
         type.
 
         :raises MotionMadeNoProgress: When the motion stops approaching its goal.
+        :raises MotionViolatedCollisionAvoidance: When the motion brings bodies closer
+            to each other than collision avoidance allows.
         """
         if len(self.motion_mappings) == 0:
             return
@@ -362,6 +368,8 @@ class GiskardExecutable(Executable):
                     raise UnknownExecutionType(GiskardExecutable.execution_type)
         except NoProgressError as stalled:
             raise MotionMadeNoProgress(stalled) from stalled
+        except CollisionViolatedError as violation:
+            raise MotionViolatedCollisionAvoidance(violation) from violation
 
     def _execute_simulation(self) -> None:
         """

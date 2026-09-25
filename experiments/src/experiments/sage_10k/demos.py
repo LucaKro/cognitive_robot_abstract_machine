@@ -213,7 +213,6 @@ class Sage10kGymDemo(Sage10kAbstractDemoHSRB):
                 ),
                 ParkArmsAction(Arms.BOTH),
                 MoveAndPlaceAction(
-                    object_designator=object_of_interest,
                     standing_position=self.place_navigation_pose,
                     arm=arm,
                     target_location=self.place_pose,
@@ -362,7 +361,6 @@ class Sage10kCraftsmanLobbyDemo(Sage10kAbstractDemoHSRB):
             standing_position=Pose.from_xyz_rpy(
                 x=5.48, y=6.96, reference_frame=self.world.root
             ),
-            object_designator=self.book_to_pick,
             target_location=target_pose,
             arm=Arms.LEFT,
         )
@@ -504,7 +502,6 @@ class Sage10kVaporwave(Sage10kAbstractDemoHSRB):
                 x=0.605, y=2.115, yaw=-1.5708, reference_frame=self.world.root
             ),
             target_location=place_target_pose,
-            object_designator=self.target_to_pick,
             arm=Arms.LEFT,
         )
 
@@ -623,7 +620,6 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
                     )
                 ),
                 MoveAndPlaceAction(
-                    object_designator=self.object_of_interest,
                     standing_position=self.place_navigation_pose,
                     arm=arm,
                     target_location=self.place_pose,
@@ -736,7 +732,6 @@ class Sage10kBrutalistStoreDemo(Sage10kAbstractDemoHSRB):
                 ),
                 ParkArmsAction(Arms.BOTH),
                 MoveAndPlaceAction(
-                    object_designator=self.object_of_interest,
                     standing_position=self.place_navigation_pose,
                     arm=arm,
                     target_location=self.place_pose,
@@ -833,7 +828,6 @@ class Sage10kAmericanBuffetDemo(Sage10kAbstractDemoHSRB):
                 ParkArmsAction(Arms.BOTH),
                 NavigateAction(target_location=navigate),
                 MoveAndPlaceAction(
-                    object_designator=self.object_of_interest,
                     standing_position=self.place_navigation_pose,
                     arm=arm,
                     target_location=self.place_pose,
