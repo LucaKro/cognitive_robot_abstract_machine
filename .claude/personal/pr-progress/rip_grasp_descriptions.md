@@ -22,8 +22,8 @@ Fixed 2026-09-25 (TDD, uncommitted):
   the mutable fixture and no longer adds a duplicate Milk).
 Green: giskardpy statechart/executor + coraplex plan/failure (675), open_container x4,
 designator/transport/locations/ORM/demo sweep, detect+transport x4.
-Open question to user: remove now test-only rate machinery (create_rate_expression,
-time_derivative_from_joint_motion, Symbolic/Sampled distinction)?
+Done: create_rate_expression + Symbolic/Sampled split removed (one concrete ErrorSignal);
+time_derivative_from_joint_motion stays (cartesian_tasks uses it). ORM regenerated.
 
 All verification green (experiments 184, notebooks 3/3)
 (action_designator.md, orm_example.md, location_designator.md).
