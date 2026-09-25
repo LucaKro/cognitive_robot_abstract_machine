@@ -35,6 +35,6 @@ object_to_cut, surface, target_container). Tests use context.robot arms; multi-r
 use left_or_only_arm/right_or_only_arm from test/coraplex_test/conftest.py. EQL generative
 and probabilistic backends cannot enumerate `arm=...` any more (not an enum) - tests give
 `variable_from(robot.get_arms())`. Flaky mark on the collision timing test.
-Deleted (user): CarryAction; utils camera helpers + their now-orphaned quaternion helpers.
+Deleted (user): CarryAction; coraplex/utils.py entirely (unused helpers + split_list_by_type and its tests); translate_pose_along_local_axis became HasApproachesGraspPoses._pre_grasp_pose.
 Debugging: scratchpad rviz_debug_plugin.py (-p, HUNG_TICKS). Tests: --orm-build never,
 systemd MemoryMax cap, <= 8 workers. Nothing committed/pushed by Claude.
