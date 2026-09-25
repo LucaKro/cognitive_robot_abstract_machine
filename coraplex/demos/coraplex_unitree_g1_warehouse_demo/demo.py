@@ -163,7 +163,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
             ),
             NavigateAction(Pose.from_xyz_rpy(yaw=-1.57, reference_frame=robot.root)),
             NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PlaceAction(parcel_annotation, place_pose, robot.torso.left_arm),
+            PlaceAction(parcel_annotation, place_pose),
             ParkArmsAction(robot.get_arms()),
             MoveJointsMotion(
                 names=[
@@ -212,7 +212,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
             ),
             NavigateAction(Pose.from_xyz_rpy(yaw=1.57, reference_frame=robot.root)),
             NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PlaceAction(parcel_annotation, pick_pose, robot.torso.left_arm),
+            PlaceAction(parcel_annotation, pick_pose),
             ParkArmsAction(robot.get_arms()),
             MoveJointsMotion(
                 names=[

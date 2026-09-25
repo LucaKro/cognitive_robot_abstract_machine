@@ -14,20 +14,23 @@ from krrood.entity_query_language.factories import (
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ReachFraction
-from coraplex.exceptions import NothingToPlace
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
-from coraplex.robot_plans.actions.composite.facing import FaceAtAction
+from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.navigation import (
+    FaceAtAction,
+    LookAtAction,
+    NavigateAction,
+)
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
+from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from krrood.entity_query_language.query.match import Match
 from krrood.patterns.field_metadata import JSONMetadata
-from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
@@ -40,7 +43,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class BoundsItsCandidates:
+class LimitsItsCandidates:
     """
     Adds a limit on how many candidates a step tries.
 
@@ -65,7 +68,7 @@ class BoundsItsCandidates:
 
 
 @dataclass
-class TransportAction(ActionDescription, BoundsItsCandidates):
+class TransportAction(ActionDescription, LimitsItsCandidates):
     """
     Picks an object up with one step and puts it down with another.
     """
@@ -97,26 +100,41 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
         :return: The transport, standing near the object to pick it up and near the
             target to place it.
         """
+        object_pose = grasp.graspable.root.global_pose
         return cls(
             pick_up=a(MoveAndPickUpAction)(
-                standing_position=variable(
-                    Pose,
-                    domain=ReachabilityLocation(
-                        Pose(reference_frame=grasp.graspable.root),
-                        arm,
-                        context=context,
-                    ),
+                navigate=a(NavigateAction)(
+                    target_location=variable(
+                        Pose,
+                        domain=ReachabilityLocation(
+                            Pose(reference_frame=grasp.graspable.root),
+                            arm,
+                            context=context,
+                        ),
+                    )
                 ),
-                grasp=grasp,
-                arm=arm,
+                face_and_look_at=a(FaceAndLookAtAction)(
+                    face_at=a(FaceAtAction)(target=object_pose),
+                    look_at=a(LookAtAction)(target=object_pose),
+                ),
+                pick_up=a(PickUpAction)(grasp=grasp, arm=arm),
             ),
             place=a(MoveAndPlaceAction)(
-                standing_position=variable(
-                    Pose,
-                    domain=ReachabilityLocation(target_location, arm, context=context),
+                navigate=a(NavigateAction)(
+                    target_location=variable(
+                        Pose,
+                        domain=ReachabilityLocation(
+                            target_location, arm, context=context
+                        ),
+                    )
                 ),
-                target_location=target_location,
-                arm=arm,
+                face_and_look_at=a(FaceAndLookAtAction)(
+                    face_at=a(FaceAtAction)(target=target_location),
+                    look_at=a(LookAtAction)(target=target_location),
+                ),
+                place=a(PlaceAction)(
+                    object_designator=grasp.graspable, target_location=target_location
+                ),
             ),
         )
 
@@ -128,7 +146,6 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
                 ParkArmsAction(self.robot.get_arms()),
                 self.pick_up,
                 ParkArmsAction(self.robot.get_arms()),
-                MoveTorsoAction(TorsoState.HIGH),
                 self.place,
                 ParkArmsAction(self.robot.get_arms()),
             ]
@@ -136,7 +153,7 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
 
 
 @dataclass
-class PickAndPlaceAction(ActionDescription, BoundsItsCandidates):
+class PickAndPlaceAction(ActionDescription, LimitsItsCandidates):
     """
     Picks an object up with one step and puts it down with another, without moving the
     base of the robot.
@@ -169,115 +186,116 @@ class PickAndPlaceAction(ActionDescription, BoundsItsCandidates):
 @dataclass
 class MoveAndPlaceAction(ActionDescription):
     """
-    Navigate to `standing_position`, facing the target, and place what the arm holds.
+    Navigates to where the robot stands, faces the target and places the object there.
     """
 
-    standing_position: Pose
+    navigate: NavigateAction
     """
-    The pose to stand at while placing.
-    """
-
-    target_location: Pose
-    """
-    The location to place the object.
+    The step to where the robot stands while placing.
     """
 
-    arm: Arm
+    face_and_look_at: FaceAndLookAtAction
     """
-    The arm that holds the object.
+    The turn towards the target and the look at it.
     """
+
+    place: PlaceAction
+    """
+    The step that puts the object down.
+    """
+
+    @classmethod
+    def from_standing_position(
+        cls,
+        standing_position: Pose,
+        target_location: Pose,
+        object_designator: HasGraspPoses,
+    ) -> Self:
+        """
+        :param standing_position: Where the robot stands while placing.
+        :param target_location: Where to put the object down.
+        :param object_designator: The object to put down.
+        :return: The step placing the object from `standing_position`.
+        """
+        return cls(
+            navigate=NavigateAction(standing_position),
+            face_and_look_at=FaceAndLookAtAction(
+                FaceAtAction(target_location), LookAtAction(target_location)
+            ),
+            place=PlaceAction(object_designator, target_location),
+        )
 
     @property
     def _action_plan(self) -> PlanNode:
-        return sequential(
-            [
-                FaceAtAction(
-                    self.target_location,
-                    standing_position=self.standing_position,
-                ),
-                PlaceAction(self._placed_object(), self.target_location, self.arm),
-            ]
-        )
-
-    def _placed_object(self) -> HasGraspPoses:
-        """
-        The object :attr:`arm` puts down.
-
-        A plan is built before it runs, so when the arm holds nothing yet, the object is
-        the one the pick-up before this step is going to give it.
-
-        :return: An annotation of the object held, or about to be held. Any annotation
-            of the held body names the same object to put down.
-        :raises NothingToPlace: If the arm holds nothing and no pick-up precedes this
-            step.
-        """
-        held_body = self.arm.end_effector.held_body
-        if held_body is not None:
-            return next(
-                annotation
-                for annotation in self.world.get_semantic_annotations_by_type(
-                    HasGraspPoses
-                )
-                if annotation.root is held_body
-            )
-        previous_pick = self.plan_node.get_previous_node_by_designator_type(
-            PickUpAction
-        )
-        if previous_pick is None:
-            raise NothingToPlace(self.arm)
-        return previous_pick.designator.grasp.graspable
+        return sequential([self.navigate, self.face_and_look_at, self.place])
 
 
 @dataclass
-class MoveAndPickUpAction(
-    ActionDescription, HasApproachesGraspPoses, BoundsItsCandidates
-):
+class MoveAndPickUpAction(ActionDescription, LimitsItsCandidates):
     """
-    Navigate to `standing_position`, facing the object, and pick it up, opening the
+    Navigates to where the robot stands, faces the object and picks it up, opening the
     drawer it is in first.
     """
 
-    standing_position: Pose
+    navigate: NavigateAction
     """
-    The pose to stand before trying to pick up the object.
-    """
-
-    grasp: GraspPose
-    """
-    The grasp to take hold by, which also names the object to pick up.
+    The step to where the robot stands while picking up.
     """
 
-    arm: Arm
+    face_and_look_at: FaceAndLookAtAction
     """
-    The arm to use.
+    The turn towards the object and the look at it.
     """
+
+    pick_up: PickUpAction
+    """
+    The step that picks the object up.
+    """
+
+    @classmethod
+    def from_standing_position(
+        cls,
+        standing_position: Pose,
+        grasp: GraspPose,
+        arm: Arm,
+        approach_clearance: float = HasApproachesGraspPoses.approach_clearance,
+        retreat_distance: float = HasApproachesGraspPoses.retreat_distance,
+    ) -> Self:
+        """
+        :param standing_position: Where the robot stands while picking up.
+        :param grasp: The grasp to take hold by, which also names the object.
+        :param arm: The arm to pick up with.
+        :param approach_clearance: How far from the grasp the gripper approaches from.
+        :param retreat_distance: How far the gripper retreats with the object.
+        :return: The step picking the object up from `standing_position`.
+        """
+        object_pose = grasp.graspable.root.global_pose
+        return cls(
+            navigate=NavigateAction(standing_position),
+            face_and_look_at=FaceAndLookAtAction(
+                FaceAtAction(object_pose), LookAtAction(object_pose)
+            ),
+            pick_up=PickUpAction(
+                grasp,
+                arm,
+                approach_clearance=approach_clearance,
+                retreat_distance=retreat_distance,
+            ),
+        )
 
     @property
     def _action_plan(self) -> PlanNode:
         children = []
         for container in self._containers_around_the_object():
             children.extend(self._make_open_container_actions(container))
-        children.extend(
-            [
-                FaceAtAction(
-                    self.grasp.graspable.root.global_pose,
-                    standing_position=self.standing_position,
-                ),
-                PickUpAction(
-                    self.grasp,
-                    self.arm,
-                    approach_clearance=self.approach_clearance,
-                    retreat_distance=self.retreat_distance,
-                ),
-            ]
-        )
+        children.extend([self.navigate, self.face_and_look_at, self.pick_up])
         return sequential(children)
 
     def _containers_around_the_object(self) -> List[Body]:
         """
         :return: The bodies the object to pick up lies inside of.
         """
-        object_body = self.grasp.graspable.root
+        object_body = self.pick_up.grasp.graspable.root
         return [
             body
             for body in self.world.bodies
@@ -300,18 +318,25 @@ class MoveAndPickUpAction(
         if len(drawer_annotation) == 0:
             return []
         handle = drawer_annotation[0].handle
+        arm = self.pick_up.arm
+        handle_pose = handle.root.global_pose
         open_the_drawer = a(MoveAndOpenAction)(
-            standing_position=variable(
-                Pose,
-                domain=ReachabilityLocation(
-                    Pose(reference_frame=handle.root),
-                    self.arm,
-                    ReachFraction.ACCESSING,
-                    context=self.context,
-                ),
+            navigate=a(NavigateAction)(
+                target_location=variable(
+                    Pose,
+                    domain=ReachabilityLocation(
+                        Pose(reference_frame=handle.root),
+                        arm,
+                        ReachFraction.ACCESSING,
+                        context=self.context,
+                    ),
+                )
             ),
-            handle=handle,
-            arm=self.arm,
+            face_and_look_at=a(FaceAndLookAtAction)(
+                face_at=a(FaceAtAction)(target=handle_pose),
+                look_at=a(LookAtAction)(target=handle_pose),
+            ),
+            open_container=a(OpenAction)(handle=handle, arm=arm),
         )
         self._bound_candidates(open_the_drawer)
         return [open_the_drawer]
@@ -320,32 +345,43 @@ class MoveAndPickUpAction(
 @dataclass
 class MoveAndOpenAction(ActionDescription):
     """
-    Navigate to `standing_position`, facing the handle, and open its container.
+    Navigates to where the robot stands, faces the handle and opens its container.
     """
 
-    standing_position: Pose
+    navigate: NavigateAction
     """
-    The pose to stand at while opening the container.
-    """
-
-    handle: Handle
-    """
-    The handle of the container to open.
+    The step to where the robot stands while opening.
     """
 
-    arm: Arm
+    face_and_look_at: FaceAndLookAtAction
     """
-    The arm to use.
+    The turn towards the handle and the look at it.
     """
+
+    open_container: OpenAction
+    """
+    The step that opens the container.
+    """
+
+    @classmethod
+    def from_standing_position(
+        cls, standing_position: Pose, handle: Handle, arm: Arm
+    ) -> Self:
+        """
+        :param standing_position: Where the robot stands while opening.
+        :param handle: The handle of the container to open.
+        :param arm: The arm to open with.
+        :return: The step opening the container from `standing_position`.
+        """
+        handle_pose = handle.root.global_pose
+        return cls(
+            navigate=NavigateAction(standing_position),
+            face_and_look_at=FaceAndLookAtAction(
+                FaceAtAction(handle_pose), LookAtAction(handle_pose)
+            ),
+            open_container=OpenAction(handle, arm),
+        )
 
     @property
     def _action_plan(self) -> PlanNode:
-        return sequential(
-            [
-                FaceAtAction(
-                    self.handle.root.global_pose,
-                    standing_position=self.standing_position,
-                ),
-                OpenAction(self.handle, self.arm),
-            ]
-        )
+        return sequential([self.navigate, self.face_and_look_at, self.open_container])

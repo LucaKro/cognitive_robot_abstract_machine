@@ -156,7 +156,6 @@ plan = sequential(
         PlaceAction(
             box2_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.02, yaw=0, reference_frame=world.root),
-            tracy.left_arm,
         ),
         # Stack Box 3
         ParkArmsAction(tracy.get_arms()),
@@ -167,7 +166,6 @@ plan = sequential(
         PlaceAction(
             box3_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.12, yaw=0, reference_frame=world.root),
-            tracy.right_arm,
         ),
     ],
     context=context,

@@ -28,6 +28,14 @@ from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPlaceAction,
     TransportAction,
 )
+from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
+from coraplex.robot_plans.actions.core.navigation import (
+    FaceAtAction,
+    LookAtAction,
+    NavigateAction,
+)
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from krrood.entity_query_language.factories import (
     a,
@@ -491,6 +499,7 @@ class BulletWorldDemonstration(RobotDemonstration):
         world = context.world
         bowl = self.bowl.annotation_in(world)
         bowl_target = self.bowl.target_location(world)
+        bowl_pose = bowl.root.global_pose
         left_arm = context.robot.left_arm
         return sequential(
             [
@@ -504,26 +513,41 @@ class BulletWorldDemonstration(RobotDemonstration):
                 ),
                 TransportAction(
                     pick_up=a(MoveAndPickUpAction)(
-                        standing_position=variable(
-                            Pose,
-                            domain=ReachabilityLocation(
-                                Pose(reference_frame=bowl.root),
-                                left_arm,
-                                context=context,
-                            ),
+                        navigate=a(NavigateAction)(
+                            target_location=variable(
+                                Pose,
+                                domain=ReachabilityLocation(
+                                    Pose(reference_frame=bowl.root),
+                                    left_arm,
+                                    context=context,
+                                ),
+                            )
                         ),
-                        grasp=variable(GraspPose, domain=bowl.grasp_poses()),
-                        arm=left_arm,
+                        face_and_look_at=a(FaceAndLookAtAction)(
+                            face_at=a(FaceAtAction)(target=bowl_pose),
+                            look_at=a(LookAtAction)(target=bowl_pose),
+                        ),
+                        pick_up=a(PickUpAction)(
+                            grasp=variable(GraspPose, domain=bowl.grasp_poses()),
+                            arm=left_arm,
+                        ),
                     ),
                     place=a(MoveAndPlaceAction)(
-                        standing_position=variable(
-                            Pose,
-                            domain=ReachabilityLocation(
-                                bowl_target, left_arm, context=context
-                            ),
+                        navigate=a(NavigateAction)(
+                            target_location=variable(
+                                Pose,
+                                domain=ReachabilityLocation(
+                                    bowl_target, left_arm, context=context
+                                ),
+                            )
                         ),
-                        target_location=bowl_target,
-                        arm=left_arm,
+                        face_and_look_at=a(FaceAndLookAtAction)(
+                            face_at=a(FaceAtAction)(target=bowl_target),
+                            look_at=a(LookAtAction)(target=bowl_target),
+                        ),
+                        place=a(PlaceAction)(
+                            object_designator=bowl, target_location=bowl_target
+                        ),
                     ),
                 ),
                 TransportAction.from_grasp(

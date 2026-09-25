@@ -10,7 +10,7 @@ from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.factories import execute_single, pause_until, sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
-from coraplex.robot_plans.motions.navigation import MoveMotion
+from coraplex.robot_plans.motions.navigation import MoveMotion, TurnMotion
 from coraplex.robot_plans.motions.robot_body import LookingMotion
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.monitors.joint_monitors import (
@@ -103,6 +103,22 @@ class LookAtAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         camera = self.camera or self.robot.get_default_camera()
         return execute_single(LookingMotion(target=self.target, camera=camera))
+
+
+@dataclass
+class FaceAtAction(ActionDescription):
+    """
+    Turns the robot's base on the spot until its front faces a target.
+    """
+
+    target: Pose
+    """
+    What to face; only its horizontal position matters.
+    """
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        return execute_single(TurnMotion(self.target))
 
 
 @dataclass

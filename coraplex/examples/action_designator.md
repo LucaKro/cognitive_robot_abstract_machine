@@ -196,7 +196,6 @@ with simulated_robot:
          PlaceAction(
              object_designator=milk,
              target_location=Pose.from_xyz_rpy(2.4, 2.2, 1, reference_frame=world.root),
-             arm=arm,
          )],
         context=context,
     ).perform()

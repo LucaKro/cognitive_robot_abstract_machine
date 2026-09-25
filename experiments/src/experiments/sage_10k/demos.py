@@ -205,15 +205,15 @@ class Sage10kGymDemo(Sage10kAbstractDemoHSRB):
                 NavigateAction(
                     Pose.from_xyz_rpy(0, 0.8, reference_frame=self.world.root)
                 ),
-                MoveAndPickUpAction(
+                MoveAndPickUpAction.from_standing_position(
                     grasp=object_of_interest.grasp_poses()[0],
                     standing_position=self.pickup_navigation_pose,
                     arm=arm,
                 ),
                 ParkArmsAction(self.robot.get_arms()),
-                MoveAndPlaceAction(
+                MoveAndPlaceAction.from_standing_position(
                     standing_position=self.place_navigation_pose,
-                    arm=arm,
+                    object_designator=object_of_interest,
                     target_location=self.place_pose,
                 ),
             ],
@@ -272,7 +272,7 @@ class Sage10kTVStudioDemo(Sage10kAbstractDemoHSRB):
     def plan(self) -> Plan:
         context = Context.from_world(self.world, query_backend=ProbabilisticBackend())
         open_door = Sage10kOpenDoor(self.main_entrance)
-        mpa = MoveAndPickUpAction(
+        mpa = MoveAndPickUpAction.from_standing_position(
             standing_position=Pose.from_xyz_rpy(
                 x=6.83,
                 y=5.38,
@@ -351,17 +351,17 @@ class Sage10kCraftsmanLobbyDemo(Sage10kAbstractDemoHSRB):
         )
         context = Context.from_world(self.world, query_backend=ProbabilisticBackend())
         open_door = Sage10kOpenDoor(self.main_entrance)
-        mpu = MoveAndPickUpAction(
+        mpu = MoveAndPickUpAction.from_standing_position(
             standing_position=self.pickup_navigation_pose,
             grasp=self.book_to_pick.grasp_poses()[0],
             arm=self.robot.get_arms()[0],
         )
-        mpp = MoveAndPlaceAction(
+        mpp = MoveAndPlaceAction.from_standing_position(
             standing_position=Pose.from_xyz_rpy(
                 x=5.48, y=6.96, reference_frame=self.world.root
             ),
             target_location=target_pose,
-            arm=self.robot.get_arms()[0],
+            object_designator=self.book_to_pick,
         )
 
         return sequential([open_door, mpu, mpp], context=context).plan
@@ -423,7 +423,7 @@ class Sage10kTropicalWarehouse(Sage10kAbstractDemoHSRB):
                 2.86, 5.89, reference_frame=self.world.root
             )
         )
-        mpu = MoveAndPickUpAction(
+        mpu = MoveAndPickUpAction.from_standing_position(
             standing_position=self.pickup_navigation_pose,
             grasp=self.target_to_pick.grasp_poses()[0],
             arm=self.robot.get_arms()[0],
@@ -485,7 +485,7 @@ class Sage10kVaporwave(Sage10kAbstractDemoHSRB):
     @property
     def plan(self) -> Plan:
         context = Context.from_world(self.world, query_backend=ProbabilisticBackend())
-        mpu = MoveAndPickUpAction(
+        mpu = MoveAndPickUpAction.from_standing_position(
             standing_position=self.pickup_navigation_pose,
             grasp=self.target_to_pick.grasp_poses()[0],
             arm=self.robot.get_arms()[0],
@@ -496,16 +496,22 @@ class Sage10kVaporwave(Sage10kAbstractDemoHSRB):
         place_target_pose = Pose.from_xyz_rpy(
             x=0.605, y=1.615, z=0.66, reference_frame=self.world.root
         )
-        mpp = MoveAndPlaceAction(
+        mpp = MoveAndPlaceAction.from_standing_position(
             standing_position=Pose.from_xyz_rpy(
                 x=0.605, y=2.115, yaw=-1.5708, reference_frame=self.world.root
             ),
             target_location=place_target_pose,
-            arm=self.robot.get_arms()[0],
+            object_designator=self.target_to_pick,
         )
 
         return sequential(
-            [open_door, park_arms, mpu, ParkArmsAction([self.robot.get_arms()[0]]), mpp],
+            [
+                open_door,
+                park_arms,
+                mpu,
+                ParkArmsAction([self.robot.get_arms()[0]]),
+                mpp,
+            ],
             context=context,
         ).plan
 
@@ -564,7 +570,7 @@ class Sage10kEclecticResidence(Sage10kAbstractDemoHSRB):
         navigate2 = NavigateAction(
             Pose.from_xyz_rpy(x=1.27, y=4.45, reference_frame=self.world.root)
         )
-        mpu = MoveAndPickUpAction(
+        mpu = MoveAndPickUpAction.from_standing_position(
             standing_position=self.pickup_navigation_pose,
             grasp=self.target_to_pick.grasp_poses()[0],
             arm=self.robot.get_arms()[0],
@@ -607,7 +613,7 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
                         x=0.81, y=4.81, reference_frame=self.world.root
                     )
                 ),
-                MoveAndPickUpAction(
+                MoveAndPickUpAction.from_standing_position(
                     grasp=self.object_of_interest.grasp_poses()[0],
                     standing_position=self.pickup_navigation_pose,
                     arm=arm,
@@ -618,9 +624,9 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
                         x=0.81, y=4.81, reference_frame=self.world.root
                     )
                 ),
-                MoveAndPlaceAction(
+                MoveAndPlaceAction.from_standing_position(
                     standing_position=self.place_navigation_pose,
-                    arm=arm,
+                    object_designator=self.object_of_interest,
                     target_location=self.place_pose,
                 ),
                 ParkArmsAction(self.robot.get_arms()),
@@ -724,15 +730,15 @@ class Sage10kBrutalistStoreDemo(Sage10kAbstractDemoHSRB):
                         x=12, y=8.13, reference_frame=self.world.root
                     )
                 ),
-                MoveAndPickUpAction(
+                MoveAndPickUpAction.from_standing_position(
                     grasp=self.object_of_interest.grasp_poses()[0],
                     standing_position=self.pickup_navigation_pose,
                     arm=arm,
                 ),
                 ParkArmsAction(self.robot.get_arms()),
-                MoveAndPlaceAction(
+                MoveAndPlaceAction.from_standing_position(
                     standing_position=self.place_navigation_pose,
-                    arm=arm,
+                    object_designator=self.object_of_interest,
                     target_location=self.place_pose,
                 ),
                 NavigateAction(
@@ -819,16 +825,16 @@ class Sage10kAmericanBuffetDemo(Sage10kAbstractDemoHSRB):
             [
                 open_door,
                 ParkArmsAction(self.robot.get_arms()),
-                MoveAndPickUpAction(
+                MoveAndPickUpAction.from_standing_position(
                     grasp=self.object_of_interest.grasp_poses()[0],
                     standing_position=self.pickup_navigation_pose,
                     arm=arm,
                 ),
                 ParkArmsAction(self.robot.get_arms()),
                 NavigateAction(target_location=navigate),
-                MoveAndPlaceAction(
+                MoveAndPlaceAction.from_standing_position(
                     standing_position=self.place_navigation_pose,
-                    arm=arm,
+                    object_designator=self.object_of_interest,
                     target_location=self.place_pose,
                 ),
             ],

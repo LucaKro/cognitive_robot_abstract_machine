@@ -215,7 +215,10 @@ def test_move_gripper_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
 
     plan = execute_single(
-        SetGripperAction(left_or_only_arm(context.robot).end_effector, GripperState.OPEN), context=context
+        SetGripperAction(
+            left_or_only_arm(context.robot).end_effector, GripperState.OPEN
+        ),
+        context=context,
     ).plan
 
     with simulated_robot:
@@ -229,7 +232,10 @@ def test_move_gripper_multi(immutable_stationary_block_world):
         assert connection.position == pytest.approx(target, abs=0.01)
 
     plan = execute_single(
-        SetGripperAction(left_or_only_arm(context.robot).end_effector, GripperState.CLOSE), context=context
+        SetGripperAction(
+            left_or_only_arm(context.robot).end_effector, GripperState.CLOSE
+        ),
+        context=context,
     ).plan
 
     with simulated_robot:
@@ -323,7 +329,6 @@ def test_place_multi(mutable_stationary_block_world, place_position):
             PlaceAction(
                 graspable_annotation(world, box_body),
                 Pose(place_position, reference_frame=world.root),
-                left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -372,7 +377,9 @@ def test_move_tcp_follows_sine_waypoints(
     waypoints = PoseTrajectory(_make_sine_scan_poses(target_pose, lane_axis="z"))
 
     plan = execute_single(
-        FollowToolCenterPointPathAction(target_locations=waypoints, arm=right_or_only_arm(context.robot)),
+        FollowToolCenterPointPathAction(
+            target_locations=waypoints, arm=right_or_only_arm(context.robot)
+        ),
         context=context,
     )
     with simulated_robot:

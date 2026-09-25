@@ -635,7 +635,6 @@ def test_motion_order_place(mutable_model_world):
             PlaceAction(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
-                context.robot.left_arm,
             ),
         ],
         context,

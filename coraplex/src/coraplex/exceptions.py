@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from coraplex.plans.designator import Designator
     from coraplex.robot_plans.actions.base import ActionDescription
     from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
+    from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
     from semantic_digital_twin.world_description.world_entity import (
         SemanticAnnotation,
     )
@@ -179,22 +180,22 @@ class ConditionNotSatisfied(PlanFailure):
 
 
 @dataclass
-class NothingToPlace(DataclassException):
+class ObjectIsNotHeld(DataclassException):
     """
-    Raised when a place is asked of an arm that neither holds an object nor follows a
-    pick-up that is going to give it one.
+    Raised when a place is asked for an object that no arm holds and no pick-up before
+    it is going to take.
     """
 
-    arm: Arm
+    object_designator: HasGraspPoses
     """
-    The arm that was to place something.
+    The object that was to be placed.
     """
 
     def error_message(self) -> str:
-        return f"{self.arm.name} holds nothing to place."
+        return f"no arm holds {self.object_designator.name} to place it."
 
     def suggest_correction(self) -> str:
-        return "place after a pick-up with the same arm."
+        return "place the object after a pick-up of it."
 
 
 @dataclass

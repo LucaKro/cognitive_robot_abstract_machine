@@ -426,7 +426,6 @@ def test_parse_pick_place(immutable_model_world):
             PlaceAction(
                 milk,
                 Pose(reference_frame=world.root),
-                context.robot.right_arm,
             ),
         ],
         context=context,

@@ -326,7 +326,9 @@ def test_move_gripper_motion_finger_velocity_adds_real_limit(immutable_model_wor
     world, view, context = immutable_model_world
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector, finger_velocity=0.03
+        motion=GripperState.CLOSE,
+        gripper=left_or_only_arm(context.robot).end_effector,
+        finger_velocity=0.03,
     )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, Parallel)
@@ -383,11 +385,15 @@ def test_move_gripper_motion_tolerate_stall_defaults_to_false(immutable_model_wo
     """
     world, view, context = immutable_model_world
 
-    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector)
+    close_motion = MoveGripperMotion(
+        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector
+    )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, JointPositionList)
 
-    open_motion = MoveGripperMotion(motion=GripperState.OPEN, gripper=left_or_only_arm(context.robot).end_effector)
+    open_motion = MoveGripperMotion(
+        motion=GripperState.OPEN, gripper=left_or_only_arm(context.robot).end_effector
+    )
     execute_single(open_motion, context=context)
     assert isinstance(open_motion.motion_chart, JointPositionList)
 
@@ -405,7 +411,9 @@ def test_move_gripper_motion_tolerate_stall_can_be_explicitly_enabled(
     world, view, context = immutable_model_world
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector, tolerate_stall=True
+        motion=GripperState.CLOSE,
+        gripper=left_or_only_arm(context.robot).end_effector,
+        tolerate_stall=True,
     )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, Parallel)
@@ -461,7 +469,11 @@ def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk.grasp_poses()[0], left_or_only_arm(context.robot), tolerate_grasp_stall=True)
+    pick_up = PickUpAction(
+        milk.grasp_poses()[0],
+        left_or_only_arm(context.robot),
+        tolerate_grasp_stall=True,
+    )
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).tolerate_stall is True
@@ -496,7 +508,7 @@ def test_place_action_velocity_fields_default_to_none(immutable_model_world):
     target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     place = PlaceAction(
-        world.get_semantic_annotations_by_type(Milk)[0], target_location, left_or_only_arm(context.robot)
+        world.get_semantic_annotations_by_type(Milk)[0], target_location
     )
 
     assert place.placing_linear_velocity is None
@@ -601,7 +613,9 @@ def test_move_gripper_motion_frees_the_fingers_it_closes(immutable_model_world):
     world, view, context = immutable_model_world
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector, allow_gripper_collision=True
+        motion=GripperState.CLOSE,
+        gripper=left_or_only_arm(context.robot).end_effector,
+        allow_gripper_collision=True,
     )
     execute_single(close_motion, context=context)
 
@@ -618,7 +632,9 @@ def test_move_gripper_motion_keeps_the_fingers_clear_by_default(immutable_model_
     """
     world, view, context = immutable_model_world
 
-    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector)
+    close_motion = MoveGripperMotion(
+        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector
+    )
     execute_single(close_motion, context=context)
 
     assert _collision_rule_nodes(close_motion.motion_chart) == []
@@ -631,7 +647,8 @@ def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_wor
     """
     world, view, context = immutable_model_world
     pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0], left_or_only_arm(context.robot)
+        world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
+        left_or_only_arm(context.robot),
     )
     sequential([pick_up], context=context)
 
@@ -657,7 +674,7 @@ def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
             milk.root, view.left_arm.end_effector.tool_frame
         )
 
-    place = PlaceAction(milk, target_location, left_or_only_arm(context.robot))
+    place = PlaceAction(milk, target_location)
     sequential([place], context=context)
     plan = place._action_plan.plan
 
@@ -883,7 +900,9 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    grasping = GraspingAction(GraspPose.from_body_origin(milk), left_or_only_arm(context.robot))
+    grasping = GraspingAction(
+        GraspPose.from_body_origin(milk), left_or_only_arm(context.robot)
+    )
     sequential([grasping], context=context)
 
     grasping.plan_node.notify()
