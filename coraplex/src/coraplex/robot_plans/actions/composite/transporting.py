@@ -13,7 +13,7 @@ from krrood.entity_query_language.factories import (
     variable,
 )
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ReachFraction
+from coraplex.datastructures.enums import ReachFraction
 from coraplex.exceptions import NothingToPlace
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.factories import sequential
@@ -25,11 +25,11 @@ from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.query.match import Match
 from krrood.patterns.field_metadata import JSONMetadata
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
@@ -84,7 +84,7 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
 
     @classmethod
     def from_grasp(
-        cls, grasp: GraspPose, target_location: Pose, arm: Arms, context: Context
+        cls, grasp: GraspPose, target_location: Pose, arm: Arm, context: Context
     ) -> Self:
         """
         A transport that takes an object by `grasp` to `target_location`, standing
@@ -97,14 +97,13 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
         :return: The transport, standing near the object to pick it up and near the
             target to place it.
         """
-        arm_view = ViewManager.get_arm_view(arm, context.robot)
         return cls(
             pick_up=a(MoveAndPickUpAction)(
                 standing_position=variable(
                     Pose,
                     domain=ReachabilityLocation(
                         Pose(reference_frame=grasp.graspable.root),
-                        arm_view,
+                        arm,
                         context=context,
                     ),
                 ),
@@ -114,9 +113,7 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
             place=a(MoveAndPlaceAction)(
                 standing_position=variable(
                     Pose,
-                    domain=ReachabilityLocation(
-                        target_location, arm_view, context=context
-                    ),
+                    domain=ReachabilityLocation(target_location, arm, context=context),
                 ),
                 target_location=target_location,
                 arm=arm,
@@ -128,12 +125,12 @@ class TransportAction(ActionDescription, BoundsItsCandidates):
         self._bound_candidates(self.pick_up, self.place)
         return sequential(
             [
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(self.robot.get_arms()),
                 self.pick_up,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(self.robot.get_arms()),
                 MoveTorsoAction(TorsoState.HIGH),
                 self.place,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(self.robot.get_arms()),
             ]
         )
 
@@ -160,11 +157,11 @@ class PickAndPlaceAction(ActionDescription, BoundsItsCandidates):
         self._bound_candidates(self.pick_up, self.place)
         return sequential(
             [
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(self.robot.get_arms()),
                 self.pick_up,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(self.robot.get_arms()),
                 self.place,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(self.robot.get_arms()),
             ]
         )
 
@@ -185,7 +182,7 @@ class MoveAndPlaceAction(ActionDescription):
     The location to place the object.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm that holds the object.
     """
@@ -214,7 +211,7 @@ class MoveAndPlaceAction(ActionDescription):
         :raises NothingToPlace: If the arm holds nothing and no pick-up precedes this
             step.
         """
-        held_body = ViewManager.get_end_effector_view(self.arm, self.robot).held_body
+        held_body = self.arm.end_effector.held_body
         if held_body is not None:
             return next(
                 annotation
@@ -250,7 +247,7 @@ class MoveAndPickUpAction(
     The grasp to take hold by, which also names the object to pick up.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm to use.
     """
@@ -308,7 +305,7 @@ class MoveAndPickUpAction(
                 Pose,
                 domain=ReachabilityLocation(
                     Pose(reference_frame=handle.root),
-                    ViewManager.get_arm_view(self.arm, self.robot),
+                    self.arm,
                     ReachFraction.ACCESSING,
                     context=self.context,
                 ),
@@ -336,7 +333,7 @@ class MoveAndOpenAction(ActionDescription):
     The handle of the container to open.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm to use.
     """

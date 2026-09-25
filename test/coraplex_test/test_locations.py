@@ -7,12 +7,10 @@ import pytest
 from typing_extensions import Iterator, List
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.locations.base import Location
 from coraplex.locations.costmaps import RingCostmap
 from coraplex.locations.sampling import CandidateDraw
 from coraplex.locations.locations import ReachabilityLocation, VisibilityLocation
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.api import RobotSpecification, WorldSpecification
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import ParsingError
@@ -169,7 +167,7 @@ def test_a_ring_from_the_arm_reach_distance_stands_off_by_the_reach_fraction(
     # approximate_length returns a symbolic scalar, and so does the distance derived
     # from it, which compares as unequal to a float under pytest.approx no matter the
     # tolerance.
-    arm = ViewManager.get_arm_view(Arms.RIGHT, robot)
+    arm = context.robot.right_arm
     expected_distance = float(arm.approximate_length()) * REACH_FRACTION
 
     ring = RingCostmap.from_arm_reach_distance(
@@ -212,7 +210,7 @@ def test_a_reachability_location_is_drawn_around_its_target(single_robot_world):
     )
 
     location = ReachabilityLocation(
-        target, ViewManager.get_arm_view(Arms.RIGHT, robot), context=context
+        target, context.robot.right_arm, context=context
     )
 
     np.testing.assert_allclose(
@@ -231,7 +229,7 @@ def test_a_reachability_location_takes_its_seed_from_the_context(single_robot_wo
 
     location = ReachabilityLocation(
         _box_in(world).root.global_pose,
-        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context.robot.right_arm,
         context=context,
     )
 
@@ -247,7 +245,7 @@ def test_a_reachability_location_draws_afresh_without_one(single_robot_world):
 
     location = ReachabilityLocation(
         _box_in(world).root.global_pose,
-        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context.robot.right_arm,
         context=context,
     )
 
@@ -267,7 +265,7 @@ def test_a_costmap_location_builds_its_costmap_only_when_drawn_from(
     world, robot, context = single_robot_world
     location = ReachabilityLocation(
         _box_in(world).root.global_pose,
-        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context.robot.right_arm,
         context=context,
     )
     built = []
@@ -294,7 +292,7 @@ def test_a_target_given_in_a_body_frame_follows_the_body(single_robot_world):
     box = _box_in(world).root
     location = ReachabilityLocation(
         Pose(reference_frame=box),
-        ViewManager.get_arm_view(Arms.RIGHT, robot),
+        context.robot.right_arm,
         context=context,
     )
     with world.modify_world():

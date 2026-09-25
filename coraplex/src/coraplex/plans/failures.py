@@ -9,8 +9,7 @@ from giskardpy.motion_statechart.exceptions import (
     NoProgressError,
 )
 from krrood.exceptions import DataclassException
-from coraplex.datastructures.enums import Arms
-from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -223,7 +222,7 @@ class BodyUnfetchable(PlanFailure):
     The body that cannot be fetched.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm from which the body cannot be fetched.
     """

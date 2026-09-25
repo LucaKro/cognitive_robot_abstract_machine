@@ -40,7 +40,6 @@ with robocasa_version_assertions_relaxed():
 
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.plans.failures import PlanFailure
@@ -374,11 +373,11 @@ def _spawn_robot_and_prepare_pick_up(
     apple_annotation = world.get_semantic_annotations_by_type(Apple)[0]
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(pr2.get_arms()),
             MoveTorsoAction(TorsoState.HIGH),
             PickUpAction(
                 apple_annotation.grasp_poses()[0],
-                Arms.RIGHT,
+                pr2.right_arm,
             ),
         ],
         context=context,

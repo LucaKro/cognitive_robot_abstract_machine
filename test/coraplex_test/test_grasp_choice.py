@@ -4,7 +4,6 @@ How a pick-up settles on the grasp it takes.
 
 import numpy as np
 
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose
@@ -34,7 +33,7 @@ def test_pick_up_takes_the_grasp_it_is_given(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     given = GraspPose(milk, Pose.from_xyz_rpy(yaw=np.pi / 3, reference_frame=milk.root))
 
-    pick_up = PickUpAction(given, Arms.LEFT)
+    pick_up = PickUpAction(given, context.robot.left_arm)
     sequential([pick_up], context=context)
 
     assert pick_up.grasp is given
@@ -49,7 +48,7 @@ def test_pick_up_reaches_for_the_grasp_it_settled_on(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     given = GraspPose(milk, Pose.from_xyz_rpy(yaw=np.pi / 3, reference_frame=milk.root))
 
-    pick_up = PickUpAction(given, Arms.LEFT)
+    pick_up = PickUpAction(given, context.robot.left_arm)
     sequential([pick_up], context=context)
 
     assert _reach_of(pick_up).grasp is given
@@ -68,7 +67,7 @@ def test_pick_up_keeps_its_grasp_even_when_it_cannot_be_reached(immutable_model_
         1.9, 1.4, 0
     )
 
-    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_poses()[0], context.robot.left_arm)
     sequential([pick_up], context=context)
 
     np.testing.assert_allclose(

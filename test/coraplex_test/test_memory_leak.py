@@ -5,7 +5,6 @@ import objgraph
 
 from coraplex.datastructures.dataclasses import Context
 
-from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
@@ -69,7 +68,7 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
     description = TransportAction.from_grasp(
         milk.grasp_poses()[0],
         Pose.from_xyz_quaternion(3.1, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root),
-        Arms.RIGHT,
+        copy_robot.right_arm,
         copy_context,
     )
     plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], copy_context)

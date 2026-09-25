@@ -10,7 +10,6 @@ from rclpy.executors import MultiThreadedExecutor
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    Arms,
     ExecutionType,
 )
 from coraplex.execution_environment import real_robot, ExecutionEnvironment
@@ -138,9 +137,10 @@ with world.modify_world():
     )
 
 # It is important to have the ros_node in the context for a real robot
+tracy = world.get_semantic_annotations_by_type(Tracy)[0]
 context = Context(
     world=world,
-    robot=world.get_semantic_annotations_by_type(Tracy)[0],
+    robot=tracy,
     ros_node=node,
     evaluate_conditions=False,
 )
@@ -148,26 +148,26 @@ context = Context(
 plan = sequential(
     [
         # Stack Box 2
-        ParkArmsAction(Arms.BOTH),
+        ParkArmsAction(tracy.get_arms()),
         PickUpAction(
             box2_annotation.grasp_poses()[0],
-            Arms.LEFT,
+            tracy.left_arm,
         ),
         PlaceAction(
             box2_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.02, yaw=0, reference_frame=world.root),
-            Arms.LEFT,
+            tracy.left_arm,
         ),
         # Stack Box 3
-        ParkArmsAction(Arms.BOTH),
+        ParkArmsAction(tracy.get_arms()),
         PickUpAction(
             box3_annotation.grasp_poses()[0],
-            Arms.RIGHT,
+            tracy.right_arm,
         ),
         PlaceAction(
             box3_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.12, yaw=0, reference_frame=world.root),
-            Arms.RIGHT,
+            tracy.right_arm,
         ),
     ],
     context=context,

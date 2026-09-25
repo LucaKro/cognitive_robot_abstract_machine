@@ -161,23 +161,13 @@ class VisualizationOption(StrEnum):
     """
 
 
-class Arms(IntEnum):
+class PouringSide(StrEnum):
     """
-    Enum for Arms.
+    The side of a target container, as the robot sees it, that is poured from.
     """
 
-    # LEFT = "left"
-    # RIGHT = "right"
-    # BOTH = "both"
-    LEFT = 0
-    RIGHT = 1
-    BOTH = 2
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
+    LEFT = "left"
+    RIGHT = "right"
 
 
 class JointType(Enum):

@@ -8,7 +8,7 @@ from typing_extensions import Callable, List, Type
 
 from krrood.entity_query_language.factories import a, variable
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ReachFraction
+from coraplex.datastructures.enums import ReachFraction
 from coraplex.exceptions import NothingToPlace
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.factories import sequential
@@ -25,12 +25,12 @@ from coraplex.robot_plans.actions.composite.transporting import (
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Drawer,
     Handle,
     Milk,
 )
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
@@ -60,12 +60,12 @@ def _pick_up_the_milk(world: World, context: Context) -> MoveAndPickUpAction:
             Pose,
             domain=ReachabilityLocation(
                 Pose(reference_frame=milk.root),
-                ViewManager.get_arm_view(Arms.RIGHT, context.robot),
+                context.robot.right_arm,
                 context=context,
             ),
         ),
         grasp=milk.grasp_poses()[0],
-        arm=Arms.RIGHT,
+        arm=context.robot.right_arm,
     )
 
 
@@ -78,12 +78,12 @@ def _place_at(target: Pose, context: Context) -> MoveAndPlaceAction:
             Pose,
             domain=ReachabilityLocation(
                 target,
-                ViewManager.get_arm_view(Arms.RIGHT, context.robot),
+                context.robot.right_arm,
                 context=context,
             ),
         ),
         target_location=target,
-        arm=Arms.RIGHT,
+        arm=context.robot.right_arm,
     )
 
 
@@ -140,7 +140,7 @@ def test_a_transport_from_a_grasp_stands_around_the_object_then_the_target(
     target = Pose.from_xyz_rpy(4.0, 1.5, 0.9, reference_frame=world.root)
 
     transport = TransportAction.from_grasp(
-        milk.grasp_poses()[0], target, Arms.RIGHT, context
+        milk.grasp_poses()[0], target, context.robot.right_arm, context
     )
 
     pick_up_location = transport.pick_up.kwargs["standing_position"]._domain_.domain
@@ -152,26 +152,27 @@ def test_a_transport_from_a_grasp_stands_around_the_object_then_the_target(
 # %% picking up and placing without moving
 
 
-def _pick_and_place_of_the_milk(world: World) -> PickAndPlaceAction:
+def _pick_and_place_of_the_milk(world: World, arm: Arm) -> PickAndPlaceAction:
     """
+    :param arm: The arm that picks the milk up and puts it down.
     :return: A pick-and-place of the milk that tries every grasp it offers.
     """
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     return PickAndPlaceAction(
         pick_up=a(PickUpAction)(
-            grasp=variable(GraspPose, domain=milk.grasp_poses()), arm=Arms.RIGHT
+            grasp=variable(GraspPose, domain=milk.grasp_poses()), arm=arm
         ),
         place=a(PlaceAction)(
             object_designator=milk,
             target_location=Pose(reference_frame=world.root),
-            arm=Arms.RIGHT,
+            arm=arm,
         ),
     )
 
 
 def test_a_pick_and_place_grounds_the_steps_it_is_given(mutable_model_world):
     world, robot, context = mutable_model_world
-    pick_and_place = _pick_and_place_of_the_milk(world)
+    pick_and_place = _pick_and_place_of_the_milk(world, robot.right_arm)
     sequential([pick_and_place], context)
 
     assert [
@@ -183,7 +184,7 @@ def test_a_pick_and_place_grounds_the_steps_it_is_given(mutable_model_world):
 
 def test_a_pick_and_place_tries_a_bounded_number_of_candidates(mutable_model_world):
     world, robot, context = mutable_model_world
-    pick_and_place = _pick_and_place_of_the_milk(world)
+    pick_and_place = _pick_and_place_of_the_milk(world, robot.right_arm)
     sequential([pick_and_place], context)
 
     limits = [
@@ -223,7 +224,7 @@ def _pick_up_near_a_drawer(world: World, context: Context) -> MoveAndPickUpActio
     move_and_pick_up = MoveAndPickUpAction(
         standing_position=Pose(reference_frame=world.root),
         grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
-        arm=Arms.RIGHT,
+        arm=context.robot.right_arm,
     )
     sequential([move_and_pick_up], context)
     return move_and_pick_up
@@ -278,7 +279,7 @@ def test_move_and_pick_up_takes_the_grasp_it_was_given(mutable_model_world):
     move_and_pick_up = MoveAndPickUpAction(
         standing_position=Pose(reference_frame=world.root),
         grasp=grasp,
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     )
     sequential([move_and_pick_up], context)
 
@@ -298,7 +299,7 @@ def test_move_and_pick_up_approaches_with_the_clearances_it_was_given(
     move_and_pick_up = MoveAndPickUpAction(
         standing_position=Pose(reference_frame=world.root),
         grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
         approach_clearance=0.07,
         retreat_distance=0.13,
     )
@@ -319,14 +320,14 @@ def test_move_and_pick_up_approaches_with_the_clearances_it_was_given(
 # %% placing what the arm holds
 
 
-def _hold_the_milk(world: World, arm: Arms, context: Context) -> Milk:
+def _hold_the_milk(world: World, arm: Arm) -> Milk:
     """
     Put the milk in the gripper of `arm`, as a pick-up does.
 
     :return: The milk.
     """
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    tool_frame = ViewManager.get_end_effector_view(arm, context.robot).tool_frame
+    tool_frame = arm.end_effector.tool_frame
     with world.modify_world():
         world.move_branch_with_fixed_connection(milk.root, tool_frame)
     return milk
@@ -345,11 +346,11 @@ def _placed_object(move_and_place: MoveAndPlaceAction):
 
 def test_a_move_and_place_places_what_the_arm_holds(mutable_model_world):
     world, robot, context = mutable_model_world
-    milk = _hold_the_milk(world, Arms.LEFT, context)
+    milk = _hold_the_milk(world, context.robot.left_arm)
     move_and_place = MoveAndPlaceAction(
         standing_position=Pose(reference_frame=world.root),
         target_location=Pose.from_xyz_rpy(4.0, 1.5, 0.9, reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     )
     sequential([move_and_place], context)
 
@@ -364,13 +365,13 @@ def test_a_move_and_place_places_a_held_body_that_has_several_annotations(
     them names the body to put down.
     """
     world, robot, context = mutable_model_world
-    milk = _hold_the_milk(world, Arms.LEFT, context)
+    milk = _hold_the_milk(world, context.robot.left_arm)
     with world.modify_world():
         world.add_semantic_annotation(HasGraspPoses(root=milk.root))
     move_and_place = MoveAndPlaceAction(
         standing_position=Pose(reference_frame=world.root),
         target_location=Pose.from_xyz_rpy(4.0, 1.5, 0.9, reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     )
     sequential([move_and_place], context)
 
@@ -389,14 +390,14 @@ def test_a_move_and_place_after_a_pick_up_places_what_it_picks_up(
     move_and_place = MoveAndPlaceAction(
         standing_position=Pose(reference_frame=world.root),
         target_location=Pose.from_xyz_rpy(4.0, 1.5, 0.9, reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     )
     sequential(
         [
             MoveAndPickUpAction(
                 standing_position=Pose(reference_frame=world.root),
                 grasp=milk.grasp_poses()[0],
-                arm=Arms.LEFT,
+                arm=context.robot.left_arm,
             ),
             move_and_place,
         ],
@@ -411,7 +412,7 @@ def test_a_move_and_place_with_nothing_to_place_is_refused(mutable_model_world):
     move_and_place = MoveAndPlaceAction(
         standing_position=Pose(reference_frame=world.root),
         target_location=Pose.from_xyz_rpy(4.0, 1.5, 0.9, reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     )
     sequential([move_and_place], context)
 
@@ -444,11 +445,11 @@ def _standing_pose(world: World) -> Pose:
 
 
 def _placing_the_held_milk(world: World, context: Context) -> MoveAndPlaceAction:
-    _hold_the_milk(world, Arms.LEFT, context)
+    _hold_the_milk(world, context.robot.left_arm)
     return MoveAndPlaceAction(
         standing_position=_standing_pose(world),
         target_location=Pose.from_xyz_rpy(4.0, 1.5, 0.9, reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     )
 
 
@@ -456,7 +457,7 @@ MOVE_AND_ACT_STEPS = {
     "pick up": lambda world, context: MoveAndPickUpAction(
         standing_position=_standing_pose(world),
         grasp=world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
-        arm=Arms.LEFT,
+        arm=context.robot.left_arm,
     ),
     "place": _placing_the_held_milk,
 }

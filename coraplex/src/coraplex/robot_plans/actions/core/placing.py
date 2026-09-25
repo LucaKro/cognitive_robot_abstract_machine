@@ -15,7 +15,6 @@ from krrood.entity_query_language.factories import (
     ConditionType,
 )
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -30,10 +29,10 @@ from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
 )
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_gripped
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
 
@@ -59,7 +58,7 @@ class PlaceAction(
     Pose in the world at which the object should be placed.
     """
 
-    arm: Arms
+    arm: Arm
     """
     Arm that is currently holding the object
     """
@@ -103,7 +102,7 @@ class PlaceAction(
 
         :return: The grasp on :attr:`object_designator`.
         """
-        end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
+        end_effector = self.arm.end_effector
         held = end_effector.grasp_on(self.object_designator.root)
         if held is not None:
             return GraspPose(self.object_designator, held)
@@ -119,7 +118,7 @@ class PlaceAction(
         grasp = self._grasp_on_the_held_object()
         transport_pose, placing_pose, retract_pose = self.grasp_pose_sequence(
             grasp.moved_to(self.target_location),
-            ViewManager.get_arm_view(self.arm, self.robot).end_effector,
+            self.arm.end_effector,
             grasp,
             reverse=True,
         )
@@ -144,7 +143,7 @@ class PlaceAction(
                 ),
                 MoveGripperMotion(
                     GripperState.OPEN,
-                    self.arm,
+                    self.arm.end_effector,
                     allow_gripper_collision=True,
                     finger_velocity=self.release_opening_velocity,
                 ),
@@ -160,9 +159,7 @@ class PlaceAction(
         """
         The object needs to be in the gripper frame.
         """
-        end_effector = ViewManager.get_end_effector_view(
-            variables["arm"], context.robot
-        )
+        end_effector = variables["arm"].end_effector
         return or_(
             not_(GripperIsFree(end_effector)),
             is_body_gripped(
@@ -180,9 +177,7 @@ class PlaceAction(
         The gripper must be free again and the object needs to be at the target
         location.
         """
-        end_effector = ViewManager.get_end_effector_view(
-            variables["arm"], context.robot
-        )
+        end_effector = variables["arm"].end_effector
         return and_(
             GripperIsFree(end_effector),
             not_(

@@ -32,7 +32,6 @@ import coraplex.orm.ormatic_interface  # type: ignore  # noqa: F401
 import krrood.entity_query_language.factories as eql
 from giskardpy.motion_statechart.data_types import LifeCycleValues
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import Base, PlanMappingDAO  # type: ignore
 from coraplex.plans.factories import sequential, try_in_order, code
@@ -216,7 +215,7 @@ def build_plan() -> Plan:
 
     root = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(pr2.get_arms()),
             MoveTorsoAction(TorsoState.HIGH),
             try_in_order(
                 [
@@ -228,7 +227,7 @@ def build_plan() -> Plan:
                         Pose.from_xyz_rpy(
                             4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                         ),
-                        Arms.LEFT,
+                        pr2.left_arm,
                         context,
                     ),
                 ],
@@ -237,13 +236,13 @@ def build_plan() -> Plan:
             TransportAction.from_grasp(
                 bowl_annotation.grasp_poses()[0],
                 Pose.from_xyz_rpy(5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
-                Arms.LEFT,
+                pr2.left_arm,
                 context,
             ),
             TransportAction.from_grasp(
                 spoon_annotation.grasp_poses()[0],
                 Pose.from_xyz_rpy(5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
-                Arms.LEFT,
+                pr2.left_arm,
                 context,
             ),
         ],

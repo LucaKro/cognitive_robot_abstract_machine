@@ -88,11 +88,10 @@ PR2 will be set to 0.2 since otherwise the arms of the robot will be too low to 
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import *
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
 with simulated_robot:
-    sequential([ParkArmsAction(Arms.BOTH),
+    sequential([ParkArmsAction(pr2_view.get_arms()),
                 MoveTorsoAction(TorsoState.HIGH)], context=context).perform()
 
 ```
@@ -101,12 +100,11 @@ with simulated_robot:
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.locations import ReachabilityLocation
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 location = ReachabilityLocation(
     Pose(reference_frame=world.get_body_by_name("milk.stl")),
-    ViewManager.get_arm_view(Arms.LEFT, context.robot),
+    pr2_view.left_arm,
     context=context,
 )
 
@@ -188,7 +186,7 @@ with world.modify_world():
 
 location = ReachabilityLocation(
     Pose(reference_frame=drawer.handle.root),
-    ViewManager.get_arm_view(Arms.LEFT, context.robot),
+    pr2_view.left_arm,
     ReachFraction.ACCESSING,
     context=context,
 )

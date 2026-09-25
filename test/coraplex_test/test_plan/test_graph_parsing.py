@@ -5,11 +5,9 @@ import pytest
 from typing_extensions import List
 
 from coraplex.datastructures.enums import (
-    Arms,
     DetectionTechnique,
 )
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.perception import PerceptionQuery
 from coraplex.plans.executables import (
     Executable,
@@ -47,7 +45,6 @@ from giskardpy.motion_statechart.monitors.templates import (
     PausedUntilTrue,
     PausedWhileTrue,
 )
-from coraplex.utils import split_list_by_type
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import (
     Parallel,
@@ -312,7 +309,7 @@ def test_merge_motions(immutable_model_world, rclpy_node):
             grasp=GraspPose.from_body_origin(
                 world.get_semantic_annotations_by_type(Milk)[0]
             ),
-            arm=Arms.RIGHT,
+            arm=context.robot.right_arm,
         ),
         context=context,
     )
@@ -335,7 +332,7 @@ def test_parse_pick_up(immutable_model_world):
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan = execute_single(
-        PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
+        PickUpAction(milk.grasp_poses()[0], context.robot.right_arm),
         context=context,
     )
 
@@ -361,7 +358,7 @@ def test_parse_pick_up_merges_motions_around_model_change(immutable_model_world)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan = execute_single(
-        PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
+        PickUpAction(milk.grasp_poses()[0], context.robot.right_arm),
         context=context,
     )
 
@@ -379,12 +376,12 @@ def test_parse_complex_plan(immutable_model_world):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             ReachAction(
                 grasp=GraspPose.from_body_origin(
                     world.get_semantic_annotations_by_type(Milk)[0]
                 ),
-                arm=Arms.LEFT,
+                arm=context.robot.left_arm,
             ),
         ],
         context=context,
@@ -401,12 +398,12 @@ def test_parsing_two_actions_into_one_exec(immutable_model_world):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             ReachAction(
                 grasp=GraspPose.from_body_origin(
                     world.get_semantic_annotations_by_type(Milk)[0]
                 ),
-                arm=Arms.LEFT,
+                arm=context.robot.left_arm,
             ),
         ],
         context=context,
@@ -425,11 +422,11 @@ def test_parse_pick_place(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan = sequential(
         [
-            PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
+            PickUpAction(milk.grasp_poses()[0], context.robot.right_arm),
             PlaceAction(
                 milk,
                 Pose(reference_frame=world.root),
-                Arms.RIGHT,
+                context.robot.right_arm,
             ),
         ],
         context=context,
@@ -452,11 +449,11 @@ def test_parse_transport_plan(mutable_model_world, rclpy_node):
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             TransportAction.from_grasp(
                 world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
                 Pose.from_xyz_rpy(2.37, 2.5, 1.05, reference_frame=world.root),
-                Arms.RIGHT,
+                context.robot.right_arm,
                 context,
             ),
         ],
@@ -498,10 +495,16 @@ def test_execution_boundary_splits_the_merged_motion_chart(immutable_model_world
 
     plan = sequential(
         [
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.RIGHT),
+            MoveToolCenterPointMotion(
+                Pose(reference_frame=world.root), context.robot.left_arm
+            ),
+            MoveToolCenterPointMotion(
+                Pose(reference_frame=world.root), context.robot.right_arm
+            ),
             BoundaryNode(),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
+            MoveToolCenterPointMotion(
+                Pose(reference_frame=world.root), context.robot.left_arm
+            ),
         ],
         context=context,
     )
@@ -544,9 +547,13 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
 
     plan = sequential(
         [
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
+            MoveToolCenterPointMotion(
+                Pose(reference_frame=world.root), context.robot.left_arm
+            ),
             DetectingMotion(query=query),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.RIGHT),
+            MoveToolCenterPointMotion(
+                Pose(reference_frame=world.root), context.robot.right_arm
+            ),
         ],
         context=context,
     )
@@ -608,7 +615,7 @@ def reach_action(milk: Milk, view, **kwargs) -> ReachAction:
     """
     return ReachAction(
         grasp=GraspPose.from_body_origin(milk),
-        arm=Arms.RIGHT,
+        arm=view.right_arm,
         **kwargs,
     )
 
@@ -657,7 +664,7 @@ def test_a_pick_up_passes_perceiving_on_to_its_reach(immutable_model_world):
     plan = execute_single(
         PickUpAction(
             milk.grasp_poses()[0],
-            Arms.RIGHT,
+            context.robot.right_arm,
             perceive_before_grasp=True,
         ),
         context=context,
@@ -686,7 +693,7 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
     plan = execute_single(
         PickUpAction(
             milk.grasp_poses()[0],
-            Arms.RIGHT,
+            context.robot.right_arm,
         ),
         context=context,
     )
@@ -716,81 +723,3 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
             position_before + displacement,
             atol=1e-9,
         )
-
-
-# %% splitting helper
-
-
-def test_split_by_type(immutable_model_world):
-    world, view, context = immutable_model_world
-
-    split_list = [
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        ReAttachNode(body=world.get_body_by_name("milk.stl"), new_parent=world.root),
-        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
-    ]
-
-    splitted_list = split_list_by_type(split_list, ReAttachNode)
-
-    assert len(splitted_list) == 3
-    assert len(splitted_list[0]) == 1
-    assert len(splitted_list[1]) == 1
-    assert len(splitted_list[2]) == 1
-
-
-def test_split_by_type_empty_list():
-    assert split_list_by_type([], ReAttachNode) == []
-
-
-def test_split_by_type_without_match_stays_one_group():
-    no_model_change = [
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
-    ]
-
-    splitted_list = split_list_by_type(no_model_change, ReAttachNode)
-
-    assert len(splitted_list) == 1
-    assert splitted_list[0] == no_model_change
-
-
-def test_split_by_type_groups_consecutive_elements(immutable_model_world):
-    world, view, context = immutable_model_world
-    model_change = ReAttachNode(
-        body=world.get_body_by_name("milk.stl"), new_parent=world.root
-    )
-
-    split_list = [
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
-        model_change,
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-    ]
-
-    splitted_list = split_list_by_type(split_list, ReAttachNode)
-
-    assert [len(group) for group in splitted_list] == [2, 1, 1]
-    assert splitted_list[1] == [model_change]
-    assert all(not isinstance(element, ReAttachNode) for element in splitted_list[0])
-
-
-def test_split_by_type_leading_and_trailing_match(immutable_model_world):
-    world, view, context = immutable_model_world
-    first_model_change = ReAttachNode(
-        body=world.get_body_by_name("milk.stl"), new_parent=world.root
-    )
-    last_model_change = ReAttachNode(
-        body=world.get_body_by_name("milk.stl"), new_parent=world.root
-    )
-
-    split_list = [
-        first_model_change,
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        last_model_change,
-    ]
-
-    splitted_list = split_list_by_type(split_list, ReAttachNode)
-
-    assert [len(group) for group in splitted_list] == [1, 1, 1]
-    assert splitted_list[0] == [first_model_change]
-    assert splitted_list[2] == [last_model_change]

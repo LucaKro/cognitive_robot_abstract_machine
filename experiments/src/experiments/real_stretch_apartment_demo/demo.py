@@ -34,7 +34,6 @@ import numpy as np
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    Arms,
     DetectionTechnique,
     ExecutionType,
 )
@@ -49,7 +48,6 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
-from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import a
 from semantic_digital_twin.api import (
     BodySpecification,
@@ -170,8 +168,8 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
         plan = sequential(
             [
-                ParkArmsAction(Arms.BOTH),
-                SetGripperAction(Arms.BOTH, motion=GripperState.CLOSE),
+                ParkArmsAction(context.robot.get_arms()),
+                SetGripperAction(context.robot.get_arms()[0].end_effector, motion=GripperState.CLOSE),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         1.2, 1.2, 0, yaw=np.pi, reference_frame=world.root
@@ -191,9 +189,9 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     accept_first_if_multiple=True,
                 ),
                 PickUpAction(
-                    cereal.grasp_poses()[0], Arms.LEFT, perceive_before_grasp=True
+                    cereal.grasp_poses()[0], context.robot.get_arms()[0], perceive_before_grasp=True
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(context.robot.get_arms()),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         0.8, 0, 0, yaw=np.pi, reference_frame=bedside_table_body
@@ -207,10 +205,10 @@ class StretchApartmentDemonstration(RobotDemonstration):
                         yaw=np.pi,
                         reference_frame=bedside_table_body,
                     ),
-                    arm=Arms.LEFT,
+                    arm=context.robot.get_arms()[0],
                 ),
-                ParkArmsAction(Arms.BOTH),
-                SetGripperAction(Arms.BOTH, motion=GripperState.CLOSE),
+                ParkArmsAction(context.robot.get_arms()),
+                SetGripperAction(context.robot.get_arms()[0].end_effector, motion=GripperState.CLOSE),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         1.2, 1.2, 0, yaw=np.pi, reference_frame=world.root
@@ -231,10 +229,10 @@ class StretchApartmentDemonstration(RobotDemonstration):
                 ),
                 a(PickUpAction)(
                     grasp=cereal.grasp_poses()[0],
-                    arm=Arms.LEFT,
+                    arm=context.robot.get_arms()[0],
                     perceive_before_grasp=True,
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(context.robot.get_arms()),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         0.8, 0.6, 0, yaw=-np.pi / 2, reference_frame=world.root
@@ -243,10 +241,10 @@ class StretchApartmentDemonstration(RobotDemonstration):
                 a(PlaceAction)(
                     object_designator=cereal,
                     target_location=CEREAL_SHELF_LAYER_T_CEREAL.to_pose(),
-                    arm=Arms.LEFT,
+                    arm=context.robot.get_arms()[0],
                 ),
-                ParkArmsAction(Arms.BOTH),
-                SetGripperAction(Arms.BOTH, motion=GripperState.CLOSE),
+                ParkArmsAction(context.robot.get_arms()),
+                SetGripperAction(context.robot.get_arms()[0].end_effector, motion=GripperState.CLOSE),
             ],
             context=context,
         )

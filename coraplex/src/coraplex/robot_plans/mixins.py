@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 import numpy as np
 from typing_extensions import List, Optional
 
-from coraplex.utils import translate_pose_along_local_axis
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -310,10 +309,11 @@ class HasApproachesGraspPoses:
         :return: The pre-grasp pose, the grasp pose and the retreat pose.
         """
         tool_goal = end_effector.tool_frame_goal(reference_T_grasp)
-        pre_grasp_pose = translate_pose_along_local_axis(
-            tool_goal,
-            end_effector.approach_axis.to_np()[:3].astype(float),
-            -self._approach_distance(grasp),
+        grasp_T_pre_grasp = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=-self._approach_distance(grasp)
+        )
+        pre_grasp_pose = end_effector.tool_frame_goal(
+            (reference_T_grasp.to_homogeneous_matrix() @ grasp_T_pre_grasp).to_pose()
         )
         sequence = [
             pre_grasp_pose,

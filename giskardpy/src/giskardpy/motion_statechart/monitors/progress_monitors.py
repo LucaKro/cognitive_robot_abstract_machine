@@ -138,7 +138,6 @@ class NotApproachingGoal(MotionStatechartNode):
             return ObservationStateValues.TRUE
         error = self._current_error()
         if self._lowest_error is None:
-            # Progress cannot be judged from a single measurement, so assume it moves.
             self._reach_lowest_error(error)
             return ObservationStateValues.FALSE
         self._seconds_since_lowest_error += self._control_dt

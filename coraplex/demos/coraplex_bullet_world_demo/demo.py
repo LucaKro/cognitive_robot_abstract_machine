@@ -18,7 +18,7 @@ from enum import StrEnum
 from typing_extensions import List, Optional, Tuple, Type
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ExecutionType
+from coraplex.datastructures.enums import ExecutionType
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
@@ -28,7 +28,6 @@ from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPlaceAction,
     TransportAction,
 )
-from coraplex.view_manager import ViewManager
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from krrood.entity_query_language.factories import (
     a,
@@ -492,15 +491,15 @@ class BulletWorldDemonstration(RobotDemonstration):
         world = context.world
         bowl = self.bowl.annotation_in(world)
         bowl_target = self.bowl.target_location(world)
-        left_arm = ViewManager.get_arm_view(Arms.LEFT, context.robot)
+        left_arm = context.robot.left_arm
         return sequential(
             [
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(context.robot.get_arms()),
                 MoveTorsoAction(TorsoState.HIGH),
                 TransportAction.from_grasp(
                     self.milk.annotation_in(world).grasp_poses()[0],
                     self.milk.target_location(world),
-                    Arms.LEFT,
+                    left_arm,
                     context,
                 ),
                 TransportAction(
@@ -514,7 +513,7 @@ class BulletWorldDemonstration(RobotDemonstration):
                             ),
                         ),
                         grasp=variable(GraspPose, domain=bowl.grasp_poses()),
-                        arm=Arms.LEFT,
+                        arm=left_arm,
                     ),
                     place=a(MoveAndPlaceAction)(
                         standing_position=variable(
@@ -524,13 +523,13 @@ class BulletWorldDemonstration(RobotDemonstration):
                             ),
                         ),
                         target_location=bowl_target,
-                        arm=Arms.LEFT,
+                        arm=left_arm,
                     ),
                 ),
                 TransportAction.from_grasp(
                     self.spoon.annotation_in(world).grasp_poses()[0],
                     self.spoon.target_location(world),
-                    Arms.LEFT,
+                    left_arm,
                     context,
                 ),
             ],

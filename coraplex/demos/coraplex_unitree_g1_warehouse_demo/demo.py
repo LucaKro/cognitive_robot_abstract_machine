@@ -11,7 +11,6 @@ from __future__ import annotations
 import numpy as np
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan import Plan
@@ -21,7 +20,6 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.testing import start_visualization
-from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import an, entity, variable
 from semantic_digital_twin.api import (
     BodySpecification,
@@ -153,10 +151,10 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
     return sequential(
         [
             # %% bring to place pose
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(robot.get_arms()),
             NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PickUpAction(grasp, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            PickUpAction(grasp, robot.torso.left_arm),
+            ParkArmsAction(robot.get_arms()),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections
@@ -165,8 +163,8 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
             ),
             NavigateAction(Pose.from_xyz_rpy(yaw=-1.57, reference_frame=robot.root)),
             NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PlaceAction(parcel_annotation, place_pose, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            PlaceAction(parcel_annotation, place_pose, robot.torso.left_arm),
+            ParkArmsAction(robot.get_arms()),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections
@@ -202,10 +200,10 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
     return sequential(
         [
             # %% bring to place pose
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(robot.get_arms()),
             NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PickUpAction(grasp, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            PickUpAction(grasp, robot.torso.left_arm),
+            ParkArmsAction(robot.get_arms()),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections
@@ -214,8 +212,8 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
             ),
             NavigateAction(Pose.from_xyz_rpy(yaw=1.57, reference_frame=robot.root)),
             NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PlaceAction(parcel_annotation, pick_pose, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            PlaceAction(parcel_annotation, pick_pose, robot.torso.left_arm),
+            ParkArmsAction(robot.get_arms()),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections

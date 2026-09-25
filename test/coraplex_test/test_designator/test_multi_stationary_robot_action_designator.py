@@ -6,7 +6,6 @@ from rustworkx import NoEdgeBetweenNodes
 
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 
@@ -24,7 +23,6 @@ from coraplex.robot_plans.actions.core.robot_body import (
     FollowToolCenterPointPathAction,
 )
 from coraplex.testing import _make_sine_scan_poses
-from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import an, entity, variable
 
 from semantic_digital_twin.datastructures.definitions import (
@@ -44,6 +42,7 @@ from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
 
 from ...conftest import SAMPLING_SEED
+from ..conftest import left_or_only_arm, right_or_only_arm
 
 
 @pytest.fixture(
@@ -154,7 +153,7 @@ def mutable_stationary_block_world(robot_setup):
 def test_park_arms_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
 
-    description = ParkArmsAction(Arms.BOTH)
+    description = ParkArmsAction(context.robot.get_arms())
     plan = execute_single(description, context=context).plan
     with simulated_robot:
         plan.perform()
@@ -177,7 +176,7 @@ def test_park_arms_multi(immutable_stationary_block_world):
 
 def test_reach_action_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+    left_arm = left_or_only_arm(context.robot)
 
     box_body = world.get_body_by_name("box1")
     box = graspable_annotation(world, box_body)
@@ -186,10 +185,10 @@ def test_reach_action_multi(immutable_stationary_block_world):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             ReachAction(
                 grasp=GraspPose(box, grasp_pose),
-                arm=Arms.LEFT,
+                arm=left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -216,7 +215,7 @@ def test_move_gripper_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
 
     plan = execute_single(
-        SetGripperAction(Arms.LEFT, GripperState.OPEN), context=context
+        SetGripperAction(left_or_only_arm(context.robot).end_effector, GripperState.OPEN), context=context
     ).plan
 
     with simulated_robot:
@@ -230,7 +229,7 @@ def test_move_gripper_multi(immutable_stationary_block_world):
         assert connection.position == pytest.approx(target, abs=0.01)
 
     plan = execute_single(
-        SetGripperAction(Arms.LEFT, GripperState.CLOSE), context=context
+        SetGripperAction(left_or_only_arm(context.robot).end_effector, GripperState.CLOSE), context=context
     ).plan
 
     with simulated_robot:
@@ -242,7 +241,7 @@ def test_move_gripper_multi(immutable_stationary_block_world):
 
 def test_grasping(immutable_stationary_block_world):
     world, robot_view, context = immutable_stationary_block_world
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, robot_view)
+    left_arm = left_or_only_arm(context.robot)
 
     box_body = world.get_body_by_name("box1")
     description = GraspingAction(
@@ -250,10 +249,10 @@ def test_grasping(immutable_stationary_block_world):
             graspable_annotation(world, box_body),
             Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body),
         ),
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
     )
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), description],
+        [ParkArmsAction(context.robot.get_arms()), description],
         context=context,
     ).plan
     with simulated_robot:
@@ -270,14 +269,14 @@ def test_grasping(immutable_stationary_block_world):
 def test_pick_up_multi(mutable_stationary_block_world):
     world, view, context = mutable_stationary_block_world
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+    left_arm = left_or_only_arm(context.robot)
     box_body = world.get_body_by_name("box1")
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             PickUpAction(
                 graspable_annotation(world, box_body).grasp_poses()[0],
-                Arms.LEFT,
+                left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -311,20 +310,20 @@ def place_position(robot_setup) -> Point3:
 def test_place_multi(mutable_stationary_block_world, place_position):
     world, view, context = mutable_stationary_block_world
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+    left_arm = left_or_only_arm(context.robot)
     box_body = world.get_body_by_name("box1")
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             PickUpAction(
                 graspable_annotation(world, box_body).grasp_poses()[0],
-                Arms.LEFT,
+                left_or_only_arm(context.robot),
             ),
             PlaceAction(
                 graspable_annotation(world, box_body),
                 Pose(place_position, reference_frame=world.root),
-                Arms.LEFT,
+                left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -360,7 +359,7 @@ def test_move_tcp_follows_sine_waypoints(
     immutable_stationary_block_world, anchor_position
 ):
     world, view, context = immutable_stationary_block_world
-    right_arm = ViewManager.get_arm_view(Arms.RIGHT, view)
+    right_arm = right_or_only_arm(context.robot)
     anchor = Pose(anchor_position, reference_frame=world.root)
     anchor_T = anchor.to_homogeneous_matrix()
     offset_T = HomogeneousTransformationMatrix.from_xyz_axis_angle(
@@ -373,7 +372,7 @@ def test_move_tcp_follows_sine_waypoints(
     waypoints = PoseTrajectory(_make_sine_scan_poses(target_pose, lane_axis="z"))
 
     plan = execute_single(
-        FollowToolCenterPointPathAction(target_locations=waypoints, arm=Arms.RIGHT),
+        FollowToolCenterPointPathAction(target_locations=waypoints, arm=right_or_only_arm(context.robot)),
         context=context,
     )
     with simulated_robot:

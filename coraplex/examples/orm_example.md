@@ -42,7 +42,6 @@ Next, we will write a simple plan where the robot parks its arms, moves somewher
 from coraplex.robot_plans import *
 from coraplex.execution_environment import simulated_robot
 from coraplex.robot_plans.actions.composite.transporting import TransportAction, MoveTorsoAction
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import *
 from coraplex.testing import setup_world
 from semantic_digital_twin.robots.pr2 import PR2, TorsoState
@@ -58,7 +57,7 @@ context = Context(world, pr2_view, sampling_seed=0)
 description = TransportAction.from_grasp(
     world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
     Pose.from_xyz_quaternion(2.4, 3, 1.05, 0.0, 0.0, 0.0, 1.0, reference_frame=world.root),
-    Arms.LEFT,
+    pr2_view.left_arm,
     context,
 )
 plan = sequential([MoveTorsoAction(TorsoState.HIGH),

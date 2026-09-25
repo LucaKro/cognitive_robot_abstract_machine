@@ -5,7 +5,6 @@ from sqlalchemy import select
 import coraplex.alternative_motion_mappings.stretch_motion_mapping  # type: ignore
 import coraplex.alternative_motion_mappings.tiago_motion_mapping  # type: ignore
 from krrood.ormatic.data_access_objects.helper import to_dao
-from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.plans.factories import sequential, execute_single
@@ -30,7 +29,7 @@ def simple_plan(immutable_model_world):
                 ),
             ),
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
         ],
         context=context,
     ).plan
@@ -94,7 +93,7 @@ def complex_plan(mutable_model_world):
             Pose.from_xyz_quaternion(
                 2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root
             ),
-            Arms.LEFT,
+            context.robot.left_arm,
             context,
         ),
         context=context,

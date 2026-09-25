@@ -10,9 +10,6 @@ from krrood.rustworkx_utils.graph_visualizer_base import (
 )
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import (
-    Arms,
-)
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import *  # type: ignore
@@ -511,7 +508,7 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
 
     pick_up_description = a(PickUpAction)(
         grasp=grasp_variable,
-        arm=...,
+        arm=variable_from(context.robot.get_arms()),
         approach_clearance=0.05,
     )
 
@@ -582,7 +579,7 @@ def test_motion_order_pick_up(mutable_model_world):
 
     root = sequential(
         [
-            PickUpAction(milk.grasp_poses()[0], Arms.LEFT),
+            PickUpAction(milk.grasp_poses()[0], context.robot.left_arm),
         ],
         context,
     )
@@ -638,7 +635,7 @@ def test_motion_order_place(mutable_model_world):
             PlaceAction(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
-                Arms.LEFT,
+                context.robot.left_arm,
             ),
         ],
         context,
@@ -672,7 +669,7 @@ def test_node_expansion(immutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
-        [PickUpAction(grasp=milk.grasp_poses()[0], arm=Arms.RIGHT)],
+        [PickUpAction(grasp=milk.grasp_poses()[0], arm=context.robot.right_arm)],
         context=context,
     )
 
@@ -708,7 +705,7 @@ def test_context_back_reference(immutable_model_world):
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
+            PickUpAction(milk.grasp_poses()[0], context.robot.right_arm),
         ],
         context=context,
     )
@@ -724,8 +721,8 @@ def test_action_nodes_unequal(immutable_model_world):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.LEFT),
-            PickUpAction(milk.grasp_poses()[0], Arms.LEFT),
+            ParkArmsAction([context.robot.left_arm]),
+            PickUpAction(milk.grasp_poses()[0], context.robot.left_arm),
         ],
         context=context,
     )

@@ -9,10 +9,10 @@ from krrood.entity_query_language.backends import (
     EntityQueryLanguageGenerativeBackend,
     ProbabilisticBackend,
 )
-from krrood.entity_query_language.factories import a, an, variable_from
+from krrood.entity_query_language.factories import a, an, variable, variable_from
 from giskardpy.motion_statechart.data_types import LifeCycleValues
 
-from coraplex.datastructures.enums import ActionTrialVisualization, Arms
+from coraplex.datastructures.enums import ActionTrialVisualization
 
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from coraplex.language import SequentialNode
@@ -25,7 +25,7 @@ from coraplex.plans.underspecified import ActionTrial
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
@@ -254,12 +254,17 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
                     )
                 ),
             ),
-            a(PickUpAction)(arm=..., grasp=milk.grasp_poses()[0]),
+            a(PickUpAction)(
+                arm=variable(Arm, domain=context.robot.get_arms()),
+                grasp=milk.grasp_poses()[0],
+            ),
         ],
         context=context,
     )
     plans = list(EntityQueryLanguageGenerativeBackend().evaluate(plan_generator))
-    assert len(plans) == len(list(target_locations._domain_)) * len(list(Arms))
+    assert len(plans) == len(list(target_locations._domain_)) * len(
+        context.robot.get_arms()
+    )
 
 
 # %% candidate trials

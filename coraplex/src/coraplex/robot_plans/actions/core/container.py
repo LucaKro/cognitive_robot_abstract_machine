@@ -13,7 +13,6 @@ from krrood.entity_query_language.factories import (
     ConditionType,
 )
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.querying.predicates import GripperIsFree
@@ -22,11 +21,11 @@ from coraplex.robot_plans.actions.core.pick_up import GraspingAction
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.robot_plans.motions.container import OpeningMotion, ClosingMotion
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
@@ -46,7 +45,7 @@ class OpenAction(ActionDescription):
     """
     The handle of the container that should be opened.
     """
-    arm: Arms
+    arm: Arm
     """
     Arm that should be used for opening the container.
     """
@@ -67,7 +66,9 @@ class OpenAction(ActionDescription):
                 ),
                 OpeningMotion(self.handle.root, self.arm),
                 MoveGripperMotion(
-                    GripperState.OPEN, self.arm, allow_gripper_collision=True
+                    GripperState.OPEN,
+                    self.arm.end_effector,
+                    allow_gripper_collision=True,
                 ),
             ]
         )
@@ -79,9 +80,7 @@ class OpenAction(ActionDescription):
         """
         The gripper with which to open the container has to be free.
         """
-        return GripperIsFree(
-            ViewManager.get_end_effector_view(variables["arm"], context.robot)
-        )
+        return GripperIsFree(variables["arm"].end_effector)
 
     @staticmethod
     def post_condition(
@@ -91,7 +90,7 @@ class OpenAction(ActionDescription):
         The handle has to be in the gripper of the robot and the container has to be
         open.
         """
-        end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
+        end_effector = kwargs["arm"].end_effector
         handle_body = kwargs["handle"].root
         parent_connection = handle_body.get_first_parent_connection_of_type(
             ActiveConnection1DOF
@@ -120,7 +119,7 @@ class CloseAction(ActionDescription):
     The handle of the container that should be closed.
     """
 
-    arm: Arms
+    arm: Arm
     """
     Arm that should be used for closing.
     """
@@ -141,7 +140,9 @@ class CloseAction(ActionDescription):
                 ),
                 ClosingMotion(self.handle.root, self.arm),
                 MoveGripperMotion(
-                    GripperState.OPEN, self.arm, allow_gripper_collision=True
+                    GripperState.OPEN,
+                    self.arm.end_effector,
+                    allow_gripper_collision=True,
                 ),
             ]
         )

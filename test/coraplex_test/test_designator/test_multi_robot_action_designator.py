@@ -16,7 +16,6 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveSim
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    Arms,
     AxisIdentifier,
     DetectionTechnique,
 )
@@ -49,7 +48,6 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     FollowToolCenterPointPathAction,
 )
-from coraplex.view_manager import ViewManager
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
@@ -62,6 +60,7 @@ from semantic_digital_twin.datastructures.definitions import (
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
+from ..conftest import left_or_only_arm, right_or_only_arm
 
 try:
     from semantic_digital_twin.robots.garmi import Garmi
@@ -349,7 +348,7 @@ def test_navigate_multi(immutable_multiple_robot_apartment, rclpy_node):
 def test_move_gripper_multi(immutable_multiple_robot_apartment):
     world, view, context = immutable_multiple_robot_apartment
 
-    plan = execute_single(SetGripperAction(Arms.LEFT, GripperState.OPEN), context)
+    plan = execute_single(SetGripperAction(left_or_only_arm(context.robot).end_effector, GripperState.OPEN), context)
 
     with simulated_robot:
         plan.perform()
@@ -361,7 +360,7 @@ def test_move_gripper_multi(immutable_multiple_robot_apartment):
     for connection, target in open_state.items():
         assert connection.position == pytest.approx(target, abs=0.02)
 
-    plan = execute_single(SetGripperAction(Arms.LEFT, GripperState.CLOSE), context)
+    plan = execute_single(SetGripperAction(left_or_only_arm(context.robot).end_effector, GripperState.CLOSE), context)
 
     with simulated_robot:
         plan.perform()
@@ -372,9 +371,9 @@ def test_move_gripper_multi(immutable_multiple_robot_apartment):
 
 def test_park_arms_multi(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
-    description = ParkArmsAction(Arms.BOTH)
+    description = ParkArmsAction(context.robot.get_arms())
     plan = execute_single(description, context)
-    assert description.arm == Arms.BOTH
+    assert description.arms == context.robot.get_arms()
     with simulated_robot:
         plan.perform()
 
@@ -397,7 +396,7 @@ def test_park_arms_multi(immutable_multiple_robot_apartment):
 def test_reach_action_multi(immutable_multiple_robot_apartment):
     world, view, context = immutable_multiple_robot_apartment
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+    left_arm = left_or_only_arm(context.robot)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     grasp_pose = Pose(reference_frame=milk.root)
@@ -412,10 +411,10 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             ReachAction(
                 grasp=GraspPose(milk, grasp_pose),
-                arm=Arms.LEFT,
+                arm=left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -461,7 +460,7 @@ def test_follow_tcp_path_multi(immutable_multiple_robot_apartment):
         )
         world.notify_state_change()
     # robot.full_body_controlled = True
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, robot)
+    left_arm = left_or_only_arm(context.robot)
     front_axis = tuple(int(v) for v in left_arm.end_effector.approach_axis.to_np()[:3])
     grasp_axis = AxisIdentifier.from_tuple(front_axis)
 
@@ -483,8 +482,8 @@ def test_follow_tcp_path_multi(immutable_multiple_robot_apartment):
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
-            FollowToolCenterPointPathAction(arm=Arms.LEFT, target_locations=waypoints),
+            ParkArmsAction(context.robot.get_arms()),
+            FollowToolCenterPointPathAction(arm=left_or_only_arm(context.robot), target_locations=waypoints),
         ],
         context,
     )
@@ -498,12 +497,12 @@ def test_follow_tcp_path_multi(immutable_multiple_robot_apartment):
 
 def test_grasping(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, robot)
+    left_arm = left_or_only_arm(context.robot)
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     grasping_action = GraspingAction(
         GraspPose.from_body_origin(milk),
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
     )
 
     milk_body = milk.root
@@ -517,7 +516,7 @@ def test_grasping(immutable_multiple_robot_apartment):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             grasping_action,
         ],
         context,
@@ -537,7 +536,7 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
     world, view, context = mutable_multiple_robot_apartment
     context.evaluate_conditions = False
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+    left_arm = left_or_only_arm(context.robot)
     milk_body = world.get_body_by_name("milk.stl")
     milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1, -2, 0.6, reference_frame=world.root
@@ -549,10 +548,10 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
 
     root = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             PickUpAction(
                 world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
-                Arms.LEFT,
+                left_or_only_arm(context.robot),
             ),
         ],
         context,
@@ -582,7 +581,7 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
 def test_place_multi(mutable_multiple_robot_apartment):
     world, view, context = mutable_multiple_robot_apartment
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+    left_arm = left_or_only_arm(context.robot)
     milk_body = world.get_body_by_name("milk.stl")
 
     milk_body = world.get_body_by_name("milk.stl")
@@ -596,15 +595,15 @@ def test_place_multi(mutable_multiple_robot_apartment):
 
     root = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             PickUpAction(
                 world.get_semantic_annotations_by_type(Milk)[0].grasp_poses()[0],
-                Arms.LEFT,
+                left_or_only_arm(context.robot),
             ),
             PlaceAction(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Pose(Point3.from_iterable([1, -2.2, 0.6]), reference_frame=world.root),
-                Arms.LEFT,
+                left_or_only_arm(context.robot),
             ),
         ],
         context,
@@ -682,7 +681,7 @@ def test_open(immutable_multiple_robot_apartment):
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             NavigateAction(
                 Pose(
                     Point3.from_iterable([1.6, 1.9, 0]),
@@ -690,7 +689,7 @@ def test_open(immutable_multiple_robot_apartment):
                     reference_frame=world.root,
                 )
             ),
-            OpenAction(_handle_annotation(world, "handle_cab10_m"), Arms.LEFT),
+            OpenAction(_handle_annotation(world, "handle_cab10_m"), left_or_only_arm(context.robot)),
         ],
         context,
     )
@@ -715,7 +714,7 @@ def test_close(immutable_multiple_robot_apartment, rclpy_node):
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(context.robot.get_arms()),
             NavigateAction(
                 heading_towards(
                     navigate_position,
@@ -723,7 +722,7 @@ def test_close(immutable_multiple_robot_apartment, rclpy_node):
                     world,
                 )
             ),
-            CloseAction(handle, Arms.LEFT),
+            CloseAction(handle, left_or_only_arm(context.robot)),
         ],
         context,
     )
@@ -768,7 +767,7 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
             Quaternion.from_iterable([0.0, 0.0, 1.0, 0.0]),
             reference_frame=world.root,
         ),
-        Arms.RIGHT,
+        right_or_only_arm(context.robot),
         context,
     )
     plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], context)
@@ -811,11 +810,11 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     description = TransportAction.from_grasp(
         world.get_semantic_annotations_by_type(Spoon)[0].grasp_poses()[0],
         target_pose,
-        Arms.RIGHT,
+        right_or_only_arm(context.robot),
         context,
     )
     plan = sequential(
-        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH), description],
+        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(context.robot.get_arms()), description],
         context,
     )
     with simulated_robot:

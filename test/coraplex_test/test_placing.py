@@ -2,11 +2,9 @@ import numpy as np
 import pytest
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -37,7 +35,7 @@ def pr2_holding_milk(mutable_simple_pr2_world):
     world, robot, _ = mutable_simple_pr2_world
     milk_body = world.get_body_by_name("milk.stl")
     milk = Milk(root=milk_body)
-    tool_frame = ViewManager.get_end_effector_view(Arms.LEFT, robot).tool_frame
+    tool_frame = robot.left_arm.end_effector.tool_frame
     with world.modify_world():
         world.move_branch(milk_body, tool_frame)
         world.add_semantic_annotation(milk)
@@ -60,10 +58,10 @@ def test_place_derives_the_grasp_from_the_live_tool_frame_transform(pr2_holding_
     """
     world, robot, milk = pr2_holding_milk
     target = Pose.from_xyz_rpy(1.2, 0.4, 0.9, yaw=np.pi / 4, reference_frame=world.root)
-    place = PlaceAction(milk, target, Arms.LEFT)
+    place = PlaceAction(milk, target, robot.left_arm)
     sequential([place], context=Context(world, robot, sampling_seed=SAMPLING_SEED))
 
-    end_effector = ViewManager.get_end_effector_view(Arms.LEFT, robot)
+    end_effector = robot.left_arm.end_effector
     tool_goal = end_effector.tool_frame_goal(
         place._grasp_on_the_held_object().moved_to(target)
     )
@@ -90,8 +88,8 @@ def test_place_uses_the_grasp_its_pick_up_will_take(mutable_model_world):
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     target = Pose.from_xyz_rpy(1.2, 0.4, 0.9, reference_frame=world.root)
 
-    pick_up = PickUpAction(milk.grasp_poses()[0], Arms.LEFT)
-    place = PlaceAction(milk, target, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_poses()[0], context.robot.left_arm)
+    place = PlaceAction(milk, target, robot.left_arm)
     sequential([pick_up, place], context=context)
 
     np.testing.assert_allclose(
@@ -112,7 +110,7 @@ def test_place_without_a_preceding_pick_up_grasps_at_the_objects_origin(
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     target = Pose.from_xyz_rpy(1.2, 0.4, 0.9, reference_frame=world.root)
 
-    place = PlaceAction(milk, target, Arms.LEFT)
+    place = PlaceAction(milk, target, robot.left_arm)
     sequential([place], context=context)
 
     np.testing.assert_allclose(

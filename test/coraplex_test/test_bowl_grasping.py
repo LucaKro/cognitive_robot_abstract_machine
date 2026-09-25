@@ -6,7 +6,6 @@ import pytest
 from trimesh.proximity import closest_point
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from semantic_digital_twin.adapters.mesh import STLParser
@@ -123,7 +122,7 @@ def test_transporting_a_bowl_grasps_it_at_its_rim(pr2_and_bowl):
     transport = TransportAction.from_grasp(
         bowl.grasp_poses()[0],
         Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
-        Arms.LEFT,
+        context.robot.left_arm,
         context,
     )
 

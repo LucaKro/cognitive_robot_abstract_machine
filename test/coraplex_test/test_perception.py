@@ -24,7 +24,6 @@ from rclpy.node import Node
 from typing_extensions import List, Tuple
 
 from coraplex.datastructures.enums import (
-    Arms,
     ExecutionType,
 )
 from coraplex.exceptions import (
@@ -440,7 +439,7 @@ def test_detection_corrects_a_grasp_planned_before_it(immutable_model_world):
     )
 
     plan = execute_single(
-        PickUpAction(milk.grasp_poses()[0], Arms.RIGHT),
+        PickUpAction(milk.grasp_poses()[0], context.robot.right_arm),
         context=context,
     )
     plan.notify()

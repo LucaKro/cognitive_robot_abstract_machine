@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import rustworkx
 
 from krrood.entity_query_language.factories import a, an, variable
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
@@ -41,7 +40,7 @@ class Sage10kOpenDoor(ActionDescription):
             target=self.door.handle.root
         )
 
-        arm = Arms.LEFT
+        arm = self.robot.get_arms()[0]
 
         min_p = self.door.handle.root.collision.min_point
         max_p = self.door.handle.root.collision.max_point

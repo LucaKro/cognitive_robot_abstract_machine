@@ -47,7 +47,7 @@ from semantic_digital_twin.world_description.shape_collection import ShapeCollec
 from semantic_digital_twin.world_description.world_entity import Body
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ExecutionType
+from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import (
     ExecutionEnvironment,
     real_robot,
@@ -57,7 +57,6 @@ from coraplex.exceptions import ConditionNotSatisfied
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 
@@ -77,7 +76,7 @@ def reach_action_executable(immutable_model_world):
             grasp=GraspPose.from_body_origin(
                 world.get_semantic_annotations_by_type(Milk)[0]
             ),
-            arm=Arms.RIGHT,
+            arm=context.robot.right_arm,
         ),
         context=context,
     )
@@ -281,7 +280,7 @@ def test_a_robot_keeps_moving_while_it_holds_a_body(_tiago_world_setup, holds_a_
     world = deepcopy(_tiago_world_setup)
     tiago = world.get_semantic_annotations_by_type(Tiago)[0]
     if holds_a_body:
-        tool_frame = ViewManager.get_end_effector_view(Arms.RIGHT, tiago).tool_frame
+        tool_frame = tiago.get_right_arm_if_specified().end_effector.tool_frame
         with world.modify_world():
             held_body = Body(
                 name=PrefixedName("held"),
@@ -331,7 +330,7 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     plan = execute_single(
         ReachAction(
             grasp=GraspPose.from_body_origin(milk),
-            arm=Arms.RIGHT,
+            arm=context.robot.right_arm,
         ),
         context=context,
     )

@@ -7,7 +7,6 @@ from typing_extensions import TYPE_CHECKING, Type
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import (
-    Arms,
     ExecutionType,
     VisualizationBackend,
     VisualizationOption,
@@ -17,7 +16,7 @@ from coraplex.plans.failures import PlanFailure
 if TYPE_CHECKING:
     from coraplex.plans.designator import Designator
     from coraplex.robot_plans.actions.base import ActionDescription
-    from semantic_digital_twin.robots.robot_parts import AbstractRobot
+    from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
     from semantic_digital_twin.world_description.world_entity import (
         SemanticAnnotation,
     )
@@ -144,7 +143,7 @@ class MissingToolFrame(DataclassException):
     Raised when no tool frame is available for the requested arm.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm whose tool frame was requested.
     """
@@ -186,13 +185,13 @@ class NothingToPlace(DataclassException):
     pick-up that is going to give it one.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm that was to place something.
     """
 
     def error_message(self) -> str:
-        return f"The {self.arm.name} arm holds nothing to place."
+        return f"{self.arm.name} holds nothing to place."
 
     def suggest_correction(self) -> str:
         return "place after a pick-up with the same arm."

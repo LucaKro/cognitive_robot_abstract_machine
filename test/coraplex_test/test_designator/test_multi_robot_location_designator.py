@@ -14,18 +14,17 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveSim
 from coraplex.datastructures.dataclasses import Context
 
-from coraplex.datastructures.enums import Arms
 from coraplex.locations.locations import ReachabilityLocation, VisibilityLocation
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from ..conftest import right_or_only_arm
 
 try:
     from semantic_digital_twin.robots.garmi import Garmi
@@ -180,7 +179,7 @@ def test_new_reachability_location_body(
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(context.robot.get_arms()), MoveTorsoAction(TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -190,7 +189,7 @@ def test_new_reachability_location_body(
 
         location = ReachabilityLocation(
             world.get_body_by_name("milk.stl").global_pose,
-            ViewManager.get_arm_view(Arms.RIGHT, robot),
+            right_or_only_arm(context.robot),
             context=context,
         )
 
@@ -203,7 +202,7 @@ def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(context.robot.get_arms()), MoveTorsoAction(TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -225,7 +224,7 @@ def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(context.robot.get_arms()), MoveTorsoAction(TorsoState.HIGH)],
         context,
     )
     with simulated_robot:

@@ -18,7 +18,6 @@ from krrood.entity_query_language.factories import (
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    Arms,
     MovementType,
     DetectionTechnique,
 )
@@ -36,11 +35,11 @@ from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
 )
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_gripped
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import GraspPose, HasGraspPoses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
@@ -67,7 +66,7 @@ class HasGraspChoice:
     :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm that should be used.
     """
@@ -84,9 +83,7 @@ class HasGraspChoice:
         :param kwargs: The action's parameters.
         :return: The condition.
         """
-        return GripperIsFree(
-            ViewManager.get_end_effector_view(variables["arm"], context.robot)
-        )
+        return GripperIsFree(variables["arm"].end_effector)
 
 
 @dataclass
@@ -101,7 +98,7 @@ class ReachAction(
     Let the robot reach a specific pose.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm that should be used for pick up.
     """
@@ -134,7 +131,7 @@ class ReachAction(
     def _action_plan(self) -> PlanNode:
         pre_grasp_pose, tool_goal, _ = self.grasp_pose_sequence(
             self.grasp.root_T_grasp,
-            ViewManager.get_end_effector_view(self.arm, self.robot),
+            self.arm.end_effector,
             self.grasp,
             reverse=self.reverse_reach_order,
         )
@@ -150,7 +147,9 @@ class ReachAction(
         ]
         if self.open_gripper_at_pre_pose:
             children.append(
-                MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm)
+                MoveGripperMotion(
+                    motion=GripperState.OPEN, gripper=self.arm.end_effector
+                )
             )
         if self.perceive_before_grasp:
             children.extend(
@@ -185,7 +184,7 @@ class ReachAction(
         """
         The end effector needs to be close to the target pose.
         """
-        end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
+        end_effector = kwargs["arm"].end_effector
         object_body = kwargs["grasp"].graspable.root
         return or_(
             is_body_gripped(
@@ -261,9 +260,7 @@ class PickUpAction(
                 ),
                 ReAttachNode(
                     body=self.grasp.graspable.root,
-                    new_parent=ViewManager.get_end_effector_view(
-                        self.arm, self.robot
-                    ).tool_frame,
+                    new_parent=self.arm.end_effector.tool_frame,
                 ),
             ],
         )
@@ -272,7 +269,7 @@ class PickUpAction(
     def _action_plan(self) -> PlanNode:
         _, _, lift_to_pose = self.grasp_pose_sequence(
             self.grasp.root_T_grasp,
-            ViewManager.get_end_effector_view(self.arm, self.robot),
+            self.arm.end_effector,
             self.grasp,
         )
         return sequential(
@@ -306,9 +303,7 @@ class PickUpAction(
         """
         The object needs to be in the gripper frame.
         """
-        end_effector = ViewManager.get_end_effector_view(
-            variables["arm"], context.robot
-        )
+        end_effector = variables["arm"].end_effector
         return or_(
             not_(GripperIsFree(end_effector)),
             is_body_gripped(
@@ -370,7 +365,7 @@ class GraspingAction(
                 ),
                 MoveGripperMotion(
                     motion=GripperState.CLOSE,
-                    gripper=self.arm,
+                    gripper=self.arm.end_effector,
                     allow_gripper_collision=True,
                     finger_velocity=self.grasp_closing_velocity,
                     stall_minimum_time=self.grasp_stall_minimum_time,
@@ -397,6 +392,6 @@ class GraspingAction(
         """
         return is_body_gripped(
             variable_from(kwargs["grasp"].graspable.root),
-            ViewManager.get_end_effector_view(variables["arm"], context.robot),
+            variables["arm"].end_effector,
             threshold=kwargs["grasp_detection_threshold"],
         )

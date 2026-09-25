@@ -37,9 +37,7 @@ Every action that closes a gripper on something asks the same question, so the c
 ```python
 @staticmethod
 def can_take_hold(variables, context, kwargs):
-    return GripperIsFree(
-        ViewManager.get_end_effector_view(variables["arm"], context.robot)
-    )
+    return GripperIsFree(variables["arm"].end_effector)
 ```
 
 The condition is that the gripper that should pick up the object is free and not holding anything
