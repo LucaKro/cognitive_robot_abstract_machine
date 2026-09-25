@@ -13,15 +13,18 @@ Uncommitted on top (2026-09-25), all reviewed with the user:
 - CollisionViolatedError -> MotionViolatedCollisionAvoidance (PlanFailure); previous_nodes
   depth-first; helpers deleted; docstrings never mention underspecified queries.
 
-test_transport_open_container diagnosis (HSR->Stretch->TIAGo order):
-- Stretch: not a hang - finger velocity limit 0.0067 rad/s (stretch.py, from main) makes
-  each gripper close ~25 s sim. The 3000-tick debug cutoff was too short.
-- TIAGo: real hang in the pick-up grasp. Base penetrates the opened drawer (-1.7 cm);
-  MoveTCP error flat but its rate flips sign every tick, so NotApproachingGoal flips and
-  StillProgressing's timer resets forever. Proposed fix (awaiting user): judge progress by
-  net improvement over the best error so far, not the instantaneous rate.
+Fixed 2026-09-25 (TDD, uncommitted):
+- giskardpy NotApproachingGoal: approaching = error keeps setting a new low at the minimum
+  rate (was instantaneous rate; jitter reset the stall timer forever - TIAGo base in the
+  opened drawer). Stretch "hang" was only its 0.0067 rad/s finger limit.
+- MoveAndPlaceAction._placed_object takes any annotation of the held body (test_detect
+  from main leaks a second Milk into the session apartment world).
+Green: giskardpy statechart/executor + coraplex plan/failure (675), open_container x4,
+designator/transport/locations/ORM/demo sweep, detect+transport x4.
+Open question to user: remove now test-only rate machinery (create_rate_expression,
+time_derivative_from_joint_motion, Symbolic/Sampled distinction)?
 
-Still to verify: designator sweep, bullet demo, experiment tests, notebooks
+Still to verify: experiment tests, notebooks
 (action_designator.md, orm_example.md, location_designator.md).
 Debugging: scratchpad rviz_debug_plugin.py (-p, HUNG_TICKS). Tests: --orm-build never,
 systemd MemoryMax cap, <= 8 workers. Nothing committed/pushed by Claude.
