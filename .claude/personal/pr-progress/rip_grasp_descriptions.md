@@ -17,12 +17,15 @@ Uncommitted 2026-09-25 (user: "dont commit"):
   the object, else the preceding PickUpAction of that object (user: "for now"), else
   ObjectIsNotHeld (replaced NothingToPlace). Conditions check every arm. Conditions are
   built but never evaluated at runtime (_add_condition_monitors unused).
-Uncommitted 2026-09-28 (review round, user: "dont commit"): CandidateDraw/draw -> Sampling/sampling
-(prose 'draw' -> 'sample' in locations, tests, docs); GraspPose family -> GraspCandidate,
-HasGraspCandidates, grasp_candidates(), grasp_candidate_count, test_grasp_candidates.py. ORM regenerated.
-Review threads the user said to ignore: reference_T_tool_frame naming, add_semantic_annotation recursion.
-User asked why the grasp ranking (EndEffector.grasp_poses_by_distance) is gone: its only caller died
-with pose_validator.py in d01fa026c, then d2c2e4c59 removed it - awaiting whether to restore it.
+User committed the renames as 2503e37dc, but test_grasp_candidates.py (plain mv) is still untracked.
+Nearest-grasp plan (user-approved): shared standing-pose variable, grasp domain =
+flat_variable(@symbolic_function ranking best 3 grasps for that pose), factory on MoveAndPickUpAction
+(TransportAction composes it). Spike: generative backend ignores derived domains because
+Match.matches_with_variables only accepts Variable (FlatVariable/InstantiatedVariable are not);
+widening it made it work lazily. ProbabilisticBackend hangs/OOMs on any nested match with a Location
+domain (stuck in random_events), even with a plain grasp list - pre-existing. Awaiting user OK on the krrood change.
+Uncommitted: facing target in from_grasp / MoveAndPickUp.from_standing_position now Pose(reference_frame=object root)
++ 2 tests. MoveAndOpen.from_standing_position has the same bug but its test pins world frame - asked user.
 Open: tool_paths._local_bounding_box removal (user asked; cutting's duration scale uses the
 collision box while its path uses the visual box - ask which to keep).
 Tests: --orm-build never, systemd MemoryMax cap, <= 8 workers, RViz via scratchpad
