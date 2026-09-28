@@ -1,0 +1,1 @@
+Each label below names objects in a scanned room. Say which class of the ontology each label is, or propose a new class by naming a superclass and any mixins it should be composed of. The ontology is in taxonomy.json; its part_whole_mixins list what a new class can be given.

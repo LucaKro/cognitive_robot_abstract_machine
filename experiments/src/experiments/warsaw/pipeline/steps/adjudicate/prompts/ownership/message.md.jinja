@@ -1,0 +1,20 @@
+## The labels
+{{ pattern | join(", ") }}
+
+{{ ontology }}
+
+## The picture
+{{ painted }}
+
+## What was measured
+{{ measured }}
+{# What the picture cannot say. One claimant is often many times the size of the
+   others -- an island label covers the whole block including its drawers -- and then
+   the contested faces read as a patch of detail on the big object rather than as the
+   whole of the small one. The shares say which it is. #}
+{% for share in shares %}
+of {{ share.name }} the contested {{ exemplar_faces }} faces are {{ "{:.0%}".format(share.contested_share) }}
+{% endfor %}
+
+## How often this happens
+Objects with these labels are labelled over the same faces {{ covers }} time(s) in this room, {{ contested_faces }} faces in all. The pictures show the largest of them.

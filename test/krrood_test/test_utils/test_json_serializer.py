@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import Enum
-from typing import Dict, Any, Self
+from typing import Dict, Any, List, Optional, Self, Set, Tuple, TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -464,6 +464,136 @@ def test_dataclass_sorted_set():
     result = from_json(data)
     assert result == cls
     assert isinstance(result.a, SortedSet)
+
+
+@dataclass
+class ClassWithContainers:
+    """
+    A class whose fields are the containers a JSON array can stand for.
+    """
+
+    claimants: Tuple[str, ...] = ("a", "b")
+    """
+    A tuple, which has to come back hashable.
+    """
+
+    tags: Set[str] = field(default_factory=lambda: {"x", "y"})
+    """
+    A set, which has to come back without an order.
+    """
+
+    listed: List[str] = field(default_factory=lambda: ["p", "q"])
+    """
+    A list, which is what a JSON array already is.
+    """
+
+
+def test_dataclass_containers_keep_their_type():
+    """
+    A JSON array is read back as whatever the field's annotation says it is.
+
+    Every container is written as an array, so nothing in the file says which one it was.
+    Reading them all back as lists means a tuple field returns unhashable, and the record
+    no longer equals the one it was written from.
+    """
+    held = ClassWithContainers()
+    result = from_json(to_json(held))
+    assert result == held
+    assert isinstance(result.claimants, tuple)
+    assert isinstance(result.tags, set)
+    assert isinstance(result.listed, list)
+
+
+def test_a_tuple_field_comes_back_usable_as_a_key():
+    """
+    The point of keeping the tuple: it can still be put in a set or used as a key.
+    """
+    held = ClassWithContainers()
+    result = from_json(to_json(held))
+    assert {result.claimants} == {held.claimants}
+
+
+class Channel(str, Enum):
+    """
+    An enumeration whose members are strings, so JSON cannot tell them apart from one.
+    """
+
+    PART = "part"
+    CONTAINS = "contains"
+
+
+@dataclass
+class ClassWithStringEnum:
+    """
+    A class holding a member of a string enumeration.
+    """
+
+    channel: Channel = Channel.PART
+    """
+    The member, which has to come back as the member and not as its value.
+    """
+
+
+def test_a_string_enum_comes_back_as_its_member():
+    """
+    A str-valued enum member is a string, so it is written as one and read back as one.
+
+    It compares equal to its member either way; what is lost is that it *is* the member,
+    which is the difference between ``channel == Channel.PART`` and
+    ``channel is Channel.PART``.
+    """
+    result = from_json(to_json(ClassWithStringEnum()))
+    assert result.channel is Channel.PART
+
+
+# %% an enum member the annotation does not name at the top level
+
+
+@dataclass
+class ClassWithNestedStringEnum:
+    """
+    A class holding string enum members behind ``Optional`` and inside a container.
+    """
+
+    channel: Optional[Channel] = Channel.CONTAINS
+    """
+    A member behind ``Optional``, which is a ``Union`` and not the enum itself.
+    """
+
+    channels: Tuple[Channel, ...] = (Channel.PART, Channel.CONTAINS)
+    """
+    Members inside a tuple, which says what it holds only in its argument.
+    """
+
+
+def written_and_read_back(held: Any) -> Any:
+    """
+    Round-trip a record through JSON text, as writing it to a file does.
+
+    :param held: The record to write.
+    :return: The record read back from its text.
+    """
+    return from_json(json.loads(json.dumps(to_json(held))))
+
+
+def test_an_optional_enum_comes_back_as_its_member():
+    """
+    ``Optional[Channel]`` is still an annotation naming an enum, one wrapper further out.
+    """
+    result = written_and_read_back(ClassWithNestedStringEnum())
+    assert result.channel is Channel.CONTAINS
+
+
+def test_enum_members_inside_a_container_come_back_as_members():
+    """
+    A tuple of members has to come back holding the members, not their values.
+    """
+    held = ClassWithNestedStringEnum()
+    result = written_and_read_back(held)
+    assert result.channels == held.channels
+    assert all(
+        member is expected for member, expected in zip(result.channels, held.channels)
+    )
 
 
 # %% durations

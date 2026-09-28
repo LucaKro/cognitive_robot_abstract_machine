@@ -1,0 +1,7 @@
+## The ontology
+{{ taxonomy }}
+
+## The objects to name
+{% for body in bodies %}
+{{ body.name }}: painted {{ body.color }}, labelled "{{ body.label }}" by the scan, which was read as {{ body.read_as }}
+{% endfor %}
