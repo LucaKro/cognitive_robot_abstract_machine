@@ -18,12 +18,12 @@ Uncommitted 2026-09-25 (user: "dont commit"):
   ObjectIsNotHeld (replaced NothingToPlace). Conditions check every arm. Conditions are
   built but never evaluated at runtime (_add_condition_monitors unused).
 User committed the renames as 2503e37dc, but test_grasp_candidates.py (plain mv) is still untracked.
-Nearest-grasp plan (user-approved): shared standing-pose variable, grasp domain =
-flat_variable(@symbolic_function ranking best 3 grasps for that pose), factory on MoveAndPickUpAction
-(TransportAction composes it). Spike: generative backend ignores derived domains because
-Match.matches_with_variables only accepts Variable (FlatVariable/InstantiatedVariable are not);
-widening it made it work lazily. ProbabilisticBackend hangs/OOMs on any nested match with a Location
-domain (stuck in random_events), even with a plain grasp list - pre-existing. Awaiting user OK on the krrood change.
+Nearest-grasp: user refuses krrood changes. Generative backend only treats Variable instances as
+variables (match.py:195); FlatVariable, InstantiatedVariable, Attribute are not, so neither a derived
+grasp domain nor a pair domain's attributes work. Open: pick a krrood-free option (see chat 2026-09-28).
+ProbabilisticBackend: one truncation per domain object, cost ~n^3 (2000 location samples ~hours).
+Uncommitted isolated test: test_backends.py::test_generating_from_more_objects_takes_less_than_quadratically_longer
+(100 vs 200 KRROODPositions, min of 3 timings, ratio ~7 vs limit 4); fails here and on cram2/main 6645c1892.
 Uncommitted: facing target in from_grasp / MoveAndPickUp.from_standing_position now Pose(reference_frame=object root)
 + 2 tests. MoveAndOpen.from_standing_position has the same bug but its test pins world frame - asked user.
 Open: tool_paths._local_bounding_box removal (user asked; cutting's duration scale uses the
