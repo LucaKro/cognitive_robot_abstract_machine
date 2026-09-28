@@ -17,7 +17,10 @@ from semantic_digital_twin.orm.utils import semantic_digital_twin_sessionmaker
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.connections import RevoluteConnection
+from semantic_digital_twin.world_description.connections import (
+    FixedConnection,
+    RevoluteConnection,
+)
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
@@ -30,8 +33,12 @@ from semantic_digital_twin.world_description.shape_collection import ShapeCollec
 from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Cabinet,
+    CounterTop,
+    Dishwasher,
     Drawer,
     Handle,
+    KitchenIsland,
     Slider,
 )
 from semantic_digital_twin.semantic_annotations.part_whole import (
@@ -311,3 +318,58 @@ def test_part_whole_relationship_field_metadata_survives_orm_round_trip(session)
     # The field values themselves survived the round trip.
     assert isinstance(reconstructed_drawer.handle, Handle)
     assert isinstance(reconstructed_drawer.mechanical_joint, Slider)
+
+
+# %% furniture built from other furniture
+
+
+def kitchen_island_world() -> World:
+    """
+    A kitchen island holding a cabinet, a dishwasher and its counter top.
+    """
+    world = World.create_with_root_body("root")
+    bodies = {
+        name: Body(name=PrefixedName(name))
+        for name in ("island", "a_cabinet", "a_dishwasher", "a_counter_top")
+    }
+    with world.modify_world():
+        for body in bodies.values():
+            world.add_connection(FixedConnection(parent=world.root, child=body))
+        island = KitchenIsland(name=PrefixedName("the_island"), root=bodies["island"])
+        parts = [
+            Cabinet(name=PrefixedName("a_unit"), root=bodies["a_cabinet"]),
+            Dishwasher(
+                name=PrefixedName("the_dishwasher"), root=bodies["a_dishwasher"]
+            ),
+            CounterTop(name=PrefixedName("the_top"), root=bodies["a_counter_top"]),
+        ]
+        for annotation in [island, *parts]:
+            world.add_semantic_annotation_recursively(annotation)
+    with world.modify_world():
+        for part in parts:
+            island.add(part)
+    return world
+
+
+def test_a_kitchen_island_and_its_units_survive_being_stored(session):
+    """
+    A part-whole field bounded by a class a stored one does not inherit from cannot be
+    written at all: a stored class has one parent, and a cabinet's is its furniture
+    rather than the case it shares with a dishwasher. Mounting such a part succeeds in
+    memory and fails only on the way to the database, which is the last step of a run.
+    """
+    world = kitchen_island_world()
+
+    session.add(to_dao(world))
+    session.commit()
+
+    read_back = session.scalar(select(WorldMappingDAO)).from_dao()
+    [reconstructed] = [
+        one for one in read_back.semantic_annotations if isinstance(one, KitchenIsland)
+    ]
+
+    assert {type(one).__name__ for one in reconstructed.units} == {
+        "Cabinet",
+        "Dishwasher",
+    }
+    assert isinstance(reconstructed.counter_top, CounterTop)

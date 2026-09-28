@@ -38,6 +38,7 @@ from typing_extensions import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 from experiments.warsaw.exceptions import (
@@ -61,6 +62,51 @@ from experiments.warsaw.world_loader.viewpoints import (
     changed_pixels,
     is_one_color,
 )
+
+
+@dataclass(frozen=True)
+class RenderedPictures:
+    """
+    Renders of a scene, each with the camera pose it was taken from.
+    """
+
+    images: Dict[str, bytes] = field(default_factory=dict)
+    """
+    The renders as PNG bytes, by the name of each view.
+    """
+
+    camera_poses: Dict[str, np.ndarray] = field(default_factory=dict)
+    """
+    The pose each was rendered from, under the same names.
+    """
+
+    field_of_view: Tuple[float, float] = (0.0, 0.0)
+    """
+    How wide the camera saw, in degrees across and down.
+    """
+
+    frame: str = ""
+    """
+    What the poses are relative to.
+    """
+
+    def named(self, naming: Dict[str, str]) -> RenderedPictures:
+        """
+        Say what each view was written as, so its pose is recorded under that name.
+
+        :param naming: The filename each view was written as, by the name of the view.
+        :return: The same pictures, keyed by filename.
+        """
+        return RenderedPictures(
+            images={naming[view]: image for view, image in self.images.items()},
+            camera_poses={
+                naming[view]: pose
+                for view, pose in self.camera_poses.items()
+                if view in naming
+            },
+            field_of_view=self.field_of_view,
+            frame=self.frame,
+        )
 
 
 @dataclass
@@ -87,6 +133,11 @@ class RenderedSegmentGroup:
     images: Dict[str, bytes]
     """
     Per viewpoint, the render taken from it, as PNG bytes.
+    """
+
+    camera_poses: Dict[str, np.ndarray] = field(default_factory=dict)
+    """
+    Per viewpoint, the camera pose it was rendered from.
     """
 
     @property
@@ -326,26 +377,39 @@ class WarsawWorldLoader:
             SemanticAnnotation, output_directory / "semantic_annotations.json"
         ).export()
 
-    def render_label_segment_groups(
+    def label_segment_groups(
         self,
         group_size: int = 8,
         segments: Optional[Iterable[LabelSegment]] = None,
         headless: bool = False,
+        pictured: bool = True,
     ) -> Iterator[RenderedSegmentGroup]:
         """
-        Color the scene's objects a group at a time and render each group from every
-        viewpoint.
+        Walk the scene's objects a group at a time, colouring and drawing each group.
 
-        The scene is left in its own colors once the last group has been rendered.
+        The scene is left in its own colors once the last group has been walked.
 
-        :param group_size: How many segments to color at once.
+        :param group_size: How many segments to take at once.
         :param segments: The segments to walk through, defaulting to all of the scene's.
         :param headless: Whether to render without opening a window.
-        :return: One rendered group at a time.
+        :param pictured: Whether to draw each group. Not drawing it is what a run asking
+            from the text alone needs, and it is where such a run saves its time:
+            nothing is painted, no camera is placed, and the group carries no colour,
+            since a colour names nothing in a picture that was never made.
+        :return: One group at a time.
         """
         segments = list(self.label_segments if segments is None else segments)
-        camera_poses = self.compute_camera_poses()
+        if not pictured:
+            for index, start in enumerate(range(0, len(segments), group_size)):
+                yield RenderedSegmentGroup(
+                    index=index,
+                    segments=segments[start : start + group_size],
+                    colors={},
+                    images={},
+                )
+            return
 
+        camera_poses = self.compute_camera_poses()
         try:
             for index, start in enumerate(range(0, len(segments), group_size)):
                 group = segments[start : start + group_size]
@@ -357,6 +421,7 @@ class WarsawWorldLoader:
                     images=self.render_scene_from_camera_poses(
                         camera_poses, headless=headless
                     ),
+                    camera_poses=camera_poses,
                 )
         finally:
             self._reset_segment_colors()
@@ -382,7 +447,7 @@ class WarsawWorldLoader:
         ).items():
             (output_directory / f"original_{pose_name}.png").write_bytes(image)
 
-        for group in self.render_label_segment_groups(
+        for group in self.label_segment_groups(
             group_size=group_size, headless=headless
         ):
             for pose_name, image in group.images.items():
@@ -716,6 +781,19 @@ class WarsawWorldLoader:
             raise NoSegmentsGivenError()
         return np.concatenate(gathered)
 
+    @property
+    def world_T_scene_mesh(self) -> np.ndarray:
+        """
+        :return: Where the world places the coordinates :attr:`scene_mesh` is written
+            in.
+
+        Loading centres the scene body's geometry on itself and carries the difference
+        in the body's pose, so a point read straight off that mesh is not where the
+        world holds it, and a camera placed from one is not standing where it says.
+        """
+        shape = self.scene_body.collision[0]
+        return self.world.transform(shape.origin, self.world.root).to_np()
+
     def points_of(self, segments: Iterable[LabelSegment]) -> np.ndarray:
         """
         :param segments: The segments to take the geometry of.
@@ -723,7 +801,87 @@ class WarsawWorldLoader:
         :raises NoSegmentsGivenError: If no segments were given.
         """
         faces = self.face_indices_of(segments)
-        return self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
+        return trimesh.transform_points(
+            self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()],
+            self.world_T_scene_mesh,
+        )
+
+    def poses_framing(
+        self,
+        segments: Iterable[LabelSegment],
+        viewpoints: Optional[Sequence[str]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """
+        :param segments: The segments a camera is to frame.
+        :param viewpoints: Which named viewpoints to stand at, defaulting to all of
+            them.
+        :return: Where the camera stands for each of them, in the world's frame.
+        :raises NoSegmentsGivenError: If no segments were given.
+        """
+        return self._chosen_viewpoints(
+            self.compute_camera_poses(self.points_of(segments)), viewpoints
+        )
+
+    def segments_alone(
+        self, segments: Iterable[LabelSegment], face_colors: np.ndarray
+    ) -> trimesh.Trimesh:
+        """
+        Cut some segments' geometry out of the scene, leaving the rest of it out.
+
+        :param segments: The segments to cut out.
+        :param face_colors: The color of every face of the whole scene, of which the
+            segments' own are taken.
+        :return: Their geometry by itself, where the world holds it.
+        :raises NoSegmentsGivenError: If no segments were given.
+        """
+        faces = np.unique(self.face_indices_of(segments))
+        alone = self.scene_mesh.submesh([faces], append=True)
+        alone.visual.face_colors = face_colors[faces]
+        alone.apply_transform(self.world_T_scene_mesh)
+        return alone
+
+    def segments_as_scanned(
+        self, segments: Iterable[LabelSegment]
+    ) -> Union[trimesh.Trimesh, trimesh.Scene]:
+        """
+        Build what a plain picture of some segments draws: them, looking as they look.
+
+        Where the scene ships an appearance mesh, that is what they look like -- the
+        source's own texture and normals, over the same faces. Where it ships none, as
+        every scan does, it is the mesh's own colours, which is what a plain picture has
+        always been.
+
+        :param segments: The segments to draw.
+        :return: The geometry to draw, as one mesh or as the pieces a texture comes in.
+        """
+        segments = list(segments)
+        if self.scene is None or self.scene.appearance is None:
+            return self.segments_alone(segments, self._original_face_colors)
+        return self.scene.appearance.faces_alone(
+            np.concatenate([one.face_indices for one in segments])
+            if segments
+            else np.array([], dtype=int)
+        )
+
+    def render_segments_as_scanned(
+        self,
+        segments: Iterable[LabelSegment],
+        viewpoints: Optional[Sequence[str]] = None,
+        headless: bool = False,
+    ) -> RenderedPictures:
+        """
+        Draw some segments by themselves, looking as they look.
+
+        :param segments: The segments to draw.
+        :param viewpoints: Which named viewpoints to render, defaulting to all of them.
+        :param headless: Whether to render without opening a window.
+        :return: Per viewpoint, its render and the pose it was taken from.
+        """
+        segments = list(segments)
+        drawn = self.segments_as_scanned(segments)
+        poses = self.poses_framing(segments, viewpoints)
+        scene = drawn if isinstance(drawn, trimesh.Scene) else trimesh.Scene(drawn)
+        return self._pictures(self._render_from_poses(scene, poses, headless), poses)
 
     def render_segments_alone(
         self,
@@ -731,7 +889,7 @@ class WarsawWorldLoader:
         face_colors: np.ndarray,
         viewpoints: Optional[Sequence[str]] = None,
         headless: bool = False,
-    ) -> Dict[str, bytes]:
+    ) -> RenderedPictures:
         """
         Render some segments' geometry by itself, with the rest of the scene left out.
 
@@ -746,19 +904,40 @@ class WarsawWorldLoader:
             segments' own are taken.
         :param viewpoints: Which named viewpoints to render, defaulting to all of them.
         :param headless: Whether to render without opening a window.
-        :return: Per viewpoint, its render as PNG bytes.
+        :return: Per viewpoint, its render and the pose it was taken from.
         """
-        faces = np.unique(self.face_indices_of(segments))
-        alone = self.scene_mesh.submesh([faces], append=True)
-        alone.visual.face_colors = face_colors[faces]
-
-        poses = self._chosen_viewpoints(
-            self.compute_camera_poses(
-                self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
-            ),
-            viewpoints,
+        segments = list(segments)
+        alone = self.segments_alone(segments, face_colors)
+        poses = self.poses_framing(segments, viewpoints)
+        return self._pictures(
+            self._render_from_poses(trimesh.Scene(alone), poses, headless), poses
         )
-        return self._render_from_poses(trimesh.Scene(alone), poses, headless)
+
+    @property
+    def camera_field_of_view(self) -> Tuple[float, float]:
+        """
+        :return: How wide the camera sees, in degrees across and down.
+        """
+        return self._camera_field_of_view
+
+    def _pictures(
+        self,
+        images: Dict[str, bytes],
+        camera_poses: Dict[str, np.ndarray],
+    ) -> RenderedPictures:
+        """
+        Put renders together with the poses they were taken from.
+
+        :param images: The renders, by the name of each view.
+        :param camera_poses: The pose each was taken from, under the same names.
+        :return: The two together, with what else is needed to use a pose.
+        """
+        return RenderedPictures(
+            images=images,
+            camera_poses=camera_poses,
+            field_of_view=self.camera_field_of_view,
+            frame=str(self.world.root.name),
+        )
 
     def _chosen_viewpoints(
         self,
@@ -783,7 +962,7 @@ class WarsawWorldLoader:
         headless: bool = False,
         choose_viewpoint: Optional[ViewpointChoice] = None,
         context_segments: Optional[Iterable[LabelSegment]] = None,
-    ) -> Dict[str, bytes]:
+    ) -> RenderedPictures:
         """
         Render a part of the scene the three ways a question about it needs answering.
 
@@ -808,7 +987,8 @@ class WarsawWorldLoader:
             that what stands in front of the segments counts against a viewpoint;
             ``alone`` measures it on the segments by themselves, which is what a hundred
             of these can afford. None keeps every viewpoint.
-        :return: The renders, keyed ``<kind>_<viewpoint>``.
+        :return: The renders and the pose each was taken from, keyed
+            ``<kind>_<viewpoint>``.
         """
         segments = list(segments)
         frame = None if context_segments is None else self.points_of(context_segments)
@@ -829,28 +1009,34 @@ class WarsawWorldLoader:
         self._apply_highlight_to_faces(highlights)
         painted = np.asarray(self.scene_mesh.visual.face_colors).copy()
         closeups = self.render_segments_alone(segments, painted, viewpoints, headless)
-        contexts = self._render_from_poses(
-            self._render_scene(),
-            self._chosen_viewpoints(self.compute_camera_poses(frame), viewpoints),
-            headless,
+        context_poses = self._chosen_viewpoints(
+            self.compute_camera_poses(frame), viewpoints
+        )
+        contexts = self._pictures(
+            self._render_from_poses(self._render_scene(), context_poses, headless),
+            context_poses,
         )
 
         self._reset_segment_colors()
-        plains = self.render_segments_alone(
-            segments, self._original_face_colors, viewpoints, headless
-        )
+        plains = self.render_segments_as_scanned(segments, viewpoints, headless)
 
-        return {
-            **{
-                f"{PictureKind.CLOSEUP}_{name}": image
-                for name, image in closeups.items()
+        of_each_kind = (
+            (PictureKind.CLOSEUP, closeups),
+            (PictureKind.CONTEXT, contexts),
+            (PictureKind.PLAIN, plains),
+        )
+        return self._pictures(
+            images={
+                f"{kind}_{name}": image
+                for kind, pictures in of_each_kind
+                for name, image in pictures.images.items()
             },
-            **{
-                f"{PictureKind.CONTEXT}_{name}": image
-                for name, image in contexts.items()
+            camera_poses={
+                f"{kind}_{name}": pose
+                for kind, pictures in of_each_kind
+                for name, pose in pictures.camera_poses.items()
             },
-            **{f"{PictureKind.PLAIN}_{name}": image for name, image in plains.items()},
-        }
+        )
 
     def viewpoint_showing_all(
         self,
@@ -955,18 +1141,11 @@ class WarsawWorldLoader:
         """
         segments = list(segments)
         faces = np.unique(self.face_indices_of(segments))
-        poses = self._chosen_viewpoints(
-            self.compute_camera_poses(
-                self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()]
-            ),
-            viewpoints,
-        )
+        poses = self.poses_framing(segments, viewpoints)
 
         # Ranked by the segment each viewpoint shows worst, so that a handle is not
         # outvoted by the door it is screwed to.
-        middle = self.scene_mesh.vertices[self.scene_mesh.faces[faces].ravel()].mean(
-            axis=0
-        )
+        middle = self.points_of(segments).mean(axis=0)
         ranked = sorted(
             poses,
             key=lambda name: min(
@@ -983,9 +1162,8 @@ class WarsawWorldLoader:
         if len(looked_at) == 1:
             return next(iter(looked_at))
 
-        alone = self.scene_mesh.submesh([faces], append=True)
         dimmed = self._dimmed_face_colors[faces]
-        alone.visual.face_colors = dimmed
+        alone = self.segments_alone(segments, self._dimmed_face_colors)
         rooms = self._render_from_poses(
             trimesh.Scene(alone), looked_at, headless, self.render_sizes.deciding
         )

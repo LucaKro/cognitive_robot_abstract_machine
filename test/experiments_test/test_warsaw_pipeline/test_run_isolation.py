@@ -9,6 +9,7 @@ that proposed them.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,8 +18,15 @@ import pytest
 from experiments.warsaw.exceptions import (
     DatabaseNotConfiguredError,
     GeneratedClassesAlreadyImportedError,
+    RunClassTakenOverByTheOntologyError,
     RunOutputAlreadyWrittenError,
 )
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+    compose_class,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
@@ -249,3 +257,138 @@ def test_a_schema_with_no_uri_and_no_environment_is_reported(monkeypatch):
     monkeypatch.delenv(schema.variable, raising=False)
     with pytest.raises(DatabaseNotConfiguredError):
         schema.base_uri
+
+
+def test_the_script_that_rebuilds_the_orm_is_where_a_run_looks_for_it(tmp_path):
+    """
+    The rebuild happens in a new interpreter, so a moved or renamed generator would fail
+    there rather than here, in output nobody reads until a run is already expensive.
+    """
+    assert GeneratedClasses(directory=tmp_path).orm_generator.is_file()
+
+
+def test_a_run_that_generated_no_classes_still_names_the_generator(tmp_path):
+    """
+    Where the generator lives does not depend on what a run happened to generate.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+
+    assert not generated.were_generated
+    assert generated.orm_generator.name == "generate_orm.py"
+
+
+def test_the_classes_a_run_generated_are_read_without_importing_them(tmp_path):
+    """
+    Asking what a run generated must not put those classes into this interpreter, which
+    is what deciding whether they can be used has to happen before.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass Ceiling: ...\n\n\n"
+        "@dataclass(eq=False)\nclass Faucet: ...\n"
+    )
+
+    assert generated.class_names == ["Ceiling", "Faucet"]
+    assert sys.modules.get(generated.module_name) is None
+
+
+def test_a_run_that_generated_nothing_names_no_classes(tmp_path):
+    """
+    A scene needing nothing the ontology lacks generates nothing to be asked about.
+    """
+    assert GeneratedClasses(directory=tmp_path).class_names == []
+
+
+def test_a_class_the_ontology_has_since_gained_is_reported(tmp_path):
+    """
+    Two classes of one name are two tables of one name, and an ORM holding both cannot
+    be imported at all -- so rebuilding for such a run would leave every other run
+    unable to read anything.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass KitchenIsland: ...\n\n\n"
+        "@dataclass(eq=False)\nclass NothingIsCalledThis: ...\n"
+    )
+
+    assert generated.taken_over_by_the_ontology() == ["KitchenIsland"]
+
+
+def test_rebuilding_for_a_taken_over_class_is_refused_before_anything_is_touched(
+    tmp_path,
+):
+    """
+    Refused rather than attempted, because the damage is to the one interface every run
+    shares and undoing it means rebuilding from a repository nobody has broken yet.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass KitchenIsland: ...\n"
+    )
+    written_before = generated.interface.read_text()
+
+    with pytest.raises(RunClassTakenOverByTheOntologyError) as raised:
+        generated.rebuild_orm()
+
+    assert "KitchenIsland" in str(raised.value)
+    assert generated.interface.read_text() == written_before
+
+
+# %% what the annotate step has imported by the time it starts
+
+
+def test_reaching_the_annotate_step_does_not_import_the_orm():
+    """
+    The step puts this run's generated classes in place before anything reaches the ORM,
+    so an ORM imported while the step itself is being imported is one built for whatever
+    ran last -- and an interpreter holds the first one it imported however carefully it
+    imports again.
+
+    This is a property of everything the step pulls in rather than of the step, so it is
+    worth pinning rather than remembering.
+    """
+    finished = subprocess.run(
+        [
+            sys.executable,
+            str(
+                Path(__file__).resolve().parents[1]
+                / "dataset"
+                / "warsaw_pipeline"
+                / "orm_modules_after_importing_the_annotate_step.py"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert finished.returncode == 0, finished.stderr
+    assert finished.stdout == ""
+
+
+def test_a_class_only_composed_in_this_process_is_not_one_the_ontology_has_gained(
+    tmp_path,
+):
+    """
+    Composing a proposed class registers it below the annotation root for the rest of
+    the process, and every step of a run shares one.
+
+    Asked the live process, a step is told that a class an earlier step invented for
+    this very scene is part of the ontology -- which would refuse the run its own
+    classes.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass AClassOnlyThisProcessHas: ...\n"
+    )
+    composed = compose_class("AClassOnlyThisProcessHas", SemanticAnnotation)
+
+    assert composed.__name__ in annotation_classes(SemanticAnnotation)
+    assert generated.taken_over_by_the_ontology() == []

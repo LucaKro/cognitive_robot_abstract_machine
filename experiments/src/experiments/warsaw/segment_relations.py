@@ -18,7 +18,7 @@ does the deciding.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import combinations
 from typing_extensions import TYPE_CHECKING, Dict, List, Optional, Tuple
 
@@ -422,30 +422,74 @@ class Neighbour:
     """
 
 
-def _distance_between(
-    one: int, other: int, trees: List[cKDTree], points: List[np.ndarray]
-) -> float:
+@dataclass
+class SegmentDistances:
     """
-    Measure how far apart two segments' face centres are.
+    How far apart segments' face centres are, measured once per pair.
 
-    The distance is symmetric, so the smaller set of points is thrown at the larger
-    segment's tree: a handle against a door is a hundred queries rather than a hundred
-    thousand.
-
-    :param one: One segment's index.
-    :param other: The other segment's index.
-    :param trees: Per segment, a search tree over its face centres.
-    :param points: Per segment, its face centres.
-    :return: The distance between their nearest face centres, in metres.
+    On a scanned room this is nearly the whole cost of measuring a scene: a floor of half
+    a million face centres is asked about against a wall of four hundred thousand, and
+    finding each segment's nearest asks about that pair from both ends.
     """
-    if len(points[one]) <= len(points[other]):
-        return float(trees[other].query(points[one])[0].min())
-    return float(trees[one].query(points[other])[0].min())
+
+    trees: List[cKDTree]
+    """
+    Per segment, a search tree over its face centres.
+    """
+
+    points: List[np.ndarray]
+    """
+    Per segment, its face centres.
+    """
+
+    measured: Dict[Tuple[int, int], float] = field(default_factory=dict)
+    """
+    What each pair already asked about turned out to be.
+    """
+
+    def between(self, one: int, other: int, no_further_than: float = np.inf) -> float:
+        """
+        Measure how far apart two segments' face centres are.
+
+        The smaller set of points is thrown at the larger segment's tree, so a handle
+        against a door is a hundred queries rather than a hundred thousand, and a
+        distance that does not matter beyond some bound is not measured past it: the
+        tree drops whole branches lying further away than that.
+
+        :param one: One segment's index.
+        :param other: The other segment's index.
+        :param no_further_than: A distance past which the answer changes nothing, so the
+            search may give up rather than finish. A pair exactly that far apart is still
+            measured: two segments cut from the same faces are exactly as far from a
+            third as each other, and dropping the tie would report whichever of them the
+            search happened to reach first.
+        :return: The distance between their nearest face centres, in metres, or infinity
+            where they are further apart than *no_further_than*.
+        """
+        pair = (min(one, other), max(one, other))
+        if pair in self.measured:
+            return self.measured[pair]
+        near, far = (
+            (one, other)
+            if len(self.points[one]) <= len(self.points[other])
+            else (other, one)
+        )
+        found = float(
+            self.trees[far]
+            .query(
+                self.points[near],
+                distance_upper_bound=np.nextafter(no_further_than, np.inf),
+                workers=-1,
+            )[0]
+            .min()
+        )
+        if np.isfinite(found):
+            self.measured[pair] = found
+        return found
 
 
 def _nearest_neighbours(
-    trees: List[cKDTree],
-    points: List[np.ndarray],
+    distances: SegmentDistances,
     center_bounds: np.ndarray,
     how_many: int,
 ) -> List[List[Neighbour]]:
@@ -457,15 +501,14 @@ def _nearest_neighbours(
     bound passes the worst neighbour already found. That prunes almost every candidate
     without ever discarding one that could have been nearer.
 
-    :param trees: Per segment, a search tree over its face centres.
-    :param points: Per segment, its face centres.
+    :param distances: How far apart the segments' face centres are.
     :param center_bounds: Per segment, the lowest and highest corner of those centres.
     :param how_many: How many neighbours to keep.
     :return: Per segment, its nearest others, nearest first.
     """
     minimum_corners, maximum_corners = center_bounds[:, 0], center_bounds[:, 1]
     neighbours: List[List[Neighbour]] = []
-    for index in range(len(trees)):
+    for index in range(len(distances.trees)):
         gaps = np.maximum(
             0.0,
             np.maximum(
@@ -480,9 +523,12 @@ def _nearest_neighbours(
         for candidate in np.argsort(lower_bounds):
             if not np.isfinite(lower_bounds[candidate]):
                 break
-            if len(found) >= how_many and lower_bounds[candidate] >= found[-1].distance:
+            worst = found[-1].distance if len(found) >= how_many else np.inf
+            if lower_bounds[candidate] >= worst:
                 break
-            distance = _distance_between(index, int(candidate), trees, points)
+            distance = distances.between(index, int(candidate), no_further_than=worst)
+            if not np.isfinite(distance):
+                continue
             found.append(Neighbour(distance=distance, segment=int(candidate)))
             found.sort()
             del found[how_many:]
@@ -563,19 +609,20 @@ def segment_evidence(loader: WarsawWorldLoader, nearest: int = 5) -> SegmentRela
             height=float(segment_centres[:, 2].mean()) - floor,
         )
 
-    neighbours = _nearest_neighbours(trees, points, center_bounds, nearest)
+    distances = SegmentDistances(trees=trees, points=points)
+    neighbours = _nearest_neighbours(distances, center_bounds, nearest)
     ranks: Dict[Tuple[int, int], int] = {}
-    distances: Dict[Tuple[int, int], float] = {}
+    ranked_apart: Dict[Tuple[int, int], float] = {}
     for index, found in enumerate(neighbours):
         for rank, neighbour in enumerate(found, start=1):
             ranks[(index, neighbour.segment)] = rank
             key = (min(index, neighbour.segment), max(index, neighbour.segment))
-            distances[key] = min(distances.get(key, np.inf), neighbour.distance)
+            ranked_apart[key] = min(ranked_apart.get(key, np.inf), neighbour.distance)
 
     names = [str(segment.name) for segment in segments]
     sizes = [len(segment.face_indices) for segment in segments]
     pairs = []
-    for one, other in sorted(set(shared) | set(touching) | set(distances)):
+    for one, other in sorted(set(shared) | set(touching) | set(ranked_apart)):
         overlap = shared.get((one, other), 0)
         pairs.append(
             PairEvidence(
@@ -585,12 +632,12 @@ def segment_evidence(loader: WarsawWorldLoader, nearest: int = 5) -> SegmentRela
                 share_of_one=overlap / sizes[one] if sizes[one] else 0.0,
                 share_of_other=overlap / sizes[other] if sizes[other] else 0.0,
                 touching_edges=touching.get((one, other), 0),
-                distance=distances.get(
+                distance=ranked_apart.get(
                     (one, other),
                     (
                         0.0
                         if overlap or touching.get((one, other))
-                        else _distance_between(one, other, trees, points)
+                        else distances.between(one, other)
                     ),
                 ),
                 rank_from_one=ranks.get((one, other)),

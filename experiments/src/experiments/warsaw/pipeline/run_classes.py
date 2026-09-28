@@ -18,14 +18,26 @@ call at the top of a step rather than something a step can opt into later.
 
 from __future__ import annotations
 
+import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
-from typing_extensions import Optional
+import semantic_digital_twin
+from typing_extensions import List, Optional
 
-from experiments.warsaw.exceptions import GeneratedClassesAlreadyImportedError
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    declared_annotation_classes,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+
+from experiments.warsaw.exceptions import (
+    GeneratedClassesAlreadyImportedError,
+    RunClassTakenOverByTheOntologyError,
+    SubprocessStepFailedError,
+)
 
 
 @dataclass
@@ -80,6 +92,132 @@ class GeneratedClasses:
         :return: Whether the run generated any.
         """
         return self.path.exists()
+
+    @property
+    def orm_generator(self) -> Path:
+        """
+        :return: The script that rebuilds the ORM.
+        """
+        root = Path(semantic_digital_twin.__file__).resolve().parent
+        return root.parent.parent / "scripts" / "generate_orm.py"
+
+    @property
+    def interface(self) -> Path:
+        """
+        :return: The generated file that says how everything mapped is stored.
+        """
+        return (
+            Path(semantic_digital_twin.__file__).resolve().parent
+            / "orm"
+            / "ormatic_interface.py"
+        )
+
+    @property
+    def class_names(self) -> List[str]:
+        """
+        :return: The names of the classes this run generated, read out of the file rather
+            than by importing it, so asking costs nothing and changes nothing.
+        """
+        if not self.were_generated:
+            return []
+        return re.findall(r"^class (\w+)", self.path.read_text(), re.MULTILINE)
+
+    def taken_over_by_the_ontology(self) -> List[str]:
+        """
+        Say which of this run's own classes the ontology has since gained.
+
+        Read from the classes the ontology *declares*, not from every class below the
+        annotation root: composing a proposed class registers it there for the rest of the
+        process, and the steps of a run share one, so the live root would report a class
+        this very run invented a moment ago and refuse the run its own classes.
+
+        :return: Those names, empty where its classes are still its own.
+        """
+        declared = declared_annotation_classes(SemanticAnnotation)
+        return sorted(name for name in self.class_names if name in declared)
+
+    def rebuild_orm(self) -> None:
+        """
+        Build the ORM anew so it maps the classes this run generated.
+
+        The ORM is one file for the whole repository while generated classes belong to a
+        run, so anything rebuilding it without this run's directory on the search path
+        -- another run, or the test suite -- leaves it unable to read this run's world.
+        It is rebuilt whether or not it already matches, because asking is not cheaper:
+        an ORM built for another run's classes raises while being imported rather than
+        answering, and an interpreter that has imported a stale one holds it however
+        carefully it imports again.
+
+        The standing interface is moved aside first, because the generator reads the one
+        it is about to replace and a stale interface therefore kills the rebuild run to
+        cure it. It is put back when the rebuild writes nothing, so a failure costs
+        nothing.
+
+        :raises RunClassTakenOverByTheOntologyError: If the ontology has since gained a
+            class this run generated, which would leave two classes of one name and an
+            ORM nothing can import.
+        :raises SubprocessStepFailedError: If the rebuild fails.
+        """
+        taken_over = self.taken_over_by_the_ontology()
+        if taken_over:
+            raise RunClassTakenOverByTheOntologyError(
+                directory=str(self.directory), class_names=taken_over
+            )
+
+        aside = self.interface.with_suffix(".py.aside")
+        if self.interface.exists():
+            self.interface.replace(aside)
+        rebuilt = False
+        try:
+            self._in_new_interpreter(
+                "import importlib, sys\n"
+                "from pathlib import Path\n"
+                "from experiments.warsaw.pipeline.run_classes import GeneratedClasses\n"
+                "GeneratedClasses(directory=Path(sys.argv[1])).use()\n"
+                "specification = importlib.util.spec_from_file_location("
+                "'generate_orm', sys.argv[2])\n"
+                "generator = importlib.util.module_from_spec(specification)\n"
+                "specification.loader.exec_module(generator)\n"
+                "generator.generate_orm()\n",
+                what="rebuilding the ORM with the run's generated classes",
+            )
+            rebuilt = self.interface.exists()
+        finally:
+            if rebuilt:
+                aside.unlink(missing_ok=True)
+            elif aside.exists():
+                aside.replace(self.interface)
+
+        if not rebuilt:
+            raise SubprocessStepFailedError(
+                what="rebuilding the ORM with the run's generated classes",
+                output=f"the generator finished but wrote no {self.interface}",
+            )
+
+    def _in_new_interpreter(self, program: str, what: str) -> str:
+        """
+        Run a program in an interpreter that starts after the ORM was last written.
+
+        :param program: The program to run, given this run's directory and the
+            generator.
+        :param what: What it is doing, for the failure message.
+        :return: What it printed.
+        :raises SubprocessStepFailedError: If it did not finish.
+        """
+        finished = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                program,
+                str(Path(self.directory).resolve()),
+                str(self.orm_generator),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if finished.returncode != 0:
+            raise SubprocessStepFailedError(what=what, output=finished.stderr)
+        return finished.stdout
 
     def use(self) -> Optional[ModuleType]:
         """

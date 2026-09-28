@@ -7,6 +7,7 @@ directory that holds no scene says, and where the cameras end up standing.
 """
 
 import io
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,10 +37,14 @@ from experiments.warsaw.world_loader.viewpoints import (
     is_one_color,
 )
 from experiments.warsaw.world_loader.scene import (
+    SCENE_FRAME_FILE,
     LabelSegment,
     PlyPayload,
+    SceneFrame,
+    SourceFrame,
     WarsawScene,
     segment_label,
+    source_rolled_upright,
 )
 
 # %% a scene file written the way the dataset writes one
@@ -367,6 +372,84 @@ def test_framing_a_part_of_the_scene_stands_closer_than_framing_all_of_it(
         assert np.linalg.norm(part[name][:3, 3] - middle) < np.linalg.norm(
             whole[name][:3, 3] - middle
         )
+
+
+# %% the frame a camera is placed in
+
+
+@pytest.fixture
+def off_centre_scene(tmp_path) -> Path:
+    """
+    :return: A directory holding a scene of one cabinet standing well away from the
+        origin, which is what makes centring the body's own geometry move it.
+    """
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    box.apply_translation((4.0, -3.0, 2.0))
+    faces = box.faces[:4]
+    write_scene(
+        tmp_path / "scene.ply",
+        box.vertices,
+        faces,
+        {"cabinet": [1] * len(faces)},
+    )
+    return tmp_path
+
+
+def where_the_world_holds(
+    loader: WarsawWorldLoader, segments: List[LabelSegment]
+) -> np.ndarray:
+    """
+    :param loader: The loaded scene.
+    :param segments: The segments to take the geometry of.
+    :return: The points their faces are drawn from, where the world places them, which
+        is what a pose recorded as the world's has to agree with.
+    """
+    held = loader.scene_body.collision[0].mesh_in_frame(loader.world.root)
+    return held.vertices[held.faces[loader.face_indices_of(segments)].ravel()]
+
+
+def test_a_segment_s_points_are_where_the_world_holds_them(off_centre_scene):
+    """
+    Loading centres a body's geometry on itself and carries the difference in the body's
+    pose, so a point read straight off the mesh is not where the world holds it.
+    """
+    loader = WarsawWorldLoader(input_directory=off_centre_scene)
+
+    assert np.allclose(
+        loader.points_of(loader.label_segments),
+        where_the_world_holds(loader, loader.label_segments),
+    )
+
+
+def test_a_close_up_is_framed_on_the_segment_where_the_world_holds_it(off_centre_scene):
+    """
+    A pose is recorded as the world's, so a camera framed on the same geometry read from
+    the body's own centred coordinates points beside the object rather than at it.
+    """
+    loader = WarsawWorldLoader(input_directory=off_centre_scene)
+    held = where_the_world_holds(loader, loader.label_segments)
+    middle = (held.min(axis=0) + held.max(axis=0)) / 2
+
+    for pose in loader.poses_framing(loader.label_segments).values():
+        towards = -pose[:3, 2]
+        beside = middle - pose[:3, 3]
+        assert np.allclose(beside - (beside @ towards) * towards, 0, atol=1e-6)
+
+
+def test_a_close_up_draws_the_segment_where_the_world_holds_it(off_centre_scene):
+    """
+    The picture and the pose have to be in one frame: a camera standing in the world's
+    looking at geometry drawn in the body's own sees whatever happens to lie that way.
+    """
+    loader = WarsawWorldLoader(input_directory=off_centre_scene)
+    held = where_the_world_holds(loader, loader.label_segments)
+
+    alone = loader.segments_alone(
+        loader.label_segments, np.asarray(loader.scene_mesh.visual.face_colors)
+    )
+
+    assert np.allclose(alone.bounds[0], held.min(axis=0))
+    assert np.allclose(alone.bounds[1], held.max(axis=0))
 
 
 # %% telling two renders apart
@@ -732,3 +815,159 @@ def test_the_area_presented_is_never_more_than_the_segment_has(two_class_scene):
     presented = loader.presented_area(segment, np.array([0.0, 0.0, 1.0]))
 
     assert 0.0 <= presented <= total + 1e-9
+
+
+# %% which way up a scene file is written
+
+
+def write_upright_scene(directory: Path) -> Path:
+    """
+    Write a scene whose file already stands the way the world does.
+
+    :param directory: Where to write it.
+    :return: That directory.
+    """
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    write_scene(
+        directory / "scene.ply",
+        box.vertices,
+        box.faces[:4],
+        {"cabinet": [1, 1, 0, 0]},
+    )
+    (directory / SCENE_FRAME_FILE).write_text(
+        json.dumps(SceneFrame(source=SourceFrame.UPRIGHT).to_json())
+    )
+    return directory
+
+
+def test_a_scene_that_says_nothing_is_read_as_a_scan(two_class_scene):
+    """
+    Every scene written before a scene could say which way up it is, is a scan, so a
+    directory that says nothing is one.
+    """
+    scene = WarsawScene.from_directory(two_class_scene)
+    assert np.allclose(scene.world_T_source.to_np(), source_rolled_upright().to_np())
+
+
+def test_a_scene_that_says_it_is_upright_is_not_rolled(tmp_path):
+    """
+    A scene written the world's way up is turned by nothing at all, and rolling it
+    would lay the room on its side.
+    """
+    scene = WarsawScene.from_directory(write_upright_scene(tmp_path))
+    assert np.allclose(scene.world_T_source.to_np(), np.eye(4))
+
+
+def test_an_upright_scene_stands_in_the_world_where_its_file_puts_it(tmp_path):
+    """
+    The frame a file says it is in is the one the world builds it in, so the loaded
+    scene spans the same heights the file wrote.
+    """
+    loader = WarsawWorldLoader(input_directory=write_upright_scene(tmp_path))
+    assert np.allclose(loader.scene_mesh.extents, loader.scene.mesh.extents, atol=1e-6)
+
+
+# %% standing a scan on its floor
+
+
+def write_scan_tilted_by(directory: Path, tilt: np.ndarray) -> Path:
+    """
+    Write a scan of a floor with a box standing on it, measuring height down its own y
+    and tilted away from that by a rotation.
+
+    :param directory: Where to write it.
+    :param tilt: The rotation the scan is tilted by, as a 4x4 transform.
+    :return: That directory.
+    """
+    floor = trimesh.Trimesh(
+        vertices=[[-2, -1.5, 0], [2, -1.5, 0], [2, 1.5, 0], [-2, 1.5, 0]],
+        faces=[[0, 1, 2], [0, 2, 3]],
+    )
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    box.apply_translation((0.5, 0.2, 1.5))
+    standing = trimesh.util.concatenate([floor, box])
+    standing.apply_transform(source_rolled_upright().inverse().to_np() @ tilt)
+    write_scene(
+        directory / "scene.ply",
+        standing.vertices,
+        standing.faces,
+        {"floor": [1, 1] + [0] * len(box.faces)},
+    )
+    return directory
+
+
+def floor_and_box_heights(scene: WarsawScene) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    :param scene: A scene written by :func:`write_scan_tilted_by`.
+    :return: The heights of the floor's corners and of the box's corners in the world.
+    """
+    placed = scene.mesh.copy()
+    placed.apply_transform(scene.world_T_source.to_np())
+    floor_corners = np.unique(placed.faces[scene.face_labels["floor"] == 1])
+    box_corners = np.setdiff1d(np.arange(len(placed.vertices)), floor_corners)
+    return placed.vertices[floor_corners, 2], placed.vertices[box_corners, 2]
+
+
+def test_a_tilted_scan_is_stood_on_its_floor(tmp_path):
+    """
+    A reconstruction has no sense of which way is up, so height measured down its y is
+    only as vertical as the scan happened to be. Its floor is what says which way up it
+    stands.
+    """
+    tilt = trimesh.transformations.rotation_matrix(np.radians(56), [1, 0.3, 0])
+    scene = WarsawScene.from_directory(write_scan_tilted_by(tmp_path, tilt))
+
+    floor_heights, box_heights = floor_and_box_heights(scene)
+
+    assert np.ptp(floor_heights) == pytest.approx(0, abs=1e-5)
+    assert box_heights.min() > floor_heights.max()
+
+
+def test_a_scan_already_level_is_only_rolled(tmp_path):
+    """
+    A scan whose floor already lies across its y is turned exactly as before.
+    """
+    scene = WarsawScene.from_directory(write_scan_tilted_by(tmp_path, np.eye(4)))
+
+    assert np.allclose(
+        scene.world_T_source.to_np(), source_rolled_upright().to_np(), atol=1e-6
+    )
+
+
+def test_a_levelled_scan_keeps_its_heading(tmp_path):
+    """
+    Levelling tips the scene about a horizontal axis only, so it keeps the heading the
+    roll gave it rather than being spun about the vertical as well.
+    """
+    tilt = trimesh.transformations.rotation_matrix(np.radians(56), [1, 0.3, 0])
+    scene = WarsawScene.from_directory(write_scan_tilted_by(tmp_path, tilt))
+
+    levelling = scene.world_T_source.to_np() @ source_rolled_upright().inverse().to_np()
+    angle, axis, _ = trimesh.transformations.rotation_from_matrix(levelling)
+
+    assert abs(angle) == pytest.approx(np.radians(56), abs=1e-4)
+    assert axis[2] == pytest.approx(0, abs=1e-6)
+
+
+def test_a_scene_whose_floor_is_exactly_flat_is_turned_by_nothing_more(tmp_path):
+    """
+    A floor already lying flat gives no axis to turn about, and must not turn the scene
+    into nonsense for want of one.
+    """
+    floor = trimesh.Trimesh(
+        vertices=[[-2, 0, -1.5], [2, 0, -1.5], [2, 0, 1.5], [-2, 0, 1.5]],
+        faces=[[0, 2, 1], [0, 3, 2]],
+    )
+    box = trimesh.creation.box(extents=(1, 1, 1))
+    box.apply_translation((0.5, -1.5, 0.2))
+    standing = trimesh.util.concatenate([floor, box])
+    write_scene(
+        tmp_path / "scene.ply",
+        standing.vertices,
+        standing.faces,
+        {"floor": [1, 1] + [0] * len(box.faces)},
+    )
+
+    scene = WarsawScene.from_directory(tmp_path)
+
+    assert np.allclose(scene.world_T_source.to_np(), source_rolled_upright().to_np())

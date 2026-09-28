@@ -3,10 +3,10 @@
 
 {{ ontology }}
 
-## The picture
+{% if shows_pictures %}## The picture
 {{ painted }}
 
-## What was measured
+{% endif %}## What was measured
 {{ measured }}
 {# What the picture cannot say. One claimant is often many times the size of the
    others -- an island label covers the whole block including its drawers -- and then
@@ -17,4 +17,4 @@ of {{ share.name }} the contested {{ exemplar_faces }} faces are {{ "{:.0%}".for
 {% endfor %}
 
 ## How often this happens
-Objects with these labels are labelled over the same faces {{ covers }} time(s) in this room, {{ contested_faces }} faces in all. The pictures show the largest of them.
+Objects with these labels are labelled over the same faces {{ covers }} time(s) in this room, {{ contested_faces }} faces in all. {% if shows_pictures %}The pictures show the largest of them.{% else %}What was measured is the largest of them.{% endif %}

@@ -95,6 +95,27 @@ class RunFile(StrEnum):
     The script the run leaves behind so its world can be opened without knowing anything.
     """
 
+    PUBLISHER = "publish_world.py"
+    """
+    The script the run leaves behind so its bodies can be picked apart in RViz.
+    """
+
+    WORLD_GRAPH_PAGE = "world_graph.html"
+    """
+    The world's entities and relations as an interactive graph, written when the inspector
+    is asked for it.
+    """
+
+    WORLD_MESH = "world_mesh"
+    """
+    The annotated world as a scene a modelling tool can open, one named object per body.
+
+    Kept because the world itself lives only in the database, reachable only through an
+    ORM built for the classes this run generated. Once one of those classes is taken into
+    the ontology the two cannot be told apart and the run can no longer be read, so this
+    is what is left of it.
+    """
+
     REPORT = "report.md"
     """
     What the run made, gathered from what its steps wrote.
@@ -136,6 +157,11 @@ class RunFile(StrEnum):
     The replies to the classification questions, as they came back.
     """
 
+    SUPERCLASS_ANSWERS = "superclass_answers"
+    """
+    What each class a run proposed was settled to be a kind of.
+    """
+
     AMENDMENT_ANSWERS = "amendment_answers"
     """
     The replies to the amendment questions, as they came back.
@@ -146,6 +172,21 @@ class RunFile(StrEnum):
 
     EVALUATION_GRAPH = "evaluation_graph.json"
     """The final semantic nodes and relation outcomes, independent of the database."""
+
+    STEP_DURATIONS = "step_durations.json"
+    """
+    How long each step of the run took.
+    """
+
+    SCENE = "scene"
+    """
+    What the scene said about itself, besides the mesh.
+
+    Copied in rather than pointed at. A converted scene carries the building and the room
+    it was cut from, and which way up it is written; an evaluation reads a run back
+    against those, and a run that only named the directory would stop meaning anything
+    the moment that directory was converted over.
+    """
 
     PROVENANCE = "provenance.json"
     """Settings, input hashes, interpreter identity, and source revision for the run."""

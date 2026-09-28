@@ -2,13 +2,15 @@
 What anything in the Warsaw pipeline can be, over and above what it does.
 
 Two things are wanted almost everywhere and belong to no one step: saying what is being
-done, and being written to a run's files. Each is a handful of lines, and a module apiece
-made the two look like separate concerns rather than the small shared ones they are.
+done, and being written to a run's files. Each is a handful of lines, and a module
+apiece made the two look like separate concerns rather than the small shared ones they
+are.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass
 
 from krrood.adapters.exceptions import JSON_TYPE_NAME
@@ -18,6 +20,11 @@ from krrood.adapters.json_serializer import (
 )
 from krrood.utils import get_full_class_name
 from typing_extensions import Any, Dict, Self
+
+RUNNING_AS_A_COMMAND = "__main__"
+"""
+What Python calls the module it was asked to run, whatever that module is really named.
+"""
 
 # %% saying what is being done
 
@@ -67,7 +74,28 @@ class JsonRecord(SubclassJSONSerializer):
         """
         # SubclassJSONSerializer.to_json writes the class name and nothing else; the
         # fields are what DataclassJSONSerializer knows how to walk.
-        return DataclassJSONSerializer.to_json(self)
+        written = DataclassJSONSerializer.to_json(self)
+        written[JSON_TYPE_NAME] = self.importable_class_name()
+        return written
+
+    @classmethod
+    def importable_class_name(cls) -> str:
+        """
+        Name the class so that whoever reads the record back can find it.
+
+        Every command writes records declared in the module being run, and a module run
+        as a command is imported as ``__main__``. Written under that name a record says
+        it is a class nothing can import, and the file can never be read again -- which
+        is only found out much later, by whoever tries.
+
+        :return: The class's name under the module it can be imported from.
+        """
+        if cls.__module__ != RUNNING_AS_A_COMMAND:
+            return get_full_class_name(cls)
+        run = sys.modules[RUNNING_AS_A_COMMAND].__spec__
+        if run is None:
+            return get_full_class_name(cls)
+        return f"{run.name}.{cls.__name__}"
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:

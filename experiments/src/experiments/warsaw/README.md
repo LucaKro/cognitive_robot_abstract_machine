@@ -14,6 +14,10 @@ rather than from someone's shell history.
 On some machines the renders come back blank and the run stops with a
 `BlankRenderError`; see below for what to do about that.
 
+`ASKING_ABOUT_PHOTOGRAPHS.md` records an idea that is not built: showing a model the
+source photographs with the faces in question drawn over them, rather than renders of a
+scan whose handles are nineteen triangles.
+
 ## Where the scan goes
 
     experiments/src/experiments/warsaw/dataset/<scene name>/<anything>.ply
@@ -50,8 +54,12 @@ Two things about the file are easy to lose:
   unprocessed. Re-exporting the scan through most tools drops the label properties, or
   welds vertices and renumbers the faces the labels were written for. Either way the
   labels no longer describe the mesh. The pipeline checks both and says so.
-- **The scan is read y-up** and rolled onto the world's z
-  (`WarsawScene.world_T_source`). A scan written z-up arrives lying on its side.
+- **The scan is read roughly y-up**, rolled onto the world's z and then stood on its
+  floor: the plane of the faces labelled `floor` is turned flat
+  (`WarsawScene.world_T_source`). A reconstruction has no sense of gravity, so the roll
+  alone left kitchenlab 6 degrees and kitchen2 56 degrees off vertical. A scan labelling
+  no floor is only rolled, and a scan written z-up arrives lying on its side. The turn a
+  run used is recorded in its `split.json` as `world_T_source`.
 
 ## What else a run needs
 
@@ -99,7 +107,21 @@ question as it was put, every answer as it came back, the renders that went with
 the bodies' meshes, and at the end:
 
 - `report.md` — what was measured, what was asked, what was built, and what it cost.
-- `inspect_world.py` — opens the world the run wrote.
+- `inspect_world.py` — opens the world the run wrote. Set `graph_page = True` in it to
+  also write `world_graph.html` beside it and open it in a browser.
+
+The graph page draws any world, not only a run's: bodies and regions joined by their
+connections, and each annotation joined to what its fields hold, zoomable and searchable
+by name or class.
+
+```python
+from experiments.warsaw.world_graph import WorldGraph
+
+WorldGraph.from_world(world).open_page(Path("world_graph.html"))  # or write_page(...)
+```
+
+The page loads its drawing library from a CDN, so viewing it needs a network connection.
+Runs from before the setting existed can add the same line to their own `inspect_world.py`.
 
 Plus a database schema named for the same run. `RunSchema.drop` throws it away, beside
 deleting the directory.

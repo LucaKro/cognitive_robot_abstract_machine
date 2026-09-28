@@ -19,7 +19,7 @@ This decides nothing itself.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
@@ -115,6 +115,15 @@ class OverlapDecision(Question[AnswerType], Generic[AnswerType, AskedType]):
     def key(self) -> str:
         return f"{self.prompt.value}__{self.asked.name}"
 
+    @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this question puts pictures to the model. A run told to show
+            none renders none, and the question then reads as one asked from the measured
+            shares alone.
+        """
+        return bool(self.asked.images)
+
     def pictures(self) -> List[MessagePart]:
         """
         :return: The renders as parts of a message, captioned.
@@ -204,6 +213,7 @@ class OwnershipDecision(OverlapDecision[OwnershipAnswer, OwnershipQuestion]):
                     painted=self.painted(),
                     measured=self.measured(),
                     shares=self.asked.shares,
+                    shows_pictures=self.shows_pictures,
                     exemplar_faces=self.asked.exemplar_faces,
                     covers=len(self.asked.covers),
                     contested_faces=self.asked.contested_faces,
@@ -264,6 +274,7 @@ class MembershipDecision(OverlapDecision[MembershipAnswer, MembershipQuestion]):
                     measured=self.measured(),
                     candidates=self.asked.candidates,
                     painted=self.painted(),
+                    shows_pictures=self.shows_pictures,
                 )
             )
         ] + self.pictures()
@@ -292,33 +303,6 @@ class MembershipDecision(OverlapDecision[MembershipAnswer, MembershipQuestion]):
         ]
 
 
-# %% what was drawn to ask with
-
-
-@dataclass
-class RenderedQuestions:
-    """
-    The open questions sorted by whether there are pictures to put them with.
-    """
-
-    with_pictures: List[OverlapDecision] = field(default_factory=list)
-    """
-    The ones that can be asked.
-    """
-
-    without: List[OverlapDecision] = field(default_factory=list)
-    """
-    The ones that cannot: a question is what the pictures settle.
-    """
-
-    @property
-    def total(self) -> int:
-        """
-        :return: How many questions there are in all.
-        """
-        return len(self.with_pictures) + len(self.without)
-
-
 # %% settling every open question
 
 
@@ -339,7 +323,11 @@ class AdjudicateOverlaps(PipelineStep):
 
     def carry_out(self) -> None:
         """
-        Put every rendered question to the model and write the answers.
+        Put every open question to the model and write the answers.
+
+        A question that was drawn is put with its pictures and one that was not is put
+        from its text alone, since the ontology, the measured shares and the candidates
+        are text either way.
         """
         questions = self.run.read_record(RunFile.QUESTIONS, OpenQuestions)
         relations = self.run.read_record(RunFile.RELATIONS, Relations)
@@ -355,21 +343,14 @@ class AdjudicateOverlaps(PipelineStep):
             MembershipDecision(asked=one, labels=labels, renders_directory=renders)
             for one in questions.membership
         ]
-        rendered = self.rendered(ownership + membership)
-        if rendered.without:
-            self.logger.warning(
-                "%s of %s questions have no renders yet, so they are not asked",
-                len(rendered.without),
-                rendered.total,
-            )
-        asked = (
-            rendered.with_pictures[: self.limit]
-            if self.limit
-            else rendered.with_pictures
-        )
+        every_question = ownership + membership
+        asked = every_question[: self.limit] if self.limit else every_question
 
         self.logger.info(
-            "asking %s about %s questions ...", self.settings.model.value, len(asked)
+            "asking %s about %s questions, %s of them with pictures ...",
+            self.settings.model.value,
+            len(asked),
+            sum(1 for one in asked if one.shows_pictures),
         )
         adjudications = Adjudications(
             model=self.settings.model.value, scene=relations.scene
@@ -388,17 +369,6 @@ class AdjudicateOverlaps(PipelineStep):
 
         self.run.write_record(RunFile.ADJUDICATIONS, adjudications)
         self.report(adjudications)
-
-    @staticmethod
-    def rendered(questions: List[OverlapDecision]) -> RenderedQuestions:
-        """
-        :param questions: Every open question.
-        :return: Them, sorted by whether there are pictures to put them with.
-        """
-        return RenderedQuestions(
-            with_pictures=[one for one in questions if one.asked.images],
-            without=[one for one in questions if not one.asked.images],
-        )
 
     def report(self, adjudications: Adjudications) -> None:
         """

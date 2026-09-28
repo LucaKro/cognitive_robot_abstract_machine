@@ -21,12 +21,12 @@ adjudication; if any of those is wrong, this writes it faithfully into the world
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import semantic_digital_twin
 from semantic_digital_twin.exceptions import UsageError
 from semantic_digital_twin.world import World
 from semantic_digital_twin.semantic_annotations.in_memory_builder import (
@@ -36,8 +36,16 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     MountKind,
     annotation_classes,
     in_base_order,
+    names_a_category,
 )
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+from semantic_digital_twin.semantic_annotations.mixins import (
+    HasRootBody,
+    HasRootRegion,
+)
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    SemanticAnnotation,
+)
 from typing_extensions import Dict, List, Type
 
 from experiments.warsaw.exceptions import NoWorldRecordedError
@@ -54,8 +62,102 @@ from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
+from experiments.warsaw.pipeline.steps.compose.step import SuperclassChoice
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.scene_split import Pairing
+
+# %% what an annotation needs beyond the body it is about
+
+ROOT = "root"
+"""
+The field an annotation holds the body it is about in, and the one thing the step gives
+every annotation it makes.
+"""
+
+
+def fields_beyond_the_body(annotation_class: Type) -> List[str]:
+    """
+    Name what an annotation class needs that the body it is about does not supply.
+
+    Every annotation is made from that body and nothing else, so a class needing more
+    cannot be made here. Most need nothing: a cabinet is made with no drawers and has
+    them mounted into it afterwards, which is the only order the run could work in,
+    since what belongs in which cabinet is not known when the cabinet is made.
+
+    Two kinds cannot be. Some are constituted by other annotations -- a room is its
+    floor, a double door is its two doors -- and are annotations over annotations rather
+    than over a body. Others are rooted on a region rather than a body: an aperture is a
+    hole, and a hole is not a thing. Nothing refuses the body in either case, because a
+    field takes what it is given, so the second kind stays wrong and quiet until
+    something reads the area a body does not have.
+
+    :param annotation_class: The class an answer named.
+    :return: The fields it requires besides the body, with ``root`` among them where a
+        body is not the root it takes. Empty when a body is all it needs.
+    """
+    wanted = [
+        one.name
+        for one in dataclasses.fields(annotation_class)
+        if one.init
+        and one.name != ROOT
+        and one.default is dataclasses.MISSING
+        and one.default_factory is dataclasses.MISSING
+    ]
+    if not issubclass(annotation_class, HasRootBody):
+        wanted.append(ROOT)
+    return sorted(wanted)
+
+
+# %% turning a body into the annotation it was answered as
+
+
+@dataclass(frozen=True)
+class AnnotationFromBody:
+    """
+    How a run makes an annotation of the class a body was answered as, out of that body.
+
+    A run may be allowed to build a region from the body for a class that takes one.
+    Both what it refuses and what it builds read that permission here, so the two cannot
+    disagree about which classes a run can make.
+    """
+
+    may_make_a_region: bool = False
+    """
+    Whether a class rooted on a region is given one the size and pose of the body,
+    rather than being refused for taking no body.
+    """
+
+    def cannot_supply(self, annotation_class: Type) -> List[str]:
+        """
+        Name what this run cannot give an annotation of that class.
+
+        :param annotation_class: The class an answer named.
+        :return: The fields it needs that the run has no way to fill. Empty when it can
+            be made.
+        """
+        wanted = fields_beyond_the_body(annotation_class)
+        if self.may_make_a_region and issubclass(annotation_class, HasRootRegion):
+            return [one for one in wanted if one != ROOT]
+        return wanted
+
+    def make(
+        self, annotation_class: Type, name: str, body: Body, world: World
+    ) -> SemanticAnnotation:
+        """
+        Make one annotation of that class about that body.
+
+        :param annotation_class: The class the answer named.
+        :param name: What to call the annotation.
+        :param body: The body it is about.
+        :param world: The world the body is in.
+        :return: The annotation, already in the world where making it put it there.
+        """
+        if self.may_make_a_region and issubclass(annotation_class, HasRootRegion):
+            return annotation_class.create_with_new_region_in_world_from_body(
+                name=name, world=world, body=body
+            )
+        return annotation_class(**{ROOT: body}, _world=world)
+
 
 # %% a mount the world would not carry out
 
@@ -113,6 +215,50 @@ class MountAnnotations(HasLogger):
         """
         return Run(directory=self.directory)
 
+    @property
+    def skip_classes_a_body_cannot_make(self) -> bool:
+        """
+        :return: Whether this run was told to leave a body alone when its class cannot
+            be made from one. A run that says nothing was not.
+        """
+        written = self.run.read_json_if_written(RunFile.PROVENANCE)
+        return bool(
+            written.get("settings", {}).get("skip_classes_a_body_cannot_make", False)
+        )
+
+    @property
+    def skip_classes_that_name_a_category(self) -> bool:
+        """
+        :return: Whether this run was told to refuse a class the ontology declares a
+            category. A run that says nothing was not.
+        """
+        written = self.run.read_json_if_written(RunFile.PROVENANCE)
+        return bool(
+            written.get("settings", {}).get("skip_classes_that_name_a_category", False)
+        )
+
+    @property
+    def make_a_region_where_a_class_needs_one(self) -> bool:
+        """
+        :return: Whether this run was told to build a region for a class that takes one.
+            A run that says nothing was not.
+        """
+        written = self.run.read_json_if_written(RunFile.PROVENANCE)
+        return bool(
+            written.get("settings", {}).get(
+                "make_a_region_where_a_class_needs_one", False
+            )
+        )
+
+    @property
+    def annotation_from_body(self) -> AnnotationFromBody:
+        """
+        :return: How this run turns a body into the annotation it was answered as.
+        """
+        return AnnotationFromBody(
+            may_make_a_region=self.make_a_region_where_a_class_needs_one
+        )
+
     def carry_out(self) -> None:
         """
         Read the split world back, annotate it, mount its parts, and write it afresh.
@@ -167,17 +313,23 @@ class MountAnnotations(HasLogger):
             split=split,
             classifications=classifications,
             annotated_names=set(annotations),
-        )
+        ).with_fields_resolved(annotation_classes(SemanticAnnotation))
         self.run.write_record(RunFile.EVALUATION_GRAPH, graph)
 
         report = RunReport(run=self.run)
         report.write_inspector()
+        report.write_publisher()
         report.write()
         self.logger.info(
-            "written to %s and %s",
+            "written to %s, %s and %s",
             self.run.path(RunFile.REPORT),
             self.run.path(RunFile.INSPECTOR),
+            self.run.path(RunFile.PUBLISHER),
         )
+
+        # Last, because it paints the world on the way out and because a run whose every
+        # other product is already written loses nothing if this fails.
+        self.logger.info("written as a scene to %s", report.write_world_mesh(world))
 
     def annotate(
         self, world: World, classifications: Classifications
@@ -207,12 +359,26 @@ class MountAnnotations(HasLogger):
                 if answer.class_name not in known:
                     left_alone[answer.class_name] += 1
                     continue
-                # An abstract class cannot be instantiated, and one answer naming one
-                # should cost that one body rather than every body after it.
-                if inspect.isabstract(known[answer.class_name]):
+                # A category names no object, and the taxonomy told the model so. One
+                # answer naming one should cost that body rather than every body after it,
+                # and it is refused here rather than instantiated, so that what the model
+                # was told and what the run asserts are the same thing.
+                if names_a_category(
+                    known[answer.class_name],
+                    categories_are_answers=not self.skip_classes_that_name_a_category,
+                ):
                     left_alone[f"{answer.class_name} (abstract)"] += 1
                     continue
-                annotation = known[answer.class_name](root=body, _world=world)
+                making = self.annotation_from_body
+                wanted = (
+                    making.cannot_supply(known[answer.class_name])
+                    if self.skip_classes_a_body_cannot_make
+                    else []
+                )
+                if wanted:
+                    left_alone[f"{answer.class_name} (needs {', '.join(wanted)})"] += 1
+                    continue
+                annotation = making.make(known[answer.class_name], name, body, world)
                 # Registered as it is made, before anything is mounted into it. A mount
                 # records an attribute update against the annotation it changes, and a
                 # world replaying its modifications has to have that annotation already:
@@ -312,14 +478,6 @@ class AnnotateAndMount(PipelineStep):
         """
         return "dataclass_template.py.jinja"
 
-    @property
-    def orm_generator(self) -> Path:
-        """
-        :return: The script that rebuilds the ORM.
-        """
-        root = Path(semantic_digital_twin.__file__).resolve().parent
-        return root.parent.parent / "scripts" / "generate_orm.py"
-
     def carry_out(self) -> None:
         """
         Generate what the ontology lacks, rebuild the ORM, then annotate in a new one.
@@ -331,6 +489,8 @@ class AnnotateAndMount(PipelineStep):
         self.logger.info(
             "%s classes over %s bodies", len(wanted), len(classifications.bodies)
         )
+        if self.settings.settle_the_superclass:
+            wanted = self.settled_superclasses(wanted, known, classifications)
 
         generated = self.generate_missing(wanted, known)
         if generated:
@@ -356,6 +516,54 @@ class AnnotateAndMount(PipelineStep):
         )
         for line in printed.splitlines():
             self.logger.info(line)
+
+    def settled_superclasses(
+        self,
+        wanted: Dict[str, List[str]],
+        known: Dict[str, Type],
+        classifications: Classifications,
+    ) -> Dict[str, List[str]]:
+        """
+        Ask what each class this run wants is a kind of, and build it from that answer.
+
+        Asked once per class rather than once per body, and only for the classes the
+        ontology does not already have: placing a class it has is settled already.
+
+        :param wanted: Per class name, what the step that named it proposed.
+        :param known: The ontology's classes by name.
+        :param classifications: What each body was answered to be, for the labels a class
+            was proposed from.
+        :return: The same classes, built from what was settled where an answer was usable
+            and from what was proposed where none was.
+        """
+        taxonomy = self.run.read_json(RunFile.TAXONOMY)
+        labels = defaultdict(set)
+        for answer in classifications.bodies:
+            if answer.class_name and answer.label:
+                labels[answer.class_name].add(answer.label)
+
+        questioner = self.questioner(RunFile.SUPERCLASS_ANSWERS)
+        settled = dict(wanted)
+        for name, proposed in sorted(wanted.items()):
+            if name in known:
+                continue
+            question = SuperclassChoice(
+                taxonomy=taxonomy,
+                known=known,
+                class_name=name,
+                proposed_bases=proposed,
+                labels=sorted(labels.get(name, ())),
+            )
+            bases = question.bases(questioner.answer(question).answer)
+            if bases is None:
+                self.logger.info("  %s: kept %s", name, ", ".join(proposed))
+                continue
+            if bases != proposed:
+                self.logger.info(
+                    "  %s: %s -> %s", name, ", ".join(proposed), ", ".join(bases)
+                )
+            settled[name] = bases
+        return settled
 
     @staticmethod
     def wanted_classes(
@@ -432,6 +640,15 @@ class AnnotateAndMount(PipelineStep):
                 builder.add_base(base)
             builders.append(builder)
             generated.append(f"{name}({', '.join(base.__name__ for base in ordered)})")
+            # A stubbed class can be made and annotated, which is the point, and it then
+            # looks complete to everything that only asks whether it can be. Said aloud
+            # so that what a run could not know is not left for a robot to discover.
+            for stubbed in builder.stubbed_methods:
+                self.logger.warning(
+                    "  %s: %s was stubbed, since no run can know what it answers",
+                    name,
+                    stubbed,
+                )
 
         if builders:
             generated_classes = GeneratedClasses(directory=self.run.directory)
@@ -445,24 +662,6 @@ class AnnotateAndMount(PipelineStep):
         """
         Rebuild the ORM so the database knows the classes this run generated.
 
-        Run in a new interpreter with the run's directory at the front of the
-        annotations package's search path: the generator finds classes by walking that
-        path, so the run's file is the one it maps, without the generator being told
-        anything and without the classes ever being written into the ontology's own
-        package.
-
         :raises SubprocessStepFailedError: If the rebuild fails.
         """
-        self.in_new_interpreter(
-            "import importlib.util, sys\n"
-            "from pathlib import Path\n"
-            "from experiments.warsaw.pipeline.run_classes import GeneratedClasses\n"
-            "GeneratedClasses(directory=Path(sys.argv[1])).use()\n"
-            "specification = importlib.util.spec_from_file_location("
-            "'generate_orm', sys.argv[2])\n"
-            "generator = importlib.util.module_from_spec(specification)\n"
-            "specification.loader.exec_module(generator)\n"
-            "generator.generate_orm()\n",
-            [str(self.run.directory.resolve()), str(self.orm_generator)],
-            what="rebuilding the ORM with the run's generated classes",
-        )
+        GeneratedClasses(directory=self.run.directory).rebuild_orm()

@@ -1,4 +1,6 @@
-"""Reproducibility information written before an expensive pipeline run."""
+"""
+Reproducibility information written before an expensive pipeline run.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +16,9 @@ from experiments.warsaw.pipeline.settings import Model, PipelineSettings
 
 
 def test_run_provenance_records_reproducible_inputs(tmp_path) -> None:
-    """A run explains its configuration and exact input without credentials."""
+    """
+    A run explains its configuration and exact input without credentials.
+    """
     scene = tmp_path / "scene"
     scene.mkdir()
     mesh = scene / "apartment.glb"
@@ -57,7 +61,9 @@ def test_run_provenance_records_reproducible_inputs(tmp_path) -> None:
 
 
 def test_source_patch_includes_tracked_and_untracked_files(tmp_path) -> None:
-    """An uncommitted evaluator remains reproducible before its first commit."""
+    """
+    An uncommitted evaluator remains reproducible before its first commit.
+    """
     repository = tmp_path / "repository"
     repository.mkdir()
     subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)

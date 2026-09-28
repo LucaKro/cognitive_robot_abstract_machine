@@ -34,8 +34,9 @@ from typing_extensions import Any, Dict, List, Sequence
 
 from krrood.ormatic.utils import classproperty
 
-from experiments.warsaw.pipeline.asking import Prompt, Question
+from experiments.warsaw.pipeline.asking import Prompt, Question, TaxonomyCategories
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
+from experiments.warsaw.pipeline.camera_poses import CameraPoses
 from experiments.warsaw.pipeline.records import BodyAnswer, Classifications, Vocabulary
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
@@ -80,6 +81,14 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
     def key(self) -> str:
         return f"group{self.rendered.index}"
 
+    @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this group was rendered. A run told to show no pictures renders
+            none, and the bodies are then listed without the colour they were not painted.
+        """
+        return bool(self.rendered.images)
+
     def listed(self) -> List[Dict[str, Any]]:
         """
         :return: Per body in the pictures, what a model is told about it: the colour it
@@ -88,7 +97,11 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
         return [
             {
                 "name": f"{segment.name}",
-                "color": self.rendered.colors[segment.name].closest_css3_name(),
+                "color": (
+                    self.rendered.colors[segment.name].closest_css3_name()
+                    if segment.name in self.rendered.colors
+                    else None
+                ),
                 "label": segment.class_name,
                 "read_as": self.vocabulary.answer_for(segment.class_name).class_name
                 or "no class",
@@ -143,9 +156,19 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
             problems.append(
                 f"{', '.join(unknown)} were named but are not in the picture"
             )
+        categories = TaxonomyCategories(taxonomy=self.taxonomy)
         for name, one in answer.items():
-            if name in wanted and not one.class_name:
+            if name not in wanted:
+                continue
+            if not one.class_name:
                 problems.append(f"{name} was given no class")
+                continue
+            problems.extend(
+                f"{name}: {problem}"
+                for problem in categories.problems_with(
+                    one.class_name, one.is_new_class
+                )
+            )
         return problems
 
 
@@ -181,13 +204,27 @@ class ClassifyBodies(PipelineStep):
         questioner = self.questioner(RunFile.CLASSIFICATION_ANSWERS)
         named: List[BodyAnswer] = []
 
-        for rendered in loader.render_label_segment_groups(
+        for rendered in loader.label_segment_groups(
             group_size=self.settings.group_size,
             segments=bodies,
             headless=self.settings.headless,
+            pictured=self.settings.show_the_pictures,
         ):
+            named_renders = {
+                viewpoint: f"group{rendered.index}__{viewpoint}.png"
+                for viewpoint in rendered.images
+            }
             for viewpoint, image in rendered.images.items():
-                (renders / f"group{rendered.index}__{viewpoint}.png").write_bytes(image)
+                (renders / named_renders[viewpoint]).write_bytes(image)
+            CameraPoses.record(
+                directory=renders,
+                frame=str(loader.world.root.name),
+                field_of_view=loader.camera_field_of_view,
+                poses={
+                    named_renders[viewpoint]: pose
+                    for viewpoint, pose in rendered.camera_poses.items()
+                },
+            )
 
             answered = questioner.answer(
                 BodyGroupQuestion(

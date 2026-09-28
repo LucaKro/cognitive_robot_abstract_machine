@@ -24,10 +24,22 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot, KinematicCha
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.semantic_annotations.semantic_annotations import *
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Handle,
-    Drawer,
-    Wardrobe,
+    Cabinet,
+    Chair,
+    Decor,
     Door,
+    Drawer,
+    ElectricalDevice,
+    Furniture,
+    Handle,
+    Lamp,
+    Mirror,
+    Wall,
+    Wardrobe,
+)
+from semantic_digital_twin.semantic_annotations.mixins import (
+    HasCaseAsRootBody,
+    HasRootBody,
 )
 from semantic_digital_twin.testing import *
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
@@ -665,3 +677,90 @@ def test_combined_mesh_is_empty_without_collision_geometry():
     setup = DrawerWithSlidingHandle.build(ShapeCollection(), ShapeCollection())
 
     assert len(setup.drawer.combined_mesh.vertices) == 0
+
+
+# %% every piece of furniture stands as a body
+
+
+def furniture_family() -> List[type]:
+    """
+    :return: Every class the ontology derives from :class:`Furniture`, itself included.
+    """
+    found, frontier = {Furniture}, [Furniture]
+    while frontier:
+        for derived in frontier.pop().__subclasses__():
+            if derived not in found:
+                found.add(derived)
+                frontier.append(derived)
+    return sorted(found, key=lambda one: one.__name__)
+
+
+def test_a_chair_is_annotated_onto_the_body_it_stands_as():
+    """
+    A chair is a thing standing in a room, so it is annotated onto a body like any
+    other, rather than being a class nothing can be built from.
+    """
+    chair_body = Body(name=PrefixedName("chair_body"))
+    assert Chair(root=chair_body).root is chair_body
+
+
+def test_every_piece_of_furniture_stands_as_a_body():
+    """
+    Furniture says what a thing is, not that it stands anywhere, and a piece of it that
+    said only the first could never be annotated onto anything.
+
+    Asked of the whole family rather than of the classes that happened to be broken, so
+    a piece of furniture added later without a body is caught here.
+    """
+    assert [
+        one.__name__ for one in furniture_family() if not issubclass(one, HasRootBody)
+    ] == []
+
+
+def test_a_cabinet_is_still_built_as_a_hollow_case():
+    """
+    A case overrides the geometry a plain body would be given, so it has to be reached
+    before the plain body is: furniture carrying a root must not overtake it, or every
+    cabinet in the ontology quietly becomes a solid block.
+    """
+    reached = Cabinet.__mro__
+    assert reached.index(HasCaseAsRootBody) < reached.index(HasRootBody)
+
+
+# %% things a household has that the ontology had no word for
+
+
+def test_a_lamp_is_a_thing_that_lights_a_room_and_not_decoration():
+    """
+    A lamp does a job.
+
+    Filing it under decoration reads it as ornament, which is what the ontology had no
+    better word for: HM3D's four annotated buildings hold 213 lamps, light fixtures,
+    chandeliers and the like between them.
+    """
+    lamp_body = Body(name=PrefixedName("lamp_body"))
+    assert Lamp(root=lamp_body).root is lamp_body
+    assert not issubclass(Lamp, Decor)
+
+
+def test_an_electrical_device_is_its_own_thing():
+    """
+    A television, a smoke detector and a thermostat had no class between them, and runs
+    kept inventing one under a different name each time -- ``Device`` in one,
+    ``ElectronicDevice`` in the next, ``Agent`` in a third.
+
+    Naming it once is what makes those runs comparable.
+    """
+    device_body = Body(name=PrefixedName("device_body"))
+    assert ElectricalDevice(root=device_body).root is device_body
+    assert not issubclass(ElectricalDevice, Decor)
+
+
+def test_a_mirror_is_its_own_thing():
+    """
+    A mirror is not decoration and is not always on a wall -- some stand on the floor --
+    so it hangs off nothing but the body it is.
+    """
+    mirror_body = Body(name=PrefixedName("mirror_body"))
+    assert Mirror(root=mirror_body).root is mirror_body
+    assert not issubclass(Mirror, (Decor, Wall))

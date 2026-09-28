@@ -33,7 +33,7 @@ from semantic_digital_twin.adapters.vision_language_model.message import (
     MessagePart,
     TextPart,
 )
-from typing_extensions import Any, Dict, Generic, List, Sequence, Type, TypeVar
+from typing_extensions import Any, Dict, Generic, List, Sequence, Set, Type, TypeVar
 
 from krrood.ormatic.utils import classproperty
 
@@ -103,6 +103,11 @@ class Prompt(StrEnum):
     What each body of a split scene is.
     """
 
+    SUPERCLASS = "superclass"
+    """
+    What a class a run proposed is a kind of.
+    """
+
     TAXONOMY_AMENDMENT = "taxonomy_amendment"
     """
     Whether a class of the ontology should be given a mixin.
@@ -169,11 +174,23 @@ class Question(ABC, Generic[AnswerType]):
         """
 
     @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this question puts pictures to the model. A question that can be
+            asked either way answers from what it was actually given, so the instruction
+            and the message cannot disagree about whether there is anything to look at.
+        """
+        return True
+
+    @property
     def system_prompt(self) -> str:
         """
         :return: What the model is told it is doing.
         """
-        return self.templates.render_document(self.prompt_template(PromptHalf.SYSTEM))
+        return self.templates.render_document(
+            self.prompt_template(PromptHalf.SYSTEM),
+            shows_pictures=self.shows_pictures,
+        )
 
     @abstractmethod
     def message(self) -> List[MessagePart]:
@@ -203,6 +220,55 @@ class Question(ABC, Generic[AnswerType]):
         :return: The blank answer to keep in its place, so a refusal costs one question
             rather than the run.
         """
+
+
+# %% the classes no object may be answered with
+
+
+@dataclass
+class TaxonomyCategories:
+    """
+    The classes a taxonomy marks as categories: they say what kind of thing something is,
+    not what it is.
+
+    Read from the taxonomy the model was shown rather than from the ontology, so that what
+    an answer is refused for is what the model was told, and a run accepting categories
+    exports none.
+    """
+
+    taxonomy: Dict[str, Any]
+    """
+    The ontology as a model reads it.
+    """
+
+    @property
+    def names(self) -> Set[str]:
+        """
+        :return: The categories. A mixin is marked the same way and refused for being a
+            mixin, so it is left out here.
+        """
+        return {
+            node["name"]
+            for node in self.taxonomy["classes"]
+            if node.get("abstract") and not node.get("mixin")
+        }
+
+    def problems_with(self, class_name: str, is_new_class: bool) -> List[str]:
+        """
+        Say whether an answer names a category as what something is.
+
+        :param class_name: The class answered.
+        :param is_new_class: Whether that class was proposed rather than taken from the
+            taxonomy. A proposal deriving from a category is what a category is for.
+        :return: One sentence when it names a category, empty otherwise.
+        """
+        if is_new_class or class_name not in self.names:
+            return []
+        return [
+            f"{class_name} is a category, so it says what kind of thing this is rather "
+            f"than what it is; propose the kind as a new class with {class_name} as its "
+            f"superclass instead of answering with it"
+        ]
 
 
 # %% a question asked about a class of the ontology

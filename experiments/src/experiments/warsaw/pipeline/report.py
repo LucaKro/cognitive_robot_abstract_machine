@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from semantic_digital_twin.world import World
 from typing_extensions import Any, Dict, List
 
+from experiments.warsaw.evaluation.export_world_mesh import write_world_mesh
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     Classifications,
@@ -82,6 +85,11 @@ class RunReport:
     The script that opens the run's world, with the world ids left to fill in.
     """
 
+    publisher_template: str = "publish_world.py.jinja"
+    """
+    What the script publishing the run's bodies for RViz is written from.
+    """
+
     # %% what each step wrote
 
     @property
@@ -141,12 +149,38 @@ class RunReport:
         """
         Leave behind the script that opens the run's world without knowing anything.
         """
+        self._write_script(RunFile.INSPECTOR, self.inspector_template)
+
+    def write_publisher(self) -> None:
+        """
+        Leave behind the script that publishes the run's bodies for RViz.
+        """
+        self._write_script(RunFile.PUBLISHER, self.publisher_template)
+
+    def write_world_mesh(self, world: World) -> Path:
+        """
+        Leave behind the run's world as a scene, so the run outlives the database.
+
+        :param world: The annotated world, already written to the database. It is
+            painted on the way out, so this is done once nothing will store it again.
+        :return: The scene that was written.
+        """
+        return write_world_mesh(world, self.run.directory_for(RunFile.WORLD_MESH))
+
+    def _write_script(self, run_file: RunFile, template: str) -> None:
+        """
+        Write one of the scripts a run leaves behind, told the worlds it wrote.
+
+        :param run_file: Where it is written.
+        :param template: What it is written from.
+        """
         split = self.split
-        self.run.path(RunFile.INSPECTOR).write_text(
+        self.run.path(run_file).write_text(
             self.templates.render(
-                self.inspector_template,
+                template,
                 annotated=split.annotated_world_id,
                 split=split.world_id,
+                world_graph_page=RunFile.WORLD_GRAPH_PAGE,
             )
         )
 

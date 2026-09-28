@@ -15,7 +15,10 @@ mount through the wrong channel raises rather than building the wrong world quie
 
 from __future__ import annotations
 
+import importlib
+
 import inspect
+from abc import ABC
 import json
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
 from enum import StrEnum
@@ -36,6 +39,10 @@ from krrood.class_diagrams.class_diagram import WrappedClass
 
 from semantic_digital_twin.semantic_annotations.part_whole import (
     part_whole_fields,
+)
+from semantic_digital_twin.world_description.world_entity import (
+    SemanticAnnotation,
+    WorldEntity,
 )
 
 # %% the vocabulary a mount is described in
@@ -248,6 +255,61 @@ def relations_of(annotation_class: Type) -> List[SemanticRelation]:
     return relations
 
 
+# %% what an annotation actually holds
+
+
+@dataclass(frozen=True)
+class MountedRelation:
+    """
+    One relation an annotation instance currently stands in.
+
+    Where :func:`relations_of` reports what a class *may* hold, this reports what one
+    annotation *does* hold, read through the same fields, so a world's semantics can be
+    written out without knowing which class declared which field.
+    """
+
+    kind: MountKind
+    """
+    What the relation means.
+    """
+
+    field_name: str
+    """
+    The field the related entity is held in.
+    """
+
+    target: WorldEntity
+    """
+    The entity at the other end of the relation.
+    """
+
+
+def mounted_relations_of(annotation: SemanticAnnotation) -> List[MountedRelation]:
+    """
+    Report the relations an annotation currently stands in.
+
+    A field holding a single entity and a field holding several are reported alike, and
+    an empty field is not reported at all.
+
+    :param annotation: The annotation instance to read.
+    :return: One entry per entity mounted into one of its relation fields.
+    """
+    mounted = []
+    for relation in relations_of(type(annotation)):
+        held = getattr(annotation, relation.field_name)
+        targets = held if relation.holds_many else [held]
+        mounted.extend(
+            MountedRelation(
+                kind=relation.kind,
+                field_name=relation.field_name,
+                target=target,
+            )
+            for target in targets
+            if target is not None
+        )
+    return mounted
+
+
 def describe_class(annotation_class: Type) -> str:
     """
     Write out what a class is and what it can hold, as a model reads it.
@@ -271,6 +333,47 @@ def describe_class(annotation_class: Type) -> str:
     return "\n".join(lines)
 
 
+def declares_itself_a_category(annotation_class: Type) -> bool:
+    """
+    Say whether a class says of itself that it is a category.
+
+    Python calls a class abstract only where it carries an unimplemented abstract method,
+    and an ontology's categories carry none: ``Furniture`` declares ``ABC`` and is
+    instantiable all the same. Declaring ``ABC`` directly is how this ontology says a
+    class names a kind of thing rather than a thing.
+
+    :param annotation_class: The class to judge.
+    :return: Whether it declares itself a category.
+    """
+    return ABC in annotation_class.__bases__
+
+
+def names_a_category(
+    annotation_class: Type, categories_are_answers: bool = False
+) -> bool:
+    """
+    Say whether a class is no answer about an object.
+
+    Two different things make a class unanswerable and only one of them is a choice. A
+    class carrying an unimplemented abstract method cannot be instantiated at all, so it
+    is never an answer. A class that merely *declares* itself a category can be
+    instantiated, and whether a run should accept one is a judgement: refusing them is
+    what makes a run compose ``Stool`` instead of answering ``Furniture``, and it costs
+    every body whose answer it refuses.
+
+    Read in one place, so that what a model is told about a class and what the annotate
+    step will accept for one cannot drift apart.
+
+    :param annotation_class: The class to judge.
+    :param categories_are_answers: Whether a class declaring itself a category may still
+        be given to an object.
+    :return: Whether it is no answer about an object.
+    """
+    if inspect.isabstract(annotation_class):
+        return True
+    return not categories_are_answers and declares_itself_a_category(annotation_class)
+
+
 def _summary_of(annotation_class: Type) -> Optional[str]:
     """
     A dataclass without a docstring is given one listing its signature, which says
@@ -289,6 +392,16 @@ def _summary_of(annotation_class: Type) -> Optional[str]:
 # %% finding the classes there are
 
 
+ONTOLOGY_MODULES = (
+    "semantic_digital_twin.semantic_annotations.mixins",
+    "semantic_digital_twin.semantic_annotations.semantic_annotations",
+)
+"""
+The modules the taxonomy is declared in, and the only place a class being *the ontology's*
+can be told from a class merely deriving from its root.
+"""
+
+
 def load_annotation_modules() -> None:
     """
     Import the modules declaring the taxonomy.
@@ -301,8 +414,8 @@ def load_annotation_modules() -> None:
     Classes generated at run time are picked up as well, once whoever generated them has
     imported them.
     """
-    import semantic_digital_twin.semantic_annotations.mixins  # noqa: F401
-    import semantic_digital_twin.semantic_annotations.semantic_annotations  # noqa: F401
+    for name in ONTOLOGY_MODULES:
+        importlib.import_module(name)
 
 
 def _walk_subclasses(root_class: Type) -> Iterator[Type]:
@@ -335,10 +448,39 @@ def annotation_classes(root_class: Type) -> Dict[str, Type]:
     }
 
 
+def declared_annotation_classes(root_class: Type) -> Dict[str, Type]:
+    """
+    The classes the ontology itself declares, as against every class below the root.
+
+    :func:`annotation_classes` reports whatever this process has imported or composed, and
+    :func:`compose_class` registers a proposed class below the root for the rest of the
+    process. Asked which classes the ontology *has*, that answer says yes to a class this
+    very process invented a moment ago.
+
+    Walked rather than filtered out of :func:`annotation_classes`, which is keyed by name
+    and so keeps only one class per name. A composed class deriving from a deep one is
+    reached after the class it shadows, so filtering afterwards drops the ontology's own
+    class instead of the composed one.
+
+    :param root_class: The root of the hierarchy, normally ``SemanticAnnotation``.
+    :return: Those of its subclasses declared in the ontology's own modules, by name.
+    """
+    load_annotation_modules()
+    return {
+        annotation_class.__name__: annotation_class
+        for annotation_class in _walk_subclasses(root_class)
+        if annotation_class.__module__ in ONTOLOGY_MODULES
+    }
+
+
 # %% building and writing the taxonomy
 
 
-def build_taxonomy(root_class: Type, include_summaries: bool = False) -> Dict[str, Any]:
+def build_taxonomy(
+    root_class: Type,
+    include_summaries: bool = False,
+    categories_are_answers: bool = False,
+) -> Dict[str, Any]:
     """
     Describe the annotation taxonomy below a root class.
 
@@ -371,10 +513,10 @@ def build_taxonomy(root_class: Type, include_summaries: bool = False) -> Dict[st
                 if base.__name__ in known
             ],
         }
-        if inspect.isabstract(annotation_class):
-            # A class with an unimplemented abstract method cannot be given to an
-            # object at all, so offering it as an answer is offering a failure three
-            # steps later, where it reads as the world's fault rather than the answer's.
+        if names_a_category(annotation_class, categories_are_answers):
+            # A category is not something a room holds, and one that could be instantiated
+            # is worse than one that could not: offering it as an answer is offering a
+            # coarser answer than the ontology can carry, which a run then asserts.
             node["abstract"] = True
         if annotation_class.__module__.endswith(MIXIN_MODULE_SUFFIX):
             # A mixin is a base to build with, not a thing standing in a room. Saying so
@@ -408,7 +550,8 @@ def build_taxonomy(root_class: Type, include_summaries: bool = False) -> Dict[st
             "Relations say what a class can hold. 'part' is mounted with add(), "
             "'contains' with add_object() for something merely inside or on it, "
             "'supports' with add_supporting_surface(). A class marked 'abstract' "
-            "cannot be given to an object; name one of its subclasses instead. A "
+            "cannot be given to an object: it is a category, so name one of its "
+            "subclasses, or compose a new subclass of it where none of them fits. A "
             "class marked 'mixin' exists "
             "to be built with rather than to name something in a room. A new class is "
             "composed by naming a superclass and any of the mixins below."
@@ -419,7 +562,10 @@ def build_taxonomy(root_class: Type, include_summaries: bool = False) -> Dict[st
 
 
 def export_taxonomy(
-    root_class: Type, output_path: Path, include_summaries: bool = False
+    root_class: Type,
+    output_path: Path,
+    include_summaries: bool = False,
+    categories_are_answers: bool = False,
 ) -> Dict[str, Any]:
     """
     Write the taxonomy of a hierarchy to a JSON file.
@@ -427,9 +573,14 @@ def export_taxonomy(
     :param root_class: The root of the hierarchy.
     :param output_path: Where to write it.
     :param include_summaries: See :func:`build_taxonomy`.
+    :param categories_are_answers: See :func:`names_a_category`.
     :return: The taxonomy that was written.
     """
-    taxonomy = build_taxonomy(root_class, include_summaries=include_summaries)
+    taxonomy = build_taxonomy(
+        root_class,
+        include_summaries=include_summaries,
+        categories_are_answers=categories_are_answers,
+    )
     Path(output_path).write_text(json.dumps(taxonomy, indent=2), encoding="utf-8")
     return taxonomy
 

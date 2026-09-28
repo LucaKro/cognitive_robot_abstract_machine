@@ -8,11 +8,17 @@ what any one step said. A run that stopped early is worth reporting on too.
 
 from __future__ import annotations
 
+import trimesh
 
 from experiments.warsaw.pipeline.records import RefusedMount, SplitRecord
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.scene_split import Pairing
 from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.world_graph import WorldGraph
+
+from ..test_warsaw_evaluation.test_export_world_mesh import (
+    world_with_a_drawer_and_an_unnamed_body,
+)
 
 # %% a run that finished
 
@@ -144,6 +150,23 @@ def test_the_inspector_is_written_with_the_worlds_this_run_wrote(tmp_path, split
     assert f"split_world: int = {split.world_id}" in written
 
 
+def test_the_inspector_can_draw_the_world_as_a_graph_page_beside_the_run(
+    tmp_path, split
+):
+    """
+    Asked for, the world is written as a page into the run's own directory, so each
+    run's graph stays with the run it drew.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+
+    assert "graph_page: bool = False" in written
+    assert f"{WorldGraph.__name__}.from_world(world).open_page(" in written
+    assert f'parent / "{RunFile.WORLD_GRAPH_PAGE}"' in written
+
+
 def test_the_report_is_written_into_the_run_it_is_about(tmp_path):
     """
     A run's account of itself lives with the run, not beside it.
@@ -167,3 +190,121 @@ def test_the_report_says_exactly_what_it_said_before_a_template_wrote_it(
     """
     expected = (dataset / "expected" / "report.md").read_text()
     assert RunReport(run=finished_run).markdown() == expected
+
+
+def test_the_inspector_rebuilds_the_orm_before_it_reaches_a_world(tmp_path, split):
+    """
+    The ORM is one file for the whole repository while a run's generated classes belong
+    to that run, so another run or a test suite rebuilding it leaves this run's world
+    unreadable.
+
+    The inspector has to put that right before importing anything that reads a world,
+    because an interpreter holding a stale ORM goes on holding it.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+
+    assert "rebuild_orm()" in written
+    assert written.index("rebuild_orm()") < written.index("world_store")
+
+
+def test_the_publisher_is_written_with_the_worlds_this_run_wrote(tmp_path, split):
+    """
+    The two scripts a run leaves behind open the same worlds, so both are told the ids
+    the run wrote under.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert f"annotated_world: int = {split.annotated_world_id}" in written
+    assert f"split_world: int = {split.world_id}" in written
+
+
+def test_the_publisher_reads_a_world_without_rebuilding_the_orm(tmp_path, split):
+    """
+    It is started and stopped while looking at something, and a fifteen-second rebuild
+    each time would make that useless.
+
+    It says instead which script does rebuild, since reading a world fails outright
+    until one has.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "rebuild_orm" not in written
+    assert RunFile.INSPECTOR.value in written
+
+
+def test_the_publisher_keeps_publishing_rather_than_publishing_once(tmp_path, split):
+    """
+    A world read from the database never changes again, so a publisher that only sends
+    its markers when the world changes sends them once.
+
+    A viewer started afterwards would then stay empty with nothing to show it is
+    working.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "republish_every_seconds" in written
+    assert "create_timer" in written
+
+
+def test_the_publisher_paints_the_bodies_it_publishes(tmp_path, split):
+    """
+    A world published in one colour cannot be picked apart, which is what it is
+    published for.
+
+    Painting is a setting, since a world already carrying the colours someone wants
+    should keep them.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "coloring: Coloring = Coloring.BY_CLASS" in written
+    assert "Coloring.UNCHANGED" in written
+
+
+# %% the scene a run leaves behind
+
+
+def test_the_scene_is_written_into_the_run_it_is_of(tmp_path):
+    """
+    A run's world is otherwise only in the database, reachable only through an ORM built
+    for the classes that run generated.
+
+    Once one of those classes is taken into the ontology the run cannot be read at all,
+    so the scene is what is left of it.
+    """
+    run = Run.create(tmp_path)
+
+    written = RunReport(run=run).write_world_mesh(
+        world_with_a_drawer_and_an_unnamed_body()
+    )
+
+    assert written.parent == run.path(RunFile.WORLD_MESH)
+    assert written.exists()
+
+
+def test_the_scene_names_each_body_by_what_it_is(tmp_path):
+    """
+    The scene is opened to find out what the run decided an object was, which is the one
+    thing the geometry alone cannot say.
+    """
+    run = Run.create(tmp_path)
+
+    written = RunReport(run=run).write_world_mesh(
+        world_with_a_drawer_and_an_unnamed_body()
+    )
+
+    assert "drawer_1 [Drawer]" in set(trimesh.load(written).graph.nodes)

@@ -11,5 +11,5 @@
 {{ candidate.name }}: shares {{ candidate.shared_faces }} faces with it, touches it along {{ candidate.touching_edges }} edges, {{ candidate.distance }} m between their surfaces, and would hold it in its {{ candidate.field_name }}
 {% endfor %}
 
-## The picture
-{{ painted }}
+{% if shows_pictures %}## The picture
+{{ painted }}{% endif %}

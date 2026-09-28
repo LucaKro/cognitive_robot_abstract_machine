@@ -24,6 +24,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.scene_split import Pairing
 from experiments.warsaw.segment_relations import (
+    SegmentRelations,
     ClaimedFaces,
     PairEvidence,
     SegmentDescriptor,
@@ -429,6 +430,16 @@ class Relations(RunArtefact):
     The memberships with only one candidate, which leave nothing to choose between.
     """
 
+    def as_measured(self) -> SegmentRelations:
+        """
+        :return: The measurement this record was written from, as the step that measured
+            it held it.
+        """
+        return SegmentRelations(
+            descriptors={one.name: one for one in self.segments},
+            pairs=[one.evidence for one in self.pairs],
+        )
+
     @property
     def settled_claimants(self) -> Set[Tuple[str, ...]]:
         """
@@ -527,6 +538,28 @@ class VocabularyRequest(RunArtefact):
 
 
 # %% vocabulary.json
+
+
+@dataclass
+class SuperclassAnswer(ModelAnswer):
+    """
+    What one proposed class was settled to be a kind of.
+    """
+
+    class_name: str = ""
+    """
+    The class being placed.
+    """
+
+    superclass: Optional[str] = None
+    """
+    What it is a kind of, which is what the objects *are*.
+    """
+
+    mixins: List[str] = field(default_factory=list)
+    """
+    What it can hold, which is a different question from what it is.
+    """
 
 
 @dataclass
@@ -1028,6 +1061,13 @@ class SplitRecord(RunArtefact):
     The world the split was written to.
     """
 
+    world_T_source: Optional[List[List[float]]] = None
+    """
+    The turn from the scene file's coordinates into the frame the bodies were built in.
+    Nothing in runs written before scans were stood on their floor, which turned a scene
+    by its :class:`~experiments.warsaw.world_loader.scene.SourceFrame` alone.
+    """
+
     annotated_world_id: Optional[int] = None
     """
     The world the annotations were written to, once the last step has run.
@@ -1161,3 +1201,45 @@ class AmendmentRecord(ModelAnswer):
     """
     Whether it was put back after having been in force.
     """
+
+
+# %% how long a run spent
+
+
+@dataclass
+class StepDuration(JsonRecord):
+    """
+    How long one step of a run took.
+    """
+
+    step: str
+    """
+    The step it was spent in, under the name the run announced it by.
+    """
+
+    seconds: float
+    """
+    How long that took.
+    """
+
+
+@dataclass
+class StepDurations(RunArtefact):
+    """
+    How long each step of a run took.
+
+    Written again after every step rather than once at the end, so that a run which
+    stopped halfway still says where its time went.
+    """
+
+    steps: List[StepDuration] = field(default_factory=list)
+    """
+    Each step that has finished, in the order the run carried them out.
+    """
+
+    @property
+    def total_seconds(self) -> float:
+        """
+        :return: How long the run spent in the steps recorded so far.
+        """
+        return sum(one.seconds for one in self.steps)

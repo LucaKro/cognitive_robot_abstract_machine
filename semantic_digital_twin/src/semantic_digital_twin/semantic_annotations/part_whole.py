@@ -9,7 +9,7 @@ it without depending on each other.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing_extensions import List, Type
+from typing_extensions import List, Optional, Type
 
 from krrood.class_diagrams.class_diagram import WrappedClass
 from krrood.patterns.field_metadata import FieldMetadata
@@ -98,6 +98,30 @@ def part_whole_fields(annotation_class: Type) -> List[PartWholeField]:
             )
         )
     return part_whole_relationship_fields
+
+
+def field_holding(whole: Type, part: Type) -> Optional[PartWholeField]:
+    """
+    Report the one field through which a whole holds a part.
+
+    This is the field :meth:`PartWholeRelationship.add` routes to when it is given no
+    field to use, so a mount that was carried out without naming one can be told
+    afterwards which field it went through.
+
+    :param whole: The annotation class holding the part.
+    :param part: The annotation class being held.
+    :return: That field, or ``None`` where no field accepts the part or more than one
+        does -- the case ``add`` refuses as ambiguous rather than choosing.
+    """
+    matching = [
+        part_whole_relationship_field
+        for part_whole_relationship_field in part_whole_fields(whole)
+        if isinstance(part_whole_relationship_field.part, type)
+        and issubclass(part, part_whole_relationship_field.part)
+    ]
+    if len(matching) != 1:
+        return None
+    return matching[0]
 
 
 def admissible_relations(one_class: Type, other_class: Type) -> List[PartWholeField]:

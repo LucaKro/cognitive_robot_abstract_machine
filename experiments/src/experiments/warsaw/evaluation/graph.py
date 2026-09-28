@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+
+from semantic_digital_twin.semantic_annotations.part_whole import field_holding
 
 from experiments.warsaw.bases import JsonRecord
+from experiments.warsaw.evaluation.size import ObjectSize
 from experiments.warsaw.pipeline.records import Classifications, SplitRecord
 
 # %% graph nodes and edges
@@ -31,6 +34,19 @@ class EvaluationNode(JsonRecord):
 
     annotation_applied: bool
     """Whether the selected class was instantiated in the final SDT."""
+
+    size: ObjectSize | None = None
+    """How big the body is, where a run's geometry has been measured."""
+
+    @property
+    def classes(self) -> list[str]:
+        """
+        :return: The classes this body stands as in a comparison, which is the one it was
+            classified as, or none where the run never answered for it.
+        """
+        if self.predicted_class is None:
+            return []
+        return [self.predicted_class]
 
 
 @dataclass(frozen=True)
@@ -74,6 +90,47 @@ class EvaluationGraph(JsonRecord):
 
     annotated_world_id: int | None = None
     """The database ID of the final annotated world."""
+
+    def with_fields_resolved(self, classes: dict[str, type]) -> EvaluationGraph:
+        """Name the ontology field of every relation that was mounted without one.
+
+        A mount the ontology forced records the field it went through; a mount the model
+        decided does not, because ``add()`` is left to route the part by its type. The
+        field it routes to follows from the two classes alone, so it is recovered here
+        rather than lost -- without it, a relation cannot be compared with the same
+        relation in a modelled world.
+
+        :param classes: The annotation classes by name, including any the run generated.
+        :return: The same graph with every recoverable field named.
+        """
+        predicted = {node.name: node.predicted_class for node in self.nodes}
+        return replace(
+            self,
+            edges=[
+                replace(edge, field_name=self._field_of(edge, predicted, classes))
+                for edge in self.edges
+            ],
+        )
+
+    @staticmethod
+    def _field_of(
+        edge: EvaluationEdge, predicted: dict[str, str | None], classes: dict[str, type]
+    ) -> str:
+        """
+        :param edge: The relation to name a field for.
+        :param predicted: The class of every body, by name.
+        :param classes: The annotation classes by name.
+        :return: The field the relation went through, or what it already recorded when
+            the classes cannot say.
+        """
+        if edge.field_name:
+            return edge.field_name
+        whole = classes.get(predicted.get(edge.whole))
+        part = classes.get(predicted.get(edge.part))
+        if whole is None or part is None:
+            return edge.field_name
+        field = field_holding(whole, part)
+        return edge.field_name if field is None else field.field_name
 
     @classmethod
     def from_run_products(

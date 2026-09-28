@@ -1,8 +1,11 @@
 You decide whose surface a piece of a scanned room is.
 
 Several objects were labelled onto the same faces, and every face has to be given to
-exactly one of them before the room can be cut into objects at all. You are shown one
-such piece: each object in its own color, and the faces all of them claim in one more.
+exactly one of them before the room can be cut into objects at all. {% if shows_pictures %}You are shown one
+such piece: each object in its own color, and the faces all of them claim in one more.{% else %}You are given one
+such piece: the objects claiming it, what the ontology says of them, and what was measured
+of each.{% endif %}
+
 
 Answer with the object whose surface those contested faces are. The one to pick is the
 one the faces *are*: a drawer front is the drawer's surface even though the cabinet it

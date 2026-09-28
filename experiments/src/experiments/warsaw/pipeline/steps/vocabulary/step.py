@@ -39,7 +39,11 @@ from typing_extensions import Any, Dict, List, Type
 
 from krrood.ormatic.utils import classproperty
 
-from experiments.warsaw.pipeline.asking import Prompt, QuestionAboutTheOntology
+from experiments.warsaw.pipeline.asking import (
+    Prompt,
+    QuestionAboutTheOntology,
+    TaxonomyCategories,
+)
 from experiments.warsaw.pipeline.records import (
     LabelAnswer,
     LabelRequest,
@@ -125,6 +129,14 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
         return self.label.label
 
     @property
+    def shows_pictures(self) -> bool:
+        """
+        :return: Whether this label was rendered. A run told to show no pictures renders
+            none, and the question then reads as one asked from the label alone.
+        """
+        return bool(self.label.images)
+
+    @property
     def mixin_names(self) -> List[str]:
         """
         :return: The names a new class may be composed from.
@@ -193,6 +205,11 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
                 f"rather than what it is; derive a class from it instead of answering "
                 f"with it"
             )
+        problems.extend(
+            TaxonomyCategories(taxonomy=self.taxonomy).problems_with(
+                answer.class_name, answer.is_new_class
+            )
+        )
         if not answer.is_new_class:
             if answer.class_name not in self.known:
                 problems.append(

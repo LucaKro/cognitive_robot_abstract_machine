@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import time
+from time import perf_counter
 from dataclasses import dataclass, field
 from enum import IntEnum, StrEnum
 from http import HTTPStatus
@@ -206,6 +207,17 @@ class VisionLanguageModel:
     How often one question is asked before its failure is raised.
     """
 
+    seconds_per_question: int = 900
+    """
+    How long one question may take in all, across every attempt made for it.
+
+    Attempts alone do not bound the time a question takes, because :attr:`timeout` is what
+    ``requests`` means by one: it bounds each socket operation rather than the request, so
+    a service that sends something now and then resets it and the request waits for as
+    long as the service holds the connection. Two runs were killed after fifty and thirty
+    minutes with no attempt recorded, both at the same question.
+    """
+
     temperature: float = 0.0
     """
     How much the model may explore when sampling.
@@ -267,6 +279,7 @@ class VisionLanguageModel:
         :return: The response, parsed.
         :raises requests.RequestException: The last failure, once no attempt is left.
         """
+        started = perf_counter()
         for attempt in range(self.maximum_attempts):
             try:
                 response = requests.post(
@@ -290,7 +303,18 @@ class VisionLanguageModel:
                 worth_retrying = True
                 reason = f"failed with {type(network_failure).__name__}"
 
-            if not worth_retrying or attempt == self.maximum_attempts - 1:
+            spent = perf_counter() - started
+            last_attempt = attempt == self.maximum_attempts - 1
+            out_of_time = spent >= self.seconds_per_question
+            if not worth_retrying or last_attempt or out_of_time:
+                if out_of_time:
+                    logging.getLogger(__name__).warning(
+                        "the request %s, and the question has now taken %.0fs of the "
+                        "%ss it is allowed, so it is not asked again",
+                        reason,
+                        spent,
+                        self.seconds_per_question,
+                    )
                 raise failure
             waited = 2**attempt
             logging.getLogger(__name__).warning(

@@ -25,6 +25,8 @@ from semantic_digital_twin.semantic_annotations.part_whole import (
     IsPartWholeRelationship,
 )
 from semantic_digital_twin.semantic_annotations.mixins import (
+    HasCounterTop,
+    HasUnits,
     HasSupportingSurface,
     HasRootRegion,
     HasDrawers,
@@ -80,9 +82,17 @@ if TYPE_CHECKING:
 
 
 @dataclass(eq=False)
-class Furniture(SemanticAnnotation, ABC):
+class Furniture(HasRootBody, ABC):
     """
-    A semantic annotation that represents a piece of furniture.
+    Furniture in general, a category to answer with the *kind* of rather than by name:
+    a chair, a table, a shelf, or a new subclass of this where the ontology has none.
+
+    Every piece of furniture stands somewhere, so it is rooted on a body here rather
+    than in each of its subclasses. Most of them reach a root anyway through a mixin of
+    their own -- a cabinet through :class:`HasCaseAsRootBody`, a table through
+    :class:`HasSupportingSurface` -- and those are unaffected, since they already
+    derived from :class:`HasRootBody` by that route and still reach their own geometry
+    first. The ones this settles are the pieces named by nothing else: a chair, a bed.
     """
 
 
@@ -151,45 +161,12 @@ class Handle(HasRootBody):
 
 
 @dataclass(eq=False)
-class Dishwasher(HasCaseAsRootBody, HasDoors, HasDrawers):
-    """
-    A dishwasher is a kitchen appliance used for cleaning dishes, utensils, and
-    cookware.
-
-    It typically has a front door that opens to reveal racks for loading dirty items and
-    a control panel for selecting wash cycles.
-    """
-
-    @classproperty
-    def _hole_direction_axis(cls) -> Vector3:
-        return Vector3.NEGATIVE_X()
-
-
-@dataclass(eq=False)
 class Aperture(HasRootRegion):
     """
     An opening in a physical entity.
 
     An example is like a hole in a wall that can be used to enter a room.
     """
-
-    @classmethod
-    def create_with_new_region_in_world_from_body(
-        cls,
-        name: str,
-        world: World,
-        body: Body,
-        parent_T_self: Optional[HomogeneousTransformationMatrix] = None,
-    ) -> Self:
-        world.update_forward_kinematics()
-        body_scale = (
-            body.collision.as_bounding_box_collection_in_frame(body)
-            .bounding_box()
-            .scale
-        )
-        return cls.create_with_new_region_in_world(
-            name, world, parent_T_self, scale=body_scale
-        )
 
     def _mount_strategy(
         self,
@@ -658,6 +635,10 @@ class DoubleDoor(SemanticAnnotation):
 
 @dataclass(eq=False)
 class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint):
+    """
+    A box that slides out of a piece of furniture, opened by a handle on its front.
+    """
+
     @classproperty
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.Z()
@@ -741,34 +722,89 @@ class CounterTop(Furniture, HasSupportingSurface, HasSink):
 
 
 @dataclass(eq=False)
+class KitchenIsland(
+    Furniture, HasRootBody, HasUnits, HasCounterTop, HasDoors, HasDrawers
+):
+    """
+    A run of fitted kitchen units standing free of the walls, under one counter top.
+
+    What a person names is the island; what opens and holds things are the units built
+    into it. A drawer is a unit like a cabinet is, so a scan that never resolved the
+    carcass around it still says something true by reporting the drawer directly: both
+    are held the same way, and the comparison then reads as which of them was found
+    rather than as a relation nobody can express.
+    """
+
+    _synonyms = {"kitchen_island", "island"}
+
+
+@dataclass(eq=False)
 class Cabinet(Furniture, HasCaseAsRootBody, HasDoors, HasDrawers):
+    """
+    A piece of furniture with a case that things are stored inside, closed by doors or drawers.
+    """
+
     @classproperty
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.NEGATIVE_X()
 
 
 @dataclass(eq=False)
-class Fridge(Cabinet): ...
+class Dishwasher(Cabinet):
+    """
+    A dishwasher is a kitchen appliance used for cleaning dishes, utensils, and
+    cookware.
+
+    It typically has a front door that opens to reveal racks for loading dirty items and
+    a control panel for selecting wash cycles.
+    """
+
+    @classproperty
+    def _hole_direction_axis(cls) -> Vector3:
+        return Vector3.NEGATIVE_X()
 
 
 @dataclass(eq=False)
-class Oven(HasRootBody, HasDoors): ...
+class Fridge(Cabinet):
+    """
+    A cabinet that keeps what is put in it cold.
+    """
 
 
 @dataclass(eq=False)
-class Dresser(Cabinet): ...
+class Oven(HasRootBody, HasDoors):
+    """
+    An appliance with a door that cooks what is put inside it with heat.
+    """
 
 
 @dataclass(eq=False)
-class Cupboard(Cabinet): ...
+class Dresser(Cabinet):
+    """
+    A cabinet of drawers, for clothes.
+    """
 
 
 @dataclass(eq=False)
-class Wardrobe(Cabinet): ...
+class Cupboard(Cabinet):
+    """
+    A cabinet standing free of any run, whose whole inside is for storing things.
+    """
+
+
+@dataclass(eq=False)
+class Wardrobe(Cabinet):
+    """
+    A tall cabinet for hanging clothes in.
+    """
 
 
 @dataclass(eq=False)
 class Floor(HasSupportingSurface):
+    """
+    The surface of a room that is walked on and that everything in the room stands on.
+    """
+
     @classmethod
     def create_with_new_body_from_polytope_in_world(
         cls,
@@ -828,19 +864,31 @@ class Room(SemanticAnnotation):
 
 
 @dataclass(eq=False)
-class Kitchen(Room): ...
+class Kitchen(Room):
+    """
+    A room for preparing food.
+    """
 
 
 @dataclass(eq=False)
-class Bedroom(Room): ...
+class Bedroom(Room):
+    """
+    A room for sleeping, with a bed in it.
+    """
 
 
 @dataclass(eq=False)
-class Bathroom(Room): ...
+class Bathroom(Room):
+    """
+    A room for washing, with a bath, a shower or a toilet in it.
+    """
 
 
 @dataclass(eq=False)
-class LivingRoom(Room): ...
+class LivingRoom(Room):
+    """
+    A room for sitting in, with its seating turned towards a hearth, a television or itself.
+    """
 
 
 @dataclass(eq=False)
@@ -872,15 +920,24 @@ class Level(HasRootRegion):
 
 
 @dataclass(eq=False)
-class GroundFloor(Level): ...
+class GroundFloor(Level):
+    """
+    The level of a building that is entered from outside.
+    """
 
 
 @dataclass(eq=False)
-class FirstFloor(Level): ...
+class FirstFloor(Level):
+    """
+    The level of a building above the one entered from outside.
+    """
 
 
 @dataclass(eq=False)
-class SecondFloor(Level): ...
+class SecondFloor(Level):
+    """
+    The level of a building two above the one entered from outside.
+    """
 
 
 @dataclass(eq=False)
@@ -986,7 +1043,10 @@ class Bottle(HasRootBody):
 
 
 @dataclass(eq=False)
-class Statue(HasRootBody): ...
+class Statue(HasRootBody):
+    """
+    A carved or cast figure of something, kept for the look of it.
+    """
 
 
 @dataclass(eq=False)
@@ -1011,7 +1071,10 @@ class MustardBottle(Bottle):
 
 
 @dataclass(eq=False)
-class DrinkingContainer(HasRootBody): ...
+class DrinkingContainer(HasRootBody):
+    """
+    A container that is drunk from, such as a cup or a glass.
+    """
 
 
 @dataclass(eq=False)
@@ -1029,11 +1092,17 @@ class Mug(DrinkingContainer):
 
 
 @dataclass(eq=False)
-class CookingContainer(HasRootBody): ...
+class CookingContainer(HasRootBody):
+    """
+    A container that food is cooked in, such as a pot or a pan.
+    """
 
 
 @dataclass(eq=False)
-class Lid(HasRootBody): ...
+class Lid(HasRootBody):
+    """
+    A cover that closes a container.
+    """
 
 
 @dataclass(eq=False)
@@ -1082,7 +1151,7 @@ class Bowl(HasSupportingSurface, IsPerceivable):
 @dataclass(eq=False)
 class Food(HasRootBody):
     """
-    A Group class for Food.
+    Something that is eaten.
     """
 
 
@@ -1283,7 +1352,11 @@ class Desk(Table, HasLegs):
 @dataclass(eq=False)
 class Chair(Furniture):
     """
-    Abstract class for chairs.
+    A seat for one person, with a back.
+
+    Not abstract, whatever an earlier version of this docstring said: a chair is a thing
+    a room has and an object can be annotated as one. A stool has been answered with
+    this class and is not one, having no back to it.
     """
 
 
@@ -1344,11 +1417,18 @@ class Sink(HasRootBody):
 
 
 @dataclass(eq=False)
-class Kettle(CookingContainer): ...
+class Kettle(CookingContainer):
+    """
+    A covered container for boiling water.
+    """
 
 
 @dataclass(eq=False)
-class Decor(HasRootBody): ...
+class Decor(HasRootBody, ABC):
+    """
+    Decoration in general, a category to answer with the *kind* of rather than by name: a
+    picture, a mirror, an ornament, or a new subclass of this where the ontology has none.
+    """
 
 
 @dataclass(eq=False)
@@ -1359,7 +1439,60 @@ class WallDecor(Decor):
 
 
 @dataclass(eq=False)
-class Cloth(HasRootBody): ...
+class Lamp(HasRootBody):
+    """
+    Something that lights a room.
+
+    Not :class:`Decor`, though it was the only word for one until now: a lamp is there
+    to do a job, and reading it as ornament loses that. Where a scene distinguishes the
+    kinds -- standing on a table, hung from a ceiling, fixed to a wall -- a run composes
+    that distinction against this class rather than the ontology guessing at it in
+    advance.
+    """
+
+
+@dataclass(eq=False)
+class ElectricalDevice(HasRootBody, ABC):
+    """
+    Electrically powered devices in general, a category to answer with the *kind* of
+    rather than by name: name the device, composing a new subclass of this where the
+    ontology has none.
+
+    A television, a smoke detector, a thermostat. The ontology had no word between them,
+    and runs kept inventing one under a different name each time -- ``Device`` in one,
+    ``ElectronicDevice`` in the next, and in a third ``Agent``, which is meant for
+    something that can act and move. Naming it once is what makes those runs comparable.
+
+    **Electricity has to run through the thing itself.** A fire extinguisher, a tap and
+    an ice maker have all been answered with this class and none of them belongs to it:
+    a fire extinguisher holds pressure, a tap holds water, and an ice maker is a
+    :class:`Fridge`. Something merely near electricity, plumbed in beside it, or
+    resembling an appliance is not one of these.
+
+    ..note:: A thinner case than :class:`Lamp`, and worth revisiting. Across the four
+        annotated HM3D buildings it covers some forty-seven objects against that class's
+        two hundred, and they have little in common beyond their power: what matters
+        about a television is that it stands on something and about a light switch that
+        it is on a wall. Where a scene draws a distinction worth keeping, a run composes
+        it against this class.
+    """
+
+
+@dataclass(eq=False)
+class Mirror(HasRootBody):
+    """
+    A surface that shows what is in front of it.
+
+    Its own thing rather than a kind of :class:`WallDecor`: a mirror is used rather than
+    looked at, and not every one of them hangs on a wall, since some stand on the floor.
+    """
+
+
+@dataclass(eq=False)
+class Cloth(HasRootBody):
+    """
+    A piece of fabric for wiping or covering, such as a towel.
+    """
 
 
 @dataclass(eq=False)
@@ -1377,7 +1510,10 @@ class WallPanel(HasRootBody):
 
 
 @dataclass(eq=False)
-class Potato(Vegetable): ...
+class Potato(Vegetable):
+    """
+    A firm root vegetable, roughly round.
+    """
 
 
 @dataclass(eq=False)
@@ -1437,7 +1573,10 @@ class SaltPepperShaker(HasRootBody):
 
 
 @dataclass(eq=False)
-class Cuttlery(HasRootBody): ...
+class Cuttlery(HasRootBody):
+    """
+    A hand implement for eating with.
+    """
 
 
 @dataclass(eq=False)
@@ -1455,7 +1594,10 @@ class Knife(Cuttlery):
 
 
 @dataclass(eq=False)
-class Spoon(Cuttlery, IsPerceivable): ...
+class Spoon(Cuttlery, IsPerceivable):
+    """
+    A piece of cutlery with a shallow bowl, for what a fork will not hold.
+    """
 
 
 @dataclass(eq=False)
