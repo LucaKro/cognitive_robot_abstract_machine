@@ -27,11 +27,11 @@ Uncommitted isolated test: test_backends.py::test_generating_from_more_objects_t
 Uncommitted (user adds/commits himself): facing targets are Pose(reference_frame=<body>) in from_grasp,
 MoveAndPickUp.from_standing_position, _make_open_container_actions, MoveAndOpen.from_standing_position;
 4 tests in test_transporting.py, old world-frame assertion removed (user approved). 33 tests pass.
-Nearest grasp implemented (uncommitted, user reviews): FacesStandingPosition predicate (best 3 by angle
-between grasp approach and horizontal heading standing->object), applied as a where condition.
-MoveAndPickUpAction.grasp_faces_its_standing_position(step) (static), .from_graspable, .from_grasp;
-MoveAndPlaceAction.from_target_location; TransportAction.from_graspable; from_grasp composes them.
-7 new tests; 40 transport/open tests pass. ORM now maps FacesStandingPosition (Symbol subclass).
+Nearest grasp (uncommitted, user reviews): instance methods on MoveAndPickUpAction -
+grasp_faces_its_standing_position() (used as step.where(step.variable.<method>())), misalignment_of(grasp),
+ClassVar facing_grasps_per_standing_position=3 - plus classmethod from_graspable only. Predicate class and
+extra factories removed at user's request. 39 transport/open tests pass. User removed the krrood scaling
+test from test_backends.py; its imports (time, Match) are left over - asked.
 Open: tool_paths._local_bounding_box removal (user asked; cutting's duration scale uses the
 collision box while its path uses the visual box - ask which to keep).
 Tests: --orm-build never, systemd MemoryMax cap, <= 8 workers, RViz via scratchpad
