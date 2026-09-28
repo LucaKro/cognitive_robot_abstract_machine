@@ -24,8 +24,11 @@ grasp domain nor a pair domain's attributes work. Open: pick a krrood-free optio
 ProbabilisticBackend: one truncation per domain object, cost ~n^3 (2000 location samples ~hours).
 Uncommitted isolated test: test_backends.py::test_generating_from_more_objects_takes_less_than_quadratically_longer
 (100 vs 200 KRROODPositions, min of 3 timings, ratio ~7 vs limit 4); fails here and on cram2/main 6645c1892.
-Uncommitted: facing target in from_grasp / MoveAndPickUp.from_standing_position now Pose(reference_frame=object root)
-+ 2 tests. MoveAndOpen.from_standing_position has the same bug but its test pins world frame - asked user.
+Uncommitted (user adds/commits himself): facing targets are Pose(reference_frame=<body>) in from_grasp,
+MoveAndPickUp.from_standing_position, _make_open_container_actions, MoveAndOpen.from_standing_position;
+4 tests in test_transporting.py, old world-frame assertion removed (user approved). 33 tests pass.
+Nearest grasp: user rejected ranking at grounding; fallback = unordered. Shown option 1 sketch
+(StandingPoseAndGrasp pair domain + wrapper action) - awaiting decision.
 Open: tool_paths._local_bounding_box removal (user asked; cutting's duration scale uses the
 collision box while its path uses the visual box - ask which to keep).
 Tests: --orm-build never, systemd MemoryMax cap, <= 8 workers, RViz via scratchpad
