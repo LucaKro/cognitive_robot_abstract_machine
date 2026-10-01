@@ -27,8 +27,10 @@ Uncommitted isolated test: test_backends.py::test_generating_from_more_objects_t
 Uncommitted (user adds/commits himself): facing targets are Pose(reference_frame=<body>) in from_grasp,
 MoveAndPickUp.from_standing_position, _make_open_container_actions, MoveAndOpen.from_standing_position;
 4 tests in test_transporting.py, old world-frame assertion removed (user approved). 33 tests pass.
-Nearest grasp (uncommitted, user reviews): MoveAndPickUpAction.grasp_faces_its_standing_position(
-number_of_facing_grasps=3) + misalignment_of(grasp) instance methods, classmethod from_graspable.
+Nearest grasp (uncommitted, user reviews): predicate IsAmongTheClosestGraspsTo(grasp, standing_position,
+grasps, number_of_grasps=3) in coraplex/querying/predicates.py - distance first, angle tie-break,
+vectorized numpy, no state, np.isclose for equal distances. MoveAndPickUpAction.from_graspable applies it;
+the instance methods are gone. Benchmark 2026-09-30: ~5.4 ms/standing pose (was ~457), ~14 ms end-to-end.
 Option B done: TransportAction.from_grasp replaced by from_graspable (13 call sites: demo, 2 examples,
 querying.py, 5 test files). test_bowl_grasping now reads the grasp from the first grounded pick-up.
 71 transport-using tests pass. Examples (.md) not executed. User removed the krrood scaling test;
