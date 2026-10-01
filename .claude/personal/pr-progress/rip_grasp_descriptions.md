@@ -31,6 +31,9 @@ Nearest grasp (uncommitted, user reviews): predicate IsAmongTheClosestGraspsTo(g
 grasps, number_of_grasps=3) in coraplex/querying/predicates.py - distance first, angle tie-break,
 vectorized numpy, no state, np.isclose for equal distances. MoveAndPickUpAction.from_graspable applies it;
 the instance methods are gone. Benchmark 2026-09-30: ~5.4 ms/standing pose (was ~457), ~14 ms end-to-end.
+Verified 2026-10-02: full coraplex suite 554 passed/14 skipped; bullet demo + action_designator/orm_example
+notebooks pass. Timing vs HEAD (single runs): transport tests 1317->1154 s, bullet demo 1126->1061 s,
+notebooks 47->42 s and 73->59 s.
 Option B done: TransportAction.from_grasp replaced by from_graspable (13 call sites: demo, 2 examples,
 querying.py, 5 test files). test_bowl_grasping now reads the grasp from the first grounded pick-up.
 71 transport-using tests pass. Examples (.md) not executed. User removed the krrood scaling test;
