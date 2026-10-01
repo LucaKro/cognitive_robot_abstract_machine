@@ -29,7 +29,7 @@ MoveAndPickUp.from_standing_position, _make_open_container_actions, MoveAndOpen.
 4 tests in test_transporting.py, old world-frame assertion removed (user approved). 33 tests pass.
 Nearest grasp (uncommitted, user reviews): predicate IsAmongTheClosestGraspsTo(grasp, standing_position,
 grasps, number_of_grasps=3) in coraplex/querying/predicates.py - distance first, angle tie-break,
-vectorized numpy, no state, np.isclose for equal distances. MoveAndPickUpAction.from_graspable applies it;
+plain per-grasp numpy loop (vectorization and np.isclose removed 2026-10-02 for readability; +0.9 ms/pose), no state. MoveAndPickUpAction.from_graspable applies it;
 the instance methods are gone. Benchmark 2026-09-30: ~5.4 ms/standing pose (was ~457), ~14 ms end-to-end.
 Verified 2026-10-02: full coraplex suite 554 passed/14 skipped; bullet demo + action_designator/orm_example
 notebooks pass. Timing vs HEAD (single runs): transport tests 1317->1154 s, bullet demo 1126->1061 s,
