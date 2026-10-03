@@ -12,4 +12,4 @@ checkout; decisions recorded in scratchpad DECISIONS_FOR_REVIEW.md of session 15
 - Demo bowl uses from_graspable_by_closest_grasps.
 - Verified: demo 331 s alone (CI was ~25 min), coraplex suite 675 passed/14 skipped, 9 notebooks pass.
 - Rejected: narrower ring (no gain), reach cap at arm length (test depends on sampled pose; patch kept).
-Remaining demo cost: place standing poses 0.82-1.05 m out (real reach ~0.78 m) - needs a reachability model.
+Remaining demo cost: bowl pick-up (19 candidates, 140 s); places succeed first try; each step ~30 s min (trial + real run).
