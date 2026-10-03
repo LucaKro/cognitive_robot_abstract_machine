@@ -11,3 +11,5 @@ decisions in scratchpad DECISIONS_FOR_REVIEW.md of session 1536c00c, items 9-12)
 - One trial world per Plan (Plan.action_trial), caught up instead of re-copied; released when the
   root node ends. RobotDemonstration.debug=False applied in run(); bullet demo main(debug=False).
 - Verified: coraplex suite 683 passed/14 skipped, 9 notebooks, demo 193 s alone (default mode).
+- Round 5 (uncommitted): Sampling class removed (Location.number_of_samples/seed, Costmap.sample);
+  IsAmongTheClosestGraspsTo uses a stable sort. Verified 683 passed, demo 201 s, 9 notebooks.
