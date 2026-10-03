@@ -5,9 +5,9 @@ opening_ratio fix, bowl from closest grasps). Demo CI Run Script 363 s; coraplex
 
 2026-10-03 round 2, uncommitted, for review (user: NEVER commit, no git ops on the checkout;
 decisions in scratchpad DECISIONS_FOR_REVIEW.md of session 1536c00c):
-- RingCostmap.maximum_distance + farthest_reaching_distance (reach from the shoulder: arm
-  approximate_length minus root->shoulder offset plus tip->tool; upper bound). Demo 14 candidates
-  instead of 29, 264 s alone (was 331 s).
+- ReachabilityLocation.candidates skips candidates farther (along the floor) than
+  arm.approximate_length(); same draws, same order (user rejected farthest_reaching_distance and
+  map-shaping caps reshuffle draws). Demo 257 s alone (was 331 s).
 - IsAmongTheClosestGraspsTo ties rank by list order (ties let N+1 grasps through).
-- Verified: coraplex suite 678 passed/14 skipped, 9 notebooks, demo pass.
+- Verified: coraplex suite 678 passed/14 skipped, 9 notebooks, demo 257 s.
 Remaining: spoon place (8 candidates) fails on orientation within reach distance.
