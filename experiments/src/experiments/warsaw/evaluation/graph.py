@@ -6,6 +6,8 @@ from dataclasses import dataclass, field, replace
 
 from semantic_digital_twin.semantic_annotations.part_whole import field_holding
 
+from semantic_digital_twin.semantic_annotations.taxonomy_export import MountKind
+
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.evaluation.size import ObjectSize
 from experiments.warsaw.pipeline.records import Classifications, SplitRecord
@@ -59,8 +61,8 @@ class EvaluationEdge(JsonRecord):
     part: str
     """The body at the contained end of the relation."""
 
-    relation: str
-    """The semantic relation: part, contains, or supports."""
+    relation: MountKind
+    """The channel the mount was attempted through."""
 
     field_name: str
     """The ontology field through which the mount was attempted."""
@@ -187,7 +189,7 @@ class EvaluationGraph(JsonRecord):
                 EvaluationEdge(
                     whole=pairing.whole,
                     part=pairing.part,
-                    relation=pairing.kind.value,
+                    relation=pairing.kind,
                     field_name=pairing.field_name,
                     accepted=refusal_reason is None,
                     refusal_reason=refusal_reason,

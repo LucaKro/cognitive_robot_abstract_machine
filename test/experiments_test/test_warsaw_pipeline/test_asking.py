@@ -25,6 +25,7 @@ from semantic_digital_twin.adapters.vision_language_model.exceptions import (
 from semantic_digital_twin.adapters.vision_language_model.message import (
     ImagePart,
     MessagePart,
+    PartKind,
     TextPart,
 )
 from typing_extensions import Sequence, Any, Dict, List
@@ -210,13 +211,13 @@ def test_a_refusal_that_stands_leaves_the_blank_answer_the_question_names(
     assert not answered.is_usable
 
 
-# %% keeping and re-reading the replies
+# %% keeping the replies
 
 
 def test_every_reply_is_kept_as_it_came_back(tmp_path, question):
     """
-    The reply is what a run is re-read from, so it is kept whole rather than parsed
-    away.
+    The reply is kept whole rather than parsed away, so what the model said can still be
+    checked after the run.
     """
     model = ScriptedAnswers(replies=['{"name": "drawer"}'])
     Questioner(model=model, answers_directory=tmp_path).answer(question)
@@ -224,41 +225,13 @@ def test_every_reply_is_kept_as_it_came_back(tmp_path, question):
     assert kept["choices"][0]["message"]["content"] == '{"name": "drawer"}'
 
 
-def test_a_kept_reply_is_read_back_instead_of_asking_again(tmp_path, question):
-    """
-    Re-reading a run costs nothing, which is the point of keeping the replies.
-    """
-    (tmp_path / "the-one-question.json").write_text(
-        json.dumps({"choices": [{"message": {"content": '{"name": "cabinet"}'}}]})
-    )
-    model = ScriptedAnswers(replies=['{"name": "drawer"}'])
-    answered = Questioner(
-        model=model, answers_directory=tmp_path, reuse_answers=True
-    ).answer(question)
-    assert answered.answer["name"] == "cabinet"
-    assert model.asked == []
-
-
-def test_a_correction_is_asked_rather_than_read_back(tmp_path, question):
-    """
-    A kept reply is the one that was wrong, so re-reading it would correct nothing.
-    """
-    (tmp_path / "the-one-question.json").write_text(
-        json.dumps({"choices": [{"message": {"content": '{"name": "sink"}'}}]})
-    )
-    model = ScriptedAnswers(replies=['{"name": "cabinet"}'])
-    answered = Questioner(
-        model=model, answers_directory=tmp_path, reuse_answers=True
-    ).answer(question)
-    assert answered.is_usable
-    assert len(model.asked) == 1
-
-
 # %% preserving every attempt
 
 
 def test_each_attempt_keeps_its_request_response_and_validation(tmp_path, question):
-    """A corrected response remains auditable after the next one is written."""
+    """
+    A corrected response remains auditable after the next one is written.
+    """
     model = ScriptedAnswers(replies=['{"name": "sink"}', '{"name": "cabinet"}'])
     traces = tmp_path / "model_calls"
 
@@ -276,17 +249,10 @@ def test_each_attempt_keeps_its_request_response_and_validation(tmp_path, questi
     assert first["requested_model"] == "scripted/model"
     assert first["system_prompt"] == "Name one of them."
     assert first["message_parts"] == [
-        {
-            "__json_type__": "experiments.warsaw.pipeline.model_calls.ModelCallPart",
-            "kind": "text",
-            "text": "Which one is it?",
-            "image_sha256": None,
-            "image_bytes": None,
-        }
+        ModelCallPart(kind=PartKind.TEXT, text="Which one is it?").to_json()
     ]
     assert first["response"]["choices"][0]["message"]["content"] == '{"name": "sink"}'
     assert first["problems"] == ["'sink' is not one of drawer, cabinet"]
-    assert first["reused"] is False
     assert first["elapsed_seconds"] >= 0.0
     assert second["attempt"] == 2
     assert second["problems"] == []
@@ -296,15 +262,19 @@ def test_each_attempt_keeps_its_request_response_and_validation(tmp_path, questi
 
 
 def test_image_parts_are_identified_without_copying_base64_payloads() -> None:
-    """A digest joins a trace to its render without inflating every trace file."""
+    """
+    A digest joins a trace to its render without inflating every trace file.
+    """
     image = b"some-png-bytes"
 
-    written = ModelCallPart.of(ImagePart(image=image)).to_json()
+    written = ModelCallPart.from_json(
+        ModelCallPart.of(ImagePart(image=image)).to_json()
+    )
 
-    assert written["kind"] == "image_url"
-    assert written["text"] is None
-    assert written["image_sha256"] == sha256(image).hexdigest()
-    assert written["image_bytes"] == len(image)
+    assert written.kind is PartKind.IMAGE
+    assert written.text is None
+    assert written.image_sha256 == sha256(image).hexdigest()
+    assert written.image_bytes == len(image)
 
 
 # %% preserving the existing public interface
@@ -313,23 +283,12 @@ def test_image_parts_are_identified_without_copying_base64_payloads() -> None:
 def test_existing_positional_questioner_arguments_keep_their_meaning(
     tmp_path, question
 ):
-    """Adding trace settings does not shift the established positional arguments."""
+    """
+    Adding trace settings does not shift the established positional arguments.
+    """
     model = ScriptedAnswers(replies=['{"name": "sink"}', '{"name": "cabinet"}'])
 
     answered = Questioner(model, tmp_path, 0).answer(question)
 
     assert answered.attempts == 1
     assert not answered.is_usable
-
-
-def test_respond_to_still_returns_a_model_response(tmp_path, question):
-    """Callers of the public response method retain its original return type."""
-    questioner = Questioner(
-        model=ScriptedAnswers(replies=['{"name": "drawer"}']),
-        answers_directory=tmp_path,
-    )
-
-    response = questioner.respond_to(question, [])
-
-    assert isinstance(response, ModelResponse)
-    assert response.text == '{"name": "drawer"}'

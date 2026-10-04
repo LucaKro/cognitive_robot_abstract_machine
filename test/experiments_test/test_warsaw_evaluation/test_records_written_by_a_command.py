@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from krrood.adapters.exceptions import JSON_TYPE_NAME
+from krrood.adapters.json_field import JSONField
 
 from experiments.warsaw.bases import JsonRecord
 
@@ -53,7 +53,7 @@ def test_a_record_is_written_under_a_name_that_can_be_imported():
     """
     written = written_by_the_command()
 
-    assert written[JSON_TYPE_NAME] == f"{WRITES_A_RECORD}.RecordWrittenByACommand"
+    assert written[JSONField.TYPE] == f"{WRITES_A_RECORD}.RecordWrittenByACommand"
 
 
 def test_a_record_a_command_wrote_can_be_read_back():

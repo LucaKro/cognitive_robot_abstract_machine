@@ -18,11 +18,9 @@ whether the class should have it.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-import semantic_digital_twin
 from semantic_digital_twin.adapters.vision_language_model.client import ModelResponse
 from semantic_digital_twin.adapters.vision_language_model.exceptions import (
     ModelRefusedError,
@@ -56,6 +54,10 @@ from experiments.warsaw.pipeline.records import (
     Vocabulary,
 )
 from experiments.warsaw.pipeline.run import RunFile
+from experiments.warsaw.pipeline.steps.amend.amended_classes_check import (
+    AmendedClassesCheck,
+    AmendedPair,
+)
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 
 # %% whether a class is missing a structural part
@@ -219,14 +221,6 @@ class AmendTaxonomy(PipelineStep):
     @property
     def is_optional(self) -> bool:
         return True
-
-    @property
-    def orm_generator(self) -> Path:
-        """
-        :return: The script that rebuilds the ORM from the amended classes.
-        """
-        root = Path(semantic_digital_twin.__file__).resolve().parent
-        return root.parent.parent / "scripts" / "generate_orm.py"
 
     def carry_out(self) -> None:
         """
@@ -440,7 +434,7 @@ class AmendTaxonomy(PipelineStep):
                 )
             self.verify(written)
             self.logger.info("regenerating the ORM ...")
-            self.regenerate_orm()
+            self.rebuild_orm()
             amended = True
         finally:
             if not amended:
@@ -460,36 +454,19 @@ class AmendTaxonomy(PipelineStep):
         :param applied: The amendments that were written.
         :raises SubprocessStepFailedError: If one of them did not take effect.
         """
-        checks = [
-            [amendment.annotation_class.__name__, amendment.mixin.__name__]
-            for amendment in applied
-        ]
-        self.in_new_interpreter(
-            "import json, sys\n"
-            "from semantic_digital_twin.semantic_annotations.taxonomy_export import "
-            "annotation_classes\n"
-            "from semantic_digital_twin.world_description.world_entity import "
-            "SemanticAnnotation\n"
-            "known = annotation_classes(SemanticAnnotation)\n"
-            "for name, mixin in json.loads(sys.argv[1]):\n"
-            "    assert issubclass(known[name], known[mixin]), (name, mixin)\n",
-            [json.dumps(checks)],
-            what="checking the amended classes came back amended",
+        check = AmendedClassesCheck(
+            pairs=[
+                AmendedPair(
+                    whole=amendment.annotation_class.__name__,
+                    mixin=amendment.mixin.__name__,
+                )
+                for amendment in applied
+            ]
         )
-
-    def regenerate_orm(self) -> None:
-        """
-        Rebuild the ORM from the amended classes.
-
-        A field the ORM does not know about cannot be written to the database, so an
-        amendment that stops here is one that reads as done and is not.
-
-        :raises SubprocessStepFailedError: If the rebuild fails.
-        """
         self.in_new_interpreter(
-            "import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')",
-            [str(self.orm_generator)],
-            what="rebuilding the ORM from the amended classes",
+            AmendedClassesCheck,
+            what="checking the amended classes came back amended",
+            arguments=check.arguments(),
         )
 
 
@@ -551,7 +528,7 @@ class RevertAmendments(PipelineStep):
             )
 
         self.logger.info("regenerating the ORM ...")
-        AmendTaxonomy(settings=self.settings, run=self.run).regenerate_orm()
+        self.rebuild_orm()
         self.run.write_json(
             RunFile.TAXONOMY_AMENDMENTS, [one.to_json() for one in records]
         )

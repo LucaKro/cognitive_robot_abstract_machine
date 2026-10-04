@@ -13,7 +13,7 @@ import logging
 import sys
 from dataclasses import dataclass
 
-from krrood.adapters.exceptions import JSON_TYPE_NAME
+from krrood.adapters.json_field import JSONField
 from krrood.adapters.json_serializer import (
     DataclassJSONSerializer,
     SubclassJSONSerializer,
@@ -75,7 +75,7 @@ class JsonRecord(SubclassJSONSerializer):
         # SubclassJSONSerializer.to_json writes the class name and nothing else; the
         # fields are what DataclassJSONSerializer knows how to walk.
         written = DataclassJSONSerializer.to_json(self)
-        written[JSON_TYPE_NAME] = self.importable_class_name()
+        written[JSONField.TYPE] = self.importable_class_name()
         return written
 
     @classmethod
@@ -117,6 +117,6 @@ class JsonRecord(SubclassJSONSerializer):
         :param kwargs: Passed on to the records held inside this one.
         :return: The record.
         """
-        if isinstance(data, dict) and JSON_TYPE_NAME not in data:
-            data = {**data, JSON_TYPE_NAME: get_full_class_name(cls)}
+        if isinstance(data, dict) and JSONField.TYPE not in data:
+            data = {**data, JSONField.TYPE: get_full_class_name(cls)}
         return super().from_json(data, **kwargs)

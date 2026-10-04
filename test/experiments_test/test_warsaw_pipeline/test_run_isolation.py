@@ -29,6 +29,8 @@ from semantic_digital_twin.world_description.world_entity import SemanticAnnotat
 
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
+from experiments.warsaw.pipeline.settings import PipelineSettings
+from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 
 # %% the directory a run writes into
@@ -337,6 +339,29 @@ def test_rebuilding_for_a_taken_over_class_is_refused_before_anything_is_touched
         generated.rebuild_orm()
 
     assert "KitchenIsland" in str(raised.value)
+    assert generated.interface.read_text() == written_before
+
+
+def test_a_step_rebuilding_for_a_taken_over_class_is_refused_too(tmp_path):
+    """
+    A step rebuilds the ORM for its own run's classes, and the same name in the ontology
+    and in the run breaks the same shared interface however the rebuild was asked for.
+    """
+    generated = GeneratedClasses(directory=tmp_path)
+    generated.searched_directory.mkdir(parents=True)
+    generated.path.write_text(
+        "from dataclasses import dataclass\n\n\n"
+        "@dataclass(eq=False)\nclass KitchenIsland: ...\n"
+    )
+    written_before = generated.interface.read_text()
+    annotating = AnnotateAndMount(
+        settings=PipelineSettings(scene_directory=tmp_path), run=Run(directory=tmp_path)
+    )
+
+    with pytest.raises(RunClassTakenOverByTheOntologyError) as raised:
+        annotating.rebuild_orm()
+
+    assert raised.value.class_names == ["KitchenIsland"]
     assert generated.interface.read_text() == written_before
 
 

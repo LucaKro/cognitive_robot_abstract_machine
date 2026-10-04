@@ -101,10 +101,12 @@ def test_a_set_no_answer_reaches_is_reported_rather_than_guessed_at(step, known)
     assert unreached == [group]
 
 
-def test_an_answer_naming_a_label_two_objects_carry_reaches_neither(step, known):
+def test_an_answer_naming_a_label_two_objects_carry_leaves_the_faces_to_divide(
+    step, known
+):
     """
     An answer says *which label* the faces belong to, and where two objects of that
-    label both claim them it does not say which object.
+    label both claim them the faces are divided between the two rather than dropped.
     """
     group = ClaimedFaces(
         names=("drawer_5", "drawer_6", "handle_1"), faces=np.array([1])
@@ -126,8 +128,39 @@ def test_an_answer_naming_a_label_two_objects_carry_reaches_neither(step, known)
         {"drawer_5": "drawer", "drawer_6": "drawer", "handle_1": "handle"},
         {"drawer": known["Drawer"], "handle": known["Handle"]},
     )
-    assert ownerships == []
-    assert unreached == [group]
+    assert unreached == []
+    assert [(one.owner, one.tied_with) for one in ownerships] == [
+        ("drawer_5", ("drawer_6",))
+    ]
+
+
+def test_two_parts_of_one_label_the_ontology_settles_are_left_to_divide(step, known):
+    """
+    Two drawers in one cabinet are both parts of it, so the faces all three claim are
+    the drawers' to divide rather than nobody's.
+    """
+    group = ClaimedFaces(
+        names=("cabinet_1", "drawer_1", "drawer_2"), faces=np.array([1])
+    )
+    ownerships, unreached = step.resolve_owners(
+        [group],
+        Adjudications(model="", scene=""),
+        Relations(
+            scene="",
+            settled=[
+                CountedClaimants(
+                    claimants=("cabinet_1", "drawer_1", "drawer_2"), faces=1
+                )
+            ],
+        ),
+        {"cabinet_1": "cabinet", "drawer_1": "drawer", "drawer_2": "drawer"},
+        {"cabinet": known["Cabinet"], "drawer": known["Drawer"]},
+    )
+    assert unreached == []
+    assert [(one.owner, one.tied_with) for one in ownerships] == [
+        ("drawer_1", ("drawer_2",))
+    ]
+    assert ownerships[0].settled_by_ontology
 
 
 # %% the mounts carried out of the answers

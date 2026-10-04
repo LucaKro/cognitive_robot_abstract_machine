@@ -92,9 +92,7 @@ def test_graph_snapshot_keeps_accepted_and_refused_relations() -> None:
     assert graph.edges[0].relation == "part"
     assert graph.edges[1].accepted is False
     assert graph.edges[1].refusal_reason == "class does not admit part"
-    written = graph.to_json()
-    assert written["nodes"][0]["predicted_class"] == "Cabinet"
-    assert written["edges"][1]["accepted"] is False
+    assert EvaluationGraph.from_json(graph.to_json()) == graph
 
 
 def test_unclassified_body_remains_visible_in_snapshot() -> None:

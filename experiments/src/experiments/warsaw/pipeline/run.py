@@ -44,6 +44,12 @@ class RunFile(StrEnum):
     The ontology as a model reads it: classes, what each can hold, which are abstract.
     """
 
+    PREPARED_ONTOLOGY = "prepared_ontology.json"
+    """
+    How many classes the run's reading of the ontology holds, and how many tables were
+    built for it.
+    """
+
     RELATIONS = "relations.json"
     """
     How the scene's labelled objects were measured to meet, and what the ontology makes

@@ -292,8 +292,8 @@ def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
         "skip_classes_that_name_a_category": settings.skip_classes_that_name_a_category,
         "skip_classes_a_body_cannot_make": settings.skip_classes_a_body_cannot_make,
         "make_a_region_where_a_class_needs_one": settings.make_a_region_where_a_class_needs_one,
-        "reuse_answers": settings.reuse_answers,
         "runs_directory": str(settings.runs_directory.resolve()),
+        "repository": str(settings.repository.resolve()),
     }
 
 

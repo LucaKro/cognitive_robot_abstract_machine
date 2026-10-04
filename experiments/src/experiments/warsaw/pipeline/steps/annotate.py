@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import logging
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -157,9 +159,6 @@ class AnnotationFromBody:
                 name=name, world=world, body=body
             )
         return annotation_class(**{ROOT: body}, _world=world)
-
-
-# %% a mount the world would not carry out
 
 
 # %% what the mounting came to
@@ -496,7 +495,7 @@ class AnnotateAndMount(PipelineStep):
         if generated:
             self.logger.info("generated %s: %s", len(generated), ", ".join(generated))
             self.logger.info("regenerating the ORM ...")
-            self.regenerate_orm()
+            self.rebuild_orm()
         else:
             self.logger.info("every class the scene needs is already in the ontology")
 
@@ -504,15 +503,7 @@ class AnnotateAndMount(PipelineStep):
         # annotated in an interpreter that starts after they exist.
         self.logger.info("annotating in a new interpreter ...")
         printed = self.in_new_interpreter(
-            "import sys\n"
-            "from pathlib import Path\n"
-            "import logging\n"
-            "logging.basicConfig(level=logging.INFO, format='%(message)s', "
-            "stream=sys.stdout)\n"
-            "from experiments.warsaw.pipeline.steps.annotate import MountAnnotations\n"
-            "MountAnnotations(directory=Path(sys.argv[1])).carry_out()\n",
-            [str(self.run.directory)],
-            what="annotating the world and mounting its parts",
+            MountAnnotations, what="annotating the world and mounting its parts"
         )
         for line in printed.splitlines():
             self.logger.info(line)
@@ -658,10 +649,9 @@ class AnnotateAndMount(PipelineStep):
             )
         return generated
 
-    def regenerate_orm(self) -> None:
-        """
-        Rebuild the ORM so the database knows the classes this run generated.
 
-        :raises SubprocessStepFailedError: If the rebuild fails.
-        """
-        GeneratedClasses(directory=self.run.directory).rebuild_orm()
+if __name__ == "__main__":
+    # What the annotating says goes to standard output, which the step that started this
+    # interpreter reads and says again.
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+    MountAnnotations(directory=Path(sys.argv[1])).carry_out()

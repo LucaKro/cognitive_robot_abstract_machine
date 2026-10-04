@@ -136,6 +136,20 @@ class GeneratedClasses:
         declared = declared_annotation_classes(SemanticAnnotation)
         return sorted(name for name in self.class_names if name in declared)
 
+    def refuse_classes_taken_over(self) -> None:
+        """
+        Refuse to map this run's classes once the ontology has gained one of them.
+
+        :raises RunClassTakenOverByTheOntologyError: If the ontology has since gained a
+            class this run generated, which would leave two classes of one name and an
+            ORM nothing can import.
+        """
+        taken_over = self.taken_over_by_the_ontology()
+        if taken_over:
+            raise RunClassTakenOverByTheOntologyError(
+                directory=str(self.directory), class_names=taken_over
+            )
+
     def rebuild_orm(self) -> None:
         """
         Build the ORM anew so it maps the classes this run generated.
@@ -158,11 +172,7 @@ class GeneratedClasses:
             ORM nothing can import.
         :raises SubprocessStepFailedError: If the rebuild fails.
         """
-        taken_over = self.taken_over_by_the_ontology()
-        if taken_over:
-            raise RunClassTakenOverByTheOntologyError(
-                directory=str(self.directory), class_names=taken_over
-            )
+        self.refuse_classes_taken_over()
 
         aside = self.interface.with_suffix(".py.aside")
         if self.interface.exists():

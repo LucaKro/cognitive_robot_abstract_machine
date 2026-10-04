@@ -18,6 +18,7 @@ msg/*Result.msg
 msg/_*.py
 *muh*
 *.txt
+!cramera/src/cramera/web/vendor/licenses/*.txt
 # The hook tests' scratch clone needs a real requirements.txt at the path
 # check-setup.sh looks for, so this one fixture is checked in.
 !.claude/hooks/tests/fixtures/set-up-clone/**/*.txt
@@ -114,6 +115,7 @@ test/krrood_test/test_ripple_down_rules/test_generated_rdrs
 *.lo
 *.o
 *.obj
+!test/cramera_test/dataset/material.obj
 
 # Precompiled Headers
 *.gch
@@ -204,3 +206,7 @@ test.srdf
 
 # The ground-truth mesh picked over to choose landmarks, rebuilt from the URDF export.
 experiments/src/experiments/warsaw/evaluation/landmarks/*.ply
+
+# Local data produced by the Python coverage checks.
+/.coverage
+/.coverage.*

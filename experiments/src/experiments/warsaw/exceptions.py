@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing_extensions import List
+from typing_extensions import TYPE_CHECKING, List
 
 from krrood.exceptions import DataclassException
+
+if TYPE_CHECKING:
+    from experiments.warsaw.pipeline.steps.amend.amended_classes_check import (
+        AmendedPair,
+    )
 
 
 @dataclass
@@ -208,6 +213,32 @@ class SubprocessStepFailedError(DataclassException, RuntimeError):
         return (
             "Read the output above: it is the failure as the interpreter reported it, "
             "not a summary of it."
+        )
+
+
+@dataclass
+class AmendmentNotInForceError(DataclassException, RuntimeError):
+    """
+    Raised when an amended class, read anew, does not derive from the mixin it was
+    amended with.
+
+    A field the ORM does not know about cannot be written to the database, so an
+    amendment that is not in force reads as done and is not.
+    """
+
+    pairs: List[AmendedPair]
+    """
+    The amendments that did not take effect.
+    """
+
+    def error_message(self) -> str:
+        missing = ", ".join(f"{pair.whole}({pair.mixin})" for pair in self.pairs)
+        return f"These amendments were written but are not in force: {missing}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Look at the amended lines in the ontology's source: the edit has to make the "
+            "class derive from the mixin when the module is imported anew."
         )
 
 
@@ -425,10 +456,35 @@ class BlankRenderError(DataclassException, RuntimeError):
 
     def suggest_correction(self) -> str:
         return (
-            "Renders are drawn into a hidden window, which many graphics drivers refuse "
-            "to draw into at all and hand back blank. Run the pipeline under "
-            "'xvfb-run -a', or set PipelineSettings.headless to False on a machine with "
-            "a display."
+            "Many graphics drivers refuse to draw into a hidden window and hand back "
+            "blank. If PipelineSettings.headless is True, set it to False on a machine "
+            "with a display; on a machine without one, run the pipeline under "
+            "'xvfb-run -a'."
+        )
+
+
+# %% keeping what a model was asked
+
+
+@dataclass
+class UnsupportedMessagePartError(DataclassException, TypeError):
+    """
+    Raised when a message part is neither text nor an image, so a trace has no way to
+    record it.
+    """
+
+    part_type: type
+    """
+    The type of the part that was sent.
+    """
+
+    def error_message(self) -> str:
+        return f"A model trace cannot record a message part of type {self.part_type.__name__}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Send text as a TextPart and pictures as an ImagePart, or teach "
+            "ModelCallPart.of to record the new kind of part."
         )
 
 

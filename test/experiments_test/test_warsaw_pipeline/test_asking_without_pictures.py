@@ -13,11 +13,17 @@ so everything else about the run stays as it was.
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import pytest
+from semantic_digital_twin.adapters.vision_language_model.client import (
+    ModelResponse,
+    VisionLanguageModel,
+)
+from semantic_digital_twin.adapters.vision_language_model.message import MessagePart
+from typing_extensions import Dict, Sequence
 
-from experiments.warsaw.pipeline.asking import Prompt
+from experiments.warsaw.pipeline.steps import step as pipeline_step
 from experiments.warsaw.pipeline.records import (
     Adjudications,
     LabelRequest,
@@ -205,7 +211,7 @@ def test_the_render_step_is_told_what_the_run_was_told(tmp_path) -> None:
         settings = PipelineSettings(scene_directory=tmp_path, show_the_pictures=showing)
         planned = WarsawPipeline(settings=settings).run_steps(Run(directory=tmp_path))
         return [
-            one.exemplar_renders for one in planned if isinstance(one, MeasureScene)
+            one.renders_exemplars for one in planned if isinstance(one, MeasureScene)
         ]
 
     # A scene is measured twice and only the first measuring renders the exemplars, so
@@ -236,7 +242,7 @@ def test_a_run_showing_no_pictures_renders_none_for_its_questions(tmp_path) -> N
         )
         planned = WarsawPipeline(settings=settings).run_steps(Run(directory=tmp_path))
         return [
-            one.question_renders for one in planned if isinstance(one, MeasureScene)
+            one.renders_questions for one in planned if isinstance(one, MeasureScene)
         ]
 
     assert rendering(showing=False) == [0, 0]
@@ -260,8 +266,8 @@ def test_the_contested_faces_are_asked_about_on_their_own_terms(tmp_path) -> Non
     )
     planned = WarsawPipeline(settings=settings).run_steps(Run(directory=tmp_path))
     measuring = [one for one in planned if isinstance(one, MeasureScene)]
-    assert max(one.question_renders for one in measuring) > 0
-    assert [one.exemplar_renders for one in measuring] == [False, False]
+    assert max(one.renders_questions for one in measuring) > 0
+    assert [one.renders_exemplars for one in measuring] == [False, False]
 
 
 # %% the contested faces, asked from the text alone
@@ -303,16 +309,35 @@ def undrawn_membership(undrawn_questions, relations, tmp_path) -> MembershipDeci
     )
 
 
-def kept_reply(answer: dict) -> dict:
+@dataclass
+class AnsweringBySystemPrompt:
     """
-    :param answer: What the model is to have answered.
-    :return: A reply carrying it, in the shape a run keeps replies in.
+    A model answering each kind of question with an answer written in advance, told
+    apart by what it is told it is doing.
     """
-    return {"choices": [{"message": {"content": json.dumps(answer)}}]}
+
+    answers: Dict[str, dict]
+    """
+    Per system prompt, what the model answers.
+    """
+
+    def ask(self, content: Sequence[MessagePart], system: str) -> ModelResponse:
+        """
+        :param content: The question.
+        :param system: What it is told it is doing.
+        :return: The answer written for that kind of question.
+        """
+        spoken = json.dumps(self.answers[system])
+        return ModelResponse.from_json({"choices": [{"message": {"content": spoken}}]})
 
 
 def test_contested_faces_left_undrawn_are_still_adjudicated(
-    tmp_path, undrawn_questions, relations
+    tmp_path,
+    monkeypatch,
+    undrawn_questions,
+    undrawn_ownership,
+    undrawn_membership,
+    relations,
 ) -> None:
     """
     A question about contested faces has something to go on without its picture: the
@@ -324,23 +349,20 @@ def test_contested_faces_left_undrawn_are_still_adjudicated(
     run.write_record(RunFile.QUESTIONS, undrawn_questions)
     run.write_record(RunFile.RELATIONS, relations)
 
-    ownership, membership = (
-        undrawn_questions.ownership[0],
-        undrawn_questions.membership[0],
+    owner = undrawn_ownership.asked.pattern[0]
+    whole = undrawn_membership.asked.candidate_names[0]
+    scripted = AnsweringBySystemPrompt(
+        answers={
+            undrawn_ownership.system_prompt: {"owner": owner},
+            undrawn_membership.system_prompt: {"whole": whole},
+        }
     )
-    owner = ownership.pattern[0]
-    whole = membership.candidate_names[0]
-    answers = run.directory_for(RunFile.QUESTION_ANSWERS)
-    for key, answer in (
-        (f"{Prompt.OWNERSHIP.value}__{ownership.name}", {"owner": owner}),
-        (f"{Prompt.MEMBERSHIP.value}__{membership.name}", {"whole": whole}),
-    ):
-        (answers / f"{key}.json").write_text(json.dumps(kept_reply(answer)))
+    monkeypatch.setattr(
+        pipeline_step, VisionLanguageModel.__name__, lambda model: scripted
+    )
 
     settings = PipelineSettings(
-        scene_directory=tmp_path,
-        show_the_contested_faces=False,
-        reuse_answers=True,
+        scene_directory=tmp_path, show_the_contested_faces=False
     )
     AdjudicateOverlaps(settings=settings, run=run).carry_out()
 
