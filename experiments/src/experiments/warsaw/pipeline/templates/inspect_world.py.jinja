@@ -19,6 +19,7 @@ from pathlib import Path
 # package, where they deliberately are not. The world was written into a schema of this
 # run's own, so that is where to look for it, set before anything asks for a session.
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 
 _generated = GeneratedClasses(directory=Path(__file__).resolve().parent)
@@ -28,7 +29,7 @@ _generated = GeneratedClasses(directory=Path(__file__).resolve().parent)
 if _generated.were_generated:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logging.getLogger(__name__).info("rebuilding the ORM for this run's classes ...")
-    _generated.rebuild_orm()
+    OrmRebuild(directory=_generated.directory).run_in_new_interpreter()
 _generated.use()
 RunSchema.for_run(Path(__file__).resolve().parent).use()
 

@@ -98,6 +98,7 @@ def world_of_run(directory: Path) -> World:
     """
     # The run's own classes and schema have to be in place before anything reaches the
     # ORM, which is why these are imported here rather than at the top of the module.
+    from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
     from experiments.warsaw.pipeline.database.run_schema import RunSchema
     from experiments.warsaw.pipeline.run import Run, RunFile
     from experiments.warsaw.pipeline.run_classes import GeneratedClasses
@@ -108,7 +109,7 @@ def world_of_run(directory: Path) -> World:
         logging.getLogger(__name__).info(
             "rebuilding the ORM for this run's classes ..."
         )
-        generated.rebuild_orm()
+        OrmRebuild(directory=directory).run_in_new_interpreter()
     generated.use()
     RunSchema.for_run(directory).use()
 

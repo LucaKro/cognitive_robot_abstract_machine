@@ -25,6 +25,7 @@ from typing_extensions import List, Tuple
 
 from experiments.warsaw.exceptions import OntologyLeftAmendedError
 from experiments.warsaw.pipeline.database.ontology_export import OntologyExport
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
 from experiments.warsaw.pipeline.records import PreparedOntology
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.templates import PipelineTemplates
@@ -84,7 +85,7 @@ class PrepareRun(PipelineStep):
         self.logger.info("  %s", self.generated_classes_file)
 
         self.logger.info("rebuilding the ORM without them ...")
-        self.rebuild_orm()
+        OrmRebuild(directory=self.run.directory).run_in_new_interpreter()
 
         schema = RunSchema.for_run(self.run.directory)
         self.logger.info("making the run its own schema in the database ...")

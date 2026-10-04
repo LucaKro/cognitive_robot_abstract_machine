@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import trimesh
 
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
 from experiments.warsaw.pipeline.records import RefusedMount, SplitRecord
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.scene_split import Pairing
@@ -206,8 +207,9 @@ def test_the_inspector_rebuilds_the_orm_before_it_reaches_a_world(tmp_path, spli
     RunReport(run=run).write_inspector()
     written = run.path(RunFile.INSPECTOR).read_text()
 
-    assert "rebuild_orm()" in written
-    assert written.index("rebuild_orm()") < written.index("world_store")
+    rebuilding = f"{OrmRebuild.run_in_new_interpreter.__name__}()"
+    assert rebuilding in written
+    assert written.index(rebuilding) < written.index("world_store")
 
 
 def test_the_publisher_is_written_with_the_worlds_this_run_wrote(tmp_path, split):
@@ -237,7 +239,7 @@ def test_the_publisher_reads_a_world_without_rebuilding_the_orm(tmp_path, split)
     RunReport(run=run).write_publisher()
     written = run.path(RunFile.PUBLISHER).read_text()
 
-    assert "rebuild_orm" not in written
+    assert OrmRebuild.run_in_new_interpreter.__name__ not in written
     assert RunFile.INSPECTOR.value in written
 
 

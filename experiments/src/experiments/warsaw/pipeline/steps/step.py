@@ -8,8 +8,6 @@ read, and nothing reaches it on a command line.
 
 from __future__ import annotations
 
-import subprocess
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -22,12 +20,10 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Dict, List, Optional, Sequence, Type
 
-from experiments.warsaw.exceptions import SubprocessStepFailedError
 from experiments.warsaw.pipeline.asking import Questioner
 from experiments.warsaw.bases import HasLogger
-from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
+from experiments.warsaw.pipeline.new_interpreter import NewInterpreter
 from experiments.warsaw.pipeline.run import Run, RunFile
-from experiments.warsaw.pipeline.run_classes import GeneratedClasses
 from experiments.warsaw.pipeline.settings import PipelineSettings
 
 
@@ -121,9 +117,6 @@ class PipelineStep(HasLogger, ABC):
         Do work in an interpreter that started after the ontology or the ORM was
         rewritten.
 
-        The interpreter asking is holding the version from before that, so it cannot do
-        the work itself however carefully it re-imports.
-
         :param entry: The class doing the work, whose module runs it when run as a
             program and is handed the run's directory.
         :param what: What it is doing, for the failure message.
@@ -132,54 +125,10 @@ class PipelineStep(HasLogger, ABC):
         :return: What it printed.
         :raises SubprocessStepFailedError: If it did not finish.
         """
-        finished = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                entry.__module__,
-                str(self.run.directory.resolve()),
-                *arguments,
-            ],
-            capture_output=True,
-            text=True,
-            env=environment,
-        )
-        if finished.returncode != 0:
-            raise SubprocessStepFailedError(what=what, output=finished.stderr)
-        return finished.stdout
-
-    def rebuild_orm(self) -> None:
-        """
-        Rebuild the ORM from the ontology and the classes this run generated.
-
-        The generator reads the interface it is about to replace, and the one standing
-        there may still name classes that are gone -- so it cannot be imported and the
-        rebuild dies on the very staleness it was run to cure. Moved aside, the
-        generator builds from the ontology alone; put back if it fails, so a failure
-        costs nothing.
-
-        :raises RunClassTakenOverByTheOntologyError: If the ontology has since gained a
-            class this run generated.
-        :raises SubprocessStepFailedError: If the rebuild fails or writes no interface.
-        """
-        GeneratedClasses(directory=self.run.directory).refuse_classes_taken_over()
-        interface = OrmRebuild.interface()
-        aside = interface.with_suffix(".py.aside")
-        if interface.exists():
-            interface.replace(aside)
-
-        rebuilt = False
-        try:
-            self.in_new_interpreter(OrmRebuild, what="rebuilding the ORM")
-            rebuilt = interface.exists()
-        finally:
-            if rebuilt:
-                aside.unlink(missing_ok=True)
-            elif aside.exists():
-                aside.replace(interface)
-
-        if not rebuilt:
-            raise SubprocessStepFailedError(
-                what="rebuilding the ORM",
-                output=f"the generator finished but wrote no {interface}",
-            )
+        return NewInterpreter(
+            entry=entry,
+            directory=self.run.directory,
+            what=what,
+            environment=environment,
+            arguments=arguments,
+        ).carry_out()

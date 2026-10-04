@@ -45,6 +45,7 @@ from typing_extensions import Any, Dict, List, Optional, Tuple, Type
 from krrood.ormatic.utils import classproperty
 
 from experiments.warsaw.pipeline.asking import Prompt, QuestionAboutTheOntology
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.records import (
     AmendmentRecord,
@@ -434,7 +435,7 @@ class AmendTaxonomy(PipelineStep):
                 )
             self.verify(written)
             self.logger.info("regenerating the ORM ...")
-            self.rebuild_orm()
+            OrmRebuild(directory=self.run.directory).run_in_new_interpreter()
             amended = True
         finally:
             if not amended:
@@ -528,7 +529,7 @@ class RevertAmendments(PipelineStep):
             )
 
         self.logger.info("regenerating the ORM ...")
-        self.rebuild_orm()
+        OrmRebuild(directory=self.run.directory).run_in_new_interpreter()
         self.run.write_json(
             RunFile.TAXONOMY_AMENDMENTS, [one.to_json() for one in records]
         )

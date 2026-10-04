@@ -27,10 +27,9 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
 )
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.run_classes import GeneratedClasses
-from experiments.warsaw.pipeline.settings import PipelineSettings
-from experiments.warsaw.pipeline.steps.annotate import AnnotateAndMount
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 
 # %% the directory a run writes into
@@ -266,17 +265,7 @@ def test_the_script_that_rebuilds_the_orm_is_where_a_run_looks_for_it(tmp_path):
     The rebuild happens in a new interpreter, so a moved or renamed generator would fail
     there rather than here, in output nobody reads until a run is already expensive.
     """
-    assert GeneratedClasses(directory=tmp_path).orm_generator.is_file()
-
-
-def test_a_run_that_generated_no_classes_still_names_the_generator(tmp_path):
-    """
-    Where the generator lives does not depend on what a run happened to generate.
-    """
-    generated = GeneratedClasses(directory=tmp_path)
-
-    assert not generated.were_generated
-    assert generated.orm_generator.name == "generate_orm.py"
+    assert OrmRebuild.generator().is_file()
 
 
 def test_the_classes_a_run_generated_are_read_without_importing_them(tmp_path):
@@ -333,36 +322,13 @@ def test_rebuilding_for_a_taken_over_class_is_refused_before_anything_is_touched
         "from dataclasses import dataclass\n\n\n"
         "@dataclass(eq=False)\nclass KitchenIsland: ...\n"
     )
-    written_before = generated.interface.read_text()
+    written_before = OrmRebuild.interface().read_text()
 
     with pytest.raises(RunClassTakenOverByTheOntologyError) as raised:
-        generated.rebuild_orm()
-
-    assert "KitchenIsland" in str(raised.value)
-    assert generated.interface.read_text() == written_before
-
-
-def test_a_step_rebuilding_for_a_taken_over_class_is_refused_too(tmp_path):
-    """
-    A step rebuilds the ORM for its own run's classes, and the same name in the ontology
-    and in the run breaks the same shared interface however the rebuild was asked for.
-    """
-    generated = GeneratedClasses(directory=tmp_path)
-    generated.searched_directory.mkdir(parents=True)
-    generated.path.write_text(
-        "from dataclasses import dataclass\n\n\n"
-        "@dataclass(eq=False)\nclass KitchenIsland: ...\n"
-    )
-    written_before = generated.interface.read_text()
-    annotating = AnnotateAndMount(
-        settings=PipelineSettings(scene_directory=tmp_path), run=Run(directory=tmp_path)
-    )
-
-    with pytest.raises(RunClassTakenOverByTheOntologyError) as raised:
-        annotating.rebuild_orm()
+        OrmRebuild(directory=tmp_path).run_in_new_interpreter()
 
     assert raised.value.class_names == ["KitchenIsland"]
-    assert generated.interface.read_text() == written_before
+    assert OrmRebuild.interface().read_text() == written_before
 
 
 # %% what the annotate step has imported by the time it starts

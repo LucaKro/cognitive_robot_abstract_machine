@@ -60,6 +60,7 @@ from experiments.warsaw.pipeline.records import (
 )
 from experiments.warsaw.pipeline.report import RunReport
 from experiments.warsaw.bases import HasLogger
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
 from experiments.warsaw.pipeline.database.run_schema import RunSchema
 from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.pipeline.run import Run, RunFile
@@ -495,7 +496,7 @@ class AnnotateAndMount(PipelineStep):
         if generated:
             self.logger.info("generated %s: %s", len(generated), ", ".join(generated))
             self.logger.info("regenerating the ORM ...")
-            self.rebuild_orm()
+            OrmRebuild(directory=self.run.directory).run_in_new_interpreter()
         else:
             self.logger.info("every class the scene needs is already in the ontology")
 
