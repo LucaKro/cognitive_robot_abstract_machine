@@ -27,6 +27,7 @@ from krrood.ormatic.data_access_objects.helper import to_dao
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
+    HandleWiderThanLong,
     InvalidPlaneDimensions,
     MergedRobotAnnotationNotFound,
     MissingConnectionAxisError,
@@ -936,6 +937,13 @@ def test_default_spec_matches_handle_without_explicit_scale(empty_world):
         "handle"
     ).to_domain_object()
     _assert_same_geometry(spec_body.collision, factory.root.collision)
+
+
+def test_default_spec_handle_rejects_width_above_length():
+    with pytest.raises(HandleWiderThanLong):
+        Handle.get_default_root_kinematic_structure_entity_specification(
+            "handle", Scale(x=0.068, y=0.5, z=0.015)
+        )
 
 
 def test_default_spec_matches_door(empty_world):
