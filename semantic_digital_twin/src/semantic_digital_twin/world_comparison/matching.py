@@ -98,6 +98,21 @@ class BodyCorrespondence:
     world, which have no counterpart, and which were merged or split.
     """
 
+    ground_truth_world: World
+    """
+    The world taken as correct.
+    """
+
+    reconstructed_world: World
+    """
+    The world measured against it.
+    """
+
+    ground_truth_root_T_reconstructed_root: HomogeneousTransformationMatrix
+    """
+    The pose of the reconstructed world's root in the ground truth world's root frame.
+    """
+
     overlap_table: OverlapTable
     """
     How much of each reconstructed body lies on each ground truth body, from which the
@@ -324,14 +339,16 @@ class BodyMatcher:
             :attr:`minimum_overlap`, the bodies left without a counterpart, and the
             bodies that were merged or split.
         """
+        framed_alignment = (
+            ground_truth_root_T_reconstructed_root.copy_with_new_reference_frames(
+                new_reference_frame=ground_truth_world.root,
+                new_child_frame=reconstructed_world.root,
+            )
+        )
         table = OverlapTable(
             ground_truth_surfaces=self._surfaces_of(ground_truth_world),
             reconstructed_surfaces=self._surfaces_of(
-                reconstructed_world,
-                ground_truth_root_T_reconstructed_root.copy_with_new_reference_frames(
-                    new_reference_frame=ground_truth_world.root,
-                    new_child_frame=reconstructed_world.root,
-                ),
+                reconstructed_world, framed_alignment
             ),
             distance_tolerance=self.distance_tolerance,
         )
@@ -341,6 +358,9 @@ class BodyMatcher:
             id(match.reconstructed_body) for match in matches
         }
         return BodyCorrespondence(
+            ground_truth_world=ground_truth_world,
+            reconstructed_world=reconstructed_world,
+            ground_truth_root_T_reconstructed_root=framed_alignment,
             overlap_table=table,
             matches=matches,
             unmatched_ground_truth_bodies=[
