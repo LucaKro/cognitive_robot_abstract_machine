@@ -37,6 +37,7 @@ dependencies = [
     "pytest-order",
     "sqlalchemy",
     "embreex",  # Hardware acceleration for trimesh raycasting
+    "open3d",  # Fast exact point-to-surface distances
     "rtree",  # For spatial indexing in trimesh
     "random_events",
     "plotly",

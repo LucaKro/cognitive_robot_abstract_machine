@@ -21,6 +21,7 @@ from semantic_digital_twin.world_comparison.surface_samples import (
 )
 from semantic_digital_twin.world_description.geometry import Scale
 from semantic_digital_twin.world_description.world_entity import Body
+from .worlds import box, world_of
 
 # %% fixtures
 
@@ -60,21 +61,6 @@ def row_world(row_of_boxes) -> World:
 @pytest.fixture
 def identity() -> HomogeneousTransformationMatrix:
     return HomogeneousTransformationMatrix()
-
-
-def box(name: str, length: float, centre_x: float) -> BodySpecification:
-    """
-    A box 0.3 m deep and high, of the given length along x, centred at the given x.
-    """
-    return BodySpecification.box(
-        name,
-        scale=Scale(length, 0.3, 0.3),
-        parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=centre_x),
-    )
-
-
-def world_of(*bodies: BodySpecification) -> World:
-    return WorldSpecification(objects=list(bodies)).to_domain_object()
 
 
 def names_of(bodies: list[Body]) -> set[str]:
@@ -296,6 +282,36 @@ def test_merged_parts_divide_the_surface_between_them(matcher, identity):
 
     [merge] = correspondence.merged_bodies
     assert sum(part.overlap for part in merge.parts) <= 1.0
+
+
+def test_reconstruction_of_an_empty_world_is_wholly_unmatched(matcher, identity):
+    correspondence = matcher.match(world_of(), world_of(box("a", 0.3, 0.0)), identity)
+    assert correspondence.matches == []
+    assert names_of(correspondence.unmatched_reconstructed_bodies) == {"a"}
+
+
+# %% recognition quality
+
+
+def test_recognition_quality_counts_each_miss_and_extra_as_half_an_error(
+    matcher, identity
+):
+    correspondence = matcher.match(
+        world_of(box("a", 0.3, 0.0), box("b", 0.3, 1.0)),
+        world_of(box("a", 0.3, 0.0), box("extra", 0.3, -1.0)),
+        identity,
+    )
+    true_positives = len(correspondence.matches)
+    errors = len(correspondence.unmatched_ground_truth_bodies) + len(
+        correspondence.unmatched_reconstructed_bodies
+    )
+    assert (true_positives, errors) == (1, 2)
+    assert correspondence.recognition_quality == pytest.approx(1 / (1 + 0.5 * 2))
+
+
+def test_recognition_quality_of_two_empty_worlds_is_undefined(matcher, identity):
+    correspondence = matcher.match(world_of(), world_of(), identity)
+    assert correspondence.recognition_quality is None
 
 
 # %% minimum overlap

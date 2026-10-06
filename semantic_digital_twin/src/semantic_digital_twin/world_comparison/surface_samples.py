@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
+import numpy.typing as npt
+import open3d
+import trimesh
 from scipy.spatial import cKDTree
 from trimesh.sample import sample_surface
 from trimesh.transformations import transform_points
@@ -58,6 +61,7 @@ class SurfaceSampler:
         body_P_samples, _ = sample_surface(mesh, sample_count, seed=self.seed)
         return SurfaceSamples(
             body=body,
+            ground_truth_root_T_body=ground_truth_root_T_body,
             ground_truth_root_P_samples=transform_points(
                 body_P_samples, ground_truth_root_T_body.to_np()
             ),
@@ -78,10 +82,85 @@ class SurfaceSamples:
     The body whose surface was sampled.
     """
 
-    ground_truth_root_P_samples: np.ndarray
+    ground_truth_root_T_body: HomogeneousTransformationMatrix
+    """
+    The pose of the body in the root frame of the ground truth world.
+    """
+
+    ground_truth_root_P_samples: npt.NDArray[np.float64]
     """
     The sampled points in the root frame of the ground truth world, one per row.
     """
+
+    @cached_property
+    def distance_to_surface(self) -> DistanceToSurface:
+        """
+        :return: The distances to the body's visual surface, placed in the root frame of
+            the ground truth world.
+        """
+        surface = self.body.visual.combined_mesh.copy()
+        surface.apply_transform(self.ground_truth_root_T_body.to_np())
+        return DistanceToSurface(surface)
+
+    def distances_to(self, other_surface: SurfaceSamples) -> npt.NDArray[np.float64]:
+        """
+        :param other_surface: The surface the distances are measured to.
+        :return: For each of these samples, its distance to the nearest point of the
+            other body's surface, in metres.
+        """
+        return other_surface.distance_to_surface.distances_of(
+            self.ground_truth_root_P_samples
+        )
+
+
+# %% exact distances
+
+
+@dataclass
+class DistanceToSurface:
+    """
+    Measures how far points lie from a triangle surface, to the nearest point on any of
+    its triangles.
+
+    The distances are computed in single precision around the centre of the surface, so
+    they are exact to about a micrometre for surfaces the size of furniture.
+    """
+
+    surface: trimesh.Trimesh
+    """
+    The surface the distances are measured to.
+    """
+
+    @cached_property
+    def _centre(self) -> npt.NDArray[np.float64]:
+        """
+        :return: The centre of the surface's bounding box, which the computation is done
+            relative to, so single precision is spent on the surface's own extent.
+        """
+        return self.surface.bounds.mean(axis=0)
+
+    @cached_property
+    def _scene(self) -> open3d.t.geometry.RaycastingScene:
+        """
+        :return: An Open3D scene holding the surface, relative to :attr:`_centre`.
+        """
+        scene = open3d.t.geometry.RaycastingScene()
+        scene.add_triangles(
+            open3d.core.Tensor(
+                (self.surface.vertices - self._centre).astype(np.float32)
+            ),
+            open3d.core.Tensor(self.surface.faces.astype(np.uint32)),
+        )
+        return scene
+
+    def distances_of(self, points: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """
+        :param points: The points to measure, one per row, in the frame of the surface.
+        :return: For each point, its distance to the nearest point of the surface, in
+            metres.
+        """
+        relative_points = open3d.core.Tensor((points - self._centre).astype(np.float32))
+        return self._scene.compute_distance(relative_points).numpy().astype(np.float64)
 
 
 # %% the surfaces of a world
@@ -100,6 +179,19 @@ class WorldSurfaces:
     """
 
     @cached_property
+    def _surface_by_body(self) -> dict[int, SurfaceSamples]:
+        """
+        :return: The sampled surfaces, keyed by the identity of their body.
+        """
+        return {id(surface.body): surface for surface in self.surfaces}
+
+    def surface_of(self, body: Body) -> SurfaceSamples:
+        """
+        :return: The sampled surface of the body.
+        """
+        return self._surface_by_body[id(body)]
+
+    @cached_property
     def search_tree(self) -> cKDTree:
         """
         :return: A k-d tree over the samples of every surface, for finding the sample
@@ -112,7 +204,7 @@ class WorldSurfaces:
         )
 
     @cached_property
-    def surface_indices(self) -> np.ndarray:
+    def surface_indices(self) -> npt.NDArray[np.int_]:
         """
         :return: For each sample in :attr:`search_tree`, the index of the surface in
             :attr:`surfaces` it was drawn from.
@@ -126,7 +218,7 @@ class WorldSurfaces:
 
     def nearest_body_shares(
         self, other_surface: SurfaceSamples, distance: float
-    ) -> np.ndarray:
+    ) -> npt.NDArray[np.float64]:
         """
         Divide another surface among the bodies of this world, giving each of its
         samples to the body with the nearest sample.
@@ -140,6 +232,8 @@ class WorldSurfaces:
         :return: For each surface in :attr:`surfaces`, the share of the other surface's
             samples that lie on it.
         """
+        if not self.surfaces:
+            return np.zeros(0)
         distances, nearest = self.search_tree.query(
             other_surface.ground_truth_root_P_samples, distance_upper_bound=distance
         )

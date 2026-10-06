@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 import numpy as np
+import numpy.typing as npt
 from scipy.optimize import linear_sum_assignment
 
 from semantic_digital_twin.exceptions import (
@@ -86,8 +87,7 @@ class SplitBody:
 
     pieces: list[BodyOverlap]
     """
-    The reconstructed bodies that partly lie on it, the one with the most overlap
-    first.
+    The reconstructed bodies that partly lie on it, the one with the most overlap first.
     """
 
 
@@ -96,6 +96,12 @@ class BodyCorrespondence:
     """
     Which bodies of a reconstructed world stand for which bodies of the ground truth
     world, which have no counterpart, and which were merged or split.
+    """
+
+    overlap_table: OverlapTable
+    """
+    How much of each reconstructed body lies on each ground truth body, from which the
+    correspondence was decided.
     """
 
     matches: list[BodyOverlap] = field(default_factory=list)
@@ -129,6 +135,20 @@ class BodyCorrespondence:
     split body apart from a body that stands for nothing.
     """
 
+    @property
+    def recognition_quality(self) -> float | None:
+        """
+        :return: How well the bodies were found, from 0 to 1: the matches divided by the
+            matches plus half of the unmatched bodies of either world, as in panoptic
+            quality. ``None`` when neither world has a body.
+        """
+        errors = len(self.unmatched_ground_truth_bodies) + len(
+            self.unmatched_reconstructed_bodies
+        )
+        if not self.matches and not errors:
+            return None
+        return len(self.matches) / (len(self.matches) + errors / 2)
+
 
 # %% overlap table
 
@@ -156,7 +176,7 @@ class OverlapTable:
     """
 
     @cached_property
-    def overlap(self) -> np.ndarray:
+    def overlap(self) -> npt.NDArray[np.float64]:
         """
         :return: For each reconstructed body (row) and ground truth body (column), the
             share of the reconstructed body's surface that lies on the ground truth body.
@@ -236,10 +256,10 @@ class BodyMatcher:
     world, by how much of each reconstructed body's surface lies on a ground truth body,
     and reports the bodies the reconstruction merged or split.
 
-    Each sample of a reconstructed surface lies on the ground truth body with the nearest
-    sample, if that is within :attr:`distance_tolerance`. A reconstructed surface is so
-    divided among the ground truth bodies, and a small body mounted on a larger one, such
-    as a knob on a panel, lies on itself rather than on both.
+    Each sample of a reconstructed surface lies on the ground truth body with the
+    nearest sample, if that is within :attr:`distance_tolerance`. A reconstructed
+    surface is so divided among the ground truth bodies, and a small body mounted on a
+    larger one, such as a knob on a panel, lies on itself rather than on both.
 
     Only bodies with a visual surface take part; bodies without one, such as a world's
     root, are frames rather than physical objects. The overlap is measured from the
@@ -298,8 +318,8 @@ class BodyMatcher:
         :param ground_truth_world: The world taken as correct.
         :param reconstructed_world: The world measured against it.
         :param ground_truth_root_T_reconstructed_root: The pose of the reconstructed
-            world's root in the ground truth world's root frame, which brings both worlds
-            into one frame.
+            world's root in the ground truth world's root frame, which brings both
+            worlds into one frame.
         :return: The pairs, with the most overlap in total, whose overlap reaches
             :attr:`minimum_overlap`, the bodies left without a counterpart, and the
             bodies that were merged or split.
@@ -321,6 +341,7 @@ class BodyMatcher:
             id(match.reconstructed_body) for match in matches
         }
         return BodyCorrespondence(
+            overlap_table=table,
             matches=matches,
             unmatched_ground_truth_bodies=[
                 surface.body
