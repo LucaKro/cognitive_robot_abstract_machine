@@ -1,0 +1,312 @@
+"""
+Gathering a run's numbers into the one page anyone reads afterwards.
+
+A run's numbers are spread over six files and a terminal that has scrolled away, and the
+question asked of a run afterwards is usually how much of it went through rather than
+what any one step said. A run that stopped early is worth reporting on too.
+"""
+
+from __future__ import annotations
+
+import trimesh
+
+from experiments.warsaw.pipeline.database.orm_rebuild import OrmRebuild
+from experiments.warsaw.pipeline.records import RefusedMount, SplitRecord
+from experiments.warsaw.pipeline.report import RunReport
+from experiments.warsaw.scene_split import Pairing
+from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.world_graph import WorldGraph
+
+from ..test_warsaw_evaluation.test_export_world_mesh import (
+    world_with_a_drawer_and_an_unnamed_body,
+)
+
+# %% a run that finished
+
+
+def test_the_report_names_both_worlds_the_run_wrote(finished_run, split):
+    """
+    The split world is what the classification and the pairings were decided against;
+    the annotated one is what came out.
+    """
+    report = RunReport(run=finished_run).markdown()
+    assert f"**{split.annotated_world_id}** annotated" in report
+    assert f"{split.world_id} as it was split" in report
+
+
+def test_the_report_counts_what_every_step_wrote(
+    finished_run, relations, vocabulary, adjudications, split, classifications
+):
+    """
+    Every number is read from the file the step that produced it wrote, so a step that
+    changes what it writes changes the report rather than quietly disagreeing with it.
+    """
+    report = RunReport(run=finished_run).markdown()
+    assert f"{len(relations.segments)} labelled objects" in report
+    assert f"{len(vocabulary.labels)} labels" in report
+    assert f"{len(adjudications.ownership)} class patterns" in report
+    assert f"{len(split.bodies)} bodies," in report
+    assert f"{len(split.pairings)} pairings carried past the split" in report
+
+
+def test_the_objects_that_lost_every_face_are_named_with_what_took_them(
+    finished_run, split
+):
+    """
+    An ownership answer covers a whole class of objects, so a wrong one empties every
+    object of that kind at once.
+
+    A report that merely said ten cabinets are missing would not say which answer to
+    look at.
+    """
+    report = RunReport(run=finished_run).markdown()
+    assert f"### {len(split.emptied)} objects lost every face" in report
+    for segment in split.emptied:
+        assert f"`{segment.name}` -> " in report
+        largest = segment.taken_by[0]
+        assert f"{largest.name} ({largest.faces})" in report
+
+
+def test_every_class_given_is_counted(finished_run, classifications):
+    """
+    How often each class was given is what says whether a run discriminated at all.
+    """
+    report = RunReport(run=finished_run).markdown()
+    for name in {one.class_name for one in classifications.bodies if one.class_name}:
+        assert f"`{name}`" in report
+
+
+def test_the_report_says_how_to_open_what_was_built(finished_run):
+    """
+    The script the run leaves behind opens its world without anyone knowing an id.
+    """
+    assert RunFile.INSPECTOR.value in RunReport(run=finished_run).markdown()
+
+
+# %% a run that stopped early
+
+
+def test_a_run_that_wrote_nothing_still_reports(tmp_path):
+    """
+    A run that stopped on its first step is exactly the run someone wants a report of.
+    """
+    report = RunReport(run=Run.create(tmp_path)).markdown()
+    assert "0 labelled objects" in report
+    assert "0 bodies," in report
+
+
+def test_a_run_that_lost_nothing_says_nothing_about_losses(tmp_path):
+    """
+    A heading with nothing under it reads as a step that failed.
+    """
+    written = RunReport(run=Run.create(tmp_path)).markdown()
+    assert "lost every face" not in written
+    assert "would not carry out" not in written
+
+
+def test_a_mount_the_world_refused_is_named_with_what_it_said(tmp_path):
+    """
+    A pairing every earlier step agreed on can still be refused, which leaves a part
+    where the split put it rather than where the run decided it belongs.
+
+    Said only to the terminal it scrolls away with the run; the report is what is read
+    afterwards, so a run whose mounts were all refused has to read differently from one
+    where they were carried out.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(
+        RunFile.SPLIT,
+        SplitRecord(
+            scene="",
+            pairings=[Pairing(whole="cabinet_5", part="door_11", field_name="doors")],
+            refused=[
+                RefusedMount(
+                    pairing=Pairing(
+                        whole="cabinet_5", part="door_11", field_name="doors"
+                    ),
+                    reason="AmbiguousPart: Cabinet holds no Door",
+                )
+            ],
+        ),
+    )
+    report = RunReport(run=run).markdown()
+    assert "1 pairings carried past the split, 0 of them mounted" in report
+    assert "### 1 mounts the world would not carry out" in report
+    assert "`cabinet_5` <- `door_11`: AmbiguousPart: Cabinet holds no Door" in report
+
+
+# %% what is left behind beside the report
+
+
+def test_the_inspector_is_written_with_the_worlds_this_run_wrote(tmp_path, split):
+    """
+    Written by the run that built them, so the ids are the ones it wrote under and
+    nobody has to be told them.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+    assert f"annotated_world: int = {split.annotated_world_id}" in written
+    assert f"split_world: int = {split.world_id}" in written
+
+
+def test_the_inspector_can_draw_the_world_as_a_graph_page_beside_the_run(
+    tmp_path, split
+):
+    """
+    Asked for, the world is written as a page into the run's own directory, so each
+    run's graph stays with the run it drew.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+
+    assert "graph_page: bool = False" in written
+    assert f"{WorldGraph.__name__}.from_world(world).open_page(" in written
+    assert f'parent / "{RunFile.WORLD_GRAPH_PAGE}"' in written
+
+
+def test_the_report_is_written_into_the_run_it_is_about(tmp_path):
+    """
+    A run's account of itself lives with the run, not beside it.
+    """
+    run = Run.create(tmp_path)
+    written = RunReport(run=run).write()
+    assert run.path(RunFile.REPORT).read_text() == written
+    assert written.startswith(f"# {run.directory.name}")
+
+
+# %% the report as a whole
+
+
+def test_the_report_says_exactly_what_it_said_before_a_template_wrote_it(
+    finished_run, dataset
+):
+    """
+    Read against what the f-strings produced for the same run, byte for byte: the report
+    is how two runs are compared, so a heading or a count that moved is a comparison
+    that silently stops working.
+    """
+    expected = (dataset / "expected" / "report.md").read_text()
+    assert RunReport(run=finished_run).markdown() == expected
+
+
+def test_the_inspector_rebuilds_the_orm_before_it_reaches_a_world(tmp_path, split):
+    """
+    The ORM is one file for the whole repository while a run's generated classes belong
+    to that run, so another run or a test suite rebuilding it leaves this run's world
+    unreadable.
+
+    The inspector has to put that right before importing anything that reads a world,
+    because an interpreter holding a stale ORM goes on holding it.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_inspector()
+    written = run.path(RunFile.INSPECTOR).read_text()
+
+    rebuilding = f"{OrmRebuild.run_in_new_interpreter.__name__}()"
+    assert rebuilding in written
+    assert written.index(rebuilding) < written.index("world_store")
+
+
+def test_the_publisher_is_written_with_the_worlds_this_run_wrote(tmp_path, split):
+    """
+    The two scripts a run leaves behind open the same worlds, so both are told the ids
+    the run wrote under.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert f"annotated_world: int = {split.annotated_world_id}" in written
+    assert f"split_world: int = {split.world_id}" in written
+
+
+def test_the_publisher_reads_a_world_without_rebuilding_the_orm(tmp_path, split):
+    """
+    It is started and stopped while looking at something, and a fifteen-second rebuild
+    each time would make that useless.
+
+    It says instead which script does rebuild, since reading a world fails outright
+    until one has.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert OrmRebuild.run_in_new_interpreter.__name__ not in written
+    assert RunFile.INSPECTOR.value in written
+
+
+def test_the_publisher_keeps_publishing_rather_than_publishing_once(tmp_path, split):
+    """
+    A world read from the database never changes again, so a publisher that only sends
+    its markers when the world changes sends them once.
+
+    A viewer started afterwards would then stay empty with nothing to show it is
+    working.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "republish_every_seconds" in written
+    assert "create_timer" in written
+
+
+def test_the_publisher_paints_the_bodies_it_publishes(tmp_path, split):
+    """
+    A world published in one colour cannot be picked apart, which is what it is
+    published for.
+
+    Painting is a setting, since a world already carrying the colours someone wants
+    should keep them.
+    """
+    run = Run.create(tmp_path)
+    run.write_record(RunFile.SPLIT, split)
+    RunReport(run=run).write_publisher()
+    written = run.path(RunFile.PUBLISHER).read_text()
+
+    assert "coloring: Coloring = Coloring.BY_CLASS" in written
+    assert "Coloring.UNCHANGED" in written
+
+
+# %% the scene a run leaves behind
+
+
+def test_the_scene_is_written_into_the_run_it_is_of(tmp_path):
+    """
+    A run's world is otherwise only in the database, reachable only through an ORM built
+    for the classes that run generated.
+
+    Once one of those classes is taken into the ontology the run cannot be read at all,
+    so the scene is what is left of it.
+    """
+    run = Run.create(tmp_path)
+
+    written = RunReport(run=run).write_world_mesh(
+        world_with_a_drawer_and_an_unnamed_body()
+    )
+
+    assert written.parent == run.path(RunFile.WORLD_MESH)
+    assert written.exists()
+
+
+def test_the_scene_names_each_body_by_what_it_is(tmp_path):
+    """
+    The scene is opened to find out what the run decided an object was, which is the one
+    thing the geometry alone cannot say.
+    """
+    run = Run.create(tmp_path)
+
+    written = RunReport(run=run).write_world_mesh(
+        world_with_a_drawer_and_an_unnamed_body()
+    )
+
+    assert "drawer_1 [Drawer]" in set(trimesh.load(written).graph.nodes)

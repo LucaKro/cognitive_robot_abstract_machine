@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import difflib
 import inspect
+import json
 import logging
 import threading
 import uuid
 from contextlib import contextmanager
 from copy import deepcopy, copy
-from dataclasses import dataclass, field, fields, is_dataclass
+from pathlib import Path
+from dataclasses import dataclass, field
 from functools import wraps, cached_property
 from itertools import chain
 from uuid import UUID
@@ -30,7 +32,6 @@ from typing_extensions import (
     Iterable,
     Iterator,
     TYPE_CHECKING,
-    get_args,
 )
 from typing_extensions import List
 from typing_extensions import Type, Set
@@ -51,12 +52,10 @@ from semantic_digital_twin.exceptions import (
     AlreadyBelongsToAWorldError,
     MissingWorldModificationContextError,
     WorldEntityWithIDNotFoundError,
-    WorldEntityWithIDBelongsToAnotherWorld,
     MissingReferenceFrameError,
     MismatchingPublishChangesAttribute,
     AtomicWorldModificationNotAtomic,
     SemanticAnnotationCircularDependencyError,
-    WorldValidationError,
     WorldIsNotATreeError,
     WorldContainsOrphanedDegreeOfFreedom,
     BrokenWorldModificationHistoryError,
@@ -83,6 +82,10 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.connections import HasUpdateState
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
+)
+from semantic_digital_twin.world_description.world_entity_rebinding import (
+    RelocatableType,
+    WorldEntityRebinding,
 )
 from semantic_digital_twin.world_description.visitors import (
     CollisionBodyCollector,
@@ -131,8 +134,6 @@ logger = logging.getLogger("semantic_digital_twin")
 GenericSemanticAnnotation = TypeVar(
     "GenericSemanticAnnotation", bound=SemanticAnnotation
 )
-
-RelocatableType = TypeVar("RelocatableType")
 
 FunctionStack = List[Tuple[Callable, Dict[str, Any]]]
 
@@ -1255,7 +1256,12 @@ class World(HasSimulatorProperties):
         The atomic method that removes a semantic annotation from the current list of
         semantic annotations.
         """
-        self.semantic_annotations.remove(semantic_annotation)
+        index = next(
+            index
+            for index, candidate in enumerate(self.semantic_annotations)
+            if candidate is semantic_annotation
+        )
+        del self.semantic_annotations[index]
         semantic_annotation.remove_from_world()
 
     def remove_actuator(self, actuator: Actuator) -> None:
@@ -1653,7 +1659,10 @@ class World(HasSimulatorProperties):
         Walks `obj` recursively through dataclass fields, list like classes and dict values.
         A :class:`~semantic_digital_twin.world_description.world_entity.WorldEntityWithID`
         is looked up here by its id. Anything else is deep-copied, so `obj` and the
-        result never share mutable state.
+        result never share mutable state. Each object is rebound once, so objects that
+        refer to each other, or one object reached from several places, keep that shape
+        in the result. A type that defines how it is deep-copied is copied its own way
+        rather than walked.
 
         An entity this world does not contain is left as it is: it is not this world's
         state to rebind, and leaving it behaves exactly as not rebinding at all.
@@ -1668,30 +1677,7 @@ class World(HasSimulatorProperties):
             entity that reports belonging elsewhere, rather than letting it fail later
             wherever it ends up being used.
         """
-        if isinstance(obj, WorldEntityWithID):
-            try:
-                found = self.get_world_entity_with_id_by_id(obj.id)
-            except WorldEntityWithIDNotFoundError:
-                return obj
-            if found._world is not self:
-                raise WorldEntityWithIDBelongsToAnotherWorld(
-                    world=self, world_entity=found
-                )
-            return found
-        if isinstance(obj, list_like_classes):
-            return type(obj)(self.rebind_world_entities(item) for item in obj)
-        if isinstance(obj, dict):
-            return {
-                key: self.rebind_world_entities(value) for key, value in obj.items()
-            }
-        if is_dataclass(obj) and not isinstance(obj, type):
-            result = deepcopy(obj)
-            for f in fields(obj):
-                setattr(
-                    result, f.name, self.rebind_world_entities(getattr(obj, f.name))
-                )
-            return result
-        return deepcopy(obj)
+        return WorldEntityRebinding(world=self).rebind(obj)
 
     def get_kinematic_structure_entity_by_id(
         self, id: UUID
@@ -2706,6 +2692,45 @@ class World(HasSimulatorProperties):
                 "label": str(connection.__class__.__name__)
             },
         )
+
+    def export_kinematic_structure_tree_to_json(
+        self, output_path: Path, include_connections: bool = True
+    ) -> None:
+        """
+        Export the kinematic structure tree to a JSON representation.
+
+        :param output_path: Path to the output file.
+        :param include_connections: Whether each entity also names the connection it
+            hangs from.
+        :raises ValueError: If the world holds nothing to export.
+        """
+
+        def _export_node(kse: KinematicStructureEntity) -> Dict[str, Any]:
+
+            json_dict = {
+                "name": kse.name.name,
+                "children": [
+                    _export_node(child)
+                    for child in kse.child_kinematic_structure_entities
+                ],
+            }
+
+            if include_connections:
+                json_dict["parent_connection"] = (
+                    kse.parent_connection.__class__.__name__
+                    if kse.parent_connection
+                    else None
+                )
+
+            return json_dict
+
+        if self.is_empty():
+            raise ValueError("Cannot export an empty world.")
+
+        root = self.root
+        kinematic_tree = _export_node(root)
+        with output_path.open("w") as f:
+            json.dump(kinematic_tree, f, indent=4)
 
     # %% Associations
 

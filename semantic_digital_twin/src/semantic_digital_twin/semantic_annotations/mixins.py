@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Tuple
 
@@ -54,7 +54,7 @@ from semantic_digital_twin.exceptions import (
     NoSupportingSurfaceError,
     UnknownPartWholeRelationshipField,
 )
-from semantic_digital_twin.reasoning.predicates import is_supported_by
+from semantic_digital_twin.reasoning.predicates import SupportedBy
 from semantic_digital_twin.semantic_annotations.part_whole import (
     IsPartWholeRelationship,
 )
@@ -97,6 +97,8 @@ if TYPE_CHECKING:
         Sink,
         ShelfLayer,
         Wall,
+        CounterTop,
+        Cabinet,
     )
     from semantic_digital_twin.world import World
     from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
@@ -420,6 +422,40 @@ class HasRootRegion(HasRootKinematicStructureEntity[Region]):
     """
     A mixin class for semantic annotations that have a region.
     """
+
+    @classmethod
+    def create_with_new_region_in_world_from_body(
+        cls,
+        name: str,
+        world: World,
+        body: Body,
+        parent_T_self: Optional[HomogeneousTransformationMatrix] = None,
+    ) -> Self:
+        """
+        Create this annotation over a region the size and pose of a body.
+
+        This is the bridge from a reconstruction, which gives every object a body, to an
+        annotation that is rooted on a region instead.
+
+        :param name: The name of the annotation and its region.
+        :param world: The world to add the annotation and region to.
+        :param body: The body whose extent and pose the region takes.
+        :param parent_T_self: Where to put the region. When omitted it stands where the
+            body stands, since a region derived from a body and left at the origin would
+            describe whatever happens to be there instead.
+        :return: The created semantic annotation instance.
+        """
+        world.update_forward_kinematics()
+        body_scale = (
+            body.collision.as_bounding_box_collection_in_frame(body)
+            .bounding_box()
+            .scale
+        )
+        if parent_T_self is None:
+            parent_T_self = body.global_transform
+        return cls.create_with_new_region_in_world(
+            name, world, parent_T_self, scale=body_scale
+        )
 
     @classmethod
     def create_with_new_region_in_world(
@@ -899,6 +935,10 @@ class HasSupportingSurface(IsStorageSpace):
         candidates_filtered = candidates.submesh([clear_mask], append=True)
 
         # --- Build the region ---
+        # The region is placed where the surface was found, relative to the root's
+        # origin, so that it lies on top of the root wherever that origin is
+        vertices = candidates_filtered.vertices
+        self_P_supporting_surface = vertices.mean(axis=0)
         points_3d = [
             Point3(
                 x,
@@ -906,7 +946,7 @@ class HasSupportingSurface(IsStorageSpace):
                 z,
                 reference_frame=self.root,
             )
-            for x, y, z in candidates_filtered.vertices
+            for x, y, z in vertices - self_P_supporting_surface
         ]
         supporting_surface = Region.from_3d_points(
             name=PrefixedName(
@@ -916,12 +956,12 @@ class HasSupportingSurface(IsStorageSpace):
             points_3d=points_3d,
         )
 
-        supporting_surface_z_position = self.root.collision.scale.z / 2
+        x, y, z = self_P_supporting_surface
         self_C_supporting_surface = FixedConnection(
             parent=self.root,
             child=supporting_surface,
             parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                z=supporting_surface_z_position, reference_frame=self.root
+                x=x, y=y, z=z, reference_frame=self.root
             ),
         )
         self._world.add_region(supporting_surface)
@@ -939,9 +979,9 @@ class HasSupportingSurface(IsStorageSpace):
         """
         bodies = variable_from(self._world.bodies_with_collision)
         body = entity(bodies).where(
-            is_supported_by(
-                supported_body=bodies,
-                supporting_body=self.root,
+            SupportedBy(
+                supported=bodies,
+                supporting=self.root,
             )
         )
         objects = an(
@@ -1345,3 +1385,53 @@ class HasCaseAsRootBody(HasSupportingSurface):
             cls._create_container_event(scale, wall_thickness),
             connection_specification=connection_specification,
         )
+
+
+# %% furniture built from other furniture
+
+
+@dataclass(eq=False)
+class HasUnits(PartWholeRelationship):
+    """
+    A mixin class for semantic annotations built from fitted furniture units.
+
+    A kitchen is not one piece of furniture but a run of carcasses standing side by side
+    under a shared worktop. The whole is what a person names -- the island, the counter
+    along that wall -- while the carcasses are what opens and holds things.
+
+    The parts are cabinets, and a dishwasher is one: it stands in such a run exactly as a
+    cabinet does, as a fridge does. Bounding them by a mixin they share instead would not
+    survive being stored, because a stored class inherits from one parent only and a
+    cabinet's is its furniture rather than its case.
+    """
+
+    units: List[Cabinet] = field(
+        default_factory=list,
+        hash=False,
+        kw_only=True,
+        metadata=IsPartWholeRelationship().as_dict(),
+    )
+    """
+    The fitted units the semantic annotation is built from.
+    """
+
+
+@dataclass(eq=False)
+class HasCounterTop(PartWholeRelationship):
+    """
+    A mixin class for semantic annotations that carry a counter top.
+
+    Distinct from :class:`HasSupportingSurface`, which is the bare region something can
+    be put on: this is the worktop as a thing in its own right, which is what a scan
+    sees and what in turn carries the sink.
+    """
+
+    counter_top: CounterTop = field(
+        default=None,
+        hash=False,
+        kw_only=True,
+        metadata=IsPartWholeRelationship().as_dict(),
+    )
+    """
+    The counter top of the semantic annotation.
+    """
