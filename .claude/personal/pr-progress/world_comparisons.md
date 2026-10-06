@@ -10,11 +10,12 @@ Steps:
 2. DONE (uncommitted): geometry_scores.py: GeometryScorer(tau, ObservedRegion) -> GeometryEvaluation of GeometryScore
    (precision, recall over observed GT surface, F, mean / 90th pct distance, observed_share); WholeSurface,
    SurfaceNearReconstruction; BodyCorrespondence.recognition_quality + overlap_table; PQ. 35 tests, test_orm ok.
-   OPEN: exact trimesh distances take ~35 s on kitchen (match 1.8 s); options asked: keep / KD-tree approx / Open3D (robokudo dep only).
+   Exact distances via Open3D RaycastingScene (DistanceToSurface, ~1 um single precision): kitchen 35 s -> 0.5 s.
+   open3d added to semantic_digital_twin/pyproject.toml; uv.lock NOT relocked (already stale: robokudo pins >=0.20, lock 0.19).
 3. <- next: rigid groups + kinematics
    (world-frame axis lines, sign-folded angle, line distance, range, type, weld/split; merges of moving parts = welds).
 4. Semantics (taxonomy over semantic classes, exact + hF) and structure (annotation relation recall).
 5. Result object, JSON, docs page. 6. (maybe) EQL competency-query battery.
 Later, on semdt-creation-from-video: replace the class+size matcher in experiments/warsaw/evaluation.
 
-Run tests with .venv/bin/python (no xdist there, run serially). User commits; Claude never commits. Draft PR after the user's first commit.
+Run tests with .venv/bin/python (no xdist there, run serially). User commits; Claude never commits. User committed step 1 as fb0f422b67; draft PR not opened yet (ask before pushing).
