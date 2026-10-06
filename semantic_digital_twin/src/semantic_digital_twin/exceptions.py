@@ -2213,3 +2213,81 @@ class SimulationAlreadyRunningError(UsageError):
 
     def suggest_correction(self) -> str:
         return "Stop the simulation before starting it again."
+
+
+@dataclass
+class SampleSpacingNotFinerThanToleranceError(UsageError):
+    """
+    Raised when surface samples lie as far apart as the distance within which two
+    surfaces count as overlapping, or farther.
+
+    A distance measured to the nearest sample then errs by as much as the tolerance it
+    is compared against.
+    """
+
+    spacing: float
+    """
+    The distance between neighbouring surface samples, in metres.
+    """
+
+    distance_tolerance: float
+    """
+    The distance within which two surfaces count as overlapping, in metres.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Surface samples {self.spacing} m apart are not finer than the distance "
+            f"tolerance of {self.distance_tolerance} m."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Choose a sample spacing well below the distance tolerance."
+
+
+@dataclass
+class MinimumOverlapOutOfRangeError(UsageError):
+    """
+    Raised when the overlap a pair of bodies needs to count as a match is not a fraction
+    above zero and at most one.
+    """
+
+    minimum_overlap: float
+    """
+    The overlap that was asked for.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A minimum overlap of {self.minimum_overlap} is not a fraction in (0, 1]."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Pass the share of a body's surface that has to overlap, such as 0.5."
+
+
+@dataclass
+class PartialOverlapOutOfRangeError(UsageError):
+    """
+    Raised when the overlap at which a body counts as partly standing for another is not
+    above zero, or exceeds the overlap a pair needs to count as a match.
+    """
+
+    minimum_partial_overlap: float
+    """
+    The partial overlap that was asked for.
+    """
+
+    minimum_overlap: float
+    """
+    The overlap a pair needs to count as a match.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"A minimum partial overlap of {self.minimum_partial_overlap} does not lie "
+            f"in (0, {self.minimum_overlap}], up to the minimum overlap of a match."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Pass a share below the minimum overlap, such as 0.2."
