@@ -7,10 +7,8 @@ import time
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
-
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    Arms,
     ExecutionType,
 )
 from coraplex.execution_environment import real_robot, ExecutionEnvironment
@@ -26,6 +24,7 @@ from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchroni
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tracy import Tracy
+from semantic_digital_twin.semantic_annotations.semantic_annotations import GelatinBox
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
@@ -33,7 +32,6 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses
 from semantic_digital_twin.world_description.world_entity import Body
 
 giskard_process = subprocess.Popen(
@@ -47,7 +45,7 @@ execition_mode = ExecutionType.REAL
 
 print("Init ROS")
 rclpy.init()
-node = rclpy.create_node("stretch_demo_node")
+node = rclpy.create_node("tracy_demo_node")
 
 executor = MultiThreadedExecutor()
 executor.add_node(node)
@@ -98,10 +96,10 @@ with world.modify_world():
     world.add_kinematic_structure_entity(box2)
     world.add_kinematic_structure_entity(box3)
 
-    # The boxes stand in for any graspable object; the plan only needs an annotation to
-    # name them by, not a particular kind of object.
-    box2_annotation = HasGraspPoses(root=box2)
-    box3_annotation = HasGraspPoses(root=box3)
+    # The boxes are annotated as gelatin boxes only so that the plan has an annotation
+    # offering grasps to name them by; any graspable kind of object would do.
+    box2_annotation = GelatinBox(root=box2)
+    box3_annotation = GelatinBox(root=box3)
     world.add_semantic_annotations([box2_annotation, box3_annotation])
 
     world.add_connection(
@@ -138,9 +136,10 @@ with world.modify_world():
     )
 
 # It is important to have the ros_node in the context for a real robot
+tracy = world.get_semantic_annotations_by_type(Tracy)[0]
 context = Context(
     world=world,
-    robot=world.get_semantic_annotations_by_type(Tracy)[0],
+    robot=tracy,
     ros_node=node,
     evaluate_conditions=False,
 )
@@ -148,26 +147,24 @@ context = Context(
 plan = sequential(
     [
         # Stack Box 2
-        ParkArmsAction(Arms.BOTH),
+        ParkArmsAction(tracy.all_arms),
         PickUpAction(
-            box2_annotation,
-            Arms.LEFT,
+            box2_annotation.grasp_candidates()[0],
+            tracy.left_arm,
         ),
         PlaceAction(
-            box2,
+            box2_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.02, yaw=0, reference_frame=world.root),
-            Arms.LEFT,
         ),
         # Stack Box 3
-        ParkArmsAction(Arms.BOTH),
+        ParkArmsAction(tracy.all_arms),
         PickUpAction(
-            box3_annotation,
-            Arms.RIGHT,
+            box3_annotation.grasp_candidates()[0],
+            tracy.right_arm,
         ),
         PlaceAction(
-            box3,
+            box3_annotation,
             Pose.from_xyz_rpy(0.8, 0.0, 1.12, yaw=0, reference_frame=world.root),
-            Arms.RIGHT,
         ),
     ],
     context=context,

@@ -38,12 +38,10 @@ from semantic_digital_twin.adapters.robocasa_dataset.mujoco_compat import (
 with robocasa_version_assertions_relaxed():
     from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 
-
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
-from coraplex.plans.failures import RECOVERABLE_FAILURES
+from coraplex.plans.failures import PlanFailure
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.robot_body import (
     MoveTorsoAction,
@@ -374,11 +372,11 @@ def _spawn_robot_and_prepare_pick_up(
     apple_annotation = world.get_semantic_annotations_by_type(Apple)[0]
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(pr2.all_arms),
             MoveTorsoAction(TorsoState.HIGH),
             PickUpAction(
-                apple_annotation,
-                Arms.RIGHT,
+                apple_annotation.grasp_candidates()[0],
+                pr2.right_arm,
             ),
         ],
         context=context,
@@ -392,7 +390,7 @@ def _spawn_robot_and_prepare_pick_up(
         try:
             with simulated_robot:
                 plan.perform()
-        except RECOVERABLE_FAILURES as failure:
+        except PlanFailure as failure:
             logger.warning("Robot could not complete the pick-up: %s", failure)
             return
         height_after = world.compute_forward_kinematics(world.root, apple).to_np()[2, 3]

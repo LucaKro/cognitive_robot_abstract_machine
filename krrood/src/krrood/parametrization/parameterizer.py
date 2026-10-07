@@ -37,8 +37,6 @@ from krrood.entity_query_language.operators.core_logical_operators import (
     flatten_operands,
 )
 from krrood.entity_query_language.query.match import Match, AttributeMatch
-from krrood.ormatic.data_access_objects.helper import to_dao
-from krrood.ormatic.data_access_objects.to_dao import ToDataAccessObjectState
 from krrood.parametrization.random_events_translator import (
     WhereExpressionToRandomEventTranslator,
 )
@@ -205,7 +203,7 @@ class UnderspecifiedParameters(ModelQueryParameters):
     """
 
     def __post_init__(self):
-        self.statement.expression.build()
+        self.statement._get_expression_().build()
         self._random_event_compiler = WhereExpressionToRandomEventTranslator(
             and_(*self.statement._where_conditions_)
         )
@@ -241,7 +239,7 @@ class UnderspecifiedParameters(ModelQueryParameters):
         """
         result = {v.name: v for v in self._random_event_compiler.variables.values()}
 
-        for attribute_match in self.statement.matches_with_variables:
+        for attribute_match in self.statement._matches_with_variables_:
             if attribute_match.assigned_value is None:
                 continue
 
@@ -538,8 +536,7 @@ class UnderspecifiedParameters(ModelQueryParameters):
         """
         Extract variables from a single non-primitive literal value.
 
-        Converts ``value`` to a DAO, runs feature extraction, and registers a
-        conditioning assignment for every discovered feature.
+        Runs feature extraction on ``value`` and registers a conditioning assignment for every discovered feature.
 
         :param value: The non-primitive literal to decompose.
         :param name_prefix: Attribute access path used to namespace the feature names
@@ -547,8 +544,7 @@ class UnderspecifiedParameters(ModelQueryParameters):
         :return: A dictionary mapping prefixed feature names to their variables.
         """
         result = {}
-        dao_state = ToDataAccessObjectState()
-        extractor = FeatureExtractor.from_instances([to_dao(value, dao_state)])
+        extractor = FeatureExtractor.from_instances([value])
         for feature in extractor.features:
             feature_name = (
                 f"{name_prefix}.{feature.get_clean_name_from_mapped_variable()}"
@@ -586,7 +582,7 @@ class UnderspecifiedParameters(ModelQueryParameters):
         domain_objects = attribute_match.assigned_value.tolist()
 
         if not domain_objects:
-            raise EmptyVariableDomain(attribute_match.variable)
+            raise EmptyVariableDomain(attribute_match._variable_)
 
         if not type_ is None and issubclass(type_, compatible_types):
             return self._extract_variables_from_primitive_krrood_variable(
@@ -638,11 +634,9 @@ class UnderspecifiedParameters(ModelQueryParameters):
         :param domain_objects: The objects in the variable's domain.
         :return: A dictionary of extracted variables.
         """
-        state = ToDataAccessObjectState()
         hashes = [hash(obj) for obj in domain_objects]
-        data_access_objects = [to_dao(obj, state=state) for obj in domain_objects]
 
-        extractor = FeatureExtractor.from_instances(data_access_objects)
+        extractor = FeatureExtractor.from_instances(domain_objects)
 
         result = {}
 
@@ -661,8 +655,8 @@ class UnderspecifiedParameters(ModelQueryParameters):
         result[identifier_variable.name] = identifier_variable
 
         simple_events = []
-        for hash_, dao in zip(hashes, data_access_objects):
-            current_feature_values = extractor.apply_mapping(dao)
+        for hash_, domain_object in zip(hashes, domain_objects):
+            current_feature_values = extractor.apply_mapping(domain_object)
 
             data = {identifier_variable: hash_}
             for feature, value in zip(extractor.features, current_feature_values):
@@ -702,7 +696,7 @@ class UnderspecifiedParameters(ModelQueryParameters):
             )
             attribute_match = [
                 match
-                for match in self.statement.matches_with_variables
+                for match in self.statement._matches_with_variables_
                 if match.name_from_variable_access_path == variable_.name
             ]
             attribute_match = attribute_match[0] if attribute_match else None

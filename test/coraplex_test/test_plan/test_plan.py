@@ -10,16 +10,14 @@ from krrood.rustworkx_utils.graph_visualizer_base import (
 )
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import (
-    Arms,
-)
-from coraplex.robot_plans.mixins import HasApproachesGraspPoses
+from coraplex.datastructures.enums import InsertionPosition, NodeDetail
 from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.plans.condition_nodes import ConditionNode
 from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import code, sequential, parallel, execute_single
-from coraplex.plans.failures import EmptyUnderspecified
+from coraplex.exceptions import CannotInsertBesideRoot, NodeNotInPlanTree
+from coraplex.plans.failures import EmptyUnderspecified, PlanFailure
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -32,8 +30,6 @@ from krrood.entity_query_language.backends import ProbabilisticBackend
 from krrood.entity_query_language.factories import (
     variable_from,
     a,
-    an,
-    variable,
 )
 from krrood.parametrization.model_registries import (
     FullyFactorizedRegistry,
@@ -45,9 +41,6 @@ from semantic_digital_twin.orm.model import (
     Point3Mapping,
     QuaternionMapping,
     PoseMapping,
-)
-from semantic_digital_twin.robots.robot_parts import (
-    EndEffector,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
@@ -366,6 +359,93 @@ def test_set_layer_index_insert_before():
     assert node4.layer_index == 1
 
 
+# %% sibling insertion
+
+
+def sequential_children_plan() -> tuple[Plan, PlanNode, list[PlanNode]]:
+    """
+    :return: A plan with a root that has three children, the root and its children.
+    """
+    root = PlanNode()
+    children = [PlanNode(), PlanNode(), PlanNode()]
+
+    plan = Plan()
+    plan.add_node(root)
+    for child in children:
+        plan.add_edge(root, child)
+
+    return plan, root, children
+
+
+def test_insert_before_makes_node_left_neighbour():
+    """
+    A node inserted before a child takes that child's position and pushes it right.
+    """
+    plan, root, (first, second, third) = sequential_children_plan()
+    inserted = PlanNode()
+
+    plan.insert_before(second, inserted)
+
+    assert root.children == [first, inserted, second, third]
+    assert inserted.right_neighbour is second
+    assert inserted.left_neighbour is first
+
+
+def test_insert_after_makes_node_right_neighbour():
+    """
+    A node inserted after a child is placed between that child and the following one.
+    """
+    plan, root, (first, second, third) = sequential_children_plan()
+    inserted = PlanNode()
+
+    plan.insert_after(second, inserted)
+
+    assert root.children == [first, second, inserted, third]
+    assert inserted.left_neighbour is second
+    assert plan.nodes == [root, first, second, inserted, third]
+
+
+def test_insert_after_last_child_appends():
+    """
+    Inserting after the rightmost child appends and keeps the plan a tree.
+    """
+    plan, root, (first, second, third) = sequential_children_plan()
+    inserted = PlanNode()
+
+    plan.insert_after(third, inserted)
+
+    assert root.children == [first, second, third, inserted]
+    assert inserted.right_neighbour is None
+    plan.validate()
+
+
+@pytest.mark.parametrize("position", list(InsertionPosition))
+def test_every_position_inserts_the_node(position):
+    """
+    Every position knows how to place a node, so none of them leaves the plan without
+    the node it was asked to insert.
+    """
+    plan, root, (first, second, third) = sequential_children_plan()
+    inserted = PlanNode()
+
+    position.insert(plan, second, inserted)
+
+    assert inserted in plan.nodes
+
+
+def test_insert_beside_root_raises():
+    """
+    The root has no parent that could hold a sibling.
+    """
+    plan, root, _ = sequential_children_plan()
+
+    with pytest.raises(CannotInsertBesideRoot):
+        plan.insert_before(root, PlanNode())
+
+    with pytest.raises(CannotInsertBesideRoot):
+        plan.insert_after(root, PlanNode())
+
+
 def test_get_previous_nodes():
 
     root = PlanNode()
@@ -386,11 +466,46 @@ def test_get_previous_nodes():
     assert node1.right_siblings == [node3]
 
 
+def test_previous_nodes_follow_the_tree_not_the_order_nodes_were_added():
+    """
+    A plan is expanded as it goes, so the children of an earlier node can be added after
+    a later node already is.
+
+    Previous still means earlier in the tree.
+    """
+    root = PlanNode()
+    first = PlanNode()
+    second = PlanNode()
+    child_of_first = PlanNode()
+
+    plan = Plan()
+    plan.add_edge(root, first)
+    plan.add_edge(root, second)
+    plan.add_edge(first, child_of_first)
+
+    assert second.previous_nodes == [root, first, child_of_first]
+
+
+def test_a_node_outside_the_tree_has_no_previous_nodes_to_name():
+    """
+    A node its plan's root does not lead to has no place in the tree's order, so asking
+    what comes before it is a mistake rather than a question about every node.
+    """
+    root = PlanNode()
+    plan = Plan()
+    plan.add_edge(root, PlanNode())
+    stray = PlanNode()
+    stray.plan = plan
+
+    with pytest.raises(NodeNotInPlanTree):
+        stray.previous_nodes
+
+
 # ---- Tests interacting with simulated robot/world ----
 
 
-def test_pause_plan(immutable_model_world):
-    world, robot_view, context = immutable_model_world
+def test_pause_plan(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
 
     def node_sleep():
         time.sleep(1)
@@ -427,7 +542,7 @@ def _torso_position(world):
     ].position
 
 
-def test_sequence_runs_all_motions(immutable_model_world):
+def test_sequence_runs_all_motions(pr2_apartment_context):
     """
     Every motion of a sequence is executed, so the torso ends at the target of the
     *last* motion.
@@ -435,7 +550,7 @@ def test_sequence_runs_all_motions(immutable_model_world):
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.
     """
-    world, robot_view, context = immutable_model_world
+    world, robot_view, context = pr2_apartment_context
 
     plan = sequential(
         [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)],
@@ -477,8 +592,9 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     with simulated_robot:
         plan.perform()
 
-    assert isinstance(plan.root.children[1].children[0].designator, NavigateAction)
-    assert len(plan.root.children[1].children) == 1
+    underspecified = plan.root.children[1]
+    assert isinstance(underspecified.current_candidate.designator, NavigateAction)
+    assert len(underspecified.children) == 1
 
 
 def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
@@ -487,11 +603,11 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    milk_variable = variable_from([milk])
+    grasp_variable = variable_from(milk.grasp_candidates())
 
     pick_up_description = a(PickUpAction)(
-        object_designator=milk_variable,
-        arm=...,
+        grasp=grasp_variable,
+        arm=variable_from(context.robot.all_arms),
         approach_clearance=0.05,
     )
 
@@ -519,7 +635,7 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
             pass
 
 
-def test_conditions_reference_surviving_action_node_after_merge(immutable_model_world):
+def test_conditions_reference_surviving_action_node_after_merge(pr2_apartment_context):
     """
     Expanding an action mounts a fresh action node whose conditions reference it, and
     simplification merges that node into the equivalent node already in the plan.
@@ -527,7 +643,7 @@ def test_conditions_reference_surviving_action_node_after_merge(immutable_model_
     After the merge every condition must reference the surviving node, not the discarded
     one, otherwise the dangling node leaks into serialization.
     """
-    world, robot_view, context = immutable_model_world
+    world, robot_view, context = pr2_apartment_context
 
     plan = sequential(
         [MoveTorsoAction(TorsoState.HIGH)],
@@ -545,8 +661,8 @@ def test_conditions_reference_surviving_action_node_after_merge(immutable_model_
         assert condition_node.action_node.index in live_node_indices
 
 
-def test_motion_order_pick_up(mutable_model_world):
-    world, robot_view, context = mutable_model_world
+def test_motion_order_pick_up(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk_body = world.get_body_by_name("milk.stl")
@@ -562,7 +678,7 @@ def test_motion_order_pick_up(mutable_model_world):
 
     root = sequential(
         [
-            PickUpAction(milk, Arms.LEFT),
+            PickUpAction(milk.grasp_candidates()[0], context.robot.left_arm),
         ],
         context,
     )
@@ -591,13 +707,13 @@ def test_motion_order_pick_up(mutable_model_world):
     ]
 
 
-def test_motion_order_place(mutable_model_world):
-    world, robot_view, context = mutable_model_world
+def test_motion_order_place(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
 
     milk_body = world.get_body_by_name("milk.stl")
     milk_body.parent_connection.origin = world.get_body_by_name(
         "l_gripper_tool_frame"
-    ).global_pose.to_homogeneous_matrix()
+    ).global_pose.homogeneous_matrix
 
     with world.modify_world():
 
@@ -616,9 +732,8 @@ def test_motion_order_place(mutable_model_world):
     root = sequential(
         [
             PlaceAction(
-                world.get_body_by_name("milk.stl"),
+                world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
-                Arms.LEFT,
             ),
         ],
         context,
@@ -647,12 +762,12 @@ def test_motion_order_place(mutable_model_world):
     ]
 
 
-def test_node_expansion(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_node_expansion(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
-        [PickUpAction(object_designator=milk, arm=Arms.RIGHT)],
+        [PickUpAction(grasp=milk.grasp_candidates()[0], arm=context.robot.right_arm)],
         context=context,
     )
 
@@ -670,8 +785,8 @@ def test_node_expansion(immutable_model_world):
     assert isinstance(lift.designator, MoveToolCenterPointMotion)
 
 
-def test_expand_move_torso(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_expand_move_torso(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     plan = sequential([MoveTorsoAction(TorsoState.HIGH)], context=context)
 
     plan.notify()
@@ -681,14 +796,14 @@ def test_expand_move_torso(immutable_model_world):
     assert len(node.children) == 3
 
 
-def test_context_back_reference(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_context_back_reference(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            PickUpAction(milk, Arms.RIGHT),
+            PickUpAction(milk.grasp_candidates()[0], context.robot.right_arm),
         ],
         context=context,
     )
@@ -698,14 +813,14 @@ def test_context_back_reference(immutable_model_world):
     assert plan.plan.context == context
 
 
-def test_action_nodes_unequal(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_action_nodes_unequal(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.LEFT),
-            PickUpAction(milk, Arms.LEFT),
+            ParkArmsAction([context.robot.left_arm]),
+            PickUpAction(milk.grasp_candidates()[0], context.robot.left_arm),
         ],
         context=context,
     )
@@ -734,3 +849,65 @@ def test_a_plan_node_is_drawn_in_the_color_of_its_state():
     )
 
     assert visualizer.node_color(node.index) == LifeCycleValues.FAILED.color.to_hex()
+
+
+def test_the_execution_details_of_a_node_are_named():
+    """
+    Every detail of a node is reported under the name it is shown by, instead of as a
+    pre-formatted line.
+    """
+    node = PlanNode()
+    node.status = LifeCycleValues.FAILED
+    node.result = object()
+    node.reason = PlanFailure()
+
+    execution = node.node_info.to_dict()[NodeDetail.EXECUTION]
+
+    assert execution == {
+        NodeDetail.STATUS: LifeCycleValues.FAILED.name,
+        NodeDetail.START_TIME: node.start_time,
+        NodeDetail.END_TIME: node.end_time,
+        NodeDetail.RESULT: node.result,
+        NodeDetail.REASON: node.reason,
+    }
+
+
+def test_a_designator_node_reports_the_parameters_of_its_designator():
+    """
+    A designator node adds the parameters its designator was built with as a section of
+    its own.
+    """
+    action = MoveTorsoAction(TorsoState.HIGH)
+    node = ActionNode(designator=action)
+
+    designator_section = node.node_info.sections[-1]
+
+    assert designator_section.heading == NodeDetail.DESIGNATOR_PARAMETER
+    assert designator_section.entries == {
+        NodeDetail.DESIGNATOR_TYPE: MoveTorsoAction.__name__,
+        **action.designator_parameter,
+    }
+
+
+def test_a_node_is_labelled_by_the_designator_it_manages():
+    """
+    A designator node is drawn as its designator, not as the node class managing it.
+    """
+    node = ActionNode(designator=MoveTorsoAction(TorsoState.HIGH))
+
+    assert node.node_label == MoveTorsoAction.__name__
+
+
+def test_the_details_of_a_node_are_drawn_as_lines():
+    """
+    The visualization takes the detail lines of a node from its node info.
+    """
+    node = PlanNode()
+    plan = Plan()
+    plan.add_node(node)
+
+    visualizer = plan._create_visualizer(
+        backend=GraphVisualizerBackend.CYTOSCAPE, layout=GraphLayout.LAYERED
+    )
+
+    assert visualizer.node_details(node.index) == node.node_info.to_lines()

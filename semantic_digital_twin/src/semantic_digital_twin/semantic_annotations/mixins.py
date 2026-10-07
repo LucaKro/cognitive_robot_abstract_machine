@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Tuple
 
@@ -29,7 +29,6 @@ from random_events.variable import Symbolic
 from typing_extensions import (
     TYPE_CHECKING,
     Generic,
-    Iterator,
     List,
     Optional,
     Self,
@@ -52,9 +51,10 @@ from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.exceptions import (
     AmbiguousPart,
     CannotBeAPartOf,
+    NoSupportingSurfaceError,
     UnknownPartWholeRelationshipField,
 )
-from semantic_digital_twin.reasoning.predicates import is_supported_by
+from semantic_digital_twin.reasoning.predicates import SupportedBy
 from semantic_digital_twin.semantic_annotations.part_whole import (
     IsPartWholeRelationship,
 )
@@ -63,7 +63,6 @@ from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Vector3,
 )
-from semantic_digital_twin.spatial_types.spatial_types import Pose, RotationMatrix
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
 )
@@ -414,46 +413,6 @@ class HasRootBody(HasRootKinematicStructureEntity[Body]):
             scale.to_simple_event().as_composite_set(),
             connection_specification=connection_specification,
         )
-
-
-# %% grasp poses
-
-
-@dataclass(eq=False)
-class HasGraspPoses(HasRootBody):
-    """
-    A mixin class for semantic annotations that can say where they may be grasped.
-
-    Only an annotation rooted in a body can be grasped at all, since a region carries
-    no collision geometry for fingers to close on.
-
-    A grasp pose is a *grasp frame* expressed in :attr:`root`'s frame: its x-axis points
-    the way the gripper travels toward the object, its y-axis is the axis the fingers
-    close along, and its z-axis completes the frame. Naming the axes rather than a
-    gripper's own tool frame keeps a grasp independent of the robot performing it; the
-    robot's end effector rotates the frame into its own convention.
-
-    ..note:: The poses are expressed in :attr:`root`'s frame so that they stay correct
-        when the annotated object moves.
-    """
-
-    grasp_pose_count: int = field(default=12, kw_only=True)
-    """
-    How many grasp poses :meth:`grasp_poses` generates.
-    """
-
-    def grasp_poses(self) -> Iterator[Pose]:
-        """
-        Generate the grasp frames this annotation offers, in no particular order.
-
-        The default grasps the object at its own origin, from evenly spaced directions
-        around its z-axis. Annotations whose geometry admits a better grip override this.
-        """
-        for yaw in np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False):
-            yield Pose(
-                orientation=RotationMatrix.from_rpy(yaw=yaw).to_quaternion(),
-                reference_frame=self.root,
-            )
 
 
 @dataclass(eq=False)
@@ -940,6 +899,10 @@ class HasSupportingSurface(IsStorageSpace):
         candidates_filtered = candidates.submesh([clear_mask], append=True)
 
         # --- Build the region ---
+        # The region is placed where the surface was found, relative to the root's
+        # origin, so that it lies on top of the root wherever that origin is
+        vertices = candidates_filtered.vertices
+        self_P_supporting_surface = vertices.mean(axis=0)
         points_3d = [
             Point3(
                 x,
@@ -947,7 +910,7 @@ class HasSupportingSurface(IsStorageSpace):
                 z,
                 reference_frame=self.root,
             )
-            for x, y, z in candidates_filtered.vertices
+            for x, y, z in vertices - self_P_supporting_surface
         ]
         supporting_surface = Region.from_3d_points(
             name=PrefixedName(
@@ -957,12 +920,12 @@ class HasSupportingSurface(IsStorageSpace):
             points_3d=points_3d,
         )
 
-        supporting_surface_z_position = self.root.collision.scale.z / 2
+        x, y, z = self_P_supporting_surface
         self_C_supporting_surface = FixedConnection(
             parent=self.root,
             child=supporting_surface,
             parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
-                z=supporting_surface_z_position, reference_frame=self.root
+                x=x, y=y, z=z, reference_frame=self.root
             ),
         )
         self._world.add_region(supporting_surface)
@@ -980,9 +943,9 @@ class HasSupportingSurface(IsStorageSpace):
         """
         bodies = variable_from(self._world.bodies_with_collision)
         body = entity(bodies).where(
-            is_supported_by(
-                supported_body=bodies,
-                supporting_body=self.root,
+            SupportedBy(
+                supported=bodies,
+                supporting=self.root,
             )
         )
         objects = an(
@@ -1194,7 +1157,7 @@ class HasSupportingSurface(IsStorageSpace):
 
     def spawn_bounding_boxes_as_region(
         self,
-        boxes: BoundingBoxCollection[VolumetricBoundingBox],
+        boxes: BoundingBoxCollection[VolumetricBoundingBox, Point3],
         name: Optional[PrefixedName] = None,
         color: Optional[Color] = None,
     ) -> Region:
@@ -1239,6 +1202,10 @@ class HasSupportingSurface(IsStorageSpace):
         x,y extent bounds the navigable region, and the height range determines which
         obstacles in the world count as blocking.
 
+        ..warning:: Calling this method when :attr:`supporting_surface` is None will
+            cause the method to calculate the surface and add it to the world, resulting
+            in model updates being published if the synchronizer is running.
+
         :param max_height: The height of the free space above the surface.
         :param tolerance: The tolerance for the intersection when calculating the
             connectivity.
@@ -1251,6 +1218,8 @@ class HasSupportingSurface(IsStorageSpace):
             search space starts comfortably above that many times over above the
             surface's own top, so the surface's own body never registers as an
             obstacle to the free space built over it.
+        :raises NoSupportingSurfaceError: If no surface is attached and none can be
+            derived from this annotation's geometry.
         :return: The graph of the free space above this surface.
         """
         from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -1261,6 +1230,11 @@ class HasSupportingSurface(IsStorageSpace):
         )
 
         world = self._world
+        if self.supporting_surface is None:
+            with world.modify_world():
+                if self.calculate_supporting_surface() is None:
+                    raise NoSupportingSurfaceError(self)
+
         origin = HomogeneousTransformationMatrix(reference_frame=self.root)
         surface_box = self.supporting_surface.area.as_bounding_box_collection_at_origin(
             origin

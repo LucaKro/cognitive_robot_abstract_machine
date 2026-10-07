@@ -8,6 +8,7 @@ nodes that terminate the chart, which depend on the execution type.
 """
 
 from copy import deepcopy
+from datetime import timedelta
 
 import pytest
 from typing_extensions import List
@@ -16,14 +17,19 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from giskardpy.motion_statechart.exceptions import NoProgressError
+from coraplex.plans.failures import (
+    MotionExceededSimulationTimeLimit,
+    MotionMadeNoProgress,
+    MotionViolatedCollisionAvoidance,
+)
+from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.templates import Sequence
+from giskardpy.ros_executor import Ros2Executor
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     EndMotion,
     Goal,
     MotionStatechartNode,
-    Task,
 )
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
@@ -32,44 +38,45 @@ from giskardpy.motion_statechart.monitors.progress_monitors import StillProgress
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tiago import Tiago
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Sphere
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ExecutionType
+from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import (
     ExecutionEnvironment,
     real_robot,
     simulated_robot,
 )
 from coraplex.exceptions import ConditionNotSatisfied
+from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 
 @pytest.fixture
-def reach_action_executable(immutable_model_world):
+def reach_action_executable(pr2_apartment_context):
     """
     A real, 2-motion ``GiskardExecutable`` with pre-/post-conditions, built the same way
     ``test_merge_motions`` in ``test_graph_parsing.py`` does.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk_connection = world.get_body_by_name("milk.stl").parent_connection
     milk_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 0.7, 0, 0, 0, reference_frame=milk_connection.parent
     )
     plan = execute_single(
         ReachAction(
-            grasp_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-            arm=Arms.RIGHT,
-            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+            grasp=GraspCandidate.from_body_origin(
+                world.get_semantic_annotations_by_type(Milk)[0]
+            ),
+            arm=context.robot.right_arm,
         ),
         context=context,
     )
@@ -175,11 +182,9 @@ def test_execution_does_not_add_condition_monitors(
 
     chart = reach_action_executable.motion_state_chart
     assert chart.get_nodes_by_type(ThreadedPredicateMonitor) == []
-    assert [
-        cancel
-        for cancel in chart.get_nodes_by_type(CancelMotion)
-        if isinstance(cancel.exception, ConditionNotSatisfied)
-    ] == []
+    # The only way out of the chart is giving up on a motion that stopped converging.
+    [progress_cancel] = chart.get_nodes_by_type(CancelMotion)
+    assert not isinstance(progress_cancel.exception, ConditionNotSatisfied)
 
 
 # %% wiring conditions into a chart
@@ -268,7 +273,7 @@ def test_a_robot_keeps_moving_while_it_holds_a_body(_tiago_world_setup, holds_a_
     world = deepcopy(_tiago_world_setup)
     tiago = world.get_semantic_annotations_by_type(Tiago)[0]
     if holds_a_body:
-        tool_frame = ViewManager.get_end_effector_view(Arms.RIGHT, tiago).tool_frame
+        tool_frame = tiago.get_right_arm_if_specified().end_effector.tool_frame
         with world.modify_world():
             held_body = Body(
                 name=PrefixedName("held"),
@@ -304,19 +309,21 @@ def test_prepare_for_execution_watches_the_whole_motion_for_progress(
 
 
 def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     Nothing bounds the tick loop but the monitor, so a reach the arm cannot close on has
     to end the run rather than tick forever.
     """
-    world, view, context = immutable_model_world
-    out_of_reach = Pose.from_xyz_rpy(2, 1.5, 50, reference_frame=world.root)
+    world, view, context = pr2_apartment_context
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        2, 1.5, 50, reference_frame=milk.root.parent_connection.parent
+    )
     plan = execute_single(
         ReachAction(
-            grasp_pose=out_of_reach,
-            arm=Arms.RIGHT,
-            object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+            grasp=GraspCandidate.from_body_origin(milk),
+            arm=context.robot.right_arm,
         ),
         context=context,
     )
@@ -324,5 +331,40 @@ def test_a_motion_that_stops_approaching_its_goal_is_given_up_on(
     executable = plan.parse()
 
     with simulated_robot:
-        with pytest.raises(NoProgressError):
+        with pytest.raises(MotionMadeNoProgress):
             executable.execute()
+
+
+def test_a_motion_that_outlasts_the_simulation_time_limit_is_given_up_on(
+    reach_action_executable, monkeypatch
+):
+    """
+    A simulated motion is given up on once it exceeds the simulation time limit.
+    """
+    monkeypatch.setattr(GiskardExecutable, "simulation_time_limit", timedelta(0))
+
+    with simulated_robot:
+        with pytest.raises(MotionExceededSimulationTimeLimit):
+            reach_action_executable.execute()
+
+
+def test_a_motion_that_violates_collision_avoidance_fails_as_a_plan_failure(
+    reach_action_executable, monkeypatch
+):
+    """
+    A motion that brings the robot closer to something than collision avoidance allows
+    did not work from where it started, so a plan can try another candidate instead of
+    stopping.
+    """
+    violation = CollisionViolatedError(violated_collisions=[], thresholds=[])
+
+    def violate_collision_avoidance(executor):
+        raise violation
+
+    monkeypatch.setattr(Ros2Executor, "tick", violate_collision_avoidance)
+
+    with simulated_robot:
+        with pytest.raises(MotionViolatedCollisionAvoidance) as failure:
+            reach_action_executable.execute()
+
+    assert failure.value.violation is violation

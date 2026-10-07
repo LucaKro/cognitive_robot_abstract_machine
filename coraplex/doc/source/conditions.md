@@ -31,37 +31,20 @@ In general the pre -and postcondition can be anything that is an EQL predicate, 
 evaluates to bool. Conditions are defined as static methods that receive the EQL `variables`, the execution
 `context` and the action `kwargs`.
 
-Every action that closes a gripper on something asks the same question, so the condition itself lives on
-{class}`~coraplex.robot_plans.actions.core.pick_up.HasGraspChoice` and the action delegates to it.
-
 ```python
 @staticmethod
-def can_take_hold(variables, context, kwargs):
-    return and_(
-        GripperIsFree(
-            ViewManager.get_end_effector_view(variables["arm"], context.robot)
-        ),
-        IsGraspReachableBy(
-            context=Context(
-                robot=context.robot,
-                world=context.world,
-                alternative_motion_mappings=context.alternative_motion_mappings,
-            ),
-            arm=variables["arm"],
-            grasp_pose=HasGraspChoice.resolve_grasp_pose(
-                kwargs["grasp_pose"], kwargs["object_designator"]
-            ),
-            object_designator=kwargs["object_designator"].root,
-        ),
-    )
+def pre_condition(variables, context, kwargs):
+    return GripperIsFree(variables["arm"].end_effector)
 ```
 
-This condition is comprised of two conditions, the first is that the gripper that should pick up the object is free and
-not holding anything ({class}`~coraplex.querying.predicates.GripperIsFree`) and the second is that the grasp the action
-will take is reachable ({class}`~coraplex.locations.pose_validator.IsGraspReachableBy`). That grasp is the one the
-caller named, or the first the object offers when they named none. The arm is the queried variable
-here, since querying over other parameter (like the object to be picked up) would result in very unexpected behaviour of
-the plan.
+The condition is that the gripper that should pick up the object is free and not holding anything
+({class}`~coraplex.querying.predicates.GripperIsFree`). The arm is the queried variable here, since querying over other
+parameter (like the object to be picked up) would result in very unexpected behaviour of the plan.
 
-Now imagine the following scenario, the robot is standing near the object it should pick up but the object cannot be
-picked up with the specified arm, however using the other arm would enable the robot to execute the PickUp Action.
+Preconditions are cheap checks of the current state that tell whether an action is plausible at all. They do not ask
+whether the robot can actually reach its target: an underspecified action finds that out by trying each candidate in a
+copy of the world before it is executed (see {doc}`resolvers`).
+
+Now imagine the following scenario, the robot should pick up an object but is already holding something in the
+specified arm. Querying the arm as a variable finds the other arm, whose gripper is free, and with it a PickUp Action
+that can be executed.

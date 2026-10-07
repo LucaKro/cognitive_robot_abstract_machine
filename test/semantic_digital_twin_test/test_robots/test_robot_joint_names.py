@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import gc
-import weakref
-from dataclasses import dataclass, field
 from enum import StrEnum
 
 import pytest
@@ -51,95 +48,52 @@ Test identifiers naming the robot under test.
 """
 
 
-@dataclass
-class ParsedRobotDescriptions:
-    """
-    The worlds parsed from robot descriptions, reused by everything holding the same
-    instance.
-
-    .. note:: The worlds live exactly as long as the instance, so whoever holds it decides
-        how long the parsed descriptions stay in memory.
-    """
-
-    worlds_by_robot: dict[type[AbstractRobot], World] = field(default_factory=dict)
-    """
-    The world already parsed for a robot.
-    """
-
-    def world_of(self, robot_type: type[AbstractRobot]) -> World:
-        """
-        The world holding the robot's description, parsing it on first request.
-
-        :param robot_type: The robot whose description is parsed.
-        """
-        if robot_type not in self.worlds_by_robot:
-            self.worlds_by_robot[robot_type] = URDFParser.from_file(
-                robot_type.get_ros_file_path()
-            ).parse()
-        return self.worlds_by_robot[robot_type]
-
-
 @pytest.fixture(scope="module")
-def parsed_robot_descriptions() -> ParsedRobotDescriptions:
+def robot_world(request: pytest.FixtureRequest) -> World:
     """
-    Descriptions parsed once for this module, and released when it is done with them.
+    The world parsed from the description of the robot under test, shared by this
+    module's tests of that robot and released once they have run.
     """
-    return ParsedRobotDescriptions()
+    robot_type: type[AbstractRobot] = request.param
+    return URDFParser.from_file(robot_type.get_ros_file_path()).parse()
 
 
 # %% joint-name enums against the parsed description
 
 
 @pytest.mark.parametrize(
-    "robot_type, joint_enum", ROBOTS_WITH_JOINT_ENUM, ids=ROBOT_IDENTIFIERS
+    "robot_world, joint_enum",
+    ROBOTS_WITH_JOINT_ENUM,
+    ids=ROBOT_IDENTIFIERS,
+    indirect=["robot_world"],
 )
 def test_joint_enum_members_name_connections_of_the_robot(
-    robot_type: type[AbstractRobot],
-    joint_enum: type[StrEnum],
-    parsed_robot_descriptions: ParsedRobotDescriptions,
+    robot_world: World, joint_enum: type[StrEnum]
 ):
     """
     Every member must spell a connection name that the robot's description contains.
     """
-    world = parsed_robot_descriptions.world_of(robot_type)
-    connection_names = {connection.name.name for connection in world.connections}
+    connection_names = {connection.name.name for connection in robot_world.connections}
 
     assert {joint.value for joint in joint_enum} - connection_names == set()
 
 
 @pytest.mark.parametrize(
-    "robot_type, joint_enum", ROBOTS_WITH_JOINT_ENUM, ids=ROBOT_IDENTIFIERS
+    "robot_world, joint_enum",
+    ROBOTS_WITH_JOINT_ENUM,
+    ids=ROBOT_IDENTIFIERS,
+    indirect=["robot_world"],
 )
 def test_joint_enum_members_name_actuated_connections(
-    robot_type: type[AbstractRobot],
-    joint_enum: type[StrEnum],
-    parsed_robot_descriptions: ParsedRobotDescriptions,
+    robot_world: World, joint_enum: type[StrEnum]
 ):
     """
     Every member must name an actuated connection, since only those accept a joint goal.
     """
-    world = parsed_robot_descriptions.world_of(robot_type)
     actuated_connection_names = {
         connection.name.name
-        for connection in world.connections
+        for connection in robot_world.connections
         if isinstance(connection, ActiveConnection)
     }
 
     assert {joint.value for joint in joint_enum} - actuated_connection_names == set()
-
-
-# %% lifetime of the parsed descriptions
-
-
-def test_parsed_descriptions_are_released_with_their_holder():
-    """
-    Nothing may keep a parsed world alive once the descriptions holding it are gone, so
-    that a module does not pin worlds for the rest of the test session.
-    """
-    descriptions = ParsedRobotDescriptions()
-    world_reference = weakref.ref(descriptions.world_of(PR2))
-
-    del descriptions
-    gc.collect()
-
-    assert world_reference() is None

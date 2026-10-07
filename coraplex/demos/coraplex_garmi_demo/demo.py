@@ -22,12 +22,13 @@ from ament_index_python.packages import get_package_share_directory
 from typing_extensions import ClassVar
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ExecutionType
+from coraplex.datastructures.enums import ExecutionType
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
 from semantic_digital_twin.api import (
     BodySpecification,
     Connection6DoFSpecification,
@@ -218,6 +219,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             evaluate_conditions=True,
             alternative_motion_mappings=self.alternative_motion_mappings,
             sampling_seed=SAMPLING_SEED,
+            plan_transformations=[OpenDrawerBeforeMoveAndPickUp()],
             _debug=True,
         )
 
@@ -226,28 +228,27 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         Carry the bowl and then the spoon to the table.
         """
         world = context.world
+        right_arm = context.robot.right_arm
 
         return sequential(
             [
-                ParkArmsAction(arm=Arms.BOTH),
+                ParkArmsAction(context.robot.all_arms),
                 # Note: always need TorsoState.HIGH or next(iter(self)) of CostmapLocation fails
-                TransportAction(
-                    object_designator=world.get_semantic_annotations_by_type(Bowl)[0],
-                    arm=Arms.RIGHT,
-                    target_location=Pose(
-                        position=BOWL_TARGET_POINT, reference_frame=world.root
-                    ),
+                TransportAction.from_graspable_by_closest_grasps(
+                    world.get_semantic_annotations_by_type(Bowl)[0],
+                    Pose(position=BOWL_TARGET_POINT, reference_frame=world.root),
+                    right_arm,
+                    context,
                 ),
-                TransportAction(
-                    object_designator=world.get_semantic_annotations_by_type(Spoon)[0],
-                    arm=Arms.RIGHT,
-                    target_location=Pose(
-                        position=SPOON_TARGET_POINT, reference_frame=world.root
-                    ),
+                TransportAction.from_graspable_by_closest_grasps(
+                    world.get_semantic_annotations_by_type(Spoon)[0],
+                    Pose(position=SPOON_TARGET_POINT, reference_frame=world.root),
+                    right_arm,
+                    context,
                 ),
             ],
             context,
-        )
+        ).plan
 
 
 def main(execution_type: ExecutionType = ExecutionType.SIMULATED) -> None:

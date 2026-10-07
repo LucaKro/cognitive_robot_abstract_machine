@@ -191,7 +191,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
         )
 
         move_to_reach = a(MoveToReach)(
-            grasp_pose=target_pose,
+            reference_T_grasp=target_pose,
             target_pose_offset_robot=a(Pose2D)(
                 x=..., y=..., yaw=..., reference_frame=None
             ),
@@ -200,7 +200,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
             approach_clearance=...,
         )
 
-        move_to_reach.expression.limit(limit)
+        move_to_reach.limit(limit)
 
         if self.model_path:
             query_backend = self.setup_backend_from_path(move_to_reach)

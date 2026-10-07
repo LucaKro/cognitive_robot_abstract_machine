@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Self
+from typing import Dict, Any, Self
 
 from typing_extensions import List, TYPE_CHECKING
 
@@ -155,10 +155,6 @@ class CollisionManager(ModelChangeCallback):
     )
     """
     Objects that are notified about changes in the collision matrix.
-
-    Live observers rather than part of the model, and a consumer is free to hold
-    something no serializer knows -- the node a visualization publisher publishes on,
-    say -- so they are left out of the serialized form.
     """
 
     def __post_init__(self):

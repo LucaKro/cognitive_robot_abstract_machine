@@ -10,7 +10,6 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
 )
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
-    Arms,
     MovementType,
 )
 from coraplex.execution_environment import simulated_robot, real_robot
@@ -51,9 +50,11 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 )
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import Point3, Quaternion
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from ..conftest import left_or_only_arm
 
 try:
     from coraplex.alternative_motion_mappings.hsrb_motion_mapping import *
@@ -77,11 +78,12 @@ def _chart_nodes(motion_chart):
 
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
-def test_pick_up_motion(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_pick_up_motion(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     test_world = deepcopy(world)
     milk = test_world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT)
+    test_context = Context.from_world(test_world)
+    pick_up = PickUpAction(milk.grasp_candidates()[0], test_context.robot.left_arm)
 
     root = sequential(
         children=[
@@ -92,13 +94,12 @@ def test_pick_up_motion(immutable_model_world):
                         Quaternion.from_iterable([0, 0, 0, 1]),
                         test_world.root,
                     ),
-                    True,
                 )
             ),
             MoveTorsoAction(TorsoState.HIGH),
             pick_up,
         ],
-        context=Context.from_world(test_world),
+        context=test_context,
     )
     assert pick_up.plan is not None
     with simulated_robot:
@@ -121,8 +122,8 @@ def test_pick_up_motion(immutable_model_world):
     assert JointPositionList in motion_chart_task_types
 
 
-def test_move_motion_chart(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_move_motion_chart(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     motion = MoveMotion(
         Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
     )
@@ -134,21 +135,21 @@ def test_move_motion_chart(immutable_model_world):
     msc = motion.motion_chart
 
     assert msc
-    np.testing.assert_equal(msc.goal_pose.to_position().to_np(), np.array([1, 1, 1, 1]))
+    np.testing.assert_equal(msc.goal_pose.position.to_np(), np.array([1, 1, 1, 1]))
 
 
-def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_world):
+def test_move_tool_center_point_motion_uses_tight_threshold(pr2_apartment_context):
     """
     MoveToolCenterPointMotion drives grasp approaches, so it must not fall back to
     Giskard's loose default CartesianPose/CartesianPosition threshold (0.01m): that
     tolerance is wide enough to let the gripper stop a centimeter away from a small
     object, e.g. missing or off-center grasps.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     cartesian_motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+        target, left_or_only_arm(context.robot), movement_type=MovementType.CARTESIAN
     )
     execute_single(cartesian_motion, context=context)
     cartesian_task = _motion_task(cartesian_motion.motion_chart, view)
@@ -159,7 +160,7 @@ def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_worl
     )
 
     translation_motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.TRANSLATION
+        target, left_or_only_arm(context.robot), movement_type=MovementType.TRANSLATION
     )
     execute_single(translation_motion, context=context)
     assert (
@@ -168,17 +169,17 @@ def test_move_tool_center_point_motion_uses_tight_threshold(immutable_model_worl
     )
 
 
-def test_move_tcp_waypoints_motion_forwards_thresholds(immutable_model_world):
+def test_move_tcp_waypoints_motion_forwards_thresholds(pr2_apartment_context):
     """
     MoveTCPWaypointsMotion must forward an explicit position/orientation threshold to
     its per-waypoint CartesianPose tasks.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     waypoints = [Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)]
 
     motion = MoveTCPWaypointsMotion(
         waypoints,
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
         position_threshold=0.001,
         orientation_threshold=0.05,
     )
@@ -192,17 +193,17 @@ def test_move_tcp_waypoints_motion_forwards_thresholds(immutable_model_world):
 
 
 def test_move_tcp_waypoints_motion_uses_giskard_defaults_when_unset(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     MoveTCPWaypointsMotion follows waypoints rather than grasping, so leaving the
     thresholds unset must fall back to Giskard's own task defaults instead of the
     tighter grasp tolerance.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     waypoints = [Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)]
 
-    motion = MoveTCPWaypointsMotion(waypoints, Arms.LEFT)
+    motion = MoveTCPWaypointsMotion(waypoints, left_or_only_arm(context.robot))
     execute_single(motion, context=context)
 
     nodes = _motion_task(motion.motion_chart, view).nodes
@@ -218,17 +219,17 @@ def test_move_tcp_waypoints_motion_uses_giskard_defaults_when_unset(
 
 
 def test_move_tcp_waypoints_aligned_motion_forwards_position_threshold(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     MoveTCPWaypointsAlignedMotion must forward an explicit position threshold to its
     CartesianPositionTrajectory task.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     waypoints = [Point3.from_iterable([1, 1, 1])]
 
     motion = MoveTCPWaypointsAlignedMotion(
-        waypoints, Arms.LEFT, position_threshold=0.001
+        waypoints, left_or_only_arm(context.robot), position_threshold=0.001
     )
     execute_single(motion, context=context)
 
@@ -273,7 +274,7 @@ def _motion_task(motion_chart, robot):
     return task
 
 
-def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(mutable_model_world):
+def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(pr2_apartment_context):
     """
     A base that is not full body controlled stands still while an arm moves, so the
     motion has to hold it there rather than leave it for another task to command.
@@ -281,12 +282,12 @@ def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(mutable_model
     An arm goal is expressed relative to the robot's own root and bound when the motion
     starts, so a base that moves afterwards carries the goal away from the object.
     """
-    world, view, context = mutable_model_world
+    world, view, context = pr2_apartment_context
     assert not view.mobile_base.full_body_controlled
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+        target, left_or_only_arm(context.robot), movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
 
@@ -295,37 +296,37 @@ def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(mutable_model
     assert hold_base.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
 
 
-def test_an_arm_motion_leaves_a_full_body_controlled_base_free(mutable_model_world):
+def test_an_arm_motion_leaves_a_full_body_controlled_base_free(pr2_apartment_context):
     """
     A robot that may move its whole body drives while it reaches, so its base is not
     held.
     """
-    world, view, context = mutable_model_world
+    world, view, context = pr2_apartment_context
     with world.modify_world():
         view.mobile_base.full_body_controlled = True
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+        target, left_or_only_arm(context.robot), movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
 
     assert _base_holding_tasks(motion.motion_chart, view) == []
 
 
-def test_move_tool_center_point_motion_without_max_velocity_adds_no_velocity_limit(
-    immutable_model_world,
+def test_move_tool_center_point_motion_without_max_velocity_returns_bare_task(
+    pr2_apartment_context,
 ):
     """
     MoveToolCenterPointMotion must not add any velocity-limit constraint when neither
     ``max_linear_velocity`` nor ``max_angular_velocity`` is set, so a caller that never
     mentions them keeps relying on the robot's own hardware velocity limits only.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+        target, left_or_only_arm(context.robot), movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
 
@@ -341,7 +342,7 @@ def test_move_tool_center_point_motion_without_max_velocity_adds_no_velocity_lim
 
 
 def test_move_tool_center_point_motion_max_linear_velocity_adds_real_limit(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     An explicit ``max_linear_velocity`` must add a real
@@ -350,12 +351,12 @@ def test_move_tool_center_point_motion_max_linear_velocity_adds_real_limit(
     feedback, reference velocities are for QP normalization only and must not be exposed
     as a caller-tunable speed limit.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
         target,
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
         movement_type=MovementType.CARTESIAN,
         max_linear_velocity=0.05,
     )
@@ -373,19 +374,19 @@ def test_move_tool_center_point_motion_max_linear_velocity_adds_real_limit(
 
 
 def test_move_tool_center_point_motion_max_angular_velocity_adds_real_limit(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     An explicit ``max_angular_velocity`` must add a real
     :class:`CartesianRotationVelocityLimit` constraint, only meaningful for the non-
     translation (full 6D pose) movement type.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
         target,
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
         movement_type=MovementType.CARTESIAN,
         max_angular_velocity=0.2,
     )
@@ -399,17 +400,19 @@ def test_move_tool_center_point_motion_max_angular_velocity_adds_real_limit(
     assert velocity_limit_node.max_angular_velocity == 0.2
 
 
-def test_move_gripper_motion_finger_velocity_adds_real_limit(immutable_model_world):
+def test_move_gripper_motion_finger_velocity_adds_real_limit(pr2_apartment_context):
     """
     An explicit ``finger_velocity`` must add a real
     :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`
     constraint alongside the goal task, instead of tuning the goal task's own
     reference/normalization velocity.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=Arms.LEFT, finger_velocity=0.03
+        motion=GripperState.CLOSE,
+        gripper=left_or_only_arm(context.robot).end_effector,
+        finger_velocity=0.03,
     )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, Parallel)
@@ -425,18 +428,18 @@ def test_move_gripper_motion_finger_velocity_adds_real_limit(immutable_model_wor
 
 
 def test_move_gripper_motion_tolerate_stall_and_finger_velocity_combine(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     ``tolerate_stall`` and ``finger_velocity`` set together must nest correctly: the
     motion is done once (goal reached OR stalled) AND the finger velocity stayed within
     its limit -- not a single flat ``Parallel`` that conflates OR and AND semantics.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
     close_motion = MoveGripperMotion(
         motion=GripperState.CLOSE,
-        gripper=Arms.LEFT,
+        gripper=left_or_only_arm(context.robot).end_effector,
         tolerate_stall=True,
         finger_velocity=0.03,
     )
@@ -453,7 +456,7 @@ def test_move_gripper_motion_tolerate_stall_and_finger_velocity_combine(
     assert LocalMinimumReached in inner_node_types
 
 
-def test_move_gripper_motion_tolerate_stall_defaults_to_false(immutable_model_world):
+def test_move_gripper_motion_tolerate_stall_defaults_to_false(pr2_apartment_context):
     """
     MoveGripperMotion must not tolerate a stall by default, for either OPEN or CLOSE --
     stalling before reaching the target is a real failure that should be surfaced,
@@ -464,19 +467,23 @@ def test_move_gripper_motion_tolerate_stall_defaults_to_false(immutable_model_wo
     unmodified default behaviour: the plain goal task, not wrapped in any stall-tolerant
     monitor.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
-    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, gripper=Arms.LEFT)
+    close_motion = MoveGripperMotion(
+        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector
+    )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, JointPositionList)
 
-    open_motion = MoveGripperMotion(motion=GripperState.OPEN, gripper=Arms.LEFT)
+    open_motion = MoveGripperMotion(
+        motion=GripperState.OPEN, gripper=left_or_only_arm(context.robot).end_effector
+    )
     execute_single(open_motion, context=context)
     assert isinstance(open_motion.motion_chart, JointPositionList)
 
 
 def test_move_gripper_motion_tolerate_stall_can_be_explicitly_enabled(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     An explicit ``tolerate_stall=True`` must wrap the goal task together with a
@@ -485,10 +492,12 @@ def test_move_gripper_motion_tolerate_stall_can_be_explicitly_enabled(
     is reached or the fingers have stalled -- without changing what the goal task's own
     observation means (goal reached, nothing else).
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=Arms.LEFT, tolerate_stall=True
+        motion=GripperState.CLOSE,
+        gripper=left_or_only_arm(context.robot).end_effector,
+        tolerate_stall=True,
     )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, Parallel)
@@ -518,7 +527,7 @@ def _close_motion_of(pick_up: PickUpAction) -> MoveGripperMotion:
 
 
 def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     PickUpAction's grasp-closing motion must not tolerate a stall unless explicitly
@@ -526,40 +535,44 @@ def test_pick_up_action_close_motion_stall_tolerance_defaults_to_false(
     gripper's connections, which not every robot has, so it must stay opt-in rather than
     always on (it crashes on Tracy's real-execution gripper otherwise).
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_candidates()[0], left_or_only_arm(context.robot))
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).tolerate_stall is False
 
 
 def test_pick_up_action_close_motion_tolerates_stall_when_enabled(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     PickUpAction's ``tolerate_grasp_stall`` must reach the grasp's CLOSE motion, so a
     grasped object's fingers physically stopping before the nominal fully-closed target
     is correctly treated as a real grasp, not a failed motion, once explicitly enabled.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT, tolerate_grasp_stall=True)
+    pick_up = PickUpAction(
+        milk.grasp_candidates()[0],
+        left_or_only_arm(context.robot),
+        tolerate_grasp_stall=True,
+    )
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).tolerate_stall is True
 
 
-def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
+def test_pick_up_action_velocity_fields_default_to_none(pr2_apartment_context):
     """
     PickUpAction's velocity/timing/friction fields must all default to ``None`` when not
     explicitly set, so an existing caller that never mentions them keeps relying on
     Giskard's own task defaults instead of a new, silently-injected value -- these
     physics fields are opt-in additions, not a change to the action's default behaviour.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(milk, Arms.LEFT)
+    pick_up = PickUpAction(milk.grasp_candidates()[0], left_or_only_arm(context.robot))
 
     assert pick_up.pre_approach_linear_velocity is None
     assert pick_up.final_approach_linear_velocity is None
@@ -569,16 +582,18 @@ def test_pick_up_action_velocity_fields_default_to_none(immutable_model_world):
     assert pick_up.object_friction is None
 
 
-def test_place_action_velocity_fields_default_to_none(immutable_model_world):
+def test_place_action_velocity_fields_default_to_none(pr2_apartment_context):
     """
     PlaceAction's velocity/timing fields must all default to ``None`` when not
     explicitly set, matching PickUpAction's own opt-in design: an existing caller that
     never mentions them keeps relying on Giskard's own task defaults.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
-    place = PlaceAction(world.get_body_by_name("milk.stl"), target_location, Arms.LEFT)
+    place = PlaceAction(
+        world.get_semantic_annotations_by_type(Milk)[0], target_location
+    )
 
     assert place.placing_linear_velocity is None
     assert place.transport_linear_velocity is None
@@ -602,19 +617,19 @@ def _collision_rule_nodes(motion_chart):
 
 
 def test_move_tool_center_point_motion_frees_the_manipulator_it_reaches_with(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     ``allow_gripper_collision`` must reach the collision manager: without a rule that
     frees the manipulator, collision avoidance holds the fingers a buffer zone away from
     whatever they reach for and the reach never converges on its goal.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
         target,
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
         movement_type=MovementType.CARTESIAN,
         allow_gripper_collision=True,
     )
@@ -623,24 +638,24 @@ def test_move_tool_center_point_motion_frees_the_manipulator_it_reaches_with(
     rule_nodes = _collision_rule_nodes(motion.motion_chart)
     assert len(rule_nodes) == 1
     (rule,) = rule_nodes[0].temporary_rules
-    assert rule.end_effector is ViewManager().get_end_effector_view(Arms.LEFT, view)
+    assert rule.end_effector is left_or_only_arm(context.robot).end_effector
 
 
 def test_move_tool_center_point_motion_frees_what_the_manipulator_grasps_later(
-    mutable_model_world,
+    pr2_apartment_context,
 ):
     """
     The lift that carries a grasped body away is built before the grasp attaches it, so
     the rule must free whatever the manipulator holds when it runs rather than what it
     held when the chart was built.
     """
-    world, view, context = mutable_model_world
-    end_effector = ViewManager().get_end_effector_view(Arms.LEFT, view)
+    world, view, context = pr2_apartment_context
+    end_effector = left_or_only_arm(context.robot).end_effector
     held_body = world.get_body_by_name("milk.stl")
 
     motion = MoveToolCenterPointMotion(
         Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
-        Arms.LEFT,
+        left_or_only_arm(context.robot),
         movement_type=MovementType.CARTESIAN,
         allow_gripper_collision=True,
     )
@@ -656,69 +671,76 @@ def test_move_tool_center_point_motion_frees_what_the_manipulator_grasps_later(
 
 
 def test_move_tool_center_point_motion_keeps_the_manipulator_clear_by_default(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     Without ``allow_gripper_collision`` the motion adds no collision rule of its own, so
     the robot's own rules keep deciding how close the gripper may come.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+        target, left_or_only_arm(context.robot), movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
 
     assert _collision_rule_nodes(motion.motion_chart) == []
 
 
-def test_move_gripper_motion_frees_the_fingers_it_closes(immutable_model_world):
+def test_move_gripper_motion_frees_the_fingers_it_closes(pr2_apartment_context):
     """
     Fingers closing on an object touch it, so ``allow_gripper_collision`` must reach the
     collision manager here too: otherwise the buffer zone kept around the object stops
     the fingers before they hold it.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=Arms.LEFT, allow_gripper_collision=True
+        motion=GripperState.CLOSE,
+        gripper=left_or_only_arm(context.robot).end_effector,
+        allow_gripper_collision=True,
     )
     execute_single(close_motion, context=context)
 
     rule_nodes = _collision_rule_nodes(close_motion.motion_chart)
     assert len(rule_nodes) == 1
     (rule,) = rule_nodes[0].temporary_rules
-    assert rule.end_effector is ViewManager().get_end_effector_view(Arms.LEFT, view)
+    assert rule.end_effector is left_or_only_arm(context.robot).end_effector
 
 
-def test_move_gripper_motion_keeps_the_fingers_clear_by_default(immutable_model_world):
+def test_move_gripper_motion_keeps_the_fingers_clear_by_default(pr2_apartment_context):
     """
     Without ``allow_gripper_collision`` the gripper motion adds no collision rule of its
     own.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
-    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, gripper=Arms.LEFT)
+    close_motion = MoveGripperMotion(
+        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector
+    )
     execute_single(close_motion, context=context)
 
     assert _collision_rule_nodes(close_motion.motion_chart) == []
 
 
-def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_world):
+def test_pick_up_action_closes_the_gripper_on_what_it_grasps(pr2_apartment_context):
     """
     PickUpAction's grasp-closing motion must allow the gripper collision it is about to
     make: the fingers meeting the object are the grasp, not a collision to give up on.
     """
-    world, view, context = immutable_model_world
-    pick_up = PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT)
+    world, view, context = pr2_apartment_context
+    pick_up = PickUpAction(
+        world.get_semantic_annotations_by_type(Milk)[0].grasp_candidates()[0],
+        left_or_only_arm(context.robot),
+    )
     sequential([pick_up], context=context)
 
     assert _close_motion_of(pick_up).allow_gripper_collision is True
 
 
 def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
-    mutable_model_world,
+    pr2_apartment_context,
 ):
     """
     A carried body hangs below the tool frame and is therefore freed together with the
@@ -727,16 +749,16 @@ def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
 
     The retract afterwards holds nothing and keeps the default.
     """
-    world, view, context = mutable_model_world
+    world, view, context = pr2_apartment_context
     target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     with world.modify_world():
         world.move_branch_with_fixed_connection(
-            milk, view.left_arm.end_effector.tool_frame
+            milk.root, view.left_arm.end_effector.tool_frame
         )
 
-    place = PlaceAction(milk, target_location, Arms.LEFT)
+    place = PlaceAction(milk, target_location)
     sequential([place], context=context)
     plan = place._action_plan.plan
 
@@ -752,7 +774,6 @@ def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
     assert release_nodes[0].designator.allow_gripper_collision is True
 
 
-@pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
 def test_alternative_mapping(hsr_apartment_world):
     world, view, context = hsr_apartment_world
     context.alternative_motion_mappings = [HSRBMoveMotion]
@@ -771,12 +792,12 @@ def test_alternative_mapping(hsr_apartment_world):
 # %% looking
 
 
-def test_looking_motion_pointing_parameters(immutable_model_world):
+def test_looking_motion_pointing_parameters(pr2_apartment_context):
     """
     The looking motion aims the camera's forward axis at the target, moving the head
     relative to the torso so the rest of the body stays where it is.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     camera = view.get_default_camera()
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
     motion = LookingMotion(target=target, camera=camera)
@@ -787,10 +808,12 @@ def test_looking_motion_pointing_parameters(immutable_model_world):
     assert isinstance(pointing, Pointing)
     assert pointing.root_link is view.get_torso().root
     assert pointing.tip_link is camera.root
-    assert pointing.pointing_axis is camera.forward_facing_axis
+    assert np.array_equal(
+        pointing.pointing_axis.to_np(), camera.forward_facing_axis.to_np()
+    )
     assert pointing.pointing_axis.reference_frame is camera.root
     assert pointing.goal_point.reference_frame is world.root
-    assert np.array_equal(pointing.goal_point.to_np(), target.to_position().to_np())
+    assert np.array_equal(pointing.goal_point.to_np(), target.position.to_np())
 
 
 # %% stretch tool center point
@@ -798,17 +821,17 @@ def test_looking_motion_pointing_parameters(immutable_model_world):
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
 def test_stretch_tool_center_point_holds_the_base_heading(
-    immutable_stretch_apartment_world,
+    stretch_apartment_context,
 ):
     """
     The base orientation is held alongside the cartesian goal rather than before it, so
     the base keeps the heading it started with while the arm reaches.
     """
-    world, robot, context = immutable_stretch_apartment_world
+    world, robot, context = stretch_apartment_context
     context.alternative_motion_mappings = [StretchMoveToolCenterPoint]
     motion = MoveToolCenterPointMotion(
         target=Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=left_or_only_arm(context.robot),
     )
     execute_single(motion, context=context)
 
@@ -824,17 +847,17 @@ def test_stretch_tool_center_point_holds_the_base_heading(
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
 def test_stretch_tool_center_point_accepts_a_local_minimum(
-    immutable_stretch_apartment_world,
+    stretch_apartment_context,
 ):
     """
     The arm regularly settles just short of the goal pose, so converging into a local
     minimum counts as success alongside reaching the pose.
     """
-    world, robot, context = immutable_stretch_apartment_world
+    world, robot, context = stretch_apartment_context
     context.alternative_motion_mappings = [StretchMoveToolCenterPoint]
     motion = MoveToolCenterPointMotion(
         target=Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
-        arm=Arms.LEFT,
+        arm=left_or_only_arm(context.robot),
     )
     execute_single(motion, context=context)
 
@@ -858,13 +881,13 @@ def test_stretch_tool_center_point_accepts_a_local_minimum(
 
 @pytest.mark.skipif(skip_tests, reason="Alternative motion mappings not available")
 def test_stretch_base_motion_follows_the_execution_environment(
-    immutable_stretch_apartment_world,
+    stretch_apartment_context,
 ):
     """
     One base motion resolves to a different mapping per execution environment, so a run
     on the robot drives the real base rather than silently simulating it.
     """
-    world, robot, context = immutable_stretch_apartment_world
+    world, robot, context = stretch_apartment_context
     context.alternative_motion_mappings = [StretchMoveSim, StretchMoveReal]
     motion = MoveMotion(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
     execute_single(motion, context=context)
@@ -880,16 +903,16 @@ def test_stretch_base_motion_follows_the_execution_environment(
 # %% driving a container's own degree of freedom
 
 
-def test_opening_motion_yields_to_collision_avoidance(immutable_model_world):
+def test_opening_motion_yields_to_collision_avoidance(pr2_apartment_context):
     """
     Pulling a drawer contorts the arm against the robot's own body, so the goal driving
     the container must not outrank collision avoidance: at a higher weight the solver
     buys the drawer trajectory by pushing the arm through whatever is in its way.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     handle = world.get_body_by_name("handle_cab3_door_top")
 
-    motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
+    motion = OpeningMotion(object_part=handle, arm=left_or_only_arm(context.robot))
     execute_single(motion, context=context)
 
     assert (
@@ -898,7 +921,7 @@ def test_opening_motion_yields_to_collision_avoidance(immutable_model_world):
     )
 
 
-def test_opening_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
+def test_opening_motion_keeps_the_gripper_on_the_handle(pr2_apartment_context):
     """
     Only the container's own degree of freedom yields to collision avoidance.
 
@@ -906,10 +929,10 @@ def test_opening_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
     the solver buys clearance by letting the gripper drift off the handle, and handle
     and container move independently.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     handle = world.get_body_by_name("handle_cab3_door_top")
 
-    motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
+    motion = OpeningMotion(object_part=handle, arm=left_or_only_arm(context.robot))
     execute_single(motion, context=context)
 
     assert (
@@ -918,14 +941,14 @@ def test_opening_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
     )
 
 
-def test_closing_motion_yields_to_collision_avoidance(immutable_model_world):
+def test_closing_motion_yields_to_collision_avoidance(pr2_apartment_context):
     """
     Pushing a drawer shut is the same motion run backwards and needs the same weight.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     handle = world.get_body_by_name("handle_cab3_door_top")
 
-    motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
+    motion = ClosingMotion(object_part=handle, arm=left_or_only_arm(context.robot))
     execute_single(motion, context=context)
 
     assert (
@@ -934,14 +957,14 @@ def test_closing_motion_yields_to_collision_avoidance(immutable_model_world):
     )
 
 
-def test_closing_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
+def test_closing_motion_keeps_the_gripper_on_the_handle(pr2_apartment_context):
     """
     Closing holds the handle the same way opening does.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     handle = world.get_body_by_name("handle_cab3_door_top")
 
-    motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
+    motion = ClosingMotion(object_part=handle, arm=left_or_only_arm(context.robot))
     execute_single(motion, context=context)
 
     assert (
@@ -951,7 +974,7 @@ def test_closing_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
 
 
 def test_grasping_action_frees_the_gripper_for_its_whole_approach(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     Both halves of a grasp end up inside the buffer zone kept around what is grasped:
@@ -959,9 +982,11 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
     there stalls the approach before it ever reaches the object, the same way it would
     at the grasp itself.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    grasping = GraspingAction(milk, Arms.LEFT, Pose(reference_frame=milk.root))
+    grasping = GraspingAction(
+        GraspCandidate.from_body_origin(milk), left_or_only_arm(context.robot)
+    )
     sequential([grasping], context=context)
 
     grasping.plan_node.notify()

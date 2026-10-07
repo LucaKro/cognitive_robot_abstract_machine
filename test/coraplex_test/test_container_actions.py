@@ -3,18 +3,17 @@ import pytest
 
 from krrood.entity_query_language.factories import evaluate_condition
 
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
 )
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
+from .conftest import left_or_only_arm
 
 # %% fixtures
 
@@ -25,11 +24,11 @@ The handle of the apartment's middle cabinet drawer.
 
 
 @pytest.fixture
-def pr2_at_drawer(mutable_model_world):
+def pr2_at_drawer(pr2_apartment_context):
     """
     A PR2 in the apartment, with the drawer handle it works on annotated as such.
     """
-    world, robot, context = mutable_model_world
+    world, robot, context = pr2_apartment_context
     body = world.get_body_by_name(DRAWER_HANDLE)
     annotated = [
         handle
@@ -61,7 +60,7 @@ def test_gripper_backs_off_the_handle_after_letting_go(pr2_at_drawer, action_typ
     clearing it along the direction it approached from.
     """
     world, robot, context, handle = pr2_at_drawer
-    action = action_type(handle, Arms.LEFT)
+    action = action_type(handle, left_or_only_arm(robot))
     sequential([action], context)
 
     motions = motions_of(action)
@@ -78,7 +77,7 @@ def test_gripper_backs_off_the_handle_after_letting_go(pr2_at_drawer, action_typ
         back_off.target.to_np(),
         action.back_off_pose(
             Pose(reference_frame=handle.root),
-            ViewManager.get_end_effector_view(Arms.LEFT, robot),
+            left_or_only_arm(robot).end_effector,
         ).to_np(),
         atol=1e-9,
     )
@@ -90,10 +89,10 @@ def test_back_off_pose_clears_the_grasp_by_the_release_clearance(pr2_at_drawer):
     given and no further.
     """
     world, robot, context, handle = pr2_at_drawer
-    action = OpenAction(handle, Arms.LEFT)
+    action = OpenAction(handle, left_or_only_arm(robot))
     sequential([action], context)
 
-    end_effector = ViewManager.get_end_effector_view(Arms.LEFT, robot)
+    end_effector = left_or_only_arm(robot).end_effector
     grasp_pose = Pose(reference_frame=handle.root)
     tool_goal = end_effector.tool_frame_goal(grasp_pose)
     back_off = action.back_off_pose(grasp_pose, end_effector)
@@ -117,7 +116,7 @@ def test_open_promises_the_container_is_open_rather_than_still_held(pr2_at_drawe
     an open container, not a handle still between the fingers.
     """
     world, robot, context, handle = pr2_at_drawer
-    action = OpenAction(handle, Arms.LEFT)
+    action = OpenAction(handle, left_or_only_arm(robot))
     sequential([action], context)
     drawer = handle.root.get_first_parent_connection_of_type(ActiveConnection1DOF)
     drawer.position = 0.45

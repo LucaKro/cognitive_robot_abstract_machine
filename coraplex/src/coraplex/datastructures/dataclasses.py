@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from coraplex.plans.plan import Plan
     from semantic_digital_twin.world import World
     from coraplex.alternative_motion_mapping import AlternativeMotion
+    from coraplex.plans.plan_transformation import PlanTransformation
     from rclpy.node import Node
 
 
@@ -97,17 +98,29 @@ class Context(PlanEntity):
     use their default motion chart.
     """
 
+    plan_transformations: List[PlanTransformation] = field(default_factory=list)
+    """
+    The transformations that rewrite the plans of this context while they are expanded.
+
+    A transformation is applied to every node it applies to, right after that node
+    has been expanded. If empty, actions are performed as they describe themselves.
+    """
+
     _debug: bool = field(default=False)
     """
     Should debug information be printed or visualized.
     """
 
-    sampling_seed: Optional[int] = field(default=None)
+    sampling_seed: Optional[int] = field(default=None, kw_only=True)
     """
-    Fixes the draws the locations of this plan make, so a run repeats exactly.
+    Seed for the locations of this plan that have none of their own, so a run can be
+    repeated; ``None`` samples afresh each run.
+    """
 
-    ``None`` explores differently every run, which is what drawing from a map buys over
-    ranking it. A demonstration kept as a regression test pins it instead.
+    candidates_to_try: int = field(default=50, kw_only=True)
+    """
+    How many candidates an underspecified step of this plan tries before giving up,
+    unless the step has a limit of its own.
     """
 
     motion_tolerances: MotionToleranceConfig = field(
@@ -186,25 +199,3 @@ class Context(PlanEntity):
         if plan:
             plan.add_plan_entity(result)
         return result
-
-    def for_world(self, world: World, robot: AbstractRobot) -> Context:
-        """
-        The same settings, addressing another world.
-
-        Anything run against a copy of the world -- a probe, a what-if -- has to be run
-        the way the plan itself is, or it answers about something the plan never does.
-
-        :param world: The world the new context addresses.
-        :param robot: The robot of ``world`` that acts in it.
-        :return: A context over ``world``, belonging to no plan.
-        """
-        return Context(
-            world=world,
-            robot=robot,
-            ros_node=self.ros_node,
-            evaluate_conditions=self.evaluate_conditions,
-            query_backend=self.query_backend,
-            alternative_motion_mappings=self.alternative_motion_mappings,
-            _debug=self._debug,
-            motion_tolerances=self.motion_tolerances,
-        )

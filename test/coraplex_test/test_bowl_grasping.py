@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -6,7 +6,6 @@ import pytest
 from trimesh.proximity import closest_point
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from semantic_digital_twin.adapters.mesh import STLParser
@@ -18,14 +17,12 @@ from ..conftest import SAMPLING_SEED
 
 # %% fixtures
 
-BOWL_MESH = os.path.join(
-    os.path.dirname(__file__),
-    "..",
-    "..",
-    "coraplex",
-    "resources",
-    "objects",
-    "bowl.stl",
+BOWL_MESH = str(
+    Path(__file__).resolve().parents[2]
+    / "coraplex"
+    / "resources"
+    / "objects"
+    / "bowl.stl"
 )
 """
 The bowl the demos transport, an irregular scan rather than a turned shape.
@@ -65,12 +62,14 @@ def distances_to_surface(
 def test_bowl_grasps_close_on_the_bowls_wall(bowl):
     """
     The fingers must meet material. Grasping the bowl at its own origin -- which is
-    what an object without grasp poses of its own offers -- closes them in mid air
+    what an object without grasp candidates of its own offers -- closes them in mid air
     inside the bowl.
     """
-    positions = np.array([pose.to_np()[:3, 3] for pose in bowl.grasp_poses()])
+    positions = np.array(
+        [grasp.grasp_pose.to_np()[:3, 3] for grasp in bowl.grasp_candidates()]
+    )
 
-    assert len(positions) == bowl.grasp_pose_count
+    assert len(positions) == bowl.grasp_candidate_count
     assert np.all(distances_to_surface(bowl, positions) < GRIPPABLE_DISTANCE)
 
 
@@ -88,11 +87,11 @@ def test_the_bowls_origin_is_not_grippable(bowl):
 
 
 @pytest.fixture
-def pr2_and_bowl(mutable_simple_pr2_world):
+def pr2_and_bowl(simple_pr2_context):
     """
     A PR2 in a world with the demos' bowl standing on the counter.
     """
-    world, robot, _ = mutable_simple_pr2_world
+    world, robot, _ = simple_pr2_context
     bowl_world = STLParser(BOWL_MESH).parse()
     with world.modify_world():
         world.merge_world_at_pose(
@@ -118,14 +117,15 @@ def test_transporting_a_bowl_grasps_it_at_its_rim(pr2_and_bowl):
     world, robot, bowl = pr2_and_bowl
     context = Context(world, robot, sampling_seed=SAMPLING_SEED)
     context.evaluate_conditions = False
-    transport = TransportAction(
+    transport = TransportAction.from_graspable_by_closest_grasps(
         bowl,
-        Arms.LEFT,
-        target_location=Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
+        Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
+        context.robot.left_arm,
+        context,
     )
 
     sequential([transport], context=context)
-    transport._action_plan
 
-    grasp_position = transport.grasp_pose.to_np()[:3, 3]
+    first_pick_up = next(iter(context.query_backend.evaluate(transport.pick_up)))
+    grasp_position = first_pick_up.pick_up.grasp.grasp_pose.to_np()[:3, 3]
     assert distances_to_surface(bowl, grasp_position[None, :])[0] < GRIPPABLE_DISTANCE

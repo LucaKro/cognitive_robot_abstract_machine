@@ -45,8 +45,8 @@ class HomogeneousTransformationMatrixToRos2Converter(
             result.header.frame_id = str(data.reference_frame.name)
         if data.child_frame is not None:
             result.child_frame_id = str(data.child_frame.name)
-        position = data.to_position().to_np()
-        orientation = data.to_rotation_matrix().to_quaternion().to_np()
+        position = data.position.to_np()
+        orientation = data.rotation_matrix.quaternion.to_np()
         result.transform.translation = geometry_msgs.Vector3(
             x=position[0], y=position[1], z=position[2]
         )
@@ -67,8 +67,8 @@ class PoseToRos2StampedConverter(SemDTToRos2Converter[Pose, geometry_msgs.PoseSt
         result = geometry_msgs.PoseStamped()
         if data.reference_frame is not None:
             result.header.frame_id = str(data.reference_frame.name)
-        position = data.to_position().to_np()
-        orientation = data.to_rotation_matrix().to_quaternion().to_np()
+        position = data.position.to_np()
+        orientation = data.rotation_matrix.quaternion.to_np()
         result.pose.position = geometry_msgs.Point(
             x=position[0], y=position[1], z=position[2]
         )
@@ -87,8 +87,8 @@ class PoseToRos2Converter(SemDTToRos2Converter[Pose, geometry_msgs.Pose]):
     @classmethod
     def convert(cls, data: Pose) -> geometry_msgs.Pose:
         result = geometry_msgs.Pose()
-        position = data.to_position().to_np()
-        orientation = data.to_rotation_matrix().to_quaternion().to_np()
+        position = data.position.to_np()
+        orientation = data.rotation_matrix.quaternion.to_np()
         result.position = geometry_msgs.Point(
             x=position[0], y=position[1], z=position[2]
         )
@@ -167,7 +167,7 @@ class ShapeToRos2Converter(SemDTToRos2Converter[InputType, Marker]):
         reference_frame = data.origin.reference_frame
         marker.header.frame_id = str(reference_frame.name)
         marker.color = ColorToRos2Converter.convert(data.color)
-        marker.pose = PoseToRos2Converter.convert(data.origin.to_pose())
+        marker.pose = PoseToRos2Converter.convert(data.origin.pose)
         return marker
 
 
@@ -217,7 +217,7 @@ class FileMeshToRos2Converter(ShapeToRos2Converter[Mesh]):
     def convert(cls, data: Mesh) -> Marker:
         marker = super().convert(data)
         marker.type = visualization_msgs.Marker.MESH_RESOURCE
-        marker.mesh_resource = "file://" + data.filename
+        marker.mesh_resource = "file://" + str(data.local_file)
         marker.scale.x = data.scale.x
         marker.scale.y = data.scale.y
         marker.scale.z = data.scale.z

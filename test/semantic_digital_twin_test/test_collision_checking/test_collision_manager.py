@@ -121,7 +121,7 @@ class TestExternalCollisionExpressionManager:
         root_b_V_contact_normal = external_collisions.get_root_V_contact_normal_symbol(
             group, 0
         )
-        expr = root_b_V_contact_normal @ group_a_P_point_on_a.to_vector3()
+        expr = root_b_V_contact_normal @ group_a_P_point_on_a.vector3
         compiled_expression = expr.compile(VariableParameters.from_lists(variables))
         result = compiled_expression(external_collisions.float_variable_data.data)
         expected = (
@@ -226,7 +226,7 @@ class TestSelfCollisionExpressionManager:
         group_b_V_contact_normal = self_collisions.get_group_b_V_contact_normal_symbol(
             group_a, group_b
         )
-        expr = group_b_V_contact_normal @ group_b_P_point_on_b.to_vector3()
+        expr = group_b_V_contact_normal @ group_b_P_point_on_b.vector3
         compiled_expression = expr.compile(VariableParameters.from_lists(variables))
         result = compiled_expression(self_collisions.float_variable_data.data)
         expected = expr.evaluate()
@@ -325,23 +325,6 @@ def test_an_avoid_rule_leaves_out_subset_bodies_that_cannot_collide(pr2_world_co
     )
 
     assert rule.body_subset == {with_geometry}
-
-
-def test_no_collision_rule_names_a_body_that_cannot_collide(pr2_world_copy):
-    """
-    Every rule the robot installs is built from bodies that carry geometry, and stays
-    that way whichever rule is added next.
-    """
-    for rule in pr2_world_copy.collision_manager.rules:
-        rule.update(pr2_world_copy)
-
-    named = {
-        body
-        for rule in pr2_world_copy.collision_manager.rules
-        for body in rule.referenced_bodies
-    }
-
-    assert sorted(str(body.name) for body in named if not body.has_collision()) == []
 
 
 # %% whether a robot touches anything
@@ -445,6 +428,10 @@ def test_a_consumer_does_not_have_to_be_serializable(pr2_world_copy):
     """
     Consumers are live observers, not part of the model, so attaching one must not make
     the world's modification history unserializable.
+
+    Every collision rule change serializes the whole collision manager into that
+    history, so a consumer holding a ROS node, as the collision marker publisher does,
+    would otherwise make the change raise.
     """
     collision_manager = pr2_world_copy.collision_manager
     collision_manager.add_collision_consumer(ConsumerHoldingSomethingUnserializable())

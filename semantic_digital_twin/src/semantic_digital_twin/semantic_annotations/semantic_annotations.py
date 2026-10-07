@@ -15,6 +15,7 @@ from semantic_digital_twin.datastructures.alignment import AlignmentPair
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.exceptions import (
+    NoGraspGeometry,
     InvalidPlaneDimensions,
     InvalidHingeActiveAxis,
     MissingSemanticAnnotationError,
@@ -39,7 +40,11 @@ from semantic_digital_twin.semantic_annotations.mixins import (
     HasLegs,
     HasSink,
     HasShelfLayers,
-    HasGraspPoses,
+)
+from semantic_digital_twin.grasping.grasp_candidates import (
+    GraspCandidate,
+    HasGraspCandidates,
+    RimWallSection,
 )
 from semantic_digital_twin.spatial_types import (
     Point3,
@@ -88,7 +93,7 @@ class Furniture(SemanticAnnotation, ABC):
 
 
 @dataclass(eq=False)
-class Handle(HasGraspPoses):
+class Handle(HasGraspCandidates):
     """
     A handle is a physical entity that can be grasped by a hand or a robotic gripper to
     open or close an object.
@@ -588,7 +593,7 @@ class Door(HasHandle, HasMechanicalJoint):
             raise MissingSemanticAnnotationError(self.__class__, Handle)
 
         connection = self.handle.root.parent_connection
-        door_P_handle = connection.origin_expression.to_position()
+        door_P_handle = connection.origin_expression.position
         scale = self.root.collision.scale
         world_T_door = self.root.global_transform
 
@@ -662,6 +667,20 @@ class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint):
     @classproperty
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.Z()
+
+    @property
+    def opening_ratio(self) -> float:
+        """
+        :return: How far this drawer stands pulled out, as a fraction of its travel.
+        """
+        moving_body = (
+            self.root if self.mechanical_joint is None else self.mechanical_joint.root
+        )
+        connection = moving_body.parent_connection
+        limits = connection.dof.limits
+        return (connection.position - limits.lower.position) / (
+            limits.upper.position - limits.lower.position
+        )
 
 
 @dataclass(eq=False)
@@ -899,7 +918,10 @@ class Wall(HasApertures):
         return [
             door
             for door in self._world.get_semantic_annotations_by_type(Door)
-            if door.entry_way and InsideOf(door.entry_way.root, self.root)() > 0.1
+            if door.entry_way
+            and InsideOf(
+                door.entry_way.root, self.root, minimum_containment_ratio=0.1
+            )()
         ]
 
     @classmethod
@@ -955,7 +977,7 @@ class Wall(HasApertures):
         origin: HomogeneousTransformationMatrix,
         bloat_amount: float,
         obstacle_height_clearance: float = 0.01,
-    ) -> BoundingBoxCollection[VolumetricBoundingBox]:
+    ) -> BoundingBoxCollection[VolumetricBoundingBox, Point3]:
         """
         Bloat this wall's bounding boxes along their thinner dimension only -- the
         side that faces the room -- rather than symmetrically in x and y.
@@ -980,14 +1002,35 @@ class Wall(HasApertures):
 
 
 @dataclass(eq=False)
-class Bottle(HasGraspPoses):
+class Container(HasGraspCandidates):
+    """
+    An object that holds contents and has an opening they go in and out through.
+    """
+
+
+@dataclass(eq=False)
+class Cookware(HasGraspCandidates):
+    """
+    An object used to cook with.
+    """
+
+
+@dataclass(eq=False)
+class Tableware(HasGraspCandidates):
+    """
+    An object a table is set with for a meal.
+    """
+
+
+@dataclass(eq=False)
+class Bottle(Container):
     """
     Abstract class for bottles.
     """
 
 
 @dataclass(eq=False)
-class Statue(HasRootBody): ...
+class Statue(HasGraspCandidates): ...
 
 
 @dataclass(eq=False)
@@ -1012,7 +1055,7 @@ class MustardBottle(Bottle):
 
 
 @dataclass(eq=False)
-class DrinkingContainer(HasGraspPoses): ...
+class DrinkingContainer(Container, Tableware): ...
 
 
 @dataclass(eq=False)
@@ -1030,11 +1073,11 @@ class Mug(DrinkingContainer):
 
 
 @dataclass(eq=False)
-class CookingContainer(HasGraspPoses): ...
+class CookingContainer(Container, Cookware): ...
 
 
 @dataclass(eq=False)
-class Lid(HasGraspPoses): ...
+class Lid(Cookware): ...
 
 
 @dataclass(eq=False)
@@ -1066,31 +1109,14 @@ class PotLid(Lid):
 
 
 @dataclass(eq=False)
-class Plate(HasSupportingSurface, HasGraspPoses):
+class Plate(HasSupportingSurface, Tableware):
     """
     A plate.
     """
 
 
-@dataclass
-class RimWallSection:
-    """
-    Where a bowl's wall runs at one point of its rim, in the bowl's own frame.
-    """
-
-    center: Point3
-    """
-    The middle of the wall, halfway between its inner and its outer surface.
-    """
-
-    outward: Vector3
-    """
-    The direction from the bowl's axis to the wall.
-    """
-
-
 @dataclass(eq=False)
-class Bowl(HasSupportingSurface, HasGraspPoses, IsPerceivable):
+class Bowl(HasSupportingSurface, Container, Tableware, IsPerceivable):
     """
     A bowl.
     """
@@ -1100,32 +1126,46 @@ class Bowl(HasSupportingSurface, HasGraspPoses, IsPerceivable):
     How far below the highest point of the bowl the fingers grip its wall.
     """
 
-    def grasp_poses(self) -> Iterator[Pose]:
+    def grasp_candidates(self) -> List[GraspCandidate]:
         """
-        Generate grasps that straddle the bowl's wall, approaching it from above.
+        The grasps that straddle the bowl's wall, approaching it from above.
 
         A bowl offers nothing to grip at its own origin, which is inside it, so the wall
         of its rim is grasped instead.
+
+        :raises NoGraspGeometry: If the root body has no mesh, or no wall where the rim
+            is traced, to grasp.
         """
-        for section in self._rim_wall_sections():
-            yield Pose(
-                position=section.center,
-                orientation=RotationMatrix.from_vectors(
-                    x=Vector3.NEGATIVE_Z(), y=section.outward
-                ).to_quaternion(),
-                reference_frame=self.root,
+        grasps = [
+            GraspCandidate(
+                self,
+                Pose(
+                    position=section.center,
+                    orientation=RotationMatrix.from_vectors(
+                        x=Vector3.NEGATIVE_Z(), y=section.outward
+                    ).quaternion,
+                    reference_frame=self.root,
+                ),
             )
+            for section in self._rim_wall_sections()
+        ]
+        if not grasps:
+            raise NoGraspGeometry(self)
+        return grasps
 
     def _rim_wall_sections(self) -> Iterator[RimWallSection]:
         """
-        Trace the bowl's wall outward from its axis, once per grasp direction.
+        Cast one ray per grasp direction outward from the bowl's axis, just below the
+        rim, and take the middle between its hits as the wall.
 
-        A ray outward from the axis enters and leaves the wall, so the wall lies between
-        its two hits. Read that way, each section follows the wall wherever it actually
-        runs, rather than a circle fitted through an irregular rim.
+        :return: The wall section hit in each direction; directions that miss the mesh
+            are skipped.
+        :raises NoGraspGeometry: If the root body has no mesh.
         """
         mesh = self.root.combined_mesh
-        yaws = np.linspace(0, 2 * np.pi, self.grasp_pose_count, endpoint=False)
+        if mesh is None:
+            raise NoGraspGeometry(self)
+        yaws = np.linspace(0, 2 * np.pi, self.grasp_candidate_count, endpoint=False)
         directions = np.column_stack([np.cos(yaws), np.sin(yaws), np.zeros(len(yaws))])
         bowl_center = mesh.bounds.mean(axis=0)
         axis_point = np.array(
@@ -1153,7 +1193,7 @@ class Bowl(HasSupportingSurface, HasGraspPoses, IsPerceivable):
 
 # Food Items
 @dataclass(eq=False)
-class Food(HasGraspPoses):
+class Food(HasGraspCandidates):
     """
     A Group class for Food.
     """
@@ -1244,7 +1284,7 @@ class Milk(Food, IsPerceivable):
 
 
 @dataclass(eq=False)
-class SaltContainer(HasGraspPoses, IsPerceivable):
+class SaltContainer(Container, IsPerceivable):
     """
     A container of salt.
     """
@@ -1432,7 +1472,7 @@ class WallDecor(Decor):
 
 
 @dataclass(eq=False)
-class Cloth(HasRootBody): ...
+class Cloth(HasGraspCandidates): ...
 
 
 @dataclass(eq=False)
@@ -1476,21 +1516,21 @@ class Houseplant(HasRootBody):
 
 
 @dataclass(eq=False)
-class SprayBottle(HasGraspPoses):
+class SprayBottle(Bottle):
     """
     A spray bottle.
     """
 
 
 @dataclass(eq=False)
-class Vase(HasGraspPoses):
+class Vase(Container):
     """
     A vase.
     """
 
 
 @dataclass(eq=False)
-class Book(HasGraspPoses):
+class Book(HasGraspCandidates):
     """
     A book.
     """
@@ -1503,74 +1543,79 @@ class BookFront(HasRootBody): ...
 
 
 @dataclass(eq=False)
-class SaltPepperShaker(HasGraspPoses):
+class SaltPepperShaker(SaltContainer):
     """
     A salt and pepper shaker.
     """
 
 
 @dataclass(eq=False)
-class Cuttlery(HasGraspPoses):
+class Cutlery(Tableware):
     """
     A piece of cutlery.
     """
 
-    def grasp_poses(self) -> Iterator[Pose]:
+    def grasp_candidates(self) -> List[GraspCandidate]:
         """
-        Generate the grasp that reaches down onto the piece and closes across it.
-
-        Cutlery lies flat, so there is nothing to take hold of from the side. The
-        fingers have to come from above and close across the piece rather than along
-        it, or they close on nothing.
+        :return: The grasp from above that closes across the piece, which lies flat.
+        :raises NoGraspGeometry: If the root body has no collision geometry to tell
+            which way the piece lies.
         """
+        if not self.root.has_collision():
+            raise NoGraspGeometry(self)
         bounding_box = self.root.collision.as_bounding_box_collection_in_frame(
             self.root
         ).bounding_box()
         along_x = bounding_box.x_interval.upper - bounding_box.x_interval.lower
         along_y = bounding_box.y_interval.upper - bounding_box.y_interval.lower
-        finger_axis = Vector3.Y() if along_x >= along_y else Vector3.X()
-        yield Pose(
-            orientation=RotationMatrix.from_vectors(
-                x=Vector3.NEGATIVE_Z(), y=finger_axis
-            ).to_quaternion(),
-            reference_frame=self.root,
-        )
+        finger_axis = Vector3.NEGATIVE_Y() if along_x >= along_y else Vector3.X()
+        return [
+            GraspCandidate(
+                self,
+                Pose(
+                    orientation=RotationMatrix.from_vectors(
+                        x=Vector3.NEGATIVE_Z(), y=finger_axis
+                    ).quaternion,
+                    reference_frame=self.root,
+                ),
+            )
+        ]
 
 
 @dataclass(eq=False)
-class Fork(Cuttlery):
+class Fork(Cutlery):
     """
     A fork.
     """
 
 
 @dataclass(eq=False)
-class Knife(Cuttlery):
+class Knife(Cutlery):
     """
     A butter knife.
     """
 
 
 @dataclass(eq=False)
-class Spoon(Cuttlery, IsPerceivable): ...
+class Spoon(Cutlery, IsPerceivable): ...
 
 
 @dataclass(eq=False)
-class Pencil(HasRootBody):
+class Pencil(HasGraspCandidates):
     """
     A pencil.
     """
 
 
 @dataclass(eq=False)
-class Pen(HasRootBody):
+class Pen(HasGraspCandidates):
     """
     A pen.
     """
 
 
 @dataclass(eq=False)
-class Baseball(HasRootBody):
+class Baseball(HasGraspCandidates):
     """
     A baseball.
     """
@@ -1608,13 +1653,20 @@ class Human(Agent):
 
 
 @dataclass(eq=False)
+class Parcel(HasGraspCandidates):
+    """
+    A parcel, as handled in a warehouse.
+    """
+
+
+@dataclass(eq=False)
 class SemanticEnvironmentAnnotation(HasRootBody):
     """
     Represents a semantic annotation of the environment.
     """
 
     def obstacle_entities(
-        self, search_space: BoundingBoxCollection[VolumetricBoundingBox]
+        self, search_space: BoundingBoxCollection[VolumetricBoundingBox, Point3]
     ) -> List[Body]:
         """
         Collect the obstacle bodies to consider within ``search_space``.
@@ -1635,12 +1687,12 @@ class SemanticEnvironmentAnnotation(HasRootBody):
 
     def build_bloated_obstacle_collection(
         self,
-        search_space: BoundingBoxCollection[VolumetricBoundingBox],
+        search_space: BoundingBoxCollection[VolumetricBoundingBox, Point3],
         semantic_wall_annotation: Optional[Wall] = None,
         bloat_obstacles: float = 0.0,
         bloat_walls: float = 0.0,
         obstacle_height_clearance: float = 0.01,
-    ) -> BoundingBoxCollection[VolumetricBoundingBox]:
+    ) -> BoundingBoxCollection[VolumetricBoundingBox, Point3]:
         """
         Collect and bloat this annotation's obstacle bounding boxes.
 
@@ -1737,7 +1789,7 @@ class Cooktop(HasRootBody):
 
 
 @dataclass(eq=False)
-class Tool(HasGraspPoses, ABC):
+class Tool(HasGraspCandidates, ABC):
     """
     A tool that is held by a robot's end effector to act on other bodies.
     """
@@ -1853,7 +1905,7 @@ class CuttingKnife(ToolWithHandle):
 
 
 @dataclass(eq=False)
-class PouringCup(Tool):
+class PouringCup(Tool, Container):
     """
     A cup for pouring liquids into containers.
     """
@@ -1899,7 +1951,7 @@ class Sponge(Tool):
         reference_frame = (
             pose.reference_frame if pose.reference_frame is not None else self.root
         )
-        rotation = pose.to_rotation_matrix().to_np()[:3, :3]
+        rotation = pose.rotation_matrix.to_np()[:3, :3]
         return Vector3.from_iterable(
             rotation @ np.array([0.0, 0.0, 1.0]),
             reference_frame=reference_frame,

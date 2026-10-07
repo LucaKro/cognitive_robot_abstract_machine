@@ -143,7 +143,7 @@ def test_body_and_connection_pose_and_name_override(empty_world):
     body = spec.spawn(empty_world, name="renamed")
     assert body.name == PrefixedName("renamed")
     root_T_body = empty_world.compute_forward_kinematics(empty_world.root, body)
-    np.testing.assert_allclose(root_T_body.to_position().to_np()[:3], [1, 2, 3])
+    np.testing.assert_allclose(root_T_body.position.to_np()[:3], [1, 2, 3])
 
 
 def test_body_and_connection_spawn_arg_overrides_stored_pose(empty_world):
@@ -154,7 +154,7 @@ def test_body_and_connection_spawn_arg_overrides_stored_pose(empty_world):
         parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=5),
     )
     root_T_body = empty_world.compute_forward_kinematics(empty_world.root, body)
-    np.testing.assert_allclose(root_T_body.to_position().to_np()[0], 5)
+    np.testing.assert_allclose(root_T_body.position.to_np()[0], 5)
 
 
 def test_body_and_connection_active(empty_world):
@@ -383,7 +383,7 @@ def test_shape_constructors_apply_parent_T_self(empty_world, make_spec):
     pose = HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=2, z=3)
     entity = make_spec(pose).spawn(empty_world)
     root_T_entity = empty_world.compute_forward_kinematics(empty_world.root, entity)
-    np.testing.assert_allclose(root_T_entity.to_position().to_np()[:3], [1, 2, 3])
+    np.testing.assert_allclose(root_T_entity.position.to_np()[:3], [1, 2, 3])
 
 
 def test_body_specification_from_3d_points_matches_direct_construction():
@@ -569,14 +569,14 @@ def test_world_specification_with_robot():
 
     odom_body = world.get_body_by_name("odom")
     assert odom_body is not None
-    assert isinstance(odom_body.parent_connection, Connection6DoF)
+    assert isinstance(odom_body.parent_connection, FixedConnection)
     assert odom_body.parent_connection.parent is world.root
 
     drive = world.get_body_by_name("base_footprint").parent_connection
     assert isinstance(drive, OmniDrive)
 
     root_T_odom = world.compute_forward_kinematics(world.root, odom_body)
-    np.testing.assert_allclose(root_T_odom.to_position().to_np()[0], 1.0)
+    np.testing.assert_allclose(root_T_odom.position.to_np()[0], 1.0)
 
 
 def test_robot_specification_applies_the_drive_velocity_limits_it_is_given():
@@ -684,11 +684,11 @@ def test_world_specification_with_several_robots():
     assert len(odom_bodies) == 2
     assert odom_bodies[0].name != odom_bodies[1].name
     for odom_body in odom_bodies:
-        assert isinstance(odom_body.parent_connection, Connection6DoF)
+        assert isinstance(odom_body.parent_connection, FixedConnection)
         assert odom_body.parent_connection.parent is world.root
 
     odom_positions = sorted(
-        world.compute_forward_kinematics(world.root, odom_body).to_position().to_np()[0]
+        world.compute_forward_kinematics(world.root, odom_body).position.to_np()[0]
         for odom_body in odom_bodies
     )
     np.testing.assert_allclose(odom_positions, [-1.0, 1.0])
@@ -850,7 +850,7 @@ def test_connection_spec_connect_applies_pose(empty_world):
         child=child,
     )
     root_T_child = empty_world.compute_forward_kinematics(empty_world.root, child)
-    np.testing.assert_allclose(root_T_child.to_position().to_np()[:3], [1, 2, 3])
+    np.testing.assert_allclose(root_T_child.position.to_np()[:3], [1, 2, 3])
 
 
 def test_connection_spec_connect_without_pose_places_the_child_at_the_parent(
@@ -864,7 +864,7 @@ def test_connection_spec_connect_without_pose_places_the_child_at_the_parent(
         empty_world, parent_T_connection=None, child=child
     )
     root_T_child = empty_world.compute_forward_kinematics(empty_world.root, child)
-    np.testing.assert_allclose(root_T_child.to_position().to_np()[:3], [0, 0, 0])
+    np.testing.assert_allclose(root_T_child.position.to_np()[:3], [0, 0, 0])
 
 
 def test_connection_spec_connect_requires_child(empty_world):
@@ -1387,7 +1387,7 @@ def test_nested_part_placement_is_relative_to_whole(empty_world):
         drawer.root, drawer.handle.root
     )
     np.testing.assert_allclose(
-        drawer_T_handle.to_position().to_np()[:3], [0, 0.5, 0], atol=1e-9
+        drawer_T_handle.position.to_np()[:3], [0, 0.5, 0], atol=1e-9
     )
 
 
@@ -1901,12 +1901,6 @@ def test_part_bindings_survive_orm_round_trip():
     assert [binding.field_name for binding in reconstructed.part_bindings] == ["handle"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="ormatic maps no specification-valued field, so a persisted specification "
-    "comes back without its root_specification and with empty part bindings. Remove "
-    "this marker once the generator maps those fields.",
-)
 def test_annotation_specification_survives_orm_round_trip(empty_world):
     reconstructed = to_dao(_drawer_specification_with_handle()).from_dao()
 

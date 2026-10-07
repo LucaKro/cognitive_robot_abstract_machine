@@ -21,6 +21,8 @@ from typing import (
 )
 from uuid import UUID
 
+import numpy as np
+
 from typing_extensions import get_origin, get_args, Generic, TypeVar, Unpack
 
 from krrood.adapters.json_serializer import list_like_classes
@@ -33,7 +35,9 @@ from krrood.utils import get_generic_type_parameters
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
+    GripperAxesNotPerpendicular,
     MoreThanOneBodyHeld,
     NoJointStateWithType,
     NothingHeld,
@@ -41,19 +45,34 @@ from semantic_digital_twin.exceptions import (
     DuplicateRobotAssignmentsError,
     MissingDefaultCameraError,
 )
+from semantic_digital_twin.input_synchronization import InputSynchronizer
+from semantic_digital_twin.robots.exceptions import MissingDriveConnectionError
+from semantic_digital_twin.robots.input_source import (
+    BasePoseSource,
+    JointPositionSource,
+    RobotTopic,
+    SimulatedBasePoseSource,
+    SimulatedJointPositionSource,
+)
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasEndEffector,
+    HasInputSource,
     HasMobileBase,
     HasSensors,
     TGenericEndEffector,
     HasLeftRightArm,
+    TGenericInputSource,
     TGenericSensors,
     RobotPartMixin,
 )
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspPoses, HasRootBody
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Agent
+from semantic_digital_twin.semantic_annotations.mixins import (
+    HasRootBody,
+)
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Agent,
+    Table,
+)
 from semantic_digital_twin.spatial_types import (
-    Quaternion,
     Vector3,
     RotationMatrix,
     HomogeneousTransformationMatrix,
@@ -75,16 +94,21 @@ from semantic_digital_twin.world_description.geometry import (
     VolumetricBoundingBox,
     Scale,
 )
+from semantic_digital_twin.world_description.connection_properties import JointServo
 from semantic_digital_twin.world_description.world_entity import (
     Body,
+    GravityCompensation,
     KinematicStructureEntity,
     Connection,
+    PositionServo,
 )
 from semantic_digital_twin.world_description.world_modification import (
     synchronized_attribute_modification,
 )
 
 if TYPE_CHECKING:
+    from rclpy.node import Node
+
     from semantic_digital_twin.world import World
     from semantic_digital_twin.api import (
         BodySpecification,
@@ -372,9 +396,59 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
             if isinstance(connection, ActiveConnection)
         ]
 
+    def _setup_servos(self) -> None:
+        """
+        Declare the servos driving this part's joints in a physical simulation (see
+        :meth:`_declare_servo`). Does nothing by default: such a part is moved
+        kinematically.
+        """
+
+    def _declare_servo(
+        self, connection: ActiveConnection1DOF, servo: JointServo
+    ) -> None:
+        """
+        Drive one of this part's joints with a position servo in a physical simulation:
+        the servo's gains become a
+        :class:`~semantic_digital_twin.world_description.world_entity.PositionServo`
+        actuator on the joint's degree of freedom, its dynamics the joint's own.
+
+        A joint that follows another joint's degree of freedom, such as a gripper's
+        mimic joints, gets the dynamics but no actuator of its own: the servo already
+        driving that degree of freedom drives it too.
+
+        :param connection: The joint to drive.
+        :param servo: What drives it.
+        """
+        connection.dynamics = servo.dynamics
+        if any(
+            connection.raw_dof in actuator.dofs for actuator in self._world.actuators
+        ):
+            return
+        actuator = PositionServo(
+            name=PrefixedName(
+                f"{connection.raw_dof.name.name}_servo",
+                prefix=connection.raw_dof.name.prefix,
+            ),
+            gains=servo.gains,
+        )
+        actuator.add_dof(connection.raw_dof)
+        self._world.add_actuator(actuator)
+
+    def _compensate_gravity(self) -> None:
+        """
+        Let a physical simulation carry the weight of this part's bodies, as a servoed
+        part holds its own weight.
+        """
+        for body in self.bodies:
+            compensation = body.get_simulator_property_of_type(GravityCompensation)
+            if compensation is None:
+                body.add_simulator_property(GravityCompensation(fraction=1.0))
+                continue
+            compensation.fraction = 1.0
+
 
 @dataclass(eq=False)
-class KinematicChain(AbstractRobotPart, ABC):
+class KinematicChain(AbstractRobotPart, HasInputSource[JointPositionSource], ABC):
     """
     A kinematic chain is a robot part that consists of a chain of bodies and connections
     between them.
@@ -387,6 +461,36 @@ class KinematicChain(AbstractRobotPart, ABC):
     """
     The body at the end of the kinematic chain.
     """
+
+    source: TGenericInputSource = field(
+        default_factory=SimulatedJointPositionSource, kw_only=True
+    )
+    """
+    Where the positions of this chain's joints come from.
+    """
+
+    @classproperty
+    def topic_name(cls) -> str:
+        """
+        The topic a robot publishes the positions of its joints on.
+        """
+        return RobotTopic.JOINT_STATES
+
+    @classmethod
+    def simulated_source(cls) -> JointPositionSource:
+        return SimulatedJointPositionSource()
+
+    def real_source(self, node: Node) -> JointPositionSource:
+        from semantic_digital_twin.adapters.ros.input_synchronization import (
+            PendingJointPositionSource,
+        )
+
+        return PendingJointPositionSource(
+            world=self._world,
+            node=node,
+            topic_name=self.topic_name,
+            connections=self.active_connections,
+        )
 
     def _kinematic_structure_entities(
         self, visited: Set[int]
@@ -439,9 +543,7 @@ class KinematicChain(AbstractRobotPart, ABC):
             dist = (
                 connection.dof.limits.upper.position
                 if isinstance(connection, PrismaticConnection)
-                else parent_pose.to_position().euclidean_distance(
-                    child_pose.to_position()
-                )
+                else parent_pose.position.euclidean_distance(child_pose.position)
             )
             length += dist
         return length
@@ -460,11 +562,6 @@ class Sensor(AbstractRobotPart, ABC):
 class Camera(Sensor, ABC):
     """
     A camera is a sensor that captures images of the environment.
-    """
-
-    forward_facing_axis: Vector3 = field(kw_only=True)
-    """
-    The axis of the camera that is facing forward, expressed in the camera's root frame.
     """
 
     field_of_view: FieldOfView = field(kw_only=True)
@@ -490,9 +587,12 @@ class Camera(Sensor, ABC):
     The maximal height of the camera above the ground, in meters.
     """
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.forward_facing_axis.reference_frame = self.root
+    @property
+    @abstractmethod
+    def forward_facing_axis(self) -> Vector3:
+        """
+        The direction the camera looks, expressed in :attr:`root`'s frame.
+        """
 
     @property
     def root_T_forward_view(self) -> HomogeneousTransformationMatrix:
@@ -503,12 +603,18 @@ class Camera(Sensor, ABC):
         The y and z axes only complete the frame and carry no meaning.
         """
         root_T_camera = self.root.global_transform
-        root_V_forward = root_T_camera.to_rotation_matrix() @ self.forward_facing_axis
+        root_V_forward = root_T_camera.rotation_matrix @ self.forward_facing_axis
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            point=root_T_camera.to_position(),
+            point=root_T_camera.position,
             rotation_matrix=RotationMatrix.from_x_axis(root_V_forward),
             reference_frame=root_T_camera.reference_frame,
         )
+
+
+TCamera = TypeVar("TCamera", bound=Camera)
+"""
+A kind of camera.
+"""
 
 
 @dataclass(eq=False)
@@ -540,29 +646,46 @@ class EndEffector(AbstractRobotPart, ABC):
     Usually the point the robot tries to align with the object.
     """
 
-    front_facing_orientation: Quaternion = field(kw_only=True)
-    """
-    The orientation of the end_effector's tool frame, which is usually the front-facing
-    orientation.
-
-    Read as ``grasp_R_tool``: it rotates the tool frame into the grasp frame
-    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspPoses.grasp_poses`
-    describes, whose x-axis is the direction the gripper travels toward the object.
-    """
-
-    front_facing_axis: Vector3 = field(init=False)
-    """
-    The direction the gripper travels toward an object, in the tool frame's own
-    coordinates.
-    """
-
     def __post_init__(self):
         super().__post_init__()
-        tool_R_grasp = RotationMatrix.from_quaternion(
-            self.front_facing_orientation
-        ).inverse()
-        self.front_facing_axis = Vector3.from_iterable(
-            (tool_R_grasp @ Vector3.X()).to_np()[:3]
+        approach = self.approach_axis.to_np()[:3]
+        closing = self.closing_axis.to_np()[:3]
+        if not np.isclose(float(approach @ closing), 0.0, atol=1e-6):
+            raise GripperAxesNotPerpendicular(self)
+
+    @property
+    @abstractmethod
+    def approach_axis(self) -> Vector3:
+        """
+        The direction the gripper travels toward an object, expressed in
+        :attr:`tool_frame`.
+
+        It is the x-axis of the grasp frame
+        :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`
+        describes.
+        """
+
+    @property
+    @abstractmethod
+    def closing_axis(self) -> Vector3:
+        """
+        The axis the fingers close along, expressed in :attr:`tool_frame`.
+
+        It is the y-axis of the grasp frame
+        :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`
+        describes, and has to be perpendicular to :attr:`approach_axis`.
+        """
+
+    @property
+    def tool_R_grasp(self) -> RotationMatrix:
+        """
+        The grasp frame's orientation in :attr:`tool_frame`, spanned by
+        :attr:`approach_axis` and :attr:`closing_axis`.
+        """
+        return RotationMatrix.from_vectors(
+            x=self.approach_axis,
+            y=self.closing_axis,
+            reference_frame=self.tool_frame,
         )
 
     def tool_frame_goal(self, grasp_pose: Pose) -> Pose:
@@ -575,20 +698,17 @@ class EndEffector(AbstractRobotPart, ABC):
         :param grasp_pose: The grasp frame to reach.
         :return: The pose the tool frame has to reach, in ``grasp_pose``'s frame.
         """
-        grasp_R_tool = RotationMatrix.from_quaternion(self.front_facing_orientation)
+        grasp_R_tool = self.tool_R_grasp.inverse()
         return Pose(
-            position=grasp_pose.to_position(),
-            orientation=(
-                grasp_pose.to_rotation_matrix() @ grasp_R_tool
-            ).to_quaternion(),
+            position=grasp_pose.position,
+            orientation=(grasp_pose.rotation_matrix @ grasp_R_tool).quaternion,
             reference_frame=grasp_pose.reference_frame,
         )
 
     @property
     def held_body(self) -> Optional[Body]:
         """
-        The body hanging off the tool frame. If in the future we need this to return
-        the semantic annotation of the body, we should update it.
+        The body hanging off the tool frame.
 
         :raises MoreThanOneBodyHeld: If the tool frame has more than one child, since
             there is then no single body the gripper holds.
@@ -604,10 +724,8 @@ class EndEffector(AbstractRobotPart, ABC):
     @property
     def held_body_T_grasp(self) -> Pose:
         """
-        The grasp this gripper has on the body it is holding.
-
-        The body hangs off the tool frame, so the transform between the two *is* the
-        grasp that was achieved, whatever it was and wherever on the body it sits.
+        The grasp this gripper has on the body it holds, read off the transform between
+        the tool frame and that body.
 
         :return: The grasp frame, in :attr:`held_body`'s frame.
         """
@@ -615,85 +733,12 @@ class EndEffector(AbstractRobotPart, ABC):
         if body is None:
             raise NothingHeld(self)
         body_T_tool = self._world.transform(self.tool_frame.global_transform, body)
-        body_R_grasp = (
-            body_T_tool.to_rotation_matrix()
-            @ RotationMatrix.from_quaternion(self.front_facing_orientation).inverse()
-        )
+        body_R_grasp = body_T_tool.rotation_matrix @ self.tool_R_grasp
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            point=body_T_tool.to_position(),
+            point=body_T_tool.position,
             rotation_matrix=body_R_grasp,
             reference_frame=body,
-        ).to_pose()
-
-    def grasp_on(self, body: Body) -> Optional[Pose]:
-        """
-        The grasp this gripper has on ``body``.
-
-        :param body: The body asked about.
-        :return: :attr:`held_body_T_grasp`, or ``None`` when ``body`` is not the body
-            this gripper holds.
-        """
-        if self.held_body is not body:
-            return None
-        return self.held_body_T_grasp
-
-    def distance_to_grasp(
-        self,
-        grasp_pose: Pose,
-        misalignment_lever_arm: float = 0.1,
-    ) -> float:
-        """
-        How far this gripper is from being able to close on a grasp.
-
-        Two lengths in one: the Euclidean distance from the tool frame to the grasp,
-        plus what it costs to arrive facing the right way. A grasp is entered along its
-        own x-axis, so one whose x-axis disagrees with the line from the gripper to it
-        has to be entered from the side, and one that disagrees by more than a right
-        angle from behind the object (priced at ``misalignment_lever_arm`` per radian
-        of disagreement).
-
-        Roll about that axis is not counted, since turning the wrist about the direction
-        it already travels along costs the arm little.
-
-        ..note:: A geometric ranking, not a reachability test.
-
-        :param grasp_pose: The grasp frame to reach.
-        :param misalignment_lever_arm: How many meters of reach one radian between the
-            approach direction and the way to the grasp is worth.
-        :return: The distance in meters.
-        """
-        world_T_goal = self._world.transform(
-            self.tool_frame_goal(grasp_pose).to_homogeneous_matrix(), self._world.root
-        )
-        world_T_tool = self.tool_frame.global_transform
-        world_V_travel = world_T_goal.to_position() - world_T_tool.to_position()
-        travelled = float(world_V_travel.norm())
-        if not travelled:
-            return 0.0
-        world_V_approach = world_T_goal.to_rotation_matrix() @ self.front_facing_axis
-        return travelled + misalignment_lever_arm * float(
-            world_V_approach.angle_between(world_V_travel)
-        )
-
-    def grasp_poses_by_distance(
-        self,
-        graspable: HasGraspPoses,
-        misalignment_lever_arm: float = 0.1,
-    ) -> List[Pose]:
-        """
-        The grasps an object offers, the ones this gripper is closest to first.
-
-        :param graspable: The object to be grasped.
-        :param misalignment_lever_arm: How many meters of reach one radian between the
-            approach direction and the way to the grasp is worth.
-        :return: Its grasp frames, ordered by :meth:`distance_to_grasp`.
-        """
-        return sorted(
-            graspable.grasp_poses(),
-            key=lambda grasp_pose: self.distance_to_grasp(
-                grasp_pose, misalignment_lever_arm
-            ),
-        )
+        ).pose
 
     @property
     def held_bodies(self) -> list[Body]:
@@ -742,7 +787,30 @@ TGenericDrive = TypeVar("TGenericDrive", bound=WheeledDrive)
 
 
 @dataclass(eq=False)
-class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
+class MountingTable(Table, AbstractRobotPart, ABC):
+    """
+    The table a stationary robot is bolted onto: the robot's base and, at the same
+    time, a table objects can stand on, with everything the :class:`Table` annotation
+    offers such as its supporting surface.
+    """
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(root=robot_root)
+
+
+@dataclass(eq=False)
+class MobileBase(
+    AbstractRobotPart, Generic[TGenericDrive], HasInputSource[BasePoseSource], ABC
+):
     """
     The base of a robot.
 
@@ -757,12 +825,50 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
     If False, only the robot will always stand still when moving an arm.
     """
 
+    source: TGenericInputSource = field(
+        default_factory=SimulatedBasePoseSource, kw_only=True
+    )
+    """
+    Where the pose of this base comes from.
+    """
+
+    @classmethod
+    def simulated_source(cls) -> BasePoseSource:
+        return SimulatedBasePoseSource()
+
+    def real_source(self, node: Node) -> BasePoseSource:
+        """
+        :raises MissingDriveConnectionError: If there is no drive the odometry could be
+            written into.
+        """
+        from semantic_digital_twin.adapters.ros.input_synchronization import (
+            SubscribedBasePoseSource,
+        )
+
+        robot = self._robot
+        drive = robot.drive if robot is not None else None
+        if drive is None:
+            raise MissingDriveConnectionError(robot_part=self)
+        return SubscribedBasePoseSource(
+            world=self._world, node=node, topic_name=self.topic_name, connection=drive
+        )
+
     @classproperty
     @abstractmethod
     def forward_axis(cls) -> Vector3:
         """
         The axis of this base that points where the robot faces.
         """
+
+    @property
+    def base_R_front(self) -> RotationMatrix:
+        """
+        The rotation from this base's own axes to the frame whose x-axis is its front.
+
+        A heading says where the front should point as its x-axis, so this is what turns
+        one into a base pose and, inverted the other way, reads one back off a base pose.
+        """
+        return RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
 
     def pose_facing(self, heading: Pose) -> Pose:
         """
@@ -772,12 +878,11 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         its x-axis, so the same heading serves bases modelled with different axes. Its
         position is kept as it is.
         """
-        base_R_forward = RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            heading.to_position(),
-            heading.to_rotation_matrix() @ base_R_forward.inverse(),
+            heading.position,
+            heading.rotation_matrix @ self.base_R_front.inverse(),
             reference_frame=heading.reference_frame,
-        ).to_pose()
+        ).pose
 
     @classmethod
     def get_drive_connection_type(cls) -> Type[TGenericDrive]:
@@ -793,6 +898,15 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         return self.root.collision.as_bounding_box_collection_in_frame(
             self._world.root
         ).bounding_box()
+
+    @property
+    def base_radius(self) -> float:
+        """
+        Approximates the radius of the mobile base, as the average between the radius in the x and y axis.
+
+        :return: The approximate radius of the mobile base, in meters.
+        """
+        return (self.bounding_box.depth / 2 + self.bounding_box.width / 2) / 2
 
 
 @dataclass(eq=False)
@@ -865,14 +979,8 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
     @property
     def is_in_collision(self) -> bool:
         """
-        :return: Whether any body of this robot has come closer to something than the
-            collision rules currently in force allow.
-
-        A pair is watched from further away than it may approach, so a contact being
-        reported at all says only that the two are being watched; what makes it a
-        collision is its distance falling to the rules' violated distance. The rules the
-        question is asked under are the caller's to set, so that the same robot can be
-        asked about the clearances of a plan or of a standing pose.
+        :return: Whether any body of this robot is at or below the violated distance the
+            active collision rules set for it.
         """
         own_bodies = set(self.bodies_with_collision)
         collision_manager = self._world.collision_manager
@@ -960,6 +1068,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             for robot_part in self._robot_parts:
                 robot_part.setup_hardware_interfaces()
                 robot_part.add_joint_states(robot_part.setup_joint_states())
+                robot_part._setup_servos()
             self._setup_collision_rules()
             self._setup_velocity_limits()
             return self
@@ -997,7 +1106,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             1. Deepcopy the resulting world to ensure that all parts of the robot are initialized in the correct order
             2. Assert that the copied world is the same as the original world
             3. Assert that the robot semantic annotation has a default camera.
-            4. Call validate method on all robot parts inheriting froma RobotPartMixin
+            4. Check the assumptions of every mixin each robot part combines
 
         :return: True if the robot semantic annotation is valid, False otherwise.
         """
@@ -1061,7 +1170,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
         if pose.reference_frame is not parent_kinematic_structure_entity:
             pose = self._world.transform(pose, parent_kinematic_structure_entity)
 
-        connection.origin = pose.to_homogeneous_matrix()
+        connection.origin = pose.homogeneous_matrix
 
     @property
     def _one_dof_connections(self) -> list[ActiveConnection1DOF]:
@@ -1140,14 +1249,76 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
                 new_upper_limits=DerivativeMap(None, scaled_limit, None, None),
             )
 
-    def get_end_effectors(self) -> list[EndEffector]:
-        return [p for p in self._robot_parts if isinstance(p, EndEffector)]
+    @property
+    def all_end_effectors(self) -> list[EndEffector]:
+        """
+        :return: Every end effector of this robot, wherever it sits in the robot's parts.
+        """
+        return [part for part in self._robot_parts if isinstance(part, EndEffector)]
 
-    def get_arms(self) -> list[Arm]:
-        return [p for p in self._robot_parts if isinstance(p, Arm)]
+    @property
+    def all_arms(self) -> list[Arm]:
+        """
+        :return: Every arm of this robot, wherever it sits in the robot's parts.
+        """
+        return [part for part in self._robot_parts if isinstance(part, Arm)]
 
-    def get_sensors(self) -> list[Sensor]:
-        return [p for p in self._robot_parts if isinstance(p, Sensor)]
+    @property
+    def all_sensors(self) -> list[Sensor]:
+        """
+        :return: Every sensor of this robot, wherever it sits in the robot's parts.
+        """
+        return [part for part in self._robot_parts if isinstance(part, Sensor)]
+
+    # %% where the parts of this robot are read from
+
+    @property
+    def _parts_with_input_source(self) -> list[HasInputSource]:
+        """
+        The parts that can be told where they are read from.
+
+        ..note:: Asked for explicitly rather than through a method every part answers,
+            because a method on :class:`AbstractRobotPart` would shadow the mixin's.
+        """
+        return [
+            robot_part
+            for robot_part in self._robot_parts
+            if isinstance(robot_part, HasInputSource)
+        ]
+
+    def use_real_sources(self, node: Node) -> None:
+        """
+        Read every part that declares a topic from what this robot publishes there.
+
+        Parts that declare no topic keep reading the world they stand in.
+
+        :param node: The ros node the messages are received on.
+        """
+        for robot_part in self._parts_with_input_source:
+            if robot_part.topic_name is None:
+                continue
+            robot_part.use_real_source(node)
+
+    def use_simulated_sources(self) -> None:
+        """
+        Read every part of this robot from the world it stands in again.
+        """
+        for robot_part in self._parts_with_input_source:
+            robot_part.use_simulated_source()
+
+    def get_input_synchronizers(self) -> list[InputSynchronizer]:
+        """
+        :return: The inputs a loop has to apply to keep this robot's parts on what the
+            real robot reports.
+
+        A part read from the world it stands in needs nothing applied, so a fully
+        simulated robot has no inputs.
+        """
+        return [
+            robot_part.source
+            for robot_part in self._parts_with_input_source
+            if isinstance(robot_part.source, InputSynchronizer)
+        ]
 
     def get_torso(self):
         [torso] = [p for p in self._robot_parts if isinstance(p, Torso)]

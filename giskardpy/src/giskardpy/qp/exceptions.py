@@ -4,11 +4,11 @@ Exceptions raised while building and solving the quadratic program.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from typing_extensions import TYPE_CHECKING, Type
 
-from giskardpy.data_types.exceptions import GiskardException, DontPrintStackTrace
+from giskardpy.data_types.exceptions import GiskardException
 
 if TYPE_CHECKING:
     from giskardpy.qp.constraint import GiskardConstraint
@@ -56,6 +56,24 @@ class InfeasibleException(QPSolverException):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class QuadraticObjectiveUnsupportedError(QPSolverException):
+    """
+    Raised when a linear program solver is given a problem with a quadratic objective.
+    """
+
+    solver_name: str
+    """
+    The name of the solver that only accepts linear objectives.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.solver_name} only solves linear programs, but the problem has non-zero quadratic weights."
+
+    def suggest_correction(self) -> str:
+        return "Use a quadratic program solver for this problem."
 
 
 @dataclass
@@ -128,10 +146,12 @@ class HardConstraintsViolatedException(InfeasibleException):
 
 
 @dataclass
-class EmptyProblemException(InfeasibleException, DontPrintStackTrace):
+class EmptyProblemException(InfeasibleException):
     """
     Raised when the QP problem has no free variables.
     """
+
+    print_stack_trace: bool = field(default=False, kw_only=True)
 
     def error_message(self) -> str:
         return "Empty QP problem."
