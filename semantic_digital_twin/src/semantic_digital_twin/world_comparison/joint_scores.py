@@ -19,7 +19,6 @@ from functools import cached_property
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import linear_sum_assignment
 
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -27,7 +26,10 @@ from semantic_digital_twin.spatial_types import (
     Vector3,
 )
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_comparison.matching import BodyCorrespondence
+from semantic_digital_twin.world_comparison.matching import (
+    BodyCorrespondence,
+    pairs_sharing_the_most,
+)
 from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
     FixedConnection,
@@ -461,41 +463,17 @@ class JointScorer:
         """
         :return: The one-to-one pairs of pieces that share the most matched surface.
         """
-        shared = np.zeros(
-            (len(reconstructed_groups.groups), len(ground_truth_groups.groups))
+        shared = correspondence.matched_samples_between(
+            [group.bodies for group in ground_truth_groups.groups],
+            [group.bodies for group in reconstructed_groups.groups],
         )
-        reconstructed_index = {
-            id(group): index for index, group in enumerate(reconstructed_groups.groups)
-        }
-        ground_truth_index = {
-            id(group): index for index, group in enumerate(ground_truth_groups.groups)
-        }
-        reconstructed_surfaces = correspondence.overlap_table.reconstructed_surfaces
-        for match in correspondence.matches:
-            sample_count = len(
-                reconstructed_surfaces.surface_of(
-                    match.reconstructed_body
-                ).ground_truth_root_P_samples
-            )
-            shared[
-                reconstructed_index[
-                    id(reconstructed_groups.group_of(match.reconstructed_body))
-                ],
-                ground_truth_index[
-                    id(ground_truth_groups.group_of(match.ground_truth_body))
-                ],
-            ] += (
-                match.overlap * sample_count
-            )
-        rows, columns = linear_sum_assignment(-shared)
         return [
             GroupMatch(
                 ground_truth_group=ground_truth_groups.groups[column],
                 reconstructed_group=reconstructed_groups.groups[row],
                 shared_samples=int(round(shared[row, column])),
             )
-            for row, column in zip(rows, columns)
-            if shared[row, column] > 0
+            for row, column in pairs_sharing_the_most(shared)
         ]
 
     def _add_pair(self, evaluation: JointEvaluation, group_match: GroupMatch) -> None:

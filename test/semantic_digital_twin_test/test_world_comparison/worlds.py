@@ -10,6 +10,12 @@ from semantic_digital_twin.api import (
     RevoluteConnectionSpecification,
     WorldSpecification,
 )
+from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Cabinet,
+    Drawer,
+    Handle,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Vector3
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world_description.degree_of_freedom import (
@@ -152,5 +158,107 @@ class CabinetScene:
                 parent_T_self=self.root_T_scene
                 @ HomogeneousTransformationMatrix.from_xyz_rpy(y=1.0),
                 child_specifications=[drawer] if self.has_drawer else [],
+            ),
+        )
+
+
+@dataclass
+class AnnotatedCabinetScene:
+    """
+    A cabinet with a drawer in its front and a handle on the drawer, each body carrying
+    a semantic annotation, with the drawer a part of the cabinet and the handle a part
+    of the drawer.
+
+    The bodies always stand in the same place; only their annotations and how those are
+    related change, so two scenes differ in their semantics alone.
+    """
+
+    cabinet_type: type[HasRootBody] = Cabinet
+    """
+    The class of the cabinet's annotation.
+    """
+
+    drawer_type: type[HasRootBody] | None = Drawer
+    """
+    The class of the drawer's annotation, or ``None`` for a drawer body without one.
+    """
+
+    drawer_field: str = "drawers"
+    """
+    The part-whole field of the cabinet the drawer's annotation fills.
+    """
+
+    handle_type: type[HasRootBody] = Handle
+    """
+    The class of the handle's annotation.
+    """
+
+    handle_is_part: bool = True
+    """
+    Whether the handle's annotation is a part of the drawer's, rather than standing
+    alone.
+    """
+
+    has_handle: bool = True
+    """
+    Whether the drawer has its handle at all.
+    """
+
+    root_T_scene: HomogeneousTransformationMatrix = field(
+        default_factory=HomogeneousTransformationMatrix
+    )
+    """
+    Where the whole scene stands in the world's root frame.
+    """
+
+    def create_world(self) -> World:
+        """
+        :return: A new world holding the scene.
+        """
+        cabinet_T_drawer = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.32)
+        drawer_T_handle = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.03)
+        handle_specifications = {}
+        objects = []
+        if self.has_handle and self.handle_is_part and self.drawer_type is not None:
+            handle_specifications = {"handle": self._handle(drawer_T_handle)}
+        elif self.has_handle:
+            objects.append(
+                self._handle(self.root_T_scene @ cabinet_T_drawer @ drawer_T_handle)
+            )
+        drawer_body = BodySpecification.box(
+            "drawer", scale=Scale(0.02, 0.5, 0.25), parent_T_self=cabinet_T_drawer
+        )
+        cabinet_body = BodySpecification.box(
+            "cabinet", scale=Scale(0.6, 0.6, 0.6), parent_T_self=self.root_T_scene
+        )
+        if self.drawer_type is None:
+            cabinet_body.child_specifications = [drawer_body]
+            cabinet_parts = {}
+        else:
+            cabinet_parts = {
+                self.drawer_field: [
+                    self.drawer_type.get_annotation_specification(
+                        "drawer",
+                        drawer_body,
+                        part_specifications=handle_specifications,
+                    )
+                ]
+            }
+        objects.append(
+            self.cabinet_type.get_annotation_specification(
+                "cabinet", cabinet_body, part_specifications=cabinet_parts
+            )
+        )
+        return WorldSpecification(objects=objects).to_domain_object()
+
+    def _handle(self, parent_T_handle: HomogeneousTransformationMatrix):
+        """
+        :return: The specification of the handle's annotation, posed relative to its
+            parent.
+        """
+        return self.handle_type.get_annotation_specification(
+            "handle",
+            BodySpecification.box(
+                "handle", scale=Scale(0.02, 0.2, 0.03), parent_T_self=parent_T_handle
             ),
         )

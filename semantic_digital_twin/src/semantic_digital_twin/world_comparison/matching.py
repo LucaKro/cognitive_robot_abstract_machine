@@ -164,6 +164,68 @@ class BodyCorrespondence:
             return None
         return len(self.matches) / (len(self.matches) + errors / 2)
 
+    def matched_samples_between(
+        self,
+        ground_truth_body_sets: list[list[Body]],
+        reconstructed_body_sets: list[list[Body]],
+    ) -> npt.NDArray[np.float64]:
+        """
+        Measure how much matched surface sets of bodies of the two worlds share, such as
+        the bodies of two rigid pieces or the bodies two annotations stand on.
+
+        :param ground_truth_body_sets: Sets of ground truth bodies; a body may be in
+            several of them.
+        :param reconstructed_body_sets: Sets of reconstructed bodies; a body may be in
+            several of them.
+        :return: For each reconstructed set (row) and ground truth set (column), how
+            many samples of the reconstructed set's bodies lie on the ground truth
+            bodies of the set they are matched to.
+        """
+        shared = np.zeros((len(reconstructed_body_sets), len(ground_truth_body_sets)))
+        reconstructed_sets = _sets_holding_each_body(reconstructed_body_sets)
+        ground_truth_sets = _sets_holding_each_body(ground_truth_body_sets)
+        for match in self.matches:
+            sample_count = len(
+                self.overlap_table.reconstructed_surfaces.surface_of(
+                    match.reconstructed_body
+                ).ground_truth_root_P_samples
+            )
+            shared[
+                np.ix_(
+                    reconstructed_sets.get(id(match.reconstructed_body), []),
+                    ground_truth_sets.get(id(match.ground_truth_body), []),
+                )
+            ] += (
+                match.overlap * sample_count
+            )
+        return shared
+
+
+def _sets_holding_each_body(body_sets: list[list[Body]]) -> dict[int, list[int]]:
+    """
+    :return: For the identity of each body, the indices of the sets it is in.
+    """
+    sets_holding: dict[int, list[int]] = {}
+    for index, bodies in enumerate(body_sets):
+        for body in bodies:
+            sets_holding.setdefault(id(body), []).append(index)
+    return sets_holding
+
+
+def pairs_sharing_the_most(
+    shared: npt.NDArray[np.float64],
+) -> list[tuple[int, int]]:
+    """
+    Pair rows with columns one to one so the pairs share the most in total.
+
+    :param shared: How much each row shares with each column.
+    :return: The paired row and column indices, leaving out pairs that share nothing.
+    """
+    rows, columns = linear_sum_assignment(-shared)
+    return [
+        (row, column) for row, column in zip(rows, columns) if shared[row, column] > 0
+    ]
+
 
 # %% overlap table
 

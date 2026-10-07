@@ -191,6 +191,12 @@ class WorldSurfaces:
         """
         return self._surface_by_body[id(body)]
 
+    def has_surface(self, body: Body) -> bool:
+        """
+        :return: Whether the body has a sampled surface here.
+        """
+        return id(body) in self._surface_by_body
+
     @cached_property
     def search_tree(self) -> cKDTree:
         """
