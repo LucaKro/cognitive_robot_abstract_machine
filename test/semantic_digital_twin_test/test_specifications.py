@@ -25,6 +25,8 @@ from semantic_digital_twin.api import (
 )
 from krrood.ormatic.data_access_objects.helper import to_dao
 
+from .test_adapters.test_mjcf import VISUAL_ONLY_GEOM_SCENE
+
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     InvalidPlaneDimensions,
@@ -35,8 +37,10 @@ from semantic_digital_twin.exceptions import (
     PartWholeFieldInAnnotationKwargs,
     UnknownPartWholeRelationshipField,
     UselessConceptError,
+    DriveVelocityLimitsOnUndrivenRobot,
 )
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.robot_parts import AbstractRobotPart
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Cabinet,
@@ -139,7 +143,7 @@ def test_body_and_connection_pose_and_name_override(empty_world):
     body = spec.spawn(empty_world, name="renamed")
     assert body.name == PrefixedName("renamed")
     root_T_body = empty_world.compute_forward_kinematics(empty_world.root, body)
-    np.testing.assert_allclose(root_T_body.to_position().to_np()[:3], [1, 2, 3])
+    np.testing.assert_allclose(root_T_body.position.to_np()[:3], [1, 2, 3])
 
 
 def test_body_and_connection_spawn_arg_overrides_stored_pose(empty_world):
@@ -150,7 +154,7 @@ def test_body_and_connection_spawn_arg_overrides_stored_pose(empty_world):
         parent_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(x=5),
     )
     root_T_body = empty_world.compute_forward_kinematics(empty_world.root, body)
-    np.testing.assert_allclose(root_T_body.to_position().to_np()[0], 5)
+    np.testing.assert_allclose(root_T_body.position.to_np()[0], 5)
 
 
 def test_body_and_connection_active(empty_world):
@@ -296,6 +300,25 @@ def test_world_specification_from_mjcf_environment():
     assert world.root is not None
 
 
+def test_world_specification_from_mjcf_keeps_visual_only_geoms_out_of_collision():
+    pytest.importorskip("mujoco")
+    world = WorldSpecification.from_mjcf(VISUAL_ONLY_GEOM_SCENE).to_domain_object()
+
+    shelf = world.get_body_by_name("shelf")
+    assert len(shelf.visual.shapes) == 1
+    assert len(shelf.collision.shapes) == 0
+
+
+def test_world_specification_from_mjcf_collides_every_geom_when_asked():
+    pytest.importorskip("mujoco")
+    world = WorldSpecification.from_mjcf(
+        VISUAL_ONLY_GEOM_SCENE, use_visual_as_collision_backup=True
+    ).to_domain_object()
+
+    shelf = world.get_body_by_name("shelf")
+    assert len(shelf.collision.shapes) == 1
+
+
 def test_world_specification_from_gazebo_environment():
     world = WorldSpecification.from_gazebo(
         os.path.join(RESOURCES, "gazebo", "mini_warehouse", "worlds", "mini.world"),
@@ -360,7 +383,7 @@ def test_shape_constructors_apply_parent_T_self(empty_world, make_spec):
     pose = HomogeneousTransformationMatrix.from_xyz_rpy(x=1, y=2, z=3)
     entity = make_spec(pose).spawn(empty_world)
     root_T_entity = empty_world.compute_forward_kinematics(empty_world.root, entity)
-    np.testing.assert_allclose(root_T_entity.to_position().to_np()[:3], [1, 2, 3])
+    np.testing.assert_allclose(root_T_entity.position.to_np()[:3], [1, 2, 3])
 
 
 def test_body_specification_from_3d_points_matches_direct_construction():
@@ -553,7 +576,62 @@ def test_world_specification_with_robot():
     assert isinstance(drive, OmniDrive)
 
     root_T_odom = world.compute_forward_kinematics(world.root, odom_body)
-    np.testing.assert_allclose(root_T_odom.to_position().to_np()[0], 1.0)
+    np.testing.assert_allclose(root_T_odom.position.to_np()[0], 1.0)
+
+
+def test_robot_specification_applies_the_drive_velocity_limits_it_is_given():
+    translation_velocity_limits = 0.1
+    rotation_velocity_limits = 0.2
+    try:
+        world = WorldSpecification(
+            world_parser=None,
+            robots=[
+                RobotSpecification(
+                    semantic_annotation_type=PR2,
+                    drive_translation_velocity_limits=translation_velocity_limits,
+                    drive_rotation_velocity_limits=rotation_velocity_limits,
+                )
+            ],
+        ).to_domain_object()
+    except ParsingError as error:
+        pytest.skip(f"PR2 URDF not available: {error}")
+
+    drive = world.get_body_by_name("base_footprint").parent_connection
+    assert drive.x_velocity.limits.upper.velocity == translation_velocity_limits
+    assert drive.x_velocity.limits.lower.velocity == -translation_velocity_limits
+    assert drive.yaw.limits.upper.velocity == rotation_velocity_limits
+    assert drive.yaw.limits.lower.velocity == -rotation_velocity_limits
+
+
+def test_robot_specification_keeps_the_drives_own_velocity_limits_by_default():
+    drive_defaults = inspect.signature(OmniDrive.create_with_dofs).parameters
+    try:
+        world = WorldSpecification(
+            world_parser=None,
+            robots=[RobotSpecification(semantic_annotation_type=PR2)],
+        ).to_domain_object()
+    except ParsingError as error:
+        pytest.skip(f"PR2 URDF not available: {error}")
+
+    drive = world.get_body_by_name("base_footprint").parent_connection
+    assert (
+        drive.x_velocity.limits.upper.velocity
+        == drive_defaults["translation_velocity_limits"].default
+    )
+    assert (
+        drive.yaw.limits.upper.velocity
+        == drive_defaults["rotation_velocity_limits"].default
+    )
+
+
+def test_robot_specification_rejects_drive_velocity_limits_for_an_undriven_robot(
+    empty_world,
+):
+    with pytest.raises(DriveVelocityLimitsOnUndrivenRobot):
+        RobotSpecification(
+            semantic_annotation_type=MinimalRobot,
+            drive_translation_velocity_limits=0.1,
+        ).spawn(empty_world)
 
 
 def test_world_specification_from_urdf_with_robot():
@@ -610,7 +688,7 @@ def test_world_specification_with_several_robots():
         assert odom_body.parent_connection.parent is world.root
 
     odom_positions = sorted(
-        world.compute_forward_kinematics(world.root, odom_body).to_position().to_np()[0]
+        world.compute_forward_kinematics(world.root, odom_body).position.to_np()[0]
         for odom_body in odom_bodies
     )
     np.testing.assert_allclose(odom_positions, [-1.0, 1.0])
@@ -772,7 +850,7 @@ def test_connection_spec_connect_applies_pose(empty_world):
         child=child,
     )
     root_T_child = empty_world.compute_forward_kinematics(empty_world.root, child)
-    np.testing.assert_allclose(root_T_child.to_position().to_np()[:3], [1, 2, 3])
+    np.testing.assert_allclose(root_T_child.position.to_np()[:3], [1, 2, 3])
 
 
 def test_connection_spec_connect_without_pose_places_the_child_at_the_parent(
@@ -786,7 +864,7 @@ def test_connection_spec_connect_without_pose_places_the_child_at_the_parent(
         empty_world, parent_T_connection=None, child=child
     )
     root_T_child = empty_world.compute_forward_kinematics(empty_world.root, child)
-    np.testing.assert_allclose(root_T_child.to_position().to_np()[:3], [0, 0, 0])
+    np.testing.assert_allclose(root_T_child.position.to_np()[:3], [0, 0, 0])
 
 
 def test_connection_spec_connect_requires_child(empty_world):
@@ -1309,7 +1387,7 @@ def test_nested_part_placement_is_relative_to_whole(empty_world):
         drawer.root, drawer.handle.root
     )
     np.testing.assert_allclose(
-        drawer_T_handle.to_position().to_np()[:3], [0, 0.5, 0], atol=1e-9
+        drawer_T_handle.position.to_np()[:3], [0, 0.5, 0], atol=1e-9
     )
 
 

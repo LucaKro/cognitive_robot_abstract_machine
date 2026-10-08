@@ -192,8 +192,8 @@ class TruncatedGaussianDistribution(
     @property
     def standardized_bounds(self) -> Tuple[float, float]:
         """
-        The bounds of the interval, measured in standard deviations from the location.
-        This is how :data:`scipy.stats.truncnorm` expects them.
+        :return: The bounds of the interval in standard deviations from the location,
+            as :data:`scipy.stats.truncnorm` expects them.
         """
         return (
             (self.lower - self.location) / self.scale,
@@ -203,7 +203,7 @@ class TruncatedGaussianDistribution(
     @property
     def truncated_normal(self) -> rv_frozen:
         """
-        This distribution as a frozen :data:`scipy.stats.truncnorm` distribution.
+        :return: This distribution as a frozen :data:`scipy.stats.truncnorm` distribution.
         """
         lower, upper = self.standardized_bounds
         return truncnorm(lower, upper, loc=self.location, scale=self.scale)
@@ -238,6 +238,10 @@ class TruncatedGaussianDistribution(
         Calculate the moment about the center as the raw moment of the distribution
         shifted by the center. This avoids expanding it into raw moments of the
         unshifted distribution, whose differences cancel far in the tails.
+
+        :param order: The order of the moment for the variable of this distribution.
+        :param center: The center of the moment for the variable of this distribution.
+        :return: The moment for the variable of this distribution.
         """
         lower, upper = self.standardized_bounds
         moment = truncnorm.moment(
@@ -248,6 +252,23 @@ class TruncatedGaussianDistribution(
             scale=self.scale,
         )
         return VariableMap({self.variable: moment})
+
+    def log_conditional_from_simple_interval_if_not_singleton(
+        self, interval: SimpleInterval
+    ) -> Tuple[Optional[ContinuousDistribution], float]:
+        """
+        Truncate this distribution to the intersection of its interval and the given
+        one.
+
+        :param interval: The simple interval, which is not a singleton.
+        :return: The truncated distribution and the log-probability of the interval.
+        """
+        intersection = self.interval.intersection_with(interval)
+        if intersection.is_empty():
+            return None, -np.inf
+        return super().log_conditional_from_simple_interval_if_not_singleton(
+            intersection
+        )
 
     def __eq__(self, other):
         return super().__eq__(other) and self.interval == other.interval

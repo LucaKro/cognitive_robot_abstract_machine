@@ -201,7 +201,6 @@ class KitchenEnvironment:
         """
         Adds furniture items and room layouts to the scene graph.
         """
-
         # Angular velocity limit of a hinged door in rad/s.
         # Taken from the revolute joint limits of the apartment description in ``iai_apartment``,
         # which uses this value for every one of its hinged doors.
@@ -365,11 +364,7 @@ class KitchenEnvironment:
             drawer_world_pose = (
                 fridge_pose
                 @ HomogeneousTransformationMatrix.from_xyz_rpy(
-                    x=(
-                        -fridge_length / 2
-                        - door_thickness / 2
-                        + drawer_depth / 2
-                    ),
+                    x=(-fridge_length / 2 - door_thickness / 2 + drawer_depth / 2),
                     z=(
                         -fridge_height / 2
                         + fridge_drawer_floor_gap
@@ -421,10 +416,7 @@ class KitchenEnvironment:
                         + fridge_base_facing_setback
                         + fridge_base_facing_thickness / 2
                     ),
-                    z=(
-                        -fridge_drawer_height / 2
-                        - fridge_drawer_floor_gap / 2
-                    ),
+                    z=(-fridge_drawer_height / 2 - fridge_drawer_floor_gap / 2),
                 ),
                 scale=Scale(
                     x=fridge_base_facing_thickness,
@@ -567,9 +559,7 @@ class KitchenEnvironment:
             module_1_door_thickness = 0.02
             module_1_door_gap = 0.005
             module_1_door_height = (
-                counter_cabinet_height
-                - module_1_face_plate_height
-                - module_1_door_gap
+                counter_cabinet_height - module_1_face_plate_height - module_1_door_gap
             )
             module_1_door_center_height = (
                 module_1_door_height - counter_cabinet_height
@@ -1283,14 +1273,10 @@ class KitchenEnvironment:
             sideboard_top_left_overhang = 0.098
             sideboard_top_back_overhang = 0.104
             sideboard_top_right_overhang = (
-                sideboard_top_length
-                - sideboard_length
-                - sideboard_top_left_overhang
+                sideboard_top_length - sideboard_length - sideboard_top_left_overhang
             )
             sideboard_top_front_overhang = (
-                sideboard_top_width
-                - sideboard_width
-                - sideboard_top_back_overhang
+                sideboard_top_width - sideboard_width - sideboard_top_back_overhang
             )
             sideboard_top_x_offset = (
                 sideboard_top_back_overhang - sideboard_top_front_overhang
@@ -1397,10 +1383,7 @@ class KitchenEnvironment:
                         + sideboard_base_facing_setback
                         + sideboard_front_panel_thickness / 2
                     ),
-                    z=(
-                        -sideboard_height / 2
-                        + sideboard_base_facing_height / 2
-                    ),
+                    z=(-sideboard_height / 2 + sideboard_base_facing_height / 2),
                 ),
                 scale=Scale(
                     x=sideboard_front_panel_thickness,
@@ -1447,10 +1430,7 @@ class KitchenEnvironment:
                     name=f"sideboard_upper_face_plate_{column_index}",
                     world_root_T_self=sideboard_pose
                     @ HomogeneousTransformationMatrix.from_xyz_rpy(
-                        x=(
-                            -sideboard_width / 2
-                            + sideboard_front_panel_thickness / 2
-                        ),
+                        x=(-sideboard_width / 2 + sideboard_front_panel_thickness / 2),
                         y=y_offset,
                         z=(
                             sideboard_height / 2

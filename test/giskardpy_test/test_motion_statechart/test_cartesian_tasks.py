@@ -29,8 +29,10 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
 )
+from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
+    HoldPose,
     CartesianOrientation,
     CartesianPosition,
     CartesianPositionStraight,
@@ -45,6 +47,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.spatial_types import (
+    AxisAngle,
     HomogeneousTransformationMatrix,
     Vector3,
     Point3,
@@ -75,6 +78,95 @@ from test.giskardpy_test.test_motion_statechart.debug_expression_helpers import 
     debug_expression_by_name,
 )
 from semantic_digital_twin.robots.pr2 import PR2Joint
+
+# %% holding a pose
+
+
+class TestHoldPose:
+    """
+    Tests for holding a link where it is, rather than moving it to a goal.
+    """
+
+    def test_a_held_link_stays_where_it_was(self, cylinder_bot_world: World):
+        """
+        A link is held against a task that pulls at it, so the constraints have to be
+        real ones rather than a preference the solver can trade away.
+        """
+        bot = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
+        start = cylinder_bot_world.compute_forward_kinematics_np(
+            cylinder_bot_world.root, bot
+        ).copy()
+        motion_statechart = MotionStatechart()
+        motion_statechart.add_nodes(
+            [
+                CartesianPosition(
+                    root_link=cylinder_bot_world.root,
+                    tip_link=bot,
+                    goal_point=Point3(1, 0, 0, reference_frame=cylinder_bot_world.root),
+                    weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
+                ),
+                HoldPose(
+                    root_link=cylinder_bot_world.root,
+                    tip_link=bot,
+                    weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
+                ),
+            ]
+        )
+        motion_statechart.add_node(EndMotion())
+
+        executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
+        executor.compile(motion_statechart=motion_statechart)
+        for _ in range(100):
+            executor.tick()
+
+        reached = cylinder_bot_world.compute_forward_kinematics_np(
+            cylinder_bot_world.root, bot
+        )
+        assert np.linalg.norm(reached[:3, 3] - start[:3, 3]) < 1e-3
+
+    def test_a_held_pose_is_not_watched_for_progress(self, cylinder_bot_world: World):
+        """
+        Holding a link is an invariant, not a goal being approached, so a stall monitor
+        must not count it among the tasks whose progress decides whether a motion is
+        getting anywhere.
+        """
+        bot = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
+        goal = CartesianPosition(
+            root_link=cylinder_bot_world.root,
+            tip_link=bot,
+            goal_point=Point3(1, 0, 0, reference_frame=cylinder_bot_world.root),
+        )
+        hold = HoldPose(root_link=cylinder_bot_world.root, tip_link=bot)
+        together = Parallel([goal, hold])
+        progressing = StillProgressing(monitored_node=together)
+        motion_statechart = MotionStatechart()
+        motion_statechart.add_nodes([together, progressing])
+        motion_statechart.add_node(EndMotion())
+
+        executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
+        executor.compile(motion_statechart=motion_statechart)
+
+        assert progressing.monitored_tasks == [goal]
+
+    def test_a_held_pose_does_not_hold_up_the_motion_it_runs_alongside(
+        self, cylinder_bot_world: World
+    ):
+        """
+        A held pose has no goal to reach, so it must report itself satisfied: a motion
+        that ends once everything under it reached its goal would otherwise never end.
+        """
+        bot = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
+        hold = HoldPose(root_link=cylinder_bot_world.root, tip_link=bot)
+        motion_statechart = MotionStatechart()
+        motion_statechart.add_node(hold)
+        motion_statechart.add_node(EndMotion())
+
+        executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
+        executor.compile(motion_statechart=motion_statechart)
+        executor.tick()
+
+        assert hold.goal_reached_state == ObservationStateValues.TRUE
+
 
 # %% straight line paths
 
@@ -209,8 +301,7 @@ class TestCartesianPositionTrajectory:
             world.notify_state_change()
             p = (
                 world.compute_forward_kinematics(root_link, tip_link)
-                .to_position()
-                .evaluate()[:-1]
+                .position.evaluate()[:-1]
                 .astype(float)
             )
             executed_points.append(p.copy())
@@ -633,7 +724,7 @@ class TestCartesianTasks:
             atol=cart_goal.translation_threshold,
         )
 
-    def test_front_facing_orientation(self, _hsr_world_setup: World):
+    def test_grasp_frame_orientation(self, _hsr_world_setup: World):
         """
         Test combined position and orientation control in parallel.
         """
@@ -654,7 +745,7 @@ class TestCartesianTasks:
         hsr = _hsr_world_setup.get_semantic_annotations_by_type(HSRB)[0]
         hand = _hsr_world_setup.get_semantic_annotations_by_type(EndEffector)[0]
         motion_statechart = MotionStatechart()
-        orientation_goal = hand.front_facing_orientation.to_rotation_matrix()
+        orientation_goal = hand.tool_R_grasp.inverse()
         orientation_goal.reference_frame = _hsr_world_setup.get_body_by_name(
             "base_footprint"
         )
@@ -671,7 +762,7 @@ class TestCartesianTasks:
                         tip_link=hand.tool_frame,
                         goal_point=_hsr_world_setup.bodies[
                             -1
-                        ].global_transform.to_position(),
+                        ].global_transform.position,
                     ),
                 ]
             )
@@ -796,7 +887,9 @@ class TestCartesianTasks:
             "odom_combined"
         )
 
-        tip_goal = RotationMatrix.from_axis_angle(Vector3.Z(), 4.0, reference_frame=tip)
+        tip_goal = RotationMatrix.from_axis_angle(
+            AxisAngle(Vector3.Z(), 4.0, reference_frame=tip)
+        )
 
         motion_statechart = MotionStatechart()
         cart_goal = CartesianOrientation(
@@ -983,10 +1076,10 @@ class TestCartesianTasks:
         initial_fk = pr2_world_state_reset.compute_forward_kinematics_np(root, tip)
 
         tip_rot1 = RotationMatrix.from_axis_angle(
-            Vector3.Z(), np.pi / 6, reference_frame=tip
+            AxisAngle(Vector3.Z(), np.pi / 6, reference_frame=tip)
         )
         tip_rot2 = RotationMatrix.from_axis_angle(
-            Vector3.Z(), -np.pi / 6, reference_frame=tip
+            AxisAngle(Vector3.Z(), -np.pi / 6, reference_frame=tip)
         )
 
         motion_statechart = MotionStatechart()
@@ -1037,10 +1130,10 @@ class TestCartesianTasks:
         )
 
         tip_rot1 = RotationMatrix.from_axis_angle(
-            Vector3.Z(), np.pi / 6, reference_frame=tip
+            AxisAngle(Vector3.Z(), np.pi / 6, reference_frame=tip)
         )
         tip_rot2 = RotationMatrix.from_axis_angle(
-            Vector3.Z(), -np.pi / 6, reference_frame=tip
+            AxisAngle(Vector3.Z(), -np.pi / 6, reference_frame=tip)
         )
 
         motion_statechart = MotionStatechart()
