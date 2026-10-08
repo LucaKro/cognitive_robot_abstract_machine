@@ -228,7 +228,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         Carry the bowl and then the spoon to the table.
         """
         world = context.world
-        right_arm = context.robot.right_arm
+        right_arm = context.robot.get_right_arm_if_specified()
 
         return sequential(
             [

@@ -259,6 +259,21 @@ def _base_holding_tasks(motion_chart, robot):
     ]
 
 
+@pytest.fixture
+def full_body_controlled_pr2(pr2_apartment_context):
+    """
+    The PR2 apartment context with the PR2 allowed to move its whole body, restored
+    afterwards: the robot is shared between tests and the world snapshot does not cover
+    this setting.
+    """
+    world, view, context = pr2_apartment_context
+    with world.modify_world():
+        view.mobile_base.full_body_controlled = True
+    yield world, view, context
+    with world.modify_world():
+        view.mobile_base.full_body_controlled = False
+
+
 def _motion_task(motion_chart, robot):
     """
     :return: The task the motion is built around, set apart from the one holding the
@@ -296,14 +311,12 @@ def test_an_arm_motion_holds_the_base_of_a_robot_that_stands_still(pr2_apartment
     assert hold_base.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
 
 
-def test_an_arm_motion_leaves_a_full_body_controlled_base_free(pr2_apartment_context):
+def test_an_arm_motion_leaves_a_full_body_controlled_base_free(full_body_controlled_pr2):
     """
     A robot that may move its whole body drives while it reaches, so its base is not
     held.
     """
-    world, view, context = pr2_apartment_context
-    with world.modify_world():
-        view.mobile_base.full_body_controlled = True
+    world, view, context = full_body_controlled_pr2
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
@@ -803,7 +816,7 @@ def test_looking_motion_pointing_parameters(pr2_apartment_context):
     motion = LookingMotion(target=target, camera=camera)
     execute_single(motion, context=context)
 
-    pointing = motion.motion_chart
+    pointing = _motion_task(motion.motion_chart, view)
 
     assert isinstance(pointing, Pointing)
     assert pointing.root_link is view.get_torso().root
@@ -814,6 +827,37 @@ def test_looking_motion_pointing_parameters(pr2_apartment_context):
     assert pointing.pointing_axis.reference_frame is camera.root
     assert pointing.goal_point.reference_frame is world.root
     assert np.array_equal(pointing.goal_point.to_np(), target.position.to_np())
+
+
+def test_looking_holds_the_base_of_a_robot_that_stands_still(pr2_apartment_context):
+    """
+    The look's goal is bound relative to the torso when the motion starts, so a base
+    that collision avoidance pushes afterwards carries the goal along and the head
+    points past the target.
+    """
+    world, view, context = pr2_apartment_context
+    assert not view.mobile_base.full_body_controlled
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = LookingMotion(target=target, camera=view.get_default_camera())
+    execute_single(motion, context=context)
+
+    [hold_base] = _base_holding_tasks(motion.motion_chart, view)
+    assert hold_base.root_link == world.root
+    assert hold_base.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
+
+
+def test_looking_leaves_a_full_body_controlled_base_free(full_body_controlled_pr2):
+    """
+    A robot that may move its whole body is not held while it looks.
+    """
+    world, view, context = full_body_controlled_pr2
+    target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+
+    motion = LookingMotion(target=target, camera=view.get_default_camera())
+    execute_single(motion, context=context)
+
+    assert _base_holding_tasks(motion.motion_chart, view) == []
 
 
 # %% stretch tool center point
