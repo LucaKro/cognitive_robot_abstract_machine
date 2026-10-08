@@ -8,7 +8,6 @@ from typing_extensions import Any, Dict
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
-    and_,
     variable_from,
     ConditionType,
 )
@@ -36,7 +35,7 @@ from semantic_digital_twin.world_description.connections import ActiveConnection
 
 
 @dataclass
-class ContainerAction(ActionDescription):
+class ContainerAction(ActionDescription, HasApproachesGraspPoses):
     """
     Moves a container like object by its handle.
 
@@ -53,11 +52,6 @@ class ContainerAction(ActionDescription):
     arm: Arm
     """
     Arm that should be used.
-    """
-
-    approach_clearance: float = HasApproachesGraspPoses.approach_clearance
-    """
-    The gap in meters between the handle and the gripper before it closes on it.
     """
 
     release_clearance: float = 0.05
@@ -83,9 +77,7 @@ class ContainerAction(ActionDescription):
         :param end_effector: The end effector that held it.
         :return: The pose the tool frame backs off to, in ``grasp_pose``'s frame.
         """
-        return HasApproachesGraspPoses.standoff_pose(
-            grasp_pose, end_effector, self.release_clearance
-        )
+        return self.pre_grasp_pose(grasp_pose, end_effector, self.release_clearance)
 
     @property
     def _action_plan(self) -> PlanNode:
@@ -141,9 +133,9 @@ class OpenAction(ContainerAction):
         The gripper is clear of the handle by then, so what it holds says nothing about
         whether the container was opened.
         """
-        open_connection = kwargs[
-            "handle"
-        ].root.get_first_parent_connection_of_type(ActiveConnection1DOF)
+        open_connection = kwargs["handle"].root.get_first_parent_connection_of_type(
+            ActiveConnection1DOF
+        )
 
         return variable_from(open_connection).position > 0.3
 

@@ -1,53 +1,13 @@
 from dataclasses import dataclass, field
 
 import numpy as np
-from typing_extensions import List, Optional
+from typing_extensions import Optional
 
 
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.tasks.cartesian_tasks import HoldPose
-from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
-
-
-@dataclass
-class KeepsBaseStill:
-    """
-    Holds the base of a robot that does not move its whole body.
-
-    Shared by the motions that reach for something and by the probe that judges whether
-    they can, so a standing pose is judged under the conditions the reach is performed
-    in.
-    """
-
-    def keep_base_still(self) -> List[MotionStatechartNode]:
-        """
-        :return: The task holding the robot's base where it stands, empty when the robot
-            may move its whole body.
-
-        A base that is not full body controlled stands still while an arm moves, so it is
-        held rather than left for another task to command. The goal of a reach is
-        expressed relative to the robot's own root and bound when the motion starts, so a
-        base that moves afterwards carries the goal with it and the arm arrives where the
-        object no longer is. Collision avoidance is what otherwise moves it, buying
-        clearance by drifting the base.
-        """
-        robot = self.robot
-        if (
-            not isinstance(robot, HasMobileBase)
-            or robot.mobile_base.full_body_controlled
-        ):
-            return []
-        return [
-            HoldPose(
-                name="hold base",
-                root_link=self.world.root,
-                tip_link=robot.root,
-            )
-        ]
 
 
 @dataclass
@@ -356,7 +316,7 @@ class HasApproachesGraspPoses:
         """
         tool_goal = end_effector.tool_frame_goal(reference_T_grasp)
         return GraspPoseSequence(
-            pre_grasp=self.standoff_pose(
+            pre_grasp=self.pre_grasp_pose(
                 reference_T_grasp, end_effector, self._approach_distance(grasp)
             ),
             grasp=tool_goal,
@@ -364,20 +324,20 @@ class HasApproachesGraspPoses:
         )
 
     @staticmethod
-    def standoff_pose(
+    def pre_grasp_pose(
         reference_T_grasp: Pose, end_effector: EndEffector, distance: float
     ) -> Pose:
         """
-        Stand a tool frame goal off along the direction the gripper approaches from.
+        The tool frame goal back along the direction the gripper approaches a grasp from.
 
         :param reference_T_grasp: The grasp frame, whose x-axis is the approach.
         :param end_effector: The end effector that reaches it.
-        :param distance: How far back along the approach direction to stand, in meters.
-        :return: The stood off tool frame goal, in ``reference_T_grasp``'s frame.
+        :param distance: How far back along the approach direction, in meters.
+        :return: The tool frame goal, in ``reference_T_grasp``'s frame.
         """
-        grasp_T_standoff = HomogeneousTransformationMatrix.from_xyz_rpy(x=-distance)
+        grasp_T_pre_grasp = HomogeneousTransformationMatrix.from_xyz_rpy(x=-distance)
         return end_effector.tool_frame_goal(
-            (reference_T_grasp.homogeneous_matrix @ grasp_T_standoff).pose
+            (reference_T_grasp.homogeneous_matrix @ grasp_T_pre_grasp).pose
         )
 
     def _approach_distance(self, grasp: Optional[GraspCandidate]) -> float:

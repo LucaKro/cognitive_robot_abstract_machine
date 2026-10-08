@@ -106,16 +106,6 @@ class MJCFParser(WorldModelParser):
     the URDF limit.
     """
 
-    use_visual_as_collision_backup: bool = False
-    """
-    Whether a body whose geoms are all excluded from contact through ``contype=0`` and
-    ``conaffinity=0`` collides with those geoms instead.
-
-    Use this when the scene keeps its collision geometry in a file that is not loaded,
-    so the geoms that are present have to stand in for it. A body that already takes
-    part in contact is left alone.
-    """
-
     def __post_init__(self):
         if self.prefix is None:
             self.prefix = os.path.basename(self.file_path).split(".")[0]
@@ -247,6 +237,10 @@ class MJCFParser(WorldModelParser):
         """
         Parse geoms of a Mujoco body and attach them as visual/collision shapes to a
         Body.
+
+        A body counts as having no collision geometry when every one of its geoms is
+        excluded from contact through ``contype=0`` and ``conaffinity=0``, which is when
+        :attr:`use_visual_as_collision_backup` lets those geoms collide instead.
 
         :param mujoco_body: The Mujoco body whose geoms to parse.
         :param body: The semdt Body to attach the shapes to.

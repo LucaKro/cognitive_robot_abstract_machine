@@ -131,15 +131,6 @@ class URDFParser(WorldModelParser):
     The path resolver to use for resolving URIs in the URDF file.
     """
 
-    use_visual_as_collision_backup: bool = False
-    """
-    Whether a link that describes no collision geometry collides with its visual
-    geometry instead.
-
-    Cosmetic parts such as covers are often drawn but never described for contact, which
-    leaves them invisible to collision checking even though they bound the real shape.
-    """
-
     def __post_init__(self):
         self.urdf = hacky_urdf_parser_fix(self.urdf)
         self.parsed = urdfpy.URDF.from_xml_string(self.urdf)
@@ -347,7 +338,6 @@ class URDFParser(WorldModelParser):
         visuals = self.parse_geometry(link.visuals, body)
         collisions = self.parse_geometry(link.collisions, body)
         if not collisions.shapes and self.use_visual_as_collision_backup:
-            # Parsed again rather than reused, so the two collections never share shapes.
             collisions = self.parse_geometry(link.visuals, body)
         body.visual = visuals
         body.collision = collisions

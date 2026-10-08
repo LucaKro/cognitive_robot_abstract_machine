@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 from giskardpy.middleware.ros2.command_publishing import MultiDOFCommandFormat
 from giskardpy.middleware.ros2.robot_interface_config import RobotInterfaceConfig
@@ -9,72 +10,19 @@ from giskardpy.middleware.ros2.scripts.tools.interactive_marker import (
 )
 from giskardpy.model.world_config import WorldWithOmniDriveRobot
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.robots.garmi import Garmi
+from semantic_digital_twin.robots.garmi import Garmi, GarmiJoint
 from semantic_digital_twin.world_description.connections import OmniDrive
 
-GARMI_LEFT_ARM_JOINTS = [
-    "left_fr3_joint1",
-    "left_fr3_joint2",
-    "left_fr3_joint3",
-    "left_fr3_joint4",
-    "left_fr3_joint5",
-    "left_fr3_joint6",
-    "left_fr3_joint7",
-]
-"""
-Names of the seven left FR3 arm joints, ordered from base to tip.
-"""
 
-GARMI_RIGHT_ARM_JOINTS = [
-    "right_fr3_joint1",
-    "right_fr3_joint2",
-    "right_fr3_joint3",
-    "right_fr3_joint4",
-    "right_fr3_joint5",
-    "right_fr3_joint6",
-    "right_fr3_joint7",
-]
-"""
-Names of the seven right FR3 arm joints, ordered from base to tip.
-"""
+class GarmiInteractiveMarkerChain(Enum):
+    """
+    The kinematic chains controllable via interactive markers.
+    """
 
-GARMI_FINGER_JOINTS = [
-    "left_fr3_finger_joint1",
-    "left_fr3_finger_joint2",
-    "right_fr3_finger_joint1",
-    "right_fr3_finger_joint2",
-]
-"""
-Names of the two finger joints of each FR3 gripper.
-"""
-
-GARMI_WHEEL_JOINTS = [
-    "front_left_wheel_joint",
-    "front_right_wheel_joint",
-    "rear_left_wheel_joint",
-    "rear_right_wheel_joint",
-]
-"""
-Names of the four mecanum wheel joints of the base.
-"""
-
-GARMI_HEAD_JOINTS = ["o1_motor_1", "o1_motor_2"]
-"""
-Names of the head pan and tilt joints.
-"""
-
-GARMI_LIFT_JOINTS = ["lift_0_lower_joint", "lift_0_upper_joint"]
-"""
-Names of the two prismatic torso lift joints.
-"""
-
-GARMI_INTERACTIVE_MARKER_CHAINS = [
-    RootTipPair(root_link="arm_mount_left_link", tip_link="left_fr3_hand_tcp"),
-    RootTipPair(root_link="map", tip_link="right_fr3_hand_tcp"),
-]
-"""
-The kinematic chains controllable via interactive markers.
-"""
+    LEFT_ARM = RootTipPair(
+        root_link="arm_mount_left_link", tip_link="left_fr3_hand_tcp"
+    )
+    RIGHT_ARM = RootTipPair(root_link="map", tip_link="right_fr3_hand_tcp")
 
 
 @dataclass
@@ -101,12 +49,13 @@ class GarmiStandaloneInterface(RobotInterfaceConfig):
     def setup(self) -> None:
         self.register_controlled_joints(
             [
-                *GARMI_WHEEL_JOINTS,
-                *GARMI_LIFT_JOINTS,
-                *GARMI_HEAD_JOINTS,
-                *GARMI_LEFT_ARM_JOINTS,
-                *GARMI_RIGHT_ARM_JOINTS,
-                *GARMI_FINGER_JOINTS,
+                *GarmiJoint.wheels(),
+                *GarmiJoint.lift(),
+                *GarmiJoint.head(),
+                *GarmiJoint.left_arm(),
+                *GarmiJoint.right_arm(),
+                *GarmiJoint.left_fingers(),
+                *GarmiJoint.right_fingers(),
                 self.world.get_connections_by_type(OmniDrive)[0].name,
             ]
         )
@@ -127,11 +76,11 @@ class GarmiVelocityInterface(RobotInterfaceConfig):
 
         self.add_joint_velocity_group_controller(
             cmd_topic="/garmi/arms/left_arm_joint_velocity_controller/reference",
-            connections=GARMI_LEFT_ARM_JOINTS,
+            connections=GarmiJoint.left_arm(),
             command_format=MultiDOFCommandFormat(),
         )
         self.add_joint_velocity_group_controller(
             cmd_topic="/garmi/arms/right_arm_joint_velocity_controller/reference",
-            connections=GARMI_RIGHT_ARM_JOINTS,
+            connections=GarmiJoint.right_arm(),
             command_format=MultiDOFCommandFormat(),
         )

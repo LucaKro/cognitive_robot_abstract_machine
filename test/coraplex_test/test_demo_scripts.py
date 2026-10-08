@@ -136,4 +136,4 @@ def test_garmi_demonstration_pins_the_draws_its_locations_make(rclpy_node):
     context = demonstration.build_context(demonstration.build_simulated_world())
     demonstration.ros_session.stop()
 
-    assert context.sampling_seed == demo_module.SAMPLING_SEED
+    assert context.sampling_seed == demo_module.SamplingSeed.REPEATABLE
