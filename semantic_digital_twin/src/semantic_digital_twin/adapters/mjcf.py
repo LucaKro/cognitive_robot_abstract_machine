@@ -31,7 +31,6 @@ from semantic_digital_twin.spatial_types import (
     Point3,
     Vector3,
 )
-from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world import World, Body
 from semantic_digital_twin.world_description.connection_properties import JointDynamics
 from semantic_digital_twin.world_description.connections import (
@@ -676,19 +675,13 @@ class MJCFParser(WorldModelParser):
                     name=PrefixedName(dof_name),
                 )
             else:
-                lower_limits = DerivativeMap()
-                lower_limits.position = float(mujoco_joint.range[0])
-                upper_limits = DerivativeMap()
-                upper_limits.position = float(mujoco_joint.range[1])
-
-                # MJCF has no velocity limit on a joint, so fall back to a default.
-                lower_limits.velocity = -self.default_joint_velocity_limit
-                upper_limits.velocity = self.default_joint_velocity_limit
-
                 dof = DegreeOfFreedom(
                     name=PrefixedName(dof_name),
-                    limits=DegreeOfFreedomLimits(
-                        lower=lower_limits, upper=upper_limits
+                    # MJCF has no velocity limit on a joint, so a default is supplied.
+                    limits=DegreeOfFreedomLimits.from_position_range_and_speed(
+                        lower_position=float(mujoco_joint.range[0]),
+                        upper_position=float(mujoco_joint.range[1]),
+                        maximum_speed=self.default_joint_velocity_limit,
                     ),
                 )
             self.world.add_degree_of_freedom(dof)
