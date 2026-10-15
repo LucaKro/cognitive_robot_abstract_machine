@@ -7,7 +7,6 @@ from datetime import timedelta
 import numpy as np
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
-from rclpy.node import Node
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
@@ -39,6 +38,7 @@ from coraplex.exceptions import (
 from coraplex.ros import create_action_client
 
 if TYPE_CHECKING:
+    from rclpy.node import Node
     from robokudo_msgs.msg import ObjectDesignator
 
 ROBOKUDO_QUERY_ACTION_NAME = "robokudo/query"
