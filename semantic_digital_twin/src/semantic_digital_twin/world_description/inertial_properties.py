@@ -197,6 +197,22 @@ class InertiaTensor(NPMatrix3x3):
         data = axes @ moments.as_matrix() @ axes.T()
         return InertiaTensor(data=data.data)
 
+    def is_positive_semidefinite(self) -> bool:
+        """
+        :return: Whether no principal moment is negative, as a physical inertia tensor
+            requires.
+        """
+        return bool(np.linalg.eigvalsh(self.data).min() >= 0.0)
+
+    def nearest_positive_semidefinite(self) -> InertiaTensor:
+        """
+        :return: The positive semidefinite tensor nearest to this one, with every
+            negative principal moment raised to zero and the principal axes kept.
+        """
+        eigenvalues, eigenvectors = np.linalg.eigh(self.data)
+        clipped = np.clip(eigenvalues, 0.0, None)
+        return InertiaTensor(data=eigenvectors @ np.diag(clipped) @ eigenvectors.T)
+
     def to_principal_moments_and_axes(
         self, sorted_array: Optional[NDArray] = None
     ) -> Tuple[PrincipalMoments, PrincipalAxes]:

@@ -408,6 +408,12 @@ class BodyConverter(KinematicStructureEntityConverter, ABC):
             mass = inertial.mass
             inertia_pos = inertial.center_of_mass.to_np()[:3]
             inertia = inertial.inertia
+            if not inertia.is_positive_semidefinite():
+                logger.warning(
+                    f"{entity.name.name} declares an inertia tensor with a negative "
+                    f"principal moment; using the nearest positive semidefinite one."
+                )
+                inertia = inertia.nearest_positive_semidefinite()
             principal_moments, principal_axes = inertia.to_principal_moments_and_axes()
             diagonal_inertia = principal_moments.data
             inertia_quat = principal_axes.to_rotation_matrix().quaternion.to_np()

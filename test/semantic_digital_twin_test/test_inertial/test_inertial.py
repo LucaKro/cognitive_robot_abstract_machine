@@ -107,3 +107,24 @@ class TestComponentsAndAssembly:
                     axes_out.data @ np.diag(moments_out.data) @ axes_out.data.T
                 )
                 assert_allclose(sorted_tensor, expected_tensor, atol=1e-12)
+
+
+def test_the_nearest_positive_semidefinite_tensor_clips_negative_moments():
+    tensor = InertiaTensor.from_values(0.001, 0.001, 0.001, 0.002, 0.0, 0.0)
+    eigenvalues, eigenvectors = np.linalg.eigh(tensor.data)
+
+    nearest = tensor.nearest_positive_semidefinite()
+
+    assert not tensor.is_positive_semidefinite()
+    assert nearest.is_positive_semidefinite()
+    assert_allclose(
+        nearest.data,
+        eigenvectors @ np.diag(np.clip(eigenvalues, 0.0, None)) @ eigenvectors.T,
+    )
+
+
+def test_a_positive_semidefinite_tensor_is_its_own_nearest():
+    tensor = InertiaTensor.from_values(0.003, 0.002, 0.001, 0.0005, 0.0, 0.0)
+
+    assert tensor.is_positive_semidefinite()
+    assert_allclose(tensor.nearest_positive_semidefinite().data, tensor.data)

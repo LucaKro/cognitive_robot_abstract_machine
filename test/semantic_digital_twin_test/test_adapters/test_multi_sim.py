@@ -617,6 +617,31 @@ def test_a_body_whose_inertia_breaks_the_triangle_inequality_still_builds(tmp_pa
     assert first + second >= third
 
 
+def test_a_body_whose_inertia_tensor_is_not_physical_still_builds(tmp_path):
+    """
+    Some robot descriptions declare inertia tensors with a negative principal moment
+    (the TIAGo's antenna links); building must still produce a loadable model.
+    """
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        link = Body(
+            name=PrefixedName("link"),
+            inertial=Inertial(
+                mass=0.1,
+                inertia=InertiaTensor.from_values(0.001, 0.001, 0.001, 0.002, 0, 0),
+            ),
+        )
+        world.add_kinematic_structure_entity(link)
+        world.add_connection(FixedConnection(parent=root, child=link))
+    file_path = tmp_path / "scene.xml"
+
+    MujocoBuilder().build_world(world=world, file_path=str(file_path))
+
+    assert min(mujoco.MjModel.from_xml_path(str(file_path)).body("link").inertia) >= 0
+
+
 def test_contact_declarations_and_gravity_compensation_survive_a_round_trip(tmp_path):
     """
     A shape's contact parameters and a body's gravity compensation are written into the
