@@ -1,8 +1,13 @@
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 from scipy.spatial.transform import Rotation as R
 
 from semantic_digital_twin.spatial_types import RotationMatrix, Vector3
+from semantic_digital_twin.world_description.exceptions import (
+    AsymmetricInertiaTensorError,
+    NegativeInertiaDiagonalError,
+)
 from semantic_digital_twin.world_description.inertial_properties import (
     InertiaTensor,
     PrincipalMoments,
@@ -128,3 +133,34 @@ def test_a_positive_semidefinite_tensor_is_its_own_nearest():
 
     assert tensor.is_positive_semidefinite()
     assert_allclose(tensor.nearest_positive_semidefinite().data, tensor.data)
+
+
+def test_the_nearest_positive_semidefinite_tiny_tensor_has_principal_moments():
+    """
+    The TIAGo's antenna links are this light; projecting their tensor leaves a zero
+    moment that the eigendecomposition may round to a tiny negative value.
+    """
+    tensor = InertiaTensor.from_values(
+        ixx=2.371e-08,
+        iyy=2.833e-08,
+        izz=3.849e-08,
+        ixy=6.119e-08,
+        ixz=1.179e-08,
+        iyz=7.74e-09,
+    )
+
+    moments, _ = tensor.nearest_positive_semidefinite().to_principal_moments_and_axes()
+
+    assert min(moments.data) == 0.0
+
+
+def test_a_tensor_with_a_negative_moment_on_its_diagonal_is_rejected():
+    with pytest.raises(NegativeInertiaDiagonalError):
+        InertiaTensor.from_values(-0.1, 0.1, 0.1, 0.0, 0.0, 0.0)
+
+
+def test_an_asymmetric_tensor_is_rejected():
+    with pytest.raises(AsymmetricInertiaTensorError):
+        InertiaTensor(
+            data=np.array([[1.0, 0.1, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        )

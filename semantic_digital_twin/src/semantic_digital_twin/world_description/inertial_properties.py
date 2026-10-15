@@ -7,7 +7,12 @@ from numpy._typing import NDArray
 from typing_extensions import Self, TypeVar
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.spatial_types import Point3, RotationMatrix
+from semantic_digital_twin.world_description.exceptions import (
+    AsymmetricInertiaTensorError,
+    NegativeInertiaDiagonalError,
+)
 
 
 @dataclass
@@ -138,13 +143,10 @@ class InertiaTensor(NPMatrix3x3):
         super().__post_init__()
         if self.data is None:
             return
-        diag = np.diag(self.data)
-        assert np.all(
-            diag >= 0.0
-        ), "Diagonal elements of inertia tensor must be non-negative"
-        assert np.allclose(
-            self.data, self.data.T, atol=1e-10
-        ), "Inertia tensor must be symmetric"
+        if np.any(np.diag(self.data) < 0.0):
+            raise NegativeInertiaDiagonalError(self.data)
+        if not np.allclose(self.data, self.data.T, atol=self.symmetry_tolerance):
+            raise AsymmetricInertiaTensorError(self.data)
 
     @classmethod
     def from_values(
@@ -170,7 +172,7 @@ class InertiaTensor(NPMatrix3x3):
         )
         return InertiaTensor(data=data)
 
-    def to_values(self) -> Tuple[float, float, float, float, float, float]:
+    def to_values(self) -> tuple[float, float, float, float, float, float]:
         """
         Return the individual components of the inertia tensor.
 
@@ -188,14 +190,35 @@ class InertiaTensor(NPMatrix3x3):
     def from_principal_moments_and_axes(
         cls,
         moments: PrincipalMoments,
-        axes: PrincipalAxes = PrincipalAxes(data=np.eye(3)),
+        axes: PrincipalAxes | None = None,
     ) -> Self:
         """
-        Construct from principal representation:
-        R * I_diag * R^T
+        Construct from principal moments about principal axes.
+
+        :param moments: The principal moments.
+        :param axes: The principal axes, or ``None`` for the frame's own axes.
+        :return: The tensor in the frame the axes are expressed in.
         """
+        if axes is None:
+            axes = PrincipalAxes(data=np.eye(3))
         data = axes @ moments.as_matrix() @ axes.T()
         return InertiaTensor(data=data.data)
+
+    @classproperty
+    def symmetry_tolerance(cls) -> float:
+        """
+        How far two mirrored entries of a tensor may differ and the tensor still count
+        as symmetric.
+        """
+        return 1e-10
+
+    @classproperty
+    def zero_moment_tolerance(cls) -> float:
+        """
+        How far a principal moment may be from zero, relative to the largest moment of
+        the same tensor, and still count as zero.
+        """
+        return 3 * np.finfo(float).eps
 
     def is_positive_semidefinite(self) -> bool:
         """
@@ -214,8 +237,8 @@ class InertiaTensor(NPMatrix3x3):
         return InertiaTensor(data=eigenvectors @ np.diag(clipped) @ eigenvectors.T)
 
     def to_principal_moments_and_axes(
-        self, sorted_array: Optional[NDArray] = None
-    ) -> Tuple[PrincipalMoments, PrincipalAxes]:
+        self, sorted_array: NDArray | None = None
+    ) -> tuple[PrincipalMoments, PrincipalAxes]:
         """
         Decompose inertia tensor into principal moments and axes.
 
@@ -225,6 +248,9 @@ class InertiaTensor(NPMatrix3x3):
         :return: (PrincipalMoments, PrincipalAxes)
         """
         eigenvalues, eigenvectors = np.linalg.eigh(self.data)
+        # A zero moment comes back from the decomposition as round-off of either sign.
+        round_off = self.zero_moment_tolerance * np.abs(eigenvalues).max()
+        eigenvalues[np.abs(eigenvalues) <= round_off] = 0.0
         if sorted_array is not None:
             sorted_indices = np.argsort(np.argsort(sorted_array))
             eigenvalues = eigenvalues[sorted_indices]
