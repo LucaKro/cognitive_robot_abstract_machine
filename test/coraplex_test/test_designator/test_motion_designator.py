@@ -8,11 +8,14 @@ from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
     StretchMoveSim,
     StretchMoveToolCenterPoint,
 )
+from coraplex.alternative_motion_mappings.tiago_motion_mapping import TiagoMoveSim
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
+    ExecutionType,
     MovementType,
 )
 from coraplex.execution_environment import (
+    ExecutionEnvironment,
     PhysicallySimulatedRobot,
     real_robot,
     kinematically_simulated_robot,
@@ -59,6 +62,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
+from semantic_digital_twin.robots.tiago import Tiago
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import Point3, Quaternion
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -985,6 +989,27 @@ def test_stretch_base_motion_follows_the_execution_environment(
 
     with kinematically_simulated_robot:
         assert motion.get_alternative_motion() is StretchMoveSim
+
+
+# %% tiago base motion
+
+
+def test_tiago_base_motion_drives_its_differential_base_in_physics(
+    _tiago_world_setup,
+):
+    """
+    The TIAGo's base cannot move sideways however it is executed, so a physically
+    simulated run drives it with the differential drive goal a kinematic one uses.
+    """
+    world = deepcopy(_tiago_world_setup)
+    robot = world.get_semantic_annotations_by_type(Tiago)[0]
+    context = Context(world, robot, alternative_motion_mappings=[TiagoMoveSim])
+    motion = MoveMotion(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+    execute_single(motion, context=context)
+
+    with ExecutionEnvironment(ExecutionType.PHYSICALLY_SIMULATED):
+        assert motion.get_alternative_motion() is TiagoMoveSim
+        assert isinstance(motion.motion_chart, DifferentialDriveBaseGoal)
 
 
 # %% driving a container's own degree of freedom

@@ -8,9 +8,14 @@ from semantic_digital_twin.robots.tiago import Tiago
 class TiagoMoveSim(MoveMotion, AlternativeMotion[Tiago]):
     """
     Uses a diff drive goal for the tiago base.
+
+    The base cannot move sideways in any simulation, kinematic or physical.
     """
 
-    execution_type = ExecutionType.KINEMATICALLY_SIMULATED
+    execution_type = (
+        ExecutionType.KINEMATICALLY_SIMULATED,
+        ExecutionType.PHYSICALLY_SIMULATED,
+    )
 
     def perform(self):
         return
