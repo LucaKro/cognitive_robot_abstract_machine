@@ -1,0 +1,4 @@
+# The demo's dependencies beyond the workspace packages, at the versions it was made with.
+robosimstudio @ git+https://github.com/robosimstudio/robosimstudio@73739abe212f963e8a9f5862b27bca370df091a7
+imageio[ffmpeg]
+pillow
