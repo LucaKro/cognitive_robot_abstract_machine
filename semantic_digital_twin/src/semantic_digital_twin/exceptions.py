@@ -1833,6 +1833,7 @@ class MujocoError(MultiSimError):
     """
 
 
+@dataclass
 class MujocoEntityNotFoundError(MujocoError):
     """
     Raised when a MuJoCo entity of a given type and name cannot be found.
