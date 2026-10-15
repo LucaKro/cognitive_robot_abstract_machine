@@ -42,6 +42,10 @@ from semantic_digital_twin.world_description.geometry import (
     Mesh,
     Texture,
 )
+from semantic_digital_twin.world_description.inertial_properties import (
+    Inertial,
+    InertiaTensor,
+)
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import (
     Body,
@@ -533,9 +537,11 @@ def test_builder_writes_a_geoms_contact_bitmasks(tmp_path):
         root = Body(name=PrefixedName("root"))
         world.add_body(root)
         box_shape = Box(scale=Scale(1, 1, 1))
-        box_shape.add_simulator_property(MujocoGeom(
-            contact_type=ContactCategories(2), contact_affinity=ContactCategories(4)
-        ))
+        box_shape.add_simulator_property(
+            MujocoGeom(
+                contact_type=ContactCategories(2), contact_affinity=ContactCategories(4)
+            )
+        )
         link = Body(
             name=PrefixedName("link"),
             visual=ShapeCollection([box_shape]),
@@ -555,6 +561,33 @@ def test_builder_writes_a_geoms_contact_bitmasks(tmp_path):
     ]
     assert geom.contype == 2
     assert geom.conaffinity == 4
+
+
+def test_a_bodys_declared_inertial_survives_export_next_to_its_geoms(tmp_path):
+    """
+    A body that has both geoms and a declared inertial must keep the declared mass in
+    the built model, rather than one MuJoCo infers from the geoms' volume.
+    """
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        box_shape = Box(scale=Scale(0.2, 0.2, 0.2))
+        link = Body(
+            name=PrefixedName("link"),
+            collision=ShapeCollection([box_shape]),
+            inertial=Inertial(
+                mass=2.0, inertia=InertiaTensor.from_values(0.01, 0.01, 0.01, 0, 0, 0)
+            ),
+        )
+        world.add_kinematic_structure_entity(link)
+        world.add_connection(FixedConnection(parent=root, child=link))
+    file_path = tmp_path / "scene.xml"
+
+    MujocoBuilder().build_world(world=world, file_path=str(file_path))
+
+    model = mujoco.MjModel.from_xml_path(str(file_path))
+    assert model.body("link").mass[0] == pytest.approx(link.inertial.mass)
 
 
 def test_contact_declarations_and_gravity_compensation_survive_a_round_trip(tmp_path):
@@ -598,9 +631,11 @@ def test_builder_keeps_a_visual_only_geom_contactless_despite_its_bitmasks(tmp_p
         root = Body(name=PrefixedName("root"))
         world.add_body(root)
         box_shape = Box(scale=Scale(1, 1, 1))
-        box_shape.add_simulator_property(MujocoGeom(
-            contact_type=ContactCategories(2), contact_affinity=ContactCategories(4)
-        ))
+        box_shape.add_simulator_property(
+            MujocoGeom(
+                contact_type=ContactCategories(2), contact_affinity=ContactCategories(4)
+            )
+        )
         link = Body(name=PrefixedName("link"), visual=ShapeCollection([box_shape]))
         world.add_kinematic_structure_entity(link)
         world.add_connection(FixedConnection(parent=root, child=link))

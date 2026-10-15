@@ -1910,7 +1910,9 @@ class MujocoBuilder(MultiSimBuilder):
         tree = ET.parse(file_path)
         root = tree.getroot()
         for compiler_element in root.iter("compiler"):
-            compiler_element.set("inertiafromgeom", "true")
+            # Only bodies without an inertial element infer one from their geoms; "true"
+            # would discard the inertial elements written below for every body with geoms.
+            compiler_element.set("inertiafromgeom", "auto")
         for body_id, body_element in enumerate(root.findall(".//body")):
             body_spec = self.spec.bodies[body_id + 1]
             if numpy.isclose(body_spec.mass, 0.0):
