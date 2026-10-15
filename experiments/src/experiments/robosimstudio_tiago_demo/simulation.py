@@ -283,7 +283,7 @@ class RoboSimStudioSimulation:
         simulation_scene.add(
             robosimstudio.StaticSpec(
                 name=RoboSimStudioName.WORLD_ASSET,
-                asset=robosimstudio.AssetSpec(path=str(scene_file)),
+                asset=robosimstudio.AssetSpec(path=str(scene_file.resolve())),
                 world_xform=True,
             )
         )

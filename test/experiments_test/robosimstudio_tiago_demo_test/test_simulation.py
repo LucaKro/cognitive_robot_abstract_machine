@@ -5,6 +5,7 @@ RoboSimStudio stepped by the demonstration's world, and the world reading it bac
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -70,3 +71,17 @@ def test_a_joint_follows_its_commanded_position(simulation: RoboSimStudioSimulat
     assert simulation.simulated_joint_position(TiagoJoint.TORSO_LIFT) == pytest.approx(
         target, abs=0.01
     )
+
+
+# %% building
+
+
+def test_a_simulation_builds_from_a_scene_path_relative_to_the_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    scene_file = Path("output") / "scene.xml"
+
+    simulation = RoboSimStudioSimulation.build(TiagoApartment.build(), scene_file)
+
+    assert BaseJoint.merged_label in simulation.coordinates.position_start
