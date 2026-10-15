@@ -1897,6 +1897,9 @@ class MujocoBuilder(MultiSimBuilder):
         self.spec = mujoco.MjSpec()
         self.spec.modelname = "scene"
         self.spec.compiler.degree = 0
+        # Robot descriptions round their inertia tensors, so a light link's principal
+        # moments can violate A + B >= C, which MuJoCo rejects unless it balances them.
+        self.spec.compiler.balanceinertia = True
         self._thickened_mesh_paths = {}
 
     def _end_build(self, file_path: str):
@@ -1913,6 +1916,9 @@ class MujocoBuilder(MultiSimBuilder):
             # Only bodies without an inertial element infer one from their geoms; "true"
             # would discard the inertial elements written below for every body with geoms.
             compiler_element.set("inertiafromgeom", "auto")
+            # The inertial elements below repeat the declared, unbalanced moments, and
+            # MjSpec.to_file does not write the flag that balances them.
+            compiler_element.set("balanceinertia", "true")
         for body_id, body_element in enumerate(root.findall(".//body")):
             body_spec = self.spec.bodies[body_id + 1]
             if numpy.isclose(body_spec.mass, 0.0):

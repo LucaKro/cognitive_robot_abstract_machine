@@ -590,6 +590,33 @@ def test_a_bodys_declared_inertial_survives_export_next_to_its_geoms(tmp_path):
     assert model.body("link").mass[0] == pytest.approx(link.inertial.mass)
 
 
+def test_a_body_whose_inertia_breaks_the_triangle_inequality_still_builds(tmp_path):
+    """
+    Robot descriptions round their inertia tensors, so the principal moments of a light
+    link can violate A + B >= C, which MuJoCo rejects unless it balances them.
+    """
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        link = Body(
+            name=PrefixedName("link"),
+            inertial=Inertial(
+                mass=0.1, inertia=InertiaTensor.from_values(0.01, 0.01, 0.05, 0, 0, 0)
+            ),
+        )
+        world.add_kinematic_structure_entity(link)
+        world.add_connection(FixedConnection(parent=root, child=link))
+    file_path = tmp_path / "scene.xml"
+
+    MujocoBuilder().build_world(world=world, file_path=str(file_path))
+
+    first, second, third = sorted(
+        mujoco.MjModel.from_xml_path(str(file_path)).body("link").inertia
+    )
+    assert first + second >= third
+
+
 def test_contact_declarations_and_gravity_compensation_survive_a_round_trip(tmp_path):
     """
     A shape's contact parameters and a body's gravity compensation are written into the
