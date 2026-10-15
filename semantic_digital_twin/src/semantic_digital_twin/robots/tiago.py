@@ -5,7 +5,7 @@ import os
 from abc import ABC
 from collections import defaultdict
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import Enum, StrEnum
 from importlib.resources import files
 from pathlib import Path
 from typing import Self, List
@@ -89,6 +89,22 @@ class TiagoJoint(StrEnum):
     RIGHT_ARM_6 = "arm_right_6_joint"
     RIGHT_ARM_7 = "arm_right_7_joint"
     RIGHT_GRIPPER_FINGER = "gripper_right_finger_joint"
+
+
+class Robotiq85FingerPosition(float, Enum):
+    """
+    Positions of a Robotiq 2F-85 finger joint, in radians.
+    """
+
+    OPEN = 0.0
+    """
+    The gripper is fully open.
+    """
+
+    CLOSED = 0.8
+    """
+    The gripper is fully closed; the upper limit of the joint.
+    """
 
 
 @dataclass(eq=False)
@@ -199,17 +215,19 @@ class TiagoLeftGripper(
             connection.has_hardware_interface = True
 
     def setup_joint_states(self) -> List[JointState]:
-        gripper_joints = self.active_connections
+        finger_joint = self._world.get_connection_by_name(
+            TiagoJoint.LEFT_GRIPPER_FINGER
+        )
 
         gripper_open = JointState.from_mapping(
             name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
-            mapping=dict(zip(gripper_joints, [0.045, 0.045])),
+            mapping={finger_joint: Robotiq85FingerPosition.OPEN},
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
             name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
-            mapping=dict(zip(gripper_joints, [0.0, 0.0])),
+            mapping={finger_joint: Robotiq85FingerPosition.CLOSED},
             state_type=GripperState.CLOSE,
         )
 
@@ -253,17 +271,19 @@ class TiagoRightGripper(
             connection.has_hardware_interface = True
 
     def setup_joint_states(self) -> List[JointState]:
-        gripper_joints = self.active_connections
+        finger_joint = self._world.get_connection_by_name(
+            TiagoJoint.RIGHT_GRIPPER_FINGER
+        )
 
         gripper_open = JointState.from_mapping(
             name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
-            mapping=dict(zip(gripper_joints, [0.045, 0.045])),
+            mapping={finger_joint: Robotiq85FingerPosition.OPEN},
             state_type=GripperState.OPEN,
         )
 
         gripper_close = JointState.from_mapping(
             name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
-            mapping=dict(zip(gripper_joints, [0.0, 0.0])),
+            mapping={finger_joint: Robotiq85FingerPosition.CLOSED},
             state_type=GripperState.CLOSE,
         )
 
