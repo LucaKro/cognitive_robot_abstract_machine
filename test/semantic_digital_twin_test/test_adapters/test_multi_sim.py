@@ -1205,6 +1205,34 @@ def test_builder_compiles_a_body_with_an_exactly_flat_panel(tmp_path):
     assert mesh_spec.name == "panel_thickened"
 
 
+def test_a_scene_written_to_a_relative_path_finds_its_generated_meshes(
+    tmp_path, monkeypatch
+):
+    """
+    MuJoCo reads a mesh path relative to the scene file, so the meshes the builder
+    generates next to a scene written to a relative path must be found from there.
+    """
+    monkeypatch.chdir(tmp_path)
+    mesh_file = _write_flat_quad_mesh(tmp_path / "meshes")
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        mesh_shape = Mesh(filename=mesh_file, scale=Scale(1, 1, 1))
+        panel = Body(
+            name=PrefixedName("panel"),
+            visual=ShapeCollection([mesh_shape]),
+            collision=ShapeCollection([mesh_shape]),
+        )
+        world.add_kinematic_structure_entity(panel)
+        world.add_connection(FixedConnection(parent=root, child=panel))
+    scene_file = os.path.join("output", "scene.xml")
+
+    MujocoBuilder().build_world(world=world, file_path=scene_file)
+
+    assert mujoco.MjModel.from_xml_path(scene_file).nmesh == 1
+
+
 def _write_flat_quad_mesh_at_scale(directory, scale: float) -> str:
     """
     Writes a minimal OBJ mesh for a single-sided, exactly flat quad ``scale`` units

@@ -1688,7 +1688,10 @@ class MultiSimBuilder(ABC):
         :param file_path: The file path to save the world to.
         """
         self._world = world
-        self._asset_folder_path = os.path.join(os.path.dirname(file_path), "assets")
+        # MuJoCo reads mesh paths relative to the scene file, not the working directory.
+        self._asset_folder_path = os.path.join(
+            os.path.dirname(os.path.abspath(file_path)), "assets"
+        )
 
         root = Body(name=PrefixedName("world"))
 
