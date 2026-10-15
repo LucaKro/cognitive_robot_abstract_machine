@@ -466,6 +466,13 @@ class TestMujocoSimulator:
 
         simulator.stop()
 
+    def test_a_hinge_joint_is_found_by_its_joint_type(self, simulator):
+        result = simulator.callbacks["get_joint_value"](joint_name="joint1")
+
+        assert (
+            result.type is SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION
+        )
+
     def test_set_geom_friction_overrides_the_model_value(self, simulator):
         """
         set_geom_friction must write directly into the compiled MuJoCo model, so a

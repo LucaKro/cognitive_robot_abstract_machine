@@ -238,6 +238,18 @@ class MujocoSimulator(BaseSimulator):
     def renderer(self):
         return self._renderer
 
+    def joint_type(self, joint_id: int) -> mujoco.mjtJoint:
+        """
+        The type of a joint in the compiled model.
+
+        :param joint_id: The id of a joint in the compiled model.
+        :return: The joint's type as a :class:`mujoco.mjtJoint`.
+
+        .. note:: The compiled model stores joint types as NumPy integers, which do not
+            compare equal to :class:`mujoco.mjtJoint` members.
+        """
+        return mujoco.mjtJoint(int(self._mj_model.jnt_type[joint_id]))
+
     @BaseSimulator.simulator_callback
     def get_all_body_names(self) -> SimulatorCallbackResult:
         """
@@ -467,7 +479,7 @@ class MujocoSimulator(BaseSimulator):
                 info=f"Body {body_name} doesn't have exactly one joint",
             )
         joint = joints[0]
-        if joint.type != mujoco.mjtJoint.mjJNT_FREE:
+        if self.joint_type(joint.id) != mujoco.mjtJoint.mjJNT_FREE:
             return SimulatorCallbackResult(
                 type=SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Body {body_name} joint is not free",
@@ -532,7 +544,7 @@ class MujocoSimulator(BaseSimulator):
                 info=f"Body {body_name} doesn't have exactly one joint",
             )
         joint = joints[0]
-        if joint.type != mujoco.mjtJoint.mjJNT_FREE:
+        if self.joint_type(joint.id) != mujoco.mjtJoint.mjJNT_FREE:
             return SimulatorCallbackResult(
                 type=SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Body {body_name} joint is not free",
@@ -592,7 +604,7 @@ class MujocoSimulator(BaseSimulator):
         result = [
             self._mj_model.joint(joint_id).name
             for joint_id in range(self._mj_model.njnt)
-            if self._mj_model.joint(joint_id).type in joint_types
+            if self.joint_type(joint_id) in joint_types
         ]
         return SimulatorCallbackResult(
             type=SimulatorCallbackResult.ResultType.SUCCESS_WITHOUT_EXECUTION,
@@ -624,7 +636,7 @@ class MujocoSimulator(BaseSimulator):
                 type=SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Joint {joint_name} not found",
             )
-        if self._mj_model.joint(joint_id).type not in joint_types:
+        if self.joint_type(joint_id) not in joint_types:
             return SimulatorCallbackResult(
                 type=SimulatorCallbackResult.ResultType.FAILURE_WITHOUT_EXECUTION,
                 info=f"Joint {joint_name} does not have allowed joint types {joint_types}",
