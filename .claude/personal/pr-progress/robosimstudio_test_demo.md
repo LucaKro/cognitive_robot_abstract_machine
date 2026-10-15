@@ -1,11 +1,12 @@
 Branch robosimstudio_test_demo (from upstream main be2ac4f9), push to origin only, no PR unless asked.
-Plan: genuine-bug fix commits (each with a failing-first test), then the demo in
-experiments/src/experiments/robosimstudio_tiago_demo (+ README, requirements.txt, tests in
-test/experiments_test/robosimstudio_tiago_demo_test).
-Done: 7 fix commits (MuJoCo 3.12, dataclass exception, rclpy import, TIAGo Robotiq gripper
-states, inertiafromgeom auto, balanceinertia, non-PSD inertia). Uncommitted: round-off
-snap in to_principal_moments_and_axes + tiny-tensor test (verify inertial/multi_sim tests,
-then commit). Demo modules written; plan probe running (fixed stands, closest grasp).
-Next: demo end to end green, run demo tests in cienv, format, review diff, push.
-Report: URDF 1 kg default kept (upstream test pins it); drive/servos/collisions demo-local;
-RSS ShapeWriter CPU limitation; RoboKudo transformers crash environmental.
+Done (10 commits, unpushed history rewritten for the new AGENTS.md rules): 9 bug-fix commits
+(dataclass exception, MuJoCo 3.12, rclpy import, TIAGo Robotiq states, inertiafromgeom auto,
+balanceinertia, non-PSD inertia, zero-moment round-off + InertiaTensor exceptions, TiagoMoveSim
+in physics) + demo commit (experiments/src/experiments/robosimstudio_tiago_demo, README,
+requirements.txt force-added since *.txt is ignored). Demo end to end: milk 2.4 cm off target.
+Demo tests 15/15 incl. slow in cienv; physics_simulators 26/26.
+Next: finish SDT + coraplex regression runs, review, push to origin.
+Report: URDF/STL 1 kg default kept (upstream test pins it; demo sets grocery inertials);
+InertiaTensor.to_values tuple API and multi_sim literal strings left (API/scope - ask user);
+RSS needs even substeps; RSS ShapeWriter CPU limitation; general actuators via ctrl don't
+track in RSS CPU; tiago_apartment_world fixture broken upstream; RoboKudo crash env.
