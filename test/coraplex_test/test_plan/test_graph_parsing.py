@@ -6,7 +6,7 @@ from typing_extensions import List
 from coraplex.datastructures.enums import (
     DetectionTechnique,
 )
-from coraplex.execution_environment import simulated_robot
+from coraplex.execution_environment import kinematically_simulated_robot
 from coraplex.perception import PerceptionQuery
 from coraplex.plans.executables import (
     Executable,
@@ -60,7 +60,6 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
 )
 from giskardpy.ros_executor import Ros2Executor
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -147,7 +146,7 @@ def _parse_and_compile(plan, world, context):
     """
     plan.notify()
     executable = plan.parse()
-    with simulated_robot:
+    with kinematically_simulated_robot:
         executable.prepare_for_execution()
     executor = Ros2Executor(
         context=MotionStatechartContext(world=world), ros_node=context.ros_node
@@ -320,7 +319,7 @@ def test_merge_motions(pr2_apartment_context, rclpy_node):
     assert executable.pre_condition_node
     assert executable.post_condition_node
 
-    with simulated_robot:
+    with kinematically_simulated_robot:
         executable.execute()
 
 
@@ -459,7 +458,7 @@ def test_parse_transport_plan(pr2_apartment_context, rclpy_node):
     plan.notify()
     exec = plan.parse()
 
-    with simulated_robot:
+    with kinematically_simulated_robot:
         exec.execute()
 
 
@@ -557,11 +556,10 @@ def test_detecting_motion_merges_with_the_motions_around_it(pr2_apartment_contex
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert len(executable.motion_mappings) == 3
-    assert [type(task) for task in executable.motion_mappings.values()] == [
-        CartesianPose,
-        PerceptionTask,
-        CartesianPose,
+    assert [type(node.designator) for node in executable.motion_mappings] == [
+        MoveToolCenterPointMotion,
+        DetectingMotion,
+        MoveToolCenterPointMotion,
     ]
 
 
@@ -678,13 +676,13 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(pr2_apartment_c
         and isinstance(node.designator, MoveToolCenterPointMotion)
     ]
     positions_before = [
-        world.transform(target, world.root).to_position().to_np().flatten()[:3]
+        world.transform(target, world.root).position.to_np().flatten()[:3]
         for target in targets
     ]
 
     displacement = np.array([0.25, -0.4, 0.1])
     milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-        *(milk_body.global_pose.to_position().to_np().flatten()[:3] + displacement),
+        *(milk_body.global_pose.position.to_np().flatten()[:3] + displacement),
         reference_frame=world.root,
     )
 
@@ -692,7 +690,7 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(pr2_apartment_c
     assert all(target.reference_frame is milk_body for target in targets)
     for target, position_before in zip(targets, positions_before):
         np.testing.assert_allclose(
-            world.transform(target, world.root).to_position().to_np().flatten()[:3],
+            world.transform(target, world.root).position.to_np().flatten()[:3],
             position_before + displacement,
             atol=1e-9,
         )

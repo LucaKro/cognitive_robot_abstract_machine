@@ -240,13 +240,13 @@ def test_a_world_can_be_converted_only_once_the_mappings_are_loaded():
     during a run and a module holding the version from before that hands out the wrong
     classes.
     """
-    from krrood.ormatic.data_access_objects.helper import get_dao_class
+    from krrood.ormatic.data_access_objects.helper import get_data_access_object_class
     from semantic_digital_twin.world import World
 
     from experiments.warsaw.pipeline.database.world_store import WorldStore
 
     WorldStore().mappings()
-    assert get_dao_class(World) is not None
+    assert get_data_access_object_class(World) is not None
 
 
 def test_a_schema_with_no_uri_and_no_environment_is_reported(monkeypatch):

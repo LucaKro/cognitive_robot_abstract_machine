@@ -51,7 +51,9 @@ def pr2_holding_milk(simple_pr2_context):
 # %% releasing what is actually held
 
 
-def test_place_derives_the_grasp_from_the_live_tool_frame_transform(pr2_holding_milk):
+def test_a_place_puts_the_held_object_on_the_target_however_it_is_held(
+    pr2_holding_milk,
+):
     """
     Sending the tool frame to the target pose itself would place the object wherever
     the grasp happens to hold it, which is beside the target unless the object is held
@@ -64,15 +66,15 @@ def test_place_derives_the_grasp_from_the_live_tool_frame_transform(pr2_holding_
     sequential([place], context=Context(world, robot, sampling_seed=SAMPLING_SEED))
 
     end_effector = robot.left_arm.end_effector
-    tool_goal = end_effector.tool_frame_goal(
+    tool_goal = end_effector.tool_frame_goal_for_grasp(
         place._grasp_on_the_held_object().moved_to(target)
     )
 
     tool_T_milk = world.transform(milk.root.global_transform, end_effector.tool_frame)
-    placed_milk = tool_goal.to_homogeneous_matrix() @ tool_T_milk
+    placed_milk = tool_goal.homogeneous_matrix @ tool_T_milk
 
     np.testing.assert_allclose(
-        placed_milk.to_np(), target.to_homogeneous_matrix().to_np(), atol=1e-9
+        placed_milk.to_np(), target.homogeneous_matrix.to_np(), atol=1e-9
     )
 
 

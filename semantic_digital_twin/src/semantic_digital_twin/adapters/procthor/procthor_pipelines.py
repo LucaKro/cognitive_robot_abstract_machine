@@ -2,6 +2,9 @@ import re
 
 import numpy as np
 
+from semantic_digital_twin.specifications.connections import (
+    RevoluteConnectionSpecification,
+)
 from semantic_digital_twin.datastructures.variables import SpatialVariables
 from semantic_digital_twin.semantic_annotations.position_descriptions import (
     SemanticPositionDescription,
@@ -13,7 +16,6 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Dresser,
     Drawer,
     Door,
-    Hinge,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -93,17 +95,7 @@ def door_from_body_in_world(door_body: Body, world: World) -> Door:
             world_root_T_self=world_T_handle,
         )
         door.add(handle)
-    with world.modify_world():
-        world_T_hinge = door.calculate_world_T_hinge_based_on_handle(Vector3.Z())
-        hinge = Hinge.create_with_new_body_in_world(
-            name=door_body.name.name + "_hinge",
-            world=world,
-            world_root_T_self=world_T_hinge,
-            parent_connection_specification=Hinge.parent_connection_specification(
-                axis=Vector3.Z()
-            ),
-        )
-        door.add(hinge)
+    door.mount_on_movable_joint(RevoluteConnectionSpecification(axis=Vector3.Z()))
 
     return door
 

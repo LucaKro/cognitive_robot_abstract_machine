@@ -32,7 +32,7 @@ A cabinet with one drawer and a handle, small enough to export in a test.
 """
 
 PROVIDER = (
-    "semantic_digital_twin.predetermined_maps.kitchen_environment:KitchenEnvironment"
+    "semantic_digital_twin.predefined_maps.kitchen_environment:KitchenEnvironment"
 )
 """
 A modelled world written as Python rather than as a file.
@@ -77,7 +77,6 @@ def test_what_the_command_writes_can_be_read_back(tmp_path: Path):
         "cabinet/cabinet",
         "cabinet/drawer",
         "cabinet/handle",
-        "drawer_slider",
     }
 
 

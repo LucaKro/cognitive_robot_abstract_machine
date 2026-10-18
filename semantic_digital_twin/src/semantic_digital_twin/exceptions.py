@@ -700,6 +700,66 @@ class UnknownPartWholeRelationshipField(UsageError):
 
 
 @dataclass
+class CollisionDiffersFromVisualError(UsageError):
+    """
+    Raised when a part is split off a body whose collision shapes are not its visual
+    shapes, such as a convex decomposition, which cutting the visual shapes would throw
+    away.
+    """
+
+    body_name: PrefixedName
+    """
+    The name of the body.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The collision shapes of '{self.body_name}' differ from its visual shapes, "
+            f"so splitting a part off would replace them by pieces of the visual shapes."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "split the parts off before decomposing the collision shapes, or give the "
+            "PartSplitter a decomposer that decomposes each piece again."
+        )
+
+
+@dataclass
+class NoSinglePartWholeRelationshipField(UsageError):
+    """
+    Raised when the part-whole relationship field a part goes to is chosen by the part's
+    type alone, but not exactly one field of the annotation holds parts of that type.
+    """
+
+    annotation: Type[HasRootBody]
+    """
+    The annotation type the part is for.
+    """
+
+    part_type: Type[HasRootBody]
+    """
+    The type of the part.
+    """
+
+    matching_fields: List[str]
+    """
+    The names of the annotation's part-whole relationship fields that hold parts of that
+    type.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.annotation.__name__} has {len(self.matching_fields)} part-whole "
+            f"relationship fields for a {self.part_type.__name__}: "
+            f"{', '.join(self.matching_fields) or '(none)'}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "name the field the part goes to."
+
+
+@dataclass
 class PartWholeCardinalityError(UsageError):
     """
     Raised when a part specification supplies a list of parts for a singular (non-to-
@@ -759,36 +819,6 @@ class PartWholeFieldInAnnotationKwargs(UsageError):
 
 
 @dataclass
-class MechanicalJointAlreadyMounted(UsageError):
-    """
-    Raised when a mechanical joint that already connects a child is mounted onto a
-    different whole.
-
-    If you think a single Mechanical Joint should be able to have multiple children,
-    contact @LucaKro.
-    """
-
-    joint: SemanticAnnotation
-    """
-    The mechanical joint being mounted.
-    """
-
-    main_has_root_body_annotation: SemanticAnnotation
-    """
-    The annotation (the whole) the joint was being mounted onto.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"{type(self.joint).__name__} already connects a child and cannot be mounted onto "
-            f"{type(self.main_has_root_body_annotation).__name__}: a mechanical joint connects exactly one child."
-        )
-
-    def suggest_correction(self) -> str:
-        return f"if you think that you found a case where this error does not apply, please contact @LucaKro"
-
-
-@dataclass
 class SemanticAnnotationCircularDependencyError(UsageError):
     """
     Raised when a circular dependency between semantic annotations is detected.
@@ -804,6 +834,31 @@ class SemanticAnnotationCircularDependencyError(UsageError):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class MissingMovableJointError(UsageError):
+    """
+    Raised when a part is to be moved, but nothing moves it: its root is fixed to its
+    parent.
+    """
+
+    semantic_annotation: SemanticAnnotation
+    """
+    The part that has no movable joint.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{type(self.semantic_annotation).__name__} {self.semantic_annotation.name} "
+            f"has no movable joint: its root is fixed to its parent."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "create it with an active parent_connection_specification, or mount it on "
+            "one with mount_on_movable_joint."
+        )
 
 
 @dataclass
@@ -913,7 +968,7 @@ class InvalidHingeActiveAxis(UsageError):
         return f"Axis {self.axis} provided when trying to calculate the hinge position is invalid."
 
     def suggest_correction(self) -> str:
-        return "if you think this is incorrect, consider extending Door.calculate_world_T_hinge_based_on_handle."
+        return "if you think this is incorrect, consider extending Door.calculate_self_T_movable_joint."
 
 
 @dataclass
@@ -2080,6 +2135,36 @@ class ComposedClassCannotAct(UsageError):
 
 
 @dataclass
+class DriveVelocityLimitsOnUndrivenRobot(UsageError):
+    """
+    Raised when drive velocity limits are given for a robot that is attached to its
+    localization frame rigidly rather than by a drive.
+    """
+
+    robot_type_name: str
+    """
+    The name of the robot type the limits were given for.
+    """
+
+    connection_type_name: str
+    """
+    The name of the connection type that robot attaches to its localization frame with.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.robot_type_name}' attaches to its localization frame with a "
+            f"'{self.connection_type_name}', which carries no velocity limits."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "leave the drive velocity limits unset, or give the robot a mobile base "
+            "whose drive can carry them."
+        )
+
+
+@dataclass
 class NothingHeld(UsageError):
     """
     Raised when the grasp of a gripper that holds nothing is asked for.
@@ -2272,3 +2357,22 @@ class SimulationAlreadyRunningError(UsageError):
 
     def suggest_correction(self) -> str:
         return "Stop the simulation before starting it again."
+
+
+@dataclass
+class ObjectHasNoWidthWithoutCollision(UsageError):
+    """
+    Raised when the width of an object is asked for, while the object carries no
+    collision geometry to measure.
+    """
+
+    object_name: PrefixedName
+    """
+    Name of the body whose width was asked for.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.object_name} has no collision geometry to measure a width on."
+
+    def suggest_correction(self) -> str:
+        return "Give the body collision geometry, or state the width yourself."

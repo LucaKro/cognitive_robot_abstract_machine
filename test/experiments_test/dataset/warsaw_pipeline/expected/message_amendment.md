@@ -8,8 +8,7 @@ CounterTop(Furniture, HasSupportingSurface, HasSink)
   supports supporting_surface -> Region, mounted with add_supporting_surface()
 
 ## The part
-Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint)
-  part mechanical_joint -> MechanicalJoint, mounted with add()
+Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMovableJoint)
   part handle -> Handle, mounted with add()
   contains objects -> HasRootBody (many), mounted with add_object()
   supports supporting_surface -> Region, mounted with add_supporting_surface()

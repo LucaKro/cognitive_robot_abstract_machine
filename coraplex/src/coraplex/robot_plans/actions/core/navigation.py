@@ -18,6 +18,7 @@ from giskardpy.motion_statechart.monitors.joint_monitors import (
 )
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable_from, and_, ConditionType
+from semantic_digital_twin.exceptions import MissingMovableJointError
 from semantic_digital_twin.reasoning.predicates import allclose, InsideOf
 from semantic_digital_twin.reasoning.robot_predicates import is_pose_free_for_robot
 from semantic_digital_twin.robots.robot_parts import Camera
@@ -220,7 +221,7 @@ class PathPlanningNavigateAction(ActionDescription):
                     reference_frame=waypoint.reference_frame,
                 ),
                 reference_frame=waypoint.reference_frame,
-            ).to_pose()
+            ).pose
             for waypoint, next_waypoint in zip(waypoints[1:], waypoints[2:])
         ]
         return poses + [self.target]
@@ -345,18 +346,21 @@ class ElevatorNavigation(ActionDescription):
         """
         nodes = []
         for door in self.elevator.doors:
-            connection = door.mechanical_joint.root.parent_connection
+            if door.movable_joint is None:
+                raise MissingMovableJointError(door)
             nodes.append(
                 JointPositionReached(
-                    connection=connection,
-                    position=connection.dof.limits.upper.position,
+                    connection=door.movable_joint,
+                    position=door.movable_joint.dof.limits.upper.position,
                     threshold=self.arrival_threshold,
                     name=f"{door.name}Open",
                 )
             )
+        if self.elevator.movable_joint is None:
+            raise MissingMovableJointError(self.elevator)
         nodes.append(
             JointPositionReached(
-                connection=self.elevator.mechanical_joint.root.parent_connection,
+                connection=self.elevator.movable_joint,
                 position=self.elevator.drive_position_for_floor(target_floor),
                 threshold=self.arrival_threshold,
                 name="ElevatorAtTargetFloor",

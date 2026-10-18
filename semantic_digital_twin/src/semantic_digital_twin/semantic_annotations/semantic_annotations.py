@@ -20,7 +20,7 @@ from semantic_digital_twin.exceptions import (
     InvalidPlaneDimensions,
     InvalidHingeActiveAxis,
     MissingSemanticAnnotationError,
-    MechanicalJointAlreadyMounted,
+    MissingMovableJointError,
 )
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.part_whole import (
@@ -34,8 +34,9 @@ from semantic_digital_twin.semantic_annotations.mixins import (
     HasDrawers,
     HasDoors,
     HasHandle,
+    HasHandles,
     HasCaseAsRootBody,
-    HasMechanicalJoint,
+    HasMovableJoint,
     HasApertures,
     IsPerceivable,
     HasRootBody,
@@ -58,9 +59,6 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose, RotationMatr
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
 )
-from semantic_digital_twin.world_description.degree_of_freedom import (
-    DegreeOfFreedomLimits,
-)
 from semantic_digital_twin.world_description.geometry import (
     VolumetricBoundingBox,
     Scale,
@@ -73,14 +71,13 @@ from semantic_digital_twin.world_description.world_entity import (
     SemanticAnnotation,
     Body,
 )
-from semantic_digital_twin.api import (
+from semantic_digital_twin.specifications.connections import ConnectionSpecification
+from semantic_digital_twin.specifications.kinematic_structure_entities import (
     BodySpecification,
-    ConnectionSpecification,
     KinematicStructureEntitySpecification,
-    PrismaticConnectionSpecification,
     RegionSpecification,
-    RevoluteConnectionSpecification,
-    ScrewConnectionSpecification,
+)
+from semantic_digital_twin.specifications.semantic_annotations import (
     SemanticAnnotationWithRootSpecification,
 )
 
@@ -245,190 +242,6 @@ class Aperture(HasRootRegion):
 
 
 @dataclass(eq=False)
-class MechanicalJoint(HasRootBody):
-    """
-    A mechanical joint is a physical entity that connects two bodies and allows one to
-    move along or around a fixed axis.
-    """
-
-    def _mount_strategy(
-        self,
-        main_has_root_body_annotation: HasRootBody,
-        relationship: IsPartWholeRelationship,
-    ) -> None:
-        """
-        Inserts the joint between the whole (``main_has_root_body_annotation``) and the
-        whole's current parent, preserving the whole's ancestry.
-
-        Ordinarily, whole_parent -(fixed)-> whole becomes whole_parent -(active)->
-        joint -(fixed)-> whole: the joint keeps its own active connection (now
-        anchored at the whole's parent), and the whole hangs rigidly off the joint.
-
-        When the whole is already wired straight to its parent through a connection
-        of the same type this joint provides (for example a door whose URDF attaches
-        it to its cabinet with a revolute joint directly, without a hinge body in
-        between), that connection is redundant with the joint's own: the joint takes
-        over carrying the physical joint data (its creator is expected to have copied
-        the axis, limits, ... over from it), the whole's old connection to its parent
-        is discarded, and the whole is attached to the joint with a fixed connection
-        instead. The degree of freedom the discarded connection used is reclaimed by
-        :meth:`World.delete_orphaned_dofs` when the enclosing ``modify_world`` block
-        exits.
-        """
-        if (
-            main_has_root_body_annotation.root.parent_kinematic_structure_entity
-            == self.root
-        ):
-            return
-        # used instead of World.compute_child_kinematic_structure_entities because its memoized
-        if list(self._world.kinematic_structure.successors(self.root.index)):
-            raise MechanicalJointAlreadyMounted(self, main_has_root_body_annotation)
-
-        whole_parent = (
-            main_has_root_body_annotation.root.parent_kinematic_structure_entity
-        )
-        whole_already_carries_this_joint_type = type(
-            main_has_root_body_annotation.root.parent_connection
-        ) is type(self.root.parent_connection)
-
-        # Mounting always runs inside a still-open modification block, so take the
-        # offline path, like every other mount strategy does.
-        self._world.move_branch(
-            self.root, whole_parent, enable_unsafe_inside_world_block=True
-        )
-
-        if whole_already_carries_this_joint_type:
-            main_has_root_body_annotation._world.move_branch_with_fixed_connection(
-                main_has_root_body_annotation.root,
-                self.root,
-                enable_unsafe_inside_world_block=True,
-            )
-        else:
-            main_has_root_body_annotation._world.move_branch(
-                main_has_root_body_annotation.root,
-                self.root,
-                enable_unsafe_inside_world_block=True,
-            )
-
-    @property
-    def position(self):
-        return self.root.parent_connection.position
-
-    @position.setter
-    def position(self, value):
-        self.root.parent_connection.position = value
-
-
-@dataclass(eq=False)
-class Hinge(MechanicalJoint):
-    """
-    A hinge is a physical entity that connects two bodies and allows one to rotate
-    around a fixed axis.
-    """
-
-    @classmethod
-    def parent_connection_specification(
-        cls,
-        axis: Optional[Vector3] = None,
-        multiplier: float = 1.0,
-        offset: float = 0.0,
-        dof_limits: Optional[DegreeOfFreedomLimits] = None,
-    ) -> RevoluteConnectionSpecification:
-        """
-        Build the revolute connection a hinge rotates about.
-
-        :param axis: Rotation axis. Defaults to the z axis.
-        :param multiplier: Scaling factor applied to the degree of freedom's motion.
-        :param offset: Constant offset applied to the degree of freedom's motion.
-        :param dof_limits: Limits for the generated degree of freedom.
-        :return: The revolute connection specification.
-        """
-        return RevoluteConnectionSpecification(
-            axis=axis if axis is not None else Vector3.Z(),
-            multiplier=multiplier,
-            offset=offset,
-            dof_limits=dof_limits,
-        )
-
-
-@dataclass(eq=False)
-class Slider(MechanicalJoint):
-    """
-    A Slider is a physical entity that connects two bodies and allows one to linearly
-    translate along a fixed axis.
-    """
-
-    @classmethod
-    def parent_connection_specification(
-        cls,
-        axis: Optional[Vector3] = None,
-        multiplier: float = 1.0,
-        offset: float = 0.0,
-        dof_limits: Optional[DegreeOfFreedomLimits] = None,
-    ) -> PrismaticConnectionSpecification:
-        """
-        Build the prismatic connection a slider translates along.
-
-        :param axis: Translation axis. Defaults to the z axis.
-        :param multiplier: Scaling factor applied to the degree of freedom's motion.
-        :param offset: Constant offset applied to the degree of freedom's motion.
-        :param dof_limits: Limits for the generated degree of freedom.
-        :return: The prismatic connection specification.
-        """
-        return PrismaticConnectionSpecification(
-            axis=axis if axis is not None else Vector3.Z(),
-            multiplier=multiplier,
-            offset=offset,
-            dof_limits=dof_limits,
-        )
-
-
-@dataclass(eq=False)
-class ScrewMechanism(MechanicalJoint):
-    """
-    A screw joint is a physical entity that connects two bodies and couples rotation
-    about a fixed axis with translation along that axis into a single degree of freedom,
-    like the thread between a bottle and its cap.
-    """
-
-    @classmethod
-    def parent_connection_specification(
-        cls,
-        axis: Optional[Vector3] = None,
-        multiplier: float = 1.0,
-        offset: float = 0.0,
-        dof_limits: Optional[DegreeOfFreedomLimits] = None,
-        screw_pitch: float = 0.001,
-    ) -> ScrewConnectionSpecification:
-        """
-        Build the screw connection a screw mechanism moves along.
-
-        :param axis: Thread axis. Defaults to the z axis.
-        :param multiplier: Scaling factor applied to the degree of freedom's motion.
-        :param offset: Constant offset applied to the degree of freedom's motion.
-        :param dof_limits: Limits for the generated degree of freedom.
-        :param screw_pitch: The distance between adjacent threads along ``axis`` in
-            meters.
-        :return: The screw connection specification.
-        """
-        return ScrewConnectionSpecification(
-            axis=axis if axis is not None else Vector3.Z(),
-            multiplier=multiplier,
-            offset=offset,
-            dof_limits=dof_limits,
-            screw_pitch=screw_pitch,
-        )
-
-    @property
-    def screw_pitch(self) -> float:
-        """
-        The distance between adjacent threads along the thread axis in meters, read from
-        the screw connection this mechanism moves along.
-        """
-        return self.root.parent_connection.screw_pitch
-
-
-@dataclass(eq=False)
 class EntryWay(Aperture):
     """
     The passage a door covers.
@@ -466,7 +279,7 @@ class EntryWay(Aperture):
 
 
 @dataclass(eq=False)
-class Door(HasHandle, HasMechanicalJoint):
+class Door(HasHandle, HasMovableJoint):
     """
     A door is a physical entity that has covers an opening, has a movable body and a
     handle.
@@ -562,24 +375,26 @@ class Door(HasHandle, HasMechanicalJoint):
             name, scale, connection_specification
         )
 
-    def calculate_world_T_hinge_based_on_handle(
-        self, opening_axis: Vector3
+    def calculate_self_T_movable_joint(
+        self, axis: Vector3
     ) -> HomogeneousTransformationMatrix:
         """
-        Calculate the door pivot point based on the handle position and the door scale.
+        Calculate where the door's hinge sits: on the edge opposite its handle.
 
-        The pivot point is on the opposite side of the handle.
-        :return: The transformation matrix defining the door's pivot point.
+        :param axis: The axis the door swings about, in the door frame, along one of the
+            frame's axes in either direction.
+        :return: The pose of the hinge in the door frame.
         """
         if self.handle is None:
             raise MissingSemanticAnnotationError(self.__class__, Handle)
 
         connection = self.handle.root.parent_connection
-        door_P_handle = connection.origin_expression.to_position()
+        door_P_handle = connection.origin_expression.position
         scale = self.root.collision.scale
-        world_T_door = self.root.global_transform
 
-        match opening_axis.to_np().tolist():
+        # The axis' sign only decides which way the door swings, not which edge it
+        # swings about.
+        match [abs(component) for component in axis.to_np().tolist()]:
             case [0, 1, 0, 0]:
                 sign = (
                     symbolic_math.sign(-1 * door_P_handle.z)
@@ -607,11 +422,9 @@ class Door(HasHandle, HasMechanicalJoint):
                 door_T_hinge = HomogeneousTransformationMatrix.from_xyz_rpy(x=offset)
 
             case _:
-                raise InvalidHingeActiveAxis(axis=opening_axis)
+                raise InvalidHingeActiveAxis(axis=axis)
 
-        world_T_hinge = world_T_door @ door_T_hinge
-
-        return world_T_hinge
+        return door_T_hinge
 
 
 @dataclass(eq=False)
@@ -645,7 +458,7 @@ class DoubleDoor(SemanticAnnotation):
 
 
 @dataclass(eq=False)
-class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint):
+class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMovableJoint):
     """
     A box that slides out of a piece of furniture, opened by a handle on its front.
     """
@@ -654,23 +467,33 @@ class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasMechanicalJoint):
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.Z()
 
+    def calculate_self_T_movable_joint(
+        self, axis: Vector3
+    ) -> HomogeneousTransformationMatrix:
+        """
+        A drawer slides, which moves it the same wherever its rails sit, so they sit at
+        its origin.
+
+        :param axis: The axis the drawer slides along, in the drawer frame.
+        :return: The identity: the rails' frame is the drawer's frame.
+        """
+        return HomogeneousTransformationMatrix()
+
     @property
     def opening_ratio(self) -> float:
         """
         :return: How far this drawer stands pulled out, as a fraction of its travel.
         """
-        moving_body = (
-            self.root if self.mechanical_joint is None else self.mechanical_joint.root
-        )
-        connection = moving_body.parent_connection
-        limits = connection.dof.limits
-        return (connection.position - limits.lower.position) / (
+        if self.movable_joint is None:
+            raise MissingMovableJointError(self)
+        limits = self.movable_joint.dof.limits
+        return (self.movable_joint.position - limits.lower.position) / (
             limits.upper.position - limits.lower.position
         )
 
 
 @dataclass(eq=False)
-class Elevator(HasCaseAsRootBody, HasDoors, HasMechanicalJoint):
+class Elevator(HasCaseAsRootBody, HasDoors, HasMovableJoint):
     """
     An elevator in the world, consists of three walls a floor, double doors for entering and a prismatic drive that moves
     the elevator to other floors.
@@ -680,23 +503,35 @@ class Elevator(HasCaseAsRootBody, HasDoors, HasMechanicalJoint):
     def _hole_direction_axis(cls) -> Vector3:
         return Vector3.NEGATIVE_X()
 
+    def calculate_self_T_movable_joint(
+        self, axis: Vector3
+    ) -> HomogeneousTransformationMatrix:
+        """
+        An elevator's drive slides it, which moves it the same wherever the drive sits,
+        so it sits at the cabin's origin.
+
+        :param axis: The axis the cabin travels along, in the cabin frame.
+        :return: The identity: the drive's frame is the cabin's frame.
+        """
+        return HomogeneousTransformationMatrix()
+
     def open(self):
         """
         Opens the elevator doors
         """
         for door in self.doors:
-            door.mechanical_joint.position = (
-                door.mechanical_joint.root.parent_connection.dof.limits.upper.position
-            )
+            if door.movable_joint is None:
+                raise MissingMovableJointError(door)
+            door.movable_joint.position = door.movable_joint.dof.limits.upper.position
 
     def close(self):
         """
         Closes the elevator doors
         """
         for door in self.doors:
-            door.mechanical_joint.position = (
-                door.mechanical_joint.root.parent_connection.dof.limits.lower.position
-            )
+            if door.movable_joint is None:
+                raise MissingMovableJointError(door)
+            door.movable_joint.position = door.movable_joint.dof.limits.lower.position
 
     def drive_position_for_floor(self, floor: Level) -> float:
         """
@@ -706,7 +541,7 @@ class Elevator(HasCaseAsRootBody, HasDoors, HasMechanicalJoint):
         than at its centre.
 
         :param floor: The floor the elevator should serve.
-        :return: The position to drive the elevator's mechanical joint to.
+        :return: The position to drive the elevator's joint to.
         """
         return float(floor.floor_plane[0].z)
 
@@ -714,7 +549,9 @@ class Elevator(HasCaseAsRootBody, HasDoors, HasMechanicalJoint):
         """
         Drives the elevator to the floor given
         """
-        self.mechanical_joint.position = self.drive_position_for_floor(floor)
+        if self.movable_joint is None:
+            raise MissingMovableJointError(self)
+        self.movable_joint.position = self.drive_position_for_floor(floor)
 
 
 ############################### subclasses to Furniture
@@ -1134,9 +971,9 @@ class Cup(DrinkingContainer, IsPerceivable):
 
 
 @dataclass(eq=False)
-class Mug(DrinkingContainer):
+class Mug(DrinkingContainer, HasHandle):
     """
-    A mug.
+    A mug, held by its handle.
     """
 
 
@@ -1169,7 +1006,7 @@ class PanLid(Lid):
 
 
 @dataclass(eq=False)
-class Pot(CookingContainer):
+class Pot(CookingContainer, HasHandles):
     """
     A pot.
     """
@@ -1217,7 +1054,7 @@ class Bowl(HasSupportingSurface, Container, Tableware, IsPerceivable):
                     position=section.center,
                     orientation=RotationMatrix.from_vectors(
                         x=Vector3.NEGATIVE_Z(), y=section.outward
-                    ).to_quaternion(),
+                    ).quaternion,
                     reference_frame=self.root,
                 ),
             )
@@ -1716,7 +1553,7 @@ class Cutlery(Tableware):
                 Pose(
                     orientation=RotationMatrix.from_vectors(
                         x=Vector3.NEGATIVE_Z(), y=finger_axis
-                    ).to_quaternion(),
+                    ).quaternion,
                     reference_frame=self.root,
                 ),
             )
@@ -1766,10 +1603,21 @@ class Baseball(HasGraspCandidates):
 
 
 @dataclass(eq=False)
-class BottleCap(HasMechanicalJoint):
+class BottleCap(HasMovableJoint):
     """
     A cap that closes a bottle, typically mounted on a screw joint.
     """
+
+    def calculate_self_T_movable_joint(
+        self, axis: Vector3
+    ) -> HomogeneousTransformationMatrix:
+        """
+        A cap screws about its own centre line, so its thread sits at its origin.
+
+        :param axis: The thread axis, in the cap frame.
+        :return: The identity: the thread's frame is the cap's frame.
+        """
+        return HomogeneousTransformationMatrix()
 
 
 @dataclass(eq=False)
@@ -2095,7 +1943,7 @@ class Sponge(Tool):
         reference_frame = (
             pose.reference_frame if pose.reference_frame is not None else self.root
         )
-        rotation = pose.to_rotation_matrix().to_np()[:3, :3]
+        rotation = pose.rotation_matrix.to_np()[:3, :3]
         return Vector3.from_iterable(
             rotation @ np.array([0.0, 0.0, 1.0]),
             reference_frame=reference_frame,

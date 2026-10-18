@@ -1,6 +1,6 @@
 {
   "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthGraph",
-  "scene": "semantic_digital_twin.predetermined_maps.kitchen_environment:KitchenEnvironment",
+  "scene": "semantic_digital_twin.predefined_maps.kitchen_environment:KitchenEnvironment",
   "frame": "root",
   "geometry_source": "visual_with_collision_fallback",
   "nodes": [

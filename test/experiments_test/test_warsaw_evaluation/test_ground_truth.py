@@ -514,7 +514,7 @@ def test_a_world_provider_is_built_by_name():
     has to be inferred afterwards.
     """
     world = world_from_provider(
-        "semantic_digital_twin.predetermined_maps.kitchen_environment:KitchenEnvironment"
+        "semantic_digital_twin.predefined_maps.kitchen_environment:KitchenEnvironment"
     )
 
     assert len(world.bodies) > 0
@@ -531,7 +531,7 @@ def test_a_name_that_is_not_module_and_class_is_refused():
     obvious than here.
     """
     with pytest.raises(WorldProviderNotFoundError):
-        world_from_provider("semantic_digital_twin.predetermined_maps")
+        world_from_provider("semantic_digital_twin.predefined_maps")
 
 
 def test_a_module_holding_no_such_provider_is_refused():
@@ -541,7 +541,7 @@ def test_a_module_holding_no_such_provider_is_refused():
     """
     with pytest.raises(WorldProviderNotFoundError) as raised:
         world_from_provider(
-            "semantic_digital_twin.predetermined_maps.kitchen_environment:NoSuchThing"
+            "semantic_digital_twin.predefined_maps.kitchen_environment:NoSuchThing"
         )
 
     assert "NoSuchThing" in str(raised.value)

@@ -612,7 +612,7 @@ class WorldProviderNotFoundError(DataclassException, ValueError):
     def suggest_correction(self) -> str:
         return (
             "Name it as 'module.path:ClassName', where the class can be built with no "
-            "arguments and answers get_world(), as the predetermined maps do."
+            "arguments and answers get_world(), as the predefined maps do."
         )
 
 

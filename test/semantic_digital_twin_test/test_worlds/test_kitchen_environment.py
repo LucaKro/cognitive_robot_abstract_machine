@@ -1,12 +1,12 @@
 """
-Geometric regression tests for the predetermined kitchen environment.
+Geometric regression tests for the predefined kitchen environment.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
-from semantic_digital_twin.predetermined_maps.kitchen_environment import (
+from semantic_digital_twin.predefined_maps.kitchen_environment import (
     KitchenEnvironment,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (

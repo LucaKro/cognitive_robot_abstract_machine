@@ -574,7 +574,7 @@ def test_transform_a_pose_2d(world_setup):
     assert relative_pose_2d.reference_frame == l1
     np.testing.assert_array_almost_equal(
         relative_pose_2d.to_np(),
-        Pose2D.from_pose(world.transform(pose_2d.to_pose(), l1)).to_np(),
+        Pose2D.from_pose(world.transform(pose_2d.pose, l1)).to_np(),
     )
 
 
@@ -1580,9 +1580,7 @@ def test_set_omni_after_copy(pr2_world_state_reset):
     pr2_copy.notify_state_change()
 
     np.testing.assert_array_almost_equal(
-        pr2_copy.get_body_by_name("base_footprint")
-        .global_transform.to_position()
-        .to_np(),
+        pr2_copy.get_body_by_name("base_footprint").global_transform.position.to_np(),
         np.array([10.0, 10.0, 0.0, 1.0]),
     )
 
@@ -1594,6 +1592,20 @@ def test_add_entity_with_duplicate_name(world_setup):
     with world.modify_world():
         world.add_kinematic_structure_entity(body_duplicate)
         world.add_connection(connection)
+
+
+def test_limits_from_position_range_and_speed_bound_the_velocity_in_both_directions():
+    limits = DegreeOfFreedomLimits.from_position_range_and_speed(
+        lower_position=-0.2, upper_position=1.5, maximum_speed=0.7
+    )
+    assert limits.lower == DerivativeMap(position=-0.2, velocity=-0.7)
+    assert limits.upper == DerivativeMap(position=1.5, velocity=0.7)
+
+
+def test_limits_from_position_range_and_speed_leave_omitted_bounds_unbounded():
+    limits = DegreeOfFreedomLimits.from_position_range_and_speed(maximum_speed=0.7)
+    assert limits.lower == DerivativeMap(velocity=-0.7)
+    assert limits.upper == DerivativeMap(velocity=0.7)
 
 
 def test_overwrite_dof_limits(world_setup):
@@ -2523,10 +2535,7 @@ def test_robot_velocity_limit_setup_does_not_touch_environment_joints():
     robot_link = _make_box_body("robot_link")
     drawer_body = _make_box_body("drawer_body")
 
-    env_limits = DegreeOfFreedomLimits(
-        lower=DerivativeMap(None, -10.0, None, None),
-        upper=DerivativeMap(None, 10.0, None, None),
-    )
+    env_limits = DegreeOfFreedomLimits.from_position_range_and_speed(maximum_speed=10.0)
     with world.modify_world():
         for b in [root, robot_base, robot_link, drawer_body]:
             world.add_kinematic_structure_entity(b)

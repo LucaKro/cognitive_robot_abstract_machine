@@ -46,7 +46,7 @@ it takes the milk by and with which arm. A step that is still an EQL query, as t
 
 ```python
 from coraplex.robot_plans import *
-from coraplex.execution_environment import simulated_robot
+from coraplex.execution_environment import kinematically_simulated_robot
 from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPickUpAction,
     MoveAndPlaceAction,
@@ -80,7 +80,7 @@ description = TransportAction(
 )
 plan = sequential([MoveTorsoAction(TorsoState.HIGH),
                    description], context=context).plan
-with simulated_robot:
+with kinematically_simulated_robot:
     plan.perform()
 ```
 
@@ -88,7 +88,7 @@ The data obtained throughout the plan execution, including robot states, poses, 
 logged into the database once we insert the plan.
 
 ```python
-from krrood.ormatic.data_access_objects.helper import to_dao, get_dao_class
+from krrood.ormatic.data_access_objects.helper import to_dao, get_data_access_object_class
 
 session.add(to_dao(plan))
 session.commit()
@@ -100,7 +100,7 @@ Now we can query the database to see what we have logged. Let's say we want to s
 from sqlalchemy import select
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 
-navigations = session.scalars(select(get_dao_class(NavigateAction))).all()
+navigations = session.scalars(select(get_data_access_object_class(NavigateAction))).all()
 print(*navigations, sep="\n")
 ```
 
@@ -112,7 +112,7 @@ Due to the inheritance mapped in the ORM package, we can also get all executed a
 ```python
 from coraplex.robot_plans.actions.base import ActionDescription
 
-actions = session.scalars(select(get_dao_class(ActionDescription))).all()
+actions = session.scalars(select(get_data_access_object_class(ActionDescription))).all()
 print(*actions, sep="\n")
 ```
 
