@@ -107,6 +107,11 @@ class SceneBody(StrEnum):
     The drawer the spoon starts in.
     """
 
+    APARTMENT = "apartment"
+    """
+    The apartment's origin, posed in the occupancy map frame the robot localizes in.
+    """
+
 
 # %% where things stand
 
@@ -154,12 +159,12 @@ class ScenePose(Enum):
 
     BOWL_START = ScenePlacement(0.0, 7.2, 1.0)
     """
-    Where the bowl starts, on the kitchen counter.
+    Where the bowl starts, on the kitchen counter, relative to the apartment.
     """
 
     BOWL_TARGET = ScenePlacement(1.6, 5.2, 0.8)
     """
-    Where the bowl is carried to.
+    Where the bowl is carried to, relative to the apartment.
     """
 
     SPOON_START = ScenePlacement(-0.09, 0.0, -0.069)
@@ -173,7 +178,7 @@ class ScenePose(Enum):
 
     SPOON_TARGET = ScenePlacement(1.6, 5.4, 0.8)
     """
-    Where the spoon is carried to.
+    Where the spoon is carried to, relative to the apartment.
     """
 
 
@@ -280,7 +285,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 parent_T_self=ScenePose.BOWL_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world)
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT))
 
         # %% spoon
 
@@ -310,6 +315,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         world = context.world
         robot = context.require_extension(RobotAccess).robot
         right_arm = robot.get_right_arm_if_specified()
+        apartment = world.get_body_by_name(SceneBody.APARTMENT)
         statechart = Statechart(context=context)
         statechart.add_node(
             Sequence(
@@ -319,7 +325,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                         world.get_semantic_annotations_by_type(Bowl)[0],
                         Pose(
                             position=ScenePose.BOWL_TARGET.value.position,
-                            reference_frame=world.root,
+                            reference_frame=apartment,
                         ),
                         right_arm,
                         context,
@@ -329,7 +335,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                         world.get_semantic_annotations_by_type(Spoon)[0],
                         Pose(
                             position=ScenePose.SPOON_TARGET.value.position,
-                            reference_frame=world.root,
+                            reference_frame=apartment,
                         ),
                         right_arm,
                         context,
