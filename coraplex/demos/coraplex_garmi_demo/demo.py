@@ -157,7 +157,7 @@ class ScenePose(Enum):
     Where GARMI starts, in its ``odom`` frame.
     """
 
-    BOWL_START = ScenePlacement(0.0, 7.2, 1.0)
+    BOWL_START = ScenePlacement(0.0, 7.2, 0.973)
     """
     Where the bowl starts, on the kitchen counter, relative to the apartment.
     """
@@ -167,7 +167,7 @@ class ScenePose(Enum):
     Where the bowl is carried to, relative to the apartment.
     """
 
-    SPOON_START = ScenePlacement(-0.09, 0.0, -0.069)
+    SPOON_START = ScenePlacement(-0.265, 0.0, -0.06)
     """
     Where the spoon starts, relative to its drawer: lying on the drawer's bottom plate,
     clear of its walls.

@@ -542,6 +542,37 @@ def test_builder_assigns_material_to_a_textured_primitive_shape(tmp_path):
     assert texture.file == str(texture_file)
 
 
+def test_builder_writes_a_cylinders_radius_and_half_length(tmp_path):
+    """
+    MuJoCo sizes a cylinder by its radius and its *half* length, so a :class:`Cylinder`
+    keeps its full height in simulation.
+    """
+    cylinder = Cylinder(width=0.012, height=0.16)
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        world.add_body(root)
+        handle = Body(
+            name=PrefixedName("handle"),
+            visual=ShapeCollection([cylinder]),
+            collision=ShapeCollection([cylinder]),
+        )
+        world.add_kinematic_structure_entity(handle)
+        world.add_connection(FixedConnection(parent=root, child=handle))
+
+    builder = MujocoBuilder()
+    builder.build_world(world=world, file_path=str(tmp_path / "scene.xml"))
+
+    [geom] = [
+        geom
+        for body in builder.spec.bodies
+        for geom in body.geoms
+        if body.name == "handle"
+    ]
+    assert geom.size[0] == pytest.approx(cylinder.radius)
+    assert geom.size[1] == pytest.approx(cylinder.height / 2)
+
+
 def test_builder_writes_a_geoms_contact_bitmasks(tmp_path):
     """
     A shape's ``MujocoGeom.contact_type``/``contact_affinity`` must reach the built
