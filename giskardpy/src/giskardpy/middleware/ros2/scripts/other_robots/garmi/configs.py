@@ -37,7 +37,7 @@ class WorldWithGarmiConfig(WorldWithMobileRobot):
     """
 
     odom_body_name: PrefixedName = field(
-        default_factory=lambda: PrefixedName("odom_combined")
+        default_factory=lambda: PrefixedName("odom")
     )
     robot_class: type[Garmi] = field(kw_only=True, default=Garmi, init=False)
     """

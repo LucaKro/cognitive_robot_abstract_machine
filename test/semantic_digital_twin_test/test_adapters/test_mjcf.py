@@ -1,5 +1,6 @@
 import os.path
 
+import mujoco
 import numpy
 import pytest
 
@@ -232,6 +233,27 @@ def test_visual_geometry_is_left_out_where_the_body_already_collides():
     assert [shape.scale for shape in backed_up.collision.shapes] == [
         shape.scale for shape in contact_only.collision.shapes
     ]
+
+
+# %% primitive geom sizes
+
+CYLINDER_SCENE = os.path.join(DATASET_DIR, "cylinder_scene.xml")
+"""
+Scene whose single body carries one cylinder geom.
+"""
+
+
+def test_cylinder_spans_twice_its_half_length():
+    """
+    A MuJoCo cylinder's size is its radius and its *half* length, while a
+    :class:`Cylinder` carries its diameter and its full height.
+    """
+    [mujoco_cylinder] = mujoco.MjSpec.from_file(CYLINDER_SCENE).geoms
+    world = MJCFParser.from_file(CYLINDER_SCENE).parse()
+
+    [cylinder] = world.get_body_by_name("handle").visual.shapes
+    assert cylinder.width == pytest.approx(2 * mujoco_cylinder.size[0])
+    assert cylinder.height == pytest.approx(2 * mujoco_cylinder.size[1])
 
 
 TEXTURED_BOX_MJCF_TEMPLATE = """
