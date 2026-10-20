@@ -1902,6 +1902,26 @@ class World(HasSimulatorProperties):
             )
         )
 
+    def free_branch(self, branch_root: KinematicStructureEntity) -> None:
+        """
+        Replace the connection between a branch and its parent by a
+        :class:`Connection6DoF`, so the branch can be moved freely relative to the same
+        parent. The pose of the branch stays the same.
+
+        :param branch_root: The root of the branch to free.
+        """
+        old_connection = branch_root.parent_connection
+        if isinstance(old_connection, Connection6DoF):
+            return
+        parent_T_branch_root = old_connection.origin
+        with self.modify_world():
+            self.remove_connection(old_connection)
+            new_connection = Connection6DoF.create_with_dofs(
+                world=self, parent=old_connection.parent, child=branch_root
+            )
+            self.add_connection(new_connection)
+        new_connection.origin = parent_T_branch_root
+
     def get_connections_of_branch(
         self, root: KinematicStructureEntity
     ) -> List[Connection]:
