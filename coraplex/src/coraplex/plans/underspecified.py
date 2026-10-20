@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
+from collections import deque
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from itertools import count
 
 from typing_extensions import (
     TYPE_CHECKING,
+    Callable,
+    Iterator,
 )
 
 from coraplex.datastructures.enums import ActionTrialVisualization
@@ -21,6 +25,8 @@ from coraplex.visualization import RvizVisualization
 from cramph.composites import (
     ChildChooser,
     CompositeNodeChoosingItsChild,
+    ControlStructureNode,
+    Parallel,
     Sequence,
     StatementNode,
 )
@@ -153,22 +159,59 @@ class ActionTrial:
         :return: True if `action` runs to completion without raising an
             :class:`~cramph.exceptions.ExecutionFailure`.
         """
+        return self._runs_to_completion(
+            lambda world: self._rebind_action_to_world(action, world), str(action)
+        )
+
+    def block_succeeds(
+        self,
+        block: StatechartNode,
+        candidates: dict[StatementNode, DesignatorParameters],
+    ) -> bool:
+        """
+        Run `block` against the copy, every statement in it replaced by its candidate,
+        and restore the copy afterwards.
+
+        The candidates are tried together with the actions and statements that run
+        beside them, the way the block runs for real, rather than each on its own; any
+        other node of the block is left out, see :meth:`_rebuild_onto`.
+
+        :param block: The node whose statements are grounded together.
+        :param candidates: The candidate each statement of `block` runs.
+        :return: True if `block` runs to completion without raising an
+            :class:`~cramph.exceptions.ExecutionFailure`.
+        """
+        return self._runs_to_completion(
+            lambda world: self._rebuild_onto(block, world, candidates),
+            f"{block.name} with {', '.join(map(str, candidates.values()))}",
+        )
+
+    def _runs_to_completion(
+        self, build: Callable[[World], StatechartNode], description: str
+    ) -> bool:
+        """
+        :param build: Builds the node to try against the copy it is given.
+        :param description: What is tried, for the log.
+        :return: True if the node `build` returns runs to completion against the copy
+            without raising an :class:`~cramph.exceptions.ExecutionFailure`.
+        """
         world = self._copy()
-        candidate = self._rebind_action_to_world(action, world)
+        node = build(world)
         version = world.get_world_model_manager().version
 
         with world.reset_state_context():
             try:
                 executor = self._trial_executor(world)
                 statechart = Statechart(context=executor.context)
-                # The candidate runs in a sequence of its own, the way it runs for real,
-                # so the nodes a plan transformation puts beside it are tried with it.
-                statechart.add_node(Sequence(nodes=[candidate]))
+                # The node runs in a sequence of its own, the way a candidate runs for
+                # real, so the nodes a plan transformation puts beside it are tried with
+                # it.
+                statechart.add_node(Sequence(nodes=[node]))
                 executor.compile(statechart)
                 executor.execute()
                 return True
             except ExecutionFailure as failure:
-                logger.info(f"{action} failed its trial: {failure}")
+                logger.info(f"{description} failed its trial: {failure}")
                 return False
             finally:
                 # Undo the model changes before leaving the reset context restores the
@@ -214,6 +257,9 @@ class ActionTrial:
                 frame_prefix=ActionTrialVisualization.FRAME_PREFIX,
                 marker_topic=ActionTrialVisualization.MARKER_TOPIC,
                 marker_alpha=self.copy_marker_alpha,
+                # Hidden between trials rather than deleted, so the next one does not
+                # load every mesh again.
+                hides_markers_when_stopped=True,
             )
         ]
 
@@ -236,6 +282,54 @@ class ActionTrial:
                     else world.rebind_world_entities(value)
                 )
                 for name, value in action.designator_parameter.items()
+            }
+        )
+
+    @classmethod
+    def _rebuild_onto(
+        cls,
+        node: StatechartNode,
+        world: World,
+        candidates: dict[StatementNode, DesignatorParameters],
+    ) -> StatechartNode | None:
+        """
+        :param node: A node of the plan, with everything below it.
+        :param world: The copy to try it against.
+        :param candidates: The candidate each statement below `node` runs.
+        :return: A new node referring to `world`: a statement replaced by its candidate
+            in a sequence of its own, the way it runs for real, an action rebuilt from
+            its own parameters, and a control structure from the fields it is
+            constructed with, holding its nodes rebuilt the same way. None for any other
+            node, which a trial leaves out, so only actions and statements are tried,
+            and for a control structure left with nothing to hold.
+        """
+        if isinstance(node, StatementNode):
+            if node not in candidates:
+                return None
+            candidate = cls._rebind_action_to_world(candidates[node], world)
+            return Sequence(name=f"{candidate.name}/steps", nodes=[candidate])
+        if isinstance(node, DesignatorParameters):
+            return cls._rebind_action_to_world(node, world)
+        if not isinstance(node, ControlStructureNode):
+            return None
+        nodes = [
+            rebuilt
+            for child in node.nodes
+            if (rebuilt := cls._rebuild_onto(child, world, candidates)) is not None
+        ]
+        if not nodes:
+            return None
+        return type(node)(
+            **{
+                constructor_field.name: (
+                    nodes
+                    if constructor_field.name == "nodes"
+                    else world.rebind_world_entities(
+                        getattr(node, constructor_field.name)
+                    )
+                )
+                for constructor_field in fields(node)
+                if constructor_field.init
             }
         )
 
@@ -290,6 +384,112 @@ class ActionTrial:
         self._source_versions = None
 
 
+# %% grounding the statements that run side by side together
+
+
+@dataclass
+class RankedCandidates:
+    """
+    The candidates of a statement in the order it yields them, pulled from it only as
+    far as they are asked for.
+    """
+
+    node: StatementNode
+    """
+    The node whose statement yields the candidates.
+    """
+
+    grounding: StatementGrounding
+    """
+    How the statement is grounded.
+    """
+
+    pulled: list[DesignatorParameters] = field(default_factory=list, init=False)
+    """
+    The candidates pulled so far, in rank order.
+    """
+
+    exhausted: bool = field(default=False, init=False)
+    """
+    Whether the statement yields no candidate beyond :attr:`pulled`.
+    """
+
+    def at(self, rank: int) -> DesignatorParameters | None:
+        """
+        :param rank: The position of the candidate in the order the statement yields
+            them, the first at 0.
+        :return: The candidate at `rank`, or None if the statement yields fewer.
+        """
+        while len(self.pulled) <= rank and not self.exhausted:
+            candidate = self.node.next_candidate(
+                self.grounding.query_backend, self.grounding.candidates_to_try
+            )
+            if candidate is None:
+                self.exhausted = True
+            else:
+                self.pulled.append(candidate)
+        return self.pulled[rank] if rank < len(self.pulled) else None
+
+
+def combinations_closest_first(
+    rankings: list[RankedCandidates],
+) -> Iterator[tuple[DesignatorParameters, ...]]:
+    """
+    Every combination of one candidate of each ranking, those with the lowest sum of
+    ranks first, so the candidates every statement ranks first are combined before any
+    combination takes a later one.
+
+    :param rankings: The candidates of each statement.
+    :return: The combinations, each holding one candidate per ranking, in its order.
+    """
+    for rank_sum in count():
+        for ranks in _ranks_summing_to(rank_sum, len(rankings)):
+            combination = tuple(
+                ranking.at(rank) for ranking, rank in zip(rankings, ranks)
+            )
+            if all(candidate is not None for candidate in combination):
+                yield combination
+        # Every ranking was asked for its candidate at rank_sum above, so each is
+        # exhausted once rank_sum outgrew it.
+        if all(ranking.exhausted for ranking in rankings) and rank_sum >= sum(
+            len(ranking.pulled) - 1 for ranking in rankings
+        ):
+            return
+
+
+def _ranks_summing_to(total: int, parts: int) -> Iterator[tuple[int, ...]]:
+    """
+    :param total: What the ranks add up to.
+    :param parts: How many ranks there are.
+    :return: Every tuple of `parts` ranks that add up to `total`.
+    """
+    if parts == 0:
+        if total == 0:
+            yield ()
+        return
+    for first in range(total + 1):
+        for rest in _ranks_summing_to(total - first, parts - 1):
+            yield first, *rest
+
+
+@dataclass
+class BlockGrounding:
+    """
+    The candidates the statements of one run of a parallel were grounded to together.
+    """
+
+    start_tick: int
+    """
+    The tick the run of the parallel started on.
+    """
+
+    candidates: dict[StatementNode, DesignatorParameters | None]
+    """
+    The candidate each statement runs once it asks for its child, None for every
+    statement if no combination succeeded its trial.
+    """
+
+
 # %% grounding underspecified actions while the statechart runs
 
 
@@ -303,6 +503,15 @@ class UnderspecifiedChildChooser(PlanChildChooser):
     A grounded action is tried out first, so one that fails its trial is discarded
     without ever touching the real world, and a bad parameterization cannot poison a
     later attempt.
+
+    The statements of a parallel are grounded together when it starts, because what
+    runs beside a candidate changes the motion it runs in: every combination of their
+    candidates is tried as the parallel, with the actions beside them, the combinations
+    of the candidates each statement ranks first before the rest, and the first that
+    succeeds is what they run.
+    A statement is grounded on its own when it runs in no parallel, when it asks again
+    after a child of its own failed, and when it started after its parallel did, which
+    leaves no state to try the parallel from.
     """
 
     executor: PlanExecutor
@@ -321,6 +530,21 @@ class UnderspecifiedChildChooser(PlanChildChooser):
     of the world.
     """
 
+    _block_groundings: dict[Parallel, BlockGrounding] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """
+    The latest grounding of each parallel whose statements were grounded together.
+    """
+
+    _leftover_candidates: dict[StatementNode, deque[DesignatorParameters]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """
+    The candidates a statement yielded while it was grounded together with the others
+    of its parallel but does not run, tried first should its child fail.
+    """
+
     def __post_init__(self) -> None:
         self.trial = ActionTrial(
             executor=self.executor, trial_executor_type=self.trial_executor_type
@@ -330,28 +554,161 @@ class UnderspecifiedChildChooser(PlanChildChooser):
         self, node: CompositeNodeChoosingItsChild
     ) -> StatechartNode | None:
         """
-        :return: The sequence holding the next grounded action that succeeds its
-            trial, or None once the statement ran out of actions that succeed their
-            trial.
+        :return: The sequence holding the grounded action `node` runs next, or None
+            once its statement ran out of actions that succeed their trial.
         :raises NotAStatementNode: If `node` carries no statement to ground.
         """
         if not isinstance(node, StatementNode):
             raise NotAStatementNode(node=node)
         grounding = node.context.require_extension(StatementGrounding)
-        proposal = node.next_candidate(
-            grounding.query_backend, grounding.candidates_to_try
-        )
+        block_grounding = self._grounding_of_block_around(node, grounding)
+        if block_grounding is not None and node in block_grounding.candidates:
+            candidate = block_grounding.candidates.pop(node)
+            if candidate is None:
+                node.stop_grounding()
+                return None
+            return Sequence(name=f"{candidate.name}/steps", nodes=[candidate])
+        return self._choose_on_its_own(node, grounding)
+
+    def _choose_on_its_own(
+        self, node: StatementNode, grounding: StatementGrounding
+    ) -> StatechartNode | None:
+        """
+        :return: The sequence holding the next grounded action of `node` that succeeds
+            its trial on its own, or None once its statement ran out of them.
+        """
+        leftovers = self._leftover_candidates.pop(node, deque())
+        if node.latest_child is None:
+            # Left from an earlier run, grounded against a world that has moved on.
+            leftovers.clear()
+        proposal = self._next_proposal(node, grounding, leftovers)
         while proposal is not None:
             if self.trial.succeeds(proposal):
+                if leftovers:
+                    self._leftover_candidates[node] = leftovers
                 return Sequence(name=f"{proposal.name}/steps", nodes=[proposal])
-            proposal = node.next_candidate(
-                grounding.query_backend, grounding.candidates_to_try
-            )
+            proposal = self._next_proposal(node, grounding, leftovers)
         node.stop_grounding()
         return None
 
+    @staticmethod
+    def _next_proposal(
+        node: StatementNode,
+        grounding: StatementGrounding,
+        leftovers: deque[DesignatorParameters],
+    ) -> DesignatorParameters | None:
+        """
+        :return: The next of `leftovers`, or the next candidate of `node`'s statement
+            once they are used up.
+        """
+        if leftovers:
+            return leftovers.popleft()
+        return node.next_candidate(grounding.query_backend, grounding.candidates_to_try)
+
+    def _grounding_of_block_around(
+        self, node: StatementNode, grounding: StatementGrounding
+    ) -> BlockGrounding | None:
+        """
+        :return: The grounding of the current run of the parallel `node` runs in,
+            grounded now if `node` is the first of its statements to ask on the run's
+            start, or None if `node` runs in no parallel, asks after a child of its own
+            failed, or started after its parallel when that was not grounded.
+        """
+        block = self._block_around(node)
+        if block is None or node.latest_child is not None:
+            return None
+        start_tick = self._start_tick_of_current_run(block)
+        block_grounding = self._block_groundings.get(block)
+        if block_grounding is not None and block_grounding.start_tick == start_tick:
+            return block_grounding
+        if self._start_tick_of_current_run(node) != start_tick:
+            return None
+        block_grounding = BlockGrounding(
+            start_tick=start_tick,
+            candidates=self._ground_together(block, grounding),
+        )
+        self._block_groundings[block] = block_grounding
+        return block_grounding
+
+    @staticmethod
+    def _block_around(node: StatementNode) -> Parallel | None:
+        """
+        :return: The outermost parallel above `node`, which holds everything that runs
+            beside it, or None if it runs in none. A parallel that is an action is left
+            out, because it is tried by rebuilding it from its own parameters, which
+            grounds what it runs anew.
+        """
+        blocks = [
+            ancestor
+            for ancestor in node.path
+            if isinstance(ancestor, Parallel)
+            and not isinstance(ancestor, DesignatorParameters)
+        ]
+        return blocks[-1] if blocks else None
+
+    @staticmethod
+    def _start_tick_of_current_run(node: StatechartNode) -> int:
+        """
+        :return: The tick the current run of `node` started on.
+        """
+        run = node.statechart.state_history.get_current_run_ticks_of_node(node)
+        # A tick is recorded only once its nodes chose their children, so a node that
+        # started on the tick being chosen for has no run recorded yet.
+        return node.context.tick_count if run is None else run.start_tick
+
+    def _ground_together(
+        self, block: Parallel, grounding: StatementGrounding
+    ) -> dict[StatementNode, DesignatorParameters | None]:
+        """
+        Try the combinations of the candidates of the statements of `block` as the
+        whole of `block`, the closest first, see :func:`combinations_closest_first`.
+
+        :return: The candidate each statement runs, from the first combination that
+            succeeded its trial, or None for each if none did.
+        """
+        statements = self._statements_of(block)
+        if not statements:
+            return {}
+        rankings = [
+            RankedCandidates(node=statement, grounding=grounding)
+            for statement in statements
+        ]
+        for combination in combinations_closest_first(rankings):
+            candidates = dict(zip(statements, combination))
+            if self.trial.block_succeeds(block, candidates):
+                for ranking, chosen in zip(rankings, combination):
+                    self._leftover_candidates[ranking.node] = deque(
+                        candidate
+                        for candidate in ranking.pulled
+                        if candidate is not chosen
+                    )
+                return candidates
+        for statement in statements:
+            statement.stop_grounding()
+        return dict.fromkeys(statements)
+
+    def _statements_of(self, node: StatechartNode) -> list[StatementNode]:
+        """
+        :return: The statements below `node` that have not chosen a child in their
+            current run, leaving out those in an action, which the action's own trial
+            grounds.
+        """
+        statements = []
+        for child in node.children:
+            if isinstance(child, StatementNode):
+                if (
+                    child.latest_child is None
+                    and not child.life_cycle_state.is_terminal
+                ):
+                    statements.append(child)
+            elif not isinstance(child, DesignatorParameters):
+                statements.extend(self._statements_of(child))
+        return statements
+
     def cleanup(self) -> None:
         """
-        Release the trial's world copy.
+        Release the trial's world copy and what was grounded together.
         """
         self.trial.discard()
+        self._block_groundings.clear()
+        self._leftover_candidates.clear()

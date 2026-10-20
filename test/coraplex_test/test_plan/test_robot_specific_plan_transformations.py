@@ -8,7 +8,7 @@ import pytest
 
 from coraplex.plans.executors import PlanExecutor, KinematicallySimulatedPlanExecutor
 from coraplex.plans.failures import MotionMadeNoProgress
-from coraplex.robot_plans.actions.core.container import CloseAction
+from coraplex.robot_plans.actions.core.container import GraspCloseAndRetractAction
 from coraplex.robot_plans.actions.core.misc import MoveToReach
 from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
@@ -334,20 +334,24 @@ def test_a_drive_chosen_while_running_is_watched_for_stalling_as_it_is_driven(
 # %% closing a container
 
 
-def close_action(world: World, robot: AbstractRobot) -> CloseAction:
+def close_action(world: World, robot: AbstractRobot) -> GraspCloseAndRetractAction:
     """
     :return: An action closing a container of the apartment with the arm of `robot`.
     """
     handle = world.get_semantic_annotations_by_type(Handle)[0]
-    return CloseAction(grasp=handle.grasp_candidates()[0], arm=robot.all_arms[0])
+    return GraspCloseAndRetractAction(
+        grasp=handle.grasp_candidates()[0], arm=robot.all_arms[0]
+    )
 
 
-def closing_step_of(action: CloseAction) -> StatechartNode:
+def closing_step_of(action: GraspCloseAndRetractAction) -> StatechartNode:
     """
     :return: The step of an expanded close action between grasping the handle and
-        letting go of it.
+        letting go of it, the first of those the gripper touches the handle in after
+        the grasp.
     """
-    grasp, closing_step, release, back_off = action.nodes
+    grasp, touching = action.nodes
+    closing_step, release, back_off = touching.nodes
     return closing_step
 
 
@@ -447,11 +451,12 @@ def reaching_goals_of(action: ReachAction) -> list[StatechartNode]:
 
 def lifting_goal_of(action: PickUpAction) -> StatechartNode:
     """
-    :return: The goal of an expanded pick up action lifting the grasped object, which
-        runs in a parallel only where something accompanies it, such as the hold on the
-        base of a robot that stands still.
+    :return: The goal of an expanded pick up action lifting the grasped object, the
+        last of the steps the gripper touches the object's surroundings in, which runs
+        in a parallel only where something accompanies it, such as the hold on the base
+        of a robot that stands still.
     """
-    lift = action.nodes[-1]
+    lift = action.nodes[-1].nodes[-1]
     return lift.nodes[0] if type(lift) is Parallel else lift
 
 

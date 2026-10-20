@@ -25,7 +25,10 @@ from coraplex.robot_plans.actions.composite.searching import (
     SearchAction,
 )
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
-from coraplex.robot_plans.actions.core.container import OpenAction, CloseAction
+from coraplex.robot_plans.actions.core.container import (
+    GraspOpenAndRetractAction,
+    GraspCloseAndRetractAction,
+)
 from coraplex.robot_plans.actions.core.misc import DetectAction, MoveToReach
 from coraplex.robot_plans.actions.core.navigation import (
     FaceAtAction,
@@ -695,7 +698,7 @@ def test_open(multiple_robot_apartment_context):
                     reference_frame=world.root,
                 )
             ),
-            OpenAction.from_handle(
+            GraspOpenAndRetractAction.from_handle(
                 _handle_annotation(world, "handle_cab10_m"),
                 left_or_only_arm(robot),
             ),
@@ -729,7 +732,7 @@ def test_close(multiple_robot_apartment_context, rclpy_node):
                     world,
                 )
             ),
-            CloseAction.from_handle(handle, left_or_only_arm(robot)),
+            GraspCloseAndRetractAction.from_handle(handle, left_or_only_arm(robot)),
         ]
     )
     run_plan(plan, extensions)
@@ -1218,7 +1221,7 @@ def test_closing_drives_the_mechanism_to_the_closed_joint_position(
 ) -> None:
     world, robot, extensions = multiple_robot_apartment_context
     handle = _handle_annotation(world, "handle_cab10_m")
-    action = CloseAction(
+    action = GraspCloseAndRetractAction(
         grasp=handle.grasp_candidates()[0],
         arm=left_or_only_arm(robot),
         closed_joint_position=0.02,
@@ -1235,7 +1238,7 @@ def test_opening_drives_the_mechanism_to_its_upper_limit(
 ) -> None:
     world, robot, extensions = multiple_robot_apartment_context
     handle = _handle_annotation(world, "handle_cab10_m")
-    action = OpenAction(
+    action = GraspOpenAndRetractAction(
         grasp=handle.grasp_candidates()[0],
         arm=left_or_only_arm(robot),
     )

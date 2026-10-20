@@ -10,9 +10,13 @@ from krrood.entity_query_language.factories import (
 )
 from krrood.entity_query_language.query.match import Match
 from coraplex.querying.grasp_closeness import GraspsClosestToTheRobot
-from coraplex.robot_plans.actions.base import SequentialAction
+from coraplex.robot_plans.actions.base import GoalAction, SequentialAction
 from cramph.node import StatechartNode
-from coraplex.robot_plans.actions.core.pick_up import GraspingAction, HasGraspChoice
+from coraplex.robot_plans.actions.core.pick_up import (
+    GraspingAction,
+    GripperContactAction,
+    HasGraspChoice,
+)
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses, MovesToolCenterPoint
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
@@ -36,7 +40,7 @@ from semantic_digital_twin.world_description.connections import ActiveConnection
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MovesContainerByItsHandle(
+class GraspsAndMovesContainerByItsHandle(
     MovesToolCenterPoint, SequentialAction, HasGraspChoice, ABC
 ):
     """
@@ -90,14 +94,12 @@ class MovesContainerByItsHandle(
             grasp_pose, end_effector, self.release_clearance
         )
 
-    def create_temporary_collision_rules(self) -> list[CollisionRule]:
-        """
-        :return: An allowance for the gripper on the handle to touch its surroundings,
-            from taking hold of the handle until it has backed off it.
-        """
-        return [AllowCollisionForEndEffector(end_effector=self.arm.end_effector)]
-
     def create_steps(self) -> list[StatechartNode]:
+        """
+        The gripper on the handle touches its surroundings from taking hold of the
+        handle until it has backed off it, so only those steps let it, see
+        :class:`~coraplex.robot_plans.actions.core.pick_up.GripperContactAction`.
+        """
         end_effector = self.arm.end_effector
         return [
             GraspingAction(
@@ -105,14 +107,19 @@ class MovesContainerByItsHandle(
                 arm=self.arm,
                 approach_clearance=self.approach_clearance,
             ),
-            self.create_mechanism_goal(),
-            MoveGripper(
+            GripperContactAction(
                 end_effector=end_effector,
-                state=GripperState.OPEN,
-            ),
-            self.tool_center_point_goal(
-                self.back_off_pose(self.grasp.grasp_pose, end_effector),
-                self.arm,
+                steps=[
+                    self.create_mechanism_goal(),
+                    MoveGripper(
+                        end_effector=end_effector,
+                        state=GripperState.OPEN,
+                    ),
+                    self.tool_center_point_goal(
+                        self.back_off_pose(self.grasp.grasp_pose, end_effector),
+                        self.arm,
+                    ),
+                ],
             ),
         ]
 
@@ -121,9 +128,13 @@ class MovesContainerByItsHandle(
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class OpenAction(MovesContainerByItsHandle):
+class GraspOpenAndRetractAction(GraspsAndMovesContainerByItsHandle):
     """
-    Opens a container like object, driving its mechanism to its upper limit.
+    Takes hold of the handle of a container like object, opens it, driving its
+    mechanism to its upper limit, then lets go of the handle and backs off it.
+
+    :class:`OpenAction` opens a container whose handle is already held, and keeps
+    holding it.
     """
 
     def create_mechanism_goal(self) -> MotionStatechartNode:
@@ -137,9 +148,13 @@ class OpenAction(MovesContainerByItsHandle):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class CloseAction(MovesContainerByItsHandle):
+class GraspCloseAndRetractAction(GraspsAndMovesContainerByItsHandle):
     """
-    Closes a container like object.
+    Takes hold of the handle of a container like object, closes it, then lets go of the
+    handle and backs off it.
+
+    :class:`CloseAction` closes a container whose handle is already held, and keeps
+    holding it.
     """
 
     closed_joint_position: float = 0.01
@@ -154,3 +169,75 @@ class CloseAction(MovesContainerByItsHandle):
             environment_link=self.grasp.graspable.root,
             goal_joint_state=self.closed_joint_position,
         )
+
+
+# %% opening and closing a container whose handle is held
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class MovesHeldContainer(GoalAction, ABC):
+    """
+    An action that moves a container like object by its handle, which the gripper of
+    :attr:`arm` already holds, and keeps holding the handle.
+    """
+
+    arm: Arm
+    """
+    The arm whose gripper holds the handle.
+    """
+
+    handle: Handle
+    """
+    The handle of the container.
+    """
+
+    @abstractmethod
+    def goal_joint_position(self) -> float:
+        """
+        :return: The joint position, in meters or radians, the container's mechanism
+            is driven to.
+        """
+
+    def create_temporary_collision_rules(self) -> list[CollisionRule]:
+        """
+        :return: An allowance for the gripper on the handle to touch its surroundings
+            while it moves the container.
+        """
+        return [AllowCollisionForEndEffector(end_effector=self.arm.end_effector)]
+
+    def create_goal(self) -> StatechartNode:
+        return ArticulateGraspedMechanism(
+            tip_link=self.arm.end_effector.tool_frame,
+            environment_link=self.handle.root,
+            goal_joint_state=self.goal_joint_position(),
+        )
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class OpenAction(MovesHeldContainer):
+    """
+    Opens a container like object whose handle is already held, driving its mechanism
+    to its upper limit.
+    """
+
+    def goal_joint_position(self) -> float:
+        mechanism = self.handle.root.get_first_parent_connection_of_type(
+            ActiveConnection1DOF
+        )
+        return mechanism.dof.limits.upper.position
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class CloseAction(MovesHeldContainer):
+    """
+    Closes a container like object whose handle is already held.
+    """
+
+    closed_joint_position: float = 0.01
+    """
+    The joint position, in meters or radians, the container's mechanism is driven to, or
+    its lower limit if that lies above.
+    """
+
+    def goal_joint_position(self) -> float:
+        return self.closed_joint_position

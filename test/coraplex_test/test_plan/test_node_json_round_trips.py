@@ -39,7 +39,12 @@ from coraplex.robot_plans.actions.composite.transporting import (
     PickAndPlaceAction,
     TransportAction,
 )
-from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
+from coraplex.robot_plans.actions.core.container import (
+    CloseAction,
+    GraspCloseAndRetractAction,
+    GraspOpenAndRetractAction,
+    OpenAction,
+)
 from coraplex.robot_plans.actions.core.misc import DetectAction, MoveToReach
 from coraplex.robot_plans.actions.core.navigation import (
     ElevatorNavigation,
@@ -49,7 +54,9 @@ from coraplex.robot_plans.actions.core.navigation import (
     PathPlanningNavigateAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import (
+    FixateObjectAction,
     GraspingAction,
+    GripperContactAction,
     PickUpAction,
     ReachAction,
 )
@@ -368,15 +375,39 @@ def _manipulation_cases() -> list[ActionRoundTripCase]:
             PlaceAction, lambda world: [_pick_up(world), _place(world)]
         ),
         ActionRoundTripCase(
-            OpenAction,
+            GraspOpenAndRetractAction,
             lambda world: [
-                OpenAction(grasp=_handle(world).grasp_candidates()[0], arm=_arm(world))
+                GraspOpenAndRetractAction(
+                    grasp=_handle(world).grasp_candidates()[0], arm=_arm(world)
+                )
             ],
         ),
         ActionRoundTripCase(
-            CloseAction,
+            GraspCloseAndRetractAction,
             lambda world: [
-                CloseAction(grasp=_handle(world).grasp_candidates()[0], arm=_arm(world))
+                GraspCloseAndRetractAction(
+                    grasp=_handle(world).grasp_candidates()[0], arm=_arm(world)
+                )
+            ],
+        ),
+        ActionRoundTripCase(
+            OpenAction,
+            lambda world: [OpenAction(arm=_arm(world), handle=_handle(world))],
+        ),
+        ActionRoundTripCase(
+            CloseAction,
+            lambda world: [CloseAction(arm=_arm(world), handle=_handle(world))],
+        ),
+        ActionRoundTripCase(
+            FixateObjectAction, lambda world: [FixateObjectAction(arm=_arm(world))]
+        ),
+        ActionRoundTripCase(
+            GripperContactAction,
+            lambda world: [
+                GripperContactAction(
+                    end_effector=_arm(world).end_effector,
+                    steps=[_navigate(world)],
+                )
             ],
         ),
         ActionRoundTripCase(
@@ -392,7 +423,7 @@ def _manipulation_cases() -> list[ActionRoundTripCase]:
                 MoveAndOpenAction(
                     navigate=_navigate(world),
                     face_and_look_at=_face_and_look_at(world),
-                    open_container=OpenAction(
+                    open_container=GraspOpenAndRetractAction(
                         grasp=_handle(world).grasp_candidates()[0], arm=_arm(world)
                     ),
                 )

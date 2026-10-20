@@ -27,7 +27,7 @@ from coraplex.robot_plans.actions.composite.transporting import (
     PickAndPlaceAction,
     TransportAction,
 )
-from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.querying.grasp_closeness import ClosestGrasps, GraspCloseness
 from coraplex.robot_plans.actions.core.placing import PlaceAction
@@ -790,7 +790,7 @@ def test_an_opening_of_a_handle_is_grounded_by_every_grasp_the_handle_offers(
 
     openings = list(
         EntityQueryLanguageGenerativeBackend().evaluate(
-            OpenAction.from_handle(handle, robot.left_arm)
+            GraspOpenAndRetractAction.from_handle(handle, robot.left_arm)
         )
     )
 
@@ -811,7 +811,7 @@ def test_an_opening_of_a_handle_first_tries_the_grasp_facing_the_robot(
     """
     world, robot, extensions = pr2_apartment_context
     handle = Handle(root=world.get_body_by_name(DRAWER_HANDLE))
-    opening = OpenAction.from_handle(handle, robot.left_arm)
+    opening = GraspOpenAndRetractAction.from_handle(handle, robot.left_arm)
     horizontally_approached = [
         grasp
         for grasp in handle.grasp_candidates()

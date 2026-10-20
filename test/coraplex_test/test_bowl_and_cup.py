@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from coraplex.plans.context_extensions import MotionToleranceConfig
-from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
@@ -218,7 +218,9 @@ def transport_plan(kitchen: KitchenWithFilledDrawer) -> Sequence:
             # The arms start stretched out, which would reach into the counter.
             ParkArmsAction(arms=robot.all_arms),
             NavigateAction(target_location=in_front_of_the_closed_drawer),
-            OpenAction.from_handle(kitchen.drawer_handle, robot.left_arm),
+            GraspOpenAndRetractAction.from_handle(
+                kitchen.drawer_handle, robot.left_arm
+            ),
             ParkArmsAction(arms=robot.all_arms),
             NavigateAction(target_location=in_front_of_the_open_drawer),
             Parallel(

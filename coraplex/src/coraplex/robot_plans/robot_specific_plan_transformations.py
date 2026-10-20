@@ -16,8 +16,8 @@ from coraplex.plans.plan_transformation import (
 )
 from coraplex.robot_plans.actions.composite.tool_based import ToolMotionAction
 from coraplex.robot_plans.actions.core.container import (
-    CloseAction,
-    MovesContainerByItsHandle,
+    GraspCloseAndRetractAction,
+    GraspsAndMovesContainerByItsHandle,
 )
 from coraplex.robot_plans.actions.core.navigation import DrivesBase
 from coraplex.robot_plans.mixins import MovesToolCenterPoint
@@ -134,7 +134,7 @@ class KeepStretchFromTurningWhileMovingItsTool(ParallelInsertion[MovesToolCenter
             isinstance(robot, Stretch)
             and robot.mobile_base.full_body_controlled
             and not any(
-                isinstance(node, MovesContainerByItsHandle)
+                isinstance(node, GraspsAndMovesContainerByItsHandle)
                 for node in [plan_node, *plan_node.path]
             )
             and not any(isinstance(node, DrivesBase) for node in plan_node.descendants)
@@ -189,18 +189,22 @@ class MoveStretchToolCenterPointInAStraightLine(
 
 
 @dataclass
-class KeepStretchInFrontOfTheContainerItCloses(PlanTransformation[CloseAction]):
+class KeepStretchInFrontOfTheContainerItCloses(
+    PlanTransformation[GraspCloseAndRetractAction]
+):
     """
     Keeps a kinematically simulated Stretch standing in front of the container it closes
     and holding on to the handle, so that it closes the container by pushing its arm
     forward.
     """
 
-    def is_applicable(self, plan_node: CloseAction) -> bool:
+    def is_applicable(self, plan_node: GraspCloseAndRetractAction) -> bool:
         return isinstance(plan_node.robot, Stretch)
 
     @staticmethod
-    def closing_goal(plan_node: CloseAction) -> ArticulateGraspedMechanism:
+    def closing_goal(
+        plan_node: GraspCloseAndRetractAction,
+    ) -> ArticulateGraspedMechanism:
         """
         :param plan_node: The close action.
         :return: The goal closing the container.
@@ -212,7 +216,7 @@ class KeepStretchInFrontOfTheContainerItCloses(PlanTransformation[CloseAction]):
                 return node
         raise ClosingGoalNotFound(plan_node)
 
-    def apply(self, plan_node: CloseAction) -> None:
+    def apply(self, plan_node: GraspCloseAndRetractAction) -> None:
         closing_goal = self.closing_goal(plan_node)
         handle = closing_goal.environment_link
         tool_frame = closing_goal.tip_link

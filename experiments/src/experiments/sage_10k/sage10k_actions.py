@@ -7,7 +7,7 @@ import rustworkx
 from krrood.entity_query_language.factories import a, an, variable
 from coraplex.robot_plans.actions.base import SequentialAction
 from cramph.node import StatechartNode
-from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
 from coraplex.robot_plans.actions.core.misc import MoveToReach
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Door
@@ -86,6 +86,6 @@ class Sage10kOpenDoor(SequentialAction):
         reach_query._where_conditions_.append(free_space_condition)
         reach_action = StatementNode(statement=reach_query)
 
-        open_action = OpenAction.from_handle(self.door.handle, arm)
+        open_action = GraspOpenAndRetractAction.from_handle(self.door.handle, arm)
 
         return [reach_action, open_action]

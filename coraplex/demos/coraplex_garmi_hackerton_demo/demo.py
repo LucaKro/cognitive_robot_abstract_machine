@@ -31,10 +31,15 @@ from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.querying.grasp_closeness import GraspsClosestToTheRobot
 from coraplex.robot_plans.actions.core.container import (
     CloseAction,
-    MovesContainerByItsHandle,
+    GraspsAndMovesContainerByItsHandle,
+    OpenAction,
 )
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import GraspingAction, PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import (
+    FixateObjectAction,
+    GraspingAction,
+    PickUpAction,
+)
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
@@ -46,9 +51,6 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
-from giskardpy.motion_statechart.goals.grasped_mechanism import (
-    ArticulateGraspedMechanism,
-)
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from krrood.entity_query_language.factories import a, variable
 from semantic_digital_twin.datastructures.definitions import GripperState
@@ -136,6 +138,11 @@ class SceneBody(StrEnum):
     The drawer the spoon starts in.
     """
 
+    BOWL_DRAWER = "drawer_2"
+    """
+    The drawer the bowl is put into, the one below the spoon's.
+    """
+
 
 # %% where things stand
 
@@ -192,7 +199,7 @@ class ScenePose(Enum):
 
     GARMI_AT_COUNTER = ScenePlacement(-0.3, 6.4, 0, yaw=math.pi / 2)
     """
-    Where GARMI stands to open the spoon's drawer with its left arm while it picks up the
+    Where GARMI stands to open the bowl's drawer with its left arm while it picks up the
     bowl with its right: between the two, facing the counter.
     """
 
@@ -201,11 +208,11 @@ class ScenePose(Enum):
     Where the bowl starts, on the kitchen counter.
     """
 
-    BOWL_IN_DRAWER = ScenePlacement(0.1, -0.13, -0.033, yaw=-math.pi / 2)
+    BOWL_IN_DRAWER = ScenePlacement(-0.5, 6.9, 0.567)
     """
-    Where the bowl is put into the spoon's drawer, relative to the drawer: on its bottom
-    plate, on GARMI's right of the spoon and back from the handle, and turned as it stood
-    on the counter, so the hand holding it does not have to turn.
+    Where the bowl is put into its drawer once that is open, in the world: on the
+    drawer's bottom plate, a bit further inside than GARMI's right of its middle, and
+    turned as it stood on the counter, so the hand holding it does not have to turn.
     """
 
     BOWL_TARGET = ScenePlacement(1.6, 5.2, 0.8)
@@ -356,19 +363,20 @@ class GarmiApartmentDemonstration(RobotDemonstration):
 
     def build_statechart(self, context: StatechartContext) -> Statechart:
         """
-        Open the spoon's drawer with the left arm while picking up the bowl with the
-        right, place the bowl into the drawer while the left arm holds it open, then let
-        go of the drawer and park the left arm while the right one closes it.
+        Open the drawer below the spoon's with the left arm while picking up the bowl
+        with the right, place the bowl into the drawer while the left arm holds it open, then
+        close the drawer with the left arm, still holding its handle, while the right one
+        parks, and let go of the handle and park the left arm.
         """
         world = context.world
         robot = context.require_extension(RobotAccess).robot
         left_arm = robot.get_left_arm_if_specified()
         right_arm = robot.get_right_arm_if_specified()
-        spoon_drawer = world.get_body_by_name(SceneBody.SPOON_DRAWER)
+        bowl_drawer = world.get_body_by_name(SceneBody.BOWL_DRAWER)
         [drawer] = [
             drawer
             for drawer in world.get_semantic_annotations_by_type(Drawer)
-            if drawer.root is spoon_drawer
+            if drawer.root is bowl_drawer
         ]
         [bowl] = world.get_semantic_annotations_by_type(Bowl)
         left_hand = left_arm.end_effector
@@ -397,12 +405,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                         ),
                                         arm=left_arm,
                                     ),
-                                    ArticulateGraspedMechanism(
-                                        tip_link=left_hand.tool_frame,
-                                        environment_link=drawer.handle.root,
-                                        goal_joint_state=spoon_drawer.parent_connection.dof.limits.upper.position,
-                                        grasping_end_effector=left_hand,
-                                    ),
+                                    OpenAction(arm=left_arm, handle=drawer.handle),
                                 ]
                             ),
                             a(PickUpAction)(
@@ -421,13 +424,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                     # one puts the bowl in.
                     Parallel(
                         nodes=[
-                            CartesianPose(
-                                name="Keep holding handle",
-                                root_link=world.root,
-                                tip_link=left_hand.tool_frame,
-                                goal_pose=Pose(reference_frame=left_hand.tool_frame),
-                            ),
-                            UpdateTemporaryCollisionRules.for_end_effector(left_hand),
+                            FixateObjectAction(arm=left_arm),
                             Sequence(
                                 nodes=[
                                     # Grounded once it starts, when the bowl is in
@@ -436,14 +433,24 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                     a(PlaceAction)(
                                         object_designator=bowl,
                                         target_location=ScenePose.BOWL_IN_DRAWER.value.pose(
-                                            spoon_drawer
+                                            world.root
                                         ),
                                     ),
                                     # A place leaves the bowl under the world; under
                                     # the drawer it moves along when the drawer closes.
-                                    MoveBranch(branch_root=bowl.root, new_parent=spoon_drawer),
+                                    MoveBranch(
+                                        branch_root=bowl.root, new_parent=bowl_drawer
+                                    ),
                                 ]
                             ),
+                        ]
+                    ),
+                    # The left hand never lets go of the handle, so it closes the
+                    # drawer from where it holds it, while the right arm parks.
+                    Parallel(
+                        nodes=[
+                            ParkArmsAction(arms=[right_arm]),
+                            CloseAction(arm=left_arm, handle=drawer.handle),
                         ]
                     ),
                     # Let go of the handle and back off it, along GARMI's approach
@@ -461,18 +468,12 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                         root_link=world.root,
                                         tip_link=left_hand.tool_frame,
                                         goal_pose=Pose.from_xyz_rpy(
-                                            z=-MovesContainerByItsHandle.release_clearance,
+                                            z=-GraspsAndMovesContainerByItsHandle.release_clearance,
                                             reference_frame=left_hand.tool_frame,
                                         ),
                                     ),
                                 ]
                             ),
-                        ]
-                    ),
-                    Parallel(
-                        nodes=[
-                            ParkArmsAction(arms=[right_arm]),
-                            CloseAction.from_handle(drawer.handle, left_arm),
                         ]
                     ),
                     ParkArmsAction(arms=[left_arm]),
@@ -495,7 +496,7 @@ def main(
         used_robot=Garmi,
         executor_type=executor_type,
         collision_avoidance=True,
-        # debug=True,
+        debug=True,
     ).run()
 
 

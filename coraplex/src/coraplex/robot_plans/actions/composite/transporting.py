@@ -13,7 +13,7 @@ from coraplex.robot_plans.actions.base import SequentialAction
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
 from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
-from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
 from coraplex.robot_plans.actions.core.navigation import (
     FaceAtAction,
     LookAtAction,
@@ -323,7 +323,7 @@ class MoveAndOpenAction(SequentialAction):
     them.
     """
 
-    open_container: OpenAction
+    open_container: GraspOpenAndRetractAction
     """
     The step that opens the container, or an underspecified statement of it.
     """
@@ -345,7 +345,7 @@ class MoveAndOpenAction(SequentialAction):
                 face_at=FaceAtAction(target=handle_pose),
                 look_at=LookAtAction(target=handle_pose),
             ),
-            open_container=OpenAction(grasp=grasp, arm=arm),
+            open_container=GraspOpenAndRetractAction(grasp=grasp, arm=arm),
         )
 
     @classmethod
@@ -388,7 +388,7 @@ class MoveAndOpenAction(SequentialAction):
                 face_at=a(FaceAtAction)(target=handle_pose),
                 look_at=a(LookAtAction)(target=handle_pose),
             ),
-            open_container=a(OpenAction)(
+            open_container=a(GraspOpenAndRetractAction)(
                 grasp=flat_variable(
                     ClosestGrasps(handle, standing_position, number_of_grasps)
                 ),
