@@ -396,7 +396,9 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         )
 
     def is_scene_populated(self, world: World) -> bool:
-        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.APARTMENT)
+        return world.is_kinematic_structure_entity_in_world_by_name(
+            SceneBody.APARTMENT.value
+        )
 
     def populate_scene(self, world: World) -> None:
         """
@@ -416,40 +418,40 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         # connection that has the degrees of freedom to carry it, so they hang off 6DoF
         # connections rather than the default fixed one.
         Milk.get_annotation_specification(
-            SceneBody.MILK,
+            SceneBody.MILK.value,
             BodySpecification.mesh(
-                SceneBody.MILK,
+                SceneBody.MILK.value,
                 SceneFile.MILK.path,
                 parent_T_self=ScenePose.MILK_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT))
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT.value))
 
         # %% bowl
 
         Bowl.get_annotation_specification(
-            SceneBody.BOWL,
+            SceneBody.BOWL.value,
             BodySpecification.mesh(
-                SceneBody.BOWL,
+                SceneBody.BOWL.value,
                 SceneFile.BOWL.path,
                 parent_T_self=ScenePose.BOWL_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT))
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT.value))
 
         # %% spoon
 
         # Hanging off the drawer rather than the world root, so it travels with the drawer
         # when the plan opens it.
         Spoon.get_annotation_specification(
-            SceneBody.SPOON,
+            SceneBody.SPOON.value,
             BodySpecification.mesh(
-                SceneBody.SPOON,
+                SceneBody.SPOON.value,
                 SceneFile.SPOON.path,
                 parent_T_self=ScenePose.SPOON_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world, parent=world.get_body_by_name(SceneBody.SPOON_DRAWER))
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.SPOON_DRAWER.value))
 
     def build_context_extensions(self, world: World) -> list[ContextExtension]:
         return [
@@ -470,8 +472,8 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         robot = context.require_extension(RobotAccess).robot
         left_arm = robot.get_left_arm_if_specified()
         right_arm = robot.get_right_arm_if_specified()
-        storage_drawer = world.get_body_by_name(SceneBody.STORAGE_DRAWER)
-        apartment = world.get_body_by_name(SceneBody.APARTMENT)
+        storage_drawer = world.get_body_by_name(SceneBody.STORAGE_DRAWER.value)
+        apartment = world.get_body_by_name(SceneBody.APARTMENT.value)
         [drawer] = [
             drawer
             for drawer in world.get_semantic_annotations_by_type(Drawer)
