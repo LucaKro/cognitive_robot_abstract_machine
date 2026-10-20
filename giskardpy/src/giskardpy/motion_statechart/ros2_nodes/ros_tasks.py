@@ -4,6 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from franka_msgs.action import Grasp, Homing, Move
+from franka_msgs.msg import GraspEpsilon
 from geometry_msgs.msg import (
     PoseStamped as ROSPoseStamped,
     Pose as ROSPose,
@@ -16,6 +18,7 @@ try:
 except ModuleNotFoundError:
     NavigateToPose = None
 from rclpy.action import ActionClient
+from rclpy.task import Future
 from std_msgs.msg import Header
 from typing_extensions import Type, TypeVar, Generic
 
@@ -214,3 +217,115 @@ class NavigateActionServerTask(
                 else ObservationStateValues.FALSE
             )
         return ObservationStateValues.UNKNOWN
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class FrankaGripperTask(
+    ActionServerTask[Action, ActionGoal, ActionResult, ActionFeedback], ABC
+):
+    """
+    Calls an action server of a Franka gripper, whose results report ``success`` and
+    ``error``.
+    """
+
+    def result_callback(self, future: Future) -> None:
+        super().result_callback(future)
+        if not self._result.result.success:
+            logger.error(
+                f"Gripper action {self.action_topic} failed: {self._result.result.error}"
+            )
+
+    def on_tick(self) -> ObservationStateValues:
+        """
+        :return: Whether the gripper reported success, unknown until it reports.
+        """
+        if self._result is None:
+            return ObservationStateValues.UNKNOWN
+        if self._result.result.success:
+            return ObservationStateValues.TRUE
+        return ObservationStateValues.FALSE
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class GripperMoveTask(FrankaGripperTask[Move, Move.Goal, Move.Result, Move.Feedback]):
+    """
+    Moves the fingers of a Franka gripper to a width without checking for a grasped
+    object.
+    """
+
+    message_type: type[Move] = field(default=Move, init=False)
+
+    width: float
+    """
+    Distance between the fingers to move to, in meters.
+    """
+
+    speed: float
+    """
+    Speed of the fingers, in meters per second.
+    """
+
+    def build_msg(self) -> None:
+        self._msg = Move.Goal(width=self.width, speed=self.speed)
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class GripperGraspTask(
+    FrankaGripperTask[Grasp, Grasp.Goal, Grasp.Result, Grasp.Feedback]
+):
+    """
+    Closes a Franka gripper on an object and succeeds if the grasped width lies within
+    the tolerance of :attr:`width`.
+    """
+
+    message_type: type[Grasp] = field(default=Grasp, init=False)
+
+    width: float
+    """
+    Expected width of the grasped object, in meters.
+    """
+
+    speed: float
+    """
+    Speed of the fingers, in meters per second.
+    """
+
+    force: float
+    """
+    Grasping force, in newtons.
+    """
+
+    inner_tolerance: float
+    """
+    Largest accepted amount by which the grasped width falls below :attr:`width`, in
+    meters.
+    """
+
+    outer_tolerance: float
+    """
+    Largest accepted amount by which the grasped width exceeds :attr:`width`, in meters.
+    """
+
+    def build_msg(self) -> None:
+        self._msg = Grasp.Goal(
+            width=self.width,
+            epsilon=GraspEpsilon(
+                inner=self.inner_tolerance, outer=self.outer_tolerance
+            ),
+            speed=self.speed,
+            force=self.force,
+        )
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class GripperHomingTask(
+    FrankaGripperTask[Homing, Homing.Goal, Homing.Result, Homing.Feedback]
+):
+    """
+    Homes a Franka gripper, which calibrates its maximum width.
+    """
+
+    message_type: type[Homing] = field(default=Homing, init=False)
+
+    def build_msg(self) -> None:
+        self._msg = Homing.Goal()

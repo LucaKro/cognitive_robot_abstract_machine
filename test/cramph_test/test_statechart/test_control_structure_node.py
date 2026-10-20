@@ -154,6 +154,21 @@ def test_a_replaced_step_leaves_the_statechart_and_its_replacement_runs_in_its_p
     assert _start_order(statechart, [third, second, first]) == [first, second, third]
 
 
+def test_a_node_replaced_inside_a_parallel_a_sequence_runs_runs_in_its_place(
+    statechart_executor: StatechartExecutor,
+) -> None:
+    statechart = Statechart(context=statechart_executor.context)
+    replaced = _at_goal("x")
+    statechart.add_node(sequence := Sequence(nodes=[Parallel(nodes=[replaced])]))
+
+    statechart.replace(replaced, replacement := _at_goal("instead"))
+    _run(statechart_executor, statechart, sequence)
+
+    assert replaced not in statechart.nodes
+    assert replacement.belongs_to_statechart()
+    assert sequence.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+
 def test_a_sequence_that_did_not_join_yet_only_changes_its_list(
     statechart_executor: StatechartExecutor,
 ) -> None:

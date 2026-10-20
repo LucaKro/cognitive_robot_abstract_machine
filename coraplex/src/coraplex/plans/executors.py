@@ -34,6 +34,8 @@ from coraplex.robot_plans.plan_transformations import (
     WriteTheOdometryInsteadOfDriving,
 )
 from coraplex.robot_plans.robot_specific_plan_transformations import (
+    CloseGarmiFingersToWidthWithTheirFrankaDriver,
+    DriveGarmiGripperStatesWithTheirFrankaDriver,
     DriveStretchWithItsDifferentialDrive,
     DriveTiagoWithItsDifferentialDrive,
     KeepStretchFromTurningWhileMovingItsTool,
@@ -546,7 +548,12 @@ class RealRobotPlanExecutor(PlanExecutor):
     """
 
     plan_adaptations: list[PlanTransformation] = field(
-        default_factory=lambda: [CloseFingersToObjectWidth(), DetectWithRoboKudo()],
+        default_factory=lambda: [
+            CloseFingersToObjectWidth(),
+            DetectWithRoboKudo(),
+            DriveGarmiGripperStatesWithTheirFrankaDriver(),
+            CloseGarmiFingersToWidthWithTheirFrankaDriver(),
+        ],
         kw_only=True,
     )
 

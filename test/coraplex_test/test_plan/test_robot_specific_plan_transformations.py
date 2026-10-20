@@ -15,8 +15,18 @@ from coraplex.robot_plans.actions.core.navigation import (
     PathPlanningNavigateAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
-from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
+from coraplex.robot_plans.actions.core.robot_body import (
+    MoveFingersToWidthAction,
+    MoveManipulatorAction,
+    SetGripperAction,
+)
+from coraplex.robot_plans.robot_specific_plan_transformations import (
+    CloseGarmiFingersToWidthWithTheirFrankaDriver,
+    DriveGarmiGripperStatesWithTheirFrankaDriver,
+    FrankaGripperActionName,
+)
 from cramph.composites import Parallel, Sequence, StatementNode
+from cramph.context import ContextExtension
 from cramph.data_types import LifeCycleValues
 from cramph.executor import StatechartExecutor, TickingExecutorExtension
 from cramph.node import StatechartNode
@@ -27,8 +37,13 @@ from giskardpy.motion_statechart.goals.cartesian_goals import (
 from giskardpy.motion_statechart.goals.grasped_mechanism import (
     ArticulateGraspedMechanism,
 )
+from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.graph_node import ConvergingTask
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
+from giskardpy.motion_statechart.ros2_nodes.ros_tasks import (
+    GripperGraspTask,
+    GripperMoveTask,
+)
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
@@ -36,7 +51,13 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     HoldPose,
 )
 from krrood.entity_query_language.factories import a, variable_from
+from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
+from semantic_digital_twin.robots.garmi import (
+    Garmi,
+    GarmiLeftGripper,
+    GarmiRightGripper,
+)
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.tiago import Tiago
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -53,6 +74,7 @@ from ...plan_running import (
     robot_extensions,
     simulated_executor,
     statechart_of,
+    world_of,
 )
 
 # %% recording a run
@@ -757,3 +779,120 @@ def test_a_robot_of_another_type_lifts_unchanged(pr2_apartment_context) -> None:
     )
 
     assert type(goal) is CartesianPose
+
+
+# %% moving GARMI's fingers through the Franka gripper driver
+
+
+@pytest.fixture
+def garmi_extensions(_garmi_world_setup) -> list[ContextExtension]:
+    world = deepcopy(_garmi_world_setup)
+    return robot_extensions(world.get_semantic_annotations_by_type(Garmi)[0])
+
+
+def grasp_parameters_of(task: GripperGraspTask) -> tuple[str, float, ...]:
+    """
+    :return: What `task` sends to the gripper driver, and where to.
+    """
+    return (
+        task.action_topic,
+        task.width,
+        task.speed,
+        task.force,
+        task.inner_tolerance,
+        task.outer_tolerance,
+    )
+
+
+def test_garmi_opens_its_gripper_through_the_franka_driver(garmi_extensions) -> None:
+    gripper = world_of(garmi_extensions).get_semantic_annotations_by_type(
+        GarmiLeftGripper
+    )[0]
+    transformation = DriveGarmiGripperStatesWithTheirFrankaDriver()
+
+    plan = prepared(
+        Sequence(nodes=[SetGripperAction(gripper=gripper, motion=GripperState.OPEN)]),
+        robot_executor(garmi_extensions),
+    )
+
+    [task] = plan.nodes
+    assert type(task) is GripperMoveTask
+    assert (task.action_topic, task.width, task.speed) == (
+        transformation.action_name(gripper, FrankaGripperActionName.MOVE),
+        gripper.separation_when_open,
+        transformation.finger_speed,
+    )
+
+
+def test_garmi_shuts_its_gripper_with_a_grasp_of_the_franka_driver_while_doing_more(
+    garmi_extensions,
+) -> None:
+    gripper = world_of(garmi_extensions).get_semantic_annotations_by_type(
+        GarmiLeftGripper
+    )[0]
+    expected = DriveGarmiGripperStatesWithTheirFrankaDriver().grasp(gripper)
+
+    plan = prepared(
+        Sequence(
+            nodes=[
+                Parallel(
+                    nodes=[MoveGripper(end_effector=gripper, state=GripperState.CLOSE)]
+                )
+            ]
+        ),
+        robot_executor(garmi_extensions),
+    )
+
+    [task] = plan.nodes[0].nodes
+    assert type(task) is GripperGraspTask
+    assert grasp_parameters_of(task) == grasp_parameters_of(expected)
+
+
+def test_the_right_gripper_of_garmi_is_driven_in_its_own_namespace(
+    garmi_extensions,
+) -> None:
+    gripper = world_of(garmi_extensions).get_semantic_annotations_by_type(
+        GarmiRightGripper
+    )[0]
+    transformation = DriveGarmiGripperStatesWithTheirFrankaDriver()
+
+    assert transformation.action_name(gripper, FrankaGripperActionName.MOVE) == (
+        f"{transformation.right_gripper_namespace}/{FrankaGripperActionName.MOVE}"
+    )
+
+
+def test_garmi_closes_its_fingers_to_a_width_with_a_grasp_of_the_franka_driver(
+    garmi_extensions,
+) -> None:
+    gripper = world_of(garmi_extensions).get_semantic_annotations_by_type(
+        GarmiLeftGripper
+    )[0]
+    expected = CloseGarmiFingersToWidthWithTheirFrankaDriver().grasp(gripper)
+
+    plan = prepared(
+        Sequence(
+            nodes=[
+                Parallel(nodes=[MoveFingersToWidthAction(gripper=gripper, width=0.03)])
+            ]
+        ),
+        robot_executor(garmi_extensions),
+    )
+
+    [task] = plan.nodes[0].nodes
+    assert type(task) is GripperGraspTask
+    assert grasp_parameters_of(task) == grasp_parameters_of(expected)
+
+
+def test_a_simulated_garmi_drives_its_fingers_with_a_giskard_goal(
+    garmi_extensions,
+) -> None:
+    gripper = world_of(garmi_extensions).get_semantic_annotations_by_type(
+        GarmiLeftGripper
+    )[0]
+
+    action = prepared(
+        SetGripperAction(gripper=gripper, motion=GripperState.OPEN),
+        simulated_executor(garmi_extensions),
+    )
+
+    assert type(action.goal) is MoveGripper
