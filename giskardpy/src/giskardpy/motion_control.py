@@ -60,6 +60,12 @@ class MotionControl(TickingExecutorExtension):
     node of it and the controller brings the robot to rest.
     """
 
+    _uncommanded: np.ndarray | None = field(default=None, init=False, repr=False)
+    """
+    For every degree of freedom of the world state, whether :attr:`qp_controller` leaves
+    it uncommanded, set whenever the controller is compiled.
+    """
+
     _compiled_world_state_data: np.ndarray | None = field(default=None, init=False)
     """
     The world state array the motion statechart was compiled against.
@@ -121,11 +127,24 @@ class MotionControl(TickingExecutorExtension):
             life_cycle_state=self._life_cycle_state_followed(executor),
             float_variables=executor.context.float_variable_data.data,
         )
+        self._bring_uncommanded_degrees_of_freedom_to_rest(world)
         world.apply_control_commands(
             next_command,
             self.qp_controller.config.control_time_step.total_seconds(),
             self.qp_controller.config.max_derivative,
         )
+
+    def _bring_uncommanded_degrees_of_freedom_to_rest(self, world: World) -> None:
+        """
+        Stop every degree of freedom the controller does not command.
+
+        Its command is zero, which only keeps its acceleration from changing, so
+        whatever motion it was left with, such as a drawer an earlier motion was still
+        slowing down, would otherwise go on being integrated into its position.
+
+        :param world: The world the commands are applied to.
+        """
+        world.state._data[1:, self._uncommanded] = 0
 
     def _life_cycle_state_followed(self, executor: StatechartExecutor) -> np.ndarray:
         """
@@ -198,6 +217,8 @@ class MotionControl(TickingExecutorExtension):
         )
         if self.qp_controller.has_not_free_variables():
             raise EmptyProblemException()
+        self._uncommanded = np.ones(len(world.state), dtype=bool)
+        self._uncommanded[self.qp_controller.dof_filter] = False
 
     @staticmethod
     def _combine_constraint_collections_of_nodes(

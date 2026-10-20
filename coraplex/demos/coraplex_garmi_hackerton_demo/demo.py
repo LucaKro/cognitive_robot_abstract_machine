@@ -44,7 +44,7 @@ from coraplex.robot_plans.actions.core.pick_up import (
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
-from cramph.composites import Parallel, Sequence
+from cramph.composites import Parallel, Sequence, StartedWhenTrue
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
 from cramph.world_modification_nodes import MoveBranch
@@ -76,7 +76,9 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
+from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.world_description.world_entity import (
+    Body,
     KinematicStructureEntity,
 )
 
@@ -157,8 +159,19 @@ class SceneBody(StrEnum):
     The drawer the milk and the bowl are put into, the one below the spoon's.
     """
 
+    APARTMENT = "apartment"
+    """
+    The apartment's origin, posed in the occupancy map frame the robot localizes in.
+    """
+
 
 # %% where things stand
+
+GRIPPER_CONTACT_DISTANCE = 0.2
+"""
+How close a gripper has to be to the handle it is headed for, in meters, before it may
+touch its surroundings; further away it avoids them.
+"""
 
 RIGHT_HAND_WITHDRAWAL_BEFORE_CLOSING = 0.3
 """
@@ -218,46 +231,51 @@ class ScenePose(Enum):
     Where GARMI and the transported objects start, and where the objects are carried to.
     """
 
-    GARMI_START = ScenePlacement(0, 6, 0, yaw=math.pi / 2)
+    GARMI_START = ScenePlacement(-4.8, 1.5, 0, yaw=math.pi)
     """
-    Where GARMI starts, in its ``odom`` frame.
+    Where GARMI starts, in its ``odom`` frame: facing the kitchen from the room.
+
+    The simulated world's ``odom`` frame is the occupancy map frame the apartment is posed
+    in, not the apartment's own frame the other placements are relative to.
     """
 
-    GARMI_AT_COUNTER = ScenePlacement(-0.3, 6.4, 0, yaw=math.pi / 2)
+    GARMI_AT_COUNTER = ScenePlacement(-0.27, 6.427, 0, yaw=math.pi / 2)
     """
     Where GARMI stands to open the drawer with its left arm while it picks up the milk
-    and the bowl with its right: between the drawer and the two, facing the counter.
+    and the bowl with its right, relative to the apartment: between the drawer and the
+    two, facing the counter.
     """
 
-    MILK_START = ScenePlacement(0.0, 7.2, 1.055)
+    MILK_START = ScenePlacement(0.0, 7.2, 1.028)
     """
-    Where the milk starts, on the kitchen counter.
-    """
-
-    BOWL_START = ScenePlacement(0.2, 7.2, 1.0)
-    """
-    Where the bowl starts, on the kitchen counter to the right of the milk.
+    Where the milk starts, on the kitchen counter, relative to the apartment.
     """
 
-    MILK_IN_DRAWER = ScenePlacement(-0.7, 6.9, 0.622)
+    BOWL_START = ScenePlacement(0.2, 7.2, 0.973)
     """
-    Where the milk is put into the drawer once that is open, in the world: on the
-    drawer's bottom plate, left of its middle, and turned as it stood on the counter, so
-    the hand holding it does not have to turn.
+    Where the bowl starts, on the kitchen counter to the right of the milk, relative to
+    the apartment.
     """
 
-    BOWL_IN_DRAWER = ScenePlacement(-0.55, 6.9, 0.567)
+    MILK_IN_DRAWER = ScenePlacement(-0.67, 6.925, 0.572)
     """
-    Where the bowl is put into the drawer: right of the milk, so the hand putting it in
-    does not reach over the milk.
+    Where the milk is put into the drawer once that is open, relative to the apartment:
+    on the drawer's bottom plate, left of its middle, and turned as it stood on the
+    counter, so the hand holding it does not have to turn.
+    """
+
+    BOWL_IN_DRAWER = ScenePlacement(-0.52, 6.925, 0.517)
+    """
+    Where the bowl is put into the drawer, relative to the apartment: right of the milk,
+    so the hand putting it in does not reach over the milk.
     """
 
     MILK_TARGET = ScenePlacement(1.6, 5.2, 0.8)
     """
-    Where the milk is carried to.
+    Where the milk is carried to, relative to the apartment.
     """
 
-    SPOON_START = ScenePlacement(-0.09, 0.0, -0.069)
+    SPOON_START = ScenePlacement(-0.265, 0.0, -0.033)
     """
     Where the spoon starts, relative to its drawer: lying on the drawer's bottom plate,
     clear of its walls.
@@ -268,7 +286,7 @@ class ScenePose(Enum):
 
     SPOON_TARGET = ScenePlacement(1.6, 5.4, 0.8)
     """
-    Where the spoon is carried to.
+    Where the spoon is carried to, relative to the apartment.
     """
 
 
@@ -313,6 +331,35 @@ class SamplingSeed(IntEnum):
     stands somewhere new every time and reaches the drawer only on the attempts whose base
     pose happens to allow it.
     """
+
+
+# %% letting a gripper touch its surroundings
+
+
+def gripper_contact_near(
+    end_effector: EndEffector, handle: Body
+) -> StartedWhenTrue:
+    """
+    :param end_effector: The gripper that may touch its surroundings.
+    :param handle: The handle the gripper is headed for or holds.
+    :return: A node letting `end_effector` touch its surroundings from when it is within
+        :data:`GRIPPER_CONTACT_DISTANCE` of `handle`. The distance is measured in the
+        handle's frame, so it follows the handle as the drawer moves, and ignores that
+        frame's z-axis, which runs along the handle, so it is the distance at right
+        angles to the handle wherever along it the gripper is.
+    """
+    return StartedWhenTrue(
+        monitor=DistanceMonitor(
+            name=f"{end_effector.name} near {handle.name}",
+            root_link=handle,
+            tip_link=end_effector.tool_frame,
+            reference_point=Point3(reference_frame=handle),
+            tip_point=Point3(reference_frame=end_effector.tool_frame),
+            lower_limit=0.0,
+            upper_limit=GRIPPER_CONTACT_DISTANCE,
+        ),
+        monitored_node=UpdateTemporaryCollisionRules.for_end_effector(end_effector),
+    )
 
 
 # %% the demonstration
@@ -375,7 +422,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 parent_T_self=ScenePose.MILK_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world)
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT))
 
         # %% bowl
 
@@ -387,7 +434,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 parent_T_self=ScenePose.BOWL_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world)
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT))
 
         # %% spoon
 
@@ -423,6 +470,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         left_arm = robot.get_left_arm_if_specified()
         right_arm = robot.get_right_arm_if_specified()
         storage_drawer = world.get_body_by_name(SceneBody.STORAGE_DRAWER)
+        apartment = world.get_body_by_name(SceneBody.APARTMENT)
         [drawer] = [
             drawer
             for drawer in world.get_semantic_annotations_by_type(Drawer)
@@ -438,7 +486,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                     ParkArmsAction(arms=robot.all_arms),
                     NavigateAction(
                         target_location=ScenePose.GARMI_AT_COUNTER.value.pose(
-                            world.root
+                            apartment
                         )
                     ),
                     # Both grasps are chosen once GARMI stands at the counter, as the
@@ -473,8 +521,9 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                 arm=right_arm,
                             ),
                             # Lets the left hand stay on the handle once the drawer is
-                            # open, while the right one may still be picking up.
-                            UpdateTemporaryCollisionRules.for_end_effector(left_hand),
+                            # open, while the right one may still be picking up, but
+                            # only once it is near the handle.
+                            gripper_contact_near(left_hand, drawer.handle.root),
                         ]
                     ),
                     # The left hand holds the drawer open where it is while the right
@@ -490,7 +539,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                     a(PlaceAction)(
                                         object_designator=milk,
                                         target_location=ScenePose.MILK_IN_DRAWER.value.pose(
-                                            world.root
+                                            apartment
                                         ),
                                     ),
                                     # A place leaves the milk under the world; under
@@ -508,7 +557,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                     a(PlaceAction)(
                                         object_designator=bowl,
                                         target_location=ScenePose.BOWL_IN_DRAWER.value.pose(
-                                            world.root
+                                            apartment
                                         ),
                                     ),
                                     MoveBranch(
@@ -539,7 +588,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                                 root_link=world.root,
                                                 tip_link=right_arm.end_effector.tool_frame,
                                                 reference_point=ScenePose.BOWL_IN_DRAWER.value.pose(
-                                                    world.root
+                                                    apartment
                                                 ).position,
                                                 tip_point=Point3(
                                                     reference_frame=right_arm.end_effector.tool_frame
@@ -554,7 +603,9 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                             ),
                             # Lets the left hand stay on the handle once the drawer is
                             # closed, while the right arm, and with it GARMI's body,
-                            # may still be moving.
+                            # may still be moving. The hand holds the handle from the
+                            # start, so the allowance is not left to wait a tick for
+                            # a distance monitor, with the fingers around the handle.
                             UpdateTemporaryCollisionRules.for_end_effector(left_hand),
                         ]
                     ),
