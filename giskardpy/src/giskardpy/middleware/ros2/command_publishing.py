@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Union
 
 from control_msgs.msg import MultiDOFCommand
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TwistStamped
 from rclpy.publisher import Publisher
 from std_msgs.msg import Float64, Float64MultiArray
 from typing_extensions import Self, TypeVar
@@ -546,7 +546,7 @@ class DriveVelocityCommandPublisher(CommandPublisher):
     Reads the commanded velocities of the drivable axes, rotation last.
     """
 
-    message: Twist = field(init=False, default_factory=Twist)
+    message: TwistStamped = field(default_factory=TwistStamped)
     """
     The message reused for every publication.
     """
@@ -558,7 +558,7 @@ class DriveVelocityCommandPublisher(CommandPublisher):
 
     def __post_init__(self):
         self.velocity_publisher = rospy.get_node().create_publisher(
-            Twist, self.command_topic, 10
+            TwistStamped, self.command_topic, 10
         )
         self.connection.has_hardware_interface = True
         self.velocity_reader = StateVelocityReader(
@@ -585,16 +585,18 @@ class DriveVelocityCommandPublisher(CommandPublisher):
         linear_velocities = self.minimum_linear_velocity.enforce_on_vector(
             velocities[:-1]
         )
-        self.message.linear.x = linear_velocities[0]
+        self.message.header.stamp = rospy.get_node().get_clock().now().to_msg()
+        self.message.header.frame_id = "giskard"
+        self.message.twist.linear.x = linear_velocities[0]
         if len(linear_velocities) > 1:
-            self.message.linear.y = linear_velocities[1]
-        self.message.angular.z = self.minimum_angular_velocity.enforce_on_scalar(
+            self.message.twist.linear.y = linear_velocities[1]
+        self.message.twist.angular.z = self.minimum_angular_velocity.enforce_on_scalar(
             velocities[-1]
         )
         self.velocity_publisher.publish(self.message)
 
     def stop(self) -> None:
-        self.message.linear.x = 0.0
-        self.message.linear.y = 0.0
-        self.message.angular.z = 0.0
+        self.message.twist.linear.x = 0.0
+        self.message.twist.linear.y = 0.0
+        self.message.twist.angular.z = 0.0
         self.velocity_publisher.publish(self.message)

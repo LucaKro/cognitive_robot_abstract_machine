@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from geometry_msgs.msg import TwistStamped
+
 from giskardpy.middleware.ros2.command_publishing import MultiDOFCommandFormat
 from giskardpy.middleware.ros2.robot_interface_config import (
     ClosedLoopRobotInterfaceConfig,
@@ -64,7 +66,7 @@ class GarmiVelocityInterface(ClosedLoopRobotInterfaceConfig):
         omni_drive = self.world.get_connections_by_type(OmniDrive)[0]
         self.sync_odometry_topic("/r100_0603/platform/odom/filtered", omni_drive)
         self.add_base_cmd_velocity(
-            cmd_vel_topic="/r100_0603/cmd_vel_unstamped", joint=omni_drive
+            cmd_vel_topic="/r100_0603/joy_teleop/cmd_vel", joint=omni_drive, topic_type=TwistStamped
         )
 
         # The merged whole-robot joint state (~50 Hz): arms + lift, the platform's

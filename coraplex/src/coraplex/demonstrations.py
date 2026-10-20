@@ -331,7 +331,7 @@ class RobotDemonstration(ABC):
         simulated run, and by :meth:`fetch_real_world` otherwise.
         """
         self.ros_session = RobotDemonstrationRosSession.start(self.ros_node_name)
-        if not issubclass(self.executor_type, SimulatedPlanExecutor):
+        if issubclass(self.executor_type, SimulatedPlanExecutor):
             self.visualization = WorldVisualization.from_environment(
                 self.default_visualization_backend,
                 ros_node=self.ros_node,
