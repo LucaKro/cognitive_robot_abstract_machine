@@ -152,9 +152,12 @@ class ScenePose(Enum):
     Where GARMI and the transported objects start, and where the objects are carried to.
     """
 
-    GARMI_START = ScenePlacement(0, 6, 0, yaw=math.pi / 2)
+    GARMI_START = ScenePlacement(-4.8, 1.5, 0, yaw=math.pi)
     """
-    Where GARMI starts, in its ``odom`` frame.
+    Where GARMI starts, in its ``odom`` frame: facing the kitchen from the room.
+
+    The simulated world's ``odom`` frame is the occupancy map frame the apartment is posed
+    in, not the apartment's own frame the other placements are relative to.
     """
 
     BOWL_START = ScenePlacement(0.0, 7.2, 0.973)
@@ -167,7 +170,7 @@ class ScenePose(Enum):
     Where the bowl is carried to, relative to the apartment.
     """
 
-    SPOON_START = ScenePlacement(-0.265, 0.0, -0.06)
+    SPOON_START = ScenePlacement(-0.265, 0.0, -0.033)
     """
     Where the spoon starts, relative to its drawer: lying on the drawer's bottom plate,
     clear of its walls.

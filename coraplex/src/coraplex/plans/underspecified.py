@@ -9,6 +9,7 @@ from itertools import count
 
 from typing_extensions import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Iterator,
 )
@@ -24,6 +25,7 @@ from coraplex.robot_plans.robot_specific_plan_transformations import (
 from coraplex.visualization import RvizVisualization
 from cramph.composites import (
     ChildChooser,
+    ChildChooserAccess,
     CompositeNodeChoosingItsChild,
     ControlStructureNode,
     Parallel,
@@ -31,6 +33,7 @@ from cramph.composites import (
     StatementNode,
 )
 from cramph.executor import ExecutorExtension
+from cramph.monitors import CountTicks
 from cramph.exceptions import ExecutionFailure
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
@@ -79,6 +82,58 @@ class PlanChildChooser(ChildChooser, ABC):
         :return: A monitor firing once nothing below `child` approaches its goal.
         """
         return [Stalled(monitored_node=child)]
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class TriedStatement(CompositeNodeChoosingItsChild):
+    """
+    Stands in for a statement in a trial, choosing the candidate tried for it the way
+    the statement chooses the candidate it runs, so the candidate starts at the same
+    point of the trial as it does for real, see :class:`TriedCandidateChooser`.
+    """
+
+
+@dataclass
+class TriedCandidateChooser(PlanChildChooser):
+    """
+    Hands every :class:`TriedStatement` of a trial the candidate tried for it, prepared
+    and watched for a stall like a candidate the statement runs for real.
+
+    A candidate that fails leaves its stand-in nothing to run next, so it fails the
+    trial.
+    """
+
+    candidates: dict[TriedStatement, DesignatorParameters] = field(default_factory=dict)
+    """
+    The candidate tried for each stand-in, removed once it is handed out.
+    """
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild
+    ) -> StatechartNode | None:
+        candidate = self.candidates.pop(node, None)
+        if candidate is None:
+            return None
+        return Sequence(name=f"{candidate.name}/steps", nodes=[candidate])
+
+
+@dataclass
+class TriedNode:
+    """
+    What a trial runs in the copy: a node of the plan, rebuilt onto the copy with its
+    statements standing in as :class:`TriedStatement` nodes, and the chooser handing
+    them their candidates.
+    """
+
+    node: StatechartNode
+    """
+    The node run in the copy.
+    """
+
+    chooser: TriedCandidateChooser
+    """
+    Hands every stand-in in :attr:`node` the candidate tried for it.
+    """
 
 
 @dataclass
@@ -159,9 +214,17 @@ class ActionTrial:
         :return: True if `action` runs to completion without raising an
             :class:`~cramph.exceptions.ExecutionFailure`.
         """
-        return self._runs_to_completion(
-            lambda world: self._rebind_action_to_world(action, world), str(action)
-        )
+
+        def build(world: World) -> TriedNode:
+            statement = TriedStatement(name=str(action))
+            return TriedNode(
+                node=statement,
+                chooser=TriedCandidateChooser(
+                    candidates={statement: self._rebind_action_to_world(action, world)}
+                ),
+            )
+
+        return self._runs_to_completion(build, str(action))
 
     def block_succeeds(
         self,
@@ -172,41 +235,58 @@ class ActionTrial:
         Run `block` against the copy, every statement in it replaced by its candidate,
         and restore the copy afterwards.
 
-        The candidates are tried together with the actions and statements that run
-        beside them, the way the block runs for real, rather than each on its own; any
-        other node of the block is left out, see :meth:`_rebuild_onto`.
+        The candidates are tried together with every node that runs beside them, the way
+        the block runs for real, rather than each on its own, see :meth:`_rebuild_onto`.
 
         :param block: The node whose statements are grounded together.
         :param candidates: The candidate each statement of `block` runs.
         :return: True if `block` runs to completion without raising an
             :class:`~cramph.exceptions.ExecutionFailure`.
         """
+
+        def build(world: World) -> TriedNode:
+            chooser = TriedCandidateChooser()
+            return TriedNode(
+                node=self._rebuild_onto(block, world, candidates, chooser),
+                chooser=chooser,
+            )
+
         return self._runs_to_completion(
-            lambda world: self._rebuild_onto(block, world, candidates),
-            f"{block.name} with {', '.join(map(str, candidates.values()))}",
+            build, f"{block.name} with {', '.join(map(str, candidates.values()))}"
         )
 
     def _runs_to_completion(
-        self, build: Callable[[World], StatechartNode], description: str
+        self,
+        build: Callable[[World], TriedNode],
+        description: str,
     ) -> bool:
         """
-        :param build: Builds the node to try against the copy it is given.
+        :param build: Builds what is tried against the copy it is given.
         :param description: What is tried, for the log.
         :return: True if the node `build` returns runs to completion against the copy
             without raising an :class:`~cramph.exceptions.ExecutionFailure`.
         """
         world = self._copy()
-        node = build(world)
+        tried = build(world)
         version = world.get_world_model_manager().version
 
         with world.reset_state_context():
             try:
                 executor = self._trial_executor(world)
+                executor.context.require_extension(ChildChooserAccess).chooser = (
+                    tried.chooser
+                )
                 statechart = Statechart(context=executor.context)
-                # The node runs in a sequence of its own, the way a candidate runs for
-                # real, so the nodes a plan transformation puts beside it are tried with
-                # it.
-                statechart.add_node(Sequence(nodes=[node]))
+                # The node runs in a sequence of its own, as a statement or a block of
+                # a plan does, and only after a first tick: what a statechart starts
+                # with starts as it compiles, a tick before anything starts in a running
+                # one, which would let a stand-in choose its candidate a tick earlier
+                # than the statement does for real.
+                statechart.add_node(
+                    Sequence(
+                        nodes=[CountTicks(name="trial start", ticks=1), tried.node]
+                    )
+                )
                 executor.compile(statechart)
                 executor.execute()
                 return True
@@ -291,47 +371,73 @@ class ActionTrial:
         node: StatechartNode,
         world: World,
         candidates: dict[StatementNode, DesignatorParameters],
+        chooser: TriedCandidateChooser,
     ) -> StatechartNode | None:
         """
         :param node: A node of the plan, with everything below it.
         :param world: The copy to try it against.
         :param candidates: The candidate each statement below `node` runs.
-        :return: A new node referring to `world`: a statement replaced by its candidate
-            in a sequence of its own, the way it runs for real, an action rebuilt from
-            its own parameters, and a control structure from the fields it is
-            constructed with, holding its nodes rebuilt the same way. None for any other
-            node, which a trial leaves out, so only actions and statements are tried,
-            and for a control structure left with nothing to hold.
+        :param chooser: Hands the stand-ins of the statements their candidates; every
+            stand-in made here is added to it.
+        :return: A new node referring to `world`: a statement replaced by a
+            :class:`TriedStatement` choosing its candidate, so the candidate starts when
+            it would for real, an action rebuilt from its own parameters, and any other
+            node from the fields it is constructed with, the nodes among them rebuilt
+            the same way. None for a statement without a candidate, and for a control
+            structure left with nothing to hold.
         """
         if isinstance(node, StatementNode):
             if node not in candidates:
                 return None
-            candidate = cls._rebind_action_to_world(candidates[node], world)
-            return Sequence(name=f"{candidate.name}/steps", nodes=[candidate])
+            statement = TriedStatement(name=node.name)
+            chooser.candidates[statement] = cls._rebind_action_to_world(
+                candidates[node], world
+            )
+            return statement
         if isinstance(node, DesignatorParameters):
             return cls._rebind_action_to_world(node, world)
-        if not isinstance(node, ControlStructureNode):
+        constructor_arguments = {
+            constructor_field.name: cls._rebuild_field_onto(
+                getattr(node, constructor_field.name), world, candidates, chooser
+            )
+            for constructor_field in fields(node)
+            if constructor_field.init
+        }
+        if (
+            isinstance(node, ControlStructureNode)
+            and not constructor_arguments["nodes"]
+        ):
             return None
-        nodes = [
-            rebuilt
-            for child in node.nodes
-            if (rebuilt := cls._rebuild_onto(child, world, candidates)) is not None
-        ]
-        if not nodes:
-            return None
-        return type(node)(
-            **{
-                constructor_field.name: (
-                    nodes
-                    if constructor_field.name == "nodes"
-                    else world.rebind_world_entities(
-                        getattr(node, constructor_field.name)
-                    )
-                )
-                for constructor_field in fields(node)
-                if constructor_field.init
-            }
-        )
+        return type(node)(**constructor_arguments)
+
+    @classmethod
+    def _rebuild_field_onto(
+        cls,
+        value: Any,
+        world: World,
+        candidates: dict[StatementNode, DesignatorParameters],
+        chooser: TriedCandidateChooser,
+    ) -> Any:
+        """
+        :param value: The value of a field a node is constructed with.
+        :param world: The copy to try the node against.
+        :param candidates: The candidate each statement below the node runs.
+        :param chooser: Hands the stand-ins of the statements their candidates.
+        :return: `value` referring to `world`, a node or a list of nodes rebuilt by
+            :meth:`_rebuild_onto`, leaving out the nodes it returns None for.
+        """
+        if isinstance(value, StatechartNode):
+            return cls._rebuild_onto(value, world, candidates, chooser)
+        if isinstance(value, list) and any(
+            isinstance(element, StatechartNode) for element in value
+        ):
+            return [
+                rebuilt
+                for element in value
+                if (rebuilt := cls._rebuild_onto(element, world, candidates, chooser))
+                is not None
+            ]
+        return world.rebind_world_entities(value)
 
     def _copy(self) -> World:
         """

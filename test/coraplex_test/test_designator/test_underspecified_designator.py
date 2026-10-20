@@ -951,15 +951,43 @@ class ClaimSlotAction(SequentialAction):
     """
 
     def create_steps(self) -> list[StatechartNode]:
-        return [FunctionCall(function=self._claim, failure_types=(PlanFailure,))]
+        return [ClaimSlot(slot=self.slot, slot_dof_ids=self.slot_dof_ids)]
 
-    def _claim(self) -> None:
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class ClaimSlot(FunctionCall):
+    """
+    The node claiming a slot, which fails if one claimed it first.
+
+    Claims in the world of the statechart it runs in, rather than calling a function
+    bound to some world, so a trial rebuilding it claims in its copy.
+    """
+
+    slot: int
+    """
+    The index of the slot this node claims.
+    """
+
+    slot_dof_ids: tuple[UUID, ...]
+    """
+    Ids of the degrees of freedom that stand for the slots.
+    """
+
+    function: Callable[[], None] | None = None
+    """
+    Unused, since :meth:`run` claims the slot.
+    """
+
+    failure_types: tuple[type[BaseException], ...] = (PlanFailure,)
+
+    def run(self) -> None:
+        world = self.context.world
         with _claiming:
-            state = self.world.state[self.slot_dof_ids[self.slot]]
+            state = world.state[self.slot_dof_ids[self.slot]]
             if state.position == CLAIMED:
                 raise PlanFailure()
             state.position = CLAIMED
-            self.world.notify_state_change()
+            world.notify_state_change()
 
 
 def test_statements_side_by_side_are_grounded_together(
@@ -987,3 +1015,27 @@ def test_statements_side_by_side_are_grounded_together(
     statements = side_by_side.nodes
     assert {statement.grounded_nodes[0].slot for statement in statements} == {0, 1}
     assert all(len(statement.chosen_children) == 1 for statement in statements)
+
+
+def test_nodes_beside_statements_are_part_of_their_trial(
+    apartment_world_pr2_copy_with_context,
+):
+    """
+    A node that is not an action runs in the trial of the statements beside it as it
+    runs for real: it claims the slot the statement ranks first, so the statement
+    settles on the other one before it runs, rather than failing for real first.
+    """
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    slot_dof_ids = tuple(dof.id for dof in world.degrees_of_freedom[:2])
+
+    statement = a(ClaimSlotAction)(slot=variable_from([0, 1]), slot_dof_ids=slot_dof_ids)
+    side_by_side = Parallel(
+        nodes=[statement, ClaimSlot(slot=0, slot_dof_ids=slot_dof_ids)]
+    )
+    plan = Sequence(nodes=[side_by_side])
+    run_plan(plan, extensions)
+
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+    [statement] = [node for node in side_by_side.nodes if isinstance(node, StatementNode)]
+    assert statement.grounded_nodes[0].slot == 1
+    assert len(statement.chosen_children) == 1
