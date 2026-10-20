@@ -24,9 +24,11 @@ from krrood.symbolic_math.symbolic_math import (
 from semantic_digital_twin.adapters.ros.tfwrapper import TFWrapper
 from semantic_digital_twin.adapters.ros.ros2_node import HasROS2Node
 from semantic_digital_twin.callbacks.callback import (
+    Callback,
     StateChangeCallback,
     ModelChangeCallback,
 )
+from semantic_digital_twin.exceptions import WorldHasMultipleTfPublishersError
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import (
@@ -418,3 +420,68 @@ class TFPublisher(StateChangeCallback, HasROS2Node):
             return
         self.tf_model_callback.update_tf_message()
         self.tf_pub.publish(self.tf_model_callback.tf_message)
+
+
+# %% publishing into the tf tree of the world
+
+
+@dataclass(eq=False)
+class PositionedInTfTree(Callback, HasROS2Node):
+    """
+    A callback whose output is positioned in the tf tree of its world, and that
+    therefore names frames the way the publisher of that tree does.
+    """
+
+    tf_publisher: TFPublisher | None = field(default=None, kw_only=True)
+    """
+    The publisher of the tf tree the output is positioned in.
+
+    Defaults to whatever already publishes the tf tree of the world, and to a publisher
+    started here while nothing does.
+    """
+
+    _started_tf_publisher: TFPublisher | None = field(init=False, default=None)
+    """
+    The tf publisher started here, which is therefore stopped here as well.
+
+    Stays empty for a publisher that was given or that already published the tf tree of
+    the world, since those outlive this callback.
+    """
+
+    def _adopt_tf_publisher(self) -> None:
+        """
+        Resolve :attr:`tf_publisher` if none was given: adopt the publisher of the
+        world's tf tree, or start one while nothing publishes it.
+
+        :raises WorldHasMultipleTfPublishersError: If several publishers publish the tf
+            tree of the world.
+        """
+        if self.tf_publisher is not None:
+            return
+        publishers = TFPublisher.all_callbacks_of_this_type_from_world(self._world)
+        if len(publishers) > 1:
+            raise WorldHasMultipleTfPublishersError(
+                world=self._world, publisher_count=len(publishers)
+            )
+        if publishers:
+            self.tf_publisher = publishers[0]
+            return
+        self._started_tf_publisher = TFPublisher(_world=self._world, node=self.node)
+        self.tf_publisher = self._started_tf_publisher
+
+    @property
+    def frame_names(self) -> TfFrameNames:
+        """
+        The tf frame names :attr:`tf_publisher` publishes the entities of the world
+        under.
+        """
+        return self.tf_publisher.tf_model_callback.frame_names
+
+    def stop(self) -> None:
+        """
+        Stop the tf publisher started here, which would otherwise keep publishing on a
+        node that may already be gone.
+        """
+        if self._started_tf_publisher is not None:
+            self._started_tf_publisher.stop()
+        super().stop()
