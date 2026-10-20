@@ -4,9 +4,10 @@ GARMI puts a milk carton and a bowl from the kitchen counter into a drawer.
 GARMI opens the drawer with its left arm while it picks up the milk with its right, then
 holds the drawer open while it puts the milk in, picks up the bowl and puts that in too,
 and closes the drawer again. Running with :class:`~coraplex.plans.executors.RealRobotPlanExecutor` drives
-the actual robot and takes the world from the running world server. The default runs the
-whole plan in simulation against a world built from the apartment's MuJoCo scene and
-GARMI's URDF, so nothing on the network is needed.
+the actual robot and takes the world from the running world server, merging the apartment
+into it unless the server holds it already. The default runs the whole plan in simulation
+against a world built from the apartment's MuJoCo scene and GARMI's URDF, so nothing on
+the network is needed.
 
 Needs the ``iai_garmi_apartment`` and ``garmi_description`` packages built in the
 workspace, since the scene and the robot description are read from their share
@@ -135,8 +136,7 @@ class SceneBody(StrEnum):
 
     MILK = "milk"
     """
-    The milk put into the drawer, which also marks whether the scene was already
-    populated.
+    The milk put into the drawer.
     """
 
     BOWL = "bowl"
@@ -161,7 +161,8 @@ class SceneBody(StrEnum):
 
     APARTMENT = "apartment"
     """
-    The apartment's origin, posed in the occupancy map frame the robot localizes in.
+    The apartment's origin, posed in the occupancy map frame the robot localizes in,
+    which also marks whether the scene was already populated.
     """
 
 
@@ -336,9 +337,7 @@ class SamplingSeed(IntEnum):
 # %% letting a gripper touch its surroundings
 
 
-def gripper_contact_near(
-    end_effector: EndEffector, handle: Body
-) -> StartedWhenTrue:
+def gripper_contact_near(end_effector: EndEffector, handle: Body) -> StartedWhenTrue:
     """
     :param end_effector: The gripper that may touch its surroundings.
     :param handle: The handle the gripper is headed for or holds.
@@ -374,28 +373,30 @@ class GarmiApartmentDemonstration(RobotDemonstration):
 
     ros_node_name: str = "garmi_demo_node"
 
-    def build_simulated_world(self) -> World:
+    def scene_specification(self) -> WorldSpecification:
         """
-        Put GARMI into the apartment's MuJoCo scene.
+        The apartment's MuJoCo scene.
 
         The scene keeps its collision geometry in a file that is not loaded, so every
         geom has to stand in for it.
         """
         return WorldSpecification.from_mjcf(
-            SceneFile.APARTMENT.path,
-            use_visual_as_collision_backup=True,
-            robots=[
-                RobotSpecification(
-                    semantic_annotation_type=self.used_robot,
-                    odom_T_robot_start=ScenePose.GARMI_START.value.transform,
-                    drive_translation_velocity_limits=GarmiDrive.DEMONSTRATION.value.translation,
-                    drive_rotation_velocity_limits=GarmiDrive.DEMONSTRATION.value.rotation,
-                )
-            ],
-        ).to_domain_object()
+            SceneFile.APARTMENT.path, use_visual_as_collision_backup=True
+        )
+
+    def robot_specification(self) -> RobotSpecification:
+        """
+        GARMI at its start, driving at the demonstration's speed.
+        """
+        return RobotSpecification(
+            semantic_annotation_type=self.used_robot,
+            odom_T_robot_start=ScenePose.GARMI_START.value.transform,
+            drive_translation_velocity_limits=GarmiDrive.DEMONSTRATION.value.translation,
+            drive_rotation_velocity_limits=GarmiDrive.DEMONSTRATION.value.rotation,
+        )
 
     def is_scene_populated(self, world: World) -> bool:
-        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.MILK)
+        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.APARTMENT)
 
     def populate_scene(self, world: World) -> None:
         """
@@ -485,9 +486,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 nodes=[
                     ParkArmsAction(arms=robot.all_arms),
                     NavigateAction(
-                        target_location=ScenePose.GARMI_AT_COUNTER.value.pose(
-                            apartment
-                        )
+                        target_location=ScenePose.GARMI_AT_COUNTER.value.pose(apartment)
                     ),
                     # Both grasps are chosen once GARMI stands at the counter, as the
                     # ones closest to it there.
