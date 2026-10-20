@@ -1,7 +1,7 @@
 """
-GARMI transports a bowl and a spoon across the apartment.
+GARMI transports a milk carton and a spoon across the apartment.
 
-The bowl starts on the kitchen counter and the spoon inside a drawer, and both are carried
+The milk starts on the kitchen counter and the spoon inside a drawer, and both are carried
 to the table. Running with :class:`~coraplex.plans.executors.RealRobotPlanExecutor` drives
 the actual robot and takes the world from the running world server. The default runs the
 whole plan in simulation against a world built from the apartment's MuJoCo scene and
@@ -66,7 +66,7 @@ from semantic_digital_twin.specifications.worlds import WorldSpecification
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.garmi import Garmi
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Bowl,
+    Milk,
     Drawer,
     Spoon,
 )
@@ -90,9 +90,9 @@ class SceneFile(StrEnum):
     The apartment scene GARMI acts in, in the ``iai_garmi_apartment`` package.
     """
 
-    BOWL = os.path.join("objects", "bowl.stl")
+    MILK = os.path.join("objects", "milk.stl")
     """
-    The bowl's mesh, under the coraplex resources.
+    The milk's mesh, under the coraplex resources.
     """
 
     SPOON = os.path.join("objects", "spoon.stl")
@@ -123,9 +123,9 @@ class SceneBody(StrEnum):
     The bodies of the scene the demonstration acts on.
     """
 
-    BOWL = "bowl"
+    MILK = "milk"
     """
-    The transported bowl, which also marks whether the scene was already populated.
+    The transported milk, which also marks whether the scene was already populated.
     """
 
     SPOON = "spoon"
@@ -138,13 +138,19 @@ class SceneBody(StrEnum):
     The drawer the spoon starts in.
     """
 
-    BOWL_DRAWER = "drawer_2"
+    MILK_DRAWER = "drawer_2"
     """
-    The drawer the bowl is put into, the one below the spoon's.
+    The drawer the milk is put into, the one below the spoon's.
     """
 
 
 # %% where things stand
+
+MILK_TOP_GRASP_HEIGHT = 0.076
+"""
+How high above its origin the milk is grasped from above, in meters: 3 cm below the top
+of the carton, so the fingers close around its top rather than the palm landing on it.
+"""
 
 
 @dataclass(frozen=True)
@@ -199,25 +205,25 @@ class ScenePose(Enum):
 
     GARMI_AT_COUNTER = ScenePlacement(-0.3, 6.4, 0, yaw=math.pi / 2)
     """
-    Where GARMI stands to open the bowl's drawer with its left arm while it picks up the
-    bowl with its right: between the two, facing the counter.
+    Where GARMI stands to open the milk's drawer with its left arm while it picks up the
+    milk with its right: between the two, facing the counter.
     """
 
-    BOWL_START = ScenePlacement(0.0, 7.2, 1.0)
+    MILK_START = ScenePlacement(0.0, 7.2, 1.055)
     """
-    Where the bowl starts, on the kitchen counter.
+    Where the milk starts, on the kitchen counter.
     """
 
-    BOWL_IN_DRAWER = ScenePlacement(-0.5, 6.9, 0.567)
+    MILK_IN_DRAWER = ScenePlacement(-0.5, 6.9, 0.622)
     """
-    Where the bowl is put into its drawer once that is open, in the world: on the
+    Where the milk is put into its drawer once that is open, in the world: on the
     drawer's bottom plate, a bit further inside than GARMI's right of its middle, and
     turned as it stood on the counter, so the hand holding it does not have to turn.
     """
 
-    BOWL_TARGET = ScenePlacement(1.6, 5.2, 0.8)
+    MILK_TARGET = ScenePlacement(1.6, 5.2, 0.8)
     """
-    Where the bowl is carried to.
+    Where the milk is carried to.
     """
 
     SPOON_START = ScenePlacement(-0.09, 0.0, -0.069)
@@ -284,8 +290,8 @@ class SamplingSeed(IntEnum):
 @dataclass
 class GarmiApartmentDemonstration(RobotDemonstration):
     """
-    GARMI carries a bowl off the kitchen counter and a spoon out of a drawer, and places
-    both on the table.
+    GARMI carries a milk carton off the kitchen counter and a spoon out of a drawer,
+    and places both on the table.
     """
 
     ros_node_name: str = "garmi_demo_node"
@@ -311,11 +317,11 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         ).to_domain_object()
 
     def is_scene_populated(self, world: World) -> bool:
-        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.BOWL)
+        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.MILK)
 
     def populate_scene(self, world: World) -> None:
         """
-        Annotate the apartment's furniture, then add the bowl and the spoon.
+        Annotate the apartment's furniture, then add the milk and the spoon.
 
         The furniture is annotated first, so the reasoner describes the apartment the
         plan navigates rather than the two objects the plan already knows.
@@ -325,17 +331,17 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         with world.modify_world():
             world.add_semantic_annotations(inferred)
 
-        # %% bowl
+        # %% milk
 
         # Both objects are picked up and carried, and a pose can only be written to a
         # connection that has the degrees of freedom to carry it, so they hang off 6DoF
         # connections rather than the default fixed one.
-        Bowl.get_annotation_specification(
-            SceneBody.BOWL,
+        Milk.get_annotation_specification(
+            SceneBody.MILK,
             BodySpecification.mesh(
-                SceneBody.BOWL,
-                SceneFile.BOWL.path,
-                parent_T_self=ScenePose.BOWL_START.value.transform,
+                SceneBody.MILK,
+                SceneFile.MILK.path,
+                parent_T_self=ScenePose.MILK_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
         ).spawn(world)
@@ -363,8 +369,8 @@ class GarmiApartmentDemonstration(RobotDemonstration):
 
     def build_statechart(self, context: StatechartContext) -> Statechart:
         """
-        Open the drawer below the spoon's with the left arm while picking up the bowl
-        with the right, place the bowl into the drawer while the left arm holds it open, then
+        Open the drawer below the spoon's with the left arm while picking up the milk
+        with the right, place the milk into the drawer while the left arm holds it open, then
         close the drawer with the left arm, still holding its handle, while the right one
         parks, and let go of the handle and park the left arm.
         """
@@ -372,13 +378,13 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         robot = context.require_extension(RobotAccess).robot
         left_arm = robot.get_left_arm_if_specified()
         right_arm = robot.get_right_arm_if_specified()
-        bowl_drawer = world.get_body_by_name(SceneBody.BOWL_DRAWER)
+        milk_drawer = world.get_body_by_name(SceneBody.MILK_DRAWER)
         [drawer] = [
             drawer
             for drawer in world.get_semantic_annotations_by_type(Drawer)
-            if drawer.root is bowl_drawer
+            if drawer.root is milk_drawer
         ]
-        [bowl] = world.get_semantic_annotations_by_type(Bowl)
+        [milk] = world.get_semantic_annotations_by_type(Milk)
         left_hand = left_arm.end_effector
         statechart = Statechart(context=context)
         statechart.add_node(
@@ -408,10 +414,16 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                     OpenAction(arm=left_arm, handle=drawer.handle),
                                 ]
                             ),
+                            # Taken from above, so the hand stays over the milk
+                            # rather than beside it when it goes into the drawer.
                             a(PickUpAction)(
-                                grasp=variable(
-                                    GraspCandidate,
-                                    domain=GraspsClosestToTheRobot(bowl, robot),
+                                grasp=GraspCandidate(
+                                    milk,
+                                    Pose.from_xyz_rpy(
+                                        z=MILK_TOP_GRASP_HEIGHT,
+                                        pitch=math.pi / 2,
+                                        reference_frame=milk.root,
+                                    ),
                                 ),
                                 arm=right_arm,
                             ),
@@ -421,25 +433,25 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                         ]
                     ),
                     # The left hand holds the drawer open where it is while the right
-                    # one puts the bowl in.
+                    # one puts the milk in.
                     Parallel(
                         nodes=[
                             FixateObjectAction(arm=left_arm),
                             Sequence(
                                 nodes=[
-                                    # Grounded once it starts, when the bowl is in
+                                    # Grounded once it starts, when the milk is in
                                     # hand, since a place reads the grasp off the
                                     # gripper holding it.
                                     a(PlaceAction)(
-                                        object_designator=bowl,
-                                        target_location=ScenePose.BOWL_IN_DRAWER.value.pose(
+                                        object_designator=milk,
+                                        target_location=ScenePose.MILK_IN_DRAWER.value.pose(
                                             world.root
                                         ),
                                     ),
-                                    # A place leaves the bowl under the world; under
+                                    # A place leaves the milk under the world; under
                                     # the drawer it moves along when the drawer closes.
                                     MoveBranch(
-                                        branch_root=bowl.root, new_parent=bowl_drawer
+                                        branch_root=milk.root, new_parent=milk_drawer
                                     ),
                                 ]
                             ),
@@ -451,6 +463,10 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                         nodes=[
                             ParkArmsAction(arms=[right_arm]),
                             CloseAction(arm=left_arm, handle=drawer.handle),
+                            # Lets the left hand stay on the handle once the drawer is
+                            # closed, while the right arm, and with it GARMI's body,
+                            # may still be moving.
+                            UpdateTemporaryCollisionRules.for_end_effector(left_hand),
                         ]
                     ),
                     # Let go of the handle and back off it, along GARMI's approach
