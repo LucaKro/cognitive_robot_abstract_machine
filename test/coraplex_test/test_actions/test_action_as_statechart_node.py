@@ -15,9 +15,10 @@ from coraplex.robot_plans.actions.base import (
     SequentialAction,
     TryAllAction,
 )
-from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
 from coraplex.robot_plans.actions.core.pick_up import (
     GraspingAction,
+    GripperContactAction,
     PickUpAction,
     ReachAction,
 )
@@ -671,11 +672,14 @@ def test_an_action_is_sent_with_its_collision_allowances(simple_pr2_context) -> 
 # %% actions touching their surroundings with a gripper allow it themselves
 
 
-def test_a_pick_up_and_its_grasp_and_reach_let_the_gripper_touch(
+def test_a_pick_up_lets_the_gripper_touch_only_around_its_object(
     pr2_apartment_context,
 ) -> None:
     """
-    The allowance is the action's own rather than a node beside each of its goals.
+    The reach lets the gripper touch from setting off for the pre-grasp until it is on
+    the grasp, and the steps after it from closing the fingers until the object is
+    lifted; the pick up and the grasp let nothing touch beyond that. The allowance is
+    an action's own rather than a node beside each of its goals.
     """
     world, robot, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
@@ -685,15 +689,24 @@ def test_a_pick_up_and_its_grasp_and_reach_let_the_gripper_touch(
 
     [grasping] = nodes_of_type(pick_up, GraspingAction)
     [reach] = nodes_of_type(pick_up, ReachAction)
-    for action in (pick_up, grasping, reach):
+    closing, lifting = grasping.nodes[-1], pick_up.nodes[-1]
+    assert pick_up.temporary_collision_rules == []
+    assert grasping.temporary_collision_rules == []
+    assert type(closing) is GripperContactAction
+    assert type(lifting) is GripperContactAction
+    for action in (reach, closing, lifting):
         [rule] = action.temporary_collision_rules
         assert rule.end_effector is robot.left_arm.end_effector
     assert nodes_of_type(pick_up, UpdateTemporaryCollisionRules) == []
 
 
-def test_a_place_lets_the_gripper_holding_its_object_touch(
+def test_a_place_lets_the_gripper_touch_only_once_it_sets_its_object_down(
     pr2_apartment_context,
 ) -> None:
+    """
+    The object is carried to above its target with every collision checked, so neither
+    it nor the gripper passes through anything on the way there.
+    """
     world, robot, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     pick_up = PickUpAction(grasp=milk.grasp_candidates()[0], arm=robot.left_arm)
@@ -704,7 +717,15 @@ def test_a_place_lets_the_gripper_holding_its_object_touch(
 
     statechart_of(simulated_executor(extensions), Sequence(nodes=[pick_up, place]))
 
-    [rule] = place.temporary_collision_rules
+    carrying, setting_down = place.nodes
+    assert place.temporary_collision_rules == []
+    assert not [
+        node
+        for node in [carrying, *carrying.descendants]
+        if isinstance(node, Action) and node.temporary_collision_rules
+    ]
+    assert type(setting_down) is GripperContactAction
+    [rule] = setting_down.temporary_collision_rules
     assert rule.end_effector is robot.left_arm.end_effector
     assert nodes_of_type(place, UpdateTemporaryCollisionRules) == []
 
@@ -712,11 +733,17 @@ def test_a_place_lets_the_gripper_holding_its_object_touch(
 def test_opening_lets_the_gripper_on_the_handle_touch(pr2_apartment_context) -> None:
     world, robot, extensions = pr2_apartment_context
     handle = _handle_annotation(world, "handle_cab10_m")
-    action = OpenAction(grasp=handle.grasp_candidates()[0], arm=robot.right_arm)
+    action = GraspOpenAndRetractAction(
+        grasp=handle.grasp_candidates()[0], arm=robot.right_arm
+    )
 
     _expanded(action, extensions)
 
-    [rule] = action.temporary_collision_rules
+    grasping, moving_the_container = action.nodes
+    assert action.temporary_collision_rules == []
+    assert type(grasping) is GraspingAction
+    assert type(moving_the_container) is GripperContactAction
+    [rule] = moving_the_container.temporary_collision_rules
     assert rule.end_effector is robot.right_arm.end_effector
     assert nodes_of_type(action, UpdateTemporaryCollisionRules) == []
 
@@ -730,7 +757,8 @@ def test_an_action_lets_nothing_touch_unless_it_says_so(simple_pr2_context) -> N
     assert action.temporary_collision_rules == []
 
 
-# %% a pick up and a place run their steps without grouping them further
+# %% a pick up and a place run their steps without grouping them further than
+# the steps their gripper touches its surroundings in
 
 
 def _goal_moving_the_tool(step: StatechartNode) -> StatechartNode:
@@ -750,7 +778,8 @@ def test_a_pick_up_grasps_reattaches_and_lifts_as_its_own_steps(
 
     _expanded(pick_up, extensions)
 
-    grasping, reattaching, lifting = pick_up.nodes
+    grasping, touching = pick_up.nodes
+    reattaching, lifting = touching.nodes
     assert type(grasping) is GraspingAction
     assert type(reattaching) is MoveBranch
     assert reattaching.new_parent is robot.left_arm.end_effector.tool_frame
@@ -770,7 +799,7 @@ def test_a_place_reattaches_and_retracts_as_its_own_steps(
 
     statechart_of(simulated_executor(extensions), Sequence(nodes=[pick_up, place]))
 
-    *_, reattaching, retracting = place.nodes
+    *_, reattaching, retracting = place.nodes[-1].nodes
     assert type(reattaching) is MoveBranch
     assert reattaching.new_parent is world.root
     assert type(_goal_moving_the_tool(retracting)) is CartesianPose

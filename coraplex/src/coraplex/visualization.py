@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from contextlib import ExitStack
+from copy import deepcopy
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 
@@ -23,6 +24,7 @@ from semantic_digital_twin.adapters.rerun import RerunAdapter, RerunMode
 
 if TYPE_CHECKING:
     from rclpy.node import Node
+    from visualization_msgs.msg import MarkerArray
 
     from cramph.executor import Executor
     from semantic_digital_twin.world import World
@@ -204,6 +206,16 @@ class RvizVisualization(WorldVisualization):
     publisher's own.
     """
 
+    hides_markers_when_stopped: bool = field(default=False, kw_only=True)
+    """
+    Whether the markers are made fully transparent once this visualization stops,
+    rather than left showing the world as it was last published.
+
+    They are kept rather than deleted, so a later visualization publishing the same
+    markers on the same topic only makes them visible again, instead of RViz loading
+    their meshes anew.
+    """
+
     publisher: VizMarkerPublisher | None = field(default=None, init=False)
     """
     The marker publisher, while this visualization runs.
@@ -258,14 +270,31 @@ class RvizVisualization(WorldVisualization):
 
     def _stop_publisher(self, publisher: VizMarkerPublisher) -> None:
         """
-        Stop publishing markers.
+        Stop publishing markers, hiding them first if
+        :attr:`hides_markers_when_stopped`.
 
         :param publisher: The running marker publisher.
         """
         try:
+            if self.hides_markers_when_stopped:
+                publisher.publisher.publish(self._hidden(publisher.markers))
             publisher.stop()
         finally:
             self.publisher = None
+
+    @staticmethod
+    def _hidden(markers: MarkerArray) -> MarkerArray:
+        """
+        :param markers: The markers as last published.
+        :return: A copy of `markers`, each fully transparent. A mesh drawn with its own
+            materials ignores the marker's opacity, so it is drawn with the marker's
+            color instead.
+        """
+        hidden = deepcopy(markers)
+        for marker in hidden.markers:
+            marker.mesh_use_embedded_materials = False
+            marker.color.a = 0.0
+        return hidden
 
 
 # %% native Rerun recording

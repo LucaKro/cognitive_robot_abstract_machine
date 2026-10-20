@@ -84,7 +84,7 @@ from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor, TickingExecutorExtension
 from cramph.world_modification_nodes import MoveBranch
 from giskardpy.motion_control import WorldStateTrajectoryRecording
-from ..motion_control_context import create_context_with_motion_control
+from ..motion_control_context import add_to_statechart_with_motion_control
 
 # %% holding a pose
 
@@ -554,11 +554,13 @@ class TestCartesianPositionTrajectory:
             "r_gripper_tool_frame"
         )
 
-        SetSeedConfiguration(
+        seed = SetSeedConfiguration(
             seed_configuration=JointState.from_str_dict(
                 better_pr2_pose, world=pr2_world_state_reset
             )
-        ).on_start(create_context_with_motion_control(pr2_world_state_reset))
+        )
+        add_to_statechart_with_motion_control(seed, pr2_world_state_reset)
+        seed.on_start()
 
         points = []
         root_points = []
@@ -1774,20 +1776,20 @@ class TestCartesianTasks:
         # Define a reachable Cartesian target point relative to the base root
         goal_point = Point3(0.3, 0.0, 0.6, reference_frame=world.root)
 
-        kin_sim = StatechartExecutor(
+        executor = StatechartExecutor(
             context=StatechartContext(world=world), extensions=[MotionControl()]
         )
-        msc = Statechart(context=kin_sim.context)
+        statechart = Statechart(context=executor.context)
         goal = CartesianPosition(
             root_link=world.root,
             tip_link=trunk.arms[0].tip,
             goal_point=goal_point,
         )
-        msc.add_node(goal)
-        msc.add_node(EndMotion.when_true(goal))
+        statechart.add_node(goal)
+        statechart.add_node(EndMotion.when_true(goal))
 
-        kin_sim.compile(statechart=msc)
-        kin_sim.tick_until_end()
+        executor.compile(statechart=statechart)
+        executor.tick_until_end()
 
         # Retrieve the final tip pose
         tip_body = trunk.arms[0].tip
@@ -2141,7 +2143,7 @@ class TestDiffDriveBaseGoal:
 
 
 class TestVelocityTasks:
-    def _build_msc(
+    def _build_statechart(
         self, executor: StatechartExecutor, goal_node, limit_node
     ) -> Statechart:
         """
@@ -2154,7 +2156,9 @@ class TestVelocityTasks:
         motion_statechart.add_node(EndMotion.when_true(goal_node))
         return motion_statechart
 
-    def _compile_msc_and_run_until_end(self, world: World, goal_node, limit_node):
+    def _compile_statechart_and_run_until_end(
+        self, world: World, goal_node, limit_node
+    ):
         """
         Build the MSC (no extra nodes), compile into a StatechartExecutor, run until end
         and return (control_cycles, executor)
@@ -2162,7 +2166,7 @@ class TestVelocityTasks:
         executor = StatechartExecutor(
             context=StatechartContext(world=world), extensions=[MotionControl()]
         )
-        motion_statechart = self._build_msc(
+        motion_statechart = self._build_statechart(
             executor=executor, goal_node=goal_node, limit_node=limit_node
         )
         executor.compile(statechart=motion_statechart)
@@ -2219,7 +2223,7 @@ class TestVelocityTasks:
             context=StatechartContext(world=pr2_world_state_reset),
             extensions=[MotionControl()],
         )
-        motion_statechart = self._build_msc(
+        motion_statechart = self._build_statechart(
             executor=executor, goal_node=goal, limit_node=low_weight_limit
         )
         cancel_motion = CancelStatechart(exception=Exception("test"))
@@ -2261,10 +2265,10 @@ class TestVelocityTasks:
             max_linear_velocity=(usual_limit.max_linear_velocity / 2.1),
         )
 
-        loose_cycles, _ = self._compile_msc_and_run_until_end(
+        loose_cycles, _ = self._compile_statechart_and_run_until_end(
             world=pr2_world_state_reset, goal_node=position_goal, limit_node=usual_limit
         )
-        tight_cycles, _ = self._compile_msc_and_run_until_end(
+        tight_cycles, _ = self._compile_statechart_and_run_until_end(
             world=pr2_world_state_reset,
             goal_node=position_goal,
             limit_node=half_velocity_limit,
@@ -2304,10 +2308,10 @@ class TestVelocityTasks:
             max_angular_velocity=(usual_limit.max_angular_velocity / 2.1),
         )
 
-        loose_cycles, _ = self._compile_msc_and_run_until_end(
+        loose_cycles, _ = self._compile_statechart_and_run_until_end(
             world=pr2_world_state_reset, goal_node=orientation, limit_node=usual_limit
         )
-        tight_cycles, _ = self._compile_msc_and_run_until_end(
+        tight_cycles, _ = self._compile_statechart_and_run_until_end(
             world=pr2_world_state_reset,
             goal_node=orientation,
             limit_node=half_velocity_limit,
@@ -2334,7 +2338,8 @@ class TestDebugExpressions:
             name="cart_pos",
         )
 
-        artifacts = task.build(create_context_with_motion_control(cylinder_bot_world))
+        add_to_statechart_with_motion_control(task, cylinder_bot_world)
+        artifacts = task.build()
 
         goal = debug_expression_by_name(artifacts.debug_expressions, "cart_pos/goal")
         current = debug_expression_by_name(
@@ -2355,7 +2360,8 @@ class TestDebugExpressions:
             name="straight",
         )
 
-        artifacts = task.build(create_context_with_motion_control(cylinder_bot_world))
+        add_to_statechart_with_motion_control(task, cylinder_bot_world)
+        artifacts = task.build()
 
         goal = debug_expression_by_name(artifacts.debug_expressions, "straight/goal")
         current = debug_expression_by_name(
@@ -2378,7 +2384,8 @@ class TestDebugExpressions:
             name="orient",
         )
 
-        artifacts = task.build(create_context_with_motion_control(cylinder_bot_world))
+        add_to_statechart_with_motion_control(task, cylinder_bot_world)
+        artifacts = task.build()
 
         goal = debug_expression_by_name(artifacts.debug_expressions, "orient/goal")
         current = debug_expression_by_name(
@@ -2402,7 +2409,8 @@ class TestDebugExpressions:
             name="traj",
         )
 
-        artifacts = task.build(create_context_with_motion_control(cylinder_bot_world))
+        add_to_statechart_with_motion_control(task, cylinder_bot_world)
+        artifacts = task.build()
 
         goal = debug_expression_by_name(artifacts.debug_expressions, "traj/goal")
         current = debug_expression_by_name(artifacts.debug_expressions, "traj/current")

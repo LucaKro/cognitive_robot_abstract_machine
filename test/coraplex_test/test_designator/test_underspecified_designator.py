@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 import pytest
@@ -9,7 +10,7 @@ from krrood.entity_query_language.backends import (
     ProbabilisticBackend,
 )
 from krrood.entity_query_language.factories import a, variable, variable_from
-from cramph.composites import ChildChooserAccess, Sequence, StatementNode
+from cramph.composites import ChildChooserAccess, Parallel, Sequence, StatementNode
 from cramph.data_types import LifeCycleValues
 from cramph.exceptions import MissingExecutorExtensionError
 from cramph.node import StatechartNode
@@ -27,6 +28,7 @@ from cramph.statechart import StateHistory, StateHistoryObserver
 from coraplex.plans.underspecified import (
     ActionTrial,
     UnderspecifiedChildChooser,
+    combinations_closest_first,
 )
 from coraplex.robot_plans.actions.base import SequentialAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -476,7 +478,7 @@ def test_a_plan_releases_its_trial_copy_even_when_an_observer_fails(
     plan = _plan_of_two_underspecified_steps(world)
     executor = simulated_executor(extensions)
     statechart = statechart_of(executor, plan)
-    statechart.history.add_observer(_FailsWhenThePlanEnds(plan=plan))
+    statechart.state_history.add_observer(_FailsWhenThePlanEnds(plan=plan))
 
     executor.compile(statechart)
     with pytest.raises(RuntimeError):
@@ -783,6 +785,33 @@ def test_a_trial_stops_publishing_its_copy_once_the_candidate_has_run(
     trial.discard()
 
 
+def test_a_trial_hides_its_copy_once_the_candidate_has_run(
+    debugging_executor, monkeypatch
+) -> None:
+    """
+    The copy's markers are made transparent rather than deleted, so they are not left
+    drawn where the trial ended, and the next trial does not load their meshes anew.
+    """
+    world, robot, executor = debugging_executor
+    trial = ActionTrial(
+        executor=executor, trial_executor_type=KinematicallySimulatedPlanExecutor
+    )
+    trial_executor, copied = _compiled_trial_executor(trial)
+    marker_publisher = trial_executor.require_extension(RvizVisualization).publisher
+    published = []
+    monkeypatch.setattr(marker_publisher.publisher, "publish", published.append)
+
+    trial_executor.execute()
+
+    *_, last = published
+    assert last.markers
+    assert all(
+        marker.color.a == 0.0 and not marker.mesh_use_embedded_materials
+        for marker in last.markers
+    )
+    trial.discard()
+
+
 def test_a_trial_tries_an_action_that_already_belongs_to_a_plan(
     debugging_executor,
 ) -> None:
@@ -838,3 +867,123 @@ def test_a_candidate_that_cannot_keep_its_clearance_is_discarded(
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert plan.grounded_nodes[-1].fail_on_attempt_number is None
+
+
+# %% statements running side by side
+
+
+@dataclass
+class FixedRanking:
+    """
+    Stands in for the candidates of a statement, which
+    :func:`~coraplex.plans.underspecified.combinations_closest_first` only pulls by rank.
+    """
+
+    candidates: list[str]
+
+    pulled: list[str] = field(default_factory=list, init=False)
+
+    exhausted: bool = field(default=False, init=False)
+
+    def at(self, rank: int) -> str | None:
+        # Pulls only ever go further, as those of a statement do.
+        self.pulled = self.candidates[: max(rank + 1, len(self.pulled))]
+        self.exhausted = self.exhausted or rank >= len(self.candidates)
+        return self.candidates[rank] if rank < len(self.candidates) else None
+
+
+def test_combinations_take_the_candidates_ranked_first_before_later_ones():
+    """
+    Every combination comes up once, and none takes a later candidate of a statement
+    before the combinations of the candidates ranked before it.
+    """
+    combinations = list(
+        combinations_closest_first(
+            [FixedRanking(["a1", "a2"]), FixedRanking(["b1", "b2", "b3"])]
+        )
+    )
+
+    assert combinations == [
+        ("a1", "b1"),
+        ("a1", "b2"),
+        ("a2", "b1"),
+        ("a1", "b3"),
+        ("a2", "b2"),
+        ("a2", "b3"),
+    ]
+
+
+def test_a_statement_without_candidates_leaves_no_combination():
+    assert (
+        list(combinations_closest_first([FixedRanking(["a1"]), FixedRanking([])])) == []
+    )
+
+
+CLAIMED = 0.4242
+"""
+The position a :class:`ClaimSlotAction` puts the degree of freedom of the slot it
+claims at, unlike any a degree of freedom of the robot starts at.
+"""
+
+_claiming = threading.Lock()
+"""
+Makes looking at a slot and claiming it one step, since the actions run side by side
+in threads of their own.
+"""
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class ClaimSlotAction(SequentialAction):
+    """
+    Claims one of the slots that degrees of freedom stand for, and fails if one claimed
+    it first, so two of them only succeed side by side when they claim different slots,
+    although each succeeds on its own with any slot.
+    """
+
+    slot: int
+    """
+    The index of the slot this action claims.
+    """
+
+    slot_dof_ids: tuple[UUID, ...]
+    """
+    Ids of the degrees of freedom that stand for the slots.
+    """
+
+    def create_steps(self) -> list[StatechartNode]:
+        return [FunctionCall(function=self._claim, failure_types=(PlanFailure,))]
+
+    def _claim(self) -> None:
+        with _claiming:
+            state = self.world.state[self.slot_dof_ids[self.slot]]
+            if state.position == CLAIMED:
+                raise PlanFailure()
+            state.position = CLAIMED
+            self.world.notify_state_change()
+
+
+def test_statements_side_by_side_are_grounded_together(
+    apartment_world_pr2_copy_with_context,
+):
+    """
+    Two statements of a parallel are tried together, as the parallel: the slot each
+    ranks first works on its own, but not beside the other, so they settle on different
+    slots before either runs, rather than one of them failing for real first.
+    """
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    slot_dof_ids = tuple(dof.id for dof in world.degrees_of_freedom[:2])
+
+    side_by_side = Parallel(
+        nodes=[
+            a(ClaimSlotAction)(slot=variable_from([0, 1]), slot_dof_ids=slot_dof_ids)
+            for _ in range(2)
+        ]
+    )
+    # A parallel is ended by what holds it, so it runs in a sequence, as in a plan.
+    plan = Sequence(nodes=[side_by_side])
+    run_plan(plan, extensions)
+
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+    statements = side_by_side.nodes
+    assert {statement.grounded_nodes[0].slot for statement in statements} == {0, 1}
+    assert all(len(statement.chosen_children) == 1 for statement in statements)

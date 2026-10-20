@@ -15,19 +15,18 @@ from coraplex.querying.predicates import GripperHolds
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import SequentialAction
 from cramph.composites import Parallel
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import (
+    GripperContactAction,
+    PickUpAction,
+)
 from coraplex.robot_plans.mixins import (
     ReattachesBranches,
     HasApproachesGraspPoses,
     HasGraspDetectionThreshold,
-    MovesGripper,
     MovesToolCenterPoint,
     PlaceTuningParameters,
 )
-from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
-from semantic_digital_twin.collision_checking.collision_rules import (
-    AllowCollisionForEndEffector,
-)
+from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
@@ -46,7 +45,6 @@ class PlaceAction(
     HasApproachesGraspPoses,
     PlaceTuningParameters,
     HasGraspDetectionThreshold,
-    MovesGripper,
 ):
     """
     Places an object at a position with the arm that holds it.
@@ -69,17 +67,14 @@ class PlaceAction(
     :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
     """
 
-    def create_temporary_collision_rules(self) -> list[CollisionRule]:
-        """
-        :return: An allowance for the gripper holding :attr:`object_designator` to
-            touch the surroundings of the object, which it is around from setting it down
-            until it has retracted, the moment the object is put back under the world
-            included.
-        """
-        arm, _ = self._holding_arm_and_grasp()
-        return [AllowCollisionForEndEffector(end_effector=arm.end_effector)]
-
     def create_steps(self) -> list[StatechartNode]:
+        """
+        The object is carried to above the target with every collision checked, so
+        neither it nor the gripper passes through anything on the way. Only from setting
+        it down until the gripper has retracted, the moment the object is put back under
+        the world included, may the gripper and the object touch their surroundings, see
+        :class:`~coraplex.robot_plans.actions.core.pick_up.GripperContactAction`.
+        """
         arm, grasp = self._holding_arm_and_grasp()
         # A release runs the grasp backwards: down from above the target, then out
         # along the way the grasp was approached.
@@ -93,24 +88,29 @@ class PlaceAction(
                 arm,
                 max_linear_velocity=self.transport_linear_velocity,
             ),
-            self.tool_center_point_goal(
-                poses.grasp,
-                arm,
-                max_linear_velocity=self.placing_linear_velocity,
-            ),
-            Parallel(
-                nodes=[
-                    self.gripper_goal(
-                        GripperState.OPEN,
-                        arm.end_effector,
-                        finger_velocity=self.release_opening_velocity,
+            GripperContactAction(
+                end_effector=arm.end_effector,
+                steps=[
+                    self.tool_center_point_goal(
+                        poses.grasp,
+                        arm,
+                        max_linear_velocity=self.placing_linear_velocity,
                     ),
-                    # Keeps the gripper in place while it opens, whatever else
-                    # moves the robot meanwhile.
-                    self.tool_center_point_goal(poses.grasp, arm),
-                ]
+                    Parallel(
+                        nodes=[
+                            MoveGripper(
+                                end_effector=arm.end_effector,
+                                state=GripperState.OPEN,
+                                finger_velocity=self.release_opening_velocity,
+                            ),
+                            # Keeps the gripper in place while it opens, whatever else
+                            # moves the robot meanwhile.
+                            self.tool_center_point_goal(poses.grasp, arm),
+                        ]
+                    ),
+                    *self._retract_steps(arm, poses.pre_grasp),
+                ],
             ),
-            *self._retract_steps(arm, poses.pre_grasp),
         ]
 
     def _retract_steps(self, arm: Arm, retract_pose: Pose) -> list[StatechartNode]:

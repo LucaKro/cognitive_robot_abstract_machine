@@ -269,7 +269,7 @@ apartment.
 ```python
 from coraplex.robot_plans import *
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
 from cramph.composites import Sequence
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 
@@ -286,7 +286,7 @@ run(Sequence(nodes=[
     NavigateAction(target_location=Pose.from_xyz_quaternion(1.7074915981292725, 2.6873629093170166, 0.0,
                                             -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                             reference_frame=world.root)),
-    OpenAction.from_handle(handle, pr2.right_arm)]))
+    GraspOpenAndRetractAction.from_handle(handle, pr2.right_arm)]))
 ```
 
 ## Closing
@@ -298,7 +298,7 @@ This action designator only works in the apartment environment for the moment, t
 the apartment. Additionally, we open the drawer such that we can close it with the action designator.
 
 ```python
-from coraplex.robot_plans.actions.core.container import CloseAction
+from coraplex.robot_plans.actions.core.container import GraspCloseAndRetractAction
 from cramph.composites import Sequence
 
 run(Sequence(nodes=[
@@ -307,5 +307,5 @@ run(Sequence(nodes=[
     NavigateAction(target_location=Pose.from_xyz_quaternion(1.72, 2.65, 0.0,
                                             -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                             reference_frame=world.root)),
-    CloseAction.from_handle(handle, pr2.right_arm)]))
+    GraspCloseAndRetractAction.from_handle(handle, pr2.right_arm)]))
 ```

@@ -3,14 +3,23 @@ from enum import StrEnum
 import numpy as np
 import pytest
 
-from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
+from coraplex.robot_plans.actions.core.container import (
+    CloseAction,
+    GraspCloseAndRetractAction,
+    GraspOpenAndRetractAction,
+    OpenAction,
+)
 from cramph.node import StatechartNode
+from giskardpy.motion_statechart.goals.grasped_mechanism import (
+    ArticulateGraspedMechanism,
+)
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from .conftest import left_or_only_arm
 from ..plan_running import simulated_executor, statechart_of
 
@@ -58,7 +67,9 @@ def goals_of(step: StatechartNode) -> list[StatechartNode]:
 # %% backing off the handle
 
 
-@pytest.mark.parametrize("action_type", [OpenAction, CloseAction])
+@pytest.mark.parametrize(
+    "action_type", [GraspOpenAndRetractAction, GraspCloseAndRetractAction]
+)
 def test_gripper_backs_off_the_handle_after_letting_go(pr2_at_drawer, action_type):
     """
     The gripper still straddles the handle once it opens, so the action ends by
@@ -70,7 +81,9 @@ def test_gripper_backs_off_the_handle_after_letting_go(pr2_at_drawer, action_typ
     action = action_type(grasp=grasp, arm=arm)
     statechart_of(simulated_executor(extensions), action)
 
-    *_, letting_go, back_off = action.nodes
+    # Letting go and backing off are the last of the steps the gripper on the handle
+    # touches its surroundings in.
+    *_, letting_go, back_off = action.nodes[-1].nodes
 
     assert [
         node.state for node in goals_of(letting_go) if isinstance(node, MoveGripper)
@@ -92,7 +105,7 @@ def test_back_off_pose_clears_the_grasp_by_the_release_clearance(pr2_at_drawer):
     """
     world, robot, extensions, handle = pr2_at_drawer
     end_effector = left_or_only_arm(robot).end_effector
-    action = OpenAction(
+    action = GraspOpenAndRetractAction(
         grasp=GraspCandidate.from_body_origin(handle), arm=left_or_only_arm(robot)
     )
     grasp_pose = Pose(reference_frame=handle.root)
@@ -108,3 +121,51 @@ def test_back_off_pose_clears_the_grasp_by_the_release_clearance(pr2_at_drawer):
         -action.release_clearance * np.asarray(grasp_pose.to_np()[:3, 0]),
         atol=1e-9,
     )
+
+
+# %% moving a container whose handle is held
+
+
+def test_opening_a_held_handle_drives_the_mechanism_to_its_upper_limit(pr2_at_drawer):
+    """
+    An open whose gripper already holds the handle only moves the container, with the
+    gripper that holds it, as far as its mechanism goes, and keeps holding the handle.
+    """
+    world, robot, extensions, handle = pr2_at_drawer
+    arm = left_or_only_arm(robot)
+    action = OpenAction(arm=arm, handle=handle)
+    statechart_of(simulated_executor(extensions), action)
+
+    [opening] = [
+        node
+        for node in goals_of(action)
+        if isinstance(node, ArticulateGraspedMechanism)
+    ]
+    mechanism = handle.root.get_first_parent_connection_of_type(ActiveConnection1DOF)
+    assert opening.tip_link is arm.end_effector.tool_frame
+    assert opening.environment_link is handle.root
+    assert opening.goal_joint_state == mechanism.dof.limits.upper.position
+    assert not [node for node in goals_of(action) if isinstance(node, MoveGripper)]
+
+
+def test_closing_a_held_handle_drives_the_mechanism_to_the_closed_position(
+    pr2_at_drawer,
+):
+    """
+    A close whose gripper already holds the handle drives the mechanism to the position
+    it is given, and keeps holding the handle.
+    """
+    world, robot, extensions, handle = pr2_at_drawer
+    arm = left_or_only_arm(robot)
+    action = CloseAction(arm=arm, handle=handle, closed_joint_position=0.02)
+    statechart_of(simulated_executor(extensions), action)
+
+    [closing] = [
+        node
+        for node in goals_of(action)
+        if isinstance(node, ArticulateGraspedMechanism)
+    ]
+    assert closing.tip_link is arm.end_effector.tool_frame
+    assert closing.environment_link is handle.root
+    assert closing.goal_joint_state == 0.02
+    assert not [node for node in goals_of(action) if isinstance(node, MoveGripper)]

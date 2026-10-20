@@ -8,7 +8,7 @@ import pytest
 
 from coraplex.plans.executors import PlanExecutor, KinematicallySimulatedPlanExecutor
 from coraplex.plans.failures import MotionMadeNoProgress
-from coraplex.robot_plans.actions.core.container import CloseAction
+from coraplex.robot_plans.actions.core.container import GraspCloseAndRetractAction
 from coraplex.robot_plans.actions.core.misc import MoveToReach
 from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
@@ -24,7 +24,9 @@ from giskardpy.motion_statechart.goals.cartesian_goals import (
     CartesianPoseStraight,
     DifferentialDriveBaseGoal,
 )
-from giskardpy.motion_statechart.goals.open_close import Close
+from giskardpy.motion_statechart.goals.grasped_mechanism import (
+    ArticulateGraspedMechanism,
+)
 from giskardpy.motion_statechart.graph_node import ConvergingTask
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
@@ -332,20 +334,24 @@ def test_a_drive_chosen_while_running_is_watched_for_stalling_as_it_is_driven(
 # %% closing a container
 
 
-def close_action(world: World, robot: AbstractRobot) -> CloseAction:
+def close_action(world: World, robot: AbstractRobot) -> GraspCloseAndRetractAction:
     """
     :return: An action closing a container of the apartment with the arm of `robot`.
     """
     handle = world.get_semantic_annotations_by_type(Handle)[0]
-    return CloseAction(grasp=handle.grasp_candidates()[0], arm=robot.all_arms[0])
+    return GraspCloseAndRetractAction(
+        grasp=handle.grasp_candidates()[0], arm=robot.all_arms[0]
+    )
 
 
-def closing_step_of(action: CloseAction) -> StatechartNode:
+def closing_step_of(action: GraspCloseAndRetractAction) -> StatechartNode:
     """
     :return: The step of an expanded close action between grasping the handle and
-        letting go of it.
+        letting go of it, the first of those the gripper touches the handle in after
+        the grasp.
     """
-    grasp, closing_step, release, back_off = action.nodes
+    grasp, touching = action.nodes
+    closing_step, release, back_off = touching.nodes
     return closing_step
 
 
@@ -375,7 +381,7 @@ def test_a_simulated_stretch_stays_in_front_of_the_container_it_closes(
     assert facing.goal_normal.reference_frame is action.grasp.graspable.root
     np.testing.assert_allclose(facing.tip_normal.to_np()[:3], [0, -1, 0])
     assert facing.tip_normal.reference_frame is robot.root
-    assert type(close) is Close
+    assert type(close) is ArticulateGraspedMechanism
     assert close.tip_link is default_close.tip_link
     assert close.environment_link is default_close.environment_link
     assert close.goal_joint_state == default_close.goal_joint_state
@@ -403,7 +409,7 @@ def test_the_real_stretch_closes_a_container_unchanged(
 
     action = prepared(close_action(world, robot), executor)
 
-    assert type(closing_step_of(action)) is Close
+    assert type(closing_step_of(action)) is ArticulateGraspedMechanism
 
 
 def test_a_robot_of_another_type_closes_a_container_unchanged(
@@ -414,7 +420,7 @@ def test_a_robot_of_another_type_closes_a_container_unchanged(
 
     action = prepared(close_action(world, robot), executor)
 
-    assert type(closing_step_of(action)) is Close
+    assert type(closing_step_of(action)) is ArticulateGraspedMechanism
 
 
 # %% moving the tool center point in a straight line
@@ -445,11 +451,12 @@ def reaching_goals_of(action: ReachAction) -> list[StatechartNode]:
 
 def lifting_goal_of(action: PickUpAction) -> StatechartNode:
     """
-    :return: The goal of an expanded pick up action lifting the grasped object, which
-        runs in a parallel only where something accompanies it, such as the hold on the
-        base of a robot that stands still.
+    :return: The goal of an expanded pick up action lifting the grasped object, the
+        last of the steps the gripper touches the object's surroundings in, which runs
+        in a parallel only where something accompanies it, such as the hold on the base
+        of a robot that stands still.
     """
-    lift = action.nodes[-1]
+    lift = action.nodes[-1].nodes[-1]
     return lift.nodes[0] if type(lift) is Parallel else lift
 
 
