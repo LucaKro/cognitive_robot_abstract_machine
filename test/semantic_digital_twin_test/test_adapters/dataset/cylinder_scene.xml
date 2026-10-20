@@ -1,0 +1,7 @@
+<mujoco>
+  <worldbody>
+    <body name="handle">
+      <geom type="cylinder" size="0.006 0.08"/>
+    </body>
+  </worldbody>
+</mujoco>
