@@ -8,6 +8,7 @@ from __future__ import annotations
 from enum import StrEnum
 
 import pytest
+from franka_msgs.action import Grasp, Homing, Move
 from geometry_msgs.msg import WrenchStamped
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionServer
@@ -24,7 +25,12 @@ from giskardpy.motion_statechart.ros2_nodes.force_torque_monitor import (
     ForceImpactMonitor,
     ForceTorqueNode,
 )
-from giskardpy.motion_statechart.ros2_nodes.ros_tasks import NavigateActionServerTask
+from giskardpy.motion_statechart.ros2_nodes.ros_tasks import (
+    GripperGraspTask,
+    GripperHomingTask,
+    GripperMoveTask,
+    NavigateActionServerTask,
+)
 from giskardpy.motion_statechart.ros2_nodes.topic_monitor import (
     PublishOnStart,
     TopicNode,
@@ -52,6 +58,9 @@ class RosName(StrEnum):
 
     WRENCH_TOPIC = "wrench"
     NAVIGATION_ACTION = "navigate"
+    GRIPPER_MOVE_ACTION = "gripper/move"
+    GRIPPER_GRASP_ACTION = "gripper/grasp"
+    GRIPPER_HOMING_ACTION = "gripper/homing"
 
 
 def _cases() -> list[NodeRoundTripCase]:
@@ -92,6 +101,33 @@ def _cases() -> list[NodeRoundTripCase]:
                 )
             ],
         ),
+        NodeRoundTripCase(
+            GripperMoveTask,
+            lambda world: [
+                GripperMoveTask(
+                    action_topic=RosName.GRIPPER_MOVE_ACTION, width=0.04, speed=0.1
+                )
+            ],
+        ),
+        NodeRoundTripCase(
+            GripperGraspTask,
+            lambda world: [
+                GripperGraspTask(
+                    action_topic=RosName.GRIPPER_GRASP_ACTION,
+                    width=0.02,
+                    speed=0.1,
+                    force=20.0,
+                    inner_tolerance=0.005,
+                    outer_tolerance=0.01,
+                )
+            ],
+        ),
+        NodeRoundTripCase(
+            GripperHomingTask,
+            lambda world: [
+                GripperHomingTask(action_topic=RosName.GRIPPER_HOMING_ACTION)
+            ],
+        ),
     ]
 
 
@@ -115,6 +151,21 @@ def _reach_the_goal_at_once(goal: ServerGoalHandle) -> NavigateToPose.Result:
     return NavigateToPose.Result()
 
 
+def _move_at_once(goal: ServerGoalHandle) -> Move.Result:
+    goal.succeed()
+    return Move.Result(success=True)
+
+
+def _grasp_at_once(goal: ServerGoalHandle) -> Grasp.Result:
+    goal.succeed()
+    return Grasp.Result(success=True)
+
+
+def _home_at_once(goal: ServerGoalHandle) -> Homing.Result:
+    goal.succeed()
+    return Homing.Result(success=True)
+
+
 @pytest.fixture(autouse=True)
 def navigation_action_server(rclpy_node: Node) -> Iterator[ActionServer]:
     """
@@ -128,6 +179,21 @@ def navigation_action_server(rclpy_node: Node) -> Iterator[ActionServer]:
     )
     yield server
     server.destroy()
+
+
+@pytest.fixture(autouse=True)
+def gripper_action_servers(rclpy_node: Node) -> Iterator[list[ActionServer]]:
+    """
+    :return: The action servers the gripper tasks wait for before they are built.
+    """
+    servers = [
+        ActionServer(rclpy_node, Move, RosName.GRIPPER_MOVE_ACTION, _move_at_once),
+        ActionServer(rclpy_node, Grasp, RosName.GRIPPER_GRASP_ACTION, _grasp_at_once),
+        ActionServer(rclpy_node, Homing, RosName.GRIPPER_HOMING_ACTION, _home_at_once),
+    ]
+    yield servers
+    for server in servers:
+        server.destroy()
 
 
 @pytest.fixture()

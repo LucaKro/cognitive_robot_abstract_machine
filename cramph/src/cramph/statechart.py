@@ -1785,6 +1785,7 @@ class Statechart(SubclassJSONSerializer):
         stays in the statechart as that child, at its position there, and forgets the
         transitions its former parent decided for it, so that `replacement` decides
         them. Otherwise `node` leaves the statechart together with everything below it.
+        Every control structure node above `replacement` wires its children anew.
         A :meth:`modify` block that raises puts back a `node` that stayed in the
         statechart.
 
@@ -1826,7 +1827,10 @@ class Statechart(SubclassJSONSerializer):
             if isinstance(replacement, CompositeNode):
                 self._expand(replacement)
             if holder is not None:
-                holder._wire_children()
+                # an owner further up wired its child from the conditions below it
+                for owner in [holder, *holder.path]:
+                    if isinstance(owner, ControlStructureNode):
+                        owner._wire_children()
             if not holds_node:
                 self.remove_node(node)
                 self._replaced_nodes.remove(record)

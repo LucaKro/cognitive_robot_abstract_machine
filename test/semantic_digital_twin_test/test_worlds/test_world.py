@@ -2053,6 +2053,27 @@ def test_reattach_child_to_new_parent_offline(world_setup):
     assert np.allclose(l2.global_transform, old_child_global_pose)
 
 
+def test_free_branch_keeps_parent_and_pose(world_setup):
+    world, l1, l2, bf, r1, r2 = world_setup
+    l2.parent_connection.position = 0.3
+    old_child_global_pose = l2.global_transform
+
+    world.free_branch(l2)
+
+    assert isinstance(l2.parent_connection, Connection6DoF)
+    assert l2.parent_connection.parent == l1
+    assert np.allclose(l2.global_transform, old_child_global_pose)
+
+
+def test_free_branch_keeps_a_connection_that_is_already_free(world_setup):
+    world, l1, l2, bf, r1, r2 = world_setup
+    connection_6dof = bf.parent_connection
+
+    world.free_branch(bf)
+
+    assert bf.parent_connection is connection_6dof
+
+
 def test_move_branch_preserves_connection_type_and_pose():
     """
     move_branch re-parents a branch keeping its connection type and global pose.

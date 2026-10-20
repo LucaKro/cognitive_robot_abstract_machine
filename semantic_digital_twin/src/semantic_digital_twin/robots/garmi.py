@@ -508,13 +508,13 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
         Sets up the park configuration for the arm.
         """
         park_configuration = {
-            GarmiJoint.LEFT_ARM_1: 0.0,
-            GarmiJoint.LEFT_ARM_2: -1.6,
-            GarmiJoint.LEFT_ARM_3: -1.0,
-            GarmiJoint.LEFT_ARM_4: -2.356194490192345,
-            GarmiJoint.LEFT_ARM_5: 0.0,
-            GarmiJoint.LEFT_ARM_6: 1.5707963267948966,
-            GarmiJoint.LEFT_ARM_7: 0.7853981633974483,
+            GarmiJoint.LEFT_ARM_1: 0.3647,
+            GarmiJoint.LEFT_ARM_2: -1.3028,
+            GarmiJoint.LEFT_ARM_3: -0.6168,
+            GarmiJoint.LEFT_ARM_4: -1.5302,
+            GarmiJoint.LEFT_ARM_5: 0.8420,
+            GarmiJoint.LEFT_ARM_6: 2.4242,
+            GarmiJoint.LEFT_ARM_7: 0.6000,
         }
 
         arm_park = JointState.from_mapping(
@@ -562,13 +562,13 @@ class GarmiRightArm(Arm[GarmiRightGripper]):
         Sets up the park configuration for the arm.
         """
         park_configuration = {
-            GarmiJoint.RIGHT_ARM_1: 0.0,
-            GarmiJoint.RIGHT_ARM_2: -1.6,
-            GarmiJoint.RIGHT_ARM_3: 1.0,
-            GarmiJoint.RIGHT_ARM_4: -2.356194490192345,
-            GarmiJoint.RIGHT_ARM_5: 0.0,
-            GarmiJoint.RIGHT_ARM_6: 1.5707963267948966,
-            GarmiJoint.RIGHT_ARM_7: 0.7853981633974483,
+            GarmiJoint.RIGHT_ARM_1: -0.5866,
+            GarmiJoint.RIGHT_ARM_2: -1.1826,
+            GarmiJoint.RIGHT_ARM_3: 0.4083,
+            GarmiJoint.RIGHT_ARM_4: -1.4204,
+            GarmiJoint.RIGHT_ARM_5: 0.0297,
+            GarmiJoint.RIGHT_ARM_6: 2.3281,
+            GarmiJoint.RIGHT_ARM_7: 0.2854,
         }
 
         arm_park = JointState.from_mapping(
@@ -706,19 +706,19 @@ class Garmi(AbstractRobot, HasMobileBase[GarmiMobileBase]):
         """
         return True
 
-    @classproperty
-    def description_corrections(cls) -> tuple[DescriptionCorrection, ...]:
-        """
-        :return: The lift joints made fixed, at the height the description starts them
-            at, since the real GARMI's lift is not wired up to be controlled.
-        """
-        return tuple(
-            ReplaceConnection(
-                connection_name=joint_name,
-                replacement=FixedConnectionSpecification(),
-            )
-            for joint_name in GarmiJoint.lift()
-        )
+    # @classproperty
+    # def description_corrections(cls) -> tuple[DescriptionCorrection, ...]:
+    #     """
+    #     :return: The lift joints made fixed, at the height the description starts them
+    #         at, since the real GARMI's lift is not wired up to be controlled.
+    #     """
+    #     return tuple(
+    #         ReplaceConnection(
+    #             connection_name=joint_name,
+    #             replacement=FixedConnectionSpecification(),
+    #         )
+    #         for joint_name in GarmiJoint.lift()
+    #     )
 
     @classmethod
     def get_ros_file_path(cls) -> str:

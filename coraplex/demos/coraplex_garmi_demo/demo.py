@@ -24,14 +24,17 @@ from ament_index_python.packages import get_package_share_directory
 
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
-from coraplex.plans.executors import PlanExecutor, KinematicallySimulatedPlanExecutor
+from coraplex.plans.executors import PlanExecutor, KinematicallySimulatedPlanExecutor, RealRobotPlanExecutor
 from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
+from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
+from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
 from cramph.composites import Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
+from krrood.entity_query_language.factories import the, variable
 from semantic_digital_twin.specifications.connections import (
     Connection6DoFSpecification,
 )
@@ -42,7 +45,7 @@ from semantic_digital_twin.specifications.robots import RobotSpecification
 from semantic_digital_twin.specifications.worlds import WorldSpecification
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.garmi import Garmi
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl, Spoon
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl, Spoon, Handle
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
@@ -265,7 +268,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         )
 
     def is_scene_populated(self, world: World) -> bool:
-        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.APARTMENT)
+        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.APARTMENT.value)
 
     def populate_scene(self, world: World) -> None:
         """
@@ -285,28 +288,28 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         # connection that has the degrees of freedom to carry it, so they hang off 6DoF
         # connections rather than the default fixed one.
         Bowl.get_annotation_specification(
-            SceneBody.BOWL,
+            SceneBody.BOWL.value,
             BodySpecification.mesh(
-                SceneBody.BOWL,
+                SceneBody.BOWL.value,
                 SceneFile.BOWL.path,
                 parent_T_self=ScenePose.BOWL_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT))
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.APARTMENT.value))
 
         # %% spoon
 
         # Hanging off the drawer rather than the world root, so it travels with the drawer
         # when the plan opens it.
         Spoon.get_annotation_specification(
-            SceneBody.SPOON,
+            SceneBody.SPOON.value,
             BodySpecification.mesh(
-                SceneBody.SPOON,
+                SceneBody.SPOON.value,
                 SceneFile.SPOON.path,
                 parent_T_self=ScenePose.SPOON_START.value.transform,
             ),
             parent_connection_specification=Connection6DoFSpecification(),
-        ).spawn(world, parent=world.get_body_by_name(SceneBody.SPOON_DRAWER))
+        ).spawn(world, parent=world.get_body_by_name(SceneBody.SPOON_DRAWER.value))
 
     def build_context_extensions(self, world: World) -> list[ContextExtension]:
         return [
@@ -315,43 +318,59 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             PlanRewriting(transformations=[OpenDrawerBeforeMoveAndPickUp()]),
         ]
 
-    def build_statechart(self, context: StatechartContext) -> Statechart:
-        """
-        Carry the bowl and then the spoon to the table.
-        """
+    # def build_statechart(self, context: StatechartContext) -> Statechart:
+    #     """
+    #     Carry the bowl and then the spoon to the table.
+    #     """
+    #     world = context.world
+    #     robot = context.require_extension(RobotAccess).robot
+    #     right_arm = robot.get_right_arm_if_specified()
+    #     apartment = world.get_body_by_name(SceneBody.APARTMENT)
+    #     statechart = Statechart(context=context)
+    #     statechart.add_node(
+    #         Sequence(
+    #             nodes=[
+    #                 ParkArmsAction(arms=robot.all_arms),
+    #                 TransportAction.from_graspable_by_closest_grasps(
+    #                     world.get_semantic_annotations_by_type(Bowl)[0],
+    #                     Pose(
+    #                         position=ScenePose.BOWL_TARGET.value.position,
+    #                         reference_frame=apartment,
+    #                     ),
+    #                     right_arm,
+    #                     context,
+    #                     seed=SamplingSeed.REPEATABLE,
+    #                 ),
+    #                 TransportAction.from_graspable_by_closest_grasps(
+    #                     world.get_semantic_annotations_by_type(Spoon)[0],
+    #                     Pose(
+    #                         position=ScenePose.SPOON_TARGET.value.position,
+    #                         reference_frame=apartment,
+    #                     ),
+    #                     right_arm,
+    #                     context,
+    #                     seed=SamplingSeed.REPEATABLE,
+    #                 ),
+    #             ]1
+    #         )
+    #     )
+    #     return statechart
+
+    def build_statechart(self, context: StatechartContext):
         world = context.world
         robot = context.require_extension(RobotAccess).robot
-        right_arm = robot.get_right_arm_if_specified()
-        apartment = world.get_body_by_name(SceneBody.APARTMENT)
         statechart = Statechart(context=context)
-        statechart.add_node(
-            Sequence(
-                nodes=[
-                    ParkArmsAction(arms=robot.all_arms),
-                    TransportAction.from_graspable_by_closest_grasps(
-                        world.get_semantic_annotations_by_type(Bowl)[0],
-                        Pose(
-                            position=ScenePose.BOWL_TARGET.value.position,
-                            reference_frame=apartment,
-                        ),
-                        right_arm,
-                        context,
-                        seed=SamplingSeed.REPEATABLE,
-                    ),
-                    TransportAction.from_graspable_by_closest_grasps(
-                        world.get_semantic_annotations_by_type(Spoon)[0],
-                        Pose(
-                            position=ScenePose.SPOON_TARGET.value.position,
-                            reference_frame=apartment,
-                        ),
-                        right_arm,
-                        context,
-                        seed=SamplingSeed.REPEATABLE,
-                    ),
-                ]
-            )
-        )
+        statechart.add_node(Sequence(nodes=[
+            # NavigateAction(target_location=Pose.from_xyz_rpy(x=.1, reference_frame=robot.root))
+
+            ParkArmsAction(arms=robot.all_arms),
+            # GraspOpenAndRetractAction.from_handle(arm=robot.get_left_arm_if_specified(), handle=next(
+            #     the(handle := variable(Handle, domain=world.semantic_annotations)).where(
+            #         handle.root.name.name == "drawer_2_handle").evaluate())),
+        ]
+        ))
         return statechart
+
 
 
 def main(
@@ -364,7 +383,7 @@ def main(
         drives the real robot or simulates it.
     """
     GarmiApartmentDemonstration(
-        used_robot=Garmi, executor_type=executor_type, collision_avoidance=True
+        used_robot=Garmi, executor_type=RealRobotPlanExecutor, collision_avoidance=False, debug=False
     ).run()
 
 

@@ -7,10 +7,14 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
+from enum import StrEnum
+
+from typing_extensions import Generic
 
 from coraplex.exceptions import ClosingGoalNotFound, ToolPathNotFound
 from coraplex.plans.plan_transformation import (
     ConfigurationTransformation,
+    MatchedType,
     ParallelInsertion,
     PlanTransformation,
 )
@@ -20,6 +24,7 @@ from coraplex.robot_plans.actions.core.container import (
     GraspsAndMovesContainerByItsHandle,
 )
 from coraplex.robot_plans.actions.core.navigation import DrivesBase
+from coraplex.robot_plans.actions.core.robot_body import MoveFingersToWidthAction
 from coraplex.robot_plans.mixins import MovesToolCenterPoint
 from cramph.composites import Parallel
 from cramph.node import StatechartNode
@@ -27,12 +32,20 @@ from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.grasped_mechanism import (
     ArticulateGraspedMechanism,
 )
+from giskardpy.motion_statechart.goals.gripper import MoveGripper
+from giskardpy.motion_statechart.ros2_nodes.ros_tasks import (
+    GripperGraspTask,
+    GripperMoveTask,
+)
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
     CartesianPositionTrajectory,
     HoldOrientation,
 )
+from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
+from semantic_digital_twin.datastructures.definitions import GripperState
+from semantic_digital_twin.robots.garmi import GarmiLeftGripper, GarmiRightGripper
 from semantic_digital_twin.robots.justin import Justin
 from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.robots.tiago import Tiago
@@ -246,3 +259,118 @@ class KeepStretchInFrontOfTheContainerItCloses(
                 ]
             ),
         )
+
+
+# %% moving GARMI's fingers through the Franka gripper driver
+
+
+class FrankaGripperActionName(StrEnum):
+    """
+    The names the Franka gripper driver serves its actions under, inside its namespace.
+    """
+
+    MOVE = "move"
+    GRASP = "grasp"
+
+
+@dataclass
+class DriveGarmiGrippersWithTheirFrankaDriver(
+    PlanTransformation[MatchedType], Generic[MatchedType], SubClassSafeGeneric, ABC
+):
+    """
+    Moves the fingers of GARMI's real grippers through the actions of their Franka
+    gripper driver instead of with a Giskard goal.
+    """
+
+    left_gripper_namespace: str = "/garmi/arms/left/franka_gripper"
+    """
+    The ROS namespace the driver of the left gripper serves its actions in.
+    """
+
+    right_gripper_namespace: str = "/garmi/arms/right/franka_gripper"
+    """
+    The ROS namespace the driver of the right gripper serves its actions in.
+    """
+
+    finger_speed: float = 0.1
+    """
+    The speed the fingers move at, in metres per second.
+    """
+
+    grasp_force: float = 20.0
+    """
+    The force the fingers hold an object with, in newtons.
+    """
+
+    def action_name(
+        self,
+        gripper: GarmiLeftGripper | GarmiRightGripper,
+        action: FrankaGripperActionName,
+    ) -> str:
+        """
+        :return: The name the driver of `gripper` serves `action` under.
+        """
+        if isinstance(gripper, GarmiLeftGripper):
+            return f"{self.left_gripper_namespace}/{action}"
+        return f"{self.right_gripper_namespace}/{action}"
+
+    def grasp(self, gripper: GarmiLeftGripper | GarmiRightGripper) -> GripperGraspTask:
+        """
+        :return: A new task shutting `gripper` on whatever lies between its fingers,
+            which succeeds wherever the fingers stop.
+        """
+        return GripperGraspTask(
+            action_topic=self.action_name(gripper, FrankaGripperActionName.GRASP),
+            width=0.0,
+            speed=self.finger_speed,
+            force=self.grasp_force,
+            inner_tolerance=0.0,
+            outer_tolerance=gripper.separation_when_open,
+        )
+
+
+@dataclass
+class DriveGarmiGripperStatesWithTheirFrankaDriver(
+    DriveGarmiGrippersWithTheirFrankaDriver[MoveGripper]
+):
+    """
+    Opens a gripper of GARMI fully, or shuts it on whatever lies between its fingers,
+    through its Franka gripper driver.
+    """
+
+    def is_applicable(self, plan_node: MoveGripper) -> bool:
+        return isinstance(
+            plan_node.end_effector, (GarmiLeftGripper, GarmiRightGripper)
+        ) and plan_node.state in (GripperState.OPEN, GripperState.CLOSE)
+
+    def apply(self, plan_node: MoveGripper) -> None:
+        """
+        Puts the task in place of the step that drives the fingers: `plan_node`, or the
+        action whose goal it is.
+        """
+        gripper = plan_node.end_effector
+        if plan_node.state is GripperState.CLOSE:
+            task = self.grasp(gripper)
+        else:
+            task = GripperMoveTask(
+                action_topic=self.action_name(gripper, FrankaGripperActionName.MOVE),
+                width=gripper.separation_when_open,
+                speed=self.finger_speed,
+            )
+        plan_node.statechart.replace(self._step_holding(plan_node), task)
+
+
+@dataclass
+class CloseGarmiFingersToWidthWithTheirFrankaDriver(
+    DriveGarmiGrippersWithTheirFrankaDriver[MoveFingersToWidthAction]
+):
+    """
+    Shuts a gripper of GARMI on the object it is to meet at its width through its Franka
+    gripper driver, whose grasp stops the fingers where the object pushes back.
+    """
+
+    def is_applicable(self, plan_node: MoveFingersToWidthAction) -> bool:
+        return isinstance(plan_node.gripper, (GarmiLeftGripper, GarmiRightGripper))
+
+    def apply(self, plan_node: MoveFingersToWidthAction) -> None:
+        plan_node.statechart.replace(plan_node, self.grasp(plan_node.gripper))

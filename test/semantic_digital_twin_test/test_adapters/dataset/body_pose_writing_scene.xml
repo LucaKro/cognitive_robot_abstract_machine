@@ -1,0 +1,21 @@
+<mujoco>
+  <!-- a cabinet with a drawer and its handle, and a free book shifted by a frame -->
+  <worldbody>
+    <body name="cabinet" pos="1 2 0" quat="0.707107 0 0 0.707107">
+      <geom type="box" size="0.3 0.3 0.4" pos="0 0 0.4"/>
+      <body name="drawer" pos="0.3 0 0.6">
+        <joint name="drawer_slide" type="slide" axis="1 0 0" range="0 0.4"/>
+        <geom type="box" size="0.25 0.25 0.05"/>
+        <body name="handle" pos="0.05 0 0">
+          <geom type="cylinder" size="0.01 0.08" quat="0.707107 0.707107 0 0"/>
+        </body>
+      </body>
+    </body>
+    <frame pos="1.2 1.5 0" quat="0.707107 0 0 0.707107">
+      <body name="book" pos="0.5 0.25 0.8" quat="0.707107 0 0 -0.707107">
+        <freejoint/>
+        <geom type="box" size="0.1 0.02 0.15"/>
+      </body>
+    </frame>
+  </worldbody>
+</mujoco>

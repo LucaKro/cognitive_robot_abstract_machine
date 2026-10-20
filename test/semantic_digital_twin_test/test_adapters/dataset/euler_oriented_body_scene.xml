@@ -1,0 +1,8 @@
+<mujoco>
+  <worldbody>
+    <body name="tilted_box" pos="0 0 1" euler="0 0 90">
+      <freejoint/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </body>
+  </worldbody>
+</mujoco>

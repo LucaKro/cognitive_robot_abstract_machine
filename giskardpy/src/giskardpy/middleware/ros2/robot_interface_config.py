@@ -250,6 +250,7 @@ class ClosedLoopRobotInterfaceConfig(RobotInterfaceConfig, ABC):
         joint: Union[OmniDrive, DifferentialDrive] = None,
         minimum_linear_velocity: float = 0.0,
         minimum_angular_velocity: float = 0.0,
+        topic_type = None
     ):
         """
         Tell Giskard how it can control an odom joint of the robot.
