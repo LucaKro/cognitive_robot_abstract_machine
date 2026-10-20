@@ -52,6 +52,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
+from giskardpy.motion_statechart.monitors.feature_monitors import DistanceMonitor
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from krrood.entity_query_language.factories import a, variable
 from semantic_digital_twin.datastructures.definitions import GripperState
@@ -158,6 +159,12 @@ class SceneBody(StrEnum):
 
 
 # %% where things stand
+
+RIGHT_HAND_WITHDRAWAL_BEFORE_CLOSING = 0.3
+"""
+How far the right hand has to be from where it put the bowl, in meters and ignoring
+height, before the drawer starts closing, so the closing drawer does not push into it.
+"""
 
 MILK_TOP_GRASP_HEIGHT = 0.076
 """
@@ -512,11 +519,39 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                         ]
                     ),
                     # The left hand never lets go of the handle, so it closes the
-                    # drawer from where it holds it, while the right arm parks.
+                    # drawer from where it holds it, while the right arm parks. The
+                    # drawer only starts closing once the right hand has withdrawn
+                    # from above it, so it does not push into the hand.
                     Parallel(
                         nodes=[
                             ParkArmsAction(arms=[right_arm]),
-                            CloseAction(arm=left_arm, handle=drawer.handle),
+                            Sequence(
+                                nodes=[
+                                    # Until then the left hand keeps the drawer where
+                                    # it is, or GARMI's body, following the right arm,
+                                    # would drag it off. The fixation is at its goal
+                                    # all along, so the monitor decides when this ends.
+                                    Parallel(
+                                        nodes=[
+                                            FixateObjectAction(arm=left_arm),
+                                            DistanceMonitor(
+                                                name="Right hand withdrawn from the drawer",
+                                                root_link=world.root,
+                                                tip_link=right_arm.end_effector.tool_frame,
+                                                reference_point=ScenePose.BOWL_IN_DRAWER.value.pose(
+                                                    world.root
+                                                ).position,
+                                                tip_point=Point3(
+                                                    reference_frame=right_arm.end_effector.tool_frame
+                                                ),
+                                                lower_limit=RIGHT_HAND_WITHDRAWAL_BEFORE_CLOSING,
+                                                upper_limit=math.inf,
+                                            ),
+                                        ],
+                                    ),
+                                    CloseAction(arm=left_arm, handle=drawer.handle),
+                                ]
+                            ),
                             # Lets the left hand stay on the handle once the drawer is
                             # closed, while the right arm, and with it GARMI's body,
                             # may still be moving.

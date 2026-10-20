@@ -9,6 +9,7 @@ from itertools import count
 
 from typing_extensions import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Iterator,
 )
@@ -172,9 +173,8 @@ class ActionTrial:
         Run `block` against the copy, every statement in it replaced by its candidate,
         and restore the copy afterwards.
 
-        The candidates are tried together with the actions and statements that run
-        beside them, the way the block runs for real, rather than each on its own; any
-        other node of the block is left out, see :meth:`_rebuild_onto`.
+        The candidates are tried together with every node that runs beside them, the way
+        the block runs for real, rather than each on its own, see :meth:`_rebuild_onto`.
 
         :param block: The node whose statements are grounded together.
         :param candidates: The candidate each statement of `block` runs.
@@ -298,10 +298,9 @@ class ActionTrial:
         :param candidates: The candidate each statement below `node` runs.
         :return: A new node referring to `world`: a statement replaced by its candidate
             in a sequence of its own, the way it runs for real, an action rebuilt from
-            its own parameters, and a control structure from the fields it is
-            constructed with, holding its nodes rebuilt the same way. None for any other
-            node, which a trial leaves out, so only actions and statements are tried,
-            and for a control structure left with nothing to hold.
+            its own parameters, and any other node from the fields it is constructed
+            with, the nodes among them rebuilt the same way. None for a statement
+            without a candidate, and for a control structure left with nothing to hold.
         """
         if isinstance(node, StatementNode):
             if node not in candidates:
@@ -310,28 +309,43 @@ class ActionTrial:
             return Sequence(name=f"{candidate.name}/steps", nodes=[candidate])
         if isinstance(node, DesignatorParameters):
             return cls._rebind_action_to_world(node, world)
-        if not isinstance(node, ControlStructureNode):
+        constructor_arguments = {
+            constructor_field.name: cls._rebuild_field_onto(
+                getattr(node, constructor_field.name), world, candidates
+            )
+            for constructor_field in fields(node)
+            if constructor_field.init
+        }
+        if isinstance(node, ControlStructureNode) and not constructor_arguments["nodes"]:
             return None
-        nodes = [
-            rebuilt
-            for child in node.nodes
-            if (rebuilt := cls._rebuild_onto(child, world, candidates)) is not None
-        ]
-        if not nodes:
-            return None
-        return type(node)(
-            **{
-                constructor_field.name: (
-                    nodes
-                    if constructor_field.name == "nodes"
-                    else world.rebind_world_entities(
-                        getattr(node, constructor_field.name)
-                    )
-                )
-                for constructor_field in fields(node)
-                if constructor_field.init
-            }
-        )
+        return type(node)(**constructor_arguments)
+
+    @classmethod
+    def _rebuild_field_onto(
+        cls,
+        value: Any,
+        world: World,
+        candidates: dict[StatementNode, DesignatorParameters],
+    ) -> Any:
+        """
+        :param value: The value of a field a node is constructed with.
+        :param world: The copy to try the node against.
+        :param candidates: The candidate each statement below the node runs.
+        :return: `value` referring to `world`, a node or a list of nodes rebuilt by
+            :meth:`_rebuild_onto`, leaving out the nodes it returns None for.
+        """
+        if isinstance(value, StatechartNode):
+            return cls._rebuild_onto(value, world, candidates)
+        if isinstance(value, list) and any(
+            isinstance(element, StatechartNode) for element in value
+        ):
+            return [
+                rebuilt
+                for element in value
+                if (rebuilt := cls._rebuild_onto(element, world, candidates))
+                is not None
+            ]
+        return world.rebind_world_entities(value)
 
     def _copy(self) -> World:
         """
