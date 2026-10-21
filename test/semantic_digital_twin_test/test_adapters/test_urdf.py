@@ -1,6 +1,7 @@
 import os.path
 from dataclasses import dataclass
 from math import pi
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -257,3 +258,29 @@ def test_xacro():
     assert len(world.kinematic_structure_entities) > 0
     assert len(world.connections) > 0
     assert world.root.name.name == "base_footprint"
+
+
+# %% meshes named by a package URI
+
+MESH_REFERENCE_PACKAGE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "dataset", "mesh_reference_package"
+)
+"""
+A ROS package whose ``model.urdf`` names its ``box.stl`` by a ``package://`` URI.
+"""
+
+
+def test_a_mesh_named_by_a_package_uri_keeps_the_uri(monkeypatch):
+    """
+    A mesh the description names by a package URI records that URI and still resolves to
+    the package's file on this machine.
+    """
+    monkeypatch.setenv("ROS_PACKAGE_PATH", MESH_REFERENCE_PACKAGE)
+    urdf_path = os.path.join(MESH_REFERENCE_PACKAGE, "model.urdf")
+    [link] = urdfpy.URDF.from_xml_file(urdf_path).links
+
+    world = URDFParser.from_file(urdf_path).parse()
+
+    [mesh] = _body_named(world, link.name).visual.shapes
+    assert mesh.filename == link.visual.geometry.filename
+    assert mesh.local_file == Path(MESH_REFERENCE_PACKAGE) / "box.stl"
