@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC
 from collections import deque
 from copy import deepcopy
@@ -266,6 +267,8 @@ class ActionTrial:
         :return: True if the node `build` returns runs to completion against the copy
             without raising an :class:`~cramph.exceptions.ExecutionFailure`.
         """
+        logger.info(f"Trial of {description} started")
+        started = time.monotonic()
         world = self._copy()
         tried = build(world)
         version = world.get_world_model_manager().version
@@ -289,9 +292,16 @@ class ActionTrial:
                 )
                 executor.compile(statechart)
                 executor.execute()
+                logger.info(
+                    f"Trial of {description} succeeded after "
+                    f"{time.monotonic() - started:.2f} s"
+                )
                 return True
             except ExecutionFailure as failure:
-                logger.info(f"{description} failed its trial: {failure}")
+                logger.info(
+                    f"Trial of {description} failed after "
+                    f"{time.monotonic() - started:.2f} s: {failure}"
+                )
                 return False
             finally:
                 # Undo the model changes before leaving the reset context restores the
@@ -647,8 +657,8 @@ class UnderspecifiedChildChooser(PlanChildChooser):
         default_factory=dict, init=False, repr=False
     )
     """
-    The candidates a statement yielded while it was grounded together with the others
-    of its parallel but does not run, tried first should its child fail.
+    The candidates a statement yielded while it was grounded together with the others of
+    its parallel but does not run, tried first should its child fail.
     """
 
     def __post_init__(self) -> None:
@@ -766,8 +776,8 @@ class UnderspecifiedChildChooser(PlanChildChooser):
         self, block: Parallel, grounding: StatementGrounding
     ) -> dict[StatementNode, DesignatorParameters | None]:
         """
-        Try the combinations of the candidates of the statements of `block` as the
-        whole of `block`, the closest first, see :func:`combinations_closest_first`.
+        Try the combinations of the candidates of the statements of `block` as the whole
+        of `block`, the closest first, see :func:`combinations_closest_first`.
 
         :return: The candidate each statement runs, from the first combination that
             succeeded its trial, or None for each if none did.

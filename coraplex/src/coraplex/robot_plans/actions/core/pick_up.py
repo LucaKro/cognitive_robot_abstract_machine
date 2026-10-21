@@ -7,6 +7,7 @@ import numpy as np
 
 from coraplex.robot_plans.actions.base import ParallelAction, SequentialAction
 from cramph.composites import Parallel
+from cramph.monitors import CountSeconds
 from cramph.node import StatechartNode
 from coraplex.robot_plans.mixins import (
     ReattachesBranches,

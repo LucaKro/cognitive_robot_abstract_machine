@@ -148,7 +148,7 @@ class MotionServer:
         whether that happens while idle or while a goal is running. Either way the robot
         is stopped before the interrupt is allowed to propagate further.
         """
-        rospy.get_node().get_logger().info("giskard is ready")
+        rospy.get_node().get_logger().info("giskard is ready, waiting for goals")
         try:
             while rclpy.ok() and not self._stop_requested.is_set():
                 self.run_idle_cycle()
@@ -196,7 +196,9 @@ class MotionServer:
         if not self.action_server.has_goal():
             return
         self.action_server.accept_goal()
+        self.action_server.loginfo("received, stopped waiting for goals")
         self.execute_goal()
+        rospy.get_node().get_logger().info("waiting for goals")
 
     # %% executing goals
 

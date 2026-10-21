@@ -213,6 +213,14 @@ class ChildSentByClient(ChildChooser):
     Guards :attr:`_received`, which the thread receiving messages writes.
     """
 
+    _waiting_since: dict[int, float] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """
+    The monotonic time each node waiting for its child first asked for it, by the index
+    of the node.
+    """
+
     def receive(self, message: ChildChoiceMessage) -> None:
         """
         :param message: A choice the client sent.
@@ -228,6 +236,12 @@ class ChildSentByClient(ChildChooser):
             choice made before it was taken, and the world contains what it was made
             on.
         """
+        if node.index not in self._waiting_since:
+            self._waiting_since[node.index] = time.monotonic()
+            print(
+                f"Goal #{self.action_server.goal_id}: {node.name} started waiting for "
+                f"the child the client chooses"
+            )
         with self._lock:
             message = self._received.get(node.index)
             if message is None:
@@ -268,11 +282,17 @@ class ChildSentByClient(ChildChooser):
         """
         with self._lock:
             message = self._received.pop(node.index)
+        waited = time.monotonic() - self._waiting_since.pop(node.index)
+        print(
+            f"Goal #{self.action_server.goal_id}: {node.name} stopped waiting for its "
+            f"child after {waited:.2f} s"
+        )
         return message.apply_to(node.statechart)
 
     def cleanup(self) -> None:
         with self._lock:
             self._received.clear()
+        self._waiting_since.clear()
 
 
 # %% the client's side
