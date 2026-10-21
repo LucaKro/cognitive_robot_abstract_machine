@@ -286,13 +286,13 @@ class BulletWorldDemonstration(RobotDemonstration):
 
     def scene_specification(self) -> WorldSpecification:
         """
-        The apartment.
+        :return: The apartment.
         """
         return WorldSpecification.from_urdf(SceneFile.APARTMENT.path)
 
     def robot_specification(self) -> RobotSpecification:
         """
-        The PR2, placed at :attr:`robot_start` through its odom.
+        :return: The PR2, placed at :attr:`robot_start` through its odom.
         """
         return RobotSpecification(
             semantic_annotation_type=self.used_robot, world_T_odom=self.robot_start

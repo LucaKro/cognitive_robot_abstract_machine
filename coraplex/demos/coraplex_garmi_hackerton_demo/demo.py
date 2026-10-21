@@ -30,7 +30,7 @@ from coraplex.plans.executors import (
     PlanExecutor,
 )
 from coraplex.plans.plan_transformation import PlanRewriting
-from coraplex.querying.grasp_closeness import GraspsClosestToTheRobot
+from coraplex.querying.grasp_closeness import GraspsByCloseness
 from coraplex.robot_plans.actions.core.container import (
     CloseAction,
     GraspsAndMovesContainerByItsHandle,
@@ -55,7 +55,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.monitors.feature_monitors import DistanceMonitor
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
-from krrood.entity_query_language.factories import a, variable
+from krrood.entity_query_language.factories import a, flat_variable, variable
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.specifications.connections import (
@@ -495,11 +495,17 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                             Sequence(
                                 nodes=[
                                     a(GraspingAction)(
-                                        grasp=variable(
-                                            GraspCandidate,
-                                            domain=GraspsClosestToTheRobot(
-                                                drawer.handle, robot
-                                            ),
+                                        grasp=flat_variable(
+                                            GraspsByCloseness(
+                                                drawer.handle,
+                                                variable(
+                                                    Pose,
+                                                    domain=[
+                                                        Pose(reference_frame=robot.root)
+                                                    ],
+                                                ),
+                                                number_of_grasps=None,
+                                            )
                                         ),
                                         arm=left_arm,
                                     ),
@@ -547,9 +553,17 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                                         branch_root=milk.root, new_parent=storage_drawer
                                     ),
                                     a(PickUpAction)(
-                                        grasp=variable(
-                                            GraspCandidate,
-                                            domain=GraspsClosestToTheRobot(bowl, robot),
+                                        grasp=flat_variable(
+                                            GraspsByCloseness(
+                                                bowl,
+                                                variable(
+                                                    Pose,
+                                                    domain=[
+                                                        Pose(reference_frame=robot.root)
+                                                    ],
+                                                ),
+                                                number_of_grasps=None,
+                                            )
                                         ),
                                         arm=right_arm,
                                     ),

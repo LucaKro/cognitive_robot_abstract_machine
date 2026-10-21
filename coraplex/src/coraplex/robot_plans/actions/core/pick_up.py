@@ -24,10 +24,8 @@ from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.datastructures.definitions import GripperState
-from semantic_digital_twin.grasping.grasp_candidates import (
-    GraspCandidate,
-    HasGraspCandidates,
-)
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
 from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.spatial_types import RotationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -49,7 +47,7 @@ class HasGraspChoice:
     The grasp to take hold by.
 
     One of the object's own
-    :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`.
+    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspCandidates.grasp_candidates`.
     """
 
     arm: Arm
@@ -66,9 +64,9 @@ class GripperContactAction(SequentialAction):
     surroundings for those steps only.
 
     The rest of the action stays checked for collisions, so a gripper on its way to or
-    from its object, or an object carried through the scene, passes through nothing.
-    The allowance is this action's own, so it also holds between two of its steps, such
-    as while a grasped object is put under the gripper.
+    from its object, or an object carried through the scene, passes through nothing. The
+    allowance is this action's own, so it also holds between two of its steps, such as
+    while a grasped object is put under the gripper.
     """
 
     end_effector: EndEffector
@@ -229,9 +227,9 @@ class PickUpAction(
 
     def create_steps(self) -> list[StatechartNode]:
         """
-        The gripper touches the surroundings of its object from its final approach
-        until it has lifted the object clear, the moment the object is put under it
-        included, so those steps let it, see :class:`GripperContactAction`.
+        The gripper touches the surroundings of its object from its final approach until
+        it has lifted the object clear, the moment the object is put under it included,
+        so those steps let it, see :class:`GripperContactAction`.
         """
         lift_to_pose = self.grasp_pose_sequence(
             self.grasp.grasp_pose, self.arm.end_effector, self.grasp
@@ -348,8 +346,9 @@ class FixateObjectAction(ParallelAction):
     @property
     def inherent_success_condition(self) -> Scalar:
         """
-        Differs from :attr:`~coraplex.robot_plans.actions.base.ParallelAction.inherent_success_condition`
-        in never ending the action itself, because ending it lets the object go.
+        Differs from :attr:`~coraplex.robot_plans.actions.base.ParallelAction.inherent_s
+        uccess_condition` in never ending the action itself, because ending it lets the
+        object go.
         """
         return Scalar.const_false()
 

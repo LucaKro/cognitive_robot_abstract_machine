@@ -5,6 +5,7 @@ copy of it, see :mod:`giskardpy.middleware.ros2.child_choices`, without a ROS gr
 
 from __future__ import annotations
 
+from cramph.data_types import StatechartPayloadKey
 import json
 from dataclasses import dataclass, field
 
@@ -34,7 +35,6 @@ from giskardpy.middleware.ros2.exceptions import (
 )
 from giskardpy.middleware.ros2.feedback_publisher import (
     ActionFeedbackPublisher,
-    MotionStatechartPayloadKey,
 )
 from giskardpy.middleware.ros2.world_updates import (
     ClientWorldUpdates,
@@ -85,7 +85,7 @@ class WorldUpdatesCaughtUpOnDemand:
 
 
 @dataclass
-class ChooserGivingAFreshChild(ChildChooser):
+class ChooserGivingAFreshChild(ChildChooser[CompositeNodeChoosingItsChild]):
     """
     Gives every node that asks a new child that succeeds on the tick after it starts.
     """
@@ -269,7 +269,7 @@ class ClientAndRunningStatechart:
         )
         self.executor = StatechartExecutor(context=StatechartContext(world=World()))
         self.executor.context.add_extension(
-            ChildChooserAccess(chooser=self.receiving_chooser)
+            ChildChooserAccess(choosers=[self.receiving_chooser])
         )
         self.running = TwoChoosingNodes.in_context(self.executor.context)
         self.outgoing_world_updates = OutgoingWorldUpdates(
@@ -282,11 +282,11 @@ class ClientAndRunningStatechart:
         )
 
         client_context = StatechartContext(world=World())
-        client_context.add_extension(ChildChooserAccess(chooser=self.client_chooser))
+        client_context.add_extension(ChildChooserAccess(choosers=[self.client_chooser]))
         self.copy = TwoChoosingNodes.in_context(client_context)
         self.client = ChildChoiceClient(
             statechart=self.copy.statechart,
-            chooser=self.client_chooser,
+            child_chooser_access=ChildChooserAccess(choosers=[self.client_chooser]),
             world_updates=self.client_world_updates,
             required_position=StreamPosition(
                 origin=MetaData(node_name="client", process_id=0), sequence_number=1
@@ -316,7 +316,7 @@ class ClientAndRunningStatechart:
         :return: The choices the client sent.
         """
         feedback = self.feedback_publisher.create_states()
-        feedback[MotionStatechartPayloadKey.GOAL_ID] = self.action_server.goal_id
+        feedback[StatechartPayloadKey.GOAL_ID] = self.action_server.goal_id
         sent_choices = [
             ChildChoiceMessage.from_json(json.loads(json.dumps(choice.to_json())))
             for choice in self.client.answer(json.loads(json.dumps(feedback)))

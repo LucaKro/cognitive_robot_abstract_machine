@@ -108,13 +108,14 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
     def scene_specification(self) -> WorldSpecification:
         """
-        A world holding nothing but a map body, which :meth:`populate_scene` furnishes.
+        :return: A world holding nothing but a map body, which :meth:`populate_scene`
+            furnishes.
         """
         return WorldSpecification(world_parser=None)
 
     def robot_specification(self) -> RobotSpecification:
         """
-        The Stretch on its drive, between the shelf and the bedside table.
+        :return: The Stretch on its drive, between the shelf and the bedside table.
         """
         return RobotSpecification(
             semantic_annotation_type=self.used_robot,

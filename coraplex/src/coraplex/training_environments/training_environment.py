@@ -26,6 +26,7 @@ from coraplex.plans.failures import (
     EmptyUnderspecified,
 )
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from cramph.context import StatechartContext
 from coraplex.plans.executors import KinematicallySimulatedPlanExecutor
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.misc import MoveToReach
@@ -44,7 +45,12 @@ from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
 )
 from semantic_digital_twin.robots.pr2 import PR2
-from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3, Pose2D
+from semantic_digital_twin.spatial_types.spatial_types import (
+    Point2,
+    Point3,
+    Pose,
+    Pose2D,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
@@ -144,7 +150,7 @@ class TrainingEnvironment(Generic[TrainedAction], SubClassSafeGeneric, ABC):
             import rclpy
 
             pub = VizMarkerPublisher(
-                _world=episode.executor.world,
+                _world=episode.executor.context.world,
                 node=rclpy.create_node("test_node"),
             )
 
@@ -223,7 +229,9 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment[MoveToReach]):
         move_to_reach = a(MoveToReach)(
             reference_T_grasp=target_pose,
             target_pose_offset_robot=a(Pose2D)(
-                x=..., y=..., yaw=..., reference_frame=None
+                position=a(Point2)(x=..., y=..., reference_frame=None),
+                yaw=...,
+                reference_frame=None,
             ),
             hip_rotation=...,
             end_effector=variable(EndEffector, world.semantic_annotations),
@@ -238,11 +246,13 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment[MoveToReach]):
             query_backend = self.setup_backend(move_to_reach)
 
         executor = KinematicallySimulatedPlanExecutor(
-            world,
-            context_extensions=[
-                RobotAccess(robot),
-                StatementGrounding(query_backend=query_backend),
-            ],
+            StatechartContext.with_extensions(
+                world,
+                [
+                    RobotAccess(robot),
+                    StatementGrounding(query_backend=query_backend),
+                ],
+            ),
         )
 
         return TrainingEpisode(
@@ -258,10 +268,16 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment[MoveToReach]):
         :return: The probabilistic backend
         """
         parameters = UnderspecifiedParameters(underspecified_action)
-        robot_x = parameters.variables["MoveToReach.target_pose_offset_robot.x"]
-        robot_y = parameters.variables["MoveToReach.target_pose_offset_robot.y"]
-        hip_rotation = parameters.variables["MoveToReach.hip_rotation"]
-        approach_clearance = parameters.variables["MoveToReach.approach_clearance"]
+        robot_x = parameters.variable_of(
+            underspecified_action.target_pose_offset_robot.position.x
+        )
+        robot_y = parameters.variable_of(
+            underspecified_action.target_pose_offset_robot.position.y
+        )
+        hip_rotation = parameters.variable_of(underspecified_action.hip_rotation)
+        approach_clearance = parameters.variable_of(
+            underspecified_action.approach_clearance
+        )
 
         distribution = fully_factorized(
             means={approach_clearance: 0.05},

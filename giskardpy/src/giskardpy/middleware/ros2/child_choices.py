@@ -15,6 +15,7 @@ published before.
 
 from __future__ import annotations
 
+from cramph.data_types import StatechartPayloadKey
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -22,7 +23,11 @@ from threading import Lock
 
 from typing_extensions import Any, Self
 
-from cramph.composites import ChildChooser, CompositeNodeChoosingItsChild
+from cramph.composites import (
+    ChildChooser,
+    ChildChooserAccess,
+    CompositeNodeChoosingItsChild,
+)
 from cramph.data_types import LifeCycleValues
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
@@ -66,12 +71,8 @@ def child_choices_topic(giskard_node_name: str) -> str:
 
 class ChildChoicePayloadKey(StrEnum):
     """
-    The keys of a child choice sent to Giskard.
-    """
-
-    GOAL_ID = "goal_id"
-    """
-    The goal the choice belongs to.
+    The keys of a child choice sent to Giskard on top of
+    :attr:`~cramph.data_types.StatechartPayloadKey.GOAL_ID`.
     """
 
     NODE_INDEX = "node_index"
@@ -132,7 +133,7 @@ class ChildChoiceMessage(SubclassJSONSerializer):
     def to_json(self, **kwargs: Any) -> dict[str, Any]:
         return {
             **super().to_json(**kwargs),
-            ChildChoicePayloadKey.GOAL_ID: self.goal_id,
+            StatechartPayloadKey.GOAL_ID: self.goal_id,
             ChildChoicePayloadKey.NODE_INDEX: self.node_index,
             ChildChoicePayloadKey.FIRST_NODE_INDEX: self.first_node_index,
             ChildChoicePayloadKey.NODES: self.nodes,
@@ -147,7 +148,7 @@ class ChildChoiceMessage(SubclassJSONSerializer):
     def _from_json(cls, data: dict[str, Any], **kwargs: Any) -> Self:
         required_position = data[ChildChoicePayloadKey.REQUIRED_POSITION]
         return cls(
-            goal_id=data[ChildChoicePayloadKey.GOAL_ID],
+            goal_id=data[StatechartPayloadKey.GOAL_ID],
             node_index=data[ChildChoicePayloadKey.NODE_INDEX],
             first_node_index=data[ChildChoicePayloadKey.FIRST_NODE_INDEX],
             nodes=data[ChildChoicePayloadKey.NODES],
@@ -181,7 +182,7 @@ class ChildChoiceMessage(SubclassJSONSerializer):
 
 
 @dataclass
-class ChildSentByClient(ChildChooser):
+class ChildSentByClient(ChildChooser[CompositeNodeChoosingItsChild]):
     """
     Lets every node of a running goal run the child the client sent for it, and wait
     until one arrived.
@@ -290,9 +291,9 @@ class ChildChoiceClient:
     The client's copy of the statechart that was sent as the goal.
     """
 
-    chooser: ChildChooser
+    child_chooser_access: ChildChooserAccess
     """
-    Chooses the children.
+    Holds the choosers that choose the children.
     """
 
     world_updates: ClientWorldUpdates
@@ -338,7 +339,7 @@ class ChildChoiceClient:
         ):
             return []
         self._waiting_for_changes_since = None
-        goal_id = feedback[MotionStatechartPayloadKey.GOAL_ID]
+        goal_id = feedback[StatechartPayloadKey.GOAL_ID]
         messages = []
         for index, child_count in feedback[
             MotionStatechartPayloadKey.WAITING_FOR_CHILD
@@ -365,7 +366,7 @@ class ChildChoiceClient:
             pending.
         """
         first_node_index = len(self.statechart.nodes)
-        if not node.choose_child_with(self.chooser):
+        if not node.choose_child_with(self.child_chooser_access.chooser_for(node)):
             return None
         nodes = (
             None

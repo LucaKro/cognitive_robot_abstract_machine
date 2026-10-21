@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import os
 import types
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -33,6 +34,8 @@ from krrood.entity_query_language.factories import variable, contains, a, entity
 from krrood.ormatic.utils import classproperty
 from krrood.patterns.caching import clear_memoization_cache
 from krrood.utils import get_generic_type_parameters
+from semantic_digital_twin.adapters.package_resolver import CompositePathResolver
+from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
@@ -42,6 +45,7 @@ from semantic_digital_twin.exceptions import (
     MoreThanOneBodyHeld,
     NoJointStateWithType,
     NothingHeld,
+    PathResolutionError,
     UselessConceptError,
     DuplicateRobotAssignmentsError,
     MissingDefaultCameraError,
@@ -419,7 +423,8 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
         Drive one of this part's joints with a position servo in a physical simulation:
         the servo's gains become a
         :class:`~semantic_digital_twin.world_description.world_entity.PositionServo`
-        actuator on the joint's degree of freedom, its dynamics the joint's own.
+        actuator on the joint's degree of freedom, its dynamics, if it states any, the
+        joint's own.
 
         A joint that follows another joint's degree of freedom, such as a gripper's
         mimic joints, gets the dynamics but no actuator of its own: the servo already
@@ -428,7 +433,8 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
         :param connection: The joint to drive.
         :param servo: What drives it.
         """
-        connection.dynamics = servo.dynamics
+        if servo.dynamics is not None:
+            connection.dynamics = servo.dynamics
         self._add_servo(
             PositionServo(
                 name=PrefixedName(
@@ -682,7 +688,7 @@ class EndEffector(AbstractRobotPart, ABC):
         :attr:`tool_frame`.
 
         It is the x-axis of the grasp frame
-        :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`
+        :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspCandidates.grasp_candidates`
         describes.
         """
 
@@ -693,7 +699,7 @@ class EndEffector(AbstractRobotPart, ABC):
         The axis the fingers close along, expressed in :attr:`tool_frame`.
 
         It is the y-axis of the grasp frame
-        :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`
+        :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspCandidates.grasp_candidates`
         describes, and has to be perpendicular to :attr:`approach_axis`.
         """
 
@@ -884,13 +890,25 @@ class MobileBase(
             SubscribedBasePoseSource,
         )
 
-        robot = self._robot
-        drive = robot.drive if robot is not None else None
-        if drive is None:
-            raise MissingDriveConnectionError(robot_part=self)
         return SubscribedBasePoseSource(
-            world=self._world, node=node, topic_name=self.topic_name, connection=drive
+            world=self._world,
+            node=node,
+            topic_name=self.topic_name,
+            connection=self.drive,
         )
+
+    @property
+    def drive(self) -> WheeledDrive:
+        """
+        The drive attaching the root of this base's robot to its parent.
+
+        :raises MissingDriveConnectionError: If this base belongs to no robot, or its
+            robot is not attached by a drive.
+        """
+        robot = self._robot
+        if robot is None or robot.drive is None:
+            raise MissingDriveConnectionError(robot_part=self)
+        return robot.drive
 
     @classproperty
     @abstractmethod
@@ -1079,6 +1097,19 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
         URDF file.
         """
 
+    @classmethod
+    def is_description_installed(cls) -> bool:
+        """
+        :return: Whether the file :meth:`get_ros_file_path` points to is on this
+            machine.
+        """
+        try:
+            return os.path.isfile(
+                CompositePathResolver().resolve(cls.get_ros_file_path())
+            )
+        except PathResolutionError:
+            return False
+
     @classproperty
     def uses_visual_as_collision_backup(cls) -> bool:
         """
@@ -1099,6 +1130,20 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             express. None by default.
         """
         return ()
+
+    @classmethod
+    def from_description(cls) -> Self:
+        """
+        :return: This robot, in a world holding nothing but it, read from its own
+            description: the URDF :meth:`get_ros_file_path` points to, unless the robot
+            is described in another format.
+        """
+        return cls.from_world(
+            URDFParser.from_file(
+                cls.get_ros_file_path(),
+                use_visual_as_collision_backup=cls.uses_visual_as_collision_backup,
+            ).parse()
+        )
 
     @classmethod
     @abstractmethod

@@ -15,16 +15,15 @@ from coraplex.robot_plans.actions.base import (
 )
 from coraplex.robot_plans.mixins import ReattachesBranches
 from cramph.composites import Parallel, PausedUntilTrue
-from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveBaseGoal
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.goals.base_pose_goals import (
+    BasePoseGoal,
+    DifferentialDriveBaseGoal,
+    HolonomicBaseGoal,
+)
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
 )
-from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
-from giskardpy.motion_statechart.tasks.cartesian_tasks import (
-    CartesianPose,
-    CartesianPosition,
-)
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.exceptions import MissingMovableJointError
 from semantic_digital_twin.reasoning.predicates import InsideOf
@@ -44,6 +43,8 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 )
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 
+# %% driving the base
+
 
 @dataclass(eq=False, repr=False, kw_only=True)
 class DrivesBase(Action, ABC):
@@ -55,47 +56,13 @@ class DrivesBase(Action, ABC):
     """
     How far the base may be from a pose it drives to, in meters and in radians, to count
     as arrived.
-
-    .. note:: Only read while the base :attr:`drives_differentially`.
     """
 
-    drives_differentially: bool = field(default=False, init=False)
+    base_goal_type: type[BasePoseGoal] = field(default=HolonomicBaseGoal, init=False)
     """
-    Whether the base is moved with a goal for its differential drive, which turns
-    towards a pose, drives there and turns again, instead of a goal that asks the base
-    to move sideways.
+    The kind of node putting the base at the poses this action drives it to, as set by
+    the plan transformations configuring the action.
     """
-
-    writes_odometry: bool = field(default=False, init=False)
-    """
-    Whether the base is put at a pose by writing the odometry, instead of being driven
-    there.
-    """
-
-    def _drive_to(self, target: Pose) -> MotionStatechartNode:
-        """
-        :param target: Where the base should end up.
-        :return: The node that puts the base there: a goal of its own for a
-            differential drive, otherwise the odometry written directly where the base
-            :attr:`writes_odometry`, and otherwise the commanded pose the controller
-            drives to.
-        """
-        if self.drives_differentially:
-            return DifferentialDriveBaseGoal(
-                diff_drive_connection=self.robot.drive,
-                goal_pose=target,
-                threshold=self.base_pose_threshold,
-            )
-        if self.writes_odometry:
-            return SetOdometry(
-                base_pose=target.homogeneous_matrix,
-                odom_connection=self.robot.root.parent_connection,
-            )
-        return CartesianPose(
-            root_link=self.world.root,
-            tip_link=self.robot.root,
-            goal_pose=target,
-        )
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -111,7 +78,11 @@ class NavigateAction(DrivesBase, GoalAction):
     """
 
     def create_goal(self) -> StatechartNode:
-        return self._drive_to(self.robot.mobile_base.pose_facing(self.target_location))
+        return self.base_goal_type.moving_base_of(
+            self.robot,
+            self.robot.mobile_base.pose_facing(self.target_location),
+            self.base_pose_threshold,
+        )
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -215,7 +186,12 @@ class PathPlanningNavigateAction(DrivesBase, SequentialAction):
     """
 
     def create_steps(self) -> list[StatechartNode]:
-        return [self._drive_to(waypoint) for waypoint in self._path()]
+        return [
+            self.base_goal_type.moving_base_of(
+                self.robot, waypoint, self.base_pose_threshold
+            )
+            for waypoint in self._path()
+        ]
 
     @property
     def _floor(self) -> Floor:

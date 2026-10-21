@@ -4,13 +4,15 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from itertools import combinations, takewhile
 
-from typing_extensions import Any, Generator
+from typing_extensions import Any, Generator, Generic, TypeVar
 
 from krrood.adapters.json_serializer import JSONField
 from krrood.entity_query_language.backends import QueryBackend
 from krrood.entity_query_language.query.match import Match
 from krrood.ormatic.utils import classproperty
 from krrood.patterns.field_metadata import JSONMetadata
+from krrood.patterns.specificity_ranking import mro_depth, sole_maximum
+from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from krrood.utils import get_full_class_name
 from cramph.node import EndedByOwner, SucceedsOnObservingTrue, FailsOnObservingFalse
 from cramph.context import ContextExtension
@@ -20,6 +22,8 @@ from cramph.data_types import (
     ObservationStateValues,
 )
 from cramph.exceptions import (
+    NoChildChooserForNodeError,
+    SeveralChildChoosersForNodeError,
     NoControlStructureNodeAboveError,
     ChildCannotFailError,
     NodeAlreadyAChildError,
@@ -210,6 +214,7 @@ class ControlStructureNode(CompositeNode, ABC):
 
         :param node: The node the caller handed over.
         """
+        return None
 
     def _wire_children(self) -> None:
         """
@@ -217,6 +222,7 @@ class ControlStructureNode(CompositeNode, ABC):
 
         Wires nothing unless overridden.
         """
+        return None
 
     def _has_child(self, node: StatechartNode) -> bool:
         """
@@ -872,13 +878,24 @@ class CancelledWhenTrue(StoppedWhenTrue):
 # %% choosing a child while running
 
 
+ChoosingNode = TypeVar("ChoosingNode", bound="CompositeNodeChoosingItsChild")
+
+
 @dataclass
-class ChildChooser(ABC):
+class ChildChooser(Generic[ChoosingNode], SubClassSafeGeneric, ABC):
     """
-    Decides which child a :class:`CompositeNodeChoosingItsChild` runs next.
+    Decides which child the nodes of :attr:`node_type` run next.
     """
 
-    def has_choice_for(self, node: CompositeNodeChoosingItsChild) -> bool:
+    @classproperty
+    def node_type(cls) -> type[ChoosingNode]:
+        """
+        :return: The kind of :class:`CompositeNodeChoosingItsChild` this chooser
+            chooses the children of.
+        """
+        return cls.get_type_of_generic_parameter(ChoosingNode)
+
+    def has_choice_for(self, node: ChoosingNode) -> bool:
         """
         :param node: The node asking for its next child.
         :return: Whether :meth:`choose_child` can answer `node` now; if not, `node`
@@ -887,9 +904,7 @@ class ChildChooser(ABC):
         return True
 
     @abstractmethod
-    def choose_child(
-        self, node: CompositeNodeChoosingItsChild
-    ) -> StatechartNode | None:
+    def choose_child(self, node: ChoosingNode) -> StatechartNode | None:
         """
         :param node: The node asking for its next child.
         :return: The child `node` runs next, or None if no child is left.
@@ -897,7 +912,7 @@ class ChildChooser(ABC):
 
     def prepare_chosen_child(
         self,
-        node: CompositeNodeChoosingItsChild,
+        node: ChoosingNode,
         child: StatechartNode,
     ) -> None:
         """
@@ -911,7 +926,7 @@ class ChildChooser(ABC):
 
     def failure_monitors_for(
         self,
-        node: CompositeNodeChoosingItsChild,
+        node: ChoosingNode,
         child: StatechartNode,
     ) -> list[StatechartNode]:
         """
@@ -934,17 +949,42 @@ class ChildChooser(ABC):
 @dataclass
 class ChildChooserAccess(ContextExtension):
     """
-    Gives every :class:`CompositeNodeChoosingItsChild` of a statechart the chooser it
-    asks.
+    Gives every :class:`CompositeNodeChoosingItsChild` of a statechart the chooser of
+    its kind of node.
     """
 
-    chooser: ChildChooser
+    choosers: list[ChildChooser]
     """
-    The chooser every node choosing its child asks.
+    The choosers of the statechart, each asked by the nodes of its
+    :attr:`~ChildChooser.node_type`.
     """
+
+    def chooser_for(self, node: CompositeNodeChoosingItsChild) -> ChildChooser:
+        """
+        :param node: The node asking for its next child.
+        :return: The chooser whose node type is the most specific one `node` is of.
+        :raises NoChildChooserForNodeError: If `node` is of the node type of no chooser.
+        :raises SeveralChildChoosersForNodeError: If several choosers are equally
+            specific for `node`.
+        """
+        chooser = sole_maximum(
+            [
+                chooser
+                for chooser in self.choosers
+                if isinstance(node, chooser.node_type)
+            ],
+            key=lambda chooser: mro_depth(chooser.node_type),
+            collision_error=lambda choosers: SeveralChildChoosersForNodeError(
+                node=node, choosers=choosers
+            ),
+        )
+        if chooser is None:
+            raise NoChildChooserForNodeError(node=node, choosers=self.choosers)
+        return chooser
 
     def cleanup(self) -> None:
-        self.chooser.cleanup()
+        for chooser in self.choosers:
+            chooser.cleanup()
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -1108,7 +1148,7 @@ class CompositeNodeChoosingItsChild(SucceedsOnObservingTrue, CompositeNode):
         Ask the chooser of :attr:`context` for the next child and follow its answer.
         """
         self.choose_child_with(
-            self.context.require_extension(ChildChooserAccess).chooser
+            self.context.require_extension(ChildChooserAccess).chooser_for(self)
         )
 
     def choose_child_with(self, chooser: ChildChooser) -> bool:
@@ -1176,7 +1216,9 @@ class CompositeNodeChoosingItsChild(SucceedsOnObservingTrue, CompositeNode):
         that had no child left may be given one again.
 
         .. warning:: Unlike :meth:`~cramph.node.StatechartNode.on_reset` this compiles
-            the statechart again, unless nothing was chosen since the latest reset.
+            the statechart again, unless nothing was chosen since the latest reset,
+            which waits until every :class:`~cramph.statechart.RecompileCallback` is at
+            rest, see :meth:`~cramph.statechart.Statechart.compile`.
         """
         children_of_this_run = self.nodes[self._children_of_earlier_runs :]
         if not children_of_this_run and not self._out_of_children:

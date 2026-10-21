@@ -6,10 +6,13 @@ from dataclasses import dataclass
 from typing_extensions import TYPE_CHECKING, Type
 
 from krrood.exceptions import DataclassException
-from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
+from semantic_digital_twin.collision_checking.collision_variable_managers import (
+    ViolatedCollision,
+)
 
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
+    from semantic_digital_twin.robots.robot_parts import AbstractRobot
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
     )
@@ -22,21 +25,16 @@ class CollisionViolatedError(DataclassException):
     Raised when bodies came closer to each other than their collision threshold allows.
     """
 
-    violated_collisions: list[ClosestPoints]
+    violated_collisions: list[ViolatedCollision]
     """
-    The closest points of every body pair that violated its threshold.
-    """
-
-    thresholds: list[float]
-    """
-    The minimum allowed distance of each violated collision, in the same order as
-    :attr:`violated_collisions`.
+    Every collision that came closer than its violated distance.
     """
 
     def error_message(self) -> str:
         violations = "".join(
-            f"{str(collision.body_a.name), str(collision.body_b.name)}: {collision.distance} < {threshold}\n"
-            for collision, threshold in zip(self.violated_collisions, self.thresholds)
+            f"{str(violation.closest_points.body_a.name), str(violation.closest_points.body_b.name)}: "
+            f"{violation.closest_points.distance} < {violation.violated_distance}\n"
+            for violation in self.violated_collisions
         )
         return f"Violated collision constraints: \n{violations}"
 
@@ -259,6 +257,24 @@ class ActionClientTypeMismatchError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Use a unique action_topic per message type."
+
+
+@dataclass
+class RobotWithoutMobileBaseError(MotionStatechartError):
+    """
+    Raised when a goal is to drive the mobile base of a robot that has none.
+    """
+
+    robot: AbstractRobot
+    """
+    The robot without a mobile base.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.robot.name} has no mobile base to drive."
+
+    def suggest_correction(self) -> str:
+        return "Move the base of this robot with a goal that needs no mobile base."
 
 
 @dataclass

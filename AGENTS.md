@@ -53,7 +53,7 @@
 
 ### Naming
 - Names are technically correct, simple and descriptive, in that order. An inaccurate name is worse than a vague one, because a reader who trusts it stops reading
-- A name stays correct and understandable when read on its own, without its class or a keyword argument next to it - after `value = instance.attribute`, in a log line, in a traceback, or when passed on positionally. A `Pipe` field `size` says nothing once it leaves the class; `inner_diameter` does. A generic word that would fit anything never passes this test
+- A name stays correct and understandable when read on its own, without its class or a keyword argument next to it - after `value = instance.attribute`, in a log line, in a traceback, or when passed on positionally. A `Pipe` field `size` says nothing once it leaves the class, or a classmethod `for_robot` of `BasePoseGoal` doesn't say much when you are reading its implementation; `inner_diameter` does. A generic word that would fit anything never passes this test
 - Use the plain word every reader already knows. Use a specialist, metaphorical or in-house term only where it is genuinely the precise word, never as shorthand between the people who were in the discussion
 - Where the domain or file format already has a word for something, use that word
 - Never abbreviate an identifier
@@ -78,7 +78,8 @@
 - Those mimic classes import only `krrood`, `random_events` and `probabilistic_model`
 
 ### cramph Isolation
-- `cramph`, including its tests under `test/cramph_test`, imports only `krrood` and `semantic_digital_twin` among the workspace packages - in particular not `giskardpy`, `coraplex`, `segmind`, `physics_simulators`, `robokudo`, `experiments` or any ROS package. `test/cramph_test/test_package_dependencies.py` enforces this
+- `cramph`, including its tests under `test/cramph_test`, imports only `krrood` and `semantic_digital_twin` among the workspace packages - in particular not `giskardpy`, `coraplex`, `segmind`, `physics_simulators`, `robokudo` or `experiments`
+- ROS is a soft dependency of `cramph`: only a tool that needs it, such as the statechart inspector, imports ROS packages, and nothing else in `cramph` imports that tool
 - Generic statechart behaviour (life cycles, transition conditions, ticking, composite nodes, generic monitors, plotting) belongs in `cramph`; motion-specific behaviour (QP constraints, tasks, world and robot monitors) belongs in `giskardpy`, built on top of `cramph`
 
 ## Design Principles
@@ -117,7 +118,7 @@
 ### Structured Data
 - Structured data is the default over bare strings, hardcoded values and meaningless numbers: reach for the structured form first and justify the literal, never the other way round
 - A string that names a fixed thing - a payload key, a state, a label, a filename, an environment variable, a command flag, a status - is a `StrEnum` member. A value spelled in two places has no single source to rename, and nothing fails when the two drift apart
-- When the values are more than text - paths, numbers - give the enum values of that type, mixing the type in (`IntEnum`, `StrEnum`). `Path` needs more, because pathlib builds every derived path through the enum's own member lookup: a path enum derives from `basstler.locations.PathEnumeration` (or repeats its `with_segments` and `__hash__` overrides), and its members' `name` is the path's last component, so read the member name as `_name_`
+- When the values are more than text - paths, numbers - give the enum values of that type, mixing the type in (`IntEnum`, `StrEnum`). A path enum subclasses `krrood.patterns.path_enumeration.PathEnumeration`, so every path derived from a member is a plain `Path`; its members' `name` is the path's last component, so read the member name as `_name_`
 - A magic number becomes an enum member, a field default or a `classproperty`; a bare literal that carries meaning is unreadable where it is used and unsearchable everywhere else
 - JSON that our own classes round-trip goes through `krrood.adapters.json_serializer`: use `DataclassJSONSerializer` wherever it can (de)serialize the class; where a class needs more, subclass `SubclassJSONSerializer` and build on `DataclassJSONSerializer.to_json`/`from_json`. Never hand-write field-by-field `to_json`/`from_json`
 - Data whose shape someone else controls - an API response, a configuration file - is mirrored in dataclasses and parsed by a `from_json` classmethod, so the field names and the access path into the payload are written once

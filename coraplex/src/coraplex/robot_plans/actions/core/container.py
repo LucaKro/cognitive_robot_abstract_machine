@@ -6,10 +6,11 @@ from dataclasses import dataclass
 
 from krrood.entity_query_language.factories import (
     a,
+    flat_variable,
     variable,
 )
 from krrood.entity_query_language.query.match import Match
-from coraplex.querying.grasp_closeness import GraspsClosestToTheRobot
+from coraplex.querying.grasp_closeness import GraspsByCloseness
 from coraplex.robot_plans.actions.base import GoalAction, SequentialAction
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.core.pick_up import (
@@ -28,7 +29,6 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
-from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
@@ -67,15 +67,20 @@ class GraspsAndMovesContainerByItsHandle(
             the handle offers, the closest to where the robot stands when it is grounded
             first.
         """
+        # A variable, so the grasps are ranked when the action is grounded, from where
+        # the robot stands then.
+        where_the_robot_stands = variable(
+            Pose, domain=[Pose(reference_frame=arm._robot.root)]
+        )
         return a(cls)(
-            grasp=variable(
-                GraspCandidate, domain=GraspsClosestToTheRobot(handle, arm._robot)
+            grasp=flat_variable(
+                GraspsByCloseness(handle, where_the_robot_stands, number_of_grasps=None)
             ),
             arm=arm,
         )
 
     @abstractmethod
-    def create_mechanism_goal(self) -> MotionStatechartNode:
+    def _create_mechanism_goal(self) -> MotionStatechartNode:
         """
         :return: A new goal moving the container while its handle is held.
         """
@@ -110,7 +115,7 @@ class GraspsAndMovesContainerByItsHandle(
             GripperContactAction(
                 end_effector=end_effector,
                 steps=[
-                    self.create_mechanism_goal(),
+                    self._create_mechanism_goal(),
                     MoveGripper(
                         end_effector=end_effector,
                         state=GripperState.OPEN,
@@ -130,14 +135,14 @@ class GraspsAndMovesContainerByItsHandle(
 @dataclass(eq=False, repr=False, kw_only=True)
 class GraspOpenAndRetractAction(GraspsAndMovesContainerByItsHandle):
     """
-    Takes hold of the handle of a container like object, opens it, driving its
-    mechanism to its upper limit, then lets go of the handle and backs off it.
+    Takes hold of the handle of a container like object, opens it, driving its mechanism
+    to its upper limit, then lets go of the handle and backs off it.
 
     :class:`OpenAction` opens a container whose handle is already held, and keeps
     holding it.
     """
 
-    def create_mechanism_goal(self) -> MotionStatechartNode:
+    def _create_mechanism_goal(self) -> MotionStatechartNode:
         handle = self.grasp.graspable.root
         mechanism = handle.get_first_parent_connection_of_type(ActiveConnection1DOF)
         return ArticulateGraspedMechanism(
@@ -163,7 +168,7 @@ class GraspCloseAndRetractAction(GraspsAndMovesContainerByItsHandle):
     its lower limit if that lies above.
     """
 
-    def create_mechanism_goal(self) -> MotionStatechartNode:
+    def _create_mechanism_goal(self) -> MotionStatechartNode:
         return ArticulateGraspedMechanism(
             tip_link=self.arm.end_effector.tool_frame,
             environment_link=self.grasp.graspable.root,
@@ -216,8 +221,8 @@ class MovesHeldContainer(GoalAction, ABC):
 @dataclass(eq=False, repr=False, kw_only=True)
 class OpenAction(MovesHeldContainer):
     """
-    Opens a container like object whose handle is already held, driving its mechanism
-    to its upper limit.
+    Opens a container like object whose handle is already held, driving its mechanism to
+    its upper limit.
     """
 
     def goal_joint_position(self) -> float:

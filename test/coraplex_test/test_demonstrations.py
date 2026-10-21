@@ -28,8 +28,8 @@ from cramph.threaded_nodes import FunctionCall
 from ..plan_running import robot_extensions
 from cramph.context import ContextExtension, StatechartContext
 from coraplex.plans.executors import (
-    PlanExecutor,
     KinematicallySimulatedPlanExecutor,
+    PlanExecutor,
     RealRobotPlanExecutor,
 )
 from coraplex.plans.failures import MotionExceededSimulationTimeLimit

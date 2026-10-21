@@ -15,7 +15,7 @@ from coraplex.exceptions import (
     ReachHasNoFinalApproach,
 )
 from coraplex.locations.locations import ReachabilityLocation
-from coraplex.querying.grasp_closeness import ClosestGrasps
+from coraplex.querying.grasp_closeness import GraspsByCloseness
 from coraplex.plans.plan_transformation import (
     ConfigurationTransformation,
     SequentialInsertion,
@@ -46,6 +46,8 @@ from coraplex.robot_plans.actions.core.robot_body import (
 from coraplex.robot_plans.mixins import ReattachesBranches
 from cramph.composites import Sequence, StatementNode
 from cramph.node import StatechartNode
+from giskardpy.motion_statechart.goals.base_pose_goals import HolonomicBaseGoal
+from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.goals.cartesian_goals import CartesianPoseStraight
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -59,10 +61,8 @@ from krrood.entity_query_language.factories import a, variable
 from krrood.entity_query_language.query.match import Match
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from semantic_digital_twin.reasoning.predicates import InsideOf
-from semantic_digital_twin.grasping.grasp_candidates import (
-    GraspCandidate,
-    HasGraspCandidates,
-)
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.robots.robot_part_mixins import HasTwoFingers
 from semantic_digital_twin.robots.robot_parts import Arm
@@ -353,7 +353,7 @@ class OpenDrawerBeforeMoveAndPickUp(DrawerOpening[MoveAndPickUpAction]):
         if (
             isinstance(grasp, FlatVariable)
             and isinstance(grasp._child_, InstantiatedVariable)
-            and grasp._child_._type_ is ClosestGrasps
+            and grasp._child_._type_ is GraspsByCloseness
         ):
             return PickUpTarget(graspable=grasp._child_._kwargs_["graspable"], arm=arm)
         grasps = grasp._domain_ if isinstance(grasp, Variable) else [grasp]
@@ -510,15 +510,27 @@ class CloseFingersToObjectWidth(PlanTransformation[GraspingAction]):
 @dataclass
 class WriteTheOdometryInsteadOfDriving(ConfigurationTransformation[DrivesBase]):
     """
-    Puts the base at the poses it drives to by writing the odometry, where the world is
-    moved kinematically and so has no drive to follow a commanded pose.
+    Puts the base at the poses it drives to by writing the odometry, however it would be
+    driven there.
     """
 
     def is_applicable(self, plan_node: DrivesBase) -> bool:
         return True
 
     def apply(self, plan_node: DrivesBase) -> None:
-        plan_node.writes_odometry = True
+        plan_node.base_goal_type = SetOdometry
+
+
+@dataclass
+class WriteTheOdometryInsteadOfCommandingAPose(WriteTheOdometryInsteadOfDriving):
+    """
+    Puts the base at the poses it drives to by writing the odometry where the controller
+    would drive it there in any direction, which a world moved kinematically has no
+    drive to follow.
+    """
+
+    def is_applicable(self, plan_node: DrivesBase) -> bool:
+        return issubclass(plan_node.base_goal_type, HolonomicBaseGoal)
 
 
 # %% detecting with the real robot's perception

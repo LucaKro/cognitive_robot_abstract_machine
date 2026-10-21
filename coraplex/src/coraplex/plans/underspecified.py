@@ -15,17 +15,19 @@ from typing_extensions import (
 )
 
 from coraplex.datastructures.enums import ActionTrialVisualization
-from coraplex.exceptions import NotAStatementNode
 from coraplex.plans.context_extensions import StatementGrounding
-from coraplex.plans.designator import DesignatorParameters
-from coraplex.plans.plan_transformation import PlanRewriting
+from coraplex.plans.plan_transformation import PlanRewriting, PlanTransformation
+from coraplex.robot_plans.actions.base import Action
+from coraplex.robot_plans.plan_transformations import WriteTheOdometryInsteadOfDriving
 from coraplex.robot_plans.robot_specific_plan_transformations import (
-    DriveWithTheDifferentialDrive,
+    KeepStretchInFrontOfTheContainerItCloses,
 )
-from coraplex.visualization import RvizVisualization
+from cramph.visualization import RvizVisualization
+from cramph.context import StatechartContext
 from cramph.composites import (
     ChildChooser,
     ChildChooserAccess,
+    ChoosingNode,
     CompositeNodeChoosingItsChild,
     ControlStructureNode,
     Parallel,
@@ -49,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PlanChildChooser(ChildChooser, ABC):
+class PlanChildChooser(ChildChooser[ChoosingNode], ABC):
     """
     Chooses children that are part of a plan: each is rewritten by the plan
     transformations of its statechart, and given up on once it stops approaching its
@@ -58,7 +60,7 @@ class PlanChildChooser(ChildChooser, ABC):
 
     def prepare_chosen_child(
         self,
-        node: CompositeNodeChoosingItsChild,
+        node: ChoosingNode,
         child: StatechartNode,
     ) -> None:
         """
@@ -72,7 +74,7 @@ class PlanChildChooser(ChildChooser, ABC):
 
     def failure_monitors_for(
         self,
-        node: CompositeNodeChoosingItsChild,
+        node: ChoosingNode,
         child: StatechartNode,
     ) -> list[StatechartNode]:
         """
@@ -94,7 +96,7 @@ class TriedStatement(CompositeNodeChoosingItsChild):
 
 
 @dataclass
-class TriedCandidateChooser(PlanChildChooser):
+class TriedCandidateChooser(PlanChildChooser[TriedStatement]):
     """
     Hands every :class:`TriedStatement` of a trial the candidate tried for it, prepared
     and watched for a stall like a candidate the statement runs for real.
@@ -103,14 +105,12 @@ class TriedCandidateChooser(PlanChildChooser):
     trial.
     """
 
-    candidates: dict[TriedStatement, DesignatorParameters] = field(default_factory=dict)
+    candidates: dict[TriedStatement, Action] = field(default_factory=dict)
     """
     The candidate tried for each stand-in, removed once it is handed out.
     """
 
-    def choose_child(
-        self, node: CompositeNodeChoosingItsChild
-    ) -> StatechartNode | None:
+    def choose_child(self, node: TriedStatement) -> StatechartNode | None:
         candidate = self.candidates.pop(node, None)
         if candidate is None:
             return None
@@ -149,7 +149,8 @@ class ActionTrial:
 
     Trials never publish to a synchronizer and always run simulated, in an executor of
     :attr:`trial_executor_type` over the copy, with the context extensions of
-    :attr:`executor` rebound to the copy, and the base put where a candidate drives it.
+    :attr:`executor` rebound to the copy, and the base put where a candidate drives it
+    by :attr:`plan_adaptations`.
     While the executor is debugging, the copy is shown in RViz under its own frame
     prefix and marker topic.
     """
@@ -165,6 +166,18 @@ class ActionTrial:
     trial_executor_type: type[PlanExecutor]
     """
     The executor that runs a candidate in the copy, which simulates the robot.
+    """
+
+    plan_adaptations: list[PlanTransformation] = field(
+        default_factory=lambda: [
+            WriteTheOdometryInsteadOfDriving(),
+            KeepStretchInFrontOfTheContainerItCloses(),
+        ],
+        kw_only=True,
+    )
+    """
+    The plan transformations adapting every candidate to being tried, in place of the
+    plan adaptations of :attr:`trial_executor_type`.
     """
 
     copy_marker_alpha: float = field(default=0.9, kw_only=True)
@@ -196,9 +209,9 @@ class ActionTrial:
         """
         :return: The world the candidates are grounded in.
         """
-        return self.executor.world
+        return self.executor.context.world
 
-    def succeeds(self, action: DesignatorParameters) -> bool:
+    def succeeds(self, action: Action) -> bool:
         """
         Run `action` against the copy and restore the copy afterwards.
 
@@ -229,7 +242,7 @@ class ActionTrial:
     def block_succeeds(
         self,
         block: StatechartNode,
-        candidates: dict[StatementNode, DesignatorParameters],
+        candidates: dict[StatementNode, Action],
     ) -> bool:
         """
         Run `block` against the copy, every statement in it replaced by its candidate,
@@ -273,9 +286,9 @@ class ActionTrial:
         with world.reset_state_context():
             try:
                 executor = self._trial_executor(world)
-                executor.context.require_extension(ChildChooserAccess).chooser = (
+                executor.context.require_extension(ChildChooserAccess).choosers = [
                     tried.chooser
-                )
+                ]
                 statechart = Statechart(context=executor.context)
                 # The node runs in a sequence of its own, as a statement or a block of
                 # a plan does, and only after a first tick: what a statechart starts
@@ -303,21 +316,19 @@ class ActionTrial:
         :param world: The copy a candidate is tried in.
         :return: An executor running a candidate in `world`, configured like
             :attr:`executor`, the robot and everything else its context extensions refer
-            to rebound to `world`, and showing `world` in RViz while it is debugging. It
-            puts the base where a candidate drives it instead of driving it there, so a
-            robot driving differentially does not do so in a trial.
+            to rebound to `world`, adapting the candidate with :attr:`plan_adaptations`,
+            and showing `world` in RViz while it is debugging.
         """
         return self.trial_executor_type(
-            world,
-            context_extensions=[
-                world.rebind_world_entities(extension)
-                for extension in self.executor.context_extensions
-            ],
-            robot_adaptations=[
-                adaptation
-                for adaptation in self.executor.robot_adaptations
-                if not isinstance(adaptation, DriveWithTheDifferentialDrive)
-            ],
+            StatechartContext.with_extensions(
+                world,
+                [
+                    world.rebind_world_entities(extension)
+                    for extension in self.executor.supplied_context_extensions
+                ],
+            ),
+            robot_adaptations=self.executor.robot_adaptations,
+            plan_adaptations=self.plan_adaptations,
             collision_avoidance=self.executor.collision_avoidance,
             extensions=self._trial_visualizations(),
         )
@@ -344,9 +355,7 @@ class ActionTrial:
         ]
 
     @classmethod
-    def _rebind_action_to_world(
-        cls, action: DesignatorParameters, world: World
-    ) -> DesignatorParameters:
+    def _rebind_action_to_world(cls, action: Action, world: World) -> Action:
         """
         :param action: The grounded action to try out.
         :param world: The copy to try it against.
@@ -358,7 +367,7 @@ class ActionTrial:
             **{
                 name: (
                     cls._rebind_action_to_world(value, world)
-                    if isinstance(value, DesignatorParameters)
+                    if isinstance(value, Action)
                     else world.rebind_world_entities(value)
                 )
                 for name, value in action.designator_parameter.items()
@@ -370,7 +379,7 @@ class ActionTrial:
         cls,
         node: StatechartNode,
         world: World,
-        candidates: dict[StatementNode, DesignatorParameters],
+        candidates: dict[StatementNode, Action],
         chooser: TriedCandidateChooser,
     ) -> StatechartNode | None:
         """
@@ -394,7 +403,7 @@ class ActionTrial:
                 candidates[node], world
             )
             return statement
-        if isinstance(node, DesignatorParameters):
+        if isinstance(node, Action):
             return cls._rebind_action_to_world(node, world)
         constructor_arguments = {
             constructor_field.name: cls._rebuild_field_onto(
@@ -415,7 +424,7 @@ class ActionTrial:
         cls,
         value: Any,
         world: World,
-        candidates: dict[StatementNode, DesignatorParameters],
+        candidates: dict[StatementNode, Action],
         chooser: TriedCandidateChooser,
     ) -> Any:
         """
@@ -510,7 +519,7 @@ class RankedCandidates:
     How the statement is grounded.
     """
 
-    pulled: list[DesignatorParameters] = field(default_factory=list, init=False)
+    pulled: list[Action] = field(default_factory=list, init=False)
     """
     The candidates pulled so far, in rank order.
     """
@@ -520,7 +529,7 @@ class RankedCandidates:
     Whether the statement yields no candidate beyond :attr:`pulled`.
     """
 
-    def at(self, rank: int) -> DesignatorParameters | None:
+    def at(self, rank: int) -> Action | None:
         """
         :param rank: The position of the candidate in the order the statement yields
             them, the first at 0.
@@ -539,7 +548,7 @@ class RankedCandidates:
 
 def combinations_closest_first(
     rankings: list[RankedCandidates],
-) -> Iterator[tuple[DesignatorParameters, ...]]:
+) -> Iterator[tuple[Action, ...]]:
     """
     Every combination of one candidate of each ranking, those with the lowest sum of
     ranks first, so the candidates every statement ranks first are combined before any
@@ -589,7 +598,7 @@ class BlockGrounding:
     The tick the run of the parallel started on.
     """
 
-    candidates: dict[StatementNode, DesignatorParameters | None]
+    candidates: dict[StatementNode, Action | None]
     """
     The candidate each statement runs once it asks for its child, None for every
     statement if no combination succeeded its trial.
@@ -600,7 +609,7 @@ class BlockGrounding:
 
 
 @dataclass
-class UnderspecifiedChildChooser(PlanChildChooser):
+class UnderspecifiedChildChooser(PlanChildChooser[StatementNode]):
     """
     Grounds the statement of every :class:`~cramph.composites.StatementNode` of a
     statechart into the action it runs next, in a sequence of its own for the nodes a
@@ -643,12 +652,12 @@ class UnderspecifiedChildChooser(PlanChildChooser):
     The latest grounding of each parallel whose statements were grounded together.
     """
 
-    _leftover_candidates: dict[StatementNode, deque[DesignatorParameters]] = field(
+    _leftover_candidates: dict[StatementNode, deque[Action]] = field(
         default_factory=dict, init=False, repr=False
     )
     """
-    The candidates a statement yielded while it was grounded together with the others
-    of its parallel but does not run, tried first should its child fail.
+    The candidates a statement yielded while it was grounded together with the others of
+    its parallel but does not run, tried first should its child fail.
     """
 
     def __post_init__(self) -> None:
@@ -656,16 +665,11 @@ class UnderspecifiedChildChooser(PlanChildChooser):
             executor=self.executor, trial_executor_type=self.trial_executor_type
         )
 
-    def choose_child(
-        self, node: CompositeNodeChoosingItsChild
-    ) -> StatechartNode | None:
+    def choose_child(self, node: StatementNode) -> StatechartNode | None:
         """
         :return: The sequence holding the grounded action `node` runs next, or None
             once its statement ran out of actions that succeed their trial.
-        :raises NotAStatementNode: If `node` carries no statement to ground.
         """
-        if not isinstance(node, StatementNode):
-            raise NotAStatementNode(node=node)
         grounding = node.context.require_extension(StatementGrounding)
         block_grounding = self._grounding_of_block_around(node, grounding)
         if block_grounding is not None and node in block_grounding.candidates:
@@ -701,8 +705,8 @@ class UnderspecifiedChildChooser(PlanChildChooser):
     def _next_proposal(
         node: StatementNode,
         grounding: StatementGrounding,
-        leftovers: deque[DesignatorParameters],
-    ) -> DesignatorParameters | None:
+        leftovers: deque[Action],
+    ) -> Action | None:
         """
         :return: The next of `leftovers`, or the next candidate of `node`'s statement
             once they are used up.
@@ -747,8 +751,7 @@ class UnderspecifiedChildChooser(PlanChildChooser):
         blocks = [
             ancestor
             for ancestor in node.path
-            if isinstance(ancestor, Parallel)
-            and not isinstance(ancestor, DesignatorParameters)
+            if isinstance(ancestor, Parallel) and not isinstance(ancestor, Action)
         ]
         return blocks[-1] if blocks else None
 
@@ -764,10 +767,10 @@ class UnderspecifiedChildChooser(PlanChildChooser):
 
     def _ground_together(
         self, block: Parallel, grounding: StatementGrounding
-    ) -> dict[StatementNode, DesignatorParameters | None]:
+    ) -> dict[StatementNode, Action | None]:
         """
-        Try the combinations of the candidates of the statements of `block` as the
-        whole of `block`, the closest first, see :func:`combinations_closest_first`.
+        Try the combinations of the candidates of the statements of `block` as the whole
+        of `block`, the closest first, see :func:`combinations_closest_first`.
 
         :return: The candidate each statement runs, from the first combination that
             succeeded its trial, or None for each if none did.
@@ -807,7 +810,7 @@ class UnderspecifiedChildChooser(PlanChildChooser):
                     and not child.life_cycle_state.is_terminal
                 ):
                     statements.append(child)
-            elif not isinstance(child, DesignatorParameters):
+            elif not isinstance(child, Action):
                 statements.extend(self._statements_of(child))
         return statements
 
