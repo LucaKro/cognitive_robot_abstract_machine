@@ -302,6 +302,12 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
     The force the fingers hold an object with, in newtons.
     """
 
+    grasp_width_tolerance: float = 0.005
+    """
+    How far the grasped width may fall below or exceed the expected width of the object,
+    in metres.
+    """
+
     def action_name(
         self,
         gripper: GarmiLeftGripper | GarmiRightGripper,
@@ -314,18 +320,34 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
             return f"{self.left_gripper_namespace}/{action}"
         return f"{self.right_gripper_namespace}/{action}"
 
-    def grasp(self, gripper: GarmiLeftGripper | GarmiRightGripper) -> GripperGraspTask:
+    def grasp(
+        self, gripper: GarmiLeftGripper | GarmiRightGripper, width: float | None = None
+    ) -> GripperGraspTask:
         """
+        :param gripper: The gripper to shut.
+        :param width: The expected width of the object between the fingers, in metres,
+            or None if it is unknown.
         :return: A new task shutting `gripper` on whatever lies between its fingers,
-            which succeeds wherever the fingers stop.
+            which succeeds where the fingers stop within :attr:`grasp_width_tolerance`
+            of `width`, or wherever they stop if `width` is None.
         """
+        action_topic = self.action_name(gripper, FrankaGripperActionName.GRASP)
+        if width is None:
+            return GripperGraspTask(
+                action_topic=action_topic,
+                width=0.0,
+                speed=self.finger_speed,
+                force=self.grasp_force,
+                inner_tolerance=0.0,
+                outer_tolerance=gripper.separation_when_open,
+            )
         return GripperGraspTask(
-            action_topic=self.action_name(gripper, FrankaGripperActionName.GRASP),
-            width=0.0,
+            action_topic=action_topic,
+            width=width,
             speed=self.finger_speed,
             force=self.grasp_force,
-            inner_tolerance=0.0,
-            outer_tolerance=gripper.separation_when_open,
+            inner_tolerance=self.grasp_width_tolerance,
+            outer_tolerance=self.grasp_width_tolerance,
         )
 
 
@@ -373,4 +395,6 @@ class CloseGarmiFingersToWidthWithTheirFrankaDriver(
         return isinstance(plan_node.gripper, (GarmiLeftGripper, GarmiRightGripper))
 
     def apply(self, plan_node: MoveFingersToWidthAction) -> None:
-        plan_node.statechart.replace(plan_node, self.grasp(plan_node.gripper))
+        plan_node.statechart.replace(
+            plan_node, self.grasp(plan_node.gripper, plan_node.width)
+        )

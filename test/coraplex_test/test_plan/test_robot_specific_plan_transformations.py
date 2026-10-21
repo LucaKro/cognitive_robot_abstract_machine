@@ -861,26 +861,27 @@ def test_the_right_gripper_of_garmi_is_driven_in_its_own_namespace(
     )
 
 
-def test_garmi_closes_its_fingers_to_a_width_with_a_grasp_of_the_franka_driver(
+def test_garmi_expects_the_object_width_when_closing_its_fingers_to_it(
     garmi_extensions,
 ) -> None:
     gripper = world_of(garmi_extensions).get_semantic_annotations_by_type(
         GarmiLeftGripper
     )[0]
-    expected = CloseGarmiFingersToWidthWithTheirFrankaDriver().grasp(gripper)
+    transformation = CloseGarmiFingersToWidthWithTheirFrankaDriver()
+    action = MoveFingersToWidthAction(gripper=gripper, width=0.03)
 
     plan = prepared(
-        Sequence(
-            nodes=[
-                Parallel(nodes=[MoveFingersToWidthAction(gripper=gripper, width=0.03)])
-            ]
-        ),
+        Sequence(nodes=[Parallel(nodes=[action])]),
         robot_executor(garmi_extensions),
     )
 
     [task] = plan.nodes[0].nodes
     assert type(task) is GripperGraspTask
-    assert grasp_parameters_of(task) == grasp_parameters_of(expected)
+    assert (task.width, task.inner_tolerance, task.outer_tolerance) == (
+        action.width,
+        transformation.grasp_width_tolerance,
+        transformation.grasp_width_tolerance,
+    )
 
 
 def test_a_simulated_garmi_drives_its_fingers_with_a_giskard_goal(
