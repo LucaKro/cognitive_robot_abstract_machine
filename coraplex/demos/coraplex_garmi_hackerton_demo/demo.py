@@ -495,22 +495,29 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                     ),
                     # Both grasps are chosen once GARMI stands at the counter, as the
                     # ones closest to it there.
-                    Parallel(
+                    Sequence(
                         nodes=[
+                            PickUpAction(
+                                grasp=GraspCandidate(
+                                    graspable=milk,
+                                    grasp_pose=Pose.from_xyz_quaternion(
+                                        quat_z=1, quat_w=0, reference_frame=milk.root
+                                    ),
+                                ),
+                                arm=right_arm,
+                            ),
+                            ParkArmsAction(arms=robot.all_arms),
                             Sequence(
                                 nodes=[
-                                    a(GraspingAction)(
-                                        grasp=flat_variable(
-                                            GraspsByCloseness(
-                                                drawer.handle,
-                                                variable(
-                                                    Pose,
-                                                    domain=[
-                                                        Pose(reference_frame=robot.root)
-                                                    ],
-                                                ),
-                                                number_of_grasps=None,
-                                            )
+                                    GraspingAction(
+                                        grasp=GraspCandidate(
+                                            graspable=drawer.handle,
+                                            grasp_pose=Pose.from_xyz_quaternion(
+                                                quat_y=0.707107,
+                                                quat_z=0.707107,
+                                                quat_w=0,
+                                                reference_frame=drawer.handle.root,
+                                            ),
                                         ),
                                         arm=left_arm,
                                     ),
@@ -519,23 +526,10 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                             ),
                             # Taken from above, so the hand stays over the milk
                             # rather than beside it when it goes into the drawer.
-                            a(PickUpAction)(
-                                grasp=flat_variable(
-                                    GraspsByCloseness(
-                                        milk,
-                                        variable(
-                                            Pose,
-                                            domain=[Pose(reference_frame=robot.root)],
-                                        ),
-                                        number_of_grasps=None,
-                                    )
-                                ),
-                                arm=right_arm,
-                            ),
                             # Lets the left hand stay on the handle once the drawer is
                             # open, while the right one may still be picking up, but
                             # only once it is near the handle.
-                            gripper_contact_near(left_hand, drawer.handle.root),
+                            # gripper_contact_near(left_hand, drawer.handle.root),
                         ]
                     ),
                     # The left hand holds the drawer open where it is while the right
