@@ -297,7 +297,7 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
     The speed the fingers move at, in metres per second.
     """
 
-    grasp_force: float = 20.0
+    grasp_force: float = 25.0
     """
     The force the fingers hold an object with, in newtons.
     """

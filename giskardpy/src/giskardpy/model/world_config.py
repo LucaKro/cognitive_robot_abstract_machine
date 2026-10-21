@@ -127,12 +127,12 @@ class WorldWithMobileRobot(WorldWithRobot):
     The kind of connection between the odometry body and the robot.
     """
 
-    translation_velocity_limit: float = field(kw_only=True, default=0.2)
+    translation_velocity_limit: float = field(kw_only=True, default=0.1)
     """
     Velocity limit of the translation of the drive.
     """
 
-    rotation_velocity_limit: float = field(kw_only=True, default=0.2)
+    rotation_velocity_limit: float = field(kw_only=True, default=0.1)
     """
     Velocity limit of the rotation of the drive.
     """

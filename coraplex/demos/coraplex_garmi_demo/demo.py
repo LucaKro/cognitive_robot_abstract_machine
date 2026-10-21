@@ -24,7 +24,11 @@ from ament_index_python.packages import get_package_share_directory
 
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
-from coraplex.plans.executors import PlanExecutor, KinematicallySimulatedPlanExecutor, RealRobotPlanExecutor
+from coraplex.plans.executors import (
+    PlanExecutor,
+    KinematicallySimulatedPlanExecutor,
+    RealRobotPlanExecutor,
+)
 from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.container import GraspOpenAndRetractAction
@@ -34,7 +38,9 @@ from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPic
 from cramph.composites import Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
+from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from krrood.entity_query_language.factories import the, variable
+from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.specifications.connections import (
     Connection6DoFSpecification,
 )
@@ -45,7 +51,11 @@ from semantic_digital_twin.specifications.robots import RobotSpecification
 from semantic_digital_twin.specifications.worlds import WorldSpecification
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.garmi import Garmi
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Bowl, Spoon, Handle
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Bowl,
+    Spoon,
+    Handle,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
@@ -268,7 +278,9 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         )
 
     def is_scene_populated(self, world: World) -> bool:
-        return world.is_kinematic_structure_entity_in_world_by_name(SceneBody.APARTMENT.value)
+        return world.is_kinematic_structure_entity_in_world_by_name(
+            SceneBody.APARTMENT.value
+        )
 
     def populate_scene(self, world: World) -> None:
         """
@@ -360,17 +372,35 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         world = context.world
         robot = context.require_extension(RobotAccess).robot
         statechart = Statechart(context=context)
-        statechart.add_node(Sequence(nodes=[
-            # NavigateAction(target_location=Pose.from_xyz_rpy(x=.1, reference_frame=robot.root))
-
-            ParkArmsAction(arms=robot.all_arms),
-            # GraspOpenAndRetractAction.from_handle(arm=robot.get_left_arm_if_specified(), handle=next(
-            #     the(handle := variable(Handle, domain=world.semantic_annotations)).where(
-            #         handle.root.name.name == "drawer_2_handle").evaluate())),
-        ]
-        ))
+        statechart.add_node(
+            Sequence(
+                nodes=[
+                    # NavigateAction(target_location=Pose.from_xyz_rpy(x=.1, reference_frame=robot.root))
+                    MoveGripper(
+                        end_effector=robot.get_left_arm_if_specified().end_effector,
+                        state=GripperState.OPEN,
+                    ),
+                    MoveGripper(
+                        end_effector=robot.get_left_arm_if_specified().end_effector,
+                        state=GripperState.CLOSE,
+                    ),
+                    # ParkArmsAction(arms=robot.all_arms),
+                    # GraspOpenAndRetractAction.from_handle(
+                    #     arm=robot.get_left_arm_if_specified(),
+                    #     handle=next(
+                    #         the(
+                    #             handle := variable(
+                    #                 Handle, domain=world.semantic_annotations
+                    #             )
+                    #         )
+                    #         .where(handle.root.name.name == "drawer_2_handle")
+                    #         .evaluate()
+                    #     ),
+                    # ),
+                ]
+            )
+        )
         return statechart
-
 
 
 def main(
@@ -383,7 +413,10 @@ def main(
         drives the real robot or simulates it.
     """
     GarmiApartmentDemonstration(
-        used_robot=Garmi, executor_type=RealRobotPlanExecutor, collision_avoidance=False, debug=False
+        used_robot=Garmi,
+        executor_type=RealRobotPlanExecutor,
+        collision_avoidance=False,
+        debug=True,
     ).run()
 
 

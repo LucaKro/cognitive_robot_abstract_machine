@@ -16,6 +16,7 @@ from coraplex.robot_plans.mixins import (
     PickUpTuningParameters,
     ReachTuningParameters,
 )
+from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
@@ -151,10 +152,15 @@ class ReachAction(
                 MoveGripper(end_effector=self.arm.end_effector, state=GripperState.OPEN)
             )
         children.append(
-            self.tool_center_point_goal(
-                poses.grasp,
-                self.arm,
-                max_linear_velocity=self.final_approach_linear_velocity,
+            Parallel(
+                nodes=[
+                    self.tool_center_point_goal(
+                        poses.grasp,
+                        self.arm,
+                        max_linear_velocity=self.final_approach_linear_velocity,
+                    ),
+                    LocalMinimumReached(),
+                ]
             )
         )
         return children

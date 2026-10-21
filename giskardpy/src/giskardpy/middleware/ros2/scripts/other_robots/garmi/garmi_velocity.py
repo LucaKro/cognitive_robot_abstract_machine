@@ -34,7 +34,7 @@ def main() -> None:
         robot_interface_config=GarmiVelocityInterface(),
         server_config=GiskardServerConfig(),
         qp_controller_config=QPControllerConfig(
-            target_frequency=40, prediction_horizon=15
+            target_frequency=40, prediction_horizon=20
         ),
     )
 
