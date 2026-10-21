@@ -241,7 +241,7 @@ class ScenePose(Enum):
     in, not the apartment's own frame the other placements are relative to.
     """
 
-    GARMI_AT_COUNTER = ScenePlacement(-4.5, 1.5, 0, yaw=math.pi)
+    GARMI_AT_COUNTER = ScenePlacement(-4.5, 1.75, 0, yaw=math.pi)
     """
     Where GARMI stands to open the drawer with its left arm while it picks up the milk
     and the bowl with its right, relative to the apartment: between the drawer and the
@@ -650,7 +650,7 @@ def main(
     """
     GarmiApartmentDemonstration(
         used_robot=Garmi,
-        executor_type=KinematicallySimulatedPlanExecutor,
+        executor_type=RealRobotPlanExecutor,
         collision_avoidance=True,
         debug=True,
     ).run()
