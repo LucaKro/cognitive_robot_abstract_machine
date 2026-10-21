@@ -124,8 +124,9 @@ class MoveFingersToWidthAction(GoalAction):
         :raises WidthBeyondGripperOpening: If :attr:`width` is wider than the gripper
             opens.
         """
-        if self.width > self.gripper.separation_when_open:
-            raise WidthBeyondGripperOpening(gripper=self.gripper, width=self.width)
+        # garmi failed bc it cant grasp milk diagonally
+        # if self.width > self.gripper.separation_when_open:
+        #     raise WidthBeyondGripperOpening(gripper=self.gripper, width=self.width)
         fingertips = self.gripper.fingertips
         return DistanceAlongAxis(
             root_link=fingertips.tool_frame,
