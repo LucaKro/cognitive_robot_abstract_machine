@@ -94,7 +94,7 @@ You can now open RViz2 and add a Marker display subscribing to the topic "/semwo
 
 Now that we have set up the environment, we can write our first plan. A plan in CoraPlex is a structured sequence of actions
 which the robot will execute to achieve a specific goal. For more details on how plans work in CoraPlex, refer to the
-{ref}`plan_header`.
+{ref}`statechart_header`.
 
 The plan will consist of the following steps:
 
@@ -111,6 +111,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from coraplex.plans.context_extensions import RobotAccess
+from cramph.context import StatechartContext
 from coraplex.plans.executors import KinematicallySimulatedPlanExecutor
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -120,7 +121,9 @@ from cramph.composites import Sequence
 from cramph.statechart import Statechart
 
 pr2 = PR2.from_world(world)
-executor = KinematicallySimulatedPlanExecutor(world, context_extensions=[RobotAccess(pr2)])
+executor = KinematicallySimulatedPlanExecutor(
+    StatechartContext.with_extensions(world, [RobotAccess(pr2)])
+)
 milk_body = world.get_body_by_name("milk.stl")
 
 # The pick-up is told what it is grasping, so annotate the parsed mesh as milk.
@@ -128,20 +131,28 @@ with world.modify_world():
     milk = Milk(root=milk_body)
     world.add_semantic_annotation(milk)
 
-plan = Sequence(nodes=[
+plan = Sequence(
+    nodes=[
         ParkArmsAction(arms=pr2.all_arms),
         MoveTorsoAction(torso_state=TorsoState.HIGH),
-        NavigateAction(target_location=Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)),
+        NavigateAction(
+            target_location=Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)
+        ),
         PickUpAction(
             grasp=milk.grasp_candidates()[0],
             arm=pr2.right_arm,
         ),
-        NavigateAction(target_location=Pose.from_xyz_rpy(4.0, 4.0, 0.0, reference_frame=world.root)),
+        NavigateAction(
+            target_location=Pose.from_xyz_rpy(4.0, 4.0, 0.0, reference_frame=world.root)
+        ),
         PlaceAction(
             object_designator=milk,
-            target_location=Pose.from_xyz_rpy(4.2, 4.0, 1.0, reference_frame=world.root),
+            target_location=Pose.from_xyz_rpy(
+                4.2, 4.0, 1.0, reference_frame=world.root
+            ),
         ),
-    ])
+    ]
+)
 statechart = Statechart(context=executor.context)
 statechart.add_node(plan)
 ```

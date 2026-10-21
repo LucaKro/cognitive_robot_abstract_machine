@@ -21,13 +21,12 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from typing_extensions import Type
 
-from coraplex.datastructures.enums import VisualizationBackend
 from coraplex.plans.executors import (
     KinematicallySimulatedPlanExecutor,
     PlanExecutor,
     SimulatedPlanExecutor,
 )
-from coraplex.visualization import WorldVisualization
+from cramph.visualization import RvizVisualization, WorldVisualization
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
 from semantic_digital_twin.adapters.ros.world_fetcher import fetch_world_from_service
@@ -201,15 +200,10 @@ class RobotDemonstration(ABC):
     ``None`` keeps the budget of the executor.
     """
 
-    default_visualization_backend: VisualizationBackend = VisualizationBackend.RVIZ
+    visualization: WorldVisualization | None = None
     """
-    The renderer a simulated run is shown with, unless the environment selects one.
-    """
-
-    visualization: WorldVisualization | None = field(init=False, default=None)
-    """
-    Shows every simulated run of this demonstration, selected through the environment;
-    ``None`` for a real run or when the environment selects no renderer.
+    Shows every simulated run of this demonstration. Left ``None``, a simulated run is
+    shown in RViz through :attr:`ros_node`, if there is one; a real run is never shown.
     """
 
     ros_session: RobotDemonstrationRosSession | None = field(init=False, default=None)
@@ -220,15 +214,18 @@ class RobotDemonstration(ABC):
     @abstractmethod
     def scene_specification(self) -> WorldSpecification:
         """
-        The map this demonstration acts in, without any robot, see :meth:`build_scene`.
+        :return: The map this demonstration acts in, without any robot, see
+            :meth:`build_scene`.
         """
 
     @abstractmethod
     def robot_specification(self) -> RobotSpecification:
         """
-        How a simulated run puts :attr:`used_robot` into the scene, such as where it
-        starts and how fast its drive is. A real run takes the robot from the controller
-        instead.
+        How a simulated run puts :attr:`used_robot` into the scene. A real run takes the
+        robot from the controller instead.
+
+        :return: The robot to put into the scene, with where it starts and how fast its
+            drive is.
         """
 
     @abstractmethod
@@ -239,6 +236,7 @@ class RobotDemonstration(ABC):
         not merge it in a second time.
 
         :param world: The world the controller serves.
+        :return: Whether ``world`` holds the scene already.
         """
 
     def populate_scene(self, world: World) -> None:
@@ -302,6 +300,8 @@ class RobotDemonstration(ABC):
         """
         Build the world for a simulated run, without contacting a controller: the scene,
         with the robot of :meth:`robot_specification` put into it.
+
+        :return: A world holding the scene and the robot.
         """
         world = self.build_scene()
         self.robot_specification().spawn(world)
@@ -314,6 +314,8 @@ class RobotDemonstration(ABC):
 
         The scene's root is fixed to the root of the fetched world, which is the map frame
         the robot localizes in.
+
+        :return: The world the controller serves, holding the scene.
         """
         world = self.ros_session.fetch_world()
         WorldSynchronizer(_world=world, node=self.ros_session.node)
@@ -329,14 +331,15 @@ class RobotDemonstration(ABC):
         """
         Obtain the world to act on: built by :meth:`build_simulated_world` for a
         simulated run, and by :meth:`fetch_real_world` otherwise.
+
+        :return: The world the plan is performed in.
         """
         self.ros_session = RobotDemonstrationRosSession.start(self.ros_node_name)
         if issubclass(self.executor_type, SimulatedPlanExecutor):
-            self.visualization = WorldVisualization.from_environment(
-                self.default_visualization_backend,
-                ros_node=self.ros_node,
-                collision_visualization=True,
-            )
+            if self.visualization is None and self.ros_node is not None:
+                self.visualization = RvizVisualization(
+                    ros_node=self.ros_node, collision_visualization=True
+                )
             return self.build_simulated_world()
         return self.fetch_real_world()
 
@@ -347,8 +350,9 @@ class RobotDemonstration(ABC):
             performs its plan, showing its runs with :attr:`visualization`.
         """
         executor = self.executor_type(
-            world,
-            context_extensions=self.build_context_extensions(world),
+            StatechartContext.with_extensions(
+                world, self.build_context_extensions(world)
+            ),
             ros_node=self.ros_node,
             collision_avoidance=self.collision_avoidance,
             debug=self.debug,

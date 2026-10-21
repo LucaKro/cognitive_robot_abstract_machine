@@ -2,7 +2,7 @@
 import argparse
 from datetime import timedelta
 
-from giskardpy.middleware.ros2 import rospy
+from semantic_digital_twin.adapters.ros import rospy
 from giskardpy.middleware.ros2.giskard import Giskard
 from giskardpy.middleware.ros2.scripts.other_robots.garmi.configs import (
     GarmiInteractiveMarkerChain,

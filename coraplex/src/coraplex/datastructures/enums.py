@@ -42,19 +42,6 @@ class PerceptionSource(Enum):
     """
 
 
-class VisualizationBackend(StrEnum):
-    """The renderer selected for a simulated world."""
-
-    NONE = "none"
-    """Run without a renderer."""
-    RVIZ = "rviz"
-    """Publish native ROS visualization markers."""
-    RERUN = "rerun"
-    """Use the native Rerun adapter."""
-    CRAMERA = "cramera"
-    """Use an installed browser visualization provider."""
-
-
 class ActionTrialVisualization(StrEnum):
     """
     Where the world copy an action trial runs in is published while debugging, apart
@@ -69,33 +56,6 @@ class ActionTrialVisualization(StrEnum):
     MARKER_TOPIC = "/semworld/action_trial/viz_marker"
     """
     The topic the markers of the copy are published on.
-    """
-
-
-class VisualizationOption(StrEnum):
-    """
-    Configuration names for optional visualization providers.
-    """
-
-    BACKEND = "CORAPLEX_VISUALIZATION"
-    """
-    Environment setting selecting the renderer.
-    """
-
-    RERUN_MODE = "CORAPLEX_RERUN_MODE"
-    """
-    Environment setting selecting Rerun's output mode.
-    """
-
-    RERUN_TARGET = "CORAPLEX_RERUN_TARGET"
-    """
-    Environment setting selecting Rerun's file or server.
-    """
-
-    PROVIDER_GROUP = "coraplex.visualizations"
-    """
-    Installed entry points naming a
-    :class:`~coraplex.visualization.WorldVisualization` subclass.
     """
 
 
@@ -121,21 +81,6 @@ class JointType(Enum):
     UNKNOWN = 5
     CONTINUOUS = 6
     FLOATING = 7
-
-
-class AxisIdentifier(Enum):
-    """
-    Enum for translating the axis name to a vector along that axis.
-    """
-
-    X = (1, 0, 0)
-    Y = (0, 1, 0)
-    Z = (0, 0, 1)
-    Undefined = (0, 0, 0)
-
-    @classmethod
-    def from_tuple(cls, axis_tuple):
-        return next((axis for axis in cls if axis.value == axis_tuple), None)
 
 
 class DetectionTechnique(int, Enum):

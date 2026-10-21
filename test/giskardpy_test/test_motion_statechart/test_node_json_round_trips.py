@@ -12,10 +12,11 @@ from cramph.node import StatechartNode
 from giskardpy import motion_statechart
 from giskardpy.motion_control import MotionControl
 from giskardpy.motion_statechart import ros2_nodes
-from giskardpy.motion_statechart.goals.cartesian_goals import (
-    CartesianPoseStraight,
+from giskardpy.motion_statechart.goals.base_pose_goals import (
     DifferentialDriveBaseGoal,
+    HolonomicBaseGoal,
 )
+from giskardpy.motion_statechart.goals.cartesian_goals import CartesianPoseStraight
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     ExternalCollisionDistanceMonitor,
@@ -108,6 +109,7 @@ from giskardpy.motion_statechart.tasks.pointing import (
 from giskardpy.motion_statechart.tasks.weight_scaling_goals import MaxManipulability
 from giskardpy.motion_statechart.tasks.wiggle_insert import WiggleInsert
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from semantic_digital_twin.robots.robot_parts import MobileBase
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidCollisionBetweenGroups,
 )
@@ -253,6 +255,16 @@ def _cartesian_cases() -> list[NodeRoundTripCase]:
             WorldFixture.PR2_WORLD,
         ),
         NodeRoundTripCase(
+            HolonomicBaseGoal,
+            lambda world: [
+                HolonomicBaseGoal(
+                    mobile_base=world.get_semantic_annotations_by_type(MobileBase)[0],
+                    goal_pose=_pose(world),
+                )
+            ],
+            WorldFixture.PR2_WORLD,
+        ),
+        NodeRoundTripCase(
             CartesianPoseStraight,
             lambda world: [
                 CartesianPoseStraight(
@@ -355,7 +367,12 @@ def _cartesian_cases() -> list[NodeRoundTripCase]:
         ),
         NodeRoundTripCase(
             DifferentialDriveBaseGoal,
-            lambda world: [DifferentialDriveBaseGoal(goal_pose=_pose(world))],
+            lambda world: [
+                DifferentialDriveBaseGoal(
+                    mobile_base=world.get_semantic_annotations_by_type(MobileBase)[0],
+                    goal_pose=_pose(world),
+                )
+            ],
             WorldFixture.CYLINDER_BOT_DIFF_WORLD,
         ),
         *[

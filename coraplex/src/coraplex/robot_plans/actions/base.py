@@ -2,18 +2,25 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+
+from typing_extensions import Any
 
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
-from coraplex.plans.designator import DesignatorParameters
 from coraplex.plans.plan_transformation import PlanRewriting
 from krrood.ormatic.utils import classproperty
 from cramph.node import SucceedsOnObservingTrue, FailsOnObservingFalse
 from cramph.composites import ControlStructureNode, Parallel, Sequence, TryAll
 from cramph.context import ContextExtension
-from cramph.node import CompositeNode, NodeArtifacts, StatechartNode
+from cramph.node import (
+    CompositeNode,
+    NodeArtifacts,
+    StatechartNode,
+    expanded_child_field,
+)
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.tasks.cartesian_tasks import HoldPose
+from krrood.class_diagrams.attribute_introspector import DataclassOnlyIntrospector
 from krrood.patterns.field_metadata import JSONMetadata
 from krrood.symbolic_math.symbolic_math import Scalar, trinary_if_cases
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
@@ -27,11 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class Action(
-    CompositeNode,
-    DesignatorParameters,
-    ABC,
-):
+class Action(CompositeNode, ABC):
     """
     Something a robot does, described by the parameters it is given and run as a node of
     a statechart.
@@ -41,10 +44,8 @@ class Action(
     while a :class:`SequentialAction`, :class:`ParallelAction` or :class:`TryAllAction`
     is the control structure node of the steps it creates.
 
-    .. note:: :class:`~coraplex.plans.designator.DesignatorParameters` is the last
-        base, because ORMatic resolves a data access object's parent by walking the
-        method resolution order and taking the first mapped class, and an action is
-        stored as the statechart node it is.
+    A parameter may also be given as an underspecified statement of its value, such as
+    ``a(...)``, which is grounded when the action runs.
     """
 
     temporary_collision_rules: list[CollisionRule] = field(
@@ -68,6 +69,20 @@ class Action(
         cls,
     ) -> tuple[type[ContextExtension], ...]:
         return super().context_extensions_required_to_expand + (RobotAccess,)
+
+    @property
+    def designator_parameter(self) -> dict[str, Any]:
+        """
+        :return: Every parameter this action was given, by the name it was given under:
+            the public fields a caller sets that the subclasses of :class:`Action`
+            declare.
+        """
+        statechart_fields = {action_field.name for action_field in fields(Action)}
+        return {
+            discovered.public_name: getattr(self, discovered.field.name)
+            for discovered in DataclassOnlyIntrospector().discover(type(self))
+            if discovered.field.init and discovered.field.name not in statechart_fields
+        }
 
     @property
     def robot(self) -> AbstractRobot:
@@ -176,6 +191,11 @@ class GoalAction(Action, SucceedsOnObservingTrue, FailsOnObservingFalse, ABC):
     is ended by the action once it observes True.
     """
 
+    goal: StatechartNode | None = expanded_child_field(default=None)
+    """
+    The child reaching the goal of this action, None until the action was expanded.
+    """
+
     @abstractmethod
     def create_goal(self) -> StatechartNode:
         """
@@ -183,24 +203,14 @@ class GoalAction(Action, SucceedsOnObservingTrue, FailsOnObservingFalse, ABC):
             action is expanded.
         """
 
-    @property
-    def goal(self) -> StatechartNode | None:
-        """
-        :return: The child reaching the goal of this action, None until the action was
-            expanded.
-        """
-        if not self.children:
-            return None
-        return self.children[0]
-
     def _create_children(self) -> None:
         """
         Puts the goal below this action and ends it once it is at its goal, unless it
         decides its own success.
         """
-        goal = self.create_goal()
-        self._add_child_to_statechart(goal)
-        self._succeed_at_its_goal(goal)
+        self.goal = self.create_goal()
+        self._add_child_to_statechart(self.goal)
+        self._succeed_at_its_goal(self.goal)
 
     def build_artifacts(self) -> NodeArtifacts:
         """

@@ -1707,7 +1707,7 @@ class Statechart(SubclassJSONSerializer):
 
         :param node: The composite node that just joined this statechart.
         :raises NodesMissingContextExtensionsError: If :attr:`context` lacks an
-            extension `node` requires, to expand or afterwards.
+            extension `node` requires to expand.
         """
         for prerequisite in node.prerequisite_nodes:
             if isinstance(prerequisite, CompositeNode) and (
@@ -1716,8 +1716,7 @@ class Statechart(SubclassJSONSerializer):
                 raise PrerequisiteNotExpandedError(node=node, prerequisite=prerequisite)
         self._check_context_holds(
             [node],
-            lambda expanding_node: expanding_node.required_context_extensions
-            + expanding_node.context_extensions_required_to_expand,
+            lambda expanding_node: expanding_node.context_extensions_required_to_expand,
         )
         node.expand()
 
@@ -1785,7 +1784,6 @@ class Statechart(SubclassJSONSerializer):
         stays in the statechart as that child, at its position there, and forgets the
         transitions its former parent decided for it, so that `replacement` decides
         them. Otherwise `node` leaves the statechart together with everything below it.
-        Every control structure node above `replacement` wires its children anew.
         A :meth:`modify` block that raises puts back a `node` that stayed in the
         statechart.
 
@@ -1827,10 +1825,9 @@ class Statechart(SubclassJSONSerializer):
             if isinstance(replacement, CompositeNode):
                 self._expand(replacement)
             if holder is not None:
-                # an owner further up wired its child from the conditions below it
-                for owner in [holder, *holder.path]:
-                    if isinstance(owner, ControlStructureNode):
-                        owner._wire_children()
+                holder._wire_children()
+                if holder.parent_node is not None:
+                    holder.parent_node._succeed_at_its_goal(holder)
             if not holds_node:
                 self.remove_node(node)
                 self._replaced_nodes.remove(record)
@@ -2038,10 +2035,12 @@ class Statechart(SubclassJSONSerializer):
         Compiling again, once nodes joined, keeps the state and the history of the
         nodes already there: only the joined nodes are completed and built, and the
         tick is compiled over every node. Every :class:`RecompileCallback` is told.
+        Compiling again waits until every :class:`RecompileCallback` is at rest; until
+        then the statechart goes on ticking as it compiled last, see :meth:`tick`.
         """
         is_recompile = self.is_compiled
-        if is_recompile:
-            self._hold_still()
+        if is_recompile and not self._hold_still():
+            return
         self.sanity_check()
         self._compile_nodes(self._nodes[self._compiled_node_count :])
         if is_recompile:
@@ -2104,17 +2103,19 @@ class Statechart(SubclassJSONSerializer):
         """
         return self._world_revision() != self._compiled_world_revision
 
-    def _rebuild_if_world_structure_changed(self) -> None:
+    def _compile_if_changed(self) -> None:
         """
-        Compiles again, building every node again, if the kinematic structure of the
-        world changed since they were built, because expressions reading the
-        structure, such as forward kinematics, describe the old one.
+        Compiles again once every :class:`RecompileCallback` is at rest, if the
+        statechart changed since it compiled last, which a compile left waiting for
+        them does, or if the kinematic structure of the world changed since the nodes
+        were built, because expressions reading the structure, such as forward
+        kinematics, describe the old one; the latter builds every node again.
 
         The state, the history and what each node registered in
         :meth:`~cramph.node.StatechartNode.set_up` are kept, so the statechart goes on
         from where it was.
         """
-        if self._world_structure_changed():
+        if self._changed_since_compile or self._world_structure_changed():
             self._when_held_still(self.compile)
 
     def _hold_still(self) -> bool:
@@ -2185,22 +2186,26 @@ class Statechart(SubclassJSONSerializer):
 
         Every node is brought to the state it reaches in this tick, see
         :class:`CompiledTick`, then every node waiting for a child chooses one, then
-        the life cycle callbacks of every change run and the tick is recorded. A :class:`CancelStatechart` that started in this
-        tick ends the statechart only after that, even if a
+        the life cycle callbacks of every change run and the tick is recorded. A
+        :class:`CancelStatechart` that started in this tick ends the statechart only
+        after that, even if a
         :class:`StateHistoryObserver` of the record failed.
 
-        If the kinematic structure of the world changed since the previous tick, every
-        node is built again before this tick settles, see
-        :meth:`~cramph.node.StatechartNode.build`; a change made by a callback of this
-        tick is picked up by the next one.
+        If the statechart changed since it compiled last, or the kinematic structure of
+        the world did, it compiles again before this tick settles once every
+        :class:`RecompileCallback` is at rest, see :meth:`compile`; a change made by a
+        callback of this tick is picked up by the next one. While a change of the
+        statechart waits for that, no node changes its state, so nothing runs on the
+        tick compiled before the change.
         """
-        self._rebuild_if_world_structure_changed()
-        changes = self._compiled_tick.settle()
-        # Before the callbacks, so a child is chosen against the world as it was when
-        # the nodes starting beside it in this tick had not acted yet.
-        self._let_waiting_nodes_choose_their_child()
-        for change in changes:
-            change.run_callback()
+        self._compile_if_changed()
+        if not self._changed_since_compile:
+            changes = self._compiled_tick.settle()
+            # Before the callbacks, so a child is chosen against the world as it was
+            # when the nodes starting beside it in this tick had not acted yet.
+            self._let_waiting_nodes_choose_their_child()
+            for change in changes:
+                change.run_callback()
         try:
             self.state_history.append(
                 next_item=StateHistoryItem(

@@ -6,10 +6,8 @@ from cramph.data_types import ObservationStateValues
 from cramph.executor import StatechartExecutor
 from cramph.statechart import Statechart
 from giskardpy.motion_control import MotionControl
-from giskardpy.motion_statechart.goals.cartesian_goals import (
-    CartesianPoseStraight,
-    DifferentialDriveBaseGoal,
-)
+from giskardpy.motion_statechart.goals.base_pose_goals import DifferentialDriveBaseGoal
+from giskardpy.motion_statechart.goals.cartesian_goals import CartesianPoseStraight
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianOrientation,
@@ -20,6 +18,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianRotationVelocityLimit,
     CartesianVelocityLimit,
 )
+from semantic_digital_twin.robots.robot_parts import MobileBase
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
@@ -178,9 +177,12 @@ def test_differential_drive_goal_runs_its_steps_in_one_sequence(
     statechart = Statechart(context=executor.context)
     statechart.add_node(
         goal := DifferentialDriveBaseGoal(
+            mobile_base=cylinder_bot_diff_world.get_semantic_annotations_by_type(
+                MobileBase
+            )[0],
             goal_pose=Pose.from_xyz_rpy(
                 x=1, reference_frame=cylinder_bot_diff_world.root
-            )
+            ),
         )
     )
     statechart.add_node(EndMotion.when_true(goal))
@@ -201,9 +203,14 @@ def test_differential_drive_goal_is_a_step_without_an_attempt(
         plan := Sequence(
             nodes=[
                 goal := DifferentialDriveBaseGoal(
+                    mobile_base=cylinder_bot_diff_world.get_semantic_annotations_by_type(
+                        MobileBase
+                    )[
+                        0
+                    ],
                     goal_pose=Pose.from_xyz_rpy(
                         x=1, reference_frame=cylinder_bot_diff_world.root
-                    )
+                    ),
                 )
             ]
         )

@@ -33,10 +33,12 @@ from coraplex.plans.underspecified import (
 from coraplex.robot_plans.actions.base import SequentialAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
-from coraplex.visualization import RvizVisualization
-from giskardpy.motion_statechart.goals.cartesian_goals import CartesianPoseStraight
+from cramph.visualization import RvizVisualization
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from giskardpy.motion_statechart.tasks.cartesian_tasks import (
+    CartesianPosition,
+    CartesianPositionStraight,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.robots.stretch import Stretch
@@ -451,7 +453,8 @@ def _child_chooser_of(plan: StatechartNode) -> UnderspecifiedChildChooser:
     :return: The chooser grounding the underspecified steps of the statechart running
         `plan`.
     """
-    return plan.statechart.context.require_extension(ChildChooserAccess).chooser
+    [chooser] = plan.statechart.context.require_extension(ChildChooserAccess).choosers
+    return chooser
 
 
 def test_a_plan_releases_its_trial_copy_once_it_has_run(
@@ -716,6 +719,25 @@ def test_a_trial_adapts_a_candidate_to_the_robot_as_its_executor_does(
     trial.discard()
 
 
+def test_a_trial_keeps_how_its_executor_drives_a_differentially_driven_base(
+    stretch_apartment_context,
+) -> None:
+    """
+    The trial overrides how the base gets to its goal with a transformation of its own,
+    so it keeps every robot adaptation of its executor.
+    """
+    world, robot, extensions = stretch_apartment_context
+    executor = simulated_executor(extensions)
+    trial = ActionTrial(
+        executor=executor, trial_executor_type=KinematicallySimulatedPlanExecutor
+    )
+
+    trial_executor = trial._trial_executor(trial._copy())
+
+    assert trial_executor.robot_adaptations == executor.robot_adaptations
+    trial.discard()
+
+
 def test_a_trial_puts_a_differentially_driven_base_at_its_goal(
     stretch_apartment_context,
 ) -> None:
@@ -761,9 +783,9 @@ def test_a_trial_moves_the_tool_center_point_the_way_the_robot_does(
     assert [
         type(node)
         for node in reach.descendants
-        if isinstance(node, (CartesianPose, CartesianPoseStraight))
+        if isinstance(node, (CartesianPosition, CartesianPositionStraight))
         and node.tip_link is tool_frame
-    ] == [CartesianPoseStraight] * 2
+    ] == [CartesianPositionStraight] * 2
     trial.discard()
 
 
@@ -840,7 +862,7 @@ def a_collision_that_could_not_be_avoided() -> MotionViolatedCollisionAvoidance:
         given.
     """
     return MotionViolatedCollisionAvoidance(
-        CollisionViolatedError(violated_collisions=[], thresholds=[])
+        CollisionViolatedError(violated_collisions=[])
     )
 
 

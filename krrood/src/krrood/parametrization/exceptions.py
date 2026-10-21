@@ -9,6 +9,7 @@ from krrood.entity_query_language.core.variable import Variable
 from krrood.exceptions import DataclassException, InputError
 
 if TYPE_CHECKING:
+    from krrood.entity_query_language.core.mapped_variable import MappedVariable
     from krrood.entity_query_language.factories import ConditionType
     from krrood.entity_query_language.query.match import AttributeMatch
 
@@ -187,14 +188,15 @@ class JointQueryAcrossClassesNotSupported(DataclassException):
 @dataclass
 class RelationalCircuitRegistryRequiresMatch(DataclassException):
     """
-    Raised when a :class:`~krrood.parametrization.model_registries.RelationalCircuitRegistry`
-    is asked to resolve a model for parameters that aren't a
+    Raised when a
+    :class:`~krrood.parametrization.model_registries.RelationalCircuitRegistry` is asked
+    to resolve a model for parameters that aren't a
     :class:`~krrood.parametrization.parameterizer.UnderspecifiedParameters` (i.e. not a
-    ``Match``, directly or wrapped by ``distribution_of(...)``) -- ``probability_of(...)``
-    and a bare ``average(...)`` build the lighter
+    ``Match``, directly or wrapped by ``distribution_of(...)``) --
+    ``probability_of(...)`` and a bare ``average(...)`` build the lighter
     :class:`~krrood.parametrization.parameterizer.ConditionParameters`/
-    :class:`~krrood.parametrization.parameterizer.SelectedAttributesParameters`
-    instead, which carry no match statement to ground.
+    :class:`~krrood.parametrization.parameterizer.SelectedAttributesParameters` instead,
+    which carry no match statement to ground.
     """
 
     parameters: Any
@@ -250,8 +252,10 @@ class AmbiguousVariableName(DataclassException):
 class DomainElementsIndistinguishableInSamples(DataclassException):
     """
     Raised when two elements of the domain of a symbolic variable have hashes that a
-    sample of a probabilistic model cannot tell apart. A sample holds a hash as a float,
-    which rounds hashes larger than ``2**53``, so close hashes become the same value.
+    sample of a probabilistic model cannot tell apart.
+
+    A sample holds a hash as a float, which rounds hashes larger than ``2**53``, so
+    close hashes become the same value.
     """
 
     variable: random_events.variable.Variable
@@ -276,4 +280,78 @@ class DomainElementsIndistinguishableInSamples(DataclassException):
             "Give the elements hashes that differ by more than the spacing of floats at "
             "their size, for instance values smaller than 2**53 for an integer "
             "enumeration."
+        )
+
+
+@dataclass
+class AssignedValueHasNoRandomEventRepresentation(DataclassException):
+    """
+    Raised when an attribute of a match is assigned an expression that no random event
+    variable can stand for, so its value could neither be sampled nor conditioned on.
+    """
+
+    attribute_match: AttributeMatch
+    """
+    The attribute whose assigned expression has no random event representation.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The attribute {self.attribute_match} is assigned "
+            f"{self.attribute_match.assigned_variable}, which is neither a literal, a "
+            f"variable, an expression derived from a variable, nor a causal marker, so "
+            f"no random event variable stands for it."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Assign the attribute a literal, a variable with a domain, an expression "
+            "derived from a variable, or ``...``."
+        )
+
+
+@dataclass
+class UnboundedParameterError(DataclassException):
+    """
+    Raised when a uniform prior is asked for a parameter that the statement's ``where``
+    conditions do not bound from below and above.
+    """
+
+    parameter_name: str
+    """
+    The parameter without bounds.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.parameter_name}' is not bounded from below and above by the "
+            f"statement's where conditions, so no uniform distribution over it exists."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Bound '{self.parameter_name}' from below and above in the statement's "
+            f"where conditions."
+        )
+
+
+@dataclass
+class AttributeNotParameterized(InputError):
+    """
+    Raised when the random events variable of an attribute is requested from a query
+    that has no variable for that attribute.
+    """
+
+    attribute: MappedVariable
+    """
+    The attribute that has no variable.
+    """
+
+    def error_message(self) -> str:
+        return f"The query has no random events variable for {self.attribute}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Assign the attribute in the query's pattern, with ..., a value or a "
+            "variable, or constrain it in a where condition."
         )

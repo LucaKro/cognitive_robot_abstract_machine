@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 
+from cramph.context import StatechartContext
 from coraplex.plans.executors import PlanExecutor, KinematicallySimulatedPlanExecutor
 from coraplex.plans.failures import MotionMadeNoProgress
 from coraplex.robot_plans.actions.core.container import GraspCloseAndRetractAction
@@ -30,9 +31,9 @@ from cramph.context import ContextExtension
 from cramph.data_types import LifeCycleValues
 from cramph.executor import StatechartExecutor, TickingExecutorExtension
 from cramph.node import StatechartNode
-from giskardpy.motion_statechart.goals.cartesian_goals import (
-    CartesianPoseStraight,
+from giskardpy.motion_statechart.goals.base_pose_goals import (
     DifferentialDriveBaseGoal,
+    HolonomicBaseGoal,
 )
 from giskardpy.motion_statechart.goals.grasped_mechanism import (
     ArticulateGraspedMechanism,
@@ -47,6 +48,7 @@ from giskardpy.motion_statechart.ros2_nodes.ros_tasks import (
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
+    CartesianPositionStraight,
     HoldOrientation,
     HoldPose,
 )
@@ -151,7 +153,7 @@ def assert_drives_differentially_to(
     the base, within the threshold of `action`.
     """
     assert type(goal) is DifferentialDriveBaseGoal
-    assert goal.diff_drive_connection is robot.drive
+    assert goal.mobile_base is robot.mobile_base
     assert goal.threshold == action.base_pose_threshold
     np.testing.assert_allclose(
         goal.goal_pose.to_np(),
@@ -235,7 +237,7 @@ def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
     assert [type(leg) for leg in legs] == [DifferentialDriveBaseGoal] * len(
         unchanged.nodes
     )
-    assert all(leg.diff_drive_connection is robot.drive for leg in legs)
+    assert all(leg.mobile_base is robot.mobile_base for leg in legs)
     assert all(leg.threshold == action.base_pose_threshold for leg in legs)
     np.testing.assert_allclose(legs[-1].goal_pose.to_np(), target.to_np())
 
@@ -268,7 +270,7 @@ def test_a_simulated_tiago_without_its_robot_adaptations_writes_the_odometry(
 
 @pytest.mark.parametrize(
     "build_executor, goal_type",
-    [(simulated_executor, SetOdometry), (robot_executor, CartesianPose)],
+    [(simulated_executor, SetOdometry), (robot_executor, HolonomicBaseGoal)],
 )
 def test_a_robot_of_another_type_keeps_its_drive_goal(
     pr2_apartment_context, build_executor, goal_type
@@ -289,7 +291,7 @@ def test_stretch_keeps_its_drive_goal_without_its_robot_adaptations(
         navigation_to(world), robot_executor(extensions, robot_adaptations=[])
     )
 
-    assert type(action.goal) is CartesianPose
+    assert type(action.goal) is HolonomicBaseGoal
 
 
 def test_a_simulated_stretch_arrives_driving_with_its_differential_drive(
@@ -462,11 +464,7 @@ def reaching_goals_of(action: ReachAction) -> list[StatechartNode]:
         what accompanies it; any other goal is the first node of its step.
     """
     return [
-        (
-            step
-            if isinstance(step, (CartesianPose, CartesianPoseStraight))
-            else step.nodes[0]
-        )
+        step if isinstance(step, CartesianPose) else step.nodes[0]
         for step in action.nodes
     ]
 
@@ -500,7 +498,7 @@ def test_stretch_reaches_in_a_straight_line(
     for goal, default_goal in zip(
         reaching_goals_of(action), reaching_goals_of(unchanged), strict=True
     ):
-        assert type(goal) is CartesianPoseStraight
+        assert type(goal.nodes[0]) is CartesianPositionStraight
         assert goal.root_link is default_goal.root_link
         assert goal.tip_link is default_goal.tip_link
         np.testing.assert_allclose(
@@ -530,7 +528,7 @@ def test_stretch_lifts_in_a_straight_line(
         )
     )
 
-    assert type(goal) is CartesianPoseStraight
+    assert type(goal.nodes[0]) is CartesianPositionStraight
     assert goal.root_link is unchanged.root_link
     assert goal.tip_link is unchanged.tip_link
     np.testing.assert_allclose(goal.goal_pose.to_np(), unchanged.goal_pose.to_np())
@@ -629,7 +627,7 @@ def test_stretch_holds_the_orientation_of_its_base_only_once_it_drove_there(
 
     action = prepared(
         MoveToReach(
-            target_pose_offset_robot=Pose2D(0.2, -0.55),
+            target_pose_offset_robot=Pose2D.from_xy_yaw(0.2, -0.55),
             reference_T_grasp=Pose.from_xyz_rpy(
                 x=0.7, y=-1.3, z=0.9, reference_frame=world.root
             ),
@@ -665,7 +663,7 @@ def stretch_reaching_milk_from(
     drive.origin = world.transform(root_T_base, drive.parent).homogeneous_matrix
     recording = OrientationWhileRunning(body=robot.root)
     executor = KinematicallySimulatedPlanExecutor(
-        world, context_extensions=extensions, extensions=[recording]
+        StatechartContext.with_extensions(world, extensions), extensions=[recording]
     )
     action = ReachAction(
         grasp=GraspCandidate(milk, Pose(reference_frame=milk.root)),
