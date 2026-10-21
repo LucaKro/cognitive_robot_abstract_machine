@@ -38,7 +38,9 @@ from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPic
 from cramph.composites import Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
+from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from krrood.entity_query_language.factories import the, variable
+from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.specifications.connections import (
     Connection6DoFSpecification,
 )
@@ -255,10 +257,10 @@ class GarmiApartmentDemonstration(RobotDemonstration):
 
     def scene_specification(self) -> WorldSpecification:
         """
+        The apartment's MuJoCo scene.
+
         The scene keeps its collision geometry in a file that is not loaded, so every
         geom has to stand in for it.
-
-        :return: The apartment's MuJoCo scene.
         """
         return WorldSpecification.from_mjcf(
             SceneFile.APARTMENT.path, use_visual_as_collision_backup=True
@@ -266,7 +268,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
 
     def robot_specification(self) -> RobotSpecification:
         """
-        :return: GARMI at its start, driving at the demonstration's speed.
+        GARMI at its start, driving at the demonstration's speed.
         """
         return RobotSpecification(
             semantic_annotation_type=self.used_robot,
@@ -375,9 +377,18 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                 nodes=[
                     # NavigateAction(target_location=Pose.from_xyz_rpy(x=.1, reference_frame=robot.root))
                     ParkArmsAction(arms=robot.all_arms),
-                    # GraspOpenAndRetractAction.from_handle(arm=robot.get_left_arm_if_specified(), handle=next(
-                    #     the(handle := variable(Handle, domain=world.semantic_annotations)).where(
-                    #         handle.root.name.name == "drawer_2_handle").evaluate())),
+                    GraspOpenAndRetractAction.from_handle(
+                        arm=robot.get_left_arm_if_specified(),
+                        handle=next(
+                            the(
+                                handle := variable(
+                                    Handle, domain=world.semantic_annotations
+                                )
+                            )
+                            .where(handle.root.name.name == "drawer_2_handle")
+                            .evaluate()
+                        ),
+                    ),
                 ]
             )
         )
@@ -397,7 +408,7 @@ def main(
         used_robot=Garmi,
         executor_type=RealRobotPlanExecutor,
         collision_avoidance=False,
-        debug=False,
+        debug=True,
     ).run()
 
 

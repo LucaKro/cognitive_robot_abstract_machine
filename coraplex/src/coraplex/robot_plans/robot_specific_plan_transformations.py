@@ -332,7 +332,7 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
     The speed the fingers move at, in metres per second.
     """
 
-    grasp_force: float = 20.0
+    grasp_force: float = 0.0
     """
     The force the fingers hold an object with, in newtons.
     """
@@ -365,6 +365,10 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
         :return: A new task shutting `gripper` on whatever lies between its fingers,
             which succeeds where the fingers stop within :attr:`grasp_width_tolerance`
             of `width`, or wherever they stop if `width` is None.
+
+        NOTE: width is not needed anymore, so the commit it added is not needed and can be reverted.
+        also the tolerances must be quite high, since the gripper expects its goal to be at exact width, and if thats
+        not true then it just aborts. same for force
         """
         action_topic = self.action_name(gripper, FrankaGripperActionName.GRASP)
         if width is None:
@@ -373,16 +377,16 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
                 width=0.0,
                 speed=self.finger_speed,
                 force=self.grasp_force,
-                inner_tolerance=0.0,
-                outer_tolerance=gripper.separation_when_open,
+                inner_tolerance=0.04,
+                outer_tolerance=0.04,
             )
         return GripperGraspTask(
             action_topic=action_topic,
-            width=width,
+            width=0.0,
             speed=self.finger_speed,
             force=self.grasp_force,
-            inner_tolerance=self.grasp_width_tolerance,
-            outer_tolerance=self.grasp_width_tolerance,
+            inner_tolerance=0.04,
+            outer_tolerance=0.04,
         )
 
 
