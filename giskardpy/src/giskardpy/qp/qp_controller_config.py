@@ -149,6 +149,7 @@ class QPControllerConfig:
                 braking_time=self.braking_time,
                 time_step=self.control_time_step,
             )
+        print(f"prediction horizon: {self.prediction_horizon}")
 
     @cached_property
     def control_time_step(self) -> timedelta:

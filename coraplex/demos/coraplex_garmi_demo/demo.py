@@ -376,27 +376,19 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             Sequence(
                 nodes=[
                     # NavigateAction(target_location=Pose.from_xyz_rpy(x=.1, reference_frame=robot.root))
-                    MoveGripper(
-                        end_effector=robot.get_left_arm_if_specified().end_effector,
-                        state=GripperState.OPEN,
+                    ParkArmsAction(arms=robot.all_arms),
+                    GraspOpenAndRetractAction.from_handle(
+                        arm=robot.get_left_arm_if_specified(),
+                        handle=next(
+                            the(
+                                handle := variable(
+                                    Handle, domain=world.semantic_annotations
+                                )
+                            )
+                            .where(handle.root.name.name == "drawer_2_handle")
+                            .evaluate()
+                        ),
                     ),
-                    MoveGripper(
-                        end_effector=robot.get_left_arm_if_specified().end_effector,
-                        state=GripperState.CLOSE,
-                    ),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # GraspOpenAndRetractAction.from_handle(
-                    #     arm=robot.get_left_arm_if_specified(),
-                    #     handle=next(
-                    #         the(
-                    #             handle := variable(
-                    #                 Handle, domain=world.semantic_annotations
-                    #             )
-                    #         )
-                    #         .where(handle.root.name.name == "drawer_2_handle")
-                    #         .evaluate()
-                    #     ),
-                    # ),
                 ]
             )
         )

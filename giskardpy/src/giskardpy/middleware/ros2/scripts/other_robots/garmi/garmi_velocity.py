@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+from datetime import timedelta
 
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.giskard import Giskard
@@ -34,7 +35,7 @@ def main() -> None:
         robot_interface_config=GarmiVelocityInterface(),
         server_config=GiskardServerConfig(),
         qp_controller_config=QPControllerConfig(
-            target_frequency=40, prediction_horizon=20
+            target_frequency=40, braking_time=timedelta(seconds=0.4)
         ),
     )
 
