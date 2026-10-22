@@ -288,6 +288,11 @@ class RecordingCommandPublisher(CommandPublisher):
     How often the robot was told to stop.
     """
 
+    publishes_before_stops: List[int] = field(default_factory=list)
+    """
+    For every stop, how many commands had been published before it.
+    """
+
     world: World = None
     """
     The world the commanded velocities are read from.
@@ -298,6 +303,7 @@ class RecordingCommandPublisher(CommandPublisher):
 
     def stop(self) -> None:
         self.stop_count += 1
+        self.publishes_before_stops.append(len(self.published_velocities))
 
 
 @dataclass
@@ -1167,6 +1173,29 @@ class TestStopClearsCommands:
         motion_server.control_loop.stop()
 
         assert motion_server.command_publisher.stop_count == 1
+
+
+class TestStandstillBeforeMotion:
+    """
+    The robot is sent zero velocities for a while before the motion statechart starts
+    commanding it.
+    """
+
+    def test_zero_velocities_are_published_before_the_first_command(
+        self, motion_server: MotionServerFixture
+    ):
+        standstill_cycles = 5
+        motion_server.control_loop.standstill_duration_before_motion = (
+            standstill_cycles * motion_server.executor.context.require_tick_duration()
+        )
+        motion_server.action_server.goal_json = create_goal_json()
+
+        motion_server.motion_server.run_idle_cycle()
+
+        assert (
+            motion_server.command_publisher.publishes_before_stops.count(0)
+            == standstill_cycles
+        )
 
 
 class TestRobotIsStoppedOnInterrupt:

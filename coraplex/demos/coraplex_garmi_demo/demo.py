@@ -406,8 +406,8 @@ def main(
     """
     GarmiApartmentDemonstration(
         used_robot=Garmi,
-        executor_type=RealRobotPlanExecutor,
-        collision_avoidance=False,
+        executor_type=KinematicallySimulatedPlanExecutor,
+        collision_avoidance=True,
         debug=True,
     ).run()
 

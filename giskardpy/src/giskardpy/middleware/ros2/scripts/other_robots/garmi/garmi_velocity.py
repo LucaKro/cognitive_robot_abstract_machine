@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+from dataclasses import dataclass
 from datetime import timedelta
 
 from semantic_digital_twin.adapters.ros import rospy
@@ -15,6 +16,33 @@ from giskardpy.middleware.ros2.scripts.tools.interactive_marker import (
 from giskardpy.middleware.ros2.server_config import GiskardServerConfig
 from giskardpy.middleware.ros2.utils.utils import load_xacro
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from semantic_digital_twin.spatial_types.derivatives import Derivatives
+from semantic_digital_twin.world_description.connections import OmniDrive
+
+BASE_VELOCITY_WEIGHT = 0.02
+"""
+Objective weight of the velocity of the base's degrees of freedom, ten times the default
+every other degree of freedom gets, so Giskard prefers moving the arms over driving.
+"""
+
+
+@dataclass
+class GarmiGiskard(Giskard):
+    """
+    Giskard for GARMI, with the base weighted by :data:`BASE_VELOCITY_WEIGHT`.
+    """
+
+    def setup(self):
+        """
+        Does what :meth:`Giskard.setup` does, then weights the base, whose degrees of
+        freedom exist only once the world is built.
+        """
+        super().setup()
+        drive = self.world_config.world.get_connections_by_type(OmniDrive)[0]
+        for degree_of_freedom in drive.active_dofs:
+            self.qp_controller_config.set_dof_weight(
+                degree_of_freedom.name, Derivatives.velocity, BASE_VELOCITY_WEIGHT
+            )
 
 
 def main() -> None:
@@ -30,7 +58,7 @@ def main() -> None:
     rospy.init_node("giskard")
     robot_description = load_xacro("package://garmi_description/urdf/garmi.urdf")
 
-    giskard = Giskard(
+    giskard = GarmiGiskard(
         world_config=WorldWithGarmiConfig(urdf=robot_description),
         robot_interface_config=GarmiVelocityInterface(),
         server_config=GiskardServerConfig(),
