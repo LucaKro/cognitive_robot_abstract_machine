@@ -503,7 +503,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                     Parallel(
                         nodes=[
                             ParkArmsAction(arms=robot.all_arms),
-                            NavigateAction(target_location=at_counter),
+                            NavigateAction(target_location=at_drawer),
                         ]
                     ),
                     GraspOpenAndRetractAction(
