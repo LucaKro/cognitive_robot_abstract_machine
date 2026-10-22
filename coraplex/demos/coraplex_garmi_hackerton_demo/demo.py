@@ -43,7 +43,7 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
 )
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
-from cramph.composites import Sequence
+from cramph.composites import Sequence, Parallel
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
 from cramph.world_modification_nodes import MoveBranch
@@ -237,6 +237,12 @@ class ScenePose(Enum):
     """
 
     GARMI_AT_COUNTER = ScenePlacement(-4.5, 1.75, 0, yaw=math.pi)
+    """
+    Where GARMI stands to pick up the milk with its right arm and to open and close the
+    drawer with its left: between the drawer and the milk, facing the counter.
+    """
+
+    GARMI_AT_DRAWER = ScenePlacement(-4.5, 1.95, 0, yaw=math.pi + math.pi / 4)
     """
     Where GARMI stands to pick up the milk with its right arm and to open and close the
     drawer with its left: between the drawer and the milk, facing the counter.
@@ -469,6 +475,7 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         )
         milk_in_drawer = ScenePose.MILK_IN_DRAWER.value.pose(apartment)
         at_counter = ScenePose.GARMI_AT_COUNTER.value.pose(world.root)
+        at_drawer = ScenePose.GARMI_AT_DRAWER.value.pose(world.root)
 
         # Where the right hand's tool frame is once it has laid the milk down, lifted
         # along the apartment's z-axis, which is the vertical.
@@ -486,36 +493,54 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         statechart.add_node(
             Sequence(
                 nodes=[
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # NavigateAction(target_location=at_counter),
-                    # PickUpAction(grasp=milk_grasp, arm=right_arm),
-                    ParkArmsAction(arms=robot.all_arms),
-                    NavigateAction(target_location=at_counter),
+                    Parallel(
+                        nodes=[
+                            ParkArmsAction(arms=robot.all_arms),
+                            NavigateAction(target_location=at_counter),
+                        ]
+                    ),
+                    PickUpAction(grasp=milk_grasp, arm=right_arm),
+                    Parallel(
+                        nodes=[
+                            ParkArmsAction(arms=robot.all_arms),
+                            NavigateAction(target_location=at_counter),
+                        ]
+                    ),
                     GraspOpenAndRetractAction(
                         grasp=handle_grasp,
                         arm=left_arm,
                         release_clearance=HANDLE_RELEASE_CLEARANCE,
                     ),
-                    # PlaceAction(
-                    #     object_designator=milk,
-                    #     target_location=milk_in_drawer,
-                    #     retreat_distance=MILK_HEIGHT_ABOVE_DRAWER_BEFORE_PLACING,
-                    # ),
-                    # # A place leaves the milk under the world; under the drawer it moves
-                    # # along when the drawer closes.
-                    # MoveBranch(branch_root=milk.root, new_parent=storage_drawer),
-                    # MoveManipulatorAction(
-                    #     target_pose=tool_above_place,
-                    #     end_effector=right_arm.end_effector,
-                    #     allow_gripper_collision=False,
-                    # ),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # NavigateAction(target_location=at_counter),
-                    # GraspCloseAndRetractAction(
-                    #     grasp=handle_grasp,
-                    #     arm=left_arm,
-                    #     release_clearance=HANDLE_RELEASE_CLEARANCE,
-                    # ),
+                    PlaceAction(
+                        object_designator=milk,
+                        target_location=milk_in_drawer,
+                        retreat_distance=MILK_HEIGHT_ABOVE_DRAWER_BEFORE_PLACING,
+                    ),
+                    # A place leaves the milk under the world; under the drawer it moves
+                    # along when the drawer closes.
+                    MoveBranch(branch_root=milk.root, new_parent=storage_drawer),
+                    MoveManipulatorAction(
+                        target_pose=tool_above_place,
+                        end_effector=right_arm.end_effector,
+                        allow_gripper_collision=False,
+                    ),
+                    Parallel(
+                        nodes=[
+                            ParkArmsAction(arms=robot.all_arms),
+                            NavigateAction(target_location=at_drawer),
+                        ]
+                    ),
+                    GraspCloseAndRetractAction(
+                        grasp=handle_grasp,
+                        arm=left_arm,
+                        release_clearance=HANDLE_RELEASE_CLEARANCE,
+                    ),
+                    Parallel(
+                        nodes=[
+                            ParkArmsAction(arms=robot.all_arms),
+                            NavigateAction(target_location=at_counter),
+                        ]
+                    ),
                 ]
             )
         )

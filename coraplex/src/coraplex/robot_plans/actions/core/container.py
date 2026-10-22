@@ -148,7 +148,7 @@ class GraspOpenAndRetractAction(GraspsAndMovesContainerByItsHandle):
         return ArticulateGraspedMechanism(
             tip_link=self.arm.end_effector.tool_frame,
             environment_link=handle,
-            goal_joint_state=mechanism.dof.limits.upper.position * 0.9,
+            goal_joint_state=mechanism.dof.limits.upper.position * 0.8,
         )
 
 
