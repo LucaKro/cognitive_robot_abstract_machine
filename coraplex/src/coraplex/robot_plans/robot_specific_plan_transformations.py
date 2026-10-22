@@ -377,16 +377,16 @@ class DriveGarmiGrippersWithTheirFrankaDriver(
                 width=0.0,
                 speed=self.finger_speed,
                 force=self.grasp_force,
-                inner_tolerance=0.04,
-                outer_tolerance=0.04,
+                inner_tolerance=0.1,
+                outer_tolerance=0.1,
             )
         return GripperGraspTask(
             action_topic=action_topic,
             width=0.0,
             speed=self.finger_speed,
             force=self.grasp_force,
-            inner_tolerance=0.04,
-            outer_tolerance=0.04,
+            inner_tolerance=0.1,
+            outer_tolerance=0.1,
         )
 
 

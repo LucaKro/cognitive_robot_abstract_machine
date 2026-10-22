@@ -254,7 +254,7 @@ class ScenePose(Enum):
     """
 
     MILK_IN_DRAWER = ScenePlacement(
-        -0.545, 6.965, 0.516, yaw=math.pi / 2, pitch=-math.pi / 2
+        -0.545, 6.965, 0.65, yaw=math.pi / 2, pitch=-math.pi / 2
     )
     """
     Where the milk is put into the drawer once that is open, relative to the apartment:
@@ -491,33 +491,33 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                     ParkArmsAction(arms=robot.all_arms),
                     NavigateAction(target_location=at_counter),
                     PickUpAction(grasp=milk_grasp, arm=right_arm),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # NavigateAction(target_location=at_counter),
-                    # GraspOpenAndRetractAction(
-                    #     grasp=handle_grasp,
-                    #     arm=left_arm,
-                    #     release_clearance=HANDLE_RELEASE_CLEARANCE,
-                    # ),
-                    # PlaceAction(
-                    #     object_designator=milk,
-                    #     target_location=milk_in_drawer,
-                    #     retreat_distance=MILK_HEIGHT_ABOVE_DRAWER_BEFORE_PLACING,
-                    # ),
-                    # # A place leaves the milk under the world; under the drawer it moves
-                    # # along when the drawer closes.
-                    # MoveBranch(branch_root=milk.root, new_parent=storage_drawer),
-                    # MoveManipulatorAction(
-                    #     target_pose=tool_above_place,
-                    #     end_effector=right_arm.end_effector,
-                    #     allow_gripper_collision=False,
-                    # ),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # NavigateAction(target_location=at_counter),
-                    # GraspCloseAndRetractAction(
-                    #     grasp=handle_grasp,
-                    #     arm=left_arm,
-                    #     release_clearance=HANDLE_RELEASE_CLEARANCE,
-                    # ),
+                    ParkArmsAction(arms=robot.all_arms),
+                    NavigateAction(target_location=at_counter),
+                    GraspOpenAndRetractAction(
+                        grasp=handle_grasp,
+                        arm=left_arm,
+                        release_clearance=HANDLE_RELEASE_CLEARANCE,
+                    ),
+                    PlaceAction(
+                        object_designator=milk,
+                        target_location=milk_in_drawer,
+                        retreat_distance=MILK_HEIGHT_ABOVE_DRAWER_BEFORE_PLACING,
+                    ),
+                    # A place leaves the milk under the world; under the drawer it moves
+                    # along when the drawer closes.
+                    MoveBranch(branch_root=milk.root, new_parent=storage_drawer),
+                    MoveManipulatorAction(
+                        target_pose=tool_above_place,
+                        end_effector=right_arm.end_effector,
+                        allow_gripper_collision=False,
+                    ),
+                    ParkArmsAction(arms=robot.all_arms),
+                    NavigateAction(target_location=at_counter),
+                    GraspCloseAndRetractAction(
+                        grasp=handle_grasp,
+                        arm=left_arm,
+                        release_clearance=HANDLE_RELEASE_CLEARANCE,
+                    ),
                 ]
             )
         )
