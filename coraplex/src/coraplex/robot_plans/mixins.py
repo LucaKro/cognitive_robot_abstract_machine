@@ -478,11 +478,10 @@ class HasApproachesGraspPoses:
         world_T_grasp = world.transform(
             reference_T_grasp.homogeneous_matrix, world.root
         )
-        world_T_lift = HomogeneousTransformationMatrix.from_xyz_rpy(
-            z=self.retreat_distance, reference_frame=world.root
-        )
+        world_T_grasp.z += self.retreat_distance
+
         return Pose(
-            world.transform((world_T_lift @ world_T_grasp).position, target),
+            world.transform(world_T_grasp.position, target),
             tool_goal.quaternion,
             reference_frame=target,
         )

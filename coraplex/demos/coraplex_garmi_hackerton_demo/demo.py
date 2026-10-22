@@ -489,8 +489,8 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             Sequence(
                 nodes=[
                     ParkArmsAction(arms=robot.all_arms),
-                    # NavigateAction(target_location=at_counter),
-                    # PickUpAction(grasp=milk_grasp, arm=right_arm),
+                    NavigateAction(target_location=at_counter),
+                    PickUpAction(grasp=milk_grasp, arm=right_arm),
                     # ParkArmsAction(arms=robot.all_arms),
                     # NavigateAction(target_location=at_counter),
                     # GraspOpenAndRetractAction(

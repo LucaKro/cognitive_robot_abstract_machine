@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from coraplex.robot_plans.actions.base import ParallelAction, SequentialAction
-from cramph.composites import Parallel
+from cramph.composites import Parallel, StartedWhenTrue, Sequence
 from cramph.monitors import CountSeconds
 from cramph.node import StatechartNode
 from coraplex.robot_plans.mixins import (
@@ -153,15 +153,17 @@ class ReachAction(
         children.append(
             Parallel(
                 nodes=[
-                    self.tool_center_point_goal(
+                    tcp_goal := self.tool_center_point_goal(
                         poses.grasp,
                         self.arm,
                         max_linear_velocity=self.final_approach_linear_velocity,
                     ),
+                    sleep := CountSeconds(seconds=2),
                     LocalMinimumReached(),
                 ]
             )
         )
+        sleep.start_condition = tcp_goal.observes_true
         return children
 
 
