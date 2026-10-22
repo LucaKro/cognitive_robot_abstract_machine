@@ -45,6 +45,7 @@ from semantic_digital_twin.spatial_types import (
     Point3,
     Vector3,
 )
+from semantic_digital_twin.adapters.package_resolver import PackageUriResolver
 from semantic_digital_twin.world_description.mesh_file_storage import (
     MeshFileSources,
     MeshFileStorage,
@@ -653,7 +654,8 @@ class Mesh(Shape):
     def _serialized_fields(cls) -> List[Field]:
         """
         A mesh carries its geometry rather than the file it was read from, which the
-        process reading the json may not have.
+        process reading the json may not have. A mesh named by a package URI is the
+        exception, see :meth:`to_json`.
         """
         return [
             field_
@@ -662,6 +664,16 @@ class Mesh(Shape):
         ]
 
     def to_json(self, **kwargs) -> Dict[str, Any]:
+        """
+        A mesh named by a package URI is serialized as that URI instead of its geometry.
+
+        .. warning:: The process reading the json has to resolve the package to the same
+            file, as it does on the same machine.
+        """
+        # Temporary hack: assumes the reader runs on the same machine as the writer.
+        # Replace with a proper way to share mesh files between processes.
+        if PackageUriResolver().supports(self.filename):
+            return {**super().to_json(**kwargs), "filename": self.filename}
         # Serialize the unscaled geometry and the scale separately. This is the same
         # mesh :attr:`mesh` exposes, so a deserialized mesh reproduces the original
         # rather than a differently tessellated version of the same file.
@@ -685,6 +697,10 @@ class Mesh(Shape):
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Mesh:
+        if "filename" in data:
+            mesh = super()._from_json(data, **kwargs)
+            mesh.filename = data["filename"]
+            return mesh
         # Recreate the trimesh without processing to preserve exact topology
         vertex_colors = data["mesh"].get("vertex_colors")
         mesh = trimesh.Trimesh(

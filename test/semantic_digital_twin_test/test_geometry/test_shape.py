@@ -595,3 +595,44 @@ def test_a_triangular_prism_points_its_apex_along_x():
     assert np.sum(np.isclose(vertices[:, 0], apex_x)) < np.sum(
         np.isclose(vertices[:, 0], face_x)
     )
+
+
+# %% meshes named by a package URI
+
+
+@pytest.fixture
+def mesh_in_a_package(tmp_path, monkeypatch) -> Mesh:
+    """
+    A mesh named by a ``package://`` URI of a package that this machine holds.
+    """
+    package_directory = tmp_path / "box_package"
+    package_directory.mkdir()
+    trimesh.creation.box(extents=(0.1, 0.2, 0.3)).export(package_directory / "box.stl")
+    monkeypatch.setenv("ROS_PACKAGE_PATH", str(package_directory))
+    return Mesh(
+        filename="package://box_package/box.stl",
+        scale=Scale(1.0, 2.0, 3.0),
+        color=Color(1.0, 0.0, 0.0, 1.0),
+    )
+
+
+def test_a_package_mesh_is_serialized_as_its_uri(mesh_in_a_package):
+    """
+    A mesh named by a package URI carries the URI in its json instead of its triangles.
+    """
+    data = mesh_in_a_package.to_json()
+
+    assert data["filename"] == mesh_in_a_package.filename
+    assert "mesh" not in data
+
+
+def test_a_package_mesh_survives_a_json_round_trip(mesh_in_a_package):
+    """
+    Deserializing a package mesh reads the same file, at the same scale and color.
+    """
+    restored = from_json(to_json(mesh_in_a_package))
+
+    assert restored == mesh_in_a_package
+    np.testing.assert_allclose(
+        np.asarray(restored.mesh.vertices), np.asarray(mesh_in_a_package.mesh.vertices)
+    )

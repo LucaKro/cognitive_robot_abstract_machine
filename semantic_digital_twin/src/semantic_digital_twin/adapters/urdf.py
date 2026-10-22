@@ -8,6 +8,7 @@ from xacro import process_file
 
 from semantic_digital_twin.adapters.package_resolver import (
     CompositePathResolver,
+    PackageUriResolver,
     PathResolver,
 )
 from semantic_digital_twin.adapters.world_model_parser import WorldModelParser
@@ -443,10 +444,14 @@ class URDFParser(WorldModelParser):
             elif isinstance(geom.geometry, urdfpy.Mesh):
                 if geom.geometry.filename is None:
                     raise ValueError("Mesh geometry must have a filename.")
+                filename = geom.geometry.filename
+                # A package URI is kept, so the mesh can be sent by reference.
+                if not PackageUriResolver().supports(filename):
+                    filename = self.path_resolver.resolve(filename)
                 res.append(
                     Mesh(
                         origin=origin_transform,
-                        filename=self.path_resolver.resolve(geom.geometry.filename),
+                        filename=filename,
                         scale=Scale(*(geom.geometry.scale or (1, 1, 1))),
                     )
                 )
