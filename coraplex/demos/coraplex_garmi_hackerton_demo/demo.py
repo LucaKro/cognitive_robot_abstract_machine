@@ -1,9 +1,10 @@
 """
 GARMI puts a milk carton from the kitchen counter into a drawer.
 
-GARMI picks up the milk from the front with its right arm, opens the drawer with its
-left, lays the milk into the drawer from above, withdraws the right hand straight up out
-of it and closes the drawer again with its left arm, one step after the other. Running with :class:`~coraplex.plans.executors.RealRobotPlanExecutor` drives
+GARMI picks up the milk from the front with its right arm, grasps the drawer's handle
+with its left while the right arm parks, opens the drawer while the right arm lays the
+milk into it from above and withdraws straight up out of it, and closes the drawer again
+while the right arm parks. Running with :class:`~coraplex.plans.executors.RealRobotPlanExecutor` drives
 the actual robot and takes the world from the running world server, merging the apartment
 into it unless the server holds it already. The default runs the whole plan in simulation
 against a world built from the apartment's MuJoCo scene and GARMI's URDF, so nothing on
@@ -19,34 +20,42 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
-from enum import Enum, IntEnum, StrEnum
+from enum import Enum, StrEnum
 
 from ament_index_python.packages import get_package_share_directory
 
 from coraplex.demonstrations import RobotDemonstration
-from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from coraplex.plans.context_extensions import RobotAccess
 from coraplex.plans.executors import (
     KinematicallySimulatedPlanExecutor,
     PlanExecutor,
     RealRobotPlanExecutor,
 )
-from coraplex.plans.plan_transformation import PlanRewriting
-from coraplex.robot_plans.actions.core.container import (
-    GraspCloseAndRetractAction,
-    GraspOpenAndRetractAction,
-)
+from coraplex.robot_plans.actions.core.container import CloseAction, OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import (
+    FixateObjectAction,
+    GraspingAction,
+    GripperContactAction,
+    PickUpAction,
+)
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
     MoveManipulatorAction,
     ParkArmsAction,
 )
-from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
-from cramph.composites import Sequence, Parallel
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
+from cramph.composites import Parallel, Sequence, StartedWhenTrue
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
 from cramph.world_modification_nodes import MoveBranch
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    UpdateTemporaryCollisionRules,
+)
+from giskardpy.motion_statechart.goals.gripper import MoveGripper
+from giskardpy.motion_statechart.monitors.feature_monitors import DistanceMonitor
+from giskardpy.motion_statechart.monitors.joint_monitors import JointPositionReached
+from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.specifications.connections import (
     Connection6DoFSpecification,
@@ -66,6 +75,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
@@ -155,6 +165,12 @@ class SceneBody(StrEnum):
 
 # %% where things stand
 
+GRIPPER_CONTACT_DISTANCE = 0.2
+"""
+How close the left hand has to be to the drawer's handle, in meters, before it may touch
+its surroundings; further away it avoids them.
+"""
+
 HANDLE_RELEASE_CLEARANCE = 0.1
 """
 How far the left hand backs off the drawer's handle once it has let go of it, in meters.
@@ -242,7 +258,13 @@ class ScenePose(Enum):
     drawer with its left: between the drawer and the milk, facing the counter.
     """
 
-    GARMI_AT_DRAWER = ScenePlacement(-4.5, 1.95, 0, yaw=math.pi + math.pi / 4)
+    GARMI_AT_DRAWER_1 = ScenePlacement(-5.0, 2.15, 0, yaw=math.pi + math.pi / 4)
+    """
+    Where GARMI stands to pick up the milk with its right arm and to open and close the
+    drawer with its left: between the drawer and the milk, facing the counter.
+    """
+
+    GARMI_AT_DRAWER_2 = ScenePlacement(-4.5, 1.95, 0, yaw=math.pi + math.pi / 4)
     """
     Where GARMI stands to pick up the milk with its right arm and to open and close the
     drawer with its left: between the drawer and the milk, facing the counter.
@@ -325,21 +347,6 @@ class GarmiDrive(Enum):
     """
 
     DEMONSTRATION = DriveVelocityLimits(translation=0.1, rotation=0.1)
-
-
-class SamplingSeed(IntEnum):
-    """
-    The seeds the plan's locations draw from.
-    """
-
-    REPEATABLE = 0
-    """
-    Fixes the poses the plan's locations draw, so this run repeats the one before it.
-
-    The locations draw from their costmaps rather than ranking them, so an unpinned run
-    stands somewhere new every time and reaches the drawer only on the attempts whose base
-    pose happens to allow it.
-    """
 
 
 # %% the demonstration
@@ -436,20 +443,19 @@ class GarmiApartmentDemonstration(RobotDemonstration):
     def build_context_extensions(self, world: World) -> list[ContextExtension]:
         return [
             RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0]),
-            StatementGrounding(sampling_seed=SamplingSeed.REPEATABLE),
-            PlanRewriting(transformations=[OpenDrawerBeforeMoveAndPickUp()]),
         ]
 
     def build_statechart(self, context: StatechartContext) -> Statechart:
         """
-        Pick up the milk from the front with the right arm, open the drawer with the
-        left, lay the milk into it from above and close the drawer again, one step after
-        the other.
+        Pick up the milk from the front with the right arm, grasp the drawer's handle with
+        the left while the right arm parks, open the drawer while the right arm lays the
+        milk into it from above, then close the drawer while the right arm parks.
         """
         world = context.world
         robot = context.require_extension(RobotAccess).robot
         left_arm = robot.get_left_arm_if_specified()
         right_arm = robot.get_right_arm_if_specified()
+        left_hand = left_arm.end_effector
         storage_drawer = world.get_body_by_name(SceneBody.STORAGE_DRAWER.value)
         apartment = world.get_body_by_name(SceneBody.APARTMENT.value)
         [drawer] = [
@@ -457,6 +463,9 @@ class GarmiApartmentDemonstration(RobotDemonstration):
             for drawer in world.get_semantic_annotations_by_type(Drawer)
             if drawer.root is storage_drawer
         ]
+        drawer_mechanism = drawer.handle.root.get_first_parent_connection_of_type(
+            ActiveConnection1DOF
+        )
         [milk] = world.get_semantic_annotations_by_type(Milk)
         milk_grasp = GraspCandidate(
             graspable=milk,
@@ -475,7 +484,8 @@ class GarmiApartmentDemonstration(RobotDemonstration):
         )
         milk_in_drawer = ScenePose.MILK_IN_DRAWER.value.pose(apartment)
         at_counter = ScenePose.GARMI_AT_COUNTER.value.pose(world.root)
-        at_drawer = ScenePose.GARMI_AT_DRAWER.value.pose(world.root)
+        at_drawer_1 = ScenePose.GARMI_AT_DRAWER_1.value.pose(world.root)
+        at_drawer_2 = ScenePose.GARMI_AT_DRAWER_2.value.pose(world.root)
 
         # Where the right hand's tool frame is once it has laid the milk down, lifted
         # along the apartment's z-axis, which is the vertical.
@@ -496,44 +506,108 @@ class GarmiApartmentDemonstration(RobotDemonstration):
                     Parallel(
                         nodes=[
                             ParkArmsAction(arms=robot.all_arms),
-                            NavigateAction(target_location=at_counter),
+                            NavigateAction(target_location=at_drawer_1),
                         ]
                     ),
                     PickUpAction(grasp=milk_grasp, arm=right_arm),
                     Parallel(
                         nodes=[
-                            ParkArmsAction(arms=robot.all_arms),
-                            NavigateAction(target_location=at_drawer),
+                            GraspingAction(grasp=handle_grasp, arm=left_arm),
+                            ParkArmsAction(arms=[right_arm]),
+                            # Lets the left hand stay on the handle once it holds it,
+                            # while the right arm may still be parking, but only once it
+                            # is near the handle.
+                            StartedWhenTrue(
+                                monitor=DistanceMonitor(
+                                    name="Left hand near the handle",
+                                    root_link=drawer.handle.root,
+                                    tip_link=left_hand.tool_frame,
+                                    reference_point=Point3(
+                                        reference_frame=drawer.handle.root
+                                    ),
+                                    tip_point=Point3(
+                                        reference_frame=left_hand.tool_frame
+                                    ),
+                                    lower_limit=0.0,
+                                    upper_limit=GRIPPER_CONTACT_DISTANCE,
+                                ),
+                                monitored_node=UpdateTemporaryCollisionRules.for_end_effector(
+                                    left_hand
+                                ),
+                            ),
                         ]
                     ),
-                    GraspOpenAndRetractAction(
-                        grasp=handle_grasp,
-                        arm=left_arm,
-                        release_clearance=HANDLE_RELEASE_CLEARANCE,
-                    ),
-                    PlaceAction(
-                        object_designator=milk,
-                        target_location=milk_in_drawer,
-                        retreat_distance=MILK_HEIGHT_ABOVE_DRAWER_BEFORE_PLACING,
-                    ),
-                    # A place leaves the milk under the world; under the drawer it moves
-                    # along when the drawer closes.
-                    MoveBranch(branch_root=milk.root, new_parent=storage_drawer),
-                    MoveManipulatorAction(
-                        target_pose=tool_above_place,
-                        end_effector=right_arm.end_effector,
-                        allow_gripper_collision=False,
-                    ),
+                    # The left hand opens the drawer and lets go of the handle while the
+                    # right one puts the milk in and withdraws from it. The left hand
+                    # stays at the handle throughout, so it may touch it all along.
+                    # Once the drawer is open, the left hand is kept where it is for as
+                    # long as the right one is still busy, or GARMI's body, following
+                    # the right arm, would carry it off.
                     Parallel(
                         nodes=[
-                            ParkArmsAction(arms=robot.all_arms),
-                            NavigateAction(target_location=at_drawer),
+                            Sequence(
+                                nodes=[
+                                    OpenAction(arm=left_arm, handle=drawer.handle),
+                                    MoveGripper(
+                                        end_effector=left_hand, state=GripperState.OPEN
+                                    ),
+                                ]
+                            ),
+                            Sequence(
+                                nodes=[
+                                    PlaceAction(
+                                        object_designator=milk,
+                                        target_location=milk_in_drawer,
+                                        retreat_distance=MILK_HEIGHT_ABOVE_DRAWER_BEFORE_PLACING,
+                                    ),
+                                    # A place leaves the milk under the world; under
+                                    # the drawer it moves along when the drawer closes.
+                                    MoveBranch(
+                                        branch_root=milk.root, new_parent=storage_drawer
+                                    ),
+                                    MoveManipulatorAction(
+                                        target_pose=tool_above_place,
+                                        end_effector=right_arm.end_effector,
+                                        allow_gripper_collision=False,
+                                    ),
+                                ]
+                            ),
+                            StartedWhenTrue(
+                                monitor=JointPositionReached(
+                                    name="Drawer open",
+                                    connection=drawer_mechanism,
+                                    position=drawer_mechanism.dof.limits.upper.position,
+                                ),
+                                monitored_node=FixateObjectAction(arm=left_arm),
+                            ),
+                            UpdateTemporaryCollisionRules.for_end_effector(left_hand),
                         ]
                     ),
-                    GraspCloseAndRetractAction(
-                        grasp=handle_grasp,
-                        arm=left_arm,
-                        release_clearance=HANDLE_RELEASE_CLEARANCE,
+                    # The left hand, still at the handle, closes the drawer while the
+                    # right arm parks, and may stay on the handle once the drawer is
+                    # closed, while the right arm, and with it GARMI's body, may still be
+                    # moving.
+                    Parallel(
+                        nodes=[
+                            ParkArmsAction(arms=[right_arm]),
+                            CloseAction(arm=left_arm, handle=drawer.handle),
+                            UpdateTemporaryCollisionRules.for_end_effector(left_hand),
+                        ]
+                    ),
+                    # Back off the handle the way the hand came in.
+                    GripperContactAction(
+                        end_effector=left_hand,
+                        steps=[
+                            MoveManipulatorAction(
+                                target_pose=HasApproachesGraspPoses.pre_grasp_pose(
+                                    handle_grasp.grasp_pose,
+                                    left_hand,
+                                    HANDLE_RELEASE_CLEARANCE,
+                                ),
+                                end_effector=left_hand,
+                                allow_gripper_collision=False,
+                            ),
+                        ],
                     ),
                     Parallel(
                         nodes=[
