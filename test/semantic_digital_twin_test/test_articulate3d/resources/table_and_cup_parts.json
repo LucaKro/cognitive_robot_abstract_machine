@@ -1,0 +1,103 @@
+{
+  "labels": [
+    "cabinet.1.1",
+    "door.1.1.2_1",
+    "handle.1.1.2_1.3_1",
+    "drawer.1.1.2_2",
+    "flap.1.1.2_2.3_1",
+    "knob.1.1.2_2.3_1.4_1",
+    "lid.1.1.2_3",
+    "hinge.1.1.2_1.3_2"
+  ],
+  "modelId": "scannetpp.table_and_cup",
+  "data": {
+    "stats": {
+      "annotatedFaces": 7,
+      "unannotatedFaces": 1,
+      "totalFaces": 8,
+      "totalVertices": 8
+    },
+    "annotations": [
+      {
+        "partId": 1,
+        "objectId": 1,
+        "label": "cabinet.1.1",
+        "triIndices": [
+          0,
+          1
+        ],
+        "vertIndices": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "partId": 2,
+        "objectId": 2,
+        "label": "door.1.1.2_1",
+        "triIndices": [
+          2
+        ],
+        "vertIndices": [
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "partId": 3,
+        "objectId": 3,
+        "label": "handle.1.1.2_1.3_1",
+        "triIndices": [
+          3
+        ],
+        "vertIndices": [
+          7
+        ]
+      },
+      {
+        "partId": 4,
+        "objectId": 4,
+        "label": "drawer.1.1.2_2",
+        "triIndices": [
+          5
+        ],
+        "vertIndices": []
+      },
+      {
+        "partId": 5,
+        "objectId": 5,
+        "label": "flap.1.1.2_2.3_1",
+        "triIndices": [
+          6
+        ],
+        "vertIndices": []
+      },
+      {
+        "partId": 6,
+        "objectId": 6,
+        "label": "knob.1.1.2_2.3_1.4_1",
+        "triIndices": [
+          7
+        ],
+        "vertIndices": []
+      },
+      {
+        "partId": 7,
+        "objectId": 7,
+        "label": "lid.1.1.2_3",
+        "triIndices": [],
+        "vertIndices": []
+      },
+      {
+        "partId": 8,
+        "objectId": 8,
+        "label": "hinge.1.1.2_1.3_2",
+        "triIndices": [],
+        "vertIndices": []
+      }
+    ]
+  }
+}

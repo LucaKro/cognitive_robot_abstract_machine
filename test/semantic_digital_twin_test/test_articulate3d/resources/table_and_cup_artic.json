@@ -1,0 +1,231 @@
+{
+  "modelId": "scannetpp.table_and_cup",
+  "data": {
+    "parts": [
+      {
+        "pid": 0,
+        "label": "unknown",
+        "group": "others"
+      },
+      {
+        "pid": 1,
+        "label": "cabinet.1.1",
+        "group": "cabinets"
+      },
+      {
+        "pid": 2,
+        "label": "door.1.1.2_1",
+        "group": "doors/windows"
+      },
+      {
+        "pid": 3,
+        "label": "handle.1.1.2_1.3_1",
+        "group": "handles movable"
+      },
+      {
+        "pid": 4,
+        "label": "drawer.1.1.2_2",
+        "group": "cabinets"
+      },
+      {
+        "pid": 5,
+        "label": "flap.1.1.2_2.3_1",
+        "group": "others"
+      },
+      {
+        "pid": 6,
+        "label": "knob.1.1.2_2.3_1.4_1",
+        "group": "controls"
+      },
+      {
+        "pid": 7,
+        "label": "lid.1.1.2_3",
+        "group": "lids"
+      },
+      {
+        "pid": 9,
+        "label": "lock.1.1.2_1.3_2",
+        "group": "others"
+      }
+    ],
+    "articulations": [
+      {
+        "pid": 2,
+        "type": "rotation",
+        "origin": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "base": [
+          1
+        ],
+        "rangeMin": 0,
+        "rangeMax": 1.5,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      },
+      {
+        "pid": 3,
+        "type": "rotation",
+        "origin": [
+          0,
+          1,
+          0.5
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "base": [
+          1,
+          2
+        ],
+        "rangeMin": -0.5,
+        "rangeMax": 0.5,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      },
+      {
+        "pid": 4,
+        "type": "rotation",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "base": [
+          1
+        ],
+        "rangeMin": 0,
+        "rangeMax": 1.0,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      },
+      {
+        "pid": 4,
+        "type": "translation",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "base": [
+          42
+        ],
+        "rangeMin": 0,
+        "rangeMax": 0.4,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      },
+      {
+        "pid": 5,
+        "type": "rotation",
+        "origin": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "base": [
+          4
+        ],
+        "rangeMin": 0,
+        "rangeMax": 1.0,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      },
+      {
+        "pid": 7,
+        "type": "rotation",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "base": [
+          6,
+          2
+        ],
+        "rangeMin": 0,
+        "rangeMax": 1.0,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      },
+      {
+        "pid": 9,
+        "type": "rotation",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "base": [
+          2
+        ],
+        "rangeMin": 0,
+        "rangeMax": 1.0,
+        "motionStates": {
+          "closed": {
+            "percent": 0,
+            "value": 0
+          }
+        }
+      }
+    ]
+  }
+}
