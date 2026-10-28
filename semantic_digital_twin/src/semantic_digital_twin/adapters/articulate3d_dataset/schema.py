@@ -11,7 +11,6 @@ from typing_extensions import Any, Type
 from semantic_digital_twin.adapters.scannetpp_dataset.schema import ScanNetPPScene
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.part_finding.splitting import ShapePiece
-from semantic_digital_twin.pipeline.body_splitting import SplitBodyIntoPieces
 from semantic_digital_twin.semantic_annotations.natural_language import (
     NaturalLanguageDescription,
 )
@@ -262,17 +261,15 @@ class Articulate3DScene:
 
         :return: The built world.
         """
-        world = self.scannetpp_scene.create_scan_world()
         bodies = {
             part.part_id: Body(name=PrefixedName(part.label)) for part in self.parts
         }
-        SplitBodyIntoPieces(
-            body_name=world.root.name,
-            pieces=[
+        world = self.scannetpp_scene.create_world_cut_into(
+            [
                 ShapePiece(body=bodies[part.part_id], faces=part.face_indices)
                 for part in self.parts
-            ],
-        ).apply(world)
+            ]
+        )
         articulations = self._articulation_per_part()
         base_part_ids = self._base_part_ids(articulations)
         parts_by_hierarchy_path = self._parts_by_hierarchy_path()

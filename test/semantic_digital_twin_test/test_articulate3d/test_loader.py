@@ -23,6 +23,9 @@ from semantic_digital_twin.adapters.scannetpp_dataset.loader import (
 from semantic_digital_twin.semantic_annotations.natural_language import (
     NaturalLanguageDescription,
 )
+from semantic_digital_twin.world_description.world_modification import (
+    AttributeUpdateModification,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
@@ -259,6 +262,20 @@ def test_create_world_describes_each_part_body_by_its_part_name(cabinet, cabinet
             NaturalLanguageDescription
         )
     } == {(part.label, part.part_name) for part in cabinet.parts}
+
+
+def test_create_world_records_no_change_of_a_body_s_shapes(cabinet):
+    """
+    The scan is cut before it is in the world: a change of a body's shapes is recorded
+    as the whole body serialized before and after it.
+    """
+    world = cabinet.create_world()
+
+    assert not any(
+        isinstance(modification, AttributeUpdateModification)
+        for block in world.get_world_model_manager().model_modification_blocks
+        for modification in block.modifications
+    )
 
 
 # %% loading

@@ -34,6 +34,7 @@ if TYPE_CHECKING:
         HasRootBody,
         PartWholeRelationship,
     )
+    from semantic_digital_twin.world import World
 
 T = TypeVar("T")
 
@@ -406,11 +407,33 @@ class CutBody:
         :return: The bodies of the pieces.
         """
         self.body.update_shapes(visual=self.visual, collision=self.collision)
-        for part in self.parts:
-            self.body._world.add_connection(
-                FixedConnection(parent=self.body, child=part)
-            )
+        self._fix_parts_to_body(self.body._world)
         return self.parts
+
+    def add_to_world(self, world: World) -> list[Body]:
+        """
+        Add the body, with the rest of its shape, and the bodies of the pieces fixed to it
+        to a world the body is not in yet.
+
+        Unlike :meth:`apply`, this records no change of the body's shapes.
+
+        Must be called while the world is being modified.
+
+        :param world: The world to add the body to.
+        :return: The bodies of the pieces.
+        """
+        self.body.visual = self.visual
+        self.body.collision = self.collision
+        world.add_body(self.body)
+        self._fix_parts_to_body(world)
+        return self.parts
+
+    def _fix_parts_to_body(self, world: World) -> None:
+        """
+        :param world: The world the body is in.
+        """
+        for part in self.parts:
+            world.add_connection(FixedConnection(parent=self.body, child=part))
 
 
 @dataclass

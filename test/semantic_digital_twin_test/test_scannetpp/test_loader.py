@@ -140,6 +140,20 @@ def test_scan_world_adds_the_scan_with_its_shape_instead_of_changing_it(table_an
     )
 
 
+def test_create_world_records_no_change_of_a_body_s_shapes(table_and_cup):
+    """
+    The scan is cut before it is in the world: a change of a body's shapes is recorded
+    as the whole body serialized before and after it.
+    """
+    world = table_and_cup.create_world()
+
+    assert not any(
+        isinstance(modification, AttributeUpdateModification)
+        for block in world.get_world_model_manager().model_modification_blocks
+        for modification in block.modifications
+    )
+
+
 # %% missing scene
 
 

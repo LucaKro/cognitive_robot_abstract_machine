@@ -9,8 +9,7 @@ import trimesh
 from typing_extensions import Any
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.part_finding.splitting import ShapePiece
-from semantic_digital_twin.pipeline.body_splitting import SplitBodyIntoPieces
+from semantic_digital_twin.part_finding.splitting import BodyCutter, ShapePiece
 from semantic_digital_twin.semantic_annotations.natural_language import (
     NaturalLanguageDescription,
 )
@@ -177,7 +176,6 @@ class ScanNetPPScene:
 
         :return: The built world.
         """
-        world = self.create_scan_world()
         face_owners = self._face_owners()
         pieces = [
             ShapePiece(
@@ -190,7 +188,7 @@ class ScanNetPPScene:
             )
             for index, scannetpp_object in enumerate(self.objects)
         ]
-        SplitBodyIntoPieces(body_name=world.root.name, pieces=pieces).apply(world)
+        world = self.create_world_cut_into(pieces)
         colors = Color.distinct_colors(len(pieces) + 1)
         with world.modify_world():
             # Setting the color is enough: the pieces' meshes are not built yet, and
@@ -212,6 +210,33 @@ class ScanNetPPScene:
         :return: A world whose only body, ``scan``, shows the whole of :attr:`mesh`, with
             its faces in the order the annotations refer to.
         """
+        scan = self._scan_body()
+        world = World()
+        with world.modify_world():
+            world.add_body(scan)
+        return world
+
+    def create_world_cut_into(self, pieces: list[ShapePiece]) -> World:
+        """
+        :param pieces: Faces of :attr:`mesh`, in the order the annotations refer to, each
+            with the body they are cut into.
+        :return: A world whose root body, ``scan``, shows the faces of :attr:`mesh` no
+            piece takes, with the body of each piece fixed to it.
+        """
+        scan = self._scan_body()
+        cutter = BodyCutter()
+        cut = cutter.cut(scan, cutter.shape_to_cut(scan), pieces)
+        world = World()
+        with world.modify_world():
+            cut.add_to_world(world)
+        return world
+
+    def _scan_body(self) -> Body:
+        """
+        :return: The body ``scan``, in no world yet, showing the whole of :attr:`mesh`.
+            It is added with its shape: changing the shapes of a body in a world records
+            the whole body serialized before and after the change.
+        """
         scan = Body(name=PrefixedName("scan"))
         surface = Mesh(
             filename=str(self.mesh_path),
@@ -219,13 +244,8 @@ class ScanNetPPScene:
         )
         # Reuse the mesh read without processing instead of reading the file again.
         surface.mesh = self.mesh
-        # The scan is added with its shape: changing the shapes of a body in the world
-        # records the whole body serialized before and after the change.
         scan.visual = ShapeCollection([surface], reference_frame=scan)
-        world = World()
-        with world.modify_world():
-            world.add_body(scan)
-        return world
+        return scan
 
     def _face_owners(self) -> np.ndarray:
         """
