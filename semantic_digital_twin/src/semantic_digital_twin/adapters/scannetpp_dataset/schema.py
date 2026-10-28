@@ -212,19 +212,19 @@ class ScanNetPPScene:
         :return: A world whose only body, ``scan``, shows the whole of :attr:`mesh`, with
             its faces in the order the annotations refer to.
         """
-        world = World.create_with_root_body(root_body_name="scan")
-        scan = world.root
+        scan = Body(name=PrefixedName("scan"))
         surface = Mesh(
             filename=str(self.mesh_path),
             origin=HomogeneousTransformationMatrix(reference_frame=scan),
         )
         # Reuse the mesh read without processing instead of reading the file again.
         surface.mesh = self.mesh
+        # The scan is added with its shape: changing the shapes of a body in the world
+        # records the whole body serialized before and after the change.
+        scan.visual = ShapeCollection([surface], reference_frame=scan)
+        world = World()
         with world.modify_world():
-            scan.update_shapes(
-                visual=ShapeCollection([surface], reference_frame=scan),
-                collision=ShapeCollection(reference_frame=scan),
-            )
+            world.add_body(scan)
         return world
 
     def _face_owners(self) -> np.ndarray:

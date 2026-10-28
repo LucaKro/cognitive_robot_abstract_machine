@@ -13,6 +13,9 @@ from semantic_digital_twin.adapters.scannetpp_dataset.schema import ScanNetPPSce
 from semantic_digital_twin.semantic_annotations.natural_language import (
     NaturalLanguageDescription,
 )
+from semantic_digital_twin.world_description.world_modification import (
+    AttributeUpdateModification,
+)
 
 # %% fixtures
 
@@ -114,6 +117,27 @@ def test_create_world_describes_each_object_body_by_its_label(table_and_cup):
             NaturalLanguageDescription
         )
     } == {("table_1", "table"), ("cup_2", "cup")}
+
+
+def test_scan_world_shows_the_whole_scan(table_and_cup):
+    world = table_and_cup.create_scan_world()
+    [surface] = world.root.visual.shapes
+
+    np.testing.assert_array_equal(surface.mesh.faces, table_and_cup.mesh.faces)
+
+
+def test_scan_world_adds_the_scan_with_its_shape_instead_of_changing_it(table_and_cup):
+    """
+    A change of a body's shapes is recorded as the whole body serialized before and after
+    it, which for a scan costs several times the scan's memory.
+    """
+    world = table_and_cup.create_scan_world()
+
+    assert not any(
+        isinstance(modification, AttributeUpdateModification)
+        for block in world.get_world_model_manager().model_modification_blocks
+        for modification in block.modifications
+    )
 
 
 # %% missing scene
