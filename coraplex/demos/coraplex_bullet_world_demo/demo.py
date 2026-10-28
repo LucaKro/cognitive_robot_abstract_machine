@@ -18,7 +18,6 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import Optional, Tuple, Type
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ExecutionType
@@ -91,6 +90,11 @@ class ApartmentBody(StrEnum):
     The apartment's own bodies the demonstration acts on.
     """
 
+    ROOT = "apartment_root"
+    """
+    The apartment's root, which marks whether the scene was already populated.
+    """
+
     SPOON_DRAWER = "cabinet10_drawer_top"
 
 
@@ -100,7 +104,7 @@ class PlaceSettingObject:
     One object of the place setting: what it is, where it starts, and where it is laid.
     """
 
-    semantic_annotation_type: Type[HasRootKinematicStructureEntity]
+    semantic_annotation_type: type[HasRootKinematicStructureEntity]
     """
     What the object is.
 
@@ -128,7 +132,7 @@ class PlaceSettingObject:
     (z=0.723).
     """
 
-    starts_on: Optional[ApartmentBody] = None
+    starts_on: ApartmentBody | None = None
     """
     The apartment body the object starts on.
 
@@ -263,30 +267,29 @@ class BulletWorldDemonstration(RobotDemonstration):
     """
 
     @property
-    def place_setting(self) -> Tuple[PlaceSettingObject, ...]:
+    def place_setting(self) -> tuple[PlaceSettingObject, ...]:
         """
         :return: The objects carried onto the table, in the order they are carried. They
             are laid 20 cm apart, so placing one keeps the gripper clear of the last.
         """
         return self.milk, self.bowl, self.spoon
 
-    def build_simulated_world(self) -> World:
+    def scene_specification(self) -> WorldSpecification:
         """
-        The apartment with the PR2 in it, placed at :attr:`robot_start` through its
-        odom.
+        :return: The apartment.
         """
-        return WorldSpecification.from_urdf(
-            SceneFile.APARTMENT.path,
-            robots=[
-                RobotSpecification(
-                    semantic_annotation_type=self.used_robot,
-                    world_T_odom=self.robot_start,
-                )
-            ],
-        ).to_domain_object()
+        return WorldSpecification.from_urdf(SceneFile.APARTMENT.path)
+
+    def robot_specification(self) -> RobotSpecification:
+        """
+        :return: The PR2, placed at :attr:`robot_start` through its odom.
+        """
+        return RobotSpecification(
+            semantic_annotation_type=self.used_robot, world_T_odom=self.robot_start
+        )
 
     def is_scene_populated(self, world: World) -> bool:
-        return world.is_kinematic_structure_entity_in_world_by_name(Bowl.__name__)
+        return world.is_kinematic_structure_entity_in_world_by_name(ApartmentBody.ROOT)
 
     def populate_scene(self, world: World) -> None:
         """

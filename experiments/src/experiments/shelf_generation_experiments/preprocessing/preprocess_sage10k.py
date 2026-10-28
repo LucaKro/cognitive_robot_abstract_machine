@@ -9,7 +9,7 @@ from collections.abc import Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing_extensions import TYPE_CHECKING
 
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -98,12 +98,12 @@ class PreprocessedObject:
     Identifier used to look up the PLY mesh file for this object in the dataset.
     """
 
-    description: Optional[str] = None
+    description: str | None = None
     """
     Free-text description of the object as written in the source dataset.
     """
 
-    place_guidance: Optional[str] = None
+    place_guidance: str | None = None
     """
     Free-text description of where the object is meant to be placed, as written in the
     source dataset.
@@ -517,7 +517,9 @@ class ShelfExtractor:
         return RelationalCircuitExperimentObject2D(
             object_type=object_.object_type,
             scale=object_.scale,
-            pose=Pose2D(x=local_offset.x, y=local_offset.y, yaw=yaw_radians),
+            pose=Pose2D.from_xy_yaw(
+                x=local_offset.x, y=local_offset.y, yaw=yaw_radians
+            ),
             source_id=object_.source_id,
         )
 
@@ -966,7 +968,7 @@ class Sage10kPreprocessingRun:
         )
 
     def _streamed_raw_objects(
-        self, session: Session, room_ids: Optional[list[str]] = None
+        self, session: Session, room_ids: list[str] | None = None
     ) -> Iterator[Sage10kObjectDAO]:
         """
         Walk raw objects, in chunks, with the pose relationships already loaded.

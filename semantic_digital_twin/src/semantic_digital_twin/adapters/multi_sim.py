@@ -6,7 +6,7 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing_extensions import Generic, Any, ClassVar, Iterator, TypeVar
 
 import time
 from datetime import timedelta
@@ -17,21 +17,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
 from types import NoneType
-from typing_extensions import (
-    Dict,
-    Generic,
-    List,
-    Any,
-    ClassVar,
-    Iterator,
-    Type,
-    TypeVar,
-    Optional,
-    Union,
-)
 
 import numpy
 import mujoco
+from numpy.typing import NDArray
 from physics_simulators.mujoco_simulator import MujocoSimulator
 from physics_simulators.base_simulator import (
     BaseSimulator,
@@ -40,6 +29,7 @@ from physics_simulators.base_simulator import (
     SimulatorConstraints,
 )
 from krrood.exceptions import UnboundGenericParameter
+from krrood.ormatic.utils import classproperty
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from krrood.utils import recursive_subclasses
 from scipy.spatial.transform import Rotation
@@ -73,6 +63,7 @@ from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
     OmniDrive,
     DifferentialDrive,
+    WheeledDrive,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 from semantic_digital_twin.world_description.geometry import (
@@ -109,7 +100,7 @@ from semantic_digital_twin.world_description.world_modification import (
 logger = logging.getLogger(__name__)
 
 
-def cas_pose_to_list(pose: HomogeneousTransformationMatrix) -> List[float]:
+def cas_pose_to_list(pose: HomogeneousTransformationMatrix) -> list[float]:
     """
     Converts a CAS TransformationMatrix to a list of 7 floats (position + quaternion).
 
@@ -198,7 +189,7 @@ class MultiSimLight(SimulatorAdditionalProperty):
     The name of the light.
     """
 
-    body: Optional[Body] = None
+    body: Body | None = None
     """
     The body the light is attached to.
     """
@@ -225,7 +216,7 @@ class InertialConverter:
     The orientation of the inertia frame relative to the body frame as a quaternion [qw, qx, qy, qz].
     """
 
-    diagonal_inertia: List[float]
+    diagonal_inertia: list[float]
     """
     The diagonal inertia tensor in the form [Ixx, Iyy, Izz].
     """
@@ -266,7 +257,7 @@ class EntityConverter(ABC):
     A converter to convert an entity object (WorldEntity, Shape, Connection) to a dictionary of properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Any]] = Any
+    entity_type: ClassVar[type[Any]] = Any
     """
     The type of the entity to convert.
     """
@@ -277,7 +268,7 @@ class EntityConverter(ABC):
     """
 
     @classmethod
-    def convert(cls, entity: entity_type, **kwargs) -> Dict[str, Any]:  # type: ignore
+    def convert(cls, entity: entity_type, **kwargs) -> dict[str, Any]:  # type: ignore
         """
         Converts an entity object to a dictionary of properties for Multiverse simulator.
 
@@ -294,7 +285,7 @@ class EntityConverter(ABC):
                 return subclass()._post_convert(entity, entity_props, **kwargs)
         raise NotImplementedError(f"No converter found for entity type {type(entity)}.")
 
-    def _convert(self, entity: entity_type, **kwargs) -> Dict[str, Any]:  # type: ignore
+    def _convert(self, entity: entity_type, **kwargs) -> dict[str, Any]:  # type: ignore
         """
         The actual conversion method to be implemented by subclasses.
 
@@ -313,8 +304,8 @@ class EntityConverter(ABC):
 
     @abstractmethod
     def _post_convert(
-        self, entity: entity_type, entity_props: Dict[str, Any], **kwargs  # type: ignore
-    ) -> Dict[str, Any]:
+        self, entity: entity_type, entity_props: dict[str, Any], **kwargs  # type: ignore
+    ) -> dict[str, Any]:
         """
         Post-processes the converted entity properties. This method can be overridden by subclasses to update the properties after conversion.
 
@@ -334,11 +325,11 @@ class KinematicStructureEntityConverter(EntityConverter, ABC):
     - quat_str: The key for the quaternion property in the output dictionary.
     """
 
-    entity_type: ClassVar[Type[KinematicStructureEntity]] = KinematicStructureEntity
+    entity_type: ClassVar[type[KinematicStructureEntity]] = KinematicStructureEntity
     pos_str: str = "pos"
     quat_str: str = "quat"
 
-    def _convert(self, entity: entity_type, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: entity_type, **kwargs) -> dict[str, Any]:
         """
         Converts a KinematicStructureEntity object to a dictionary of body properties for Multiverse simulator.
 
@@ -377,7 +368,7 @@ class BodyConverter(KinematicStructureEntityConverter, ABC):
     Converts a Body object to a dictionary of body properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[WorldEntity]] = Body
+    entity_type: ClassVar[type[WorldEntity]] = Body
     """
     The type of the entity to convert.
     """
@@ -404,7 +395,7 @@ class BodyConverter(KinematicStructureEntityConverter, ABC):
     The key for the diagonal inertia tensor property in the output dictionary.
     """
 
-    def _convert(self, entity: Body, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: Body, **kwargs) -> dict[str, Any]:
         """
         Converts a Body object to a dictionary of body properties for Multiverse simulator.
 
@@ -443,7 +434,7 @@ class RegionConverter(KinematicStructureEntityConverter, ABC):
     Converts a Region object to a dictionary of region properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[WorldEntity]] = Region
+    entity_type: ClassVar[type[WorldEntity]] = Region
     """
     The type of the entity to convert.
     """
@@ -455,7 +446,7 @@ class ShapeConverter(EntityConverter, ABC):
     Converts a Shape object to a dictionary of shape properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Shape]] = Shape
+    entity_type: ClassVar[type[Shape]] = Shape
     """
     The type of the entity to convert.
     """
@@ -475,7 +466,7 @@ class ShapeConverter(EntityConverter, ABC):
     The key for the shape RGBA color property in the output dictionary.
     """
 
-    def _convert(self, entity: Shape, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: Shape, **kwargs) -> dict[str, Any]:
         """
         Converts a Shape object to a dictionary of shape properties for Multiverse simulator.
 
@@ -513,7 +504,7 @@ class BoxConverter(ShapeConverter, ABC):
     Converts a Box object to a dictionary of box properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Box]] = Box
+    entity_type: ClassVar[type[Box]] = Box
 
 
 @dataclass
@@ -522,7 +513,7 @@ class SphereConverter(ShapeConverter, ABC):
     Converts a Sphere object to a dictionary of sphere properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Sphere]] = Sphere
+    entity_type: ClassVar[type[Sphere]] = Sphere
 
 
 @dataclass
@@ -531,7 +522,7 @@ class CylinderConverter(ShapeConverter, ABC):
     Converts a Cylinder object to a dictionary of cylinder properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Cylinder]] = Cylinder
+    entity_type: ClassVar[type[Cylinder]] = Cylinder
 
 
 @dataclass
@@ -540,7 +531,7 @@ class MeshConverter(ShapeConverter, ABC):
     Converts a Mesh object to a dictionary of mesh properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Mesh]] = Mesh
+    entity_type: ClassVar[type[Mesh]] = Mesh
 
 
 @dataclass
@@ -549,12 +540,12 @@ class ConnectionConverter(EntityConverter, ABC):
     Converts a Connection object to a dictionary of joint properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = Connection
+    entity_type: ClassVar[type[Connection]] = Connection
     """
     The type of the entity to convert.
     """
 
-    def _convert(self, entity: Connection, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: Connection, **kwargs) -> dict[str, Any]:
         """
         Converts a Connection object to a dictionary of joint properties for Multiverse simulator.
 
@@ -570,7 +561,7 @@ class Connection1DOFConverter(ConnectionConverter, ABC):
     Converts an ActiveConnection1DOF object to a dictionary of joint properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[ActiveConnection1DOF]] = ActiveConnection1DOF
+    entity_type: ClassVar[type[ActiveConnection1DOF]] = ActiveConnection1DOF
     """
     The type of the entity to convert.
     """
@@ -610,7 +601,7 @@ class Connection1DOFConverter(ConnectionConverter, ABC):
     The key for the joint damping property in the output dictionary.
     """
 
-    def _convert(self, entity: ActiveConnection1DOF, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: ActiveConnection1DOF, **kwargs) -> dict[str, Any]:
         """
         Converts an ActiveConnection1DOF object to a dictionary of joint properties for Multiverse simulator.
 
@@ -657,7 +648,7 @@ class ConnectionRevoluteConverter(Connection1DOFConverter, ABC):
     Converts a RevoluteConnection object to a dictionary of revolute joint properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[RevoluteConnection]] = RevoluteConnection
+    entity_type: ClassVar[type[RevoluteConnection]] = RevoluteConnection
     """
     The type of the entity to convert.
     """
@@ -669,7 +660,7 @@ class ConnectionPrismaticConverter(Connection1DOFConverter, ABC):
     Converts a PrismaticConnection object to a dictionary of prismatic joint properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[PrismaticConnection]] = PrismaticConnection
+    entity_type: ClassVar[type[PrismaticConnection]] = PrismaticConnection
     """
     The type of the entity to convert.
     """
@@ -681,12 +672,12 @@ class Connection6DOFConverter(ConnectionConverter, ABC):
     Converts a Connection6DoF object to a dictionary of 6DoF joint properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Connection6DoF]] = Connection6DoF
+    entity_type: ClassVar[type[Connection6DoF]] = Connection6DoF
     """
     The type of the entity to convert.
     """
 
-    def _convert(self, entity: Connection6DoF, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: Connection6DoF, **kwargs) -> dict[str, Any]:
         """
         Converts a Connection6DoF object to a dictionary of joint properties for Multiverse simulator.
 
@@ -704,12 +695,12 @@ class ActuatorConverter(EntityConverter, ABC):
     Converts an Actuator object to a dictionary of actuator properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Actuator]] = Actuator
+    entity_type: ClassVar[type[Actuator]] = Actuator
     """
     The type of the entity to convert.
     """
 
-    def _convert(self, entity: Actuator, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: Actuator, **kwargs) -> dict[str, Any]:
         """
         Converts an Actuator object to a dictionary of joint properties for Multiverse simulator.
 
@@ -727,12 +718,12 @@ class CameraConverter(EntityConverter, ABC):
     Converts a Camera object to a dictionary of camera properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[MultiSimCamera]] = MultiSimCamera
+    entity_type: ClassVar[type[MultiSimCamera]] = MultiSimCamera
     """
     The type of the entity to convert.
     """
 
-    def _convert(self, entity: MultiSimCamera, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: MultiSimCamera, **kwargs) -> dict[str, Any]:
         """
         Converts a Camera object to a dictionary of camera properties for Multiverse simulator.
 
@@ -750,12 +741,12 @@ class LightConverter(EntityConverter, ABC):
     Converts a Light object to a dictionary of light properties for Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[MultiSimLight]] = MultiSimLight
+    entity_type: ClassVar[type[MultiSimLight]] = MultiSimLight
     """
     The type of the entity to convert.
     """
 
-    def _convert(self, entity: MultiSimLight, **kwargs) -> Dict[str, Any]:
+    def _convert(self, entity: MultiSimLight, **kwargs) -> dict[str, Any]:
         """
         Converts a Light object to a dictionary of light properties for Multiverse simulator.
 
@@ -784,7 +775,7 @@ class MujocoActuator(UniqueSimulatorProperty):
     If mujoco.mjtLimited.mjLIMITED_AUTO and autolimits is set in compiler, activation clamping will automatically be set to mujoco.mjtLimited.mjLIMITED_TRUE if activation_range is defined without explicitly setting this attribute to mujoco.mjtLimited.mjLIMITED_TRUE. 
     """
 
-    activation_range: List[float] = field(
+    activation_range: list[float] = field(
         default_factory=lambda: [0.0, 0.0],
         metadata=SimulatorAttributeName("actrange").as_dict(),
     )
@@ -802,7 +793,7 @@ class MujocoActuator(UniqueSimulatorProperty):
     If mujoco.mjtLimited.mjLIMITED_AUTO and autolimits is set in compiler, control clamping will automatically be set to mujoco.mjtLimited.mjLIMITED_TRUE if ctrl_range is defined without explicitly setting this attribute to mujoco.mjtLimited.mjLIMITED_TRUE.
     """
 
-    control_range: List[float] = field(
+    control_range: list[float] = field(
         default_factory=lambda: [0.0, 0.0],
         metadata=SimulatorAttributeName("ctrlrange").as_dict(),
     )
@@ -820,7 +811,7 @@ class MujocoActuator(UniqueSimulatorProperty):
     If mujoco.mjtLimited.mjLIMITED_AUTO and autolimits is set in compiler, force clamping will automatically be set to mujoco.mjtLimited.mjLIMITED_TRUE if force_range is defined without explicitly setting this attribute to mujoco.mjtLimited.mjLIMITED_TRUE.
     """
 
-    force_range: List[float] = field(
+    force_range: list[float] = field(
         default_factory=lambda: [0.0, 0.0],
         metadata=SimulatorAttributeName("forcerange").as_dict(),
     )
@@ -828,7 +819,7 @@ class MujocoActuator(UniqueSimulatorProperty):
     Range for clamping the force output. The first value must be no greater than the second value.
     """
 
-    bias_parameters: List[float] = field(
+    bias_parameters: list[float] = field(
         default_factory=lambda: [0.0] * 10,
         metadata=SimulatorAttributeName("biasprm").as_dict(),
     )
@@ -848,7 +839,7 @@ class MujocoActuator(UniqueSimulatorProperty):
     mujoco.mjtBias.mjBIAS_USER:     bias_term = mjcb_act_bias(…)
     """
 
-    dynamics_parameters: List[float] = field(
+    dynamics_parameters: list[float] = field(
         default_factory=lambda: [1.0] + [0.0] * 9,
         metadata=SimulatorAttributeName("dynprm").as_dict(),
     )
@@ -871,7 +862,7 @@ class MujocoActuator(UniqueSimulatorProperty):
     mujoco.mjtDyn.mjDYN_USER:           act_dot = mjcb_act_dyn(…)
     """
 
-    gain_parameters: List[float] = field(
+    gain_parameters: list[float] = field(
         default_factory=lambda: [0.0] * 10,
         metadata=SimulatorAttributeName("gainprm").as_dict(),
     )
@@ -971,33 +962,33 @@ class MujocoCamera(MultiSimCamera):
     Vertical field-of-view of the camera.
     """
 
-    resolution: List[float] = field(default_factory=lambda: [1, 1])
+    resolution: list[float] = field(default_factory=lambda: [1, 1])
     """
     Resolution of the camera in pixels [width height].
     """
 
-    focal_length: List[float] = field(default_factory=lambda: [0, 0])
+    focal_length: list[float] = field(default_factory=lambda: [0, 0])
     """
     Focal length of the camera in length units. It is mutually exclusive with fovy.
     """
 
-    focal_pixel: List[float] = field(default_factory=lambda: [0, 0])
+    focal_pixel: list[float] = field(default_factory=lambda: [0, 0])
     """
     Focal length of the camera in pixel units. If both focal and focalpixel are specified, the former is ignored.
     """
 
-    principal_length: List[float] = field(default_factory=lambda: [0, 0])
+    principal_length: list[float] = field(default_factory=lambda: [0, 0])
     """
     Offset of the principal point of the camera with respect to the camera center in length units. It is mutually exclusive with fovy.
     """
 
-    principal_pixel: List[float] = field(default_factory=lambda: [0, 0])
+    principal_pixel: list[float] = field(default_factory=lambda: [0, 0])
     """
     Offset of the principal point of the camera with respect to the camera center in pixel units. 
     If both principal and principalpixel are specified, the former is ignored.
     """
 
-    sensor_size: List[float] = field(default_factory=lambda: [0, 0])
+    sensor_size: list[float] = field(default_factory=lambda: [0, 0])
     """
     Size of the camera sensor in length units. It is mutually exclusive with fovy.
     """
@@ -1007,12 +998,12 @@ class MujocoCamera(MultiSimCamera):
     Inter-pupilary distance. This attribute only has an effect during stereoscopic rendering.
     """
 
-    position: List[float] = field(default_factory=lambda: [0, 0, 0])
+    position: list[float] = field(default_factory=lambda: [0, 0, 0])
     """
     Position of the camera frame.
     """
 
-    quaternion: List[float] = field(default_factory=lambda: [1, 0, 0, 0])
+    quaternion: list[float] = field(default_factory=lambda: [1, 0, 0, 0])
     """
     Orientation of the camera frame.
     """
@@ -1104,32 +1095,32 @@ class MujocoLight(MultiSimLight):
     Whether this light casts shadows.
     """
 
-    position: List[float] = field(default_factory=lambda: [0, 0, 0])
+    position: list[float] = field(default_factory=lambda: [0, 0, 0])
     """
     Position of the light frame.
     """
 
-    direction: List[float] = field(default_factory=lambda: [0, 0, -1])
+    direction: list[float] = field(default_factory=lambda: [0, 0, -1])
     """
     Direction the light points in, relevant only for directional and spot lights.
     """
 
-    ambient: List[float] = field(default_factory=lambda: [0, 0, 0])
+    ambient: list[float] = field(default_factory=lambda: [0, 0, 0])
     """
     Ambient color of the light, as ``[r, g, b]``.
     """
 
-    diffuse: List[float] = field(default_factory=lambda: [0.7, 0.7, 0.7])
+    diffuse: list[float] = field(default_factory=lambda: [0.7, 0.7, 0.7])
     """
     Diffuse color of the light, as ``[r, g, b]``.
     """
 
-    specular: List[float] = field(default_factory=lambda: [0.3, 0.3, 0.3])
+    specular: list[float] = field(default_factory=lambda: [0.3, 0.3, 0.3])
     """
     Specular color of the light, as ``[r, g, b]``.
     """
 
-    attenuation: List[float] = field(default_factory=lambda: [1, 0, 0])
+    attenuation: list[float] = field(default_factory=lambda: [1, 0, 0])
     """
     Constant, linear, and quadratic attenuation coefficients for a positional light.
     """
@@ -1176,7 +1167,7 @@ class MujocoEquality(SimulatorAdditionalProperty):
     The name of the second entity being constrained.
     """
 
-    data: List[float] = field(kw_only=True)
+    data: list[float] = field(kw_only=True)
     """
     The data associated with the equality constraint.
     """
@@ -1198,7 +1189,7 @@ class MujocoTendon(SimulatorAdditionalProperty):
     This attribute specifies whether actuator forces acting on the tendon should be clamped.
     """
 
-    actuator_force_range: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    actuator_force_range: list[float] = field(default_factory=lambda: [0.0, 0.0])
     """
     Range for clamping total actuator forces acting on this tendon.
     """
@@ -1208,7 +1199,7 @@ class MujocoTendon(SimulatorAdditionalProperty):
     Inertia associated with changes in tendon length.
     """
 
-    damping: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    damping: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     """
     Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon.
     """
@@ -1239,7 +1230,7 @@ class MujocoTendon(SimulatorAdditionalProperty):
     Material used to set the appearance of the tendon.
     """
 
-    range: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    range: list[float] = field(default_factory=lambda: [0.0, 0.0])
     """
     Range of allowed tendon lengths.
     """
@@ -1249,36 +1240,36 @@ class MujocoTendon(SimulatorAdditionalProperty):
     Color and transparency of the tendon.
     """
 
-    solver_impedance_friction: List[float] = field(
+    solver_impedance_friction: list[float] = field(
         default_factory=lambda: [0.9, 0.95, 0.001, 0.5, 2]
     )
     """
     Constraint solver parameters for simulating dry friction in the tendon.
     """
 
-    solver_impedance_limit: List[float] = field(
+    solver_impedance_limit: list[float] = field(
         default_factory=lambda: [0.9, 0.95, 0.001, 0.5, 2]
     )
     """
     Constraint solver parameters for simulating tendon limits.
     """
 
-    solver_reference_friction: List[float] = field(default_factory=lambda: [0.02, 1.0])
+    solver_reference_friction: list[float] = field(default_factory=lambda: [0.02, 1.0])
     """
     Constraint solver parameters for simulating dry friction in the tendon.
     """
 
-    solver_reference_limit: List[float] = field(default_factory=lambda: [0.02, 1.0])
+    solver_reference_limit: list[float] = field(default_factory=lambda: [0.02, 1.0])
     """
     Constraint solver parameters for simulating tendon limits.
     """
 
-    spring_length: List[float] = field(default_factory=lambda: [-1.0, -1.0])
+    spring_length: list[float] = field(default_factory=lambda: [-1.0, -1.0])
     """
     Spring resting position, can take either one or two values. If one value is given, it corresponds to the length of the tendon at rest.
     """
 
-    stiffness: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    stiffness: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     """
     Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon.
     """
@@ -1289,7 +1280,7 @@ class MujocoTendon(SimulatorAdditionalProperty):
     Parts of the tendon that wrap around geom obstacles are rendered with reduced width.
     """
 
-    joints: Dict[str, float] = field(default_factory=dict)
+    joints: dict[str, float] = field(default_factory=dict)
     """
     This element adds a joint to the computation of the fixed tendon length.
     The position or angle of each included joint is multiplied by the corresponding coef value, 
@@ -1353,12 +1344,12 @@ class MujocoJoint(UniqueSimulatorProperty):
     An additional property declaring that a Connection is a MujocoJoint.
     """
 
-    stiffness: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    stiffness: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     """
     The stiffness of the joint.
     """
 
-    actuator_force_range: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    actuator_force_range: list[float] = field(default_factory=lambda: [0.0, 0.0])
     """
     Range for clamping total actuator forces acting on this joint. 
     It is available only for scalar joints (hinge and slider) and ignored for ball and free joints.
@@ -1398,16 +1389,16 @@ class MujocoBodyConverter(MujocoKinematicStructureEntityConverter, BodyConverter
     diagonal_inertia_str: str = "inertia"
 
     def _post_convert(
-        self, entity: Body, body_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Body, body_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         return body_props
 
 
 @dataclass
 class MujocoRegionConverter(MujocoKinematicStructureEntityConverter, RegionConverter):
     def _post_convert(
-        self, entity: Region, region_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Region, region_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         return region_props
 
 
@@ -1419,8 +1410,8 @@ class MujocoGeomConverter(MujocoConverter, ShapeConverter, ABC):
     type: mujoco.mjtGeom = mujoco.mjtGeom.mjGEOM_SPHERE
 
     def _post_convert(
-        self, entity: Shape, shape_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Shape, shape_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         shape_props.update(
             {
                 "type": self.type,
@@ -1446,8 +1437,8 @@ class MujocoBoxConverter(MujocoGeomConverter, BoxConverter):
     type: mujoco.mjtGeom = mujoco.mjtGeom.mjGEOM_BOX
 
     def _post_convert(
-        self, entity: Box, shape_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Box, shape_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         shape_props.update(
             MujocoGeomConverter._post_convert(self, entity, shape_props, **kwargs)
         )
@@ -1462,8 +1453,8 @@ class MujocoSphereConverter(MujocoGeomConverter, SphereConverter):
     type: mujoco.mjtGeom = mujoco.mjtGeom.mjGEOM_SPHERE
 
     def _post_convert(
-        self, entity: Sphere, shape_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Sphere, shape_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         shape_props.update(
             MujocoGeomConverter._post_convert(self, entity, shape_props, **kwargs)
         )
@@ -1476,12 +1467,12 @@ class MujocoCylinderConverter(MujocoGeomConverter, CylinderConverter):
     type: mujoco.mjtGeom = mujoco.mjtGeom.mjGEOM_CYLINDER
 
     def _post_convert(
-        self, entity: Cylinder, shape_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Cylinder, shape_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         shape_props.update(
             MujocoGeomConverter._post_convert(self, entity, shape_props, **kwargs)
         )
-        shape_props.update({"size": [entity.width / 2, entity.height, 0.0]})
+        shape_props.update({"size": [entity.radius, entity.height / 2, 0.0]})
         return shape_props
 
 
@@ -1490,8 +1481,8 @@ class MujocoMeshConverter(MujocoGeomConverter, MeshConverter):
     type: mujoco.mjtGeom = mujoco.mjtGeom.mjGEOM_MESH
 
     def _post_convert(
-        self, entity: Mesh, shape_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Mesh, shape_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         shape_props.update(
             MujocoGeomConverter._post_convert(self, entity, shape_props, **kwargs)
         )
@@ -1507,7 +1498,7 @@ class MujocoMeshConverter(MujocoGeomConverter, MeshConverter):
         return shape_props
 
     @staticmethod
-    def _resolve_texture_file_path(material: Any, mesh_directory: str) -> Optional[str]:
+    def _resolve_texture_file_path(material: Any, mesh_directory: str) -> str | None:
         """
         Resolves the on-disk file backing a mesh's texture.
 
@@ -1546,8 +1537,8 @@ class MujocoJointConverter(ConnectionConverter, ABC):
     damping_str: str = "damping"
 
     def _post_convert(
-        self, entity: Connection, joint_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Connection, joint_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         joint_props["type"] = self.type
         return joint_props
 
@@ -1558,8 +1549,8 @@ class Mujoco1DOFJointConverter(MujocoJointConverter, Connection1DOFConverter):
     range_str: str = "range"
 
     def _post_convert(
-        self, entity: ActiveConnection1DOF, joint_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: ActiveConnection1DOF, joint_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         joint_props = MujocoJointConverter._post_convert(self, entity, joint_props)
         if not numpy.allclose(joint_props["quat"], [1.0, 0.0, 0.0, 0.0]):
             joint_axis = numpy.array(joint_props["axis"])
@@ -1576,8 +1567,8 @@ class MujocoRevoluteJointConverter(
     type: mujoco.mjtJoint = mujoco.mjtJoint.mjJNT_HINGE
 
     def _post_convert(
-        self, entity: ActiveConnection1DOF, joint_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: ActiveConnection1DOF, joint_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         joint_props = super()._post_convert(entity, joint_props, **kwargs)
         joint_range = joint_props.pop("range")
         if not any(limit is None for limit in joint_range):
@@ -1639,8 +1630,8 @@ class MujocoConnectionJoints(Generic[ConnectionType], SubClassSafeGeneric, ABC):
     @classmethod
     @lru_cache(maxsize=None)
     def _realisation_for_type(
-        cls, connection_type: Type[Connection]
-    ) -> Type[MujocoConnectionJoints]:
+        cls, connection_type: type[Connection]
+    ) -> type[MujocoConnectionJoints]:
         """
         :param connection_type: The type of a connection.
         :return: The realisation for the most specific type a connection of that type
@@ -1671,7 +1662,7 @@ class MujocoConnectionJoints(Generic[ConnectionType], SubClassSafeGeneric, ABC):
         """
 
     @abstractmethod
-    def home_joint_positions(self) -> List[float]:
+    def home_joint_positions(self) -> list[float]:
         """
         :return: The values the joints start at, in the order they are built in.
         """
@@ -1691,9 +1682,17 @@ class MujocoConnectionJoints(Generic[ConnectionType], SubClassSafeGeneric, ABC):
         """
         return actuator.set_point
 
+    def own_actuator_controls(self) -> dict[str, float]:
+        """
+        :return: The control input of every MuJoCo actuator the realisation builds
+            itself, beyond those realising the world's actuators, by its name; none by
+            default.
+        """
+        return {}
+
     def measured_positions(
         self, simulator: MujocoSimulator
-    ) -> Dict[DegreeOfFreedom, float]:
+    ) -> dict[DegreeOfFreedom, float]:
         """
         :param simulator: The simulator running the model.
         :return: The position of each degree of freedom of the connection that the
@@ -1753,7 +1752,7 @@ class MujocoSingleJoint(MujocoConnectionJoints[ConnectionType]):
                 action="add",
             )
 
-    def home_joint_positions(self) -> List[float]:
+    def home_joint_positions(self) -> list[float]:
         return [
             self.world.state[degree_of_freedom.id].position
             for degree_of_freedom in self.connection.active_dofs
@@ -1777,7 +1776,7 @@ class MujocoFreeJoint(MujocoSingleJoint[Connection6DoF]):
     A 6DoF connection, built as a free joint.
     """
 
-    def home_joint_positions(self) -> List[float]:
+    def home_joint_positions(self) -> list[float]:
         # A free joint's DOF state is relative to the connection frame and stays at the
         # identity by default; the body's actual placement lives in
         # parent_T_connection_expression instead. Reading the raw DOF state here would
@@ -1805,7 +1804,7 @@ class MujocoNoJoint(MujocoConnectionJoints[ConnectionType]):
     def build(self, builder: MujocoBuilder) -> None:
         pass
 
-    def home_joint_positions(self) -> List[float]:
+    def home_joint_positions(self) -> list[float]:
         return []
 
     def joint_name_of(self, degree_of_freedom: DegreeOfFreedom) -> str:
@@ -1823,21 +1822,64 @@ class MujocoFixedConnectionJoints(MujocoNoJoint[FixedConnection]):
 
 
 @dataclass
-class MujocoDifferentialDriveJoints(MujocoNoJoint[DifferentialDrive]):
+class DriveAxis:
     """
-    A differential drive, which is not simulated yet: its base stays where it is built.
+    One of the joints a wheeled drive's base moves across the floor with.
     """
+
+    measured: DegreeOfFreedom
+    """
+    The degree of freedom the joint's position is measured as.
+    """
+
+    joint_type: mujoco.mjtJoint
+    """
+    The kind of joint.
+    """
+
+    direction: NDArray[numpy.float64]
+    """
+    The joint's axis in the drive's ``odom`` frame.
+    """
+
+    commanded: DegreeOfFreedom | None = None
+    """
+    The degree of freedom whose servo drives the joint; ``None`` where no servo of the
+    world drives it.
+    """
+
+
+DriveType = TypeVar("DriveType", bound=WheeledDrive)
+"""
+The type of wheeled drive a realisation realises.
+"""
 
 
 @dataclass
-class MujocoOmniDriveJoints(MujocoConnectionJoints[OmniDrive]):
+class MujocoWheeledDriveJoints(MujocoConnectionJoints[DriveType], ABC):
     """
-    An omnidirectional drive. If servos drive the velocities it is commanded with, it is
+    A wheeled drive. If servos drive the degrees of freedom it is commanded with, it is
     built as a slide along x, a slide along y and a hinge about z, all in the drive's
     ``odom`` frame: the servos push its base across the floor at the commanded
     velocity, and the positions the joints reach are the drive's odometry. Otherwise it
     is built as no joint at all and its base stays where it is built.
     """
+
+    @classproperty
+    @abstractmethod
+    def kind(cls) -> str:
+        """
+        :return: What the drive's joints are named as, after the robot the drive moves
+            and before the axis each joint moves along.
+        """
+
+    @property
+    @abstractmethod
+    def axes_when_servoed(self) -> list[DriveAxis]:
+        """
+        :return: The joints the base moves with, in the order they are built in, once
+            servos drive it.
+        """
 
     @property
     def servoed(self) -> bool:
@@ -1855,38 +1897,12 @@ class MujocoOmniDriveJoints(MujocoConnectionJoints[OmniDrive]):
         } <= actuated
 
     @property
-    def axes(
-        self,
-    ) -> List[Tuple[DegreeOfFreedom, DegreeOfFreedom, mujoco.mjtJoint, numpy.ndarray]]:
+    def axes(self) -> list[DriveAxis]:
         """
-        :return: For each joint the base moves with, in the order the joints are built
-            in: the degree of freedom its servo is commanded through, the degree of
-            freedom its position is measured as, its type and its axis in the drive's
-            ``odom`` frame; none if the drive is not servoed.
+        :return: The joints the base moves with, in the order they are built in; none
+            if the drive is not servoed.
         """
-        if not self.servoed:
-            return []
-        drive = self.connection
-        return [
-            (
-                drive.x_velocity,
-                drive.x,
-                mujoco.mjtJoint.mjJNT_SLIDE,
-                numpy.array([1.0, 0.0, 0.0]),
-            ),
-            (
-                drive.y_velocity,
-                drive.y,
-                mujoco.mjtJoint.mjJNT_SLIDE,
-                numpy.array([0.0, 1.0, 0.0]),
-            ),
-            (
-                drive.yaw,
-                drive.yaw,
-                mujoco.mjtJoint.mjJNT_HINGE,
-                numpy.array([0.0, 0.0, 1.0]),
-            ),
-        ]
+        return self.axes_when_servoed if self.servoed else []
 
     def build(self, builder: MujocoBuilder) -> None:
         axes = self.axes
@@ -1896,18 +1912,16 @@ class MujocoOmniDriveJoints(MujocoConnectionJoints[OmniDrive]):
         child_T_connection = inverse_frame(
             self.connection.connection_T_child_expression.to_np()
         )
-        for commanded, _, joint_type, axis in axes:
+        for axis in axes:
             child_body_spec.add_joint(
-                name=self.joint_name_of(commanded),
-                type=joint_type,
-                axis=(child_T_connection[:3, :3] @ axis).tolist(),
+                name=self.joint_name_of(axis.measured),
+                type=axis.joint_type,
+                axis=(child_T_connection[:3, :3] @ axis.direction).tolist(),
                 pos=child_T_connection[:3, 3].tolist(),
             )
 
-    def home_joint_positions(self) -> List[float]:
-        return [
-            self.world.state[measured.id].position for _, measured, _, _ in self.axes
-        ]
+    def home_joint_positions(self) -> list[float]:
+        return [self.world.state[axis.measured.id].position for axis in self.axes]
 
     def joint_name_of(self, degree_of_freedom: DegreeOfFreedom) -> str:
         """
@@ -1916,22 +1930,88 @@ class MujocoOmniDriveJoints(MujocoConnectionJoints[OmniDrive]):
         :return: The name of the joint it belongs to, after the robot the drive moves
             and the axis the joint moves along.
         """
-        for commanded, measured, _, _ in self.axes:
-            if degree_of_freedom in (commanded, measured):
+        for axis in self.axes:
+            if degree_of_freedom in (axis.commanded, axis.measured):
                 robot_name = self.connection.name.prefix or self.connection.name.name
-                return f"{robot_name}_omni_drive_{measured.name.name}"
+                return f"{robot_name}_{self.kind}_{axis.measured.name.name}"
         raise MujocoEntityNotFoundError(
             entity_name=degree_of_freedom.name.name,
             entity_type=mujoco.mjtObj.mjOBJ_JOINT,
         )
 
+    def measured_positions(
+        self, simulator: MujocoSimulator
+    ) -> dict[DegreeOfFreedom, float]:
+        """
+        :param simulator: The simulator running the model.
+        :return: The drive's odometry: the x, y and yaw its joints have reached.
+        """
+        model = simulator._mj_model
+        measured_positions = {}
+        for axis in self.axes:
+            joint_id = mujoco.mj_name2id(
+                model, mujoco.mjtObj.mjOBJ_JOINT, self.joint_name_of(axis.measured)
+            )
+            if joint_id == -1:
+                continue
+            measured_positions[axis.measured] = float(
+                simulator._mj_data.qpos[model.jnt_qposadr[joint_id]]
+            )
+        return measured_positions
+
+    def _in_odom(self, base_velocity: NDArray[numpy.float64]) -> NDArray[numpy.float64]:
+        """
+        :param base_velocity: A velocity along the base's x and y.
+        :return: The same velocity along the x and the y of the drive's ``odom``, turned
+            by the drive's yaw, as the drive's ``update_state`` turns it.
+        """
+        yaw = self.world.state[self.connection.yaw.id].position
+        odom_R_base = numpy.array(
+            [[numpy.cos(yaw), -numpy.sin(yaw)], [numpy.sin(yaw), numpy.cos(yaw)]]
+        )
+        return odom_R_base @ base_velocity
+
+
+@dataclass
+class MujocoOmniDriveJoints(MujocoWheeledDriveJoints[OmniDrive]):
+    """
+    An omnidirectional drive, whose servos drive its velocities along the base's x and
+    y and its yaw.
+    """
+
+    @classproperty
+    def kind(cls) -> str:
+        return "omni_drive"
+
+    @property
+    def axes_when_servoed(self) -> list[DriveAxis]:
+        drive = self.connection
+        return [
+            DriveAxis(
+                measured=drive.x,
+                joint_type=mujoco.mjtJoint.mjJNT_SLIDE,
+                direction=numpy.array([1.0, 0.0, 0.0]),
+                commanded=drive.x_velocity,
+            ),
+            DriveAxis(
+                measured=drive.y,
+                joint_type=mujoco.mjtJoint.mjJNT_SLIDE,
+                direction=numpy.array([0.0, 1.0, 0.0]),
+                commanded=drive.y_velocity,
+            ),
+            DriveAxis(
+                measured=drive.yaw,
+                joint_type=mujoco.mjtJoint.mjJNT_HINGE,
+                direction=numpy.array([0.0, 0.0, 1.0]),
+                commanded=drive.yaw,
+            ),
+        ]
+
     def control_of(self, actuator: Actuator) -> float:
         """
         The drive is commanded with velocities in the frame of its base, while the
         slides move along the axes of its ``odom``, so the commanded translational
-        velocity is turned by the drive's yaw, as
-        :meth:`~semantic_digital_twin.world_description.connections.OmniDrive.update_state`
-        does.
+        velocity is turned by the drive's yaw.
 
         :param actuator: An actuator driving one of the drive's degrees of freedom.
         :return: The velocity the joint it reaches is commanded to.
@@ -1941,49 +2021,121 @@ class MujocoOmniDriveJoints(MujocoConnectionJoints[OmniDrive]):
         if degree_of_freedom not in (drive.x_velocity, drive.y_velocity):
             return super().control_of(actuator)
         state = self.world.state
-        yaw = state[drive.yaw.id].position
-        base_velocity_x = state[drive.x_velocity.id].velocity
-        base_velocity_y = state[drive.y_velocity.id].velocity
-        if degree_of_freedom == drive.x_velocity:
-            return float(
-                numpy.cos(yaw) * base_velocity_x - numpy.sin(yaw) * base_velocity_y
+        odom_velocity = self._in_odom(
+            numpy.array(
+                [
+                    state[drive.x_velocity.id].velocity,
+                    state[drive.y_velocity.id].velocity,
+                ]
             )
-        return float(
-            numpy.sin(yaw) * base_velocity_x + numpy.cos(yaw) * base_velocity_y
+        )
+        return float(odom_velocity[0 if degree_of_freedom == drive.x_velocity else 1])
+
+
+@dataclass
+class MujocoDifferentialDriveJoints(MujocoWheeledDriveJoints[DifferentialDrive]):
+    """
+    A differential drive, whose servos drive its velocity along the base's x and its
+    yaw.
+
+    The base only moves along its own x, which in ``odom`` takes both slides, so the
+    slide along y gets a velocity servo of its own, with the gains of the servo of the
+    forward velocity.
+    """
+
+    @classproperty
+    def kind(cls) -> str:
+        return "differential_drive"
+
+    @property
+    def axes_when_servoed(self) -> list[DriveAxis]:
+        drive = self.connection
+        return [
+            DriveAxis(
+                measured=drive.x,
+                joint_type=mujoco.mjtJoint.mjJNT_SLIDE,
+                direction=numpy.array([1.0, 0.0, 0.0]),
+                commanded=drive.x_velocity,
+            ),
+            DriveAxis(
+                measured=drive.y,
+                joint_type=mujoco.mjtJoint.mjJNT_SLIDE,
+                direction=numpy.array([0.0, 1.0, 0.0]),
+            ),
+            DriveAxis(
+                measured=drive.yaw,
+                joint_type=mujoco.mjtJoint.mjJNT_HINGE,
+                direction=numpy.array([0.0, 0.0, 1.0]),
+                commanded=drive.yaw,
+            ),
+        ]
+
+    @property
+    def sideways_servo_name(self) -> str:
+        """
+        :return: The name of the servo of the slide along y.
+        """
+        return f"{self.joint_name_of(self.connection.y)}_servo"
+
+    @property
+    def _forward_velocity_in_odom(self) -> NDArray[numpy.float64]:
+        """
+        :return: The velocity the drive is commanded to along its base's x, along the
+            x and the y of its ``odom``.
+        """
+        forward_velocity = self.world.state[self.connection.x_velocity.id].velocity
+        return self._in_odom(numpy.array([forward_velocity, 0.0]))
+
+    def build(self, builder: MujocoBuilder) -> None:
+        super().build(builder)
+        if not self.servoed:
+            return
+        [forward_servo] = [
+            actuator
+            for actuator in self.world.actuators
+            if self.connection.x_velocity in actuator.dofs
+        ]
+        builder.build_actuator_on_joint(
+            forward_servo,
+            self.sideways_servo_name,
+            self.joint_name_of(self.connection.y),
         )
 
-    def measured_positions(
-        self, simulator: MujocoSimulator
-    ) -> Dict[DegreeOfFreedom, float]:
+    def control_of(self, actuator: Actuator) -> float:
         """
-        :param simulator: The simulator running the model.
-        :return: The drive's odometry: the x, y and yaw its joints have reached.
+        The forward velocity is commanded along the base's x, while the slide moves
+        along the x of its ``odom``, so it is turned by the drive's yaw.
+
+        :param actuator: An actuator driving one of the drive's degrees of freedom.
+        :return: The velocity the joint it reaches is commanded to.
         """
-        model = simulator._mj_model
-        measured_positions = {}
-        for commanded, measured, _, _ in self.axes:
-            joint_id = mujoco.mj_name2id(
-                model, mujoco.mjtObj.mjOBJ_JOINT, self.joint_name_of(commanded)
-            )
-            if joint_id == -1:
-                continue
-            measured_positions[measured] = float(
-                simulator._mj_data.qpos[model.jnt_qposadr[joint_id]]
-            )
-        return measured_positions
+        drive = self.connection
+        [degree_of_freedom] = actuator.dofs
+        if degree_of_freedom != drive.x_velocity:
+            return super().control_of(actuator)
+        return float(self._forward_velocity_in_odom[0])
+
+    def own_actuator_controls(self) -> dict[str, float]:
+        """
+        :return: The velocity the slide along y is commanded to: the forward velocity,
+            turned by the drive's yaw.
+        """
+        if not self.servoed:
+            return {}
+        return {self.sideways_servo_name: float(self._forward_velocity_in_odom[1])}
 
 
 @dataclass
 class MujocoActuatorConverter(ActuatorConverter, ABC):
-    entity_type: ClassVar[Type[Actuator]] = Actuator
+    entity_type: ClassVar[type[Actuator]] = Actuator
 
 
 @dataclass
 class MujocoGeneralActuatorConverter(MujocoActuatorConverter, ActuatorConverter):
 
     def _post_convert(
-        self, entity: Actuator, actuator_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: Actuator, actuator_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         mujoco_actuator = entity.get_simulator_property_of_type(MujocoActuator)
         if mujoco_actuator is not None:
             actuator_props.update(mujoco_actuator.to_dict())
@@ -1997,11 +2149,11 @@ class MujocoPositionServoConverter(MujocoActuatorConverter):
     (see :meth:`MujocoActuator.create_servo`).
     """
 
-    entity_type: ClassVar[Type[PositionServo]] = PositionServo
+    entity_type: ClassVar[type[PositionServo]] = PositionServo
 
     def _post_convert(
-        self, entity: PositionServo, actuator_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: PositionServo, actuator_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         actuator_props.update(MujocoActuator.create_servo(entity).to_dict())
         return actuator_props
 
@@ -2013,11 +2165,11 @@ class MujocoVelocityServoConverter(MujocoActuatorConverter):
     (see :meth:`MujocoActuator.create_velocity_servo`).
     """
 
-    entity_type: ClassVar[Type[VelocityServo]] = VelocityServo
+    entity_type: ClassVar[type[VelocityServo]] = VelocityServo
 
     def _post_convert(
-        self, entity: VelocityServo, actuator_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: VelocityServo, actuator_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         actuator_props.update(MujocoActuator.create_velocity_servo(entity).to_dict())
         return actuator_props
 
@@ -2025,11 +2177,11 @@ class MujocoVelocityServoConverter(MujocoActuatorConverter):
 @dataclass
 class MujocoCameraConverter(CameraConverter, ABC):
 
-    entity_type: ClassVar[Type[MujocoCamera]] = MujocoCamera
+    entity_type: ClassVar[type[MujocoCamera]] = MujocoCamera
 
     def _post_convert(
-        self, entity: MujocoCamera, camera_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: MujocoCamera, camera_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         camera_props["mode"] = entity.mode
         if mujoco.mj_version() >= 3005000:
             camera_props["proj"] = (
@@ -2055,11 +2207,11 @@ class MujocoCameraConverter(CameraConverter, ABC):
 @dataclass
 class MujocoLightConverter(LightConverter, ABC):
 
-    entity_type: ClassVar[Type[MujocoLight]] = MujocoLight
+    entity_type: ClassVar[type[MujocoLight]] = MujocoLight
 
     def _post_convert(
-        self, entity: MujocoLight, light_props: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
+        self, entity: MujocoLight, light_props: dict[str, Any], **kwargs
+    ) -> dict[str, Any]:
         light_props["mode"] = entity.mode
         light_props["type"] = (
             mujoco.mjtLightType.mjLIGHT_DIRECTIONAL
@@ -2086,7 +2238,7 @@ class MultiSimBuilder(ABC):
     A builder to build a world in the Multiverse simulator.
     """
 
-    _world: Optional[World] = None
+    _world: World | None = None
     """
     The world to be built.
     """
@@ -2224,7 +2376,7 @@ class MultiSimBuilder(ABC):
     @abstractmethod
     def _build_shape(
         self,
-        parent: Union[Body, Region],
+        parent: Body | Region,
         shape: Shape,
         is_visible: bool,
         is_collidable: bool,
@@ -2313,7 +2465,7 @@ class MujocoBuilder(MultiSimBuilder):
     normal), a mesh is treated as near-planar for :meth:`_thicken_if_near_planar`.
     """
 
-    _thickened_mesh_paths: Dict[str, str] = field(
+    _thickened_mesh_paths: dict[str, str] = field(
         default_factory=dict, init=False, repr=False
     )
     """
@@ -2394,7 +2546,7 @@ class MujocoBuilder(MultiSimBuilder):
 
     def _build_shape(
         self,
-        parent: Union[Body, Region],
+        parent: Body | Region,
         shape: Shape,
         is_visible: bool,
         is_collidable: bool,
@@ -2575,7 +2727,7 @@ class MujocoBuilder(MultiSimBuilder):
         self._thickened_mesh_paths[mesh_file_path] = thickened_file_path
         return thickened_file_path
 
-    def _parse_geom(self, geom_props: Dict[str, Any]) -> bool:
+    def _parse_geom(self, geom_props: dict[str, Any]) -> bool:
         """
         Parses the geometry properties for a mesh geom. Adds the mesh to the spec if it doesn't exist.
 
@@ -2613,7 +2765,7 @@ class MujocoBuilder(MultiSimBuilder):
     def _register_texture_material(
         self,
         texture_file_path: str,
-        texture_repeat: Tuple[float, float] = (1.0, 1.0),
+        texture_repeat: tuple[float, float] = (1.0, 1.0),
         texture_uniform: bool = False,
     ) -> str:
         """
@@ -2671,24 +2823,54 @@ class MujocoBuilder(MultiSimBuilder):
         MujocoConnectionJoints.of(connection, self.world).build(self)
 
     def _build_actuator(self, actuator: Actuator):
+        [degree_of_freedom] = actuator.dofs
+        self._add_actuator(
+            actuator,
+            actuator.name.name,
+            self._transmission_for_degree_of_freedom(degree_of_freedom),
+        )
+
+    def build_actuator_on_joint(
+        self, actuator: Actuator, name: str, joint_name: str
+    ) -> None:
+        """
+        Add a MuJoCo actuator working like one of the world's actuators on another
+        joint.
+
+        :param actuator: The actuator of the world whose kind and gains it takes.
+        :param name: The name of the MuJoCo actuator.
+        :param joint_name: The joint it drives.
+        """
+        self._add_actuator(
+            actuator,
+            name,
+            {"target": joint_name, "trntype": mujoco.mjtTrn.mjTRN_JOINT},
+        )
+
+    def _add_actuator(
+        self, actuator: Actuator, name: str, transmission: dict[str, Any]
+    ) -> None:
+        """
+        :param actuator: The actuator of the world whose kind and gains the MuJoCo
+            actuator takes.
+        :param name: The name of the MuJoCo actuator.
+        :param transmission: What the MuJoCo actuator drives.
+        """
         actuator_props = MujocoActuatorConverter.convert(actuator)
         actuator_props.pop("dof_names")
-        [degree_of_freedom] = actuator.dofs
-        actuator_props.update(
-            self._transmission_for_degree_of_freedom(degree_of_freedom)
-        )
-        actuator_name = actuator.name.name
+        actuator_props["name"] = name
+        actuator_props.update(transmission)
         actuator_spec = self.spec.add_actuator(**actuator_props)
         if actuator_spec is None:
             raise MujocoEntityNotFoundError(
-                entity_name=actuator_name,
+                entity_name=name,
                 entity_type=mujoco.mjtObj.mjOBJ_ACTUATOR,
                 action="add",
             )
 
     def _transmission_for_degree_of_freedom(
         self, degree_of_freedom: DegreeOfFreedom
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         :param degree_of_freedom: The degree of freedom an actuator drives.
         :return: The actuator's transmission properties: the joint moving that degree
@@ -2766,7 +2948,7 @@ class MujocoBuilder(MultiSimBuilder):
     def _build_mujoco_body(
         self,
         entity: KinematicStructureEntity,
-        additional_properties: Optional[Dict[str, Any]] = None,
+        additional_properties: dict[str, Any] | None = None,
     ):
         """
         Builds a kinematic structure entity as a body in the Mujoco spec: MuJoCo has no
@@ -2831,7 +3013,7 @@ class MujocoBuilder(MultiSimBuilder):
         self,
         body_a: Body,
         body_b: Body,
-        body_to_robot: Dict[Body, Any],
+        body_to_robot: dict[Body, Any],
         excluded: set[tuple[str, str]],
     ) -> None:
         """
@@ -2908,9 +3090,7 @@ class MujocoBuilder(MultiSimBuilder):
         self,
         entity_type: mujoco.mjtObj,
         entity_name: str,
-    ) -> Optional[
-        Union[mujoco.MjsBody, mujoco.MjsGeom, mujoco.MjsJoint, mujoco.MjsSite]
-    ]:
+    ) -> mujoco.MjsBody | mujoco.MjsGeom | mujoco.MjsJoint | mujoco.MjsSite | None:
         """
         Finds an entity in the Mujoco spec by its type and name.
 
@@ -2931,7 +3111,7 @@ class EntitySpawner(ABC):
     A spawner to spawn a WorldEntity object in the Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Any]] = Any
+    entity_type: ClassVar[type[Any]] = Any
     """
     The type of the entity to spawn.
     """
@@ -2973,7 +3153,7 @@ class KinematicStructureEntitySpawner(EntitySpawner):
     A spawner to spawn a KinematicStructureEntity object in the Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[KinematicStructureEntity]] = KinematicStructureEntity
+    entity_type: ClassVar[type[KinematicStructureEntity]] = KinematicStructureEntity
     """
     The type of the entity to spawn.
     """
@@ -3024,7 +3204,7 @@ class KinematicStructureEntitySpawner(EntitySpawner):
     @abstractmethod
     def _spawn_shape(
         self,
-        parent: Union[Body, Region],
+        parent: Body | Region,
         simulator: BaseSimulator,
         shape: Shape,
         visible: bool,
@@ -3050,7 +3230,7 @@ class BodySpawner(KinematicStructureEntitySpawner, ABC):
     A spawner to spawn a Body object in the Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Body]] = Body
+    entity_type: ClassVar[type[Body]] = Body
     """
     The type of the entity to spawn.
     """
@@ -3076,7 +3256,7 @@ class RegionSpawner(KinematicStructureEntitySpawner, ABC):
     A spawner to spawn a Region object in the Multiverse simulator.
     """
 
-    entity_type: ClassVar[Type[Region]] = Region
+    entity_type: ClassVar[type[Region]] = Region
     """
     The type of the entity to spawn.
     """
@@ -3100,7 +3280,7 @@ class ConnectionSpawner(EntitySpawner):
     A spawner to spawn a Connection object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = Connection
+    entity_type: ClassVar[type[Connection]] = Connection
     """
     The type of the entity to spawn.
     """
@@ -3137,7 +3317,7 @@ class FixedConnectionSpawner(ConnectionSpawner, ABC):
     A spawner to spawn a FixedConnection object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = FixedConnection
+    entity_type: ClassVar[type[Connection]] = FixedConnection
     """
     The type of the entity to spawn.
     """
@@ -3149,7 +3329,7 @@ class Connection1DOFSpawner(ConnectionSpawner, ABC):
     A spawner to spawn an ActiveConnection1DOF object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = ActiveConnection1DOF
+    entity_type: ClassVar[type[Connection]] = ActiveConnection1DOF
     """
     The type of the entity to spawn.
     """
@@ -3161,7 +3341,7 @@ class ConnectionPrismaticSpawner(ConnectionSpawner, ABC):
     A spawner to spawn a PrismaticConnection object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = PrismaticConnection
+    entity_type: ClassVar[type[Connection]] = PrismaticConnection
     """
     The type of the entity to spawn.
     """
@@ -3173,7 +3353,7 @@ class ConnectionRevoluteSpawner(ConnectionSpawner, ABC):
     A spawner to spawn a RevoluteConnection object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = RevoluteConnection
+    entity_type: ClassVar[type[Connection]] = RevoluteConnection
     """
     The type of the entity to spawn.
     """
@@ -3185,7 +3365,7 @@ class Connection6DOFSpawner(ConnectionSpawner, ABC):
     A spawner to spawn a Connection6DoF object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Connection]] = Connection6DoF
+    entity_type: ClassVar[type[Connection]] = Connection6DoF
     """
     The type of the entity to spawn.
     """
@@ -3197,7 +3377,7 @@ class ActuatorSpawner(EntitySpawner):
     A spawner to spawn an Actuator object in the simulator.
     """
 
-    entity_type: ClassVar[Type[Actuator]] = Actuator
+    entity_type: ClassVar[type[Actuator]] = Actuator
     """
     The type of the entity to spawn.
     """
@@ -3310,7 +3490,7 @@ class MujocoConnectionSpawner(MujocoEntitySpawner, ConnectionSpawner):
     A spawner to spawn a Connection object in the Mujoco simulator.
     """
 
-    mujoco_joint_converter: ClassVar[Type[MujocoJointConverter]] = Any
+    mujoco_joint_converter: ClassVar[type[MujocoJointConverter]] = Any
 
     def _spawn_connection(
         self, simulator: MujocoSimulator, connection: Connection
@@ -3347,7 +3527,7 @@ class MujocoPrismaticJointSpawner(MujocoConnectionSpawner, ConnectionPrismaticSp
     A spawner to spawn a PrismaticConnection object in the MuJoCo simulator.
     """
 
-    mujoco_joint_converter: ClassVar[Type[MujocoJointConverter]] = (
+    mujoco_joint_converter: ClassVar[type[MujocoJointConverter]] = (
         MujocoPrismaticJointConverter
     )
 
@@ -3358,7 +3538,7 @@ class MujocoRevoluteJointSpawner(MujocoConnectionSpawner, ConnectionRevoluteSpaw
     A spawner to spawn a RevoluteConnection object in the MuJoCo simulator.
     """
 
-    mujoco_joint_converter: ClassVar[Type[MujocoJointConverter]] = (
+    mujoco_joint_converter: ClassVar[type[MujocoJointConverter]] = (
         MujocoRevoluteJointConverter
     )
 
@@ -3457,17 +3637,17 @@ class MultiSimSynchronizer(ModelChangeCallback, ABC):
     The simulator to synchronize with the world.
     """
 
-    entity_converter: Type[EntityConverter] = NoneType
+    entity_converter: type[EntityConverter] = NoneType
     """
     The converter to convert WorldEntity, Shape, and Connection objects to dictionaries of properties for the simulator.
     """
 
-    entity_spawner: Type[EntitySpawner] = NoneType
+    entity_spawner: type[EntitySpawner] = NoneType
     """
     The spawner to spawn WorldEntity, Shape, and Connection objects in the simulator.
     """
 
-    _state_callback: Optional[_MultiSimStateCallback] = field(
+    _state_callback: _MultiSimStateCallback | None = field(
         init=False, default=None, repr=False
     )
     """
@@ -3535,8 +3715,8 @@ class JointBackedConnection:
 @dataclass(eq=False)
 class MujocoSynchronizer(MultiSimSynchronizer):
     simulator: MujocoSimulator
-    entity_converter: Type[EntityConverter] = field(default=MujocoConverter)
-    entity_spawner: Type[EntitySpawner] = field(default=MujocoEntitySpawner)
+    entity_converter: type[EntityConverter] = field(default=MujocoConverter)
+    entity_spawner: type[EntitySpawner] = field(default=MujocoEntitySpawner)
 
     UNTHROTTLED_SYNC_RATE_HZ: ClassVar[float] = float("inf")
     """
@@ -3565,7 +3745,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
 
     _last_sync_time: float = field(init=False, default=0.0, repr=False)
 
-    _sent_controls: Dict[str, float] = field(
+    _sent_controls: dict[str, float] = field(
         init=False, default_factory=dict, repr=False
     )
     """
@@ -3577,7 +3757,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         super().__post_init__()
         self.simulator.read_data_from_simulator = self._sim_to_world
 
-    def _resolve_qpos_address(self, connection: Connection) -> Optional[int]:
+    def _resolve_qpos_address(self, connection: Connection) -> int | None:
         """
         Resolve the qpos address for the MuJoCo joint backing ``connection``,
         or ``None`` if the joint is not present in the model.
@@ -3749,7 +3929,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                         self._warn_unsupported_connection("world→sim", connection)
             self._command_actuators()
 
-    def _actuator_names_by_degree_of_freedom(self) -> Dict[Any, str]:
+    def _actuator_names_by_degree_of_freedom(self) -> dict[Any, str]:
         """
         :return: The name of the actuator driving each actuated degree of freedom, by
             the degree of freedom's id.
@@ -3760,11 +3940,11 @@ class MujocoSynchronizer(MultiSimSynchronizer):
             for degree_of_freedom in actuator.dofs
         }
 
-    def _actuator_controls(self) -> Dict[str, float]:
+    def _actuator_controls(self) -> dict[str, float]:
         """
         :return: The control input of every actuator, by its name, as the realisation
             of the connection moving its degree of freedom works it out from the
-            actuator's set point.
+            actuator's set point, and of every actuator a realisation builds itself.
         """
         connection_by_dof_id = {
             degree_of_freedom.id: connection
@@ -3781,6 +3961,12 @@ class MujocoSynchronizer(MultiSimSynchronizer):
                 else MujocoConnectionJoints.of(connection, self._world).control_of(
                     actuator
                 )
+            )
+        for connection in self._world.connections:
+            controls.update(
+                MujocoConnectionJoints.of(
+                    connection, self._world
+                ).own_actuator_controls()
             )
         return controls
 
@@ -3903,7 +4089,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         qpos_address: int,
         positions: numpy.ndarray,
         previous_positions: numpy.ndarray,
-        state_index: Dict[Any, int],
+        state_index: dict[Any, int],
     ) -> None:
         """
         Push the 6DoF world state for ``connection`` into the MuJoCo qpos
@@ -3958,7 +4144,7 @@ class MujocoSynchronizer(MultiSimSynchronizer):
         qpos_address: int,
         positions: numpy.ndarray,
         previous_positions: numpy.ndarray,
-        state_index: Dict[Any, int],
+        state_index: dict[Any, int],
     ) -> None:
         """
         Push the 1DoF world state for ``connection`` into the MuJoCo qpos slot
@@ -4013,17 +4199,17 @@ class MultiSim(ABC):
     Class to handle the simulation of a world using the simulator.
     """
 
-    simulator_class: ClassVar[Type[BaseSimulator]]
+    simulator_class: ClassVar[type[BaseSimulator]]
     """
     The class of the simulator to use.
     """
 
-    synchronizer_class: ClassVar[Type[MultiSimSynchronizer]]
+    synchronizer_class: ClassVar[type[MultiSimSynchronizer]]
     """
     The class of the MultiSimSynchronizer to use.
     """
 
-    builder_class: ClassVar[Type[MultiSimBuilder]]
+    builder_class: ClassVar[type[MultiSimBuilder]]
     """
     The class of the MultiSimBuilder to use.
     """
@@ -4048,7 +4234,7 @@ class MultiSim(ABC):
     The file the world is saved to for the simulator to load.
     """
 
-    _scene_directory: Optional[tempfile.TemporaryDirectory]
+    _scene_directory: tempfile.TemporaryDirectory | None
     """
     The temporary directory holding the scene file and its assets when no file path was
     given, removed together with this simulation; ``None`` otherwise.
@@ -4059,7 +4245,7 @@ class MultiSim(ABC):
         world: World,
         headless: bool = False,
         step_size: float = 1e-3,
-        file_path: Optional[Path] = None,
+        file_path: Path | None = None,
         **kwargs,
     ):
         """
@@ -4094,7 +4280,7 @@ class MultiSim(ABC):
             simulator=self.simulator,
         )
 
-    def start_simulation(self, constraints: Optional[SimulatorConstraints] = None):
+    def start_simulation(self, constraints: SimulatorConstraints | None = None):
         """
         Starts the simulation. This will start one physics simulation thread and render it at 60Hz.
 
@@ -4137,9 +4323,9 @@ class MultiSim(ABC):
 
 
 class MujocoSim(MultiSim):
-    simulator_class: ClassVar[Type[BaseSimulator]] = MujocoSimulator
-    synchronizer_class: ClassVar[Type[MultiSimSynchronizer]] = MujocoSynchronizer
-    builder_class: ClassVar[Type[MultiSimBuilder]] = MujocoBuilder
+    simulator_class: ClassVar[type[BaseSimulator]] = MujocoSimulator
+    synchronizer_class: ClassVar[type[MultiSimSynchronizer]] = MujocoSynchronizer
+    builder_class: ClassVar[type[MultiSimBuilder]] = MujocoBuilder
     simulator: MujocoSimulator
     synchronizer: MujocoSynchronizer
 

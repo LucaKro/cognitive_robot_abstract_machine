@@ -82,7 +82,7 @@ def nested_kitchen() -> list[Relation]:
     """
     return [
         Relation(
-            whole="apartment/side_B", part="apartment/cabinet_7", field_name="units"
+            whole="apartment/side_B", part="apartment/cabinet_7", field_name="cabinets"
         ),
         Relation(whole="apartment/cabinet_7", part="apartment/drawer_3"),
     ]
@@ -114,7 +114,7 @@ def test_a_part_put_somewhere_it_really_is_counts_even_where_a_level_was_skipped
     """
     judged = RelationCorrectness.between(
         predicted_relations=[
-            Relation(whole="side_B", part="drawer_3", field_name="units")
+            Relation(whole="side_B", part="drawer_3", field_name="drawers")
         ],
         modelled_relations=nested_kitchen(),
         correspondences=paired("side_B", "drawer_3"),

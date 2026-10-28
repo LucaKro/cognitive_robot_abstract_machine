@@ -367,7 +367,7 @@ def kitchen_island_world() -> World:
     return world
 
 
-def test_a_kitchen_island_and_its_units_survive_being_stored(session):
+def test_a_kitchen_island_and_its_cabinets_survive_being_stored(session):
     """
     A part-whole field bounded by a class a stored one does not inherit from cannot be
     written at all: a stored class has one parent, and a cabinet's is its furniture
@@ -384,7 +384,7 @@ def test_a_kitchen_island_and_its_units_survive_being_stored(session):
         one for one in read_back.semantic_annotations if isinstance(one, KitchenIsland)
     ]
 
-    assert {type(one).__name__ for one in reconstructed.units} == {
+    assert {type(one).__name__ for one in reconstructed.cabinets} == {
         "Cabinet",
         "Dishwasher",
     }

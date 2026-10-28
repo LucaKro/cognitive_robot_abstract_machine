@@ -101,21 +101,21 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
     ros_node_name: str = "stretch_demo_node"
 
-    def build_simulated_world(self) -> World:
+    def scene_specification(self) -> WorldSpecification:
         """
-        Put the Stretch on its drive in a world holding nothing but a map body.
+        :return: A world holding nothing but a map body, which :meth:`populate_scene`
+            furnishes.
         """
-        return WorldSpecification(
-            world_parser=None,
-            robots=[
-                RobotSpecification(
-                    semantic_annotation_type=self.used_robot,
-                    odom_T_robot_start=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        1, 1
-                    ),
-                )
-            ],
-        ).to_domain_object()
+        return WorldSpecification(world_parser=None)
+
+    def robot_specification(self) -> RobotSpecification:
+        """
+        :return: The Stretch on its drive, between the shelf and the bedside table.
+        """
+        return RobotSpecification(
+            semantic_annotation_type=self.used_robot,
+            odom_T_robot_start=HomogeneousTransformationMatrix.from_xyz_rpy(1, 1),
+        )
 
     def is_scene_populated(self, world: World) -> bool:
         return world.is_kinematic_structure_entity_in_world_by_name(CEREAL_NAME)
@@ -163,6 +163,10 @@ class StretchApartmentDemonstration(RobotDemonstration):
         """
         world = context.world
 
+        gripper_configuration = context.robot.all_arms[
+            0
+        ].end_effector.default_configuration(GripperState.CLOSE)
+
         cereal = world.get_semantic_annotations_by_type(CheezeIt)[0]
         arm = context.robot.all_arms[0]
         shelf_layer_body = world.get_body_by_name(CEREAL_SHELF_LAYER_NAME)
@@ -172,7 +176,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
         plan = sequential(
             [
                 ParkArmsAction(context.robot.all_arms),
-                SetGripperAction(arm.end_effector, motion=GripperState.CLOSE),
+                SetGripperAction(configuration=gripper_configuration),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         1.2, 1.2, 0, yaw=np.pi, reference_frame=world.root
@@ -211,7 +215,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     ),
                 ),
                 ParkArmsAction(context.robot.all_arms),
-                SetGripperAction(arm.end_effector, motion=GripperState.CLOSE),
+                SetGripperAction(configuration=gripper_configuration),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         1.2, 1.2, 0, yaw=np.pi, reference_frame=world.root
@@ -245,7 +249,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     target_location=CEREAL_SHELF_LAYER_T_CEREAL.pose,
                 ),
                 ParkArmsAction(context.robot.all_arms),
-                SetGripperAction(arm.end_effector, motion=GripperState.CLOSE),
+                SetGripperAction(configuration=gripper_configuration),
             ],
             context=context,
         )

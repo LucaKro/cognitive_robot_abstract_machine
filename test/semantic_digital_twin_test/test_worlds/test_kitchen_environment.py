@@ -108,13 +108,15 @@ def test_the_sideboard_is_a_kitchen_island_built_from_its_corpus_under_its_workt
     None
 ):
     """
-    The sideboard is the kitchen island: its corpus is the unit built into it and its
+    The sideboard is the kitchen island: its corpus is the cabinet built into it and its
     worktop is the island's counter top, as in the other modelled kitchens.
     """
     world = KitchenEnvironment().get_world()
     [island] = world.get_semantic_annotations_by_type(KitchenIsland)
 
-    assert island.units == [world.get_semantic_annotation_by_name("sideboard_cabinet")]
+    assert island.cabinets == [
+        world.get_semantic_annotation_by_name("sideboard_cabinet")
+    ]
     assert island.counter_top is world.get_semantic_annotation_by_name("sideboard")
     assert isinstance(island.counter_top, CounterTop)
 

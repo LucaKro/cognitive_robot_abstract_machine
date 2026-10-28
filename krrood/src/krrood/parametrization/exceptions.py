@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Any, Hashable, List, Set, TYPE_CHECKING, Type
+from typing_extensions import Any, Hashable, TYPE_CHECKING
 
 import random_events.variable
 from krrood.entity_query_language.core.variable import Variable
 from krrood.exceptions import DataclassException, InputError
+from probabilistic_model.exceptions import ProbabilisticModelException
 
 if TYPE_CHECKING:
+    from krrood.entity_query_language.core.mapped_variable import MappedVariable
     from krrood.entity_query_language.factories import ConditionType
     from krrood.entity_query_language.query.match import AttributeMatch
 
@@ -78,7 +80,7 @@ class EmptyVariableDomain(InputError):
 
 @dataclass
 class InvalidEllipsis(InputError):
-    type_: Type
+    type_: type
 
     def error_message(self) -> str:
         return f"Ellipsis is not allowed for type {self.type_}. Ellipsis are only allowed for the leaf objects (random events compatible types, see `random_events.variable.Variable.compatible_types`)."
@@ -88,7 +90,65 @@ class InvalidEllipsis(InputError):
 
 
 @dataclass
-class DoRequiresCausalCircuitModel(DataclassException):
+class ModelVariableNotBound(ProbabilisticModelException):
+    """
+    Raised when bindings are translated into a sample of a probabilistic model, but
+    neither the bindings nor the literal values of the match give a variable of the
+    model a value.
+    """
+
+    variable: random_events.variable.Variable
+    """
+    The variable of the model that has no value.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The bindings give no value to the model variable {self.variable.name}, "
+            f"and the match states no literal value for it."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Bind the variable assigned to the attribute this model variable "
+            "corresponds to, keyed by that variable's identifier."
+        )
+
+
+@dataclass
+class ValueOutsideVariableDomain(ProbabilisticModelException):
+    """
+    Raised when bindings are translated into a sample of a probabilistic model, but a
+    value they give is outside the domain of a variable of the model, so no sample holds
+    it.
+    """
+
+    variable: random_events.variable.Variable
+    """
+    The variable of the model that has no value for the bound value.
+    """
+
+    value: Any
+    """
+    The bound value outside the domain of the variable.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The model variable {self.variable.name} has no value for {self.value!r}, "
+            f"which is outside the domain the match gives it."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Bind the variable assigned to the attribute only to values in its domain: "
+            "an object the pattern variable ranges over, or an element of the "
+            "attribute's type."
+        )
+
+
+@dataclass
+class DoRequiresCausalCircuitModel(ProbabilisticModelException):
     """
     Raised when a match has a ``cause`` intervention but the model registry resolved a
     model that is not a
@@ -112,7 +172,7 @@ class DoRequiresCausalCircuitModel(DataclassException):
 
 
 @dataclass
-class MultipleEffectVariablesNotSupported(DataclassException):
+class MultipleEffectVariablesNotSupported(ProbabilisticModelException):
     """
     Raised when a query declares more than one effect variable via
     ``causes_effect(...)``.
@@ -124,7 +184,7 @@ class MultipleEffectVariablesNotSupported(DataclassException):
     that best explains the effect becomes the primary cause.
     """
 
-    variables: List[random_events.variable.Variable]
+    variables: list[random_events.variable.Variable]
     """
     The declared effect variables.
     """
@@ -141,7 +201,7 @@ class MultipleEffectVariablesNotSupported(DataclassException):
 
 
 @dataclass
-class JointQueryAcrossClassesNotSupported(DataclassException):
+class JointQueryAcrossClassesNotSupported(ProbabilisticModelException):
     """
     Raised when a probabilistic query (``probability_of(...)``, ``average(...)``)
     doesn't reference attributes of exactly one EQL class -- either none at all, e.g.
@@ -158,7 +218,7 @@ class JointQueryAcrossClassesNotSupported(DataclassException):
     referencing zero, or more than one, classes' models yet.
     """
 
-    owner_classes: Set[Type]
+    owner_classes: set[type]
     """
     The distinct owner classes found among the query's referenced attributes -- empty
     when it referenced none at all.
@@ -185,16 +245,17 @@ class JointQueryAcrossClassesNotSupported(DataclassException):
 
 
 @dataclass
-class RelationalCircuitRegistryRequiresMatch(DataclassException):
+class RelationalCircuitRegistryRequiresMatch(ProbabilisticModelException):
     """
-    Raised when a :class:`~krrood.parametrization.model_registries.RelationalCircuitRegistry`
-    is asked to resolve a model for parameters that aren't a
+    Raised when a
+    :class:`~krrood.parametrization.model_registries.RelationalCircuitRegistry` is asked
+    to resolve a model for parameters that aren't a
     :class:`~krrood.parametrization.parameterizer.UnderspecifiedParameters` (i.e. not a
-    ``Match``, directly or wrapped by ``distribution_of(...)``) -- ``probability_of(...)``
-    and a bare ``average(...)`` build the lighter
+    ``Match``, directly or wrapped by ``distribution_of(...)``) --
+    ``probability_of(...)`` and a bare ``average(...)`` build the lighter
     :class:`~krrood.parametrization.parameterizer.ConditionParameters`/
-    :class:`~krrood.parametrization.parameterizer.SelectedAttributesParameters`
-    instead, which carry no match statement to ground.
+    :class:`~krrood.parametrization.parameterizer.SelectedAttributesParameters` instead,
+    which carry no match statement to ground.
     """
 
     parameters: Any
@@ -216,7 +277,7 @@ class RelationalCircuitRegistryRequiresMatch(DataclassException):
 
 
 @dataclass
-class AmbiguousVariableName(DataclassException):
+class AmbiguousVariableName(ProbabilisticModelException):
     """
     Raised when several attributes of a match have the name of a variable of a
     probabilistic model, so it is unclear which of them a sample of the variable sets.
@@ -227,7 +288,7 @@ class AmbiguousVariableName(DataclassException):
     The variable of the model.
     """
 
-    attribute_matches: List[AttributeMatch]
+    attribute_matches: list[AttributeMatch]
     """
     The attributes of the match that have the name of the variable.
     """
@@ -247,11 +308,13 @@ class AmbiguousVariableName(DataclassException):
 
 
 @dataclass
-class DomainElementsIndistinguishableInSamples(DataclassException):
+class DomainElementsIndistinguishableInSamples(ProbabilisticModelException):
     """
     Raised when two elements of the domain of a symbolic variable have hashes that a
-    sample of a probabilistic model cannot tell apart. A sample holds a hash as a float,
-    which rounds hashes larger than ``2**53``, so close hashes become the same value.
+    sample of a probabilistic model cannot tell apart.
+
+    A sample holds a hash as a float, which rounds hashes larger than ``2**53``, so
+    close hashes become the same value.
     """
 
     variable: random_events.variable.Variable
@@ -259,7 +322,7 @@ class DomainElementsIndistinguishableInSamples(DataclassException):
     The symbolic variable.
     """
 
-    elements: List[Hashable]
+    elements: list[Hashable]
     """
     The elements of the domain whose hashes become the same value in a sample.
     """
@@ -276,4 +339,51 @@ class DomainElementsIndistinguishableInSamples(DataclassException):
             "Give the elements hashes that differ by more than the spacing of floats at "
             "their size, for instance values smaller than 2**53 for an integer "
             "enumeration."
+        )
+
+
+@dataclass
+class UnboundedParameterError(ProbabilisticModelException):
+    """
+    Raised when a uniform prior is asked for a parameter that the statement's ``where``
+    conditions do not bound from below and above.
+    """
+
+    parameter_name: str
+    """
+    The parameter without bounds.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.parameter_name}' is not bounded from below and above by the "
+            f"statement's where conditions, so no uniform distribution over it exists."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Bound '{self.parameter_name}' from below and above in the statement's "
+            f"where conditions."
+        )
+
+
+@dataclass
+class AttributeNotParameterized(InputError):
+    """
+    Raised when the random events variable of an attribute is requested from a query
+    that has no variable for that attribute.
+    """
+
+    attribute: MappedVariable
+    """
+    The attribute that has no variable.
+    """
+
+    def error_message(self) -> str:
+        return f"The query has no random events variable for {self.attribute}."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Assign the attribute in the query's pattern, with ..., a value or a "
+            "variable, or constrain it in a where condition."
         )

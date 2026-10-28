@@ -239,15 +239,15 @@ def test_the_field_reported_is_the_one_a_mount_actually_routes_to():
 # %% furniture built from other furniture
 
 
-def test_a_kitchen_island_holds_the_units_it_is_built_from():
+def test_a_kitchen_island_holds_the_cabinets_it_is_built_from():
     """
     A kitchen is a run of carcasses under one worktop.
 
     Without a field for them the carcasses can only be mounted as something they are
     not, or not at all.
     """
-    assert field_holding(KitchenIsland, Cabinet).field_name == "units"
-    assert field_holding(KitchenIsland, Dishwasher).field_name == "units"
+    assert field_holding(KitchenIsland, Cabinet).field_name == "cabinets"
+    assert field_holding(KitchenIsland, Dishwasher).field_name == "cabinets"
 
 
 def test_a_dishwasher_is_a_cabinet_so_that_it_can_stand_in_a_run():
@@ -260,7 +260,7 @@ def test_a_dishwasher_is_a_cabinet_so_that_it_can_stand_in_a_run():
     """
     assert issubclass(Dishwasher, Cabinet)
     assert issubclass(Dishwasher, HasCaseAsRootBody)
-    assert field_holding(KitchenIsland, Dishwasher).field_name == "units"
+    assert field_holding(KitchenIsland, Dishwasher).field_name == "cabinets"
 
 
 def test_a_drawer_built_into_an_island_is_held_as_a_drawer_rather_than_a_unit():
@@ -309,7 +309,7 @@ def test_a_kitchen_island_can_be_built_and_mounted_into():
         (relation.field_name, type(relation.target).__name__)
         for relation in mounted_relations_of(island)
     }
-    assert held == {("units", "Cabinet"), ("counter_top", "CounterTop")}
+    assert held == {("cabinets", "Cabinet"), ("counter_top", "CounterTop")}
 
 
 # %% the ontology's own classes against everything below its root

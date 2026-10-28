@@ -1,9 +1,11 @@
+from __future__ import annotations
+import tracemalloc
 from copy import deepcopy
 from dataclasses import dataclass, fields
-from typing import List
 from uuid import UUID
 
 import numpy as np
+import trimesh
 
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
@@ -54,6 +56,7 @@ from semantic_digital_twin.world_description.geometry import (
     Box,
     Scale,
     Color,
+    Mesh,
     Sphere,
     VolumetricBoundingBox,
 )
@@ -91,7 +94,8 @@ def _supported_by_default(field_name: str) -> float:
 
 RESTING_CONTACT_TOLERANCE = _supported_by_default("contact_tolerance")
 """
-How far above a surface a body may stand and still rest on it, as the predicate defaults it.
+How far above a surface a body may stand and still rest on it, as the predicate defaults
+it.
 """
 
 CONTAINER_WALL_HEIGHT = 0.5
@@ -129,7 +133,7 @@ def two_block_world():
     return body_1, body_2
 
 
-def test_in_contact():
+def test_in_contact() -> None:
     w = World()
 
     b1 = Body(name=PrefixedName("b1"))
@@ -179,7 +183,7 @@ def test_in_contact():
     assert InContactWith(b2, b3)()
 
 
-def test_robot_in_contact(pr2_world_copy: World):
+def test_robot_in_contact(pr2_world_copy: World) -> None:
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
     body = Body(name=PrefixedName("test_body"))
     collision1 = Box(
@@ -210,7 +214,7 @@ def test_robot_in_contact(pr2_world_copy: World):
     assert not robot_in_collision(pr2)
 
 
-def test_get_visible_objects(pr2_world_copy: World):
+def test_get_visible_objects(pr2_world_copy: World) -> None:
     body = Body(name=PrefixedName("test_body"))
     collision1 = Box(
         scale=Scale(1.0, 1.0, 1.0),
@@ -237,7 +241,7 @@ def test_get_visible_objects(pr2_world_copy: World):
     assert VisibleTo(entity=body, camera=camera)()
 
 
-def test_camera_view_frame_x_axis_is_the_forward_axis(pr2_world_copy: World):
+def test_camera_view_frame_x_axis_is_the_forward_axis(pr2_world_copy: World) -> None:
     """
     The frame the ray tracer casts along must be the camera's own frame, turned so that
     its x axis is the direction the camera looks.
@@ -254,7 +258,7 @@ def test_camera_view_frame_x_axis_is_the_forward_axis(pr2_world_copy: World):
     assert np.allclose(root_T_view[:3, 3], root_T_camera.to_np()[:3, 3], atol=1e-9)
 
 
-def test_visibility_follows_camera_orientation(pr2_world_copy: World):
+def test_visibility_follows_camera_orientation(pr2_world_copy: World) -> None:
     """
     A body off to the side is visible exactly when the head is turned towards it.
     """
@@ -386,7 +390,7 @@ def test_occluding_bodies_follows_camera_orientation(pr2_world_state_reset: Worl
     assert obstacle in occluding_bodies(camera, occluded_body)
 
 
-def test_above_and_below(two_block_world):
+def test_above_and_below(two_block_world) -> None:
     center, top = two_block_world
 
     pov = HomogeneousTransformationMatrix.from_xyz_rpy(x=-3)
@@ -402,7 +406,7 @@ def test_above_and_below(two_block_world):
     assert Below(top.center_of_mass, center.center_of_mass, pov)()
 
 
-def test_left_and_right(two_block_world):
+def test_left_and_right(two_block_world) -> None:
     center, top = two_block_world
 
     pov = HomogeneousTransformationMatrix.from_xyz_rpy(x=3, roll=np.pi / 2)
@@ -414,7 +418,7 @@ def test_left_and_right(two_block_world):
     assert LeftOf(center.center_of_mass, top.center_of_mass, pov)()
 
 
-def test_behind_and_in_front_of(two_block_world):
+def test_behind_and_in_front_of(two_block_world) -> None:
     center, top = two_block_world
 
     pov = HomogeneousTransformationMatrix.from_xyz_rpy(z=-5, pitch=np.pi / 2)
@@ -426,7 +430,7 @@ def test_behind_and_in_front_of(two_block_world):
     assert Behind(center.center_of_mass, top.center_of_mass, pov)()
 
 
-def test_body_in_region(two_block_world):
+def test_body_in_region(two_block_world) -> None:
     center, top = two_block_world
     region = Region(name=PrefixedName("test_region"))
     region_box = Box(
@@ -450,7 +454,7 @@ def test_body_in_region(two_block_world):
     assert not InsideRegion(top, region)()
 
 
-def test_supporting(two_block_world):
+def test_supporting(two_block_world) -> None:
     center, top = two_block_world
 
     with center._world.modify_world():
@@ -461,7 +465,7 @@ def test_supporting(two_block_world):
     assert not SupportedBy(center, top)()
 
 
-def test_is_body_in_gripper(pr2_world_copy):
+def test_is_body_in_gripper(pr2_world_copy) -> None:
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
 
     gripper = pr2_world_copy.get_semantic_annotations_by_type(EndEffector)
@@ -512,7 +516,7 @@ def test_is_body_in_gripper(pr2_world_copy):
     assert is_body_in_gripper(test_box, left_gripper) == 0
 
 
-def test_reachable(pr2_world_state_reset, rclpy_node):
+def test_reachable(pr2_world_state_reset, rclpy_node) -> None:
     pr2 = pr2_world_state_reset.get_semantic_annotations_by_type(PR2)[0]
 
     tool_frame_T_reachable_goal = HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -567,7 +571,7 @@ def test_reachable(pr2_world_state_reset, rclpy_node):
     )()
 
 
-def test_blocking(pr2_world_copy):
+def test_blocking(pr2_world_copy) -> None:
     pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
     obstacle = Body(name=PrefixedName("obstacle"))
     collision = Box(
@@ -603,7 +607,7 @@ def test_blocking(pr2_world_copy):
     )
 
 
-def test_region_is_occupied(pr2_world_state_reset):
+def test_region_is_occupied(pr2_world_state_reset) -> None:
     view = pr2_world_state_reset.get_semantic_annotations_by_type(PR2)[0]
 
     target_box = VolumetricBoundingBox(
@@ -630,7 +634,7 @@ def test_region_is_occupied(pr2_world_state_reset):
     )()
 
 
-def test_is_pose_free_for_robot(pr2_apartment_state_reset):
+def test_is_pose_free_for_robot(pr2_apartment_state_reset) -> None:
     view = pr2_apartment_state_reset.get_semantic_annotations_by_type(PR2)[0]
     assert is_pose_free_for_robot(
         view,
@@ -657,7 +661,7 @@ def test_is_pose_free_for_robot(pr2_apartment_state_reset):
     )
 
 
-def test_is_pose_free_for_robot_with_robot_pose(pr2_apartment_state_reset):
+def test_is_pose_free_for_robot_with_robot_pose(pr2_apartment_state_reset) -> None:
     view = pr2_apartment_state_reset.get_semantic_annotations_by_type(PR2)[0]
     assert is_pose_free_for_robot(
         view,
@@ -670,7 +674,7 @@ def test_is_pose_free_for_robot_with_robot_pose(pr2_apartment_state_reset):
     )
 
 
-def test_bodies_in_gripper(pr2_apartment_world):
+def test_bodies_in_gripper(pr2_apartment_world) -> None:
     world = deepcopy(pr2_apartment_world)
     tcp = world.get_body_by_name("l_gripper_tool_frame")
     pr2 = world.get_semantic_annotations_by_type(PR2)[0]
@@ -714,7 +718,7 @@ def test_empty_gripper_is_not_holding_something():
         def setup_hardware_interfaces(self):
             pass
 
-        def setup_joint_states(self) -> List[JointState]:
+        def setup_joint_states(self) -> list[JointState]:
             return []
 
         @classmethod
@@ -762,7 +766,7 @@ class ReviewCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self) -> List[JointState]:
+    def setup_joint_states(self) -> list[JointState]:
         return []
 
     @classmethod
@@ -772,7 +776,7 @@ class ReviewCamera(Camera):
         raise NotImplementedError
 
 
-def test_nothing_occludes_a_body_in_clear_line_of_sight():
+def test_nothing_occludes_a_body_in_clear_line_of_sight() -> None:
 
     world = World()
     root = Body(name=PrefixedName("root", prefix="review"))
@@ -830,7 +834,9 @@ def _stand_on(center: Body, top: Body, gap: float = 0.0) -> None:
         )
 
 
-def test_a_body_resting_within_the_contact_tolerance_is_supported(two_block_world):
+def test_a_body_resting_within_the_contact_tolerance_is_supported(
+    two_block_world,
+) -> None:
     """
     A body set down on a surface comes to rest a hair above it, so a support judged by
     overlapping volume alone would never hold.
@@ -841,18 +847,23 @@ def test_a_body_resting_within_the_contact_tolerance_is_supported(two_block_worl
     assert SupportedBy(top, center)()
 
 
-def test_a_body_hovering_beyond_the_contact_tolerance_is_not_supported(two_block_world):
+def test_a_body_hovering_beyond_the_contact_tolerance_is_not_supported(
+    two_block_world,
+) -> None:
     center, top = two_block_world
     _stand_on(center, top, gap=RESTING_CONTACT_TOLERANCE * 2)
 
     assert not SupportedBy(top, center)()
 
 
-def test_a_body_inside_another_s_bounding_box_but_not_touching_it_is_not_supported():
+def test_a_body_inside_another_s_bounding_box_but_not_touching_it_is_not_supported() -> (
+    None
+):
     """
-    A body rests on what it touches. A large or hollow shape, such as a wall, has a
-    bounding box enclosing a great deal of empty space, and a body standing in that
-    space is held up by nothing.
+    A body rests on what it touches.
+
+    A large or hollow shape, such as a wall, has a bounding box enclosing a great deal
+    of empty space, and a body standing in that space is held up by nothing.
     """
     world = World()
     ball = Body(name=PrefixedName("ball"))
@@ -894,7 +905,7 @@ def test_a_body_inside_another_s_bounding_box_but_not_touching_it_is_not_support
     assert not SupportedBy(beside_the_ball, ball)()
 
 
-def test_a_body_standing_in_a_container_is_supported_by_it():
+def test_a_body_standing_in_a_container_is_supported_by_it() -> None:
     """
     A body put inside a container rests on its floor, though the container's walls rise
     above the body and carry the container's own middle higher than the body's.
@@ -952,7 +963,7 @@ def test_a_body_standing_in_a_container_is_supported_by_it():
 
 def test_bodies_a_gap_apart_are_in_contact_within_a_threshold_that_spans_it(
     two_block_world,
-):
+) -> None:
     """
     The threshold says how close counts as touching, so a gap narrower than it is
     contact.
@@ -963,7 +974,7 @@ def test_bodies_a_gap_apart_are_in_contact_within_a_threshold_that_spans_it(
     assert InContactWith(center, top, maximum_distance=RESTING_CONTACT_TOLERANCE)()
 
 
-def test_a_body_does_not_support_itself(two_block_world):
+def test_a_body_does_not_support_itself(two_block_world) -> None:
     """
     Asking whether a body rests on itself is asking a collision detector to check a body
     against itself, which it refuses.
@@ -1022,7 +1033,7 @@ def _steepest_supporting_slope() -> float:
     return _supported_by_default("maximum_slope")
 
 
-def test_a_body_touched_only_on_its_side_is_not_supported_by_what_touches_it():
+def test_a_body_touched_only_on_its_side_is_not_supported_by_what_touches_it() -> None:
     """
     A kerb touching the lower half of a crate's side pushes it sideways, not up, so the
     crate does not rest on it.
@@ -1076,21 +1087,22 @@ def _box_on_a_slope(slope: float) -> tuple[Body, Body]:
     return box, slab
 
 
-def test_a_body_on_a_slope_gentler_than_the_steepest_allowed_is_supported():
+def test_a_body_on_a_slope_gentler_than_the_steepest_allowed_is_supported() -> None:
     box, slab = _box_on_a_slope(_steepest_supporting_slope() / 2)
 
     assert SupportedBy(box, slab)()
 
 
-def test_a_body_on_a_slope_steeper_than_the_steepest_allowed_is_not_supported():
+def test_a_body_on_a_slope_steeper_than_the_steepest_allowed_is_not_supported() -> None:
     box, slab = _box_on_a_slope(_steepest_supporting_slope() * 1.5)
 
     assert not SupportedBy(box, slab)()
 
 
-def test_a_body_standing_upside_down_is_supported_by_what_it_stands_on():
+def test_a_body_standing_upside_down_is_supported_by_what_it_stands_on() -> None:
     """
-    Up is the world's up: a body turned over rests on what is underneath it all the same.
+    Up is the world's up: a body turned over rests on what is underneath it all the
+    same.
     """
     world = World()
     table = _box_body("table", Scale(2.0, 2.0, 0.1))
@@ -1114,10 +1126,10 @@ def test_a_body_standing_upside_down_is_supported_by_what_it_stands_on():
 )
 def test_a_body_rests_on_a_surface_whichever_of_the_two_is_checked_first(
     crate_identifier: UUID, table_identifier: UUID
-):
+) -> None:
     """
-    A collision check lists the two bodies in an order of its own, which does not
-    change what rests on what.
+    A collision check lists the two bodies in an order of its own, which does not change
+    what rests on what.
     """
     world = World()
     table = _box_body("table", Scale(2.0, 2.0, 0.1), table_identifier)
@@ -1133,7 +1145,9 @@ def test_a_body_rests_on_a_surface_whichever_of_the_two_is_checked_first(
     assert SupportedBy(crate, table)()
 
 
-def test_a_body_taller_than_the_deepest_allowed_clipping_is_supported_by_the_floor_of_a_container():
+def test_a_body_taller_than_the_deepest_allowed_clipping_is_supported_by_the_floor_of_a_container() -> (
+    None
+):
     """
     A tall body standing on a container's floor sinks into nothing, though the
     container's walls rise along the whole of it.
@@ -1178,7 +1192,9 @@ def test_a_body_taller_than_the_deepest_allowed_clipping_is_supported_by_the_flo
     assert SupportedBy(bottle, container)()
 
 
-def test_a_body_sunk_deeper_than_the_deepest_allowed_clipping_is_not_supported():
+def test_a_body_sunk_deeper_than_the_deepest_allowed_clipping_is_not_supported() -> (
+    None
+):
     """
     Bodies sunk that far into each other are a clipping the simulation did not resolve,
     not one resting on the other.
@@ -1203,7 +1219,7 @@ def test_a_body_sunk_deeper_than_the_deepest_allowed_clipping_is_not_supported()
 # %% a spatial relation is something a query can state
 
 
-def test_a_view_dependent_spatial_relation_is_a_predicate():
+def test_a_view_dependent_spatial_relation_is_a_predicate() -> None:
     """
     A relation a statement asserts has to be a predicate rather than a bare symbol, so a
     query can state it and a search can be devised from it rather than only evaluating
@@ -1226,7 +1242,7 @@ def test_a_view_dependent_spatial_relation_is_a_predicate():
         ViewDependentSpatialRelation,
     ],
 )
-def test_every_relation_is_a_predicate(relation):
+def test_every_relation_is_a_predicate(relation) -> None:
     """
     A relation belongs in the vocabulary a statement can assert, so it is a predicate
     even where what it reads is a measurement.
@@ -1234,13 +1250,15 @@ def test_every_relation_is_a_predicate(relation):
     assert issubclass(relation, Predicate)
 
 
-def test_containment_answers_whether_it_holds_rather_than_by_how_much(two_block_world):
+def test_containment_answers_whether_it_holds_rather_than_by_how_much(
+    two_block_world,
+) -> None:
     center, top = two_block_world
 
     assert InsideOf(top, center)() in (True, False)
 
 
-def test_containment_reports_the_fraction_it_measured(two_block_world):
+def test_containment_reports_the_fraction_it_measured(two_block_world) -> None:
     """
     The judgement is a threshold over a measurement, and the measurement stays readable
     on its own for the callers that compare it against a threshold of their own.
@@ -1253,7 +1271,9 @@ def test_containment_reports_the_fraction_it_measured(two_block_world):
     )
 
 
-def test_the_threshold_is_what_turns_the_measurement_into_a_verdict(two_block_world):
+def test_the_threshold_is_what_turns_the_measurement_into_a_verdict(
+    two_block_world,
+) -> None:
     """
     The same pair reads either way depending only on how much containment is asked for,
     which is what makes the threshold the statement of intent rather than a tuned
@@ -1266,7 +1286,88 @@ def test_the_threshold_is_what_turns_the_measurement_into_a_verdict(two_block_wo
     assert not InsideOf(top, center, minimum_containment_ratio=measured + 0.01)()
 
 
-def test_support_relates_the_supported_thing_to_what_holds_it_up():
+# %% measuring containment
+
+
+def test_containment_is_the_fraction_of_vertices_within_the_other_s_bounding_box():
+    """
+    A crate sunk halfway into a box has the four corners of its lower half inside it.
+    """
+    world = World()
+    box = _box_body("box", Scale(1.0, 1.0, 1.0))
+    crate = _box_body("crate", Scale(0.5, 0.5, 0.5))
+    with world.modify_world():
+        world.add_kinematic_structure_entity(box)
+    _fix_to(box, crate, HomogeneousTransformationMatrix.from_xyz_rpy(z=0.5))
+
+    assert InsideOf(crate, box).compute_containment_ratio() == 0.5
+
+
+def test_containment_is_measured_against_the_world_aligned_bounding_box():
+    """
+    A box turned by 45° about the vertical spans its diagonal along the world's axes, so
+    a crate beside one of its faces but within that diagonal counts as inside.
+    """
+    world = World()
+    room = Body(name=PrefixedName("room"))
+    box = _box_body("box", Scale(1.0, 1.0, 1.0))
+    crate = _box_body("crate", Scale(0.1, 0.1, 0.1))
+    with world.modify_world():
+        world.add_kinematic_structure_entity(room)
+    _fix_to(room, box, HomogeneousTransformationMatrix.from_xyz_rpy(yaw=np.pi / 4))
+    _fix_to(room, crate, HomogeneousTransformationMatrix.from_xyz_rpy(x=0.6, y=0.6))
+
+    assert InsideOf(crate, box).compute_containment_ratio() == 1.0
+
+
+def _sphere_body(name: str, radius: float, subdivisions: int) -> Body:
+    """
+    A body shaped as one finely tessellated sphere about its own origin.
+    """
+    body = Body(name=PrefixedName(name))
+    body.collision = ShapeCollection(
+        [
+            Mesh.from_trimesh(
+                mesh=trimesh.creation.icosphere(
+                    subdivisions=subdivisions, radius=radius
+                ),
+                origin=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    reference_frame=body
+                ),
+            )
+        ],
+        reference_frame=body,
+    )
+    return body
+
+
+def test_measuring_containment_allocates_less_than_a_copy_of_both_meshes():
+    """
+    Containment is measured many times a second while events are segmented, so it must
+    not copy the meshes it compares.
+    """
+    world = World()
+    bowl = _sphere_body("bowl", radius=1.0, subdivisions=6)
+    ball = _sphere_body("ball", radius=0.2, subdivisions=5)
+    with world.modify_world():
+        world.add_kinematic_structure_entity(bowl)
+    _fix_to(bowl, ball, HomogeneousTransformationMatrix.from_xyz_rpy())
+    relation = InsideOf(ball, bowl)
+    relation.compute_containment_ratio()
+    geometry_size = sum(
+        mesh.vertices.nbytes + mesh.faces.nbytes
+        for mesh in (bowl.combined_mesh, ball.combined_mesh)
+    )
+
+    tracemalloc.start()
+    relation.compute_containment_ratio()
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    assert peak < geometry_size
+
+
+def test_support_relates_the_supported_thing_to_what_holds_it_up() -> None:
     supported = Body(name=PrefixedName("supported"))
     supporting = Body(name=PrefixedName("supporting"))
 
@@ -1287,7 +1388,7 @@ def test_support_relates_the_supported_thing_to_what_holds_it_up():
 )
 def test_a_relation_is_generic_in_the_kinds_of_thing_it_relates(
     relation, type_parameters
-):
+) -> None:
     """
     A relation leaves open which kind of body, region or camera it relates, up to the
     bound of each type parameter, so a narrower relation can bind them.
@@ -1298,7 +1399,7 @@ def test_a_relation_is_generic_in_the_kinds_of_thing_it_relates(
 # %% how a relation reads
 
 
-def test_reachability_reads_the_pose_as_what_is_reachable():
+def test_reachability_reads_the_pose_as_what_is_reachable() -> None:
     """
     Reachability is stated about the pose, by the tip that has to arrive at it, so the
     pose is the subject of the sentence rather than the chain that reaches for it.
@@ -1321,7 +1422,9 @@ def test_reachability_reads_the_pose_as_what_is_reachable():
         (Supports, "a Body is supporting a body"),
     ],
 )
-def test_a_relation_named_for_its_object_still_reads_as_a_sentence(relation, sentence):
+def test_a_relation_named_for_its_object_still_reads_as_a_sentence(
+    relation, sentence
+) -> None:
     """
     A relation whose name is not verb-first cannot have its verb read off that name, so
     it states its own clause rather than inheriting one that renders ungrammatically.

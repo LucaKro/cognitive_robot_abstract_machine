@@ -6,7 +6,6 @@ watches, so one body's relations are never reported lost by the detector of anot
 from __future__ import annotations
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from typing_extensions import List, Type
 
 from segmind.datastructures.events import (
     ContactEvent,
@@ -40,7 +39,7 @@ How many ticks a test runs while nothing in the world moves.
 
 
 def _ticked_while_nothing_moves(
-    world: World, detector_types: List[Type[AbstractDetector]], watched: List[Body]
+    world: World, detector_types: list[type[AbstractDetector]], watched: list[Body]
 ) -> SegmindContext:
     """
     Tick every detector type for every watched body a few times, with nothing moving.
@@ -63,8 +62,8 @@ def _ticked_while_nothing_moves(
 
 
 def _events_of(
-    segmind_context: SegmindContext, event_type: Type[DetectionEvent], body: Body
-) -> List[DetectionEvent]:
+    segmind_context: SegmindContext, event_type: type[DetectionEvent], body: Body
+) -> list[DetectionEvent]:
     return [
         event
         for event in segmind_context.logger.get_events()
@@ -107,15 +106,16 @@ def test_a_support_that_lasts_is_not_reported_lost_by_another_bodys_detector(
 
 
 def test_a_containment_that_lasts_is_not_reported_lost_by_another_bodys_detector(
-    milk_in_the_apartment,
+    box_and_trays,
 ):
-    world, milk, box = milk_in_the_apartment
-    box_x, box_y, box_z = box.global_pose.position.to_np()[:3]
-    _place(milk, box_x, box_y, box_z)
+    world = box_and_trays.world
+    box = box_and_trays.box
+    tray = box_and_trays.tray
+    box.parent_connection.origin = box_and_trays.set_down_in_the_tray
 
     segmind_context = _ticked_while_nothing_moves(
-        world, [ContainmentDetector], [milk, box]
+        world, [SupportDetector, ContainmentDetector], [box, tray]
     )
 
-    assert len(_events_of(segmind_context, ContainmentEvent, milk)) == 1
-    assert _events_of(segmind_context, LossOfContainmentEvent, milk) == []
+    assert len(_events_of(segmind_context, ContainmentEvent, box)) == 1
+    assert _events_of(segmind_context, LossOfContainmentEvent, box) == []

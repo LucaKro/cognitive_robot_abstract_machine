@@ -154,13 +154,13 @@ def test_a_grouping_that_carries_no_geometry_takes_the_extent_of_what_it_holds()
                 whole="apartment/side_B",
                 part="apartment/cabinet_8",
                 relation="part",
-                field_name="units",
+                field_name="cabinets",
             ),
             GroundTruthEdge(
                 whole="apartment/side_B",
                 part="apartment/cabinet_9",
                 relation="part",
-                field_name="units",
+                field_name="cabinets",
             ),
         ],
     )
@@ -190,7 +190,7 @@ def test_a_grouping_reaches_what_is_held_below_what_it_holds():
                 whole="apartment/side_B",
                 part="apartment/cabinet_8",
                 relation="part",
-                field_name="units",
+                field_name="cabinets",
             ),
             GroundTruthEdge(
                 whole="apartment/cabinet_8",

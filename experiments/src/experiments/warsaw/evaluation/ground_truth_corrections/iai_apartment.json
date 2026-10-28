@@ -57,7 +57,7 @@
         "whole": "apartment/side_B",
         "part": "apartment/cabinet7",
         "relation": "part",
-        "field_name": "units"
+        "field_name": "cabinets"
       },
       "reason": "A unit built into the island, which the URDF hangs off its frame without saying what the frame is."
     },
@@ -68,7 +68,7 @@
         "whole": "apartment/side_B",
         "part": "apartment/cabinet8",
         "relation": "part",
-        "field_name": "units"
+        "field_name": "cabinets"
       },
       "reason": "A unit built into the island, which the URDF hangs off its frame without saying what the frame is."
     },
@@ -79,7 +79,7 @@
         "whole": "apartment/side_B",
         "part": "apartment/cabinet9",
         "relation": "part",
-        "field_name": "units"
+        "field_name": "cabinets"
       },
       "reason": "A unit built into the island, which the URDF hangs off its frame without saying what the frame is."
     },
@@ -90,7 +90,7 @@
         "whole": "apartment/side_B",
         "part": "apartment/cabinet10",
         "relation": "part",
-        "field_name": "units"
+        "field_name": "cabinets"
       },
       "reason": "A unit built into the island, which the URDF hangs off its frame without saying what the frame is."
     },
@@ -101,7 +101,7 @@
         "whole": "apartment/side_B",
         "part": "apartment/cabinet11",
         "relation": "part",
-        "field_name": "units"
+        "field_name": "cabinets"
       },
       "reason": "A unit built into the island, which the URDF hangs off its frame without saying what the frame is."
     },

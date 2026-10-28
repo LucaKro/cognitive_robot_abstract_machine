@@ -7931,7 +7931,7 @@
       "whole": "kitchen_island",
       "part": "sideboard_cabinet",
       "relation": "part",
-      "field_name": "units"
+      "field_name": "cabinets"
     },
     {
       "__json_type__": "experiments.warsaw.evaluation.ground_truth.GroundTruthEdge",
