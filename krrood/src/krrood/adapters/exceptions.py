@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing_extensions import Any
+from typing_extensions import Any, TYPE_CHECKING
 
 from krrood.adapters.json_field import JSONField
 from krrood.exceptions import DataclassException
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 @dataclass
@@ -123,3 +126,22 @@ class UntrackedObjectError(JSONSerializationError):
             "Deserialize the referenced object before the objects that refer to it, "
             "within the same JSON document."
         )
+
+
+@dataclass
+class ObjectArraySerializationError(JSONSerializationError):
+    """
+    Raised when a numpy array of Python objects is serialized, whose bytes are
+    references rather than values.
+    """
+
+    element_type: np.dtype
+    """
+    The element type of the array.
+    """
+
+    def error_message(self) -> str:
+        return f"Serializing a numpy array of element type {self.element_type} is not supported."
+
+    def suggest_correction(self) -> str:
+        return "Consider converting the array to a list first and serializing that."
