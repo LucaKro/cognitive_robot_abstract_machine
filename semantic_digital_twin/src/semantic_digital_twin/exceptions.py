@@ -721,7 +721,59 @@ class CollisionDiffersFromVisualError(UsageError):
     def suggest_correction(self) -> str:
         return (
             "split the parts off before decomposing the collision shapes, or give the "
-            "PartSplitter a decomposer that decomposes each piece again."
+            "PartSplitter or BodyCutter a decomposer that decomposes each piece again."
+        )
+
+
+@dataclass
+class BodyWithoutShapeError(UsageError):
+    """
+    Raised when pieces are to be cut off a body that has no shape.
+    """
+
+    body_name: PrefixedName
+    """
+    The name of the body.
+    """
+
+    def error_message(self) -> str:
+        return f"'{self.body_name}' has no shape to cut pieces off."
+
+    def suggest_correction(self) -> str:
+        return "cut the pieces off the body that holds the mesh they refer to."
+
+
+@dataclass
+class PieceOutsideShapeError(UsageError):
+    """
+    Raised when a piece to cut off a body's shape takes a face the shape does not have.
+    """
+
+    body_name: PrefixedName
+    """
+    The name of the body that is cut.
+    """
+
+    piece_name: PrefixedName
+    """
+    The name of the body the piece is cut into.
+    """
+
+    face_count: int
+    """
+    How many faces the body's shape has.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The piece '{self.piece_name}' takes faces beyond the {self.face_count} "
+            f"faces of the shape of '{self.body_name}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "give the piece indices of faces of the body's shape as it is loaded, "
+            "counting its shapes in order."
         )
 
 
