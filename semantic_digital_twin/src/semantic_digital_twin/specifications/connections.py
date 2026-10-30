@@ -337,7 +337,7 @@ class ScrewConnectionSpecification(ActiveConnection1DOFSpecification[ScrewConnec
     """
 
 
-# %% joints
+# %% connection specifications with endpoints
 
 
 @dataclass
