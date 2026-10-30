@@ -581,7 +581,7 @@ def test_mesh_in_frame_in_the_shapes_own_frame_matches_its_local_mesh():
         Box(scale=Scale(1.0, 2.0, 3.0)),
         Box(
             scale=Scale(1.0, 1.0, 1.0),
-            color=Color(0.1, 0.2, 0.3, 0.4),
+            color=Color.from_rgba(red=0.1, green=0.2, blue=0.3, opacity=0.4),
             texture=Texture(file_path="/textures/wood.png"),
         ),
     ],
@@ -657,7 +657,7 @@ def test_dye_paints_a_mesh_whose_trimesh_is_already_built(tmp_path):
     mesh = Mesh.from_trimesh(
         mesh=trimesh.creation.box(extents=(1.0, 1.0, 1.0)), directory=tmp_path
     )
-    color = Color(R=1.0, G=0.0, B=0.0, A=1.0)
+    color = Color.from_rgba(red=1.0, green=0.0, blue=0.0, opacity=1.0)
     # Build and cache the mesh before dyeing, which repaints what is cached.
     mesh.mesh.vertices
 
@@ -677,7 +677,7 @@ def test_dye_paints_a_primitive():
     that field rather than only the mesh it happens to have handed out.
     """
     box = Box(scale=Scale(1.0, 1.0, 1.0))
-    color = Color(R=0.0, G=0.0, B=1.0, A=1.0)
+    color = Color.from_rgba(red=0.0, green=0.0, blue=1.0, opacity=1.0)
 
     box.dye(color)
 
@@ -738,7 +738,9 @@ def test_closest_css3_name_names_a_color_the_palette_defines():
     """
     A color the palette defines exactly is named by that very entry.
     """
-    red = Color(*(component / 255 for component in webcolors.name_to_rgb("red")))
+    red = Color.from_rgba(
+        *(component / 255 for component in webcolors.name_to_rgb("red"))
+    )
 
     assert red.closest_css3_name() == "red"
 
@@ -748,7 +750,9 @@ def test_closest_css3_name_names_the_nearest_color_the_palette_defines():
     A color the palette does not define takes the name of the nearest one.
     """
     red, green, blue = webcolors.name_to_rgb("steelblue")
-    off_steelblue = Color(*((red + 1) / 255, (green + 1) / 255, (blue - 1) / 255))
+    off_steelblue = Color.from_rgba(
+        *((red + 1) / 255, (green + 1) / 255, (blue - 1) / 255)
+    )
 
     assert off_steelblue.closest_css3_name() == "steelblue"
 

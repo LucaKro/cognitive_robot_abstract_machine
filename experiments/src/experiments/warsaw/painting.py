@@ -45,7 +45,7 @@ BRIGHTNESS = 0.95
 How light the colours are, kept high so dark shapes stay legible.
 """
 
-UNNAMED_GREY = Color(R=0.55, G=0.55, B=0.55)
+UNNAMED_GREY = Color.from_rgba(red=0.55, green=0.55, blue=0.55)
 """
 What a body carrying no class is painted, so it is plainly one that was never named.
 """

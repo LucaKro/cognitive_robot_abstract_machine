@@ -1,13 +1,14 @@
 from __future__ import annotations, absolute_import
 
+# %% Imports
 from dataclasses import dataclass, field, Field
 from datetime import timedelta
 from http import HTTPStatus
 from pathlib import Path
-from typing_extensions import TYPE_CHECKING, Callable, Any
 from uuid import UUID
 
 import mujoco
+from typing_extensions import TYPE_CHECKING, Callable, Any
 
 from krrood.adapters.exceptions import UntrackedObjectError
 from krrood.exceptions import DataclassException
@@ -49,7 +50,10 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_modification import (
         WorldModification,
     )
-    from semantic_digital_twin.collision_checking.collision_matrix import CollisionCheck
+    from semantic_digital_twin.collision_checking.collision_matrix import (
+        CollisionCheck,
+        CollisionRule,
+    )
 
 
 @dataclass
@@ -296,6 +300,99 @@ class InvalidCameraResolutionError(UsageError):
 
     def suggest_correction(self) -> str:
         return "provide positive width and height values."
+
+
+@dataclass
+class InvalidCameraFieldOfViewError(UsageError):
+    """
+    Raised when camera viewing angles cannot describe a projection.
+    """
+
+    horizontal_angle: float
+    """
+    Invalid horizontal viewing angle in radians.
+    """
+
+    vertical_angle: float
+    """
+    Invalid vertical viewing angle in radians.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Camera field-of-view angles must be between zero and pi radians, "
+            f"got horizontal={self.horizontal_angle} and vertical={self.vertical_angle}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "provide positive viewing angles smaller than pi radians."
+
+
+@dataclass
+class InvalidCameraDistortionError(UsageError):
+    """
+    Raised when distortion coefficients do not match their model.
+    """
+
+    model: str
+    """
+    Distortion model whose coefficients are invalid.
+    """
+
+    reason: str
+    """
+    Reason the distortion value is invalid.
+    """
+
+    def error_message(self) -> str:
+        return f"Invalid camera distortion model '{self.model}': {self.reason}."
+
+    def suggest_correction(self) -> str:
+        return "provide finite coefficients defined by the distortion model."
+
+
+@dataclass
+class InvalidPinholeCameraModelError(UsageError):
+    """
+    Raised when pinhole calibration parameters cannot describe an image.
+    """
+
+    reason: str
+    """
+    Reason the calibration is invalid.
+    """
+
+    def error_message(self) -> str:
+        return f"Invalid pinhole camera model: {self.reason}."
+
+    def suggest_correction(self) -> str:
+        return "provide positive focal lengths and a principal point within the image."
+
+
+@dataclass
+class InvalidCameraRangeError(UsageError):
+    """
+    Raised when a camera distance interval is empty or negative.
+    """
+
+    minimum_distance: float
+    """
+    Invalid minimum distance in meters.
+    """
+
+    maximum_distance: float
+    """
+    Invalid maximum distance in meters.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Camera range requires a non-negative minimum below its maximum, "
+            f"got minimum={self.minimum_distance} and maximum={self.maximum_distance}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "provide an ordered, non-negative distance interval."
 
 
 @dataclass
@@ -1976,9 +2073,9 @@ class WorldEntityWithIDNotInKwargs(UntrackedObjectError):
     """
     The name the reference to that entity went by when it was written.
 
-    Says which entity is meant where the id alone says nothing. ``None`` where the
-    reference carries no name, and never used to look an entity up: the id is its
-    identity.
+    Says which entity is meant where the id alone says nothing. ``None``
+    where the reference carries no name, and never used to look an
+    entity up: the id is its identity.
     """
 
     def error_message(self) -> str:
@@ -2069,6 +2166,37 @@ class BodyHasNoGeometryError(InvalidCollisionCheckError):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class TemporaryCollisionRulesDependOnOrder(CollisionCheckingError):
+    """
+    Raised when temporary collision rules are put in force next to others, and which
+    body pairs are checked at which distance would depend on which of them came first.
+    """
+
+    rules_in_force: list[CollisionRule]
+    """
+    The temporary rules that were in force already.
+    """
+
+    added_rules: list[CollisionRule]
+    """
+    The temporary rules that were to be put in force next to them.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The temporary collision rules {self.added_rules} and the ones already "
+            f"in force, {self.rules_in_force}, decide differently about the same "
+            f"body pairs, so the outcome would depend on which were added first."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Put rules that overrule each other in force together, in the order "
+            "they are meant to apply, or do not let them be in force at once."
+        )
 
 
 @dataclass
