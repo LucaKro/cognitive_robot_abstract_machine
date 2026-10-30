@@ -159,7 +159,7 @@ spoon = STLParser(
     os.path.join(
         os.path.dirname(coraplex.__file__), "..", "..", "resources", "objects", "spoon.stl"
     )
-).parse()
+).to_domain_object()
 
 with world.modify_world():
     world.merge_world(

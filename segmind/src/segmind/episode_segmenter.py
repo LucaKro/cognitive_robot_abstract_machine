@@ -109,7 +109,9 @@ class EpisodeSceneLoader:
             if file_resolver is not None
             else {}
         )
-        obj_world = URDFParser.from_file(str(file), **resolver_kwargs).parse()
+        obj_world = URDFParser.from_file(
+            str(file), **resolver_kwargs
+        ).to_domain_object()
         connection = (
             FixedConnection(parent=self.world.root, child=obj_world.root)
             if obj_name in self.fixed_objects

@@ -100,7 +100,7 @@ scene_xml_str = """
 </worldbody>
 </mujoco>
 """
-world = MJCFParser.from_xml_string(scene_xml_str).parse()
+world = MJCFParser.from_xml_string(scene_xml_str).to_domain_object()
 
 
 rt = RayTracer(world)
