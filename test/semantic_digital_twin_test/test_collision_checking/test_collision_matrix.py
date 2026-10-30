@@ -42,6 +42,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowAlwaysInCollision,
     AllowNeverInCollision,
     AllowCollisionForAdjacentPairs,
+    AllowCollisionBetweenFingers,
 )
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
     ExternalCollisionVariableManager,
@@ -343,6 +344,40 @@ class TestCollisionRules:
             if body != held_body
         }
 
+    def test_the_fingers_of_a_gripper_may_touch_each_other(self, pr2_world_copy):
+        """
+        A gripper's finger tips may touch each other, but not the palm they are mounted
+        on, nor the fingers of the other gripper.
+        """
+        pr2 = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
+        rule = AllowCollisionBetweenFingers(robot=pr2)
+        rule.update(pr2_world_copy)
+
+        def check(name_a: str, name_b: str) -> CollisionCheck:
+            return CollisionCheck.create_for_bodies_with_collision(
+                pr2_world_copy.get_body_by_name(name_a),
+                pr2_world_copy.get_body_by_name(name_b),
+            )
+
+        allowed = rule.allowed_collision_pairs
+        assert (
+            check("r_gripper_l_finger_tip_link", "r_gripper_r_finger_tip_link")
+            in allowed
+        )
+        assert (
+            check("l_gripper_l_finger_tip_link", "l_gripper_r_finger_tip_link")
+            in allowed
+        )
+        assert (
+            check("r_gripper_l_finger_tip_link", "l_gripper_r_finger_tip_link")
+            not in allowed
+        )
+        palms = {
+            pr2_world_copy.get_body_by_name(name)
+            for name in ("r_gripper_palm_link", "l_gripper_palm_link")
+        }
+        assert not any({c.body_a, c.body_b} & palms for c in allowed)
+
     def test_AvoidExternalCollisions_with_attached_body(self, pr2_apartment_world):
         pr2 = pr2_apartment_world.get_semantic_annotations_by_type(PR2)[0]
         collision_matrix = CollisionMatrix()
@@ -412,7 +447,9 @@ class TestCollisionRules:
             == 4
         )
 
-    def test_compute_self_collision_matrix(self, pr2_world_state_reset, rclpy_node):
+    def test_compute_self_collision_matrix(
+        self, pr2_world_state_reset, rclpy_node, tmp_path
+    ):
         VizMarkerPublisher(_world=pr2_world_state_reset, node=rclpy_node)
         pr2 = pr2_world_state_reset.get_semantic_annotations_by_type(PR2)[0]
         base_link = pr2_world_state_reset.get_body_by_name("base_link")
@@ -428,7 +465,11 @@ class TestCollisionRules:
         expected_check = CollisionCheck.create_and_validate(base_link, head_pan_link)
         assert expected_check in rule.allowed_collision_pairs
         assert 0 < len(rule.allowed_collision_pairs) < len(collision_checks)
-        rule.save_self_collision_matrix(robot_name=pr2.name.name, file_name="test.srdf")
+        written = tmp_path / "pr2.srdf"
+        rule.save_self_collision_matrix(
+            robot_name=pr2.name.name, file_name=str(written)
+        )
+        assert written.exists()
 
         rule = SelfCollisionMatrixRule()
         rule.allowed_collision_bodies = {base_link}

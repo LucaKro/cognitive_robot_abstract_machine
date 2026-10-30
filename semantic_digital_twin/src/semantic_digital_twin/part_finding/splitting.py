@@ -16,7 +16,10 @@ from trimesh.visual.texture import TextureVisuals
 from typing_extensions import TYPE_CHECKING, Callable, TypeVar
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.exceptions import CollisionDiffersFromVisualError
+from semantic_digital_twin.exceptions import (
+    CollisionDiffersFromVisualError,
+    PieceOutsideShapeError,
+)
 from semantic_digital_twin.part_finding.relationships import PartRelationshipInspector
 from semantic_digital_twin.pipeline.mesh_decomposition.base import MeshDecomposer
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -31,6 +34,7 @@ if TYPE_CHECKING:
         HasRootBody,
         PartWholeRelationship,
     )
+    from semantic_digital_twin.world import World
 
 T = TypeVar("T")
 
@@ -183,7 +187,8 @@ class PartSplitter:
             return None
         world = whole.root._world
         with world.modify_world():
-            part = self.part_type(root=cut.apply())
+            [part_body] = cut.apply()
+            part = self.part_type(root=part_body)
             world.add_semantic_annotation(part)
             whole.add(part, field_name=relationship.name)
         return part
@@ -200,7 +205,8 @@ class PartSplitter:
         if cut is None:
             return None
         with body._world.modify_world():
-            return cut.apply()
+            [part] = cut.apply()
+            return part
 
     def _cut(self, body: Body) -> CutBody | None:
         """
@@ -210,28 +216,141 @@ class PartSplitter:
         :raises CollisionDiffersFromVisualError: If the body's collision shapes differ
             from its visual shapes and there is no :attr:`decomposer`.
         """
-        shapes = body.visual or body.collision
-        if not shapes:
+        cutter = BodyCutter(decomposer=self.decomposer)
+        colored = cutter.shape_to_cut(body)
+        if colored is None:
             return None
-        has_own_collision = self._has_own_collision(body)
-        if has_own_collision and self.decomposer is None:
-            raise CollisionDiffersFromVisualError(body.name)
-        colored = ColoredShape(shapes=shapes)
         split = self.finder.split(colored.mesh)
         if split is None:
             return None
         part = Body(name=self._part_name(body), inertial=Inertial.negligible())
-        part.visual = colored.piece(split.part_faces, part)
-        rest = colored.piece(split.rest_faces, body)
+        return cutter.cut(
+            body, colored, [ShapePiece(body=part, faces=split.part_faces)]
+        )
+
+    def _part_name(self, body: Body) -> PrefixedName:
+        """
+        :param body: The body the part is split off.
+        :return: The part's type, under the body's name.
+        """
+        return PrefixedName(self.part_type.__name__.lower(), str(body.name))
+
+
+# %% cutting a body into pieces
+
+
+@dataclass
+class ShapePiece:
+    """
+    Faces of a body's shape, and the new body they are cut into.
+    """
+
+    body: Body
+    """
+    The body the faces are cut into, not yet in any world.
+    """
+
+    faces: NDArray[np.int64]
+    """
+    The indices of the faces of the cut body's :attr:`ColoredShape.mesh`.
+    """
+
+
+@dataclass
+class BodyCutter:
+    """
+    Cuts pieces off the shape of a body into new bodies fixed to it; the body keeps the
+    faces no piece takes.
+
+    The visual shapes are cut, and the pieces collide as they look. A body whose
+    collision shapes differ from its visual shapes, such as a convex decomposition, is
+    only cut with a :attr:`decomposer`.
+    """
+
+    decomposer: MeshDecomposer | None = None
+    """
+    Gives the pieces and the rest new collision shapes from their visual shapes, for
+    bodies whose collision shapes differ from their visual shapes.
+    """
+
+    def shape_to_cut(self, body: Body) -> ColoredShape | None:
+        """
+        :param body: The body to cut.
+        :return: The body's shape the faces of pieces refer to; ``None`` if the body
+            has no shape.
+        :raises CollisionDiffersFromVisualError: If the body's collision shapes differ
+            from its visual shapes and there is no :attr:`decomposer`.
+        """
+        shapes = body.visual or body.collision
+        if not shapes:
+            return None
+        if self._has_own_collision(body) and self.decomposer is None:
+            raise CollisionDiffersFromVisualError(body.name)
+        return ColoredShape(shapes=shapes)
+
+    def cut(
+        self, body: Body, colored: ColoredShape, pieces: list[ShapePiece]
+    ) -> CutBody:
+        """
+        :param body: The body to cut.
+        :param colored: The body's shape, from :meth:`shape_to_cut`.
+        :param pieces: The pieces to cut off; a piece without faces gets no shape.
+        :return: The pieces' bodies and the rest of the shape, not yet in the world.
+        :raises PieceOutsideShapeError: If a piece takes a face the shape does not have.
+        """
+        face_count = len(colored.mesh.faces)
+        taken = np.zeros(face_count, dtype=bool)
+        for piece in pieces:
+            if len(piece.faces) > 0 and piece.faces.max() >= face_count:
+                raise PieceOutsideShapeError(
+                    body_name=body.name,
+                    piece_name=piece.body.name,
+                    face_count=face_count,
+                )
+            taken[piece.faces] = True
+        has_own_collision = self._has_own_collision(body)
+        had_collision = bool(body.collision)
+        for piece in pieces:
+            piece.body.visual = colored.piece(piece.faces, piece.body)
+            piece.body.collision = self._collision(
+                piece.body.visual, piece.body, has_own_collision, had_collision
+            )
+        rest = colored.piece(np.flatnonzero(~taken), body)
+        return CutBody(
+            body=body,
+            parts=[piece.body for piece in pieces],
+            visual=rest,
+            collision=self._collision(rest, body, has_own_collision, had_collision),
+        )
+
+    def _collision(
+        self,
+        visual: ShapeCollection,
+        body: Body,
+        has_own_collision: bool,
+        had_collision: bool,
+    ) -> ShapeCollection:
+        """
+        :param visual: The visual shapes of a piece.
+        :param body: The body the piece belongs to.
+        :param has_own_collision: Whether the cut body's collision shapes differ from
+            its visual shapes.
+        :param had_collision: Whether the cut body had collision shapes.
+        :return: How the piece collides: decomposed by :attr:`decomposer`, as it looks,
+            or not at all, following the cut body.
+        """
         if has_own_collision:
-            part.collision = self._decomposed(part.visual, part)
-            rest_collision = self._decomposed(rest, body)
-        elif body.collision:
-            part.collision = part.visual
-            rest_collision = rest
-        else:
-            rest_collision = ShapeCollection()
-        return CutBody(body=body, part=part, visual=rest, collision=rest_collision)
+            return ShapeCollection(
+                [
+                    convex
+                    for shape in visual
+                    for convex in self.decomposer.apply_to_shape(shape)
+                ],
+                reference_frame=body,
+            )
+        if had_collision:
+            return visual
+        return ShapeCollection(reference_frame=body)
 
     @staticmethod
     def _has_own_collision(body: Body) -> bool:
@@ -251,33 +370,12 @@ class PartSplitter:
             and np.array_equal(visual.faces, collision.faces)
         )
 
-    def _decomposed(self, shapes: ShapeCollection, body: Body) -> ShapeCollection:
-        """
-        :param shapes: The visual shapes of a piece.
-        :param body: The body the piece belongs to.
-        :return: The collision shapes :attr:`decomposer` makes of them.
-        """
-        return ShapeCollection(
-            [
-                convex
-                for shape in shapes
-                for convex in self.decomposer.apply_to_shape(shape)
-            ],
-            reference_frame=body,
-        )
-
-    def _part_name(self, body: Body) -> PrefixedName:
-        """
-        :param body: The body the part is split off.
-        :return: The part's type, under the body's name.
-        """
-        return PrefixedName(self.part_type.__name__.lower(), str(body.name))
-
 
 @dataclass
 class CutBody:
     """
-    A body's shape cut into the part's body and the rest, to be applied to the world.
+    A body's shape cut into the bodies of its pieces and the rest, to be applied to the
+    world.
     """
 
     body: Body
@@ -285,34 +383,57 @@ class CutBody:
     The body whose shape is cut.
     """
 
-    part: Body
+    parts: list[Body]
     """
-    The part's body, not yet in the world.
+    The bodies of the pieces, not yet in the world.
     """
 
     visual: ShapeCollection
     """
-    What the body looks like without the part.
+    What the body looks like without the pieces.
     """
 
     collision: ShapeCollection
     """
-    How the body collides without the part.
+    How the body collides without the pieces.
     """
 
-    def apply(self) -> Body:
+    def apply(self) -> list[Body]:
         """
-        Give the body the rest of its shape and fix the part's body to it.
+        Give the body the rest of its shape and fix the bodies of the pieces to it.
 
         Must be called while the world is being modified.
 
-        :return: The part's body.
+        :return: The bodies of the pieces.
         """
         self.body.update_shapes(visual=self.visual, collision=self.collision)
-        self.body._world.add_connection(
-            FixedConnection(parent=self.body, child=self.part)
-        )
-        return self.part
+        self._fix_parts_to_body(self.body._world)
+        return self.parts
+
+    def add_to_world(self, world: World) -> list[Body]:
+        """
+        Add the body, with the rest of its shape, and the bodies of the pieces fixed to it
+        to a world the body is not in yet.
+
+        Unlike :meth:`apply`, this records no change of the body's shapes.
+
+        Must be called while the world is being modified.
+
+        :param world: The world to add the body to.
+        :return: The bodies of the pieces.
+        """
+        self.body.visual = self.visual
+        self.body.collision = self.collision
+        world.add_body(self.body)
+        self._fix_parts_to_body(world)
+        return self.parts
+
+    def _fix_parts_to_body(self, world: World) -> None:
+        """
+        :param world: The world the body is in.
+        """
+        for part in self.parts:
+            world.add_connection(FixedConnection(parent=self.body, child=part))
 
 
 @dataclass
@@ -333,18 +454,68 @@ class ColoredShape:
         :return: The shapes as one mesh in the body's frame, each face colored as its
             shape looks there.
         """
-        meshes = []
+        # Built from the arrays of the shapes' meshes, because trimesh converts the
+        # colours of every copy of a mesh with per-vertex colours.
+        vertices, faces, face_colors = [], [], []
+        vertex_count = 0
         for shape in self.shapes:
-            mesh = shape.mesh.copy()
-            if isinstance(mesh.visual, TextureVisuals):
-                mesh.visual = mesh.visual.to_color()
-            if mesh.visual.kind is None:
-                mesh.visual.face_colors = trimesh.visual.color.to_rgba(
-                    shape.color.to_rgba()
-                )
-            mesh.apply_transform(shape.origin.to_np())
-            meshes.append(mesh)
-        return trimesh.util.concatenate(meshes)
+            vertices.append(
+                trimesh.transform_points(shape.mesh.vertices, shape.origin.to_np())
+            )
+            faces.append(shape.mesh.faces + vertex_count)
+            face_colors.append(self._face_colors(shape))
+            vertex_count += len(shape.mesh.vertices)
+        return trimesh.Trimesh(
+            vertices=np.concatenate(vertices),
+            faces=np.concatenate(faces),
+            face_colors=np.concatenate(face_colors),
+            process=False,
+        )
+
+    @staticmethod
+    def _face_colors(shape: Shape) -> NDArray[np.uint8]:
+        """
+        :param shape: One of :attr:`shapes`.
+        :return: The RGBA colour of each face of the shape's mesh, as the shape looks.
+        """
+        visual = shape.mesh.visual
+        if isinstance(visual, TextureVisuals):
+            # The colours trimesh bakes a texture into belong to no mesh, so they
+            # cannot tell the colour of a face themselves.
+            return trimesh.visual.color.vertex_to_face_color(
+                visual.to_color().vertex_colors, shape.mesh.faces
+            )
+        if visual.kind is None:
+            return np.tile(
+                trimesh.visual.color.to_rgba(shape.color.to_rgba()),
+                (len(shape.mesh.faces), 1),
+            )
+        return np.asarray(visual.face_colors)
+
+    # Cutting reads the arrays of :attr:`mesh` once as plain numpy arrays: trimesh would
+    # otherwise hash the whole of :attr:`mesh` again for every piece, to check that its
+    # caches are still valid.
+
+    @cached_property
+    def faces(self) -> NDArray[np.int64]:
+        """
+        :return: The vertex indices of each face of :attr:`mesh`.
+        """
+        return self.mesh.faces.view(np.ndarray)
+
+    @cached_property
+    def vertices(self) -> NDArray[np.float64]:
+        """
+        :return: The positions of the vertices of :attr:`mesh`.
+        """
+        return self.mesh.vertices.view(np.ndarray)
+
+    @cached_property
+    def face_colors(self) -> NDArray[np.uint8]:
+        """
+        :return: The RGBA colour of each face of :attr:`mesh`.
+        """
+        return np.asarray(self.mesh.visual.face_colors).view(np.ndarray)
 
     def piece(self, faces: NDArray[np.int64], body: Body) -> ShapeCollection:
         """
@@ -353,11 +524,18 @@ class ColoredShape:
             :attr:`mesh`.
         :return: The piece as the shapes of ``body``, colored like its faces, and with
             the surface finish and simulator properties that all of :attr:`shapes`
-            share.
+            share; no shapes for a piece without faces.
         """
-        mesh = self.mesh.submesh([faces], append=True)
+        if len(faces) == 0:
+            return ShapeCollection(reference_frame=body)
+        piece_vertices, piece_faces = np.unique(self.faces[faces], return_inverse=True)
+        mesh = trimesh.Trimesh(
+            vertices=self.vertices[piece_vertices],
+            faces=piece_faces.reshape(-1, 3),
+            process=False,
+        )
         mesh.visual = trimesh.visual.ColorVisuals(
-            mesh, face_colors=self.mesh.visual.face_colors[faces]
+            mesh, face_colors=self.face_colors[faces]
         )
         shape = Mesh.from_trimesh(
             mesh=mesh,

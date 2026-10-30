@@ -1,0 +1,39 @@
+{
+  "sceneId": "scannetpp.table_and_cup",
+  "appId": "stk.v1",
+  "annId": 1,
+  "segGroups": [
+    {
+      "id": 1,
+      "objectId": 1,
+      "label": "table",
+      "segments": [10],
+      "obb": {
+        "centroid": [0.5, 0.5, 0.0],
+        "axesLengths": [1.0, 1.0, 0.0],
+        "normalizedAxes": [1, 0, 0, 0, 1, 0, 0, 0, 1],
+        "min": [0.0, 0.0, 0.0],
+        "max": [1.0, 1.0, 0.0]
+      },
+      "dominantNormal": [0, 0, 1],
+      "partId": 1,
+      "index": 0
+    },
+    {
+      "id": 2,
+      "objectId": 2,
+      "label": "cup",
+      "segments": [20, 21],
+      "obb": {
+        "centroid": [0.25, 1.0, 0.5],
+        "axesLengths": [1.0, 0.5, 0.0],
+        "normalizedAxes": [0, 0, 1, 1, 0, 0, 0, 1, 0],
+        "min": [0.0, 1.0, 0.0],
+        "max": [0.5, 1.0, 1.0]
+      },
+      "dominantNormal": [0, 1, 0],
+      "partId": 2,
+      "index": 1
+    }
+  ]
+}

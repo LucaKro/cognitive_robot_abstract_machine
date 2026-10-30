@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import difflib
 import inspect
+import json
 import logging
 import threading
 import uuid
 from contextlib import contextmanager
 from copy import deepcopy, copy
+from pathlib import Path
 from dataclasses import dataclass, field
 from functools import wraps, cached_property
 from itertools import chain
@@ -349,9 +351,7 @@ def atomic_world_modification(func=None, modification: type[WorldModification] =
         def wrapper(current_world: World, *args, **kwargs):
             if current_world._current_active_atomic_world_modification is not None:
                 raise AtomicWorldModificationNotAtomic(func, current_world)
-            if (
-                not current_world._model_manager._active_world_model_update_context_manager_ids
-            ):
+            if not current_world._model_manager._active_world_model_update_context_manager_ids:
                 raise MissingWorldModificationContextError(func)
             current_world._current_active_atomic_world_modification = func
 
@@ -2685,6 +2685,45 @@ class World(HasSimulatorProperties):
                 "label": str(connection.__class__.__name__)
             },
         )
+
+    def export_kinematic_structure_tree_to_json(
+        self, output_path: Path, include_connections: bool = True
+    ) -> None:
+        """
+        Export the kinematic structure tree to a JSON representation.
+
+        :param output_path: Path to the output file.
+        :param include_connections: Whether each entity also names the connection it
+            hangs from.
+        :raises ValueError: If the world holds nothing to export.
+        """
+
+        def _export_node(kse: KinematicStructureEntity) -> Dict[str, Any]:
+
+            json_dict = {
+                "name": kse.name.name,
+                "children": [
+                    _export_node(child)
+                    for child in kse.child_kinematic_structure_entities
+                ],
+            }
+
+            if include_connections:
+                json_dict["parent_connection"] = (
+                    kse.parent_connection.__class__.__name__
+                    if kse.parent_connection
+                    else None
+                )
+
+            return json_dict
+
+        if self.is_empty():
+            raise ValueError("Cannot export an empty world.")
+
+        root = self.root
+        kinematic_tree = _export_node(root)
+        with output_path.open("w") as f:
+            json.dump(kinematic_tree, f, indent=4)
 
     # %% Associations
 

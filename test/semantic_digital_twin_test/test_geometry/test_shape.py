@@ -1,3 +1,4 @@
+import gc
 import math
 import os
 import tracemalloc
@@ -7,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import trimesh
+import webcolors
 from PIL import Image
 from trimesh.visual import TextureVisuals
 from trimesh.visual.material import SimpleMaterial
@@ -21,10 +23,12 @@ from semantic_digital_twin.world_description.geometry import (
     Color,
     Cylinder,
     Mesh,
+    MeshFileFormat,
     Scale,
     Sphere,
     SurfaceFinish,
     Texture,
+    TrimeshMetadataKey,
 )
 from semantic_digital_twin.world_description.mesh_file_storage import MeshFileStorage
 from semantic_digital_twin.world_description.world_entity import Body
@@ -99,9 +103,8 @@ def test_mesh_color_survives_serialization(tmp_path):
     """
     Per-vertex mesh color survives the to_json/from_json round-trip.
 
-    Color travels inside the serialized geometry (re-exported as OBJ, which the
-    collision loader and visualizer can read), so a receiver renders it without needing
-    the original mesh file.
+    Color travels inside the serialized geometry (re-exported as GLB, which keeps it),
+    so a receiver renders it without needing the original mesh file.
     """
     source = trimesh.creation.box(extents=(1.0, 1.0, 1.0))
     source.visual.vertex_colors = np.tile([200, 50, 50, 255], (len(source.vertices), 1))
@@ -109,7 +112,7 @@ def test_mesh_color_survives_serialization(tmp_path):
     mesh = Mesh.from_trimesh(mesh=source, directory=tmp_path, file_type="ply")
     restored = Mesh.from_json(mesh.to_json())
 
-    assert restored.filename.endswith(".obj")
+    assert Path(restored.filename).suffix == f".{MeshFileFormat.GLB}"
     assert (restored.mesh.visual.vertex_colors[:, :3] == [200, 50, 50]).all()
 
 
@@ -174,6 +177,12 @@ def test_exported_mesh_basenames_are_unique(tmp_path):
     )
 
     assert Path(first.filename).stem != Path(second.filename).stem
+
+
+def test_a_mesh_made_from_a_trimesh_is_written_as_glb(tmp_path):
+    mesh = Mesh.from_trimesh(mesh=trimesh.creation.box(), directory=tmp_path)
+
+    assert Path(mesh.filename).suffix == f".{MeshFileFormat.GLB}"
 
 
 def test_explicit_directory_overrides_session_root(tmp_path):
@@ -406,6 +415,52 @@ def test_mesh_volume(tmp_path):
     assert mesh.volume == pytest.approx(8.0)
 
 
+# %% what a mesh read from a file keeps
+
+
+def test_a_mesh_read_from_a_ply_file_keeps_no_copy_of_the_raw_file(tmp_path):
+    mesh = Mesh.from_trimesh(
+        mesh=trimesh.creation.box(), directory=tmp_path, file_type="ply"
+    )
+
+    assert TrimeshMetadataKey.RAW_PLY_FILE not in mesh.mesh.metadata
+
+
+def test_a_file_of_one_mesh_in_place_is_read_without_merging_its_scene(
+    tmp_path, monkeypatch
+):
+    """
+    Every serialization of a mesh reads its file again, and merging the file's scene
+    copies the mesh twice, converting its colours each time.
+    """
+    mesh = Mesh.from_trimesh(mesh=trimesh.creation.box(), directory=tmp_path)
+
+    def merge_scene(scene: trimesh.Scene) -> trimesh.Trimesh:
+        raise AssertionError("the scene of a file of one mesh in place was merged")
+
+    monkeypatch.setattr(trimesh.Scene, "to_mesh", merge_scene)
+
+    np.testing.assert_array_equal(
+        mesh.unscaled_mesh.faces, trimesh.creation.box().faces
+    )
+
+
+def test_a_file_of_several_meshes_reads_as_all_of_them_in_place(tmp_path):
+    scene = trimesh.Scene()
+    scene.add_geometry(trimesh.creation.box(extents=(1.0, 1.0, 1.0)), node_name="first")
+    scene.add_geometry(
+        trimesh.creation.box(extents=(1.0, 1.0, 1.0)),
+        node_name="moved",
+        transform=trimesh.transformations.translation_matrix([3.0, 0.0, 0.0]),
+    )
+    file_path = tmp_path / "two_boxes.glb"
+    scene.export(str(file_path))
+
+    mesh = Mesh(filename=str(file_path))
+
+    np.testing.assert_allclose(mesh.unscaled_mesh.bounds, scene.bounds)
+
+
 # %% the units a mesh file declares
 
 
@@ -526,7 +581,7 @@ def test_mesh_in_frame_in_the_shapes_own_frame_matches_its_local_mesh():
         Box(scale=Scale(1.0, 2.0, 3.0)),
         Box(
             scale=Scale(1.0, 1.0, 1.0),
-            color=Color(0.1, 0.2, 0.3, 0.4),
+            color=Color.from_rgba(red=0.1, green=0.2, blue=0.3, opacity=0.4),
             texture=Texture(file_path="/textures/wood.png"),
         ),
     ],
@@ -542,6 +597,179 @@ def test_a_shape_survives_a_json_round_trip(shape):
 
     assert restored == shape
     assert restored.to_json() == payload
+
+
+def test_a_mesh_restored_from_json_is_written_as_glb_whatever_file_it_came_from(
+    tmp_path,
+):
+    mesh = Mesh.from_trimesh(
+        mesh=trimesh.creation.box(), directory=tmp_path, file_type="stl"
+    )
+
+    restored = Mesh.from_json(mesh.to_json())
+
+    assert Path(restored.filename).suffix == f".{MeshFileFormat.GLB}"
+
+
+def test_a_mesh_keeps_its_positions_exactly_through_a_json_round_trip(tmp_path):
+    """
+    A mesh holds the positions its file stores, so serializing it loses nothing more,
+    however far from the origin it lies.
+    """
+    sphere = trimesh.creation.icosphere(subdivisions=2, radius=0.3)
+    sphere.apply_translation([10.123456789, -7.3, 2.0])
+    mesh = Mesh.from_trimesh(mesh=sphere, directory=tmp_path)
+
+    restored = Mesh.from_json(mesh.to_json())
+
+    np.testing.assert_array_equal(restored.mesh.vertices, mesh.mesh.vertices)
+
+
+def test_serializing_a_mesh_holds_less_than_twice_the_memory_of_its_arrays(tmp_path):
+    """
+    A mesh is serialized whenever it changes or is synchronized, so its json must not
+    take many times the memory of the mesh itself.
+    """
+    sphere = trimesh.creation.icosphere(subdivisions=5)
+    sphere.visual.vertex_colors = np.tile([200, 50, 50, 128], (len(sphere.vertices), 1))
+    mesh = Mesh.from_trimesh(mesh=sphere, directory=tmp_path)
+    arrays = [mesh.mesh.vertices, mesh.mesh.faces, mesh.mesh.visual.vertex_colors]
+
+    tracemalloc.start()
+    payload = mesh.to_json()
+    gc.collect()
+    held, _ = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    assert held < 2 * sum(np.asarray(array).nbytes for array in arrays)
+
+
+# %% painting a shape in one color
+
+
+def test_dye_paints_a_mesh_whose_trimesh_is_already_built(tmp_path):
+    """
+    Dyeing a mesh whose trimesh has already been built repaints that trimesh.
+
+    A mesh applies its color while building its trimesh and then keeps it, so changing
+    the color alone would leave an already built mesh in its old color.
+    """
+    mesh = Mesh.from_trimesh(
+        mesh=trimesh.creation.box(extents=(1.0, 1.0, 1.0)), directory=tmp_path
+    )
+    color = Color.from_rgba(red=1.0, green=0.0, blue=0.0, opacity=1.0)
+    # Build and cache the mesh before dyeing, which repaints what is cached.
+    mesh.mesh.vertices
+
+    mesh.dye(color)
+
+    np.testing.assert_array_equal(
+        np.asarray(mesh.mesh.visual.face_colors),
+        np.tile(
+            trimesh.visual.color.to_rgba(color.to_rgba()), (len(mesh.mesh.faces), 1)
+        ),
+    )
+
+
+def test_dye_paints_a_primitive():
+    """
+    A primitive builds its mesh from its color on every access, so dyeing it must reach
+    that field rather than only the mesh it happens to have handed out.
+    """
+    box = Box(scale=Scale(1.0, 1.0, 1.0))
+    color = Color.from_rgba(red=0.0, green=0.0, blue=1.0, opacity=1.0)
+
+    box.dye(color)
+
+    assert box.color == color
+    np.testing.assert_array_equal(
+        np.asarray(box.mesh.visual.vertex_colors),
+        np.tile(
+            trimesh.visual.color.to_rgba(color.to_rgba()), (len(box.mesh.vertices), 1)
+        ),
+    )
+
+
+# %% telling colors apart
+
+
+def test_distinct_colors_returns_the_requested_number_of_different_colors():
+    colors = Color.distinct_colors(6)
+
+    assert len(colors) == 6
+    assert len({color.to_rgba() for color in colors}) == 6
+
+
+# %% building a named color
+
+
+def test_named_colors_build_the_class_they_are_asked_of():
+    """
+    A named color builds the class it is asked of, so a subclass of Color gets one of
+    its own kind rather than a plain color.
+    """
+
+    class SubclassedColor(Color):
+        pass
+
+    named_colors = [
+        SubclassedColor.RED(),
+        SubclassedColor.GREEN(),
+        SubclassedColor.BLUE(),
+        SubclassedColor.YELLOW(),
+        SubclassedColor.CYAN(),
+        SubclassedColor.MAGENTA(),
+        SubclassedColor.WHITE(),
+        SubclassedColor.BLACK(),
+        SubclassedColor.GRAY(),
+        SubclassedColor.BEIGE(),
+        SubclassedColor.ORANGE(),
+    ]
+
+    assert [type(color) for color in named_colors] == [SubclassedColor] * len(
+        named_colors
+    )
+
+
+# %% naming a color
+
+
+def test_closest_css3_name_names_a_color_the_palette_defines():
+    """
+    A color the palette defines exactly is named by that very entry.
+    """
+    red = Color.from_rgba(
+        *(component / 255 for component in webcolors.name_to_rgb("red"))
+    )
+
+    assert red.closest_css3_name() == "red"
+
+
+def test_closest_css3_name_names_the_nearest_color_the_palette_defines():
+    """
+    A color the palette does not define takes the name of the nearest one.
+    """
+    red, green, blue = webcolors.name_to_rgb("steelblue")
+    off_steelblue = Color.from_rgba(
+        *((red + 1) / 255, (green + 1) / 255, (blue - 1) / 255)
+    )
+
+    assert off_steelblue.closest_css3_name() == "steelblue"
+
+
+def test_distinct_colors_of_a_group_get_distinct_css3_names():
+    """
+    A group of distinct colors is named by as many distinct names.
+
+    Callers hand these names out as the only handle on the thing each color marks, so
+    two colors sharing a name makes two things indistinguishable rather than merely
+    alike.
+    """
+    colors = Color.distinct_colors(8)
+
+    names = {color.closest_css3_name() for color in colors}
+
+    assert len(names) == 8
 
 
 # %% a prism of equilateral cross-section

@@ -4,6 +4,7 @@ import unittest
 from dataclasses import dataclass
 
 import numpy as np
+import trimesh
 from importlib.resources import files
 from pathlib import Path
 
@@ -20,12 +21,15 @@ from semantic_digital_twin.pipeline.pipeline import (
     BodyFilter,
     CenterLocalGeometryAndPreserveWorldPose,
     BodyFactoryReplace,
+    TransformGeometry,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.geometry import Box, Scale
+from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -183,3 +187,51 @@ class PipelineTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# %% transforming the geometry of a whole world
+
+
+def test_transform_geometry_transforms_the_mesh(jeroen_cup_world_fixture):
+    """
+    The step carries every mesh vertex through the given transformation.
+    """
+    [cup] = jeroen_cup_world_fixture.bodies
+    [shape] = cup.collision
+    original_vertices = shape.mesh.vertices.copy()
+    transform = HomogeneousTransformationMatrix.from_xyz_rpy(roll=np.pi / 2)
+
+    Pipeline([TransformGeometry(transform)]).apply(jeroen_cup_world_fixture)
+
+    np.testing.assert_allclose(
+        shape.mesh.vertices,
+        trimesh.transform_points(original_vertices, transform.to_np()),
+        atol=1e-9,
+    )
+
+
+def test_transform_geometry_moves_a_primitive_shape():
+    """
+    A collision shape that is not a mesh is carried by the same transformation.
+
+    A primitive builds its mesh fresh on every access, so moving that mesh moves
+    nothing; what stands for its placement is its origin.
+    """
+    world = World()
+    box = Body(name=PrefixedName("box", "krrood_test"))
+    box.collision = ShapeCollection(
+        shapes=[Box(scale=Scale(1.0, 1.0, 1.0))], reference_frame=box
+    )
+    with world.modify_world():
+        world.add_body(box)
+
+    original_origin = box.collision[0].origin.to_np().copy()
+    transform = HomogeneousTransformationMatrix.from_xyz_rpy(x=1.0, y=2.0, z=3.0)
+
+    Pipeline([TransformGeometry(transform)]).apply(world)
+
+    np.testing.assert_allclose(
+        box.collision[0].origin.to_np(),
+        transform.to_np() @ original_origin,
+        atol=1e-9,
+    )

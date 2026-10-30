@@ -38,6 +38,7 @@ dependencies = [
     "sqlalchemy",
     "embreex",  # Hardware acceleration for trimesh raycasting
     "rtree",  # For spatial indexing in trimesh
+    "xxhash",  # Fast hashing for trimesh, which hashes meshes to check its caches
     "random_events",
     "plotly",
     "daqp",
@@ -54,12 +55,14 @@ dependencies = [
     "pycollada",
     "psycopg",
     "plyfile",
+    "requests",
     "huggingface-hub",
     "vhacdx",
     "rerun-sdk[datafusion]",
     "imageio",
     "imageio-ffmpeg",
     "psutil~=5.9.0",
+    "webcolors",
     "giskardpy",
     "krrood",
     "physics_simulators",

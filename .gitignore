@@ -18,6 +18,9 @@ msg/*Result.msg
 msg/_*.py
 *muh*
 *.txt
+# HM3D writes a scene's annotations as a '.semantic.txt' beside the mesh, so the
+# fixture the reader is tested against has to be one, and has to be checked in.
+!test/experiments_test/dataset/warsaw_habitat/*.semantic.txt
 *.png
 *.lprof
 tmp_data/
@@ -170,6 +173,19 @@ CLAUDE.local.md
 # Tracking a generated file made every branch switch fail while a checkout held its own
 # copy, which is what git refuses to overwrite.
 **/ormatic_interface.py
+# The Warsaw pipeline's scenes and its output. A run writes a directory of its own beside
+# the scene it read, and none of it belongs in the repository: the scans are hundreds of
+# megabytes and a run's conclusions are a run's, not the project's.
+experiments/src/experiments/warsaw/dataset/
+experiments/src/experiments/warsaw/pipeline_runs/
+# The self-collision matrix a collision test saves. It is written into whatever directory
+# the tests were started from, so it lands at the root of a checkout and gets swept into a
+# commit; the matrices the project keeps live in
+# semantic_digital_twin/resources/collision_configs/ under the robot's own name.
+test.srdf
+
+# The ground-truth mesh picked over to choose landmarks, rebuilt from the URDF export.
+experiments/src/experiments/warsaw/evaluation/landmarks/*.ply
 
 # Local data produced by the Python coverage checks.
 /.coverage

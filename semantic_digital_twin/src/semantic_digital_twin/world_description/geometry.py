@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+from colorsys import hsv_to_rgb, rgb_to_hsv
 import logging
 import math
 import os
@@ -10,20 +11,22 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass, field, fields, Field
 from enum import StrEnum, auto
-from functools import cached_property
+from functools import cache, cached_property
 from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
 import trimesh
 import trimesh.exchange.stl
+import webcolors
 from PIL import Image
 from plyfile import PlyData
 from trimesh.visual.texture import TextureVisuals, SimpleMaterial
-from typing_extensions import Any, Self, TYPE_CHECKING, TypeVar
+from typing_extensions import Any, Self, TYPE_CHECKING, TypeVar, Sequence
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 from krrood.bounds import Bounds, BoundsInterface
+from krrood.ormatic.utils import classproperty
 from random_events.interval import SimpleInterval, Bound, closed
 from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.datastructures.variables import SpatialVariables
@@ -36,6 +39,7 @@ from semantic_digital_twin.spatial_types import (
     Point3,
     Vector3,
 )
+from semantic_digital_twin.world_description.exceptions import InvalidColorChannelCount
 from semantic_digital_twin.world_description.mesh_file_storage import (
     MeshFileSources,
     MeshFileStorage,
@@ -54,140 +58,146 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# %% Color representation
 
-@dataclass
+
+@dataclass(unsafe_hash=True)
 class Color:
     """
-    Dataclass for storing rgba_color as an RGBA value.
+    A color stored in HSV with RGB channel access and independent opacity.
 
-    The values are stored as floats between 0 and 1. The default rgba_color is white.
-    """
-
-    R: float = 1.0
-    """
-    Red value of the color.
+    Channel values are normalized from zero to one. The default color is opaque white.
+    Equality and hashing compare the stored hue, saturation, value, and opacity.
     """
 
-    G: float = 1.0
+    hue: float = 0.0
     """
-    Green value of the color.
-    """
-
-    B: float = 1.0
-    """
-    Blue value of the color.
+    Position around the hue wheel, from zero inclusive to one exclusive.
     """
 
-    A: float = 1.0
+    saturation: float = 0.0
     """
-    Opacity of the color.
+    Color saturation from zero to one inclusive.
     """
 
-    def __post_init__(self):
+    value: float = 1.0
+    """
+    Color value from zero to one inclusive.
+    """
+
+    opacity: float = 1.0
+    """
+    Opacity from zero to one inclusive.
+    """
+
+    def set_rgb(self, red: float, green: float, blue: float) -> None:
         """
-        Make sure the color values are floats, because ros2 sucks.
+        Replace the color's RGB channels while preserving opacity.
         """
-        self.R = float(self.R)
-        self.G = float(self.G)
-        self.B = float(self.B)
-        self.A = float(self.A)
+        self.hue, self.saturation, self.value = rgb_to_hsv(
+            float(red), float(green), float(blue)
+        )
 
-    def __hash__(self):
-        return hash((self.R, self.G, self.B, self.A))
+    @property
+    def R(self) -> float:
+        """
+        Red intensity in the RGB representation.
+        """
+        return self.to_rgb()[0]
+
+    @property
+    def G(self) -> float:
+        """
+        Green intensity in the RGB representation.
+        """
+        return self.to_rgb()[1]
+
+    @property
+    def B(self) -> float:
+        """
+        Blue intensity in the RGB representation.
+        """
+        return self.to_rgb()[2]
+
+    @property
+    def A(self) -> float:
+        """
+        Opacity of the color.
+        """
+        return self.opacity
 
     def to_rgba(self) -> tuple[float, float, float, float]:
-        return (self.R, self.G, self.B, self.A)
+        """
+        Return RGB channels followed by opacity.
+        """
+        return (*self.to_rgb(), self.opacity)
 
     def to_rgb(self) -> tuple[float, float, float]:
-        return (self.R, self.G, self.B)
+        """
+        Return RGB channels converted from the stored HSV coordinates.
+        """
+        return hsv_to_rgb(self.hue, self.saturation, self.value)
+
+    @classproperty
+    def opencv_maximum_channel_value(cls) -> int:
+        """Largest channel value in an 8-bit OpenCV HSV_FULL image."""
+        return np.iinfo(np.uint8).max
+
+    @classproperty
+    def opencv_hue_channel_count(cls) -> int:
+        """Number of hue steps in one turn of an 8-bit OpenCV HSV_FULL image."""
+        return cls.opencv_maximum_channel_value + 1
+
+    @classmethod
+    def from_opencv_hue_saturation_value_full(
+        cls, hue: int, saturation: int, value: int
+    ) -> Self:
+        """Create a color from OpenCV's 8-bit HSV_FULL channels."""
+        return cls(
+            hue=hue / cls.opencv_hue_channel_count,
+            saturation=saturation / cls.opencv_maximum_channel_value,
+            value=value / cls.opencv_maximum_channel_value,
+        )
+
+    def to_opencv_hue_saturation_value_full(self) -> tuple[int, int, int]:
+        """Return OpenCV's 8-bit HSV_FULL channels, excluding opacity."""
+        return (
+            int(self.hue * self.opencv_hue_channel_count),
+            round(self.saturation * self.opencv_maximum_channel_value),
+            round(self.value * self.opencv_maximum_channel_value),
+        )
 
     def to_hex(self, prefix: str = "#") -> str:
         """
-        :param prefix: The characters the digits are written behind.
-        :return: The color written as ``#RRGGBB``, two hex digits per channel.
-
-        ..note:: The opacity is not part of it, the same way it is not part of
-            :meth:`to_rgb`.
+        Return two hexadecimal digits per RGB channel, excluding opacity.
         """
         return prefix + "".join(
             f"{round(channel * 255):02X}" for channel in self.to_rgb()
         )
 
     @classmethod
-    def RED(self):
-        return Color(1, 0, 0)
-
-    @classmethod
-    def YELLOW(self):
-        return Color(1, 1, 0)
-
-    @classmethod
-    def GREEN(self):
-        return Color(0, 1, 0)
-
-    @classmethod
-    def CYAN(self):
-        return Color(0, 1, 1)
-
-    @classmethod
-    def BLUE(self):
-        return Color(0, 0, 1)
-
-    @classmethod
-    def MAGENTA(self):
-        return Color(1, 0, 1)
-
-    @classmethod
-    def WHITE(self):
-        return Color(1, 1, 1)
-
-    @classmethod
-    def BLACK(self):
-        return Color(0, 0, 0)
-
-    @classmethod
-    def GRAY(self):
-        return Color(0.498, 0.498, 0.498)
-
-    @classmethod
-    def BEIGE(self):
-        return Color(1, 0.827, 0.6078)
-
-    @classmethod
-    def ORANGE(self):
-        return Color(1, 0.647, 0)
-
-    @classmethod
-    def from_list(cls, color: list[float]):
+    def from_list(cls, color: Sequence[float]) -> Self:
         """
-        Set the rgba_color from a list of RGBA values.
-
-        :param color: The list of RGBA values
+        Create a color from three RGB or four RGBA channels.
         """
-        if len(color) == 3:
-            return cls.from_rgb(color)
-        elif len(color) == 4:
-            return cls.from_rgba(color)
-        else:
-            raise ValueError("Color list must have 3 or 4 elements")
+        if len(color) not in (3, 4):
+            raise InvalidColorChannelCount(channel_count=len(color))
+        return cls.from_rgba(*color)
 
     @classmethod
-    def from_rgb(cls, rgb: list[float]):
+    def from_rgba(
+        cls,
+        red: float = 1.0,
+        green: float = 1.0,
+        blue: float = 1.0,
+        opacity: float = 1.0,
+    ) -> Self:
         """
-        Set the rgba_color from a list of RGB values.
-
-        :param rgb: The list of RGB values
+        Create a color from normalized RGB channels and independent opacity.
         """
-        return cls(*rgb, 1)
-
-    @classmethod
-    def from_rgba(cls, rgba: list[float]):
-        """
-        Set the rgba_color from a list of RGBA values.
-
-        :param rgba: The list of RGBA values
-        """
-        return cls(*rgba)
+        color = cls(opacity=float(opacity))
+        color.set_rgb(red, green, blue)
+        return color
 
     @classmethod
     def from_hex(
@@ -197,17 +207,9 @@ class Color:
         pattern: str = "(?:[0-9a-fA-F]{2}){3,4}",
     ) -> Self:
         """
-        Read a color written as two hex digits per channel, red first.
+        Read RGB or RGBA hexadecimal pairs, with an optional prefix.
 
-        A fourth pair of digits sets the opacity; without it the color is fully opaque.
-
-        :param hex_color: The color, optionally preceded by a ``#`` and written in
-            either case.
-        :param prefix: The characters the digits may be written behind.
-        :param pattern: What the digits have to look like, by default three or four
-            channels of two hex digits each.
-        :raises MalformedHexColor: If the string is not written that way.
-        :return: The color it names.
+        :raises MalformedHexColor: If the supplied text is not hexadecimal color data.
         """
         digits = hex_color.removeprefix(prefix)
         if re.fullmatch(pattern, digits) is None:
@@ -221,43 +223,137 @@ class Color:
 
     @classmethod
     def PINK(cls) -> Self:
-        return cls(1, 0, 1, 1)
+        """
+        Create an opaque pink color.
+        """
+        return cls.from_rgba(red=1, green=0, blue=1, opacity=1)
 
     @classmethod
     def BLACK(cls) -> Self:
-        return cls(0, 0, 0, 1)
+        """
+        Create an opaque black color.
+        """
+        return cls.from_rgba(red=0, green=0, blue=0, opacity=1)
 
     @classmethod
     def WHITE(cls) -> Self:
-        return cls(1, 1, 1, 1)
+        """
+        Create an opaque white color.
+        """
+        return cls.from_rgba(red=1, green=1, blue=1, opacity=1)
 
     @classmethod
     def RED(cls) -> Self:
-        return cls(1, 0, 0, 1)
+        """
+        Create an opaque red color.
+        """
+        return cls.from_rgba(red=1, green=0, blue=0, opacity=1)
 
     @classmethod
     def GREEN(cls) -> Self:
-        return cls(0, 1, 0, 1)
+        """
+        Create an opaque green color.
+        """
+        return cls.from_rgba(red=0, green=1, blue=0, opacity=1)
 
     @classmethod
     def BLUE(cls) -> Self:
-        return cls(0, 0, 1, 1)
+        """
+        Create an opaque blue color.
+        """
+        return cls.from_rgba(red=0, green=0, blue=1, opacity=1)
 
     @classmethod
     def YELLOW(cls) -> Self:
-        return cls(1, 1, 0, 1)
+        """
+        Create an opaque yellow color.
+        """
+        return cls.from_rgba(red=1, green=1, blue=0, opacity=1)
 
     @classmethod
     def CYAN(cls) -> Self:
-        return cls(0, 1, 1, 1)
+        """
+        Create an opaque cyan color.
+        """
+        return cls.from_rgba(red=0, green=1, blue=1, opacity=1)
 
     @classmethod
     def MAGENTA(cls) -> Self:
-        return cls(1, 0, 1, 1)
+        """
+        Create an opaque magenta color.
+        """
+        return cls.from_rgba(red=1, green=0, blue=1, opacity=1)
 
     @classmethod
-    def GREY(cls) -> Self:
-        return cls(0.5, 0.5, 0.5, 1)
+    def GRAY(cls) -> Self:
+        """
+        Create an opaque middle gray color.
+        """
+        return cls.from_rgba(red=0.5, green=0.5, blue=0.5, opacity=1)
+
+    @classmethod
+    def BEIGE(cls) -> Self:
+        """
+        Create an opaque beige color.
+        """
+        return cls.from_rgba(red=1, green=0.827, blue=0.6078, opacity=1)
+
+    @classmethod
+    def ORANGE(cls) -> Self:
+        """
+        Create an opaque orange color.
+        """
+        return cls.from_rgba(red=1, green=0.647, blue=0, opacity=1)
+
+    @classmethod
+    def distinct_colors(cls, count: int) -> list[Self]:
+        """
+        :param count: How many colors to generate.
+        :return: That many colors, spread far enough apart to tell them apart in a
+            rendering.
+
+        Hues are spaced by the golden ratio, which keeps consecutive colors far apart
+        instead of crowding one part of the spectrum, and the brightness alternates so
+        that neighbouring hues stay distinguishable as the count grows.
+        """
+        golden_ratio_conjugate = (5**0.5 - 1) / 2
+        return [
+            cls(
+                hue=(index * golden_ratio_conjugate) % 1.0,
+                saturation=0.75,
+                value=0.95 - 0.15 * (index % 2),
+            )
+            for index in range(count)
+        ]
+
+    @staticmethod
+    @cache
+    def _css3_palette() -> dict[str, tuple[int, int, int]]:
+        """
+        :return: Every color the CSS3 specification names, mapped to its red, green and
+            blue values.
+        """
+        return {
+            name: tuple(webcolors.name_to_rgb(name, spec=webcolors.CSS3))
+            for name in webcolors.names(webcolors.CSS3)
+        }
+
+    def closest_css3_name(self) -> str:
+        """
+        :return: The name CSS3 gives the color nearest to this one, measured as the
+            squared distance between their red, green and blue values.
+
+        ..note:: Colors from :meth:`distinct_colors` take distinct names only up to
+            ten of them, past which two of them start to share a name.
+        """
+        palette = self._css3_palette()
+        rgb = tuple(int(round(component * 255)) for component in self.to_rgb())
+        return min(
+            palette,
+            key=lambda name: sum(
+                (own - other) ** 2 for own, other in zip(rgb, palette[name])
+            ),
+        )
 
 
 @dataclass
@@ -315,6 +411,73 @@ class SurfaceFinish(StrEnum):
     """
     Reflects light directionally, so the surface shows what stands on and above it
     rather than its own color.
+    """
+
+
+class MeshFileFormat(StrEnum):
+    """
+    A file format meshes are stored in, named by its file extension.
+    """
+
+    GLB = auto()
+    """
+    Binary glTF: per-vertex colours and textures in one file, positions as 32-bit
+    floats.
+    """
+
+    OBJ = auto()
+    """
+    Wavefront OBJ, as text: positions rounded to eight decimals, colours without
+    alpha, textures in a material and an image file beside it.
+    """
+
+    STL = auto()
+    """
+    Stereolithography: triangles without colours, each with vertices of its own.
+    """
+
+    DAE = auto()
+    """
+    COLLADA.
+    """
+
+    PLY = auto()
+    """
+    Polygon File Format.
+    """
+
+
+@dataclass
+class _MeshGeometry:
+    """
+    The geometry a :class:`Mesh` is serialized as, in place of the file it reads.
+    """
+
+    vertices: npt.NDArray[np.float64]
+    """
+    The positions of the vertices, before the mesh's scale is applied.
+    """
+
+    faces: npt.NDArray[np.int64]
+    """
+    The vertex indices of each triangle.
+    """
+
+    vertex_colors: npt.NDArray[np.uint8] | None = None
+    """
+    The RGBA colour of each vertex, or ``None`` for an uncoloured mesh.
+    """
+
+
+class TrimeshMetadataKey(StrEnum):
+    """
+    A key of the metadata trimesh attaches to a mesh it reads.
+    """
+
+    RAW_PLY_FILE = "_ply_raw"
+    """
+    Every element of the PLY file the mesh was read from, which trimesh copies into
+    every mesh cut from it.
     """
 
 
@@ -565,6 +728,22 @@ class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
             shapes=[self], reference_frame=self.origin.reference_frame
         )
 
+    def dye(self, color: Color) -> None:
+        """
+        Paint this shape in *color*, replacing the color, material or texture its mesh
+        carries.
+
+        :param color: The color to paint the shape in.
+        """
+        self.color = color
+        # Built once: a primitive rebuilds its mesh on every access, so repainting one
+        # freshly built mesh would paint an object nothing else ever sees.
+        mesh = self.mesh
+        mesh.visual = trimesh.visual.ColorVisuals(
+            mesh=mesh,
+            face_colors=np.tile(color.to_rgba(), (len(mesh.faces), 1)),
+        )
+
     def recenter_origin(self) -> None:
         """
         Moves the origin so the shape's local-frame bounding box is centered on it.
@@ -633,9 +812,22 @@ class Mesh(Shape):
 
         :param filename: The path of the mesh file.
         :param process: Whether trimesh merges vertices and drops degenerate faces.
-        :return: The loaded mesh, measured in meters.
+        :return: The loaded mesh, measured in meters, without a copy of the raw file.
         """
-        mesh = trimesh.load_mesh(filename, process=process)
+        scene = trimesh.load_scene(filename, process=process)
+        placements = [scene.graph[node] for node in scene.graph.nodes_geometry]
+        # Merging the scene into one mesh copies even a file's only mesh twice, and
+        # trimesh converts the colours of every copy, so a lone mesh in place is taken
+        # as it is.
+        if (
+            len(placements) == 1
+            and np.allclose(placements[0][0], np.eye(4))
+            and isinstance(scene.geometry[placements[0][1]], trimesh.Trimesh)
+        ):
+            mesh = scene.geometry[placements[0][1]]
+        else:
+            mesh = scene.to_mesh()
+        mesh.metadata.pop(TrimeshMetadataKey.RAW_PLY_FILE, None)
         if mesh.units is not None:
             mesh.convert_units("meters")
         return mesh
@@ -661,41 +853,31 @@ class Mesh(Shape):
         # survives serialization (e.g. across the ROS world synchronizer).
         if isinstance(base_mesh.visual, TextureVisuals):
             base_mesh.visual = base_mesh.visual.to_color()
-        mesh_dict = base_mesh.to_dict()
-        if base_mesh.visual.kind is not None:
-            mesh_dict["vertex_colors"] = np.asarray(
-                base_mesh.visual.vertex_colors
-            ).tolist()
-        file_type = self.filename.split(".")[-1]
-        return {
-            **super().to_json(**kwargs),
-            "mesh": mesh_dict,
-            "scale": to_json(self.scale, **kwargs),
-            "file_type": file_type,
-        }
+        geometry = _MeshGeometry(
+            vertices=base_mesh.vertices.view(np.ndarray),
+            faces=base_mesh.faces.view(np.ndarray),
+            vertex_colors=(
+                None
+                if base_mesh.visual.kind is None
+                else np.asarray(base_mesh.visual.vertex_colors)
+            ),
+        )
+        return {**super().to_json(**kwargs), "mesh": to_json(geometry, **kwargs)}
 
     @classmethod
     def _from_json(cls, data: dict[str, Any], **kwargs) -> Mesh:
+        geometry = from_json(data["mesh"], **kwargs)
         # Recreate the trimesh without processing to preserve exact topology
-        vertex_colors = data["mesh"].get("vertex_colors")
         mesh = trimesh.Trimesh(
-            vertices=data["mesh"]["vertices"],
-            faces=data["mesh"]["faces"],
-            vertex_colors=vertex_colors,
+            vertices=geometry.vertices,
+            faces=geometry.faces,
+            vertex_colors=geometry.vertex_colors,
             process=False,
         )
-        origin = from_json(data["origin"], **kwargs)
-        scale = from_json(data["scale"], **kwargs)
-        file_type = data["file_type"]
-        # Export colored meshes as OBJ, which preserves per-vertex colors and is
-        # readable by the visualizer and the collision loader.
-        if vertex_colors is not None:
-            file_type = "obj"
         return cls.from_trimesh(
             mesh=mesh,
-            origin=origin,
-            scale=scale,
-            file_type=file_type,
+            origin=from_json(data["origin"], **kwargs),
+            scale=from_json(data["scale"], **kwargs),
             finish=from_json(data.get("finish"), **kwargs),
         )
 
@@ -771,7 +953,7 @@ class Mesh(Shape):
         mesh.apply_scale(self.scale.to_np())
         # Apply the shape's color only when it was explicitly set, so a mesh's own
         # materials or per-vertex colors (e.g. from a .dae or from serialization)
-        # are preserved by default. dye_shapes still works as it sets a color.
+        # are preserved by default. :meth:`~Shape.dye` repaints a mesh built already.
         if self.color != Color():
             mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(
                 self.color.to_rgba()
@@ -859,7 +1041,7 @@ class Mesh(Shape):
             mesh=mesh,
             origin=origin,
             scale=scale,
-            file_type="obj",
+            file_type=MeshFileFormat.OBJ,
             texture_file_path=texture_file_path,
         )
 
@@ -872,7 +1054,7 @@ class Mesh(Shape):
         uv: np.ndarray | None = None,
         texture_file_path: str | None = None,
         directory: Path | None = None,
-        file_type: str = "obj",
+        file_type: MeshFileFormat = MeshFileFormat.GLB,
         finish: SurfaceFinish | None = None,
     ) -> Mesh:
         """
@@ -1028,9 +1210,9 @@ class Mesh(Shape):
         """
         points = np.asarray([point.to_np()[:3] for point in points_3d], dtype=float)
         points = np.unique(points, axis=0)
-        assert (
-            len(points) >= 3
-        ), "At least 4 unique points are required to define a 3D region."
+        assert len(points) >= 3, (
+            "At least 4 unique points are required to define a 3D region."
+        )
 
         centered_points = points - points.mean(axis=0, keepdims=True)
         assert np.any(centered_points), "Points must not be all identical."
@@ -1778,9 +1960,9 @@ class VolumetricBoundingBox(AxisAlignedBox[Point3]):
         :param min_point: The minimum point
         :param max_point: The maximum point
         """
-        assert (
-            min_point.reference_frame == max_point.reference_frame
-        ), "The reference frames of the minimum and maximum points must be the same."
+        assert min_point.reference_frame == max_point.reference_frame, (
+            "The reference frames of the minimum and maximum points must be the same."
+        )
         return cls(*min_point.to_np()[:3], *max_point.to_np()[:3], origin=origin)
 
     def as_shape(self) -> Box:

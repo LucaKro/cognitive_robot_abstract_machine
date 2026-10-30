@@ -11,6 +11,7 @@ dynamic = ["version"]
 dependencies = [
     "line_profiler",
     "coraplex",
+    "cramph",
     "giskardpy",
     "krrood",
     "probabilistic_model",
@@ -23,12 +24,25 @@ dependencies = [
 package-dir = {"" = "src"}
 include-package-data = true
 
+[tool.setuptools.package-data]
+"experiments.warsaw" = ["templates/*.jinja"]
+"experiments.warsaw.pipeline" = [
+  "templates/*.jinja",
+  "templates/*.py",
+]
+"experiments.warsaw.pipeline.steps" = ["prompts/*.md"]
+"experiments.warsaw.pipeline.steps.vocabulary" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+"experiments.warsaw.pipeline.steps.adjudicate" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+"experiments.warsaw.pipeline.steps.classify" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+"experiments.warsaw.pipeline.steps.amend" = ["prompts/*/*.md", "prompts/*/*.jinja"]
+
 [tool.setuptools.dynamic]
 version = {attr = "experiments._version.__version__"}
 
 [dependency-groups]
 workspace = [
     "coraplex",
+    "cramph",
     "giskardpy",
     "krrood",
     "random_events",

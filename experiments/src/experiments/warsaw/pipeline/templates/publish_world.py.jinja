@@ -1,0 +1,190 @@
+"""
+Publish the world this run built, so its bodies can be picked apart in RViz.
+
+    python publish_world.py
+
+The viewer ``inspect_world.py`` opens shows the world whole. This publishes every body as
+its own marker instead, so one can be singled out, hidden, or clicked in RViz while the
+rest stay where they are.
+
+Nothing here rebuilds the ORM, because this is a script to start and stop while looking
+at something. Run ``inspect_world.py`` once first: it rebuilds the ORM for the classes
+this run generated, and until it has, the world cannot be read at all.
+
+Everything it can be told is in the settings below; change them and run it again. Written
+by the run that built it, so the world ids are the ones it was written under.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+
+from typing_extensions import Dict, Optional
+
+# The classes this run generated live beside this script, and the world names them. This
+# has to happen before the ORM is imported, or the ORM looks for them in the ontology's own
+# package, where they deliberately are not. The world was written into a schema of this
+# run's own, so that is where to look for it, set before anything asks for a session.
+from experiments.warsaw.pipeline.run_classes import GeneratedClasses
+from experiments.warsaw.pipeline.database.run_schema import RunSchema
+
+GeneratedClasses(directory=Path(__file__).resolve().parent).use()
+RunSchema.for_run(Path(__file__).resolve().parent).use()
+
+import rclpy  # noqa: E402
+from experiments.warsaw.pipeline.database.world_store import WorldStore  # noqa: E402
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (  # noqa: E402
+    VizMarkerPublisher,
+)
+from semantic_digital_twin.world_description.geometry import Color  # noqa: E402
+
+from experiments.warsaw.painting import Coloring, paint  # noqa: E402
+
+
+@dataclass
+class Publication:
+    """
+    Which world to publish, and how it should look.
+    """
+
+    annotated_world: int = {{ annotated }}
+    """
+    The world this run wrote its annotations into.
+    """
+
+    split_world: int = {{ split }}
+    """
+    The world as it was split, before anything was annotated or mounted.
+    """
+
+    world_id: int = {{ annotated }}
+    """
+    Which of them to publish.
+    """
+
+    node_name: str = "warsaw_run_world"
+    """
+    What this calls itself on the ROS graph.
+    """
+
+    alpha: float = 1.0
+    """
+    How solid the markers are, from nought for invisible to one for opaque. Below one
+    every body shows through the ones in front of it, which is how to see a drawer inside
+    the cabinet holding it.
+    """
+
+    coloring: Coloring = Coloring.BY_CLASS
+    """
+    What the bodies are painted by, or ``Coloring.UNCHANGED`` to leave them alone.
+
+    Painting changes only the world held in memory for as long as this runs. The world
+    is read afresh from the database each time and never written back, so nothing here
+    reaches what the run recorded.
+    """
+
+    republish_every_seconds: Optional[float] = 5.0
+    """
+    How often to publish the markers again, or None to publish only when the world
+    changes.
+
+    A world read from the database never changes again, so it is published once and
+    nothing follows it. Publishing on a timer instead means a viewer started afterwards,
+    or a display added to one, is shown the world within a few seconds rather than
+    staying empty.
+    """
+
+    @property
+    def logger(self) -> logging.Logger:
+        """
+        :return: Where this says what it is doing.
+        """
+        return logging.getLogger(__name__)
+
+    def say_what_rviz_needs(self) -> None:
+        """
+        Say what to set up in RViz, which shows nothing at all until it is set.
+        """
+        for line in (
+            "in RViz:",
+            "  add a MarkerArray display",
+            "  set its topic to /semworld/viz_marker",
+            "  set its durability policy to Transient Local",
+            "  set the fixed frame to the root of the tf tree",
+        ):
+            self.logger.info(line)
+
+    def say_the_legend(self, painted: Dict[str, Color]) -> None:
+        """
+        Say what each colour means, where the colour is the only thing that says it.
+
+        Said for classes and not for bodies: RViz lists every marker under the name of
+        the body it belongs to, so painting by body needs no key, and a scene's worth of
+        them would bury everything else this prints.
+
+        :param painted: What each name was painted.
+        """
+        if not painted or self.coloring is not Coloring.BY_CLASS:
+            return
+        self.logger.info("painted %s:", self.coloring.value.replace("_", " "))
+        for name, color in sorted(painted.items()):
+            self.logger.info(
+                "  %-16s #%02x%02x%02x",
+                name,
+                round(color.R * 255),
+                round(color.G * 255),
+                round(color.B * 255),
+            )
+
+    def carry_out(self) -> None:
+        """
+        Publish the world until interrupted.
+        """
+        self.logger.info("reading world %s ...", self.world_id)
+        world = WorldStore().read(self.world_id)
+        self.logger.info(
+            "publishing %s bodies of world %s", len(world.bodies), self.world_id
+        )
+        self.say_the_legend(paint(world, self.coloring))
+        self.say_what_rviz_needs()
+
+        rclpy.init()
+        node = rclpy.create_node(self.node_name)
+        publisher = VizMarkerPublisher(_world=world, node=node, alpha=self.alpha)
+        if self.republish_every_seconds is not None:
+            # Publishing the markers again is all this does, which is what the world
+            # changing would have called anyway.
+            node.create_timer(self.republish_every_seconds, publisher.on_model_change)
+            self.logger.info(
+                "publishing every %s seconds; stop with ctrl-c",
+                self.republish_every_seconds,
+            )
+        else:
+            self.logger.info("publishing once; stop with ctrl-c")
+        try:
+            rclpy.spin(node)
+        finally:
+            # Reached however this ends, including the interrupt that is how it is meant
+            # to end: a node left registered keeps the topic and the next run cannot
+            # take it.
+            publisher.stop()
+            node.destroy_node()
+            rclpy.shutdown()
+
+
+def main() -> None:
+    """
+    Publish this run's world for RViz.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger(__name__).info(
+        "this reads the world and does not rebuild the ORM: run inspect_world.py once "
+        "first, or reading fails on a class this run generated"
+    )
+    Publication().carry_out()
+
+
+if __name__ == "__main__":
+    main()

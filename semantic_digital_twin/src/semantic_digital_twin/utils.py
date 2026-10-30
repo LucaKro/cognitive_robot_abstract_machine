@@ -2,22 +2,18 @@ from __future__ import annotations
 
 import importlib
 import os
-import weakref
-from copy import deepcopy
 from dataclasses import dataclass
-from functools import lru_cache, wraps
 from pathlib import Path
-from typing_extensions import Any, ClassVar
+from xml.etree import ElementTree as ET
 
 from krrood.class_diagrams.mocking import MockedModule, MockedClass
 from platformdirs import user_cache_dir
+from typing_extensions import ClassVar, List, Tuple, Type
 
 try:
     from ament_index_python import PackageNotFoundError
 except ModuleNotFoundError:
     PackageNotFoundError = None
-from xml.etree import ElementTree as ET
-
 
 
 def create_cache_dir(folder_name: str) -> Path:
@@ -33,6 +29,7 @@ def create_cache_dir(folder_name: str) -> Path:
     cache_dir = Path(user_cache_dir(package_name)) / folder_name
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
+
 
 class suppress_stdout_stderr(object):
     """

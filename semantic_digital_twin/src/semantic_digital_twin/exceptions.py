@@ -1,13 +1,14 @@
 from __future__ import annotations, absolute_import
 
+# %% Imports
 from dataclasses import dataclass, field, Field
 from datetime import timedelta
 from http import HTTPStatus
 from pathlib import Path
-from typing_extensions import TYPE_CHECKING, Callable, Any
 from uuid import UUID
 
 import mujoco
+from typing_extensions import TYPE_CHECKING, Callable, Any
 
 from krrood.adapters.exceptions import UntrackedObjectError
 from krrood.exceptions import DataclassException
@@ -49,7 +50,10 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_modification import (
         WorldModification,
     )
-    from semantic_digital_twin.collision_checking.collision_matrix import CollisionCheck
+    from semantic_digital_twin.collision_checking.collision_matrix import (
+        CollisionCheck,
+        CollisionRule,
+    )
 
 
 @dataclass
@@ -296,6 +300,99 @@ class InvalidCameraResolutionError(UsageError):
 
     def suggest_correction(self) -> str:
         return "provide positive width and height values."
+
+
+@dataclass
+class InvalidCameraFieldOfViewError(UsageError):
+    """
+    Raised when camera viewing angles cannot describe a projection.
+    """
+
+    horizontal_angle: float
+    """
+    Invalid horizontal viewing angle in radians.
+    """
+
+    vertical_angle: float
+    """
+    Invalid vertical viewing angle in radians.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Camera field-of-view angles must be between zero and pi radians, "
+            f"got horizontal={self.horizontal_angle} and vertical={self.vertical_angle}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "provide positive viewing angles smaller than pi radians."
+
+
+@dataclass
+class InvalidCameraDistortionError(UsageError):
+    """
+    Raised when distortion coefficients do not match their model.
+    """
+
+    model: str
+    """
+    Distortion model whose coefficients are invalid.
+    """
+
+    reason: str
+    """
+    Reason the distortion value is invalid.
+    """
+
+    def error_message(self) -> str:
+        return f"Invalid camera distortion model '{self.model}': {self.reason}."
+
+    def suggest_correction(self) -> str:
+        return "provide finite coefficients defined by the distortion model."
+
+
+@dataclass
+class InvalidPinholeCameraModelError(UsageError):
+    """
+    Raised when pinhole calibration parameters cannot describe an image.
+    """
+
+    reason: str
+    """
+    Reason the calibration is invalid.
+    """
+
+    def error_message(self) -> str:
+        return f"Invalid pinhole camera model: {self.reason}."
+
+    def suggest_correction(self) -> str:
+        return "provide positive focal lengths and a principal point within the image."
+
+
+@dataclass
+class InvalidCameraRangeError(UsageError):
+    """
+    Raised when a camera distance interval is empty or negative.
+    """
+
+    minimum_distance: float
+    """
+    Invalid minimum distance in meters.
+    """
+
+    maximum_distance: float
+    """
+    Invalid maximum distance in meters.
+    """
+
+    def error_message(self) -> str:
+        return (
+            "Camera range requires a non-negative minimum below its maximum, "
+            f"got minimum={self.minimum_distance} and maximum={self.maximum_distance}."
+        )
+
+    def suggest_correction(self) -> str:
+        return "provide an ordered, non-negative distance interval."
 
 
 @dataclass
@@ -875,7 +972,59 @@ class CollisionDiffersFromVisualError(UsageError):
     def suggest_correction(self) -> str:
         return (
             "split the parts off before decomposing the collision shapes, or give the "
-            "PartSplitter a decomposer that decomposes each piece again."
+            "PartSplitter or BodyCutter a decomposer that decomposes each piece again."
+        )
+
+
+@dataclass
+class BodyWithoutShapeError(UsageError):
+    """
+    Raised when pieces are to be cut off a body that has no shape.
+    """
+
+    body_name: PrefixedName
+    """
+    The name of the body.
+    """
+
+    def error_message(self) -> str:
+        return f"'{self.body_name}' has no shape to cut pieces off."
+
+    def suggest_correction(self) -> str:
+        return "cut the pieces off the body that holds the mesh they refer to."
+
+
+@dataclass
+class PieceOutsideShapeError(UsageError):
+    """
+    Raised when a piece to cut off a body's shape takes a face the shape does not have.
+    """
+
+    body_name: PrefixedName
+    """
+    The name of the body that is cut.
+    """
+
+    piece_name: PrefixedName
+    """
+    The name of the body the piece is cut into.
+    """
+
+    face_count: int
+    """
+    How many faces the body's shape has.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The piece '{self.piece_name}' takes faces beyond the {self.face_count} "
+            f"faces of the shape of '{self.body_name}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "give the piece indices of faces of the body's shape as it is loaded, "
+            "counting its shapes in order."
         )
 
 
@@ -1924,9 +2073,9 @@ class WorldEntityWithIDNotInKwargs(UntrackedObjectError):
     """
     The name the reference to that entity went by when it was written.
 
-    Says which entity is meant where the id alone says nothing. ``None`` where the
-    reference carries no name, and never used to look an entity up: the id is its
-    identity.
+    Says which entity is meant where the id alone says nothing. ``None``
+    where the reference carries no name, and never used to look an
+    entity up: the id is its identity.
     """
 
     def error_message(self) -> str:
@@ -2017,6 +2166,37 @@ class BodyHasNoGeometryError(InvalidCollisionCheckError):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class TemporaryCollisionRulesDependOnOrder(CollisionCheckingError):
+    """
+    Raised when temporary collision rules are put in force next to others, and which
+    body pairs are checked at which distance would depend on which of them came first.
+    """
+
+    rules_in_force: list[CollisionRule]
+    """
+    The temporary rules that were in force already.
+    """
+
+    added_rules: list[CollisionRule]
+    """
+    The temporary rules that were to be put in force next to them.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The temporary collision rules {self.added_rules} and the ones already "
+            f"in force, {self.rules_in_force}, decide differently about the same "
+            f"body pairs, so the outcome would depend on which were added first."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Put rules that overrule each other in force together, in the order "
+            "they are meant to apply, or do not let them be in force at once."
+        )
 
 
 @dataclass
@@ -2323,6 +2503,41 @@ class ExerciseVerificationFailed(UsageError):
 
     def suggest_correction(self) -> str:
         return "revisit the task description of this exercise and adjust your solution."
+
+
+@dataclass
+class ComposedClassCannotAct(UsageError):
+    """
+    Raised when something asks a composed class for knowledge no run could have had.
+
+    A run composes a class from a name and a list of bases. Where a base demands more
+    than that -- :meth:`Tool.tool_alignment` is the normal pairs that must stay aligned
+    while a tool acts, which is motion-planning geometry rather than anything a name says
+    -- the class is written with that method stubbed, so the semantic claim the run made
+    survives and only acting on the object fails.
+    """
+
+    class_name: str
+    """
+    The class a run composed.
+    """
+
+    method: str
+    """
+    The method it could not write.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.class_name} was composed by a pipeline run, which cannot know what "
+            f"{self.method} should answer."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"implement {self.method} on {self.class_name}, in the ontology rather than "
+            f"in the run's generated classes, before using it to act."
+        )
 
 
 @dataclass
