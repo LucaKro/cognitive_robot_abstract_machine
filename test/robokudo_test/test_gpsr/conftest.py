@@ -1,0 +1,126 @@
+"""
+Fixtures shared by the tests of the GPSR perception.
+"""
+
+from __future__ import annotations
+
+# %% Imports
+import inspect
+import json
+import shutil
+
+import pytest
+from robokudo.annotators.gpsr import (
+    filter_object_by_semantic_annotation,
+    human_activity_annotator,
+    type_mapping_annotator,
+)
+from robokudo.annotators.gpsr.belief_state import BeliefState, BeliefStateAnnotator
+from robokudo.annotators.gpsr.filter_object_by_semantic_annotation import (
+    FilterObjectBySemanticAnnotation,
+)
+from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
+from robokudo.annotators.gpsr.type_mapping_annotator import TypeMappingAnnotator
+from typing_extensions import TYPE_CHECKING
+
+from ._clip_mock import PretrainedLoader, ScoringModel, ScoringModelAndProcessor
+from ._data_files import GpsrDataFile
+from ._gpsr_scene import GpsrScene
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from robokudo.annotators.outputs import AnnotatorOutputPerPipelineMap
+
+# %% visualization output
+
+
+@pytest.fixture(autouse=True)
+def visualization_output(
+    annotator_output_buffer: AnnotatorOutputPerPipelineMap,
+) -> AnnotatorOutputPerPipelineMap:
+    """
+    Give every annotator under test a buffer to write its visualization output to.
+    """
+    return annotator_output_buffer
+
+
+# %% belief state isolation
+
+
+@pytest.fixture(autouse=True)
+def belief_state(monkeypatch: pytest.MonkeyPatch) -> BeliefState:
+    """
+    The belief state all belief state annotators share, empty at the start of each test.
+    """
+    shared_belief_state = BeliefState()
+    monkeypatch.setattr(BeliefStateAnnotator, "_state", shared_belief_state)
+    monkeypatch.setattr(BeliefStateAnnotator, "_next_id", 1)
+    return shared_belief_state
+
+
+# %% semantic type mapping
+
+
+@pytest.fixture
+def semantic_type_mapping(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> dict[str, str]:
+    """
+    Make the annotators read the mapping from detector classes to semantic types from
+    the test data instead of the installed ROS package.
+
+    :return: The mapping the annotators read.
+    """
+    package_share = tmp_path / "package_share"
+    mapping_directory = package_share / "data" / "json"
+    mapping_directory.mkdir(parents=True)
+    for module, annotator_class in (
+        (type_mapping_annotator, TypeMappingAnnotator),
+        (filter_object_by_semantic_annotation, FilterObjectBySemanticAnnotation),
+    ):
+        default_mapping_filename = (
+            inspect.signature(annotator_class).parameters["mapping_filename"].default
+        )
+        shutil.copy(
+            GpsrDataFile.SEMANTIC_TYPE_MAPPING,
+            mapping_directory / default_mapping_filename,
+        )
+        monkeypatch.setattr(
+            module, "get_package_share_directory", lambda package: str(package_share)
+        )
+    return json.loads(GpsrDataFile.SEMANTIC_TYPE_MAPPING.read_text())
+
+
+# %% CLIP stand-in
+
+
+@pytest.fixture
+def scoring_clip(monkeypatch: pytest.MonkeyPatch) -> ScoringModelAndProcessor:
+    """
+    Make the activity annotator load the scoring stand-in instead of pretrained CLIP.
+    """
+    posture_texts = HumanActivityAnnotator.Descriptor.Parameters().posture_classes
+    clip = ScoringModelAndProcessor(
+        model=ScoringModel(posture_texts=tuple(posture_texts))
+    )
+    monkeypatch.setattr(
+        human_activity_annotator, "CLIPModel", PretrainedLoader(loaded=clip.model)
+    )
+    monkeypatch.setattr(
+        human_activity_annotator,
+        "CLIPProcessor",
+        PretrainedLoader(loaded=clip.processor),
+    )
+    return clip
+
+
+# %% scene
+
+
+@pytest.fixture
+def scene() -> GpsrScene:
+    """
+    A camera at the world origin, asked an empty query.
+    """
+    return GpsrScene()
