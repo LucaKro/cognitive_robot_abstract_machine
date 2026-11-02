@@ -10,6 +10,7 @@ import json
 import shutil
 
 import pytest
+from robokudo.analysis_engine import SubtreeInterface
 from robokudo.annotators.gpsr import (
     filter_object_by_semantic_annotation,
     human_activity_annotator,
@@ -21,16 +22,24 @@ from robokudo.annotators.gpsr.filter_object_by_semantic_annotation import (
 )
 from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
 from robokudo.annotators.gpsr.type_mapping_annotator import TypeMappingAnnotator
+from robokudo.descriptors.analysis_engines.gpsr import gpsr_implementation
+from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
+    AnalysisEngine,
+)
 from typing_extensions import TYPE_CHECKING
 
 from ._clip_mock import PretrainedLoader, ScoringModel, ScoringModelAndProcessor
 from ._data_files import GpsrDataFile
+from ._gpsr_routing import PlaceholderSubtree, scheduler_of
 from ._gpsr_scene import GpsrScene
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from py_trees.behaviour import Behaviour
+    from rclpy.node import Node
     from robokudo.annotators.outputs import AnnotatorOutputPerPipelineMap
+    from robokudo.tree_components.query_based_task_scheduler import QueryBasedScheduler
 
 # %% visualization output
 
@@ -124,3 +133,28 @@ def scene() -> GpsrScene:
     A camera at the world origin, asked an empty query.
     """
     return GpsrScene()
+
+
+# %% the GPSR tree with placeholder subtrees
+
+
+@pytest.fixture
+def gpsr_tree(node: Node, monkeypatch: pytest.MonkeyPatch) -> Behaviour:
+    """
+    The GPSR tree with its real routing, every subtree it routes to replaced by a
+    :class:`PlaceholderSubtree`.
+    """
+    for module_attribute, value in list(vars(gpsr_implementation).items()):
+        if isinstance(value, type) and issubclass(value, SubtreeInterface):
+            monkeypatch.setattr(
+                gpsr_implementation, module_attribute, PlaceholderSubtree
+            )
+    return AnalysisEngine().implementation()
+
+
+@pytest.fixture
+def scheduler(gpsr_tree: Behaviour) -> QueryBasedScheduler:
+    """
+    The scheduler of the GPSR tree with placeholder subtrees.
+    """
+    return scheduler_of(gpsr_tree)

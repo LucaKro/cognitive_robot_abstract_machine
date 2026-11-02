@@ -1,20 +1,31 @@
-import robokudo
-import py_trees
-import robokudo.annotators
-import robokudo.types.scene
+from __future__ import annotations
+
+# %% Imports
+from py_trees.common import Status
+from robokudo_msgs.action import Query
+
+from robokudo.annotators.core import BaseAnnotator
+from robokudo.types.scene import HumanHypothesis
+from robokudo.utils.query import QueryHandler
+
+# %% human check
 
 
-class CheckForHumanHypothesis(robokudo.annotators.core.BaseAnnotator):
+class CheckForHumanHypothesis(BaseAnnotator):
     """
-    This Annotator checks the cas, if it already contains a HumanHypothesis.
+    Checks whether the CAS holds a :class:`HumanHypothesis`.
+
+    Without one it answers the query with nobody and stops the pipeline.
     """
 
-    def __init__(self, name="CheckForHumanHypothesis"):
+    def __init__(self, name: str = "CheckForHumanHypothesis") -> None:
         super().__init__(name=name)
 
-    def update(self):
+    def update(self) -> Status:
         annotations = self.get_cas().annotations
         for annotation in annotations:
-            if isinstance(annotation, robokudo.types.scene.HumanHypothesis):
-                return py_trees.common.Status.SUCCESS
-        raise AttributeError("No human detected within the area!")
+            if isinstance(annotation, HumanHypothesis):
+                return Status.SUCCESS
+        QueryHandler.send_answer(Query.Result())
+        self.feedback_message = "No human detected, answered with nobody"
+        return Status.FAILURE

@@ -1,95 +1,177 @@
+from __future__ import annotations
+
+# %% Imports
 import copy
 from timeit import default_timer
-import py_trees
-import robokudo
-import robokudo.annotators.core
-import robokudo.cas
-import robokudo.types.annotation
-import robokudo.types.human
-import robokudo.types.scene
-import robokudo.types.tf
-import robokudo.utils.cv_helper
-import robokudo.utils.decorators
-import robokudo.utils.error_handling
-import robokudo.utils.math_helper
-import robokudo.utils.o3d_helper
-import robokudo.utils.transform
+
+from krrood.ormatic.utils import classproperty
+from py_trees.common import Status
+from typing_extensions import TYPE_CHECKING
+
+from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
+from robokudo.cas import CAS, CASViews
+from robokudo.types.human import ActivityAnnotation, KeypointAnnotation, KeypointKind
+from robokudo.types.scene import HumanHypothesis
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+
+if TYPE_CHECKING:
+    import numpy as np
+    import open3d as o3d
+
+# %% lying rule
 
 
-class HumanLyingAnnotator(robokudo.annotators.core.BaseAnnotator):
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+class HumanLyingAnnotator(BaseAnnotator):
+    """
+    Annotates every person whose image keypoints show a lying posture with the activity
+    :attr:`posture`.
+
+    The rule needs reliable hips, knees and ankles on both sides. The person lies when
+    the keypoints are clearly wider than tall, the knee of at least one side is about
+    level with its hip, the shoulders are about level with each other and the nose is
+    about level with the shoulders, all relative to the vertical extent of the
+    keypoints. Persons without image keypoints are skipped.
+    """
+
+    class Descriptor(BaseAnnotator.Descriptor):
+        """
+        Configuration of the lying rule.
+        """
+
         class Parameters:
-            def __init__(self):
-                self.raise_on_failure = False
+            """
+            Parameters of the lying rule.
+            """
 
-                # Minimum confidence required for a keypoint to be considered valid.
-                self.keypoint_confidence_threshold = 0.5
+            def __init__(self) -> None:
+                self.raise_on_failure: bool = False
+                """
+                Not read by this annotator.
+                """
+
+                self.keypoint_confidence_threshold: float = 0.5
+                """
+                Smallest confidence of a keypoint for the rule to trust it.
+                """
 
                 # Lying threshold TODO Anpassen
-                self.max_vertical_rel_height = 0.35  # Person appears vertically short.
-                self.min_horizontal_rel_width = 0.4  # Person appears horizontally wide.
-                self.max_knee_hip_vertical_diff = (
-                    0.2  # Knees and hips are nearly at the same
-                )
+                self.max_vertical_rel_height: float = 0.35
+                """
+                Largest share of the vertical extent of the keypoints in the sum of
+                their vertical and horizontal extent for which the person lies.
+                """
+                self.min_horizontal_rel_width: float = 0.4
+                """
+                Smallest share of the horizontal extent of the keypoints in the sum of
+                their vertical and horizontal extent for which the person lies.
+                """
+                self.max_knee_hip_vertical_diff: float = 0.2
+                """
+                Largest vertical distance between the knee and the hip of one side,
+                relative to the vertical extent of the keypoints, for which the person
+                lies; one side is enough.
+                """
+                self.max_shoulder_height_difference: float = 0.35
+                """
+                Largest vertical distance between the two shoulders, relative to the
+                vertical extent of the keypoints, for which the person lies.
+                """
+                self.max_head_shoulder_height_difference: float = 0.4
+                """
+                Largest vertical distance between the nose and the middle of the
+                shoulders, relative to the vertical extent of the keypoints, for which
+                the person lies.
+                """
+                self.min_body_height: float = 20
+                """
+                Smallest vertical extent of the keypoints in the image, in pixels, for
+                which the posture is decided.
+                """
 
         parameters = (
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
+        """
+        Default parameters on the class; each descriptor instance gets its own.
+        """
 
-    def __init__(self, name="HumanLyingAnnotator", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "HumanLyingAnnotator",
+        descriptor: HumanLyingAnnotator.Descriptor = Descriptor(),
+    ) -> None:
         super().__init__(name, descriptor)
+        self.color: np.ndarray | None = None
+        """
+        The color image of the last update.
+        """
+        self.cloud: o3d.geometry.PointCloud | None = None
+        """
+        The point cloud of the last update.
+        """
 
-    @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    @classproperty
+    def posture(cls) -> str:
+        """
+        The activity this rule annotates a lying person with.
+        """
+        return "lying"
+
+    @classproperty
+    def query_word(cls) -> str:
+        """
+        The word GPSR queries use for a lying person.
+        """
+        return "laying"
+
+    @catch_and_raise_to_blackboard
+    def update(self) -> Status:
         start_timer = default_timer()
 
-        # Retrieve sensor data from CAS (color image, point cloud, camera info).
-        self.color = self.get_cas().get(robokudo.cas.CASViews.COLOR_IMAGE)
-        self.cloud = self.get_cas().get(robokudo.cas.CASViews.CLOUD)
+        self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
+        self.cloud = self.get_cas().get(CASViews.CLOUD)
 
-        human_hypotheses = self.get_cas().filter_annotations_by_type(
-            robokudo.types.scene.HumanHypothesis
-        )
-        all_vis_geometries = [self.cloud]
+        human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
+        visualization_geometries = [self.cloud]
 
-        # Process each detected human individually.
         for human_hypothesis in human_hypotheses:
-            # Extract all keypoint annotations for this human.
-            keypoint_annotations = robokudo.cas.CAS.filter_by_type(
-                robokudo.types.human.KeypointAnnotation, human_hypothesis.annotations
+            keypoint_annotations = CAS.filter_by_type(
+                KeypointAnnotation, human_hypothesis.annotations
             )
 
-            keypoint_2d_annotations = [
-                a
-                for a in keypoint_annotations
-                if a.kind == robokudo.types.human.KeypointKind.IMAGE_POSITION
+            image_keypoint_annotations = [
+                annotation
+                for annotation in keypoint_annotations
+                if annotation.kind == KeypointKind.IMAGE_POSITION
             ]
 
-            if len(keypoint_2d_annotations) == 0:
+            if len(image_keypoint_annotations) == 0:
                 continue
 
-            keypoints = keypoint_2d_annotations[0]
+            image_keypoints = image_keypoint_annotations[0]
 
-            # Evaluate whether the person is lying.
-            if self.keypoints_lying(keypoints):
-                activity = robokudo.types.human.ActivityAnnotation()
-                activity.type = "lying"
+            if self.keypoints_lying(image_keypoints):
+                activity = ActivityAnnotation()
+                activity.type = HumanLyingAnnotator.posture
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
 
-        self.get_annotator_output_struct().set_geometries(all_vis_geometries)
+        self.get_annotator_output_struct().set_geometries(visualization_geometries)
         self.get_annotator_output_struct().set_image(copy.deepcopy(self.color))
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
-    def keypoints_lying(self, keypoint_2d_annotation):
-        p = self.descriptor.parameters
-        th = p.keypoint_confidence_threshold
+    def keypoints_lying(self, keypoint_2d_annotation: KeypointAnnotation) -> bool:
+        """
+        :param keypoint_2d_annotation: The image keypoints of one person.
+        :return: Whether the keypoints show a lying person.
+        """
+        parameters = self.descriptor.parameters
+        confidence_threshold = parameters.keypoint_confidence_threshold
 
-        # Load lower-body keypoints.
         left_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_HIP]
         left_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_KNEE]
         left_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_ANKLE]
@@ -98,13 +180,11 @@ class HumanLyingAnnotator(robokudo.annotators.core.BaseAnnotator):
         right_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_KNEE]
         right_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_ANKLE]
 
-        # Load upper-body keypoints.
         left_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_SHOULDER]
         right_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_SHOULDER]
         nose = keypoint_2d_annotation.keypoints[PoseKeypoint.NOSE]
 
-        # Check whether lower and upper body keypoints are sufficiently reliable.
-        lower_ok = (
+        lower_body_reliable = (
             min(
                 left_hip.confidence,
                 left_knee.confidence,
@@ -113,18 +193,13 @@ class HumanLyingAnnotator(robokudo.annotators.core.BaseAnnotator):
                 right_knee.confidence,
                 right_ankle.confidence,
             )
-            >= th
+            >= confidence_threshold
         )
 
-        upper_ok = (
-            min(left_shoulder.confidence, right_shoulder.confidence, nose.confidence)
-            >= th
-        )
-
-        if not lower_ok and not upper_ok:
+        if not lower_body_reliable:
             return False
 
-        xs = [
+        image_columns = [
             left_hip.x,
             left_knee.x,
             left_ankle.x,
@@ -136,7 +211,7 @@ class HumanLyingAnnotator(robokudo.annotators.core.BaseAnnotator):
             nose.x,
         ]
 
-        ys = [
+        image_rows = [
             left_hip.y,
             left_knee.y,
             left_ankle.y,
@@ -148,40 +223,37 @@ class HumanLyingAnnotator(robokudo.annotators.core.BaseAnnotator):
             nose.y,
         ]
 
-        vertical_h = max(ys) - min(ys)
-        horizontal_w = max(xs) - min(xs)
+        vertical_extent = max(image_rows) - min(image_rows)
+        horizontal_extent = max(image_columns) - min(image_columns)
 
-        if vertical_h < 20:
+        if vertical_extent < parameters.min_body_height:
             return False
 
-        # Compute normalized height/width ratios.
-        rel_vertical = vertical_h / (vertical_h + horizontal_w)
-        rel_horizontal = horizontal_w / (vertical_h + horizontal_w)
+        relative_height = vertical_extent / (vertical_extent + horizontal_extent)
+        relative_width = horizontal_extent / (vertical_extent + horizontal_extent)
 
-        knee_hip_diff_left = abs(left_knee.y - left_hip.y) / vertical_h
-        knee_hip_diff_right = abs(right_knee.y - right_hip.y) / vertical_h
+        left_knee_hip_height = abs(left_knee.y - left_hip.y) / vertical_extent
+        right_knee_hip_height = abs(right_knee.y - right_hip.y) / vertical_extent
 
-        shoulder_diff = abs(left_shoulder.y - right_shoulder.y) / vertical_h
-
-        head_shoulder_diff = (
-            abs(nose.y - (left_shoulder.y + right_shoulder.y) / 2) / vertical_h
+        shoulder_height_difference = (
+            abs(left_shoulder.y - right_shoulder.y) / vertical_extent
         )
 
-        # print(f"rel_vertical={rel_vertical}, rel_horizontal={rel_horizontal}")
-        # print(f"knee_hip_diff_left={knee_hip_diff_left}, shoulder_diff={shoulder_diff}")
-        # print(f"head shoulder diff_left={head_shoulder_diff}")
+        head_shoulder_height_difference = (
+            abs(nose.y - (left_shoulder.y + right_shoulder.y) / 2) / vertical_extent
+        )
 
         # TODO: Thresholds für Liegend Erkennung anpassen
-        # Lying posture heuristic.
         lying = (
-            rel_vertical <= p.max_vertical_rel_height
-            and rel_horizontal >= p.min_horizontal_rel_width
+            relative_height <= parameters.max_vertical_rel_height
+            and relative_width >= parameters.min_horizontal_rel_width
             and (
-                knee_hip_diff_left <= p.max_knee_hip_vertical_diff
-                or knee_hip_diff_right <= p.max_knee_hip_vertical_diff
+                left_knee_hip_height <= parameters.max_knee_hip_vertical_diff
+                or right_knee_hip_height <= parameters.max_knee_hip_vertical_diff
             )
-            and shoulder_diff <= 0.35
-            and head_shoulder_diff <= 0.4
+            and shoulder_height_difference <= parameters.max_shoulder_height_difference
+            and head_shoulder_height_difference
+            <= parameters.max_head_shoulder_height_difference
         )
 
         return lying

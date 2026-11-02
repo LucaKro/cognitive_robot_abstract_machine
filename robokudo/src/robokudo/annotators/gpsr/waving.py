@@ -1,123 +1,166 @@
+from __future__ import annotations
+
+# %% Imports
 import copy
 from timeit import default_timer
 
-import geometry_msgs.msg
-import numpy
-import open3d as o3d
-import py_trees
-import rclpy
-import visualization_msgs.msg
+from py_trees.common import Status
+from typing_extensions import TYPE_CHECKING
 
-import robokudo
-import robokudo.annotators.core
-import robokudo.cas
-import robokudo.types.annotation
-import robokudo.types.human
-import robokudo.types.scene
-import robokudo.types.tf
-import robokudo.utils.cv_helper
-import robokudo.utils.decorators
-import robokudo.utils.error_handling
-import robokudo.utils.math_helper
-import robokudo.utils.o3d_helper
-import robokudo.utils.transform
+from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
+from robokudo.cas import CAS, CASViews
+from robokudo.types.human import ActivityAnnotation, KeypointAnnotation, KeypointKind
+from robokudo.types.scene import HumanHypothesis
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+
+if TYPE_CHECKING:
+    import numpy as np
+    import open3d as o3d
+
+# %% waving and arm raising rule
 
 
-class HumanWavingAnnotator(robokudo.annotators.core.BaseAnnotator):
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+class HumanWavingAnnotator(BaseAnnotator):
+    """
+    Annotates every person whose image keypoints show a raised arm or a waving hand.
+
+    A wrist above shoulder level raises the arm and a wrist above eye level waves, both
+    by a margin that grows with the distance between eye and shoulder, and both only for
+    a trusted wrist keypoint. A raised arm is annotated as ``raising left arm`` or
+    ``raising right arm``, the person's left wrist checked first, waving as ``waving``.
+    Persons without image keypoints are skipped.
+    """
+
+    class Descriptor(BaseAnnotator.Descriptor):
+        """
+        Configuration of the waving and arm raising rule.
+        """
+
         class Parameters:
-            def __init__(self):
-                self.raise_on_failure = False
-                self.keypoint_confidence_threshold = 0.7
-                # If True, only run on HHs that have "No gesture" from HumanActivityAnnotator.
-                self.check_activity = False
+            """
+            Parameters of the waving and arm raising rule.
+            """
 
-                # This factor is multiplied by the shoulder<->eye-level distance in pixel
-                # coordinates to be used as an offset from the eye-level
-                # to decide if a human is waving or not
-                self.waving_decision_factor = 0.2
+            def __init__(self) -> None:
+                self.raise_on_failure: bool = False
+                """
+                Not read by this annotator.
+                """
+                self.keypoint_confidence_threshold: float = 0.7
+                """
+                Confidence a wrist keypoint has to exceed for the rule to trust it.
+                """
+                self.check_activity: bool = False
+                """
+                Whether only the persons the CLIP activity annotator found without
+                gesture are decided.
+                """
+
+                self.waving_decision_factor: float = 0.2
+                """
+                Share of the vertical distance between eye and shoulder by which a wrist
+                has to be above eye level to wave, or above shoulder level to raise the
+                arm.
+                """
 
         parameters = (
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
+        """
+        Default parameters on the class; each descriptor instance gets its own.
+        """
 
-    def __init__(self, name="HumanWavingAnnotator", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "HumanWavingAnnotator",
+        descriptor: HumanWavingAnnotator.Descriptor = Descriptor(),
+    ) -> None:
         super().__init__(name, descriptor)
+        self.color: np.ndarray | None = None
+        """
+        The color image of the last update.
+        """
+        self.cloud: o3d.geometry.PointCloud | None = None
+        """
+        The point cloud of the last update.
+        """
 
-    @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    @catch_and_raise_to_blackboard
+    def update(self) -> Status:
         start_timer = default_timer()
 
-        self.color = self.get_cas().get(robokudo.cas.CASViews.COLOR_IMAGE)
-        self.cloud = self.get_cas().get(robokudo.cas.CASViews.CLOUD)
+        self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
+        self.cloud = self.get_cas().get(CASViews.CLOUD)
 
-        human_hypotheses = self.get_cas().filter_annotations_by_type(
-            robokudo.types.scene.HumanHypothesis
-        )
+        human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
 
         if self.descriptor.parameters.check_activity:
-            # only process humans the HumanActivityAnnotator already tagged as no gesture
             human_hypotheses = [
-                hh
-                for hh in human_hypotheses
+                human
+                for human in human_hypotheses
                 if any(
-                    isinstance(a, robokudo.types.human.ActivityAnnotation)
-                    and a.source == "HumanActivityAnnotator"
-                    and a.type == "No gesture"
-                    for a in hh.annotations
+                    isinstance(annotation, ActivityAnnotation)
+                    and annotation.source == "HumanActivityAnnotator"
+                    and annotation.type == "No gesture"
+                    for annotation in human.annotations
                 )
             ]
             if not human_hypotheses:
                 self.feedback_message = "No 'No gesture' HH found, skipping"
-                return py_trees.common.Status.SUCCESS
+                return Status.SUCCESS
 
-        all_vis_geometries = [self.cloud]
+        visualization_geometries = [self.cloud]
 
         for human_hypothesis in human_hypotheses:
-            keypoint_annotations = robokudo.cas.CAS.filter_by_type(
-                robokudo.types.human.KeypointAnnotation, human_hypothesis.annotations
+            keypoint_annotations = CAS.filter_by_type(
+                KeypointAnnotation, human_hypothesis.annotations
             )
-            keypoint_2d_annotations = [
-                a
-                for a in keypoint_annotations
-                if a.kind == robokudo.types.human.KeypointKind.IMAGE_POSITION
+            image_keypoint_annotations = [
+                annotation
+                for annotation in keypoint_annotations
+                if annotation.kind == KeypointKind.IMAGE_POSITION
             ]
 
-            # Human detected, but no keypoint annotations. Can't estimate waving.
-            if len(keypoint_2d_annotations) == 0:
+            if len(image_keypoint_annotations) == 0:
                 continue
 
-            keypoint_2d_annotation = keypoint_2d_annotations[0]
+            image_keypoints = image_keypoint_annotations[0]
 
-            raising = self.keypoints_suggest_arm_raising(keypoint_2d_annotation)
-            if raising == "left":
-                activity = robokudo.types.human.ActivityAnnotation()
+            raised_side = self.keypoints_suggest_arm_raising(image_keypoints)
+            if raised_side == "left":
+                activity = ActivityAnnotation()
                 activity.type = "raising right arm"
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
-            elif raising == "right":
-                activity = robokudo.types.human.ActivityAnnotation()
+            elif raised_side == "right":
+                activity = ActivityAnnotation()
                 activity.type = "raising left arm"
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
-            waving = self.keypoints_suggest_waving(keypoint_2d_annotation)
-            if waving:
-                activity = robokudo.types.human.ActivityAnnotation()
+            is_waving = self.keypoints_suggest_waving(image_keypoints)
+            if is_waving:
+                activity = ActivityAnnotation()
                 activity.type = "waving"
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
 
-        self.get_annotator_output_struct().set_geometries(all_vis_geometries)
+        self.get_annotator_output_struct().set_geometries(visualization_geometries)
         self.get_annotator_output_struct().set_image(copy.deepcopy(self.color))
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
     def keypoints_suggest_arm_raising(
-        self, keypoint_2d_annotation: robokudo.types.human.KeypointAnnotation
-    ):
+        self, keypoint_2d_annotation: KeypointAnnotation
+    ) -> str | None:
+        """
+        :param keypoint_2d_annotation: The image keypoints of one person.
+        :return: The image side of the raised wrist of a person facing the camera:
+            ``right`` for their left wrist, which is checked first, ``left`` for their
+            right wrist, and *None* if neither wrist is raised.
+        """
         left_wrist = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_WRIST]
         right_wrist = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_WRIST]
         left_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_SHOULDER]
@@ -152,8 +195,13 @@ class HumanWavingAnnotator(robokudo.annotators.core.BaseAnnotator):
         return None
 
     def keypoints_suggest_waving(
-        self, keypoint_2d_annotation: robokudo.types.human.KeypointAnnotation
-    ):
+        self, keypoint_2d_annotation: KeypointAnnotation
+    ) -> bool:
+        """
+        :param keypoint_2d_annotation: The image keypoints of one person.
+        :return: Whether a trusted wrist of the person is above eye level by the
+            margin.
+        """
         left_wrist = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_WRIST]
         right_wrist = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_WRIST]
         left_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_SHOULDER]

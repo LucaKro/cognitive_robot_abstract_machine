@@ -14,6 +14,7 @@ from robokudo.annotators.gpsr.gpsr_results import (
     GenerateHumanActivityResult,
     GenerateHumanPostureResults,
     GeneratePointingResult,
+    GenerateVisionLanguageResult,
     GenerateWavingRaisingResult,
     camera_header,
 )
@@ -22,6 +23,7 @@ from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
 from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
 from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
+from robokudo.annotators.gpsr.vision_language_annotator import VisionLanguageAnnotator
 from robokudo.annotators.gpsr.waving import HumanWavingAnnotator
 from robokudo.types.annotation import LocationAnnotation
 from robokudo.types.human import ActivityAnnotation
@@ -65,6 +67,13 @@ def pointing_rule(direction: str) -> ActivityAnnotation:
     return ActivityAnnotation(type=direction, source=HumanPointingAnnotator.__name__)
 
 
+def vision_language_answer(answer: str) -> ActivityAnnotation:
+    """
+    :return: An answer as the vision language annotator reports it.
+    """
+    return ActivityAnnotation(type=answer, source=VisionLanguageAnnotator.__name__)
+
+
 # %% belief id and position of every answered person
 
 
@@ -104,8 +113,13 @@ class AnsweredQuery:
         AnsweredQuery(
             GenerateHumanActivityResult, [], lambda: GpsrScene.clip_activity("Waving")
         ),
+        AnsweredQuery(
+            GenerateVisionLanguageResult,
+            [],
+            lambda: vision_language_answer("blue jeans"),
+        ),
     ],
-    ids=["posture", "waving", "pointing", "activity"],
+    ids=["posture", "waving", "pointing", "activity", "vision language"],
 )
 def answered_query(request: pytest.FixtureRequest) -> AnsweredQuery:
     """
@@ -462,3 +476,52 @@ def test_nobody_active_answers_with_nobody(scene: GpsrScene) -> None:
 
     assert status == Status.SUCCESS
     assert list(scene.sent_answer().res) == []
+
+
+# %% vision language results
+
+
+def test_vision_language_answer_is_split_into_attributes(scene: GpsrScene) -> None:
+    annotator = GenerateVisionLanguageResult()
+    scene.place_in_pipeline(annotator)
+    scene.add_human(vision_language_answer("blue jeans, white t-shirt,"))
+
+    annotator.update()
+
+    [person] = scene.sent_answer().res
+    assert list(person.attribute) == ["blue jeans", "white t-shirt"]
+
+
+def test_person_without_vision_language_answer_is_not_answered(
+    scene: GpsrScene,
+) -> None:
+    annotator = GenerateVisionLanguageResult()
+    scene.place_in_pipeline(annotator)
+    scene.add_human(GpsrScene.clip_activity("Waving"))
+
+    annotator.update()
+
+    assert list(scene.sent_answer().res) == []
+
+
+def test_nobody_described_answers_with_nobody(scene: GpsrScene) -> None:
+    annotator = GenerateVisionLanguageResult()
+    scene.place_in_pipeline(annotator)
+
+    status = annotator.update()
+
+    assert status == Status.SUCCESS
+    assert list(scene.sent_answer().res) == []
+
+
+def test_brackets_around_the_vision_language_answer_are_dropped(
+    scene: GpsrScene,
+) -> None:
+    annotator = GenerateVisionLanguageResult()
+    scene.place_in_pipeline(annotator)
+    scene.add_human(vision_language_answer("[gray shirt, black shoes]"))
+
+    annotator.update()
+
+    [person] = scene.sent_answer().res
+    assert list(person.attribute) == ["gray shirt", "black shoes"]

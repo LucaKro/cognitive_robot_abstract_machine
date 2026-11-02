@@ -1,44 +1,63 @@
+from __future__ import annotations
+
+# %% Imports
 import json
 
 import cv2
-import py_trees
-
 from ament_index_python.packages import get_package_share_directory
+from py_trees.common import Status
+from typing_extensions import TYPE_CHECKING
 
-import robokudo.types.scene
-import robokudo.types.annotation
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.cas import CASViews
+from robokudo.types.annotation import Classification
+from robokudo.types.scene import ObjectHypothesis
 from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+
+if TYPE_CHECKING:
+    from robokudo.cas import CAS
+
+# %% semantic type filter
 
 
 class FilterObjectBySemanticAnnotation(BaseAnnotator):
     """
-    Filters ObjectHypotheses in the CAS by semantic annotation type.
+    Keeps only the object hypotheses classified as the semantic type the query asks for.
 
-    Reads the requested type from the active query and retains only objects whose
-    primary Classification matches it.
+    The semantic type is the query type or, when the query type is no semantic type of
+    the mapping file, the first description of the query. A hypothesis matches when any
+    of its classifications names that type. When the query names no semantic type of the
+    mapping, the CAS is left unchanged; otherwise every annotation other than the
+    matching hypotheses is removed from it.
     """
 
     def __init__(
         self,
-        name="FilterObjectBySemanticAnnotation",
+        name: str = "FilterObjectBySemanticAnnotation",
         mapping_filename: str = "mapping_perception_semantic-annotations.json",
-    ):
+    ) -> None:
+        """
+        :param mapping_filename: Name of the mapping file in ``data/json`` of the
+            ``robokudo_suturo`` package.
+        """
         super().__init__(name=name)
-        self._type_map = {}
+        self._type_map: dict[str, str] = {}
+        """
+        The semantic type of each detector class, empty if the mapping file could not be
+        read.
+        """
         try:
-            pkg_share = get_package_share_directory("robokudo_suturo")
-            mapping_path = f"{pkg_share}/data/json/{mapping_filename}"
-            with open(mapping_path, "r") as f:
-                self._type_map = json.load(f)
-        except Exception as e:
+            package_share = get_package_share_directory("robokudo_suturo")
+            mapping_path = f"{package_share}/data/json/{mapping_filename}"
+            with open(mapping_path, "r") as mapping_file:
+                self._type_map = json.load(mapping_file)
+        except Exception as error:
             self.rk_logger.warning(
-                f"Could not load mapping file '{mapping_filename}': {e}"
+                f"Could not load mapping file '{mapping_filename}': {error}"
             )
 
     @catch_and_raise_to_blackboard
-    def update(self):
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
         # the queried category is normally in the type field (e.g. Receptionist);
         # the GPSR dispatcher puts 'object' there for routing and carries the
@@ -51,74 +70,99 @@ class FilterObjectBySemanticAnnotation(BaseAnnotator):
             self.feedback_message = (
                 f"No semantic category to filter by ('{query_type}'), skipping"
             )
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
 
         cas = self.get_cas()
-        objects = [
-            oh
-            for oh in cas.annotations
-            if isinstance(oh, robokudo.types.scene.ObjectHypothesis)
+        object_hypotheses = [
+            annotation
+            for annotation in cas.annotations
+            if isinstance(annotation, ObjectHypothesis)
         ]
-        matching_objects = [oh for oh in objects if self._matches(oh, query_type)]
+        matching_objects = [
+            object_hypothesis
+            for object_hypothesis in object_hypotheses
+            if self._matches(object_hypothesis, query_type)
+        ]
 
-        # Debug visualization: green box = kept, red box = filtered out.
         try:
-            self._visualize(cas, objects, query_type)
-        except Exception as e:
-            self.rk_logger.warning(f"Could not render filter visualization: {e}")
-
-        if not matching_objects:
-            raise Exception(f"No object found with semantic annotation '{query_type}'")
+            self._visualize(cas, object_hypotheses, query_type)
+        except Exception as error:
+            self.rk_logger.warning(f"Could not render filter visualization: {error}")
 
         cas.annotations = matching_objects
         self.feedback_message = (
             f"Kept {len(matching_objects)} object(s) with annotation '{query_type}'"
         )
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
-    def _matches(self, oh, query_type):
+    def _matches(self, object_hypothesis: ObjectHypothesis, query_type: str) -> bool:
         """
-        True if the object carries a Classification for the queried category.
+        :return: Whether any classification of the hypothesis names the queried
+            semantic type.
         """
-        for a in oh.annotations:
+        for annotation in object_hypothesis.annotations:
             if (
-                isinstance(a, robokudo.types.annotation.Classification)
-                and a.classname == query_type
+                isinstance(annotation, Classification)
+                and annotation.classname == query_type
             ):
                 return True
         return False
 
-    def _label(self, oh):
+    def _label(self, object_hypothesis: ObjectHypothesis) -> str:
         """
-        `fine_label -> Category` for the object, mirroring the type mapping.
+        :return: The first detector class of the hypothesis that the mapping knows,
+            with the semantic type it maps to, as ``class -> type``; without one the
+            first classification, and ``object`` for a hypothesis without
+            classification.
         """
         classnames = [
-            a.classname
-            for a in oh.annotations
-            if isinstance(a, robokudo.types.annotation.Classification)
+            annotation.classname
+            for annotation in object_hypothesis.annotations
+            if isinstance(annotation, Classification)
         ]
-        fine = next((c for c in classnames if c in self._type_map), None)
-        if fine is not None:
-            return f"{fine} -> {self._type_map[fine]}"
+        detector_class = next(
+            (classname for classname in classnames if classname in self._type_map),
+            None,
+        )
+        if detector_class is not None:
+            return f"{detector_class} -> {self._type_map[detector_class]}"
         return classnames[0] if classnames else "object"
 
-    def _visualize(self, cas, objects, query_type):
+    def _visualize(
+        self,
+        cas: CAS,
+        object_hypotheses: list[ObjectHypothesis],
+        query_type: str,
+    ) -> None:
         """
-        Draw every detection box on the color image: green if its semantic category
-        matches the query (kept), red if not (filtered out).
+        Draw the box and the label of every object hypothesis into the output image,
+        green for a matching hypothesis and red for a removed one.
 
-        Published to the annotator visualizer so the filter result can be screenshotted.
+        :param cas: The CAS whose color image is drawn on.
+        :param object_hypotheses: The hypotheses to draw.
+        :param query_type: The semantic type the hypotheses are matched against.
         """
         image = cas.get_copy(CASViews.COLOR_IMAGE)
         font = cv2.FONT_HERSHEY_COMPLEX
-        for oh in objects:
-            color = (0, 255, 0) if self._matches(oh, query_type) else (0, 0, 255)
-            x1 = int(oh.roi.roi.pos.x)
-            y1 = int(oh.roi.roi.pos.y)
-            x2 = x1 + int(oh.roi.roi.width)
-            y2 = y1 + int(oh.roi.roi.height)
-            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+        for object_hypothesis in object_hypotheses:
+            color = (
+                (0, 255, 0)
+                if self._matches(object_hypothesis, query_type)
+                else (0, 0, 255)
+            )
+            left = int(object_hypothesis.roi.roi.pos.x)
+            top = int(object_hypothesis.roi.roi.pos.y)
+            right = left + int(object_hypothesis.roi.roi.width)
+            bottom = top + int(object_hypothesis.roi.roi.height)
+            cv2.rectangle(image, (left, top), (right, bottom), color, 2)
             cv2.putText(
-                image, self._label(oh), (x1, max(y1 - 5, 12)), font, 0.5, color, 1, 2
+                image,
+                self._label(object_hypothesis),
+                (left, max(top - 5, 12)),
+                font,
+                0.5,
+                color,
+                1,
+                2,
             )
         self.get_annotator_output_struct().set_image(image)

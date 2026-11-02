@@ -39,7 +39,9 @@ dependencies = [
     "semantic_digital_twin",
     "transformers",
     "faiss-cpu",
-    "ultralytics"
+    "ultralytics",
+    "face-recognition",
+    "llama-cpp-python",
 ]
 
 [project.urls]

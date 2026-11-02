@@ -8,7 +8,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
-from krrood.ormatic.utils import classproperty
 from py_trees.common import Status
 from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
 from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
@@ -399,13 +398,11 @@ class PostureRule:
     The keypoints whose vertical extent the rule takes as the height of the person.
     """
 
-    @classproperty
-    def smallest_decided_height(cls) -> float:
-        """
-        The smallest height of a person in the image, in pixels, that every posture rule
-        still decides.
-        """
-        return 20.0
+    smallest_decided_height: Callable[[BaseAnnotator], float]
+    """
+    Reads from an annotator of the rule the smallest height of a person in the image, in
+    pixels, that the rule still decides.
+    """
 
 
 @pytest.fixture(
@@ -415,18 +412,21 @@ class PostureRule:
             BodyPosture.standing,
             "standing",
             (PoseKeypoint.NOSE, PoseKeypoint.LEFT_KNEE),
+            lambda annotator: annotator.descriptor.parameters.min_body_height,
         ),
         PostureRule(
             HumanSittingAnnotator,
             BodyPosture.sitting,
             "sitting",
             (PoseKeypoint.LEFT_HIP, PoseKeypoint.LEFT_ANKLE),
+            lambda annotator: annotator.descriptor.parameters.min_leg_height,
         ),
         PostureRule(
             HumanLyingAnnotator,
             BodyPosture.lying,
             "lying",
             (PoseKeypoint.NOSE, PoseKeypoint.RIGHT_ANKLE),
+            lambda annotator: annotator.descriptor.parameters.min_body_height,
         ),
     ],
     ids=["standing", "sitting", "lying"],
@@ -502,14 +502,15 @@ def test_person_exactly_the_smallest_decided_height_is_decided(
     scene: GpsrScene,
     posture_rule: PostureRule,
 ) -> None:
+    annotator = posture_rule.annotator_class()
     posture = posture_rule.posture()
     heights = [
         posture.keypoints[keypoint].y for keypoint in posture_rule.height_keypoints
     ]
     posture = posture.scaled(
-        PostureRule.smallest_decided_height / (max(heights) - min(heights))
+        posture_rule.smallest_decided_height(annotator) / (max(heights) - min(heights))
     )
 
-    assert scene.decide_activities(
-        posture_rule.annotator_class(), posture.keypoint_annotation()
-    ) == [posture_rule.posture_name]
+    assert scene.decide_activities(annotator, posture.keypoint_annotation()) == [
+        posture_rule.posture_name
+    ]

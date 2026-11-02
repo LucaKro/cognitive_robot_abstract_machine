@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import json
 import math
 import time
@@ -5,42 +8,106 @@ from enum import Enum
 from pathlib import Path
 
 import py_trees
+from typing_extensions import TYPE_CHECKING, Any, Iterator
 
 import robokudo.annotators.core
-import robokudo.types.annotation
 import robokudo.types.human
 import robokudo.types.scene
-import robokudo.types.cv
+from robokudo.types.annotation import (
+    BoundingBox3DAnnotation,
+    Classification,
+    PoseAnnotation,
+    PositionAnnotation,
+)
 from robokudo.utils.annotator_helper import transform_pose_from_camera_to_world
+
+if TYPE_CHECKING:
+    from robokudo.cas import CAS
+
+# %% belief entries
 
 
 class EntityStatus(str, Enum):
+    """
+    Visibility of an entity in the belief state.
+    """
+
     VISIBLE = "visible"
     PROBABLY_THERE = "probably_there"
 
 
 class EntityType(str, Enum):
+    """
+    Kind of entity represented by a belief entry.
+    """
+
     PERSON = "person"
     OBJECT = "object"
 
 
 class BeliefEntry:
-    def __init__(self, entry_id, entity_type, classname):
-        self.id = entry_id
-        self.entity_type = entity_type
-        self.classname = classname
-        self.yolo_label = ""
-        self.semantic_labels = []
-        self.activities = []
-        self.position = [0.0, 0.0, 0.0]
-        self.orientation = [0.0, 0.0, 0.0, 1.0]
-        self.dimensions = [0.0, 0.0, 0.0]
-        self.last_seen = 0.0
-        self.confidence = 0.0
-        self.status = EntityStatus.VISIBLE
-        self.name = "anonymous"
+    """
+    Latest known properties of an entity.
+    """
 
-    def to_dict(self):
+    def __init__(self, entry_id: int, entity_type: EntityType, classname: str) -> None:
+        self.id = entry_id
+        """
+        Identifier of the entry.
+        """
+        self.entity_type = entity_type
+        """
+        Kind of entity.
+        """
+        self.classname = classname
+        """
+        Class assigned to the entity.
+        """
+        self.yolo_label = ""
+        """
+        Object detector label.
+        """
+        self.semantic_labels = []
+        """
+        Semantic labels assigned to the entity.
+        """
+        self.activities = []
+        """
+        Activities observed for the entity.
+        """
+        self.position = [0.0, 0.0, 0.0]
+        """
+        Most recently observed position.
+        """
+        self.orientation = [0.0, 0.0, 0.0, 1.0]
+        """
+        Most recently observed orientation.
+        """
+        self.dimensions = [0.0, 0.0, 0.0]
+        """
+        Most recently observed dimensions.
+        """
+        self.last_seen = 0.0
+        """
+        Time of the latest observation.
+        """
+        self.confidence = 0.0
+        """
+        Confidence of the detector label.
+        """
+        self.status = EntityStatus.VISIBLE
+        """
+        Current visibility status.
+        """
+        self.name = "anonymous"
+        """
+        Name assigned to a person.
+        """
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return the entry as a dictionary for the debug output.
+        """
         base = {}
         base["id"] = self.id
         base["entity_type"] = self.entity_type.value
@@ -76,142 +143,158 @@ class BeliefEntry:
 
 
 class BeliefState:
-    def __init__(self):
-        self.entries = {}
+    """
+    Collection of tracked entity beliefs.
+    """
 
-    def __len__(self):
+    def __init__(self) -> None:
+        self.entries: dict[int, BeliefEntry] = {}
+        """
+        Entries indexed by their identifiers.
+        """
+
+    def __len__(self) -> int:
+        """
+        Return the number of entries.
+        """
         return len(self.entries)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[BeliefEntry]:
+        """
+        Iterate over the entries.
+        """
         return iter(self.entries.values())
 
-    def find_by_id(self, entry_id):
+    def find_by_id(self, entry_id: int) -> BeliefEntry | None:
+        """
+        Return the entry with the identifier, if present.
+        """
         return self.entries.get(entry_id)
 
-    def find_by_classname(self, classname):
+    def find_by_classname(self, classname: str) -> list[BeliefEntry]:
+        """
+        Return entries with the given class.
+        """
         result = []
         for entry in self.entries.values():
             if entry.classname == classname:
                 result.append(entry)
         return result
 
-    def find_by_yolo_label(self, label):
+    def find_by_yolo_label(self, label: str) -> list[BeliefEntry]:
+        """
+        Return entries with the given detector label.
+        """
         result = []
         for entry in self.entries.values():
             if entry.yolo_label == label:
                 result.append(entry)
         return result
 
-    def find_by_semantic_label(self, label):
+    def find_by_semantic_label(self, label: str) -> list[BeliefEntry]:
+        """
+        Return entries carrying the semantic label.
+        """
         result = []
         for entry in self.entries.values():
             if label in entry.semantic_labels:
                 result.append(entry)
         return result
 
-    # dummy TODO
-    def find_by_activity(self, activity):
-        result = []
-        for entry in self.entries.values():
-            if activity in entry.activities:
-                result.append(entry)
-        return result
-
-    # dummy TODO
-    def find_by_name(self, name):
-        result = []
-        for entry in self.entries.values():
-            if entry.name == name:
-                result.append(entry)
-        return result
-
-    def find_by_status(self, status):
-        result = []
-        for entry in self.entries.values():
-            if entry.status == status:
-                result.append(entry)
-        return result
-
-    # dummy TODO
-    def visible(self):
-        return self.find_by_status(EntityStatus.VISIBLE)
-
-    def persons(self):
+    def persons(self) -> list[BeliefEntry]:
+        """
+        Return entries representing people.
+        """
         result = []
         for entry in self.entries.values():
             if entry.entity_type == EntityType.PERSON:
                 result.append(entry)
         return result
 
-    # dummy TODO
-    def objects(self):
-        result = []
-        for entry in self.entries.values():
-            if entry.entity_type == EntityType.OBJECT:
-                result.append(entry)
-        return result
 
-    # dummy TODO
-    def find_nearest(self, position, entity_type=None, classname=None):
-        best = None
-        best_dist = float("inf")
-        for entry in self.entries.values():
-            if entity_type is not None and entry.entity_type != entity_type:
-                continue
-            if classname is not None and entry.classname != classname:
-                continue
-            dist = _distance(entry.position, position)
-            if dist < best_dist:
-                best_dist = dist
-                best = entry
-        return best
+def _distance(first_position: list[float], second_position: list[float]) -> float:
+    """
+    Return the Euclidean distance between positions.
+    """
+    squared_distance = 0.0
+    for index in range(len(first_position)):
+        difference = first_position[index] - second_position[index]
+        squared_distance += difference * difference
+    return math.sqrt(squared_distance)
 
 
-def _distance(a, b):
-    total = 0.0
-    for i in range(len(a)):
-        diff = a[i] - b[i]
-        total += diff * diff
-    return math.sqrt(total)
-
-
+# %% belief state annotator
 class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
+    """
+    Track observed entities and age entries that are no longer visible.
+    """
+
     _state = BeliefState()
+    """
+    Belief state shared by annotator instances.
+    """
+
     _next_id = 1
+    """
+    Identifier assigned to the next new entry, shared by all annotator instances like
+    the belief state.
+    """
 
     def __init__(
         self,
-        name="BeliefStateAnnotator",
-        match_distance=0.3,
-        probably_there_after=60.0,
-        person_delete_after=120.0,
-        object_delete_after=300.0,
-        debug_json_path=str(Path.home() / "Desktop" / "belief_state.json"),
-    ):
+        name: str = "BeliefStateAnnotator",
+        match_distance: float = 0.3,
+        probably_there_after: float = 60.0,
+        person_delete_after: float = 120.0,
+        object_delete_after: float = 300.0,
+        debug_json_path: str = str(Path.home() / "Desktop" / "belief_state.json"),
+    ) -> None:
+        """
+        :param match_distance: Maximum distance for matching observations.
+        :param probably_there_after: Time before an unseen entry is marked probably there.
+        :param person_delete_after: Time before an unseen person is removed.
+        :param object_delete_after: Time before an unseen object is removed.
+        :param debug_json_path: Destination for the debug output, or an empty string to disable it.
+        """
         super().__init__(name=name)
         self.match_distance = match_distance
+        """
+        Maximum distance for matching observations.
+        """
         self.probably_there_after = probably_there_after
+        """
+        Time before an unseen entry is marked probably there.
+        """
         self.person_delete_after = person_delete_after
+        """
+        Time before an unseen person is removed.
+        """
         self.object_delete_after = object_delete_after
+        """
+        Time before an unseen object is removed.
+        """
         self.debug_json_path = debug_json_path
+        """
+        Destination for debug output.
+        """
 
-    def update(self):
+    def update(self) -> py_trees.common.Status:
         now = time.time()
         cas = self.get_cas()
 
-        for hyp in list(cas.annotations):
-            if isinstance(hyp, robokudo.types.scene.HumanHypothesis):
+        for hypothesis in list(cas.annotations):
+            if isinstance(hypothesis, robokudo.types.scene.HumanHypothesis):
                 entity_type = EntityType.PERSON
-            elif isinstance(hyp, robokudo.types.scene.ObjectHypothesis):
+            elif isinstance(hypothesis, robokudo.types.scene.ObjectHypothesis):
                 entity_type = EntityType.OBJECT
             else:
                 continue
 
-            observation = self._extract_observation(cas, hyp, entity_type)
+            observation = self._extract_observation(cas, hypothesis, entity_type)
             if observation is None:
                 continue
 
-            self._integrate(observation, entity_type, now, hyp=hyp)
+            self._integrate(observation, entity_type, now, hypothesis=hypothesis)
 
         self._age_entries(now)
 
@@ -223,11 +306,24 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         self.feedback_message = f"Belief state: {len(self._state)} entries"
         return py_trees.common.Status.SUCCESS
 
-    def _integrate(self, observation, entity_type, now, hyp=None):
+    def _integrate(
+        self,
+        observation: dict[str, Any],
+        entity_type: EntityType,
+        now: float,
+        hypothesis: robokudo.types.scene.HumanHypothesis
+        | robokudo.types.scene.ObjectHypothesis
+        | None = None,
+    ) -> None:
+        """
+        Add or update an entry from an observation.
+        """
         match = self._find_match(observation, entity_type)
 
         if match is None:
-            entry = BeliefEntry(self._next_id, entity_type, observation["classname"])
+            entry = BeliefEntry(
+                BeliefStateAnnotator._next_id, entity_type, observation["classname"]
+            )
             entry.yolo_label = observation["yolo_label"]
             entry.semantic_labels = list(observation["semantic_labels"])
             entry.activities = list(observation["activities"])
@@ -237,8 +333,8 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
             entry.last_seen = now
             entry.confidence = observation["confidence"]
             entry.name = observation["name"]
-            self._state.entries[self._next_id] = entry
-            self._next_id += 1
+            self._state.entries[entry.id] = entry
+            BeliefStateAnnotator._next_id += 1
         else:
             entry = match
             entry.position = observation["position"]
@@ -260,10 +356,19 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
             if observation["name"] != "anonymous":
                 entry.name = observation["name"]
 
-        if hyp is not None:
-            hyp.annotations.append(entry)
+        if hypothesis is not None:
+            hypothesis.annotations.append(entry)
 
-    def _extract_observation(self, cas, hyp, entity_type):
+    def _extract_observation(
+        self,
+        cas: CAS,
+        hypothesis: robokudo.types.scene.HumanHypothesis
+        | robokudo.types.scene.ObjectHypothesis,
+        entity_type: EntityType,
+    ) -> dict[str, Any] | None:
+        """
+        Return the observed entity properties if a position is available.
+        """
         yolo_label = ""
         confidence = 0.0
         semantic_labels = []
@@ -273,47 +378,51 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         orientation = [0.0, 0.0, 0.0, 1.0]
         dimensions = [0.0, 0.0, 0.0]
 
-        for ann in hyp.annotations:
-            if isinstance(ann, robokudo.types.human.ActivityAnnotation):
-                if ann.type and ann.type not in activities:
-                    activities.append(ann.type)
+        for annotation in hypothesis.annotations:
+            if isinstance(annotation, robokudo.types.human.ActivityAnnotation):
+                if annotation.type and annotation.type not in activities:
+                    activities.append(annotation.type)
                 continue
 
-            if isinstance(ann, robokudo.types.annotation.Classification):
-                source = getattr(ann, "source", "") or ""
-                if ann.classification_type == "face":
-                    name = ann.classname
+            if isinstance(annotation, Classification):
+                source = getattr(annotation, "source", "") or ""
+                if annotation.classification_type == "face":
+                    name = annotation.classname
                 elif "ZeroShot" in source:
-                    if ann.classname and ann.classname not in semantic_labels:
-                        semantic_labels.append(ann.classname)
+                    if (
+                        annotation.classname
+                        and annotation.classname not in semantic_labels
+                    ):
+                        semantic_labels.append(annotation.classname)
                 else:
                     if not yolo_label:
-                        yolo_label = ann.classname
-                        confidence = float(ann.confidence)
+                        yolo_label = annotation.classname
+                        confidence = float(annotation.confidence)
 
-            if isinstance(ann, robokudo.types.annotation.PoseAnnotation):
+            if isinstance(annotation, PoseAnnotation):
                 try:
-                    world_pose = transform_pose_from_camera_to_world(cas, ann)
+                    world_pose = transform_pose_from_camera_to_world(cas, annotation)
                     position = list(world_pose.translation)
                     orientation = list(world_pose.rotation)
                 except Exception:
-                    position = list(ann.translation)
-                    orientation = list(ann.rotation)
-            elif (
-                isinstance(ann, robokudo.types.annotation.PositionAnnotation)
-                and position is None
-            ):
-                pose_like = robokudo.types.annotation.PoseAnnotation()
-                pose_like.translation = list(ann.translation)
+                    position = list(annotation.translation)
+                    orientation = list(annotation.rotation)
+            elif isinstance(annotation, PositionAnnotation) and position is None:
+                pose_like = PoseAnnotation()
+                pose_like.translation = list(annotation.translation)
                 pose_like.rotation = [0.0, 0.0, 0.0, 1.0]
                 try:
                     world_pose = transform_pose_from_camera_to_world(cas, pose_like)
                     position = list(world_pose.translation)
                 except Exception:
-                    position = list(ann.translation)
+                    position = list(annotation.translation)
 
-            if isinstance(ann, robokudo.types.annotation.BoundingBox3DAnnotation):
-                dimensions = [ann.x_length, ann.y_length, ann.z_length]
+            if isinstance(annotation, BoundingBox3DAnnotation):
+                dimensions = [
+                    annotation.x_length,
+                    annotation.y_length,
+                    annotation.z_length,
+                ]
 
         if position is None:
             return None
@@ -338,46 +447,59 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
 
         return observation
 
-    def _find_match(self, observation, entity_type):
+    def _find_match(
+        self, observation: dict[str, Any], entity_type: EntityType
+    ) -> BeliefEntry | None:
+        """
+        Return the nearest matching entry within the configured distance.
+        """
         best = None
-        best_dist = self.match_distance
+        best_distance = self.match_distance
         for entry in self._state.entries.values():
             if entry.entity_type != entity_type:
                 continue
             if entry.classname != observation["classname"]:
                 continue
-            dist = _distance(entry.position, observation["position"])
-            if dist <= best_dist:
-                best_dist = dist
+            distance = _distance(entry.position, observation["position"])
+            if distance <= best_distance:
+                best_distance = distance
                 best = entry
         return best
 
-    def _age_entries(self, now):
-        to_delete = []
+    def _age_entries(self, now: float) -> None:
+        """
+        Update or remove entries according to their last observation time.
+        """
+        entries_to_delete = []
         for entry_id, entry in self._state.entries.items():
             age = now - entry.last_seen
             if (
                 entry.entity_type == EntityType.PERSON
                 and age > self.person_delete_after
             ):
-                to_delete.append(entry_id)
+                entries_to_delete.append(entry_id)
             elif (
                 entry.entity_type == EntityType.OBJECT
                 and age > self.object_delete_after
             ):
-                to_delete.append(entry_id)
+                entries_to_delete.append(entry_id)
             elif age > self.probably_there_after:
                 entry.status = EntityStatus.PROBABLY_THERE
 
-        for entry_id in to_delete:
+        for entry_id in entries_to_delete:
             del self._state.entries[entry_id]
 
-    def _dump_debug_json(self):
+    def _dump_debug_json(self) -> None:
+        """
+        Write the current entries to the debug file.
+        """
         try:
             payload = {}
             for entry in self._state.entries.values():
                 payload[str(entry.id)] = entry.to_dict()
-            with open(self.debug_json_path, "w") as f:
-                json.dump(payload, f, indent=2)
-        except Exception as exc:
-            self.rk_logger.warning(f"Could not write belief state debug JSON: {exc}")
+            with open(self.debug_json_path, "w") as debug_file:
+                json.dump(payload, debug_file, indent=2)
+        except Exception as exception:
+            self.rk_logger.warning(
+                f"Could not write belief state debug JSON: {exception}"
+            )

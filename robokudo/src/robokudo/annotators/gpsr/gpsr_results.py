@@ -1,7 +1,24 @@
+from __future__ import annotations
+
 from builtin_interfaces.msg import Time
 from py_trees.common import Status
+from robokudo_msgs.action import Query
+from robokudo_msgs.msg import ObjectDesignator
 from std_msgs.msg import Header
+
+# %% imports
+from typing_extensions import Any
+
 from robokudo.annotators.core import BaseAnnotator
+from robokudo.annotators.gpsr.belief_state import BeliefEntry
+from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
+from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
+from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
+from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
+from robokudo.annotators.gpsr.vision_language_annotator import VisionLanguageAnnotator
+from robokudo.annotators.open_vocabulary_object_detection_annotator import (
+    OpenVocabularyObjectDetectionAnnotator,
+)
 from robokudo.cas import CAS, CASViews
 from robokudo.types.annotation import (
     Classification,
@@ -14,15 +31,9 @@ from robokudo.utils.query import QueryHandler
 from robokudo.utils.type_conversion import (
     get_geometry_msgs_pose_stamped_from_position_annotation,
 )
-from robokudo_msgs.action import Query
-from robokudo_msgs.msg import ObjectDesignator
-from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
-from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
-from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
-from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
-from robokudo.annotators.gpsr.belief_state import BeliefEntry
 
 
+# %% camera header
 def camera_header(cas: CAS) -> Header:
     """
     The header of the current camera image: its acquisition time and the frame of the
@@ -38,16 +49,19 @@ def camera_header(cas: CAS) -> Header:
     )
 
 
+# %% posture answers
 class GenerateHumanPostureResults(BaseAnnotator):
     """
-    Annotator to generate human posture results.
+    Answer queries for people whose unambiguous posture matches the query.
     """
 
-    def __init__(self, name="GenerateHumanPostureResults", *args, **kwargs):
+    def __init__(
+        self, name: str = "GenerateHumanPostureResults", *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.name = name
 
-    def update(self):
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
 
         human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
@@ -72,7 +86,9 @@ class GenerateHumanPostureResults(BaseAnnotator):
 
             # a person's posture is known when exactly one keypoint rule fires
             keypoint_postures = {
-                a.type for a in activities if a.source in keypoint_rule_sources
+                activity.type
+                for activity in activities
+                if activity.source in keypoint_rule_sources
             }
             if len(keypoint_postures) != 1:
                 self.rk_logger.info(
@@ -80,8 +96,8 @@ class GenerateHumanPostureResults(BaseAnnotator):
                 )
                 continue
             posture = keypoint_postures.pop()
-            # the rules say lying, the queries say laying
-            posture = "laying" if posture == "lying" else posture
+            if posture == HumanLyingAnnotator.posture:
+                posture = HumanLyingAnnotator.query_word
             self.rk_logger.info(f"Posture of HH {hypothesis.id}: {posture}")
             if posture == query.obj.attribute[0]:
                 object_designator.attribute.append(posture)
@@ -110,69 +126,18 @@ class GenerateHumanPostureResults(BaseAnnotator):
         return Status.SUCCESS
 
 
-class GenerateObjectDetectionResult(BaseAnnotator):
-    """
-    Annotator to generate object detection results.
-    """
-
-    def __init__(self, name="ObjectDetectionResult", *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def update(self):
-        object_hypotheses = self.get_cas().filter_annotations_by_type(ObjectHypothesis)
-        query_result = []
-        result = Query.Result()
-
-        for hypothesis in object_hypotheses:
-            object_designator = ObjectDesignator()
-            object_designator.type = "object"
-            classifications = self.get_cas().filter_by_type(
-                Classification, hypothesis.annotations
-            )
-            positions = self.get_cas().filter_by_type(
-                PositionAnnotation, hypothesis.annotations
-            )
-
-            for classification in classifications:
-                if classification.source == "YoloAnnotator":
-                    object_designator.description.append(classification.classname)
-
-            if object_designator.description:
-                belief_ids = self.get_cas().filter_by_type(
-                    BeliefEntry, hypothesis.annotations
-                )
-                if belief_ids:
-                    object_designator.uid = str(belief_ids[0].id)
-                for position in positions:
-                    header = camera_header(self.get_cas())
-                    pose_stamped = (
-                        get_geometry_msgs_pose_stamped_from_position_annotation(
-                            position, header
-                        )
-                    )
-                    object_designator.pose.append(pose_stamped)
-                    object_designator.pose_source.append(position.source)
-
-                query_result.append(object_designator)
-
-        result.res = query_result
-        QueryHandler.send_answer(result)
-
-        self.feedback_message = "Query result generated."
-        return Status.SUCCESS
-
-
+# %% gesture answers
 class GenerateWavingRaisingResult(BaseAnnotator):
     """
-    Annotator to generate waving and arm raising results.
-
-    Arm raising can be either left or right.
+    Answer queries for matching waving and arm raising activities.
     """
 
-    def __init__(self, name="ObjectDetectionResult", *args, **kwargs):
+    def __init__(
+        self, name: str = "ObjectDetectionResult", *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
 
-    def update(self):
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
 
         human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
@@ -219,15 +184,16 @@ class GenerateWavingRaisingResult(BaseAnnotator):
         return Status.SUCCESS
 
 
+# %% pointing answers
 class GeneratePointingResult(BaseAnnotator):
     """
-    Annotator to generate pointing results.
+    Answer queries for people pointing in the requested direction.
     """
 
-    def __init__(self, name="PointingResult", *args, **kwargs):
+    def __init__(self, name: str = "PointingResult", *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def update(self):
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
 
         human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
@@ -244,14 +210,16 @@ class GeneratePointingResult(BaseAnnotator):
                 PositionAnnotation, hypothesis.annotations
             )
 
-            for activity in activities:
-                if activity.source == "HumanPointingAnnotator":
-                    object_designator.description.append(
-                        f"Behavior suggests {activity.type}."
-                    )
+            pointing_directions = [
+                activity.type
+                for activity in activities
+                if activity.source == "HumanPointingAnnotator"
+            ]
+            for direction in pointing_directions:
+                object_designator.description.append(f"Behavior suggests {direction}.")
 
             if object_designator.description:
-                if activity.type == query.obj.attribute[0]:
+                if query.obj.attribute[0] in pointing_directions:
                     belief_ids = self.get_cas().filter_by_type(
                         BeliefEntry, hypothesis.annotations
                     )
@@ -278,21 +246,32 @@ class GeneratePointingResult(BaseAnnotator):
         return Status.SUCCESS
 
 
+# %% activity answers
 class GenerateHumanActivityResult(BaseAnnotator):
     """
-    Annotator to generate human activity results (posture + gestures).
-
-    Reads ActivityAnnotations written by HumanActivityAnnotator.
+    Answer queries with observed postures and gestures, optionally filtered by room.
     """
 
-    def __init__(self, name="GenerateHumanActivityResult", *args, **kwargs):
+    def __init__(
+        self, name: str = "GenerateHumanActivityResult", *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.name = name
 
-    def update(self):
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
 
         human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
+        if query.obj.location:
+            human_hypotheses = [
+                hypothesis
+                for hypothesis in human_hypotheses
+                if any(
+                    isinstance(annotation, LocationAnnotation)
+                    and annotation.name == query.obj.location
+                    for annotation in hypothesis.annotations
+                )
+            ]
         query_result = []
         result = Query.Result()
 
@@ -307,7 +286,9 @@ class GenerateHumanActivityResult(BaseAnnotator):
             )
 
             pointing_refinements = [
-                a.type for a in activities if a.source == "HumanPointingAnnotator"
+                activity.type
+                for activity in activities
+                if activity.source == "HumanPointingAnnotator"
             ]
 
             for activity in activities:
@@ -322,7 +303,10 @@ class GenerateHumanActivityResult(BaseAnnotator):
                         continue
                     elif activity.type == "No gesture" and (
                         pointing_refinements
-                        or any(a.source == "HumanWavingAnnotator" for a in activities)
+                        or any(
+                            activity.source == "HumanWavingAnnotator"
+                            for activity in activities
+                        )
                     ):
                         # skeleton found a real gesture so the CLIP no gesture label is dropped
                         continue
@@ -357,14 +341,18 @@ class GenerateHumanActivityResult(BaseAnnotator):
         return Status.SUCCESS
 
 
-class GenerateGSamResult(BaseAnnotator):
+class GenerateOpenVocabularyResult(BaseAnnotator):
     """
-    Annotator to generate waving and arm raising results.
+    Answers a query with the detections of the
+    :class:`OpenVocabularyObjectDetectionAnnotator`.
 
-    Arm raising can be either left or right.
+    For persons it answers every person that contains a detection, with the detection's
+    class as description. For objects it answers every detection.
     """
 
-    def __init__(self, name="GSamResult", with_region_filter=False, *args, **kwargs):
+    def __init__(
+        self, name="OpenVocabularyResult", with_region_filter=False, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.with_region_filter = with_region_filter
 
@@ -398,17 +386,17 @@ class GenerateGSamResult(BaseAnnotator):
         )
         return interArea / inner_area
 
-    def intersection_over_union(self, gsam, human):
+    def intersection_over_union(self, detection, human):
         """
         Calculate the intersection over union of two hypotheses.
 
-        :param gsam: The first hypothesis (the one that is contained).
+        :param detection: The first hypothesis (the one that is contained).
         :param human: The second hypothesis (the one that contains).
         """
-        box1_x_min = gsam.roi.roi.pos.x
-        box1_x_max = gsam.roi.roi.pos.x + gsam.roi.roi.width
-        box1_y_min = gsam.roi.roi.pos.y
-        box1_y_max = gsam.roi.roi.pos.y + gsam.roi.roi.height
+        box1_x_min = detection.roi.roi.pos.x
+        box1_x_max = detection.roi.roi.pos.x + detection.roi.roi.width
+        box1_y_min = detection.roi.roi.pos.y
+        box1_y_max = detection.roi.roi.pos.y + detection.roi.roi.height
         box2_x_min = human.roi.roi.pos.x
         box2_x_max = human.roi.roi.pos.x + human.roi.roi.width
         box2_y_min = human.roi.roi.pos.y
@@ -427,7 +415,7 @@ class GenerateGSamResult(BaseAnnotator):
         iou = interArea / float(box1_area + box2_area - interArea)
 
         self.rk_logger.info(
-            f"Intersection over union between {gsam} and {human}: {iou}"
+            f"Intersection over union between {detection} and {human}: {iou}"
         )
         return iou
 
@@ -461,10 +449,13 @@ class GenerateGSamResult(BaseAnnotator):
                 for object_hypothesis in object_hypotheses:
                     # We dont want to compare human with human or object with object
                     if not isinstance(object_hypothesis, HumanHypothesis):
-                        gsam_hypothesis = self.get_cas().filter_by_type(
+                        detection_classification = self.get_cas().filter_by_type(
                             Classification, object_hypothesis.annotations
                         )[0]
-                        if gsam_hypothesis.source == "GroundedSAM":
+                        if (
+                            detection_classification.source
+                            == OpenVocabularyObjectDetectionAnnotator.__name__
+                        ):
                             containment_ratio = self.containment_ratio(
                                 object_hypothesis, human_hypothesis
                             )
@@ -472,7 +463,7 @@ class GenerateGSamResult(BaseAnnotator):
                                 object_designator = ObjectDesignator()
                                 object_designator.type = query.obj.type
                                 object_designator.description.append(
-                                    gsam_hypothesis.classname
+                                    detection_classification.classname
                                 )
                                 belief_ids = self.get_cas().filter_by_type(
                                     BeliefEntry, human_hypothesis.annotations
@@ -519,13 +510,18 @@ class GenerateGSamResult(BaseAnnotator):
                     )
                     < 2
                 )
-                gsam_hypothesis = self.get_cas().filter_by_type(
+                detection_classification = self.get_cas().filter_by_type(
                     Classification, object_hypothesis.annotations
                 )[0]
-                if gsam_hypothesis.source == "GroundedSAM":
+                if (
+                    detection_classification.source
+                    == OpenVocabularyObjectDetectionAnnotator.__name__
+                ):
                     object_designator = ObjectDesignator()
                     object_designator.type = query.obj.type
-                    object_designator.description.append(gsam_hypothesis.classname)
+                    object_designator.description.append(
+                        detection_classification.classname
+                    )
 
                     positions = self.get_cas().filter_by_type(
                         PositionAnnotation, object_hypothesis.annotations
@@ -547,5 +543,52 @@ class GenerateGSamResult(BaseAnnotator):
         result.res = query_result
         QueryHandler.send_answer(result)
 
+        self.feedback_message = "Query result generated."
+        return Status.SUCCESS
+
+
+class GenerateVisionLanguageResult(BaseAnnotator):
+    """
+    Answers a query with every person the :class:`VisionLanguageAnnotator` described,
+    each part of the description between commas as one attribute.
+    """
+
+    def __init__(self, name: str = "GenerateVisionLanguageResult") -> None:
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        query = self.get_cas().get(CASViews.QUERY)
+        answered = []
+        for hypothesis in self.get_cas().filter_annotations_by_type(HumanHypothesis):
+            object_designator = ObjectDesignator()
+            object_designator.type = query.obj.type
+            for activity in self.get_cas().filter_by_type(
+                ActivityAnnotation, hypothesis.annotations
+            ):
+                if activity.source != VisionLanguageAnnotator.__name__:
+                    continue
+                object_designator.attribute.extend(
+                    part.strip()
+                    for part in activity.type.strip("[] ").split(",")
+                    if part.strip()
+                )
+            if not object_designator.attribute:
+                continue
+            belief_ids = self.get_cas().filter_by_type(
+                BeliefEntry, hypothesis.annotations
+            )
+            if belief_ids:
+                object_designator.uid = str(belief_ids[0].id)
+            for position in self.get_cas().filter_by_type(
+                PositionAnnotation, hypothesis.annotations
+            ):
+                object_designator.pose.append(
+                    get_geometry_msgs_pose_stamped_from_position_annotation(
+                        position, camera_header(self.get_cas())
+                    )
+                )
+                object_designator.pose_source.append(position.source)
+            answered.append(object_designator)
+        QueryHandler.send_answer(Query.Result(res=answered))
         self.feedback_message = "Query result generated."
         return Status.SUCCESS

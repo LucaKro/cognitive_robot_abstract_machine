@@ -757,3 +757,20 @@ def test_ids_of_forgotten_entries_are_not_given_out_again(
 
     [entry] = CAS.filter_by_type(BeliefEntry, person.annotations)
     assert entry.id == 2
+
+
+def test_annotators_of_different_routes_give_out_different_ids(
+    scene: GpsrScene,
+    remembering: BeliefStateAnnotator,
+    belief_state: BeliefState,
+    debug_file: Path,
+) -> None:
+    other_route = BeliefStateAnnotator(debug_json_path=str(debug_file))
+    scene.add_human(position=[1.0, 0.0, 2.0])
+    remembering.update()
+    scene.place_in_pipeline(other_route)
+    scene.add_object(yolo("cup"), position=[3.0, 0.0, 2.0])
+
+    other_route.update()
+
+    assert sorted(belief_state.entries) == [1, 2]

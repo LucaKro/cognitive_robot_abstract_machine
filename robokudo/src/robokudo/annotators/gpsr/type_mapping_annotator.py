@@ -1,72 +1,84 @@
+from __future__ import annotations
+
+# %% Imports
 import json
-import py_trees
 
 from ament_index_python.packages import get_package_share_directory
+from py_trees.common import Status
 
-import robokudo.types.scene
-import robokudo.types.annotation
 from robokudo.annotators.core import BaseAnnotator
+from robokudo.types.annotation import Classification
+from robokudo.types.scene import ObjectHypothesis
+
+# %% type mapping
 
 
 class TypeMappingAnnotator(BaseAnnotator):
     """
-    Adds a mapped Classification to each ObjectHypothesis based on a mapping file.
+    Gives each object hypothesis the semantic type its first classification maps to, as
+    a new first classification.
 
-    Ensures the mapped Classification is the first Classification on the OH.
+    The mapping is read from a JSON file of the ``robokudo_suturo`` package. A
+    hypothesis that already carries the semantic type, or whose first classification has
+    no mapping, is left unchanged. When a classification is added, the other annotations
+    of the hypothesis follow its classifications.
     """
 
     def __init__(
         self,
-        name="TypeMappingAnnotator",
+        name: str = "TypeMappingAnnotator",
         mapping_filename: str = "mapping_perception_semantic-annotations.json",
-    ):
+    ) -> None:
+        """
+        :param mapping_filename: Name of the mapping file in ``data/json`` of the
+            ``robokudo_suturo`` package.
+        """
         super().__init__(name=name)
-        self._type_map = {}
+        self._type_map: dict[str, str] = {}
+        """
+        The semantic type of each detector class, empty if the mapping file could not be
+        read.
+        """
         try:
-            pkg_share = get_package_share_directory("robokudo_suturo")
-            mapping_path = f"{pkg_share}/data/json/{mapping_filename}"
-            with open(mapping_path, "r") as f:
-                self._type_map = json.load(f)
-        except Exception as e:
+            package_share = get_package_share_directory("robokudo_suturo")
+            mapping_path = f"{package_share}/data/json/{mapping_filename}"
+            with open(mapping_path, "r") as mapping_file:
+                self._type_map = json.load(mapping_file)
+        except Exception as error:
             self.rk_logger.warning(
-                f"Could not load mapping file '{mapping_filename}': {e}"
+                f"Could not load mapping file '{mapping_filename}': {error}"
             )
 
-    def update(self):
+    def update(self) -> Status:
         cas = self.get_cas()
-        for oh in cas.annotations:
-            if not isinstance(oh, robokudo.types.scene.ObjectHypothesis):
+        for object_hypothesis in cas.annotations:
+            if not isinstance(object_hypothesis, ObjectHypothesis):
                 continue
 
             classifications = []
-            non_classifications = []
-            # Split annotations into classifications and all other types
-            for a in oh.annotations:
-                if isinstance(a, robokudo.types.annotation.Classification):
-                    classifications.append(a)
+            other_annotations = []
+            for annotation in object_hypothesis.annotations:
+                if isinstance(annotation, Classification):
+                    classifications.append(annotation)
                 else:
-                    non_classifications.append(a)
-            # Skip objects without any classification
+                    other_annotations.append(annotation)
             if not classifications:
                 continue
 
-            raw = classifications[0].classname
-            mapped = self._type_map.get(raw)
-            # Skip if no mapping exists for this type
-            if not mapped:
+            detected_class = classifications[0].classname
+            semantic_type = self._type_map.get(detected_class)
+            if not semantic_type:
                 continue
 
-            # Check if the mapped classification already exists
-            for c in classifications:
-                if c.classname == mapped:
+            for classification in classifications:
+                if classification.classname == semantic_type:
                     break
             else:
-                # Create and prepend the mapped classification if it is missing
-                mapped_classification = robokudo.types.annotation.Classification()
-                mapped_classification.classname = mapped
-                mapped_classification.source = self.name
-                oh.annotations = (
-                    [mapped_classification] + classifications + non_classifications
+                semantic_classification = Classification()
+                semantic_classification.classname = semantic_type
+                semantic_classification.source = self.name
+                object_hypothesis.annotations = (
+                    [semantic_classification] + classifications + other_annotations
                 )
 
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS

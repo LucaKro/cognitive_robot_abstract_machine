@@ -50,26 +50,16 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         start_timer = default_timer()
 
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
-        self.cam_intrinsics = copy.deepcopy(self.get_cas().get(CASViews.CAM_INTRINSIC))
 
         if self.descriptor.parameters.with_point_generation:
             # Scale the color image down so that it matches the depth image size
             self.depth = self.get_cas().get(CASViews.DEPTH_IMAGE)
-            resized_color = None
-            try:
-                resized_color = (
-                    robokudo.utils.cv_helper.get_scaled_color_image_for_depth_image(
-                        self.get_cas(), self.color
-                    )
+            resized_color = (
+                robokudo.utils.cv_helper.get_scaled_color_image_for_depth_image(
+                    self.get_cas(), self.color
                 )
-                robokudo.utils.annotator_helper.scale_camera_intrinsics(self)
-            except RuntimeError as e:
-                self.rk_logger.error(
-                    "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
-                )
-                raise Exception(
-                    "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
-                )
+            )
+            robokudo.utils.annotator_helper.scale_camera_intrinsics(self)
         else:
             resized_color = self.color
 
@@ -102,15 +92,9 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
 
             # If the color image has been resized to match it with depth data, respect this scaling
             if self.descriptor.parameters.with_point_generation:
-                color2depth_ratio = self.get_cas().get(
-                    robokudo.cas.CASViews.COLOR2DEPTH_RATIO
-                )
-
-                if not color2depth_ratio:
-                    raise RuntimeError("No Color to Depth Ratio set. Can't continue.")
-
-                c2d_ratio_x = color2depth_ratio[0]
-                c2d_ratio_y = color2depth_ratio[1]
+                color2depth_ratio = self.get_cas().color_to_depth_ratio
+                c2d_ratio_x = color2depth_ratio.horizontal
+                c2d_ratio_y = color2depth_ratio.vertical
                 if c2d_ratio_x != c2d_ratio_y:
                     raise RuntimeError(
                         "color to depth ratio x&y is not equal. Can't process."
@@ -163,7 +147,7 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 )
 
                 cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
-                    rgbd_image, self.cam_intrinsics
+                    rgbd_image, self.camera_intrinsics
                 )
                 # visualization_img = face_mask
                 human_hypothesis.points = cloud

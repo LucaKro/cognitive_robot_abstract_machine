@@ -1,101 +1,150 @@
+from __future__ import annotations
+
+# %% Imports
 import copy
 from timeit import default_timer
-import py_trees
-import robokudo
-import robokudo.annotators.core
-import robokudo.cas
-import robokudo.types.annotation
-import robokudo.types.human
-import robokudo.types.scene
-import robokudo.types.tf
-import robokudo.utils.cv_helper
-import robokudo.utils.decorators
-import robokudo.utils.error_handling
-import robokudo.utils.math_helper
-import robokudo.utils.o3d_helper
-import robokudo.utils.transform
+
+from py_trees.common import Status
+from typing_extensions import TYPE_CHECKING
+
+from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
+from robokudo.cas import CAS, CASViews
+from robokudo.types.human import ActivityAnnotation, KeypointAnnotation, KeypointKind
+from robokudo.types.scene import HumanHypothesis
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+
+if TYPE_CHECKING:
+    import numpy as np
+    import open3d as o3d
+
+    from robokudo.types.human import BodyKeypoint
+
+# %% sitting rule
 
 
-class HumanSittingAnnotator(robokudo.annotators.core.BaseAnnotator):
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+class HumanSittingAnnotator(BaseAnnotator):
+    """
+    Annotates every person whose image keypoints show a sitting posture with the
+    activity ``sitting``.
+
+    A body side sits when its keypoints are reliable, its knee is below the hip and its
+    ankle below the knee, the drop from hip to knee is short and the drop from knee to
+    ankle is long, both relative to the vertical extent of the side. One sitting side is
+    enough. Persons without image keypoints are skipped.
+    """
+
+    class Descriptor(BaseAnnotator.Descriptor):
+        """
+        Configuration of the sitting rule.
+        """
+
         class Parameters:
-            def __init__(self):
-                self.raise_on_failure = False
+            """
+            Parameters of the sitting rule.
+            """
 
-                # Minimum confidence required for a keypoint to be considered valid.
-                self.keypoint_confidence_threshold = 0.5
+            def __init__(self) -> None:
+                self.raise_on_failure: bool = False
+                """
+                Not read by this annotator.
+                """
+
+                self.keypoint_confidence_threshold: float = 0.5
+                """
+                Smallest confidence of a keypoint for the rule to trust it.
+                """
 
                 # Sitting threshold TODO Anpassen
-                self.max_hip_knee_rel_bbox = (
-                    0.5  # Hip–knee distance relative to body height.
-                )
-                self.max_knee_knee_rel_bbox = (
-                    0.5  # Vertical difference between left/right knees.
-                )
-                self.min_ankle_knee_rel_bbox = (
-                    0.2  # Knee–ankle distance to ensure the person is not lying.
-                )
+                self.max_hip_knee_rel_bbox: float = 0.5
+                """
+                Largest vertical distance from hip to knee, relative to the vertical
+                extent of the body side, for which the side sits.
+                """
+                self.max_knee_knee_rel_bbox: float = 0.5
+                """
+                Largest vertical distance between the two knees, relative to the
+                vertical extent of both legs, for which both sides are checked again.
+                """
+                self.min_ankle_knee_rel_bbox: float = 0.2
+                """
+                Smallest vertical distance from knee to ankle, relative to the vertical
+                extent of the body side, for which the side sits.
+                """
+                self.min_leg_height: float = 20
+                """
+                Smallest vertical extent of hip, knee and ankle in the image, in pixels,
+                for which a body side is decided.
+                """
 
         parameters = (
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
+        """
+        Default parameters on the class; each descriptor instance gets its own.
+        """
 
-    def __init__(self, name="HumanSittingAnnotator", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "HumanSittingAnnotator",
+        descriptor: HumanSittingAnnotator.Descriptor = Descriptor(),
+    ) -> None:
         super().__init__(name, descriptor)
+        self.color: np.ndarray | None = None
+        """
+        The color image of the last update.
+        """
+        self.cloud: o3d.geometry.PointCloud | None = None
+        """
+        The point cloud of the last update.
+        """
 
-    @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    @catch_and_raise_to_blackboard
+    def update(self) -> Status:
         start_timer = default_timer()
 
-        # Retrieve current sensor data from CAS.
-        self.color = self.get_cas().get(robokudo.cas.CASViews.COLOR_IMAGE)
-        self.cloud = self.get_cas().get(robokudo.cas.CASViews.CLOUD)
+        self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
+        self.cloud = self.get_cas().get(CASViews.CLOUD)
 
-        # Retrieve all detected human hypotheses.
-        human_hypotheses = self.get_cas().filter_annotations_by_type(
-            robokudo.types.scene.HumanHypothesis
-        )
-        all_vis_geometries = [self.cloud]
+        human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
+        visualization_geometries = [self.cloud]
 
-        # Process each detected human individually.
         for human_hypothesis in human_hypotheses:
-            keypoint_annotations = robokudo.cas.CAS.filter_by_type(
-                robokudo.types.human.KeypointAnnotation, human_hypothesis.annotations
+            keypoint_annotations = CAS.filter_by_type(
+                KeypointAnnotation, human_hypothesis.annotations
             )
-            keypoint_2d_annotations = [
-                a
-                for a in keypoint_annotations
-                if a.kind == robokudo.types.human.KeypointKind.IMAGE_POSITION
+            image_keypoint_annotations = [
+                annotation
+                for annotation in keypoint_annotations
+                if annotation.kind == KeypointKind.IMAGE_POSITION
             ]
 
-            # If no keypoints are available, skip this human.
-            if len(keypoint_2d_annotations) == 0:
+            if len(image_keypoint_annotations) == 0:
                 continue
 
-            keypoint_2d_annotations = keypoint_2d_annotations[0]
+            image_keypoints = image_keypoint_annotations[0]
 
-            # Evaluate whether the person is sitting.
-            if self.keypoints_sitting(keypoint_2d_annotations):
-                activity = robokudo.types.human.ActivityAnnotation()
+            if self.keypoints_sitting(image_keypoints):
+                activity = ActivityAnnotation()
                 activity.type = "sitting"
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
 
-        self.get_annotator_output_struct().set_geometries(all_vis_geometries)
+        self.get_annotator_output_struct().set_geometries(visualization_geometries)
         self.get_annotator_output_struct().set_image(copy.deepcopy(self.color))
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
-    def keypoints_sitting(
-        self, keypoint_2d_annotation: robokudo.types.human.KeypointAnnotation
-    ):
-        p = self.descriptor.parameters
-        th = p.keypoint_confidence_threshold
+    def keypoints_sitting(self, keypoint_2d_annotation: KeypointAnnotation) -> bool:
+        """
+        :param keypoint_2d_annotation: The image keypoints of one person.
+        :return: Whether the keypoints show a sitting person.
+        """
+        parameters = self.descriptor.parameters
+        confidence_threshold = parameters.keypoint_confidence_threshold
 
-        # Load keypoints for left and right body sides.
         left_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_HIP]
         left_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_KNEE]
         left_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_ANKLE]
@@ -104,52 +153,52 @@ class HumanSittingAnnotator(robokudo.annotators.core.BaseAnnotator):
         right_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_KNEE]
         right_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_ANKLE]
 
-        # Check whether keypoints on each side are reliable.
-        left_ok = (
-            min(left_hip.confidence, left_knee.confidence, left_ankle.confidence) >= th
+        left_side_reliable = (
+            min(left_hip.confidence, left_knee.confidence, left_ankle.confidence)
+            >= confidence_threshold
         )
-        right_ok = (
+        right_side_reliable = (
             min(right_hip.confidence, right_knee.confidence, right_ankle.confidence)
-            >= th
+            >= confidence_threshold
         )
-        # print("Linke Knie confidence: ",left_knee.confidence,"Linke ankle confidence: ", left_ankle.confidence, "Linke hüfte confidence: ",left_hip.confidence)
 
-        # If neither side has reliable keypoints, sitting cannot be evaluated.
-        if not left_ok and not right_ok:
+        if not left_side_reliable and not right_side_reliable:
             return False
 
-        # Helper function to evaluate sitting posture for one body side.
-        def side_is_sitting(hip, knee, ankle):
-            ys = [hip.y, knee.y, ankle.y]
-            body_h = max(ys) - min(ys)
+        def side_is_sitting(
+            hip: BodyKeypoint, knee: BodyKeypoint, ankle: BodyKeypoint
+        ) -> bool:
+            """
+            :return: Whether the hip, knee and ankle of one body side show a sitting
+                posture.
+            """
+            image_rows = [hip.y, knee.y, ankle.y]
+            side_height = max(image_rows) - min(image_rows)
 
-            if body_h < 20:
+            if side_height < parameters.min_leg_height:
                 return False
 
-            # Compute normalized vertical distances.
-            hip_knee_rel = abs(hip.y - knee.y) / body_h
-            knee_ankle_rel = abs(knee.y - ankle.y) / body_h
+            relative_hip_knee_height = abs(hip.y - knee.y) / side_height
+            relative_knee_ankle_height = abs(knee.y - ankle.y) / side_height
 
             knee_below_hip = knee.y > hip.y
             ankle_below_knee = ankle.y > knee.y
 
-            # Sitting heuristic for one side:
             return (
                 knee_below_hip
                 and ankle_below_knee
-                and hip_knee_rel <= p.max_hip_knee_rel_bbox
-                and knee_ankle_rel >= p.min_ankle_knee_rel_bbox
+                and relative_hip_knee_height <= parameters.max_hip_knee_rel_bbox
+                and relative_knee_ankle_height >= parameters.min_ankle_knee_rel_bbox
             )
 
-        # If either side satisfies the sitting heuristic, classify as sitting.
-        if left_ok and side_is_sitting(left_hip, left_knee, left_ankle):
+        if left_side_reliable and side_is_sitting(left_hip, left_knee, left_ankle):
             return True
-        if right_ok and side_is_sitting(right_hip, right_knee, right_ankle):
+        if right_side_reliable and side_is_sitting(right_hip, right_knee, right_ankle):
             return True
 
         # Optional: if both sides are visible, check whether knees are at similar height.
-        if left_ok and right_ok:
-            body_h = max(
+        if left_side_reliable and right_side_reliable:
+            legs_height = max(
                 left_hip.y,
                 left_knee.y,
                 left_ankle.y,
@@ -164,9 +213,11 @@ class HumanSittingAnnotator(robokudo.annotators.core.BaseAnnotator):
                 right_knee.y,
                 right_ankle.y,
             )
-            if body_h > 20:
-                knee_knee_rel = abs(left_knee.y - right_knee.y) / body_h
-                if knee_knee_rel <= p.max_knee_knee_rel_bbox:
+            if legs_height > parameters.min_leg_height:
+                relative_knee_knee_height = (
+                    abs(left_knee.y - right_knee.y) / legs_height
+                )
+                if relative_knee_knee_height <= parameters.max_knee_knee_rel_bbox:
                     return side_is_sitting(
                         left_hip, left_knee, left_ankle
                     ) or side_is_sitting(right_hip, right_knee, right_ankle)

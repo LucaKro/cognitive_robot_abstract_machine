@@ -1,58 +1,119 @@
-import numpy as np
-import py_trees
-import open3d as o3d
+from __future__ import annotations
 
-import robokudo.annotators.core
-import robokudo.types.annotation
-from robokudo.types.annotation import PoseAnnotation
+# %% Imports
+import numpy as np
+import open3d as o3d
+from py_trees.common import Status
+from typing_extensions import TYPE_CHECKING
+
+from robokudo.annotators.core import BaseAnnotator
+from robokudo.types.annotation import (
+    CloudAnnotation,
+    LocationAnnotation,
+    PoseAnnotation,
+    PositionAnnotation,
+)
 from robokudo.types.scene import HumanHypothesis, ObjectHypothesis
 from robokudo.utils.annotator_helper import transform_pose_from_camera_to_world
 
+if TYPE_CHECKING:
+    from robokudo.cas import CAS
 
-class FilterHumansByObjectAnnotator(robokudo.annotators.core.BaseAnnotator):
+# %% furniture filter
+
+
+class FilterHumansByObjectAnnotator(BaseAnnotator):
     """
-    Removes humans from the CAS that are not near a specific piece of a furniture.
+    Removes every person from the CAS who is not near a piece of the queried furniture,
+    and marks the others with a :class:`LocationAnnotation` naming the furniture.
 
-    Without a direction the search region is a symmetric box; a direction restricts it
-    to one half (left/right/front/back from the robot's point of view, projected onto
-    the world ground plane so a tilted camera head does not distort the directions).
+    Every object hypothesis with a position that is no person counts as a piece of the
+    furniture. Without a direction, a person is near when they stand in a box around
+    the furniture. A direction (``left``, ``right``, ``front`` or ``back``, seen from the
+    robot) moves the box next to the furniture on that side, with the sides taken from
+    the camera axes projected onto the floor of the world. Without a furniture type
+    nobody is removed; without a piece of furniture every person is removed.
     """
 
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+    class Descriptor(BaseAnnotator.Descriptor):
+        """
+        Configuration of the furniture filter.
+        """
+
         class Parameters:
-            def __init__(self):
-                self.box_x = 1.5
-                self.box_y = 1.5
-                self.box_z = 2.5
-                self.direction = None  # None, 'left', 'right', 'front', 'back'
-                self.target_type = None
+            """
+            Parameters of the furniture filter.
+            """
+
+            def __init__(self) -> None:
+                self.box_x: float = 1.5
+                """
+                Extent of the search box along the world *x* axis, or along the robot's
+                right when a direction is set, in meters.
+                """
+                self.box_y: float = 1.5
+                """
+                Extent of the search box along the world *y* axis, or along the robot's
+                viewing direction when a direction is set, in meters.
+                """
+                self.box_z: float = 2.5
+                """
+                Height of the search box, centred on the furniture, in meters.
+                """
+                self.direction: str | None = None
+                """
+                Side of the furniture, seen from the robot, that the search box is
+                placed on: ``left``, ``right``, ``front`` or ``back``. *None* searches
+                around the furniture.
+                """
+                self.target_type: str | None = None
+                """
+                Name of the furniture the persons are searched near, written into their
+                location; without one nobody is removed.
+                """
 
         parameters = Parameters()
+        """
+        Default parameters on the class; each descriptor instance gets its own.
+        """
 
-    def __init__(self, name="FilterHumansByObjectAnnotator", descriptor=Descriptor()):
-        super(FilterHumansByObjectAnnotator, self).__init__(name, descriptor)
+    def __init__(
+        self,
+        name: str = "FilterHumansByObjectAnnotator",
+        descriptor: FilterHumansByObjectAnnotator.Descriptor = Descriptor(),
+    ) -> None:
+        super().__init__(name, descriptor)
 
     def inside_box(
         self,
-        human_pos,
-        furniture_pos,
-        box_size,
-        direction=None,
-        right=None,
-        forward=None,
-    ):
-        """Returns True if human is in range of the given furniture. Without a direction
-        this is the symmetric world-axis box; a direction keeps only one half-space along
-        the robot's ground-plane axes (right > 0 = robot right, forward > 0 = behind)."""
-        delta = np.array(human_pos) - np.array(furniture_pos)
+        human_pos: list[float],
+        furniture_pos: list[float],
+        box_size: list[float],
+        direction: str | None = None,
+        right: np.ndarray | None = None,
+        forward: np.ndarray | None = None,
+    ) -> bool | np.bool_:
+        """
+        :param human_pos: Position of the person in the world.
+        :param furniture_pos: Position of the furniture in the world.
+        :param box_size: Extent of the search box along its three axes.
+        :param direction: Side of the furniture the box is placed on, or *None* for a
+            box around the furniture.
+        :param right: The robot's right on the floor, needed with a direction.
+        :param forward: The robot's viewing direction on the floor, needed with a
+            direction; positive is behind the furniture.
+        :return: Whether the person stands in the search box. An unknown direction
+            searches around the furniture.
+        """
+        offset = np.array(human_pos) - np.array(furniture_pos)
         if not direction:
-            return np.all(np.abs(delta) <= np.array(box_size) / 2.0)
+            return np.all(np.abs(offset) <= np.array(box_size) / 2.0)
 
         box_x, box_y, box_z = box_size
-        if abs(delta[2]) > box_z / 2.0:
+        if abs(offset[2]) > box_z / 2.0:
             return False
-        lateral = float(np.dot(delta, right))
-        longitudinal = float(np.dot(delta, forward))
+        lateral = float(np.dot(offset, right))
+        longitudinal = float(np.dot(offset, forward))
         if direction == "right":
             return 0.0 <= lateral <= box_x and abs(longitudinal) <= box_y / 2.0
         if direction == "left":
@@ -61,16 +122,22 @@ class FilterHumansByObjectAnnotator(robokudo.annotators.core.BaseAnnotator):
             return 0.0 <= longitudinal <= box_y and abs(lateral) <= box_x / 2.0
         if direction == "front":
             return -box_y <= longitudinal <= 0.0 and abs(lateral) <= box_x / 2.0
-        return np.all(np.abs(delta) <= np.array(box_size) / 2.0)
+        return np.all(np.abs(offset) <= np.array(box_size) / 2.0)
 
-    def _robot_ground_basis(self, cas):
+    def _robot_ground_basis(
+        self, cas: CAS
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
         """
-        Right/forward unit vectors on the world ground plane, from the camera pose.
-
-        Returns (None, None) if the camera looks (nearly) straight up/down.
+        :param cas: The CAS whose camera pose is used.
+        :return: The unit vectors along the camera's right and along its viewing
+            direction, projected onto the floor of the world; each is *None* when its
+            axis is (nearly) vertical.
         """
 
-        def to_world(point):
+        def to_world(point: list[float]) -> np.ndarray:
+            """
+            :return: The camera frame point in the world.
+            """
             pose = PoseAnnotation()
             pose.translation = list(point)
             pose.rotation = [0.0, 0.0, 0.0, 1.0]
@@ -80,37 +147,46 @@ class FilterHumansByObjectAnnotator(robokudo.annotators.core.BaseAnnotator):
         right = to_world([1.0, 0.0, 0.0]) - origin  # camera image-right axis
         forward = to_world([0.0, 0.0, 1.0]) - origin  # camera optical (forward) axis
 
-        def project_ground(v):
-            flat = np.array([v[0], v[1], 0.0])
+        def project_ground(vector: np.ndarray) -> np.ndarray | None:
+            """
+            :return: The vector projected onto the floor and normalized, or *None* if
+                it is (nearly) vertical.
+            """
+            flat = np.array([vector[0], vector[1], 0.0])
             norm = np.linalg.norm(flat)
             return flat / norm if norm > 1e-6 else None
 
         return project_ground(right), project_ground(forward)
 
-    def update(self):
+    def update(self) -> Status:
         cas = self.get_cas()
-        params = self.descriptor.parameters
-        target_type = params.target_type
-        box_size = [params.box_x, params.box_y, params.box_z]
-        direction = params.direction
+        parameters = self.descriptor.parameters
+        target_type = parameters.target_type
+        box_size = [parameters.box_x, parameters.box_y, parameters.box_z]
+        direction = parameters.direction
         furniture_world_positions = []
-        furniture_cam_positions = []
+        furniture_camera_positions = []
         furniture_clouds = []
-        human_viz_data = []
-        kept = 0
+        human_visualization_data = []
+        kept_count = 0
 
         if not target_type:
             self.rk_logger.warning("No target type set")
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
 
         # getting every human and every furniture of the given type (yolo filtered it already)
         all_hypotheses = cas.filter_annotations_by_type(ObjectHypothesis)
-        humans = [h for h in all_hypotheses if isinstance(h, HumanHypothesis)]
-        furniture_list = [
-            obj for obj in all_hypotheses if not isinstance(obj, HumanHypothesis)
+        humans = [
+            hypothesis
+            for hypothesis in all_hypotheses
+            if isinstance(hypothesis, HumanHypothesis)
+        ]
+        furniture = [
+            hypothesis
+            for hypothesis in all_hypotheses
+            if not isinstance(hypothesis, HumanHypothesis)
         ]
 
-        # robots ground-plane axes, only needed for directional filtering
         right, forward = None, None
         if direction:
             right, forward = self._robot_ground_basis(cas)
@@ -120,18 +196,17 @@ class FilterHumansByObjectAnnotator(robokudo.annotators.core.BaseAnnotator):
                 )
                 direction = None
 
-        # getting the position of the furniture relativly to the world
-        for obj in furniture_list:
-            position = cas.filter_by_type(
-                robokudo.types.annotation.PositionAnnotation, obj.annotations
+        for piece_of_furniture in furniture:
+            positions = cas.filter_by_type(
+                PositionAnnotation, piece_of_furniture.annotations
             )
-            if not position:
+            if not positions:
                 continue
             pose = PoseAnnotation()
-            pose.translation = position[0].translation
+            pose.translation = positions[0].translation
             pose.rotation = [0.0, 0.0, 0.0, 1.0]
-            furniture_cam_positions.append(pose.translation)
-            furniture_clouds.append(self._cluster_cloud(obj))
+            furniture_camera_positions.append(pose.translation)
+            furniture_clouds.append(self._cluster_cloud(piece_of_furniture))
             furniture_world_positions.append(
                 transform_pose_from_camera_to_world(cas, pose).translation
             )
@@ -142,124 +217,142 @@ class FilterHumansByObjectAnnotator(robokudo.annotators.core.BaseAnnotator):
             )
             for human in humans:
                 cas.annotations.remove(human)
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
 
-        # getting the position of every human and checking, if it is near (on the requested side)
         for human in humans:
-            position = cas.filter_by_type(
-                robokudo.types.annotation.PositionAnnotation, human.annotations
-            )
-            if not position:
+            positions = cas.filter_by_type(PositionAnnotation, human.annotations)
+            if not positions:
                 cas.annotations.remove(human)
                 continue
 
             pose = PoseAnnotation()
-            pose.translation = position[0].translation
+            pose.translation = positions[0].translation
             pose.rotation = [0.0, 0.0, 0.0, 1.0]
-            world_pos = transform_pose_from_camera_to_world(cas, pose).translation
+            world_position = transform_pose_from_camera_to_world(cas, pose).translation
 
             near_furniture = False
-            for furniture_pos in furniture_world_positions:
+            for furniture_position in furniture_world_positions:
                 if self.inside_box(
-                    world_pos, furniture_pos, box_size, direction, right, forward
+                    world_position,
+                    furniture_position,
+                    box_size,
+                    direction,
+                    right,
+                    forward,
                 ):
                     near_furniture = True
                     break
 
             if near_furniture:
-                tag = robokudo.types.annotation.LocationAnnotation()
-                tag.name = target_type
-                human.annotations.append(tag)
-                kept += 1
-                human_viz_data.append(
+                location = LocationAnnotation()
+                location.name = target_type
+                human.annotations.append(location)
+                kept_count += 1
+                human_visualization_data.append(
                     (pose.translation, True, self._cluster_cloud(human))
                 )
             else:
                 cas.annotations.remove(human)
-                human_viz_data.append(
+                human_visualization_data.append(
                     (pose.translation, False, self._cluster_cloud(human))
                 )
 
         side = direction if direction else "any side"
         self.rk_logger.info(
-            f"Kept {kept}/{len(humans)} humans near '{target_type}' ({side})"
+            f"Kept {kept_count}/{len(humans)} humans near '{target_type}' ({side})"
         )
-        # calling the vizualization step for debug purposes
         self._visualize(
-            furniture_cam_positions,
+            furniture_camera_positions,
             furniture_clouds,
-            human_viz_data,
+            human_visualization_data,
             box_size,
             direction,
         )
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
     def _visualize(
         self,
-        furniture_cam_positions,
-        furniture_clouds,
-        human_viz_data,
-        box_size,
-        direction,
-    ):
-        """Green box = search region. Orange cluster cloud/marker = furniture,
-        blue = kept human, red = removed human. The coloured cluster clouds show
-        what each marker actually is, so the scene is readable without the legend.
+        furniture_camera_positions: list[list[float]],
+        furniture_clouds: list[o3d.geometry.PointCloud | None],
+        human_visualization_data: list[
+            tuple[list[float], bool, o3d.geometry.PointCloud | None]
+        ],
+        box_size: list[float],
+        direction: str | None,
+    ) -> None:
+        """
+        Show the search box of every piece of furniture in green, the furniture with its
+        cluster in orange and every person with their cluster in blue when kept and in
+        red when removed, all in the camera frame.
+
+        :param furniture_camera_positions: Position of every piece of furniture.
+        :param furniture_clouds: Cluster of every piece of furniture, if it has one.
+        :param human_visualization_data: Position, whether the person is kept, and
+            cluster of every person with a position.
+        :param box_size: Extent of the search box along its three axes.
+        :param direction: Side of the furniture the search box is placed on, or *None*.
         """
         box_x, box_y, box_z = box_size
         geometries = []
-        for cam_pos, furniture_cloud in zip(furniture_cam_positions, furniture_clouds):
-            center = np.array(cam_pos)
+        for camera_position, furniture_cloud in zip(
+            furniture_camera_positions, furniture_clouds
+        ):
+            center = np.array(camera_position)
             if direction:
                 # camera axes: x=right (box_x), y=down (box_z), z=forward (box_y)
-                half = np.array([box_x / 2.0, box_z / 2.0, box_y / 2.0])
-                min_c, max_c = center - half, center + half
+                half_size = np.array([box_x / 2.0, box_z / 2.0, box_y / 2.0])
+                min_corner, max_corner = center - half_size, center + half_size
                 if direction == "right":
-                    min_c[0], max_c[0] = center[0], center[0] + box_x
+                    min_corner[0], max_corner[0] = center[0], center[0] + box_x
                 elif direction == "left":
-                    min_c[0], max_c[0] = center[0] - box_x, center[0]
+                    min_corner[0], max_corner[0] = center[0] - box_x, center[0]
                 elif direction == "back":
-                    min_c[2], max_c[2] = center[2], center[2] + box_y
+                    min_corner[2], max_corner[2] = center[2], center[2] + box_y
                 elif direction == "front":
-                    min_c[2], max_c[2] = center[2] - box_y, center[2]
+                    min_corner[2], max_corner[2] = center[2] - box_y, center[2]
             else:
-                half = np.array(box_size) / 2.0
-                min_c, max_c = center - half, center + half
-            box = o3d.geometry.AxisAlignedBoundingBox(min_c, max_c)
-            box.color = [0.0, 1.0, 0.0]
-            geometries.append(box)
+                half_size = np.array(box_size) / 2.0
+                min_corner, max_corner = center - half_size, center + half_size
+            search_box = o3d.geometry.AxisAlignedBoundingBox(min_corner, max_corner)
+            search_box.color = [0.0, 1.0, 0.0]
+            geometries.append(search_box)
             marker = o3d.geometry.TriangleMesh.create_sphere(radius=0.08)
             marker.translate(center)
             marker.paint_uniform_color([1.0, 0.6, 0.0])
             geometries.append(marker)
             self._append_cloud(geometries, furniture_cloud, [1.0, 0.6, 0.0])
-        for cam_pos, was_kept, human_cloud in human_viz_data:
-            if cam_pos is None:
+        for camera_position, was_kept, human_cloud in human_visualization_data:
+            if camera_position is None:
                 continue
             color = [0.0, 0.5, 1.0] if was_kept else [1.0, 0.2, 0.2]
             sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.08)
-            sphere.translate(np.array(cam_pos))
+            sphere.translate(np.array(camera_position))
             sphere.paint_uniform_color(color)
             geometries.append(sphere)
             self._append_cloud(geometries, human_cloud, color)
         self.get_annotator_output_struct().set_geometries(geometries)
 
-    def _cluster_cloud(self, hypothesis):
+    def _cluster_cloud(
+        self, hypothesis: ObjectHypothesis
+    ) -> o3d.geometry.PointCloud | None:
         """
-        The Open3D point cloud of a hypothesis cluster, or None if it has none.
-
-        Mirrors how the ClusterPositionAnnotator reads cluster points.
+        :return: The points of the hypothesis, or else the cloud of its first
+            :class:`CloudAnnotation`, or *None* if it has neither.
         """
         if getattr(hypothesis, "points", None) is not None:
             return hypothesis.points
-        clouds = self.get_cas().filter_by_type(
-            robokudo.types.annotation.CloudAnnotation, hypothesis.annotations
-        )
+        clouds = self.get_cas().filter_by_type(CloudAnnotation, hypothesis.annotations)
         return clouds[0].points if clouds else None
 
-    def _append_cloud(self, geometries, cloud, color):
+    def _append_cloud(
+        self,
+        geometries: list[o3d.geometry.Geometry],
+        cloud: o3d.geometry.PointCloud | None,
+        color: list[float],
+    ) -> None:
         """
-        Add a colour-painted copy of a cluster cloud to the geometry list.
+        Add a copy of the cloud painted in the color to the geometries, unless the
+        cloud is missing or empty.
         """
         if cloud is None or not cloud.has_points():
             return

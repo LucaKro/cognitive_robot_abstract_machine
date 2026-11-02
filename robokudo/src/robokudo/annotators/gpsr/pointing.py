@@ -1,20 +1,23 @@
+from __future__ import annotations
+
+# %% imports
 from enum import Enum
 from timeit import default_timer
 
-from rclpy.node import Node
 import geometry_msgs.msg
 import numpy
 import numpy as np
 import open3d as o3d
 import py_trees
 import py_trees.common
-from visualization_msgs.msg import Marker
-import rclpy
 import visualization_msgs.msg
+from rclpy.node import Node
+from typing_extensions import Any
+from visualization_msgs.msg import Marker
+
 import robokudo
 import robokudo.annotators.core
 import robokudo.cas
-import robokudo.types.annotation
 import robokudo.types.human
 import robokudo.types.scene
 import robokudo.types.tf
@@ -24,23 +27,24 @@ import robokudo.utils.error_handling
 import robokudo.utils.math_helper
 import robokudo.utils.o3d_helper
 import robokudo.utils.transform
-from robokudo.annotators.core import BaseAnnotator
-
-from robokudo.types.annotation import PoseAnnotation, PositionAnnotation
+from robokudo.annotators.human_and_pose import PoseKeypoint
+from robokudo.types.annotation import PoseAnnotation
 from robokudo.utils.annotator_helper import (
     transform_pose_from_camera_to_world,
     transform_pose_from_world_to_camera,
 )
 from robokudo.utils.math_helper import compute_direction_vector_angle
 from robokudo.utils.transform import get_rotation_matrix_from_q
-from robokudo.utils.module_loader import ModuleLoader
 
 
+# %% pointing direction
 class Arm(Enum):
+    """Side of a person's pointing arm."""
+
     LEFT = 0
     RIGHT = 1
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name.lower()
 
 
@@ -58,42 +62,55 @@ def azimuth_angle(direction_vector: np.ndarray) -> float:
     return np.degrees(np.arctan2(rotated_y, rotated_x))
 
 
+# %% pointing annotator
 class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
+    """Annotate pointing activities and detected pointing targets."""
+
     class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+        """Configuration for pointing detection."""
+
         class Parameters:
-            def __init__(self):
+            """Thresholds and target structures for pointing detection."""
+
+            def __init__(self) -> None:
                 # A list of spheres defined by triple (name, center, radius). In Cam coordinates.
                 # These spheres will be used to check if something is 'pointed at'
                 self.pointing_target_structures = []
                 self.pointing_target_structures_type = "box"  # or "sphere"
-                # Starting from the elbow, how long shall the line for pointing checks be? In meters.
                 self.pointing_length_meters = 5.0
+                """Length of the pointing line in metres."""
                 self.raise_on_failure = True
-                # max elevation of the forearm above horizontal to count as pointing, works with wrist-below-shoulder check
+                """Not read by this annotator."""
                 # TODO: fine-tune value based on real pointing vs waving observations
                 self.max_pointing_angle = 45.0
-                self.min_arm_extension = (
-                    0.0  # minimum wrist-to-torso-center distance (meters)
-                )
+                """Maximum angle below horizontal for a pointing direction."""
+                self.min_arm_extension = 0.0
+                """Minimum wrist distance from the torso for an extended arm."""
 
-                # If True, only run on HHs that were already tagged as "Pointing" or "No gesture".
                 self.known = False
+                """Process only people already marked as pointing or no gesture."""
 
-        parameters = (
-            Parameters()
-        )  # overwrite the parameters explicitly to enable auto-completion
+        parameters = Parameters()
+        """Default parameters on the class; each descriptor instance gets its own."""
 
-    def __init__(self, name="HumanPointingAnnotator", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "HumanPointingAnnotator",
+        descriptor: HumanPointingAnnotator.Descriptor = Descriptor(),
+    ) -> None:
         super().__init__(name, descriptor)
         self.node = Node("human_pointing_annotator")
+        """ROS node used for marker publication."""
         self.pointing_marker_publisher = self.node.create_publisher(
             visualization_msgs.msg.MarkerArray,
             "pointing_marker",  # relativ: <node_name>/pointing_marker
             10,
         )
+        """Publisher for pointing direction markers."""
         self.threshold_marker_publisher = self.node.create_publisher(
             visualization_msgs.msg.MarkerArray, "pointing_threshold_marker", 10
         )
+        """Publisher for pointing threshold markers."""
         self.possible_structures = {
             "box": o3d.geometry.TriangleMesh.create_box,
             "sphere": o3d.geometry.TriangleMesh.create_sphere,
@@ -109,9 +126,11 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         self.pointing_target_structures_type = (
             descriptor.parameters.pointing_target_structures_type
         )
+        self.color: np.ndarray | None = None
+        """Color image of the current observation."""
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    def update(self) -> py_trees.common.Status:
         start_timer = default_timer()
 
         self.color = self.get_cas().get(robokudo.cas.CASViews.COLOR_IMAGE)
@@ -140,7 +159,9 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
                 )
                 return py_trees.common.Status.SUCCESS
         elif len(human_hypotheses) == 0:
-            raise Exception("No humans detected - Can't estimate pointing activity")
+            # nobody in view is an answer, not an error: the result annotator answers with nobody
+            self.feedback_message = "No humans detected, nobody is pointing"
+            return py_trees.common.Status.SUCCESS
 
         one_human_handled = False
         for human_hypothesis in human_hypotheses:
@@ -159,11 +180,19 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
             keypoint_3d_annotation = keypoint_3d_annotations[0]
 
             # Calculate the centroid for each of the keypoints of interest
-            left_elbow_cloud = keypoint_3d_annotation.keypoints[7].points
-            left_wrist_cloud = keypoint_3d_annotation.keypoints[9].points
+            left_elbow_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.LEFT_ELBOW
+            ].points
+            left_wrist_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.LEFT_WRIST
+            ].points
 
-            right_elbow_cloud = keypoint_3d_annotation.keypoints[8].points
-            right_wrist_cloud = keypoint_3d_annotation.keypoints[10].points
+            right_elbow_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.RIGHT_ELBOW
+            ].points
+            right_wrist_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.RIGHT_WRIST
+            ].points
 
             if len(left_elbow_cloud.points) == 0 or len(left_wrist_cloud.points) == 0:
                 self.rk_logger.warning(
@@ -297,7 +326,7 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
             wrist_centroid = lw_centroid if arm == Arm.LEFT else rw_centroid
 
             # Create a pose annotation so you can transform the cam pose to world pose
-            pose_elbow = robokudo.types.annotation.PoseAnnotation()
+            pose_elbow = PoseAnnotation()
             pose_elbow.translation = list(elbow_centroid)
 
             rotation_matrix = (
@@ -371,18 +400,6 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
             marker_array_msg.markers.append(marker_msg)
             self.pointing_marker_publisher.publish(marker_array_msg)
 
-            # Update semantic map visualization colors if intersections exist
-            try:
-                if len(pointed_at_objects) > 0:
-                    semantic_map = ModuleLoader().load_semantic_map(
-                        "robokudo_robocup_gmah", "suturo_lab"
-                    )
-                    semantic_map.publish_visualization_markers(
-                        highlighted=set(pointed_at_objects)
-                    )
-            except Exception as e:
-                self.rk_logger.debug(f"Semantic map highlight update skipped: {e}")
-
             # Legacy single-human mode (carry-my-luggage): stop after first handled person.
             # Multi-human mode (known=True, GPSR) processes every tagged HH so each gets a direction.
             if one_human_handled and not self.descriptor.parameters.known:
@@ -400,29 +417,39 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return py_trees.common.Status.SUCCESS
 
-    def torso_center(self, keypoint_3d_annotation):
+    def torso_center(
+        self, keypoint_3d_annotation: robokudo.types.human.KeypointAnnotation
+    ) -> np.ndarray | None:
         """
         Torso center from shoulders + hips.
 
         Falls back to shoulders only if hips unavailable.
         """
         try:
-            left_shoulderloud = keypoint_3d_annotation.keypoints[5].points
-            right_shoulderloud = keypoint_3d_annotation.keypoints[6].points
+            left_shoulder_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.LEFT_SHOULDER
+            ].points
+            right_shoulder_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.RIGHT_SHOULDER
+            ].points
             if (
-                len(left_shoulderloud.points) == 0
-                or len(right_shoulderloud.points) == 0
+                len(left_shoulder_cloud.points) == 0
+                or len(right_shoulder_cloud.points) == 0
             ):
                 return None
-            left_shoulder, _ = left_shoulderloud.compute_mean_and_covariance()
-            right_shoulder, _ = right_shoulderloud.compute_mean_and_covariance()
+            left_shoulder, _ = left_shoulder_cloud.compute_mean_and_covariance()
+            right_shoulder, _ = right_shoulder_cloud.compute_mean_and_covariance()
             points = [left_shoulder, right_shoulder]
             try:
-                left_hiploud = keypoint_3d_annotation.keypoints[11].points
-                right_hiploud = keypoint_3d_annotation.keypoints[12].points
-                if len(left_hiploud.points) > 0 and len(right_hiploud.points) > 0:
-                    left_hip, _ = left_hiploud.compute_mean_and_covariance()
-                    right_hip, _ = right_hiploud.compute_mean_and_covariance()
+                left_hip_cloud = keypoint_3d_annotation.keypoints[
+                    PoseKeypoint.LEFT_HIP
+                ].points
+                right_hip_cloud = keypoint_3d_annotation.keypoints[
+                    PoseKeypoint.RIGHT_HIP
+                ].points
+                if len(left_hip_cloud.points) > 0 and len(right_hip_cloud.points) > 0:
+                    left_hip, _ = left_hip_cloud.compute_mean_and_covariance()
+                    right_hip, _ = right_hip_cloud.compute_mean_and_covariance()
                     points.extend([left_hip, right_hip])
             except (KeyError, IndexError):
                 pass
@@ -430,43 +457,40 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         except (KeyError, IndexError):
             return None
 
-    def shoulder_centroids(self, keypoint_3d_annotation):
+    def shoulder_centroids(
+        self, keypoint_3d_annotation: robokudo.types.human.KeypointAnnotation
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
         """
         Returns (left_shoulder, right_shoulder) centroids, or (None, None) if
         unavailable.
         """
         try:
-            left_shoulderloud = keypoint_3d_annotation.keypoints[5].points
-            right_shoulderloud = keypoint_3d_annotation.keypoints[6].points
+            left_shoulder_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.LEFT_SHOULDER
+            ].points
+            right_shoulder_cloud = keypoint_3d_annotation.keypoints[
+                PoseKeypoint.RIGHT_SHOULDER
+            ].points
             if (
-                len(left_shoulderloud.points) == 0
-                or len(right_shoulderloud.points) == 0
+                len(left_shoulder_cloud.points) == 0
+                or len(right_shoulder_cloud.points) == 0
             ):
                 return None, None
-            left_shoulder, _ = left_shoulderloud.compute_mean_and_covariance()
-            right_shoulder, _ = right_shoulderloud.compute_mean_and_covariance()
+            left_shoulder, _ = left_shoulder_cloud.compute_mean_and_covariance()
+            right_shoulder, _ = right_shoulder_cloud.compute_mean_and_covariance()
             return left_shoulder, right_shoulder
         except (KeyError, IndexError):
             return None, None
 
     def check_pointing_without_intersections(
         self,
-        human_hypothesis,
-        pointing_direction,
-        maximum_pointing_angle,
-        transform_elbow,
-    ):
+        human_hypothesis: robokudo.types.scene.HumanHypothesis,
+        pointing_direction: np.ndarray,
+        maximum_pointing_angle: float,
+        transform_elbow: PoseAnnotation,
+    ) -> None:
         """
-        If no intersections were found, we still want to create an activity annotation
-        if an arm suggests pointing. We also add a 45-degree threshold visualization
-        around the elbow pointing direction.
-
-        :param human_hypothesis: The human hypothesis to add the activity annotation to
-        :param pointing_direction: The direction vector of the pointing arm
-        :param maximum_pointing_angle: The maximum angle from vertical to consider as
-            pointing
-        :param transform_elbow: The transformed elbow pose in world coordinates
-        :return: True if no intersections are found for both arms, False otherwise
+        Annotate a pointing direction below the angle threshold and publish its marker.
         """
         pointing_angle = compute_direction_vector_angle(
             direction_vector=pointing_direction
@@ -494,11 +518,11 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
 
     def choose_arm(
         self,
-        intersections_left,
-        intersections_right,
-        direction_vector_left,
-        direction_vector_right,
-    ):
+        intersections_left: list[Any],
+        intersections_right: list[Any],
+        direction_vector_left: np.ndarray,
+        direction_vector_right: np.ndarray,
+    ) -> tuple[list[Any], Arm]:
         """
         Choose the arm based on the intersections found.
 
@@ -551,13 +575,13 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
 
     def create_annotator_output_struct(
         self,
-        all_vis_geometries,
-        elbow_centroid,
-        wrist_centroid,
-        pointing_end,
-        pointed_at_objects,
-        updated_structures,
-    ):
+        all_vis_geometries: list[Any],
+        elbow_centroid: np.ndarray,
+        wrist_centroid: np.ndarray,
+        pointing_end: np.ndarray,
+        pointed_at_objects: list[str],
+        updated_structures: dict[str, Any],
+    ) -> list[Any]:
         """
         Create the geometries for visualization in Open3D and return them.
 
@@ -622,7 +646,10 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
 
         return all_vis_geometries
 
-    def generate_marker(self, origin, target, frame):
+    def generate_marker(
+        self, origin: Any, target: Any, frame: str
+    ) -> visualization_msgs.msg.Marker:
+        """Return a marker for a pointing direction in the given frame."""
         marker = visualization_msgs.msg.Marker()
         marker.header.frame_id = frame
         marker.header.stamp = self.node.get_clock().now().to_msg()
@@ -650,45 +677,27 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         return marker
 
     def generate_pointing_threshold_markers(
-        self, origin, orientation_q, frame, max_pointing_angle
-    ):
+        self, origin: Any, orientation_q: Any, frame: str, max_pointing_angle: float
+    ) -> list[visualization_msgs.msg.Marker]:
         """
-        Visualize the 45-degree threshold cone relative to the floor (z-up), not relative to the arm.
-        We draw:
-        - A horizontal circle (parallel to floor) at height `length` above the elbow, radius = length * tan(45°).
-        - 32 red boundary rays from the elbow to opposite points on that circle, representing 45° from vertical.
-        This makes it obvious: the pointing direction must be outside this circle to be accepted as pointing.
+        Return markers for the configured pointing threshold in the world frame.
         """
-        # Parameters
         length = self.descriptor.parameters.pointing_length_meters
         radius = length * numpy.tan(numpy.deg2rad(max_pointing_angle))
         num_segments = 32
 
-        # World-up axis (map frame assumed z-up)
         up = numpy.array([0.0, 0.0, 1.0], dtype=float)
 
-        # Build an arbitrary orthonormal basis (u, v) in the horizontal plane
-        # Choose x as primary and y as secondary
         u = numpy.array([1.0, 0.0, 0.0], dtype=float)
         v = numpy.array([0.0, 1.0, 0.0], dtype=float)
 
         origin_np = numpy.array(origin, dtype=float)
-        # origin is elbow position, length * up is the vertical line from elbow. This way, visualization depends on th
-        # pointing_length_meters only, not on the actual arm orientation
         circle_center = origin_np - up * length
 
-        # Circle points to draw the boundaries in
         points = []
         for i in range(num_segments + 1):
-            # Angle around the circle
-            # 2.0 * pi * i equals one full circle (360 degrees)
-            # this result / num_segments gives the angle step for each segment
             theta = 2.0 * numpy.pi * i / num_segments
 
-            # Compute the 3D coordinates of the point on the circle.
-            # radius * (cos(theta) * u + sin(theta) * v) gives the point on the circle in the horizontal plane around origin
-            # u and v are the basis vectors in the horizontal plane
-            # Adding circle_center moves the circle to the correct position in space
             point = circle_center + radius * (
                 numpy.cos(theta) * u + numpy.sin(theta) * v
             )
@@ -700,7 +709,6 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         stamp = self.node.get_clock().now().to_msg()
         ns = f"Pointing Threshold-{self.node.get_name()}"
 
-        # Marker for circle boundary
         circle_marker = visualization_msgs.msg.Marker()
         circle_marker.header.frame_id = frame
         circle_marker.header.stamp = stamp
@@ -715,7 +723,6 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         circle_marker.color.a = 0.9
         circle_marker.points = points
 
-        # Two boundary rays: opposite points on the circle (0 and 180 degrees)
         rays_marker = visualization_msgs.msg.Marker()
         rays_marker.header.frame_id = frame
         rays_marker.header.stamp = stamp
@@ -731,7 +738,6 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
         origin_point = geometry_msgs.msg.Point(
             x=float(origin_np[0]), y=float(origin_np[1]), z=float(origin_np[2])
         )
-        # rays_marker.points = [origin_point, boundary_points[0], origin_point, boundary_points[1]]
         rays_marker.points = []
         for p in points:
             rays_marker.points.append(origin_point)

@@ -1,101 +1,157 @@
+from __future__ import annotations
+
+# %% Imports
 import copy
 from timeit import default_timer
-import py_trees
-import robokudo
-import robokudo.annotators.core
-import robokudo.cas
-import robokudo.types.annotation
-import robokudo.types.human
-import robokudo.types.scene
-import robokudo.types.tf
-import robokudo.utils.cv_helper
-import robokudo.utils.decorators
-import robokudo.utils.error_handling
-import robokudo.utils.math_helper
-import robokudo.utils.o3d_helper
-import robokudo.utils.transform
+
+from py_trees.common import Status
+from typing_extensions import TYPE_CHECKING
+
+from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
+from robokudo.cas import CAS, CASViews
+from robokudo.types.human import ActivityAnnotation, KeypointAnnotation, KeypointKind
+from robokudo.types.scene import HumanHypothesis
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
+
+if TYPE_CHECKING:
+    import numpy as np
+    import open3d as o3d
+
+# %% standing rule
 
 
-class HumanStandingAnnotator(robokudo.annotators.core.BaseAnnotator):
-    class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+class HumanStandingAnnotator(BaseAnnotator):
+    """
+    Annotates every person whose image keypoints show a standing posture with the
+    activity ``standing``.
+
+    The rule needs reliable shoulders and nose and at least one reliable leg (hip and
+    knee); the left leg is used when it is reliable, otherwise the right one. The person
+    stands when the keypoints are clearly taller than wide and nose, shoulders, hip and
+    knee follow each other from top to bottom with clear distances, all relative to the
+    vertical extent of the keypoints. Persons without image keypoints are skipped.
+    """
+
+    class Descriptor(BaseAnnotator.Descriptor):
+        """
+        Configuration of the standing rule.
+        """
+
         class Parameters:
-            def __init__(self):
-                self.raise_on_failure = False
+            """
+            Parameters of the standing rule.
+            """
 
-                # Minimum confidence required for a keypoint to be considered valid.
-                self.keypoint_confidence_threshold = 0.5
+            def __init__(self) -> None:
+                self.raise_on_failure: bool = False
+                """
+                Not read by this annotator.
+                """
 
-                # Thresholds used for standing detection.
-                self.min_rel_vertical = (
-                    0.6  # Person must be significantly taller than wide.
-                )
-                self.max_rel_horizontal = 0.45  # Horizontal spread must be limited.
-                self.min_shoulder_over_hip = (
-                    0.25  # Shoulders must be clearly above the hips.
-                )
-                self.min_hip_over_knee = 0.30  # Hips must be clearly above the knees.
-                self.min_head_over_shoulder = (
-                    0.10  # Head must be above the shoulder line.
-                )
+                self.keypoint_confidence_threshold: float = 0.5
+                """
+                Smallest confidence of a keypoint for the rule to trust it.
+                """
+
+                self.min_rel_vertical: float = 0.6
+                """
+                Smallest share of the vertical extent of the keypoints in the sum of
+                their vertical and horizontal extent for which the person stands.
+                """
+                self.max_rel_horizontal: float = 0.45
+                """
+                Largest share of the horizontal extent of the keypoints in the sum of
+                their vertical and horizontal extent for which the person stands.
+                """
+                self.min_shoulder_over_hip: float = 0.25
+                """
+                Smallest height of the shoulders above the hip, relative to the vertical
+                extent of the keypoints, for which the person stands.
+                """
+                self.min_hip_over_knee: float = 0.30
+                """
+                Smallest height of the hip above the knee, relative to the vertical
+                extent of the keypoints, for which the person stands.
+                """
+                self.min_head_over_shoulder: float = 0.10
+                """
+                Smallest height of the nose above the shoulders, relative to the
+                vertical extent of the keypoints, for which the person stands.
+                """
+                self.min_body_height: float = 20
+                """
+                Smallest vertical extent of the keypoints in the image, in pixels, for
+                which the posture is decided.
+                """
 
         parameters = Parameters()
+        """
+        Default parameters on the class; each descriptor instance gets its own.
+        """
 
-    def __init__(self, name="HumanStandingAnnotator", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "HumanStandingAnnotator",
+        descriptor: HumanStandingAnnotator.Descriptor = Descriptor(),
+    ) -> None:
         super().__init__(name, descriptor)
+        self.color: np.ndarray | None = None
+        """
+        The color image of the last update.
+        """
+        self.cloud: o3d.geometry.PointCloud | None = None
+        """
+        The point cloud of the last update.
+        """
 
-    @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    @catch_and_raise_to_blackboard
+    def update(self) -> Status:
         start_timer = default_timer()
 
-        # Retrieve current sensor data from CAS.
-        self.color = self.get_cas().get(robokudo.cas.CASViews.COLOR_IMAGE)
-        self.cloud = self.get_cas().get(robokudo.cas.CASViews.CLOUD)
+        self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
+        self.cloud = self.get_cas().get(CASViews.CLOUD)
 
-        human_hypotheses = self.get_cas().filter_annotations_by_type(
-            robokudo.types.scene.HumanHypothesis
-        )
+        human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
 
-        all_vis_geometries = [self.cloud]
+        visualization_geometries = [self.cloud]
 
-        # Process each detected human individually.
         for human_hypothesis in human_hypotheses:
-            keypoint_annotations = robokudo.cas.CAS.filter_by_type(
-                robokudo.types.human.KeypointAnnotation, human_hypothesis.annotations
+            keypoint_annotations = CAS.filter_by_type(
+                KeypointAnnotation, human_hypothesis.annotations
             )
-            # Only use 2D keypoints for pose analysis.
-            keypoint_2d_annotations = [
-                a
-                for a in keypoint_annotations
-                if a.kind == robokudo.types.human.KeypointKind.IMAGE_POSITION
+            image_keypoint_annotations = [
+                annotation
+                for annotation in keypoint_annotations
+                if annotation.kind == KeypointKind.IMAGE_POSITION
             ]
 
-            if len(keypoint_2d_annotations) == 0:
+            if len(image_keypoint_annotations) == 0:
                 continue
 
-            keypoints = keypoint_2d_annotations[0]
+            image_keypoints = image_keypoint_annotations[0]
 
-            # Evaluate whether the person is standing.
-            if self.keypoints_standing(keypoints):
-                activity = robokudo.types.human.ActivityAnnotation()
+            if self.keypoints_standing(image_keypoints):
+                activity = ActivityAnnotation()
                 activity.type = "standing"
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
 
-        self.get_annotator_output_struct().set_geometries(all_vis_geometries)
+        self.get_annotator_output_struct().set_geometries(visualization_geometries)
         self.get_annotator_output_struct().set_image(copy.deepcopy(self.color))
 
         end_timer = default_timer()
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
 
-        # Determines whether the given keypoints indicate a standing posture.
+    def keypoints_standing(self, keypoint_2d_annotation: KeypointAnnotation) -> bool:
+        """
+        :param keypoint_2d_annotation: The image keypoints of one person.
+        :return: Whether the keypoints show a standing person.
+        """
+        parameters = self.descriptor.parameters
+        confidence_threshold = parameters.keypoint_confidence_threshold
 
-    def keypoints_standing(self, keypoint_2d_annotation):
-        p = self.descriptor.parameters
-        th = p.keypoint_confidence_threshold
-
-        # Load all relevant keypoints (hips, knees, shoulders, head).
         left_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_HIP]
         right_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_HIP]
         left_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_KNEE]
@@ -104,24 +160,23 @@ class HumanStandingAnnotator(robokudo.annotators.core.BaseAnnotator):
         right_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_SHOULDER]
         nose = keypoint_2d_annotation.keypoints[PoseKeypoint.NOSE]
 
-        # Check upper body visibility
-        upper_ok = (
+        upper_body_reliable = (
             min(left_shoulder.confidence, right_shoulder.confidence, nose.confidence)
-            >= th
+            >= confidence_threshold
         )
 
-        # Check left leg visibility
-        left_leg_ok = min(left_hip.confidence, left_knee.confidence) >= th
+        left_leg_reliable = (
+            min(left_hip.confidence, left_knee.confidence) >= confidence_threshold
+        )
 
-        # Check right leg visibility
-        right_leg_ok = min(right_hip.confidence, right_knee.confidence) >= th
+        right_leg_reliable = (
+            min(right_hip.confidence, right_knee.confidence) >= confidence_threshold
+        )
 
-        # Require upper body + at least one leg
-        if not upper_ok or not (left_leg_ok or right_leg_ok):
+        if not upper_body_reliable or not (left_leg_reliable or right_leg_reliable):
             return False
 
-            # Collect all x and y coordinates to compute bounding box dimensions.
-        xs = [
+        image_columns = [
             left_hip.x,
             right_hip.x,
             left_knee.x,
@@ -131,7 +186,7 @@ class HumanStandingAnnotator(robokudo.annotators.core.BaseAnnotator):
             nose.x,
         ]
 
-        ys = [
+        image_rows = [
             left_hip.y,
             right_hip.y,
             left_knee.y,
@@ -140,45 +195,35 @@ class HumanStandingAnnotator(robokudo.annotators.core.BaseAnnotator):
             right_shoulder.y,
             nose.y,
         ]
-        # Compute vertical and horizontal extent of the detected person.
-        vertical_h = max(ys) - min(ys)
-        horizontal_w = max(xs) - min(xs)
+        vertical_extent = max(image_rows) - min(image_rows)
+        horizontal_extent = max(image_columns) - min(image_columns)
 
-        if vertical_h < 20:
+        if vertical_extent < parameters.min_body_height:
             return False
 
-        # Compute normalized height/width ratios.
-        rel_vertical = vertical_h / (vertical_h + horizontal_w)
-        rel_horizontal = horizontal_w / (vertical_h + horizontal_w)
+        relative_height = vertical_extent / (vertical_extent + horizontal_extent)
+        relative_width = horizontal_extent / (vertical_extent + horizontal_extent)
 
-        # Compute average vertical positions of shoulders, hips, and knees.
         shoulder_y = (left_shoulder.y + right_shoulder.y) / 2
-        # Use the more confident leg for posture analysis
-        if left_leg_ok:
+        if left_leg_reliable:
             hip_y = left_hip.y
             knee_y = left_knee.y
-        elif right_leg_ok:
+        elif right_leg_reliable:
             hip_y = right_hip.y
             knee_y = right_knee.y
         else:
             return False  # Shouldn't happen due to earlier check
 
-        shoulder_hip_diff = (shoulder_y - hip_y) / vertical_h
-        hip_knee_diff = (hip_y - knee_y) / vertical_h
-        head_shoulder_diff = (nose.y - shoulder_y) / vertical_h
+        shoulder_hip_offset = (shoulder_y - hip_y) / vertical_extent
+        hip_knee_offset = (hip_y - knee_y) / vertical_extent
+        head_shoulder_offset = (nose.y - shoulder_y) / vertical_extent
 
-        # Standing heuristic:
         standing = (
-            rel_vertical
-            >= p.min_rel_vertical  # Body is significantly taller than it is wide
-            and rel_horizontal
-            <= p.max_rel_horizontal  # Horizontal spread is small (not lying)
-            and shoulder_hip_diff
-            <= -p.min_shoulder_over_hip  # Shoulders are clearly above the hips
-            and hip_knee_diff
-            <= -p.min_hip_over_knee  # Hips are clearly above the knees
-            and head_shoulder_diff
-            <= -p.min_head_over_shoulder  # Head is positioned above the shoulders
+            relative_height >= parameters.min_rel_vertical
+            and relative_width <= parameters.max_rel_horizontal
+            and shoulder_hip_offset <= -parameters.min_shoulder_over_hip
+            and hip_knee_offset <= -parameters.min_hip_over_knee
+            and head_shoulder_offset <= -parameters.min_head_over_shoulder
         )
 
         return standing

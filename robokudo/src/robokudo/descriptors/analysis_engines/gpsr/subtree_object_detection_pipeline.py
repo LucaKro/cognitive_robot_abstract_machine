@@ -2,7 +2,6 @@ import py_trees
 import robokudo.analysis_engine
 import robokudo.annotators.query
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
-from robokudo.annotators.gpsr.gpsr_results import GenerateObjectDetectionResult
 from robokudo.annotators.yolo_annotator import YoloAnnotator
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.descriptors.analysis_engines.gpsr.subtree_object_detection import (
@@ -25,7 +24,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                     with_semantic_filter=True,
                 ).implementation(),
                 BeliefStateAnnotator(),
-                # GenerateObjectDetectionResult(),  # TODO
                 GenerateQueryResult(),
             ]
         )

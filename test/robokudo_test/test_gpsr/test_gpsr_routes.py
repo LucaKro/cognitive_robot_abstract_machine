@@ -10,9 +10,7 @@ from pathlib import Path
 import pytest
 from ament_index_python.packages import get_packages_with_prefixes
 from py_trees.behaviours import Success
-from robokudo.analysis_engine import SubtreeInterface
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
-from robokudo.descriptors.analysis_engines.gpsr import gpsr_implementation
 from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
     AnalysisEngine,
 )
@@ -21,7 +19,9 @@ from robokudo.descriptors.analysis_engines.gpsr.subtree_human_near_object import
 )
 from robokudo.tree_components.query_based_task_scheduler import QueryBasedScheduler
 from robokudo_msgs.action import Query
-from typing_extensions import TYPE_CHECKING, Any
+from typing_extensions import TYPE_CHECKING
+
+from ._gpsr_routing import gpsr_query, scheduler_of
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -31,58 +31,7 @@ if TYPE_CHECKING:
 
     from ._clip_mock import ScoringModelAndProcessor
 
-# %% the GPSR tree with placeholder subtrees
-
-
-class PlaceholderSubtree(SubtreeInterface):
-    """
-    Stands in for a GPSR subtree: it loads no detector and its behaviour succeeds at
-    once, so the routing can be tested without the detector weights.
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Accept and ignore the arguments the real subtree takes.
-        """
-
-    def name(self) -> str:
-        return PlaceholderSubtree.__name__
-
-    def implementation(self, *args: Any, **kwargs: Any) -> Behaviour:
-        return Success(name=self.name())
-
-
-@pytest.fixture
-def gpsr_tree(node: Node, monkeypatch: pytest.MonkeyPatch) -> Behaviour:
-    """
-    The GPSR tree with its real routing, every subtree it routes to replaced by a
-    :class:`PlaceholderSubtree`.
-    """
-    for module_attribute, value in list(vars(gpsr_implementation).items()):
-        if isinstance(value, type) and issubclass(value, SubtreeInterface):
-            monkeypatch.setattr(
-                gpsr_implementation, module_attribute, PlaceholderSubtree
-            )
-    return AnalysisEngine().implementation()
-
-
-def scheduler_of(tree: Behaviour) -> QueryBasedScheduler:
-    """
-    :return: The scheduler of the GPSR tree, which picks a subtree for every query.
-    """
-    return next(
-        behaviour
-        for behaviour in tree.iterate()
-        if isinstance(behaviour, QueryBasedScheduler)
-    )
-
-
-@pytest.fixture
-def scheduler(gpsr_tree: Behaviour) -> QueryBasedScheduler:
-    """
-    The scheduler of the GPSR tree with placeholder subtrees.
-    """
-    return scheduler_of(gpsr_tree)
+# %% ported routes
 
 
 @pytest.fixture
@@ -91,8 +40,11 @@ def ported_routes() -> list[str]:
     The routes of the GPSR perception ported to CRAM so far.
     """
     return [
+        "Attribute",
         "BeliefStateLookupPipeline",
+        "DoorOpenVocabularyPipeline",
         "DoorPipeline",
+        "FacePipeline",
         "HumanActivity",
         "HumanActivityFiltered",
         "HumanActivityInRoomPipeline",
@@ -101,28 +53,11 @@ def ported_routes() -> list[str]:
         "HumanPosturePipeline",
         "ObjInRoomPipeline",
         "ObjectDetectionPipeline",
+        "OpenVocabularyPipeline",
+        "OpenVocabularyPipelineWithRegion",
         "PointingPipeline",
         "WavingRaisingPipeline",
     ]
-
-
-def gpsr_query(
-    object_type: str,
-    attribute: list[str] | None = None,
-    location: str = "",
-    description: list[str] | None = None,
-    color: list[str] | None = None,
-) -> Query.Goal:
-    """
-    :return: A query asking for the given kind of thing.
-    """
-    query = Query.Goal()
-    query.obj.type = object_type
-    query.obj.attribute = attribute or []
-    query.obj.location = location
-    query.obj.description = description or []
-    query.obj.color = color or []
-    return query
 
 
 # %% the GPSR tree with its real subtrees

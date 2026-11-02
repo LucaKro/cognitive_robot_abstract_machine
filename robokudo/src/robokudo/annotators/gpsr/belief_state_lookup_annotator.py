@@ -1,28 +1,42 @@
+from __future__ import annotations
+
+# %% Imports
 import json
 
-import py_trees
+from py_trees.common import Status
+from robokudo_msgs.action import Query
+from typing_extensions import Any
+
 from robokudo.annotators.core import BaseAnnotator
+from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.cas import CASViews
 from robokudo.utils.query import QueryHandler
-from robokudo_msgs.action import Query
-from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
+
+# %% recall
 
 
 class BeliefStateLookupAnnotator(BaseAnnotator):
     """
-    Returns BeliefState entries as JSON in text_result.
+    Answers a recall query with remembered persons and objects, as JSON in the text
+    result of the answer.
 
-    With 3 cases:
-    uid set: single entry by ID
-    description[0]: all entries matching classname/yolo_label/semantic_label
-    nothing set: all known entries persons and objects
+    - With a ``uid``, the answer is the entry with that id.
+    - With a description, the answer is every person for "human" or "person", and
+      otherwise the entries whose class, detector label or semantic label is the
+      description, tried in that order.
+    - Without either, the answer is every entry.
+
+    A single entry is answered as one JSON object, several as a list. When nothing
+    matches, the answer is an error object.
     """
 
-    def __init__(self, name="BeliefStateLookupAnnotator", *args, **kwargs):
+    def __init__(
+        self, name: str = "BeliefStateLookupAnnotator", *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.name = name
 
-    def update(self):
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
         uid = query.obj.uid.strip()
         result = Query.Result()
@@ -57,17 +71,17 @@ class BeliefStateLookupAnnotator(BaseAnnotator):
             result.text_result = json.dumps({"error": "no entries found"})
             QueryHandler.send_answer(result)
             self.feedback_message = "No entries found."
-            return py_trees.common.Status.SUCCESS
+            return Status.SUCCESS
 
         payload = []
-        for e in entries:
-            payload.append(e.to_dict())
+        for entry in entries:
+            payload.append(entry.to_dict())
 
         if len(payload) == 1:
-            to_send = payload[0]
+            answer_content = payload[0]
         else:
-            to_send = payload
-        result.text_result = json.dumps(to_send)
+            answer_content = payload
+        result.text_result = json.dumps(answer_content)
         QueryHandler.send_answer(result)
         self.feedback_message = f"Returned {len(entries)} entry/entries."
-        return py_trees.common.Status.SUCCESS
+        return Status.SUCCESS
