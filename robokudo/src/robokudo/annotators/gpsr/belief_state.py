@@ -385,7 +385,7 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
                 continue
 
             if isinstance(annotation, Classification):
-                source = getattr(annotation, "source", "") or ""
+                source = annotation.source or ""
                 if annotation.classification_type == "face":
                     name = annotation.classname
                 elif "ZeroShot" in source:

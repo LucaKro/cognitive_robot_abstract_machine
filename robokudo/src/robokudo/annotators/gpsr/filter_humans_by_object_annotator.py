@@ -340,7 +340,7 @@ class FilterHumansByObjectAnnotator(BaseAnnotator):
         :return: The points of the hypothesis, or else the cloud of its first
             :class:`CloudAnnotation`, or *None* if it has neither.
         """
-        if getattr(hypothesis, "points", None) is not None:
+        if hypothesis.points is not None:
             return hypothesis.points
         clouds = self.get_cas().filter_by_type(CloudAnnotation, hypothesis.annotations)
         return clouds[0].points if clouds else None
