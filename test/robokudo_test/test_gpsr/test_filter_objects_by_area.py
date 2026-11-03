@@ -9,6 +9,7 @@ import pytest
 from py_trees.common import Status
 from robokudo.annotators.gpsr.exceptions import InvalidAreaPose
 from robokudo.annotators.gpsr.filter_objects_by_area import FilterObjectsByArea
+from robokudo.types.annotation import PositionAnnotation
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
 from ._gpsr_scene import GpsrScene
@@ -41,3 +42,19 @@ def test_filter_uses_world_position(camera_x: float, is_inside: bool) -> None:
 
     assert status == Status.SUCCESS
     assert cas.annotations == ([person] if is_inside else [])
+
+
+def test_person_with_two_positions_outside_area_is_removed_once() -> None:
+    """
+    Remove a person once when both position annotations are outside the area.
+    """
+    scene = GpsrScene(
+        world_T_camera=HomogeneousTransformationMatrix.from_xyz_rpy(x=12.0)
+    )
+    annotator = FilterObjectsByArea()
+    cas = scene.place_in_pipeline(annotator)
+    person = scene.add_human(position=[0.0, 0.0, 1.0])
+    person.annotations.append(PositionAnnotation(translation=[0.0, 0.0, 1.0]))
+
+    assert annotator.update() == Status.SUCCESS
+    assert cas.annotations == []

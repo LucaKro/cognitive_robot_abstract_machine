@@ -78,6 +78,7 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
                 # If position is not in area, remove Hypothesis out of cas.
                 if not self.__in_area(pose_map):
                     cas.annotations.remove(hypothesis)
+                    break
         return py_trees.common.Status.SUCCESS
 
     def __in_area(self, pose: robokudo.types.annotation.PoseAnnotation) -> bool:
