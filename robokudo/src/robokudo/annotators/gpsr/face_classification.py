@@ -17,6 +17,10 @@ import robokudo.utils.annotator_helper
 import robokudo.utils.cv_helper
 import robokudo.utils.error_handling
 from robokudo.cas import CASViews
+from robokudo.annotators.gpsr.exceptions import (
+    FaceImageDirectoryMissing,
+    FaceLabelsMismatch,
+)
 from robokudo.utils.file_loader import FileLoader
 
 if TYPE_CHECKING:
@@ -40,17 +44,20 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
             """
 
             def __init__(self) -> None:
-                self.ros_pkg_path = None  # If set, use data_path as a relative path to self.ros_pkg_path
+                self.ros_pkg_path: str | None = None
+                """ROS package containing the face image directory."""
                 self.face_directory: Path | None = None
                 """
                 Directory containing face images, if configured directly.
                 """
-                self.data_path = (
-                    None  # Relative Path to the folder containing the models
-                )
-                self.file_names = []  # files in self.data_path to load
-                self.labels = []  # 'class labels' for each of the file
-                self.distance = 0.45  # WIP
+                self.data_path: str | None = None
+                """Face image directory relative to the ROS package."""
+                self.file_names: list[str] = []
+                """Names of face image files to load."""
+                self.labels: list[str] = []
+                """Person label for each face image."""
+                self.distance: float = 0.45
+                """Maximum distance for matching face encodings."""
 
         parameters = (
             Parameters()
@@ -77,9 +84,7 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
                 self.descriptor.parameters.ros_pkg_path is None
                 or self.descriptor.parameters.data_path is None
             ):
-                raise RuntimeError(
-                    "Can't look up necessary input data. Please check Parameters of this Annotator."
-                )
+                raise FaceImageDirectoryMissing()
             data_folder_path = FileLoader.get_path_to_file_in_ros_package(
                 ros_pkg_name=self.descriptor.parameters.ros_pkg_path,
                 relative_path=self.descriptor.parameters.data_path,
@@ -88,9 +93,7 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
         if len(self.descriptor.parameters.file_names) != len(
             self.descriptor.parameters.labels
         ):
-            raise RuntimeError(
-                "File names and corresponding label list must be of equal size"
-            )
+            raise FaceLabelsMismatch()
 
         for file_name in self.descriptor.parameters.file_names:
             file_path: Path = data_folder_path.joinpath(f"{file_name}")
@@ -136,7 +139,6 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
                 # results = face_recognition.compare_faces(known_face_encodings=self.known_face_encodings,
                 #                                         face_encoding_to_check=encoding_annotation.encoding[0],
                 #                                         tolerance=self.descriptor.parameters.tolerance)
-                # print(f'Results are: {results}')
 
                 distance = face_recognition.face_distance(
                     self.known_face_encodings, encoding_annotation.encoding[0]

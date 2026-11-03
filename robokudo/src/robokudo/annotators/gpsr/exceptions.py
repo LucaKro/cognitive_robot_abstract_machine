@@ -24,6 +24,58 @@ class MissingObjectClassification(DataclassException):
 
 # %% face storage
 @dataclass
+class FaceImageDirectoryMissing(DataclassException, RuntimeError):
+    """
+    Face classification has no configured image directory.
+    """
+
+    def error_message(self) -> str:
+        return "The face image directory is not configured."
+
+    def suggest_correction(self) -> str:
+        return "Configure a face image directory or its ROS package and data path."
+
+
+@dataclass
+class FaceLabelsMismatch(DataclassException, RuntimeError):
+    """
+    The numbers of face images and labels differ.
+    """
+
+    def error_message(self) -> str:
+        return "Face image names and labels have different lengths."
+
+    def suggest_correction(self) -> str:
+        return "Provide one label for each face image."
+
+
+@dataclass
+class FaceImageScalingFailed(DataclassException):
+    """
+    The color image cannot be scaled for face point generation.
+    """
+
+    def error_message(self) -> str:
+        return "The color image cannot be scaled to the depth image."
+
+    def suggest_correction(self) -> str:
+        return "Check the camera's color-to-depth ratio and image configuration."
+
+
+@dataclass
+class UnequalColorDepthRatios(DataclassException, RuntimeError):
+    """
+    The color-to-depth ratios differ between image axes.
+    """
+
+    def error_message(self) -> str:
+        return "The horizontal and vertical color-to-depth ratios differ."
+
+    def suggest_correction(self) -> str:
+        return "Provide equal horizontal and vertical color-to-depth ratios."
+
+
+@dataclass
 class FaceStoragePathMissing(DataclassException):
     """
     The directory for storing face images is not configured.

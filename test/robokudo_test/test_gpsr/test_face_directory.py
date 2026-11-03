@@ -12,6 +12,10 @@ import numpy as np
 import pytest
 from py_trees.common import Status
 from robokudo.annotators.gpsr import face_classification
+from robokudo.annotators.gpsr.exceptions import (
+    FaceImageDirectoryMissing,
+    FaceLabelsMismatch,
+)
 from robokudo.annotators.gpsr.face_classification import FaceClassification
 from robokudo.annotators.gpsr.parametrize_human_classifier import (
     ParametrizeHumanClassifyAnnotator,
@@ -28,6 +32,26 @@ if TYPE_CHECKING:
 
 
 # %% local face directory
+def test_classifier_requires_a_face_directory() -> None:
+    """
+    Report a missing face image directory.
+    """
+    descriptor = FaceClassification.Descriptor()
+    with pytest.raises(FaceImageDirectoryMissing):
+        FaceClassification(descriptor=descriptor)
+
+
+def test_classifier_requires_a_label_for_each_face_image(tmp_path: Path) -> None:
+    """
+    Report mismatching image and label counts.
+    """
+    descriptor = FaceClassification.Descriptor()
+    descriptor.parameters.face_directory = tmp_path
+    descriptor.parameters.file_names = ["face.png"]
+    with pytest.raises(FaceLabelsMismatch):
+        FaceClassification(descriptor=descriptor)
+
+
 def test_classifier_loads_a_face_from_the_local_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

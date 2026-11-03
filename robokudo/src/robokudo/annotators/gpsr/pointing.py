@@ -24,6 +24,7 @@ import robokudo.types.tf
 import robokudo.utils.cv_helper
 import robokudo.utils.decorators
 import robokudo.utils.error_handling
+from robokudo.exceptions import UnknownMode
 import robokudo.utils.math_helper
 import robokudo.utils.o3d_helper
 import robokudo.utils.transform
@@ -119,9 +120,9 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
             descriptor.parameters.pointing_target_structures_type
             not in self.possible_structures
         ):
-            raise ValueError(
-                f"Unknown pointing target structure type: {descriptor.parameters.pointing_target_structures_type}. "
-                f"Possible values are: {list(self.possible_structures.keys())}"
+            raise UnknownMode(
+                mode=descriptor.parameters.pointing_target_structures_type,
+                context="Pointing target structure",
             )
         self.pointing_target_structures_type = (
             descriptor.parameters.pointing_target_structures_type

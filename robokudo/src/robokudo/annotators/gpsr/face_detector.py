@@ -21,6 +21,10 @@ import robokudo.utils.cv_helper
 import robokudo.utils.error_handling
 import robokudo.utils.o3d_helper
 from robokudo.cas import CASViews
+from robokudo.annotators.gpsr.exceptions import (
+    FaceImageScalingFailed,
+    UnequalColorDepthRatios,
+)
 
 
 # %% face detection
@@ -43,11 +47,12 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
             """
 
             def __init__(self) -> None:
-                self.scale_factor = 1.0  # Downscale image before processing.
-                # Will be applied after rgb image is scaled to depth image when with_point_generation is true
-
-                self.with_point_generation = True  # Requires RGB data
-                self.generate_encodings = True
+                self.scale_factor: float = 1.0
+                """Image scale applied before face detection."""
+                self.with_point_generation: bool = True
+                """Whether to create a depth point cloud for each face."""
+                self.generate_encodings: bool = True
+                """Whether to generate face encodings."""
 
         parameters = (
             Parameters()
@@ -82,9 +87,7 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 self.rk_logger.error(
                     "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
                 )
-                raise Exception(
-                    "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
-                )
+                raise FaceImageScalingFailed() from e
         else:
             resized_color = self.color
 
@@ -121,9 +124,7 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 c2d_ratio_x = color2depth_ratio.horizontal
                 c2d_ratio_y = color2depth_ratio.vertical
                 if c2d_ratio_x != c2d_ratio_y:
-                    raise RuntimeError(
-                        "color to depth ratio x&y is not equal. Can't process."
-                    )
+                    raise UnequalColorDepthRatios()
                 top *= 1 / c2d_ratio_x
                 right *= 1 / c2d_ratio_x
                 bottom *= 1 / c2d_ratio_x

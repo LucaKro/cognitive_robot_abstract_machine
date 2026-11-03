@@ -9,6 +9,10 @@ import numpy as np
 import pytest
 from py_trees.common import Status
 from robokudo.annotators.gpsr import face_detector
+from robokudo.annotators.gpsr.exceptions import (
+    FaceImageScalingFailed,
+    UnequalColorDepthRatios,
+)
 from robokudo.annotators.gpsr.face_detector import FaceDetector
 from robokudo.cas import CAS, CASViews
 from robokudo.types.annotation import Encoding
@@ -116,6 +120,42 @@ def test_without_faces_nobody_is_added(
 
 
 # %% points of a face
+
+
+def test_face_detection_reports_image_scaling_failure(
+    scene: GpsrScene, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Report an image scaling failure with the face-specific exception.
+    """
+    detector = face_finder(with_point_generation=True)
+    scene.place_in_pipeline(detector)
+    place_depth(scene, ratio=1.0, distance_mm=2000)
+
+    def fail_scaling(cas: CAS, image: np.ndarray) -> np.ndarray:
+        raise RuntimeError("scaling failed")
+
+    monkeypatch.setattr(
+        face_detector.robokudo.utils.cv_helper,
+        "get_scaled_color_image_for_depth_image",
+        fail_scaling,
+    )
+    with pytest.raises(FaceImageScalingFailed):
+        FaceDetector.compute.__wrapped__(detector)
+
+
+def test_face_detection_rejects_unequal_color_depth_ratios(
+    scene: GpsrScene, placed_faces: PlacedFaces
+) -> None:
+    """
+    Reject different horizontal and vertical color-to-depth ratios.
+    """
+    detector = face_finder(with_point_generation=True)
+    scene.place_in_pipeline(detector)
+    place_depth(scene, ratio=1.0, distance_mm=2000)
+    scene.cas.color_to_depth_ratio = ColorToDepthRatio(horizontal=1.0, vertical=0.5)
+    with pytest.raises(UnequalColorDepthRatios):
+        FaceDetector.compute.__wrapped__(detector)
 
 
 def test_face_gets_its_points_from_the_depth_image(

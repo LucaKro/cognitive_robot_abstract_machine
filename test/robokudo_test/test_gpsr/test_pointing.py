@@ -12,8 +12,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from py_trees.common import Status
+from robokudo.annotators.gpsr import pointing as pointing_module
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
+from robokudo.exceptions import UnknownMode
 from typing_extensions import TYPE_CHECKING
 
 from ._body_postures import BodyInSpace, BodySide, Forearm
@@ -21,8 +23,22 @@ from ._gpsr_scene import GpsrScene
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from rclpy.node import Node
 
 # %% annotator and arm poses
+
+
+def test_unknown_pointing_target_is_rejected(
+    node: Node, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Reject unsupported pointing target shapes.
+    """
+    monkeypatch.setattr(pointing_module, "Node", lambda node_name: node)
+    descriptor = HumanPointingAnnotator.Descriptor()
+    descriptor.parameters.pointing_target_structures_type = "unknown"
+    with pytest.raises(UnknownMode):
+        HumanPointingAnnotator(descriptor=descriptor)
 
 
 @pytest.fixture
