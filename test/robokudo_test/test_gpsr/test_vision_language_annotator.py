@@ -183,6 +183,23 @@ def test_model_is_loaded_from_the_ros_package(
     assert arguments["n_ctx"] == parameters.context_length
 
 
+def test_model_is_loaded_from_the_configured_directory(
+    model_loader: ModelLoader, tmp_path: Path
+) -> None:
+    """
+    Load both Qwen files from the same configured model directory.
+    """
+    annotator = asking_annotator()
+    parameters = annotator.descriptor.parameters
+    parameters.model_directory = tmp_path
+
+    annotator.load_model()
+
+    [arguments] = model_loader.load_arguments
+    assert arguments["model_path"] == str(tmp_path / parameters.model_file)
+    assert arguments["chat_handler"] == str(tmp_path / parameters.projector_file)
+
+
 @pytest.mark.parametrize(
     "use_gpu, gpu_layers",
     [(True, GpuLayers.ALL), (False, GpuLayers.NONE)],

@@ -5,10 +5,7 @@ Tests for choosing the perception subtree that answers a GPSR query.
 from __future__ import annotations
 
 # %% Imports
-from pathlib import Path
-
 import pytest
-from ament_index_python.packages import get_packages_with_prefixes
 from py_trees.behaviours import Success
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
 from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
@@ -73,16 +70,13 @@ def real_gpsr_tree(
     pointing nodes are destroyed after the test.
 
     .. note::
-        The real subtrees load their detector weights from ``robokudo_suturo``, so the
-        test is skipped where that package or its weights are not installed, as in CI.
+        The real subtrees load detector weights from the configured model directory, so
+        the test is skipped where those files are not installed, as in CI.
     """
-    suturo_prefix = get_packages_with_prefixes().get("robokudo_suturo")
-    if (
-        suturo_prefix is None
-        or not (Path(suturo_prefix) / "share" / "robokudo_suturo" / "weights").is_dir()
-    ):
-        pytest.skip("robokudo_suturo with its weights is not installed")
-    tree = AnalysisEngine().implementation()
+    engine = AnalysisEngine()
+    if not (engine.model_directory / "weights").is_dir():
+        pytest.skip("GPSR model weights are not installed")
+    tree = engine.implementation()
     yield tree
     for behaviour in tree.iterate():
         if isinstance(behaviour, HumanPointingAnnotator):

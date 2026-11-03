@@ -6,11 +6,11 @@ import json
 import py_trees
 import robokudo.analysis_engine
 import robokudo.annotators.core
+from typing_extensions import TYPE_CHECKING
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
 from robokudo.annotators.query import GenerateQueryResult
 from robokudo.cas import CASViews
 from robokudo.annotators.human_and_pose import HumanAndPoseAnnotator
-from robokudo.utils.file_loader import FileLoader
 from robokudo.annotators.yolo_annotator import YoloAnnotator
 
 from robokudo.annotators.gpsr.filter_humans_by_object_annotator import (
@@ -18,6 +18,9 @@ from robokudo.annotators.gpsr.filter_humans_by_object_annotator import (
 )
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.annotators.gpsr.furniture_direction import FurnitureDirection
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # %% furniture and directions
 # TODO: find a way, to make it cleaner/ better and mapping every item, that could come (maybe like semmanticannotations)
@@ -111,8 +114,14 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     Find people near the furniture named in the query.
     """
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
+    def __init__(
+        self, *args: object, model_directory: Path | None = None, **kwargs: object
+    ) -> None:
         super().__init__(*args, **kwargs)
+        self.model_directory = model_directory
+        """
+        Directory containing detector class names, if set.
+        """
 
     def implementation(
         self,
@@ -127,11 +136,8 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
         yolo_descriptor = YoloAnnotator.Descriptor()
         yolo_descriptor.parameters.precision_mode = True
         yolo_descriptor.parameters.ros_package_name = "robokudo_suturo"
-        # the SAM model lies next to our weights, outside CRAM
-        yolo_descriptor.parameters.models_directory = (
-            yolo_descriptor.parameters.file_in_ros_package("weights")
-        )
-        yolo_descriptor.parameters.weights_path = "weights/yolov8n.pt"
+        yolo_descriptor.parameters.data_directory = self.model_directory
+        yolo_descriptor.parameters.pretrained_model = "yolov8n.pt"
         yolo_descriptor.parameters.class_names_path = (
             "data/json/id2name_yolov8Model.json"
         )
@@ -150,12 +156,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
         # CRAM's HumanAndPoseAnnotator works without depth by default, the person's position needs it
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
-        # the pose model lies next to our weights, outside CRAM
-        human_descriptor.parameters.models_directory = (
-            FileLoader.get_path_to_file_in_ros_package(
-                ros_pkg_name="robokudo_suturo", relative_path="weights"
-            )
-        )
 
         seq = py_trees.composites.Sequence("subtree_human_near_object", memory=True)
         seq.add_children(

@@ -20,6 +20,7 @@ from robokudo.annotators.gpsr.exceptions import (
 from robokudo.cas import CASViews
 
 import os
+from pathlib import Path
 
 # %% environment
 os.environ["QT_API"] = "pyqt5"
@@ -44,6 +45,10 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
             def __init__(self) -> None:
                 self.ros_pkg_path = None
                 self.data_path = None
+                self.face_directory: Path | None = None
+                """
+                Directory where face images are stored, if configured directly.
+                """
                 self.noise = 0
 
         parameters = Parameters()
@@ -57,8 +62,8 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def compute(self) -> py_trees.common.Status:
         if (
-            self.descriptor.parameters.ros_pkg_path is None
-            or self.descriptor.parameters.ros_pkg_path is None
+            self.descriptor.parameters.face_directory is None
+            and self.descriptor.parameters.ros_pkg_path is None
         ):
             raise FaceStoragePathMissing()
 
@@ -92,11 +97,13 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
                     y_max = y + length + noise
 
                     # Load Path to data
-                    file_loader = robokudo.utils.file_loader.FileLoader()
-                    full_path = file_loader.get_path_to_file_in_ros_package(
-                        ros_pkg_name=self.descriptor.parameters.ros_pkg_path,
-                        relative_path=self.descriptor.parameters.data_path,
-                    )
+                    full_path = self.descriptor.parameters.face_directory
+                    if full_path is None:
+                        file_loader = robokudo.utils.file_loader.FileLoader()
+                        full_path = file_loader.get_path_to_file_in_ros_package(
+                            ros_pkg_name=self.descriptor.parameters.ros_pkg_path,
+                            relative_path=self.descriptor.parameters.data_path,
+                        )
                     file_path = full_path
 
                     # Store unknown image under a unique id

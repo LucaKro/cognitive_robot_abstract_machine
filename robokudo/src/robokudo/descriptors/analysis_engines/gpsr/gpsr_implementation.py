@@ -2,6 +2,8 @@ from __future__ import annotations
 
 # %% Imports
 from enum import StrEnum
+import os
+from pathlib import Path
 
 from py_trees.composites import Sequence
 from typing_extensions import TYPE_CHECKING
@@ -68,6 +70,14 @@ if TYPE_CHECKING:
 
 
 # %% query routes
+class ModelDirectoryVariable(StrEnum):
+    """
+    Environment variable for the shared model checkout.
+    """
+
+    DIRECTORY = "GPSR_MODELS_DIRECTORY"
+
+
 class GpsrRoute(StrEnum):
     """
     Routes available to the GPSR query scheduler.
@@ -106,6 +116,15 @@ class AnalysisEngine(AnalysisEngineInterface):
 
     def __init__(self) -> None:
         super().__init__()
+        self.model_directory = Path(
+            os.environ.get(
+                ModelDirectoryVariable.DIRECTORY,
+                Path.home() / "robokudo_suturo_weights",
+            )
+        )
+        """
+        Directory containing the shared perception models and mappings.
+        """
         self.cr: CollectionReaderAnnotator | None = None
         """
         The collection reader that reads the camera, created when the tree is built.
@@ -220,7 +239,9 @@ class AnalysisEngine(AnalysisEngineInterface):
         task_trees = {
             GpsrRoute.WAVING_RAISING.value: Subtree_WavingRaisingPipeline().implementation(),
             GpsrRoute.HUMAN_POSTURE.value: Subtree_HumanPosturePipeline().implementation(),
-            GpsrRoute.OBJECT_DETECTION.value: Subtree_ObjectDetectionPipeline().implementation(),
+            GpsrRoute.OBJECT_DETECTION.value: Subtree_ObjectDetectionPipeline(
+                model_directory=self.model_directory
+            ).implementation(),
             GpsrRoute.POINTING.value: Subtree_PointingPipeline().implementation(),
             GpsrRoute.OPEN_VOCABULARY.value: Subtree_OpenVocabularyPipeline(
                 object_attributes=object_attributes,
@@ -237,18 +258,24 @@ class AnalysisEngine(AnalysisEngineInterface):
                 with_filter=True
             ).implementation(),
             GpsrRoute.HUMAN_ACTIVITY.value: Subtree_Human_Activity().implementation(),
-            GpsrRoute.HUMAN_ATTRIBUTE.value: Subtree_HumanAttribute().implementation(),
-            GpsrRoute.HUMAN_NEAR_OBJECT.value: Subtree_HumanNearObjectPipeline().implementation(),
+            GpsrRoute.HUMAN_ATTRIBUTE.value: Subtree_HumanAttribute(
+                model_directory=self.model_directory
+            ).implementation(),
+            GpsrRoute.HUMAN_NEAR_OBJECT.value: Subtree_HumanNearObjectPipeline(
+                model_directory=self.model_directory
+            ).implementation(),
             GpsrRoute.HUMAN_IN_ROOM.value: Subtree_HumanInRoomPipeline().implementation(),
             GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value: Subtree_HumanInRoomPipeline(
                 with_activity=True
             ).implementation(),
-            GpsrRoute.OBJECT_IN_ROOM.value: Subtree_ObjInRoomPipeline().implementation(),
-            GpsrRoute.FACE.value: Subtree_FacesPipeline(
-                ros_pkg_path="robokudo_suturo"
+            GpsrRoute.OBJECT_IN_ROOM.value: Subtree_ObjInRoomPipeline(
+                model_directory=self.model_directory
             ).implementation(),
+            GpsrRoute.FACE.value: Subtree_FacesPipeline().implementation(),
             GpsrRoute.BELIEF_LOOKUP.value: Subtree_BeliefLookup().implementation(),
-            GpsrRoute.DOOR.value: Subtree_DoorPipeline().implementation(),
+            GpsrRoute.DOOR.value: Subtree_DoorPipeline(
+                model_directory=self.model_directory
+            ).implementation(),
             GpsrRoute.DOOR_OPEN_VOCABULARY.value: Subtree_DoorOpenVocabularyPipeline().implementation(),
         }
 

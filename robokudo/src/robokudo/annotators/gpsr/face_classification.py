@@ -41,6 +41,10 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
 
             def __init__(self) -> None:
                 self.ros_pkg_path = None  # If set, use data_path as a relative path to self.ros_pkg_path
+                self.face_directory: Path | None = None
+                """
+                Directory containing face images, if configured directly.
+                """
                 self.data_path = (
                     None  # Relative Path to the folder containing the models
                 )
@@ -67,18 +71,19 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
         """
         Load face encodings, reporting failure if an image contains no face.
         """
-        if (
-            self.descriptor.parameters.ros_pkg_path is None
-            or self.descriptor.parameters.data_path is None
-        ):
-            raise RuntimeError(
-                f"Can't look up necessary input data. Please check Parameters of this Annotator."
+        data_folder_path = self.descriptor.parameters.face_directory
+        if data_folder_path is None:
+            if (
+                self.descriptor.parameters.ros_pkg_path is None
+                or self.descriptor.parameters.data_path is None
+            ):
+                raise RuntimeError(
+                    "Can't look up necessary input data. Please check Parameters of this Annotator."
+                )
+            data_folder_path = FileLoader.get_path_to_file_in_ros_package(
+                ros_pkg_name=self.descriptor.parameters.ros_pkg_path,
+                relative_path=self.descriptor.parameters.data_path,
             )
-
-        data_folder_path = FileLoader.get_path_to_file_in_ros_package(
-            ros_pkg_name=self.descriptor.parameters.ros_pkg_path,
-            relative_path=self.descriptor.parameters.data_path,
-        )
 
         if len(self.descriptor.parameters.file_names) != len(
             self.descriptor.parameters.labels
@@ -117,9 +122,7 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
 
         if len(human_hypotheses) == 0:
             self.rk_logger.warning(f"Could not find any HumanHypothesis")
-            return (
-                py_trees.common.Status.SUCCESS
-            )  # raise Exception("No humans detected - Can't classify them")
+            return py_trees.common.Status.SUCCESS
 
         for human_hypothesis in human_hypotheses:
             encoding_annotations = robokudo.cas.CAS.filter_by_type(

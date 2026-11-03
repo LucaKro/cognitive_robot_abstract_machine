@@ -19,7 +19,6 @@ from robokudo.annotators.open_vocabulary_object_detection_annotator import (
     OpenVocabularyObjectDetectionAnnotator,
 )
 from robokudo.tree_components.query_based_task_scheduler import QueryBasedScheduler
-from robokudo.utils.file_loader import FileLoader
 
 # %% subtree
 
@@ -113,11 +112,6 @@ class Subtree(SubtreeInterface):
 
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
-        human_descriptor.parameters.models_directory = (
-            FileLoader.get_path_to_file_in_ros_package(
-                ros_pkg_name="robokudo_suturo", relative_path="weights"
-            )
-        )
         humans = Sequence("Human Detection", memory=True)
         humans.add_child(HumanAndPoseAnnotator(descriptor=human_descriptor))
         branches = {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # %% imports
 import os
+from pathlib import Path
 
 import py_trees
 import robokudo.annotators.gpsr.face_classification
@@ -25,10 +26,12 @@ class ParametrizeHumanClassifyAnnotator(robokudo.annotators.core.BaseAnnotator):
         classify_annotator: robokudo.annotators.gpsr.face_classification.FaceClassification,
         name: str = "ParametrizeHumanClassifyAnnotator",
         ros_pkg_path: str = "robokudo_robocup_receptionist",
+        face_directory: Path | None = None,
     ) -> None:
         """
         :param classify_annotator: Classifier whose face images are configured.
         :param ros_pkg_path: ROS package containing the face image directory.
+        :param face_directory: Directory containing face images, if configured directly.
         """
         super().__init__(str(name))
 
@@ -40,14 +43,23 @@ class ParametrizeHumanClassifyAnnotator(robokudo.annotators.core.BaseAnnotator):
         """
         ROS package containing the face image directory.
         """
+        self.face_directory = face_directory
+        """
+        Directory containing face images, if configured directly.
+        """
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def update(self) -> py_trees.common.Status:
 
-        file_loader = robokudo.utils.file_loader.FileLoader()
-        full_path = file_loader.get_path_to_file_in_ros_package(
-            ros_pkg_name=self.ros_pkg_path,
-            relative_path="faces",
+        full_path = self.face_directory
+        if full_path is None:
+            file_loader = robokudo.utils.file_loader.FileLoader()
+            full_path = file_loader.get_path_to_file_in_ros_package(
+                ros_pkg_name=self.ros_pkg_path,
+                relative_path="faces",
+            )
+        self.classify_annotator.descriptor.parameters.face_directory = (
+            self.face_directory
         )
         self.classify_annotator.descriptor.parameters.ros_pkg_path = (
             self.ros_pkg_path

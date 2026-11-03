@@ -132,6 +132,10 @@ class YoloAnnotator(ThreadedAnnotator):
                 """
                 Name of the ROS package holding custom weights.
                 """
+                self.data_directory: Path | None = None
+                """
+                Directory containing custom weights and class names.
+                """
                 self.weights_path: str | None = None
                 """
                 Path of the custom weights, relative to the ROS package.
@@ -201,16 +205,20 @@ class YoloAnnotator(ThreadedAnnotator):
                 """
                 if self.pretrained_model is not None:
                     return str(self.models_directory / self.pretrained_model)
-                if self.ros_package_name is None or self.weights_path is None:
+                if (
+                    self.ros_package_name is None and self.data_directory is None
+                ) or self.weights_path is None:
                     raise DetectionModelNotConfigured(annotator_name=annotator_name)
                 return str(self.file_in_ros_package(self.weights_path))
 
             def file_in_ros_package(self, relative_path: str) -> Path:
                 """
-                :param relative_path: Path of a file, relative to the configured ROS
-                    package.
+                :param relative_path: Path relative to the configured data directory
+                    or ROS package.
                 :return: The absolute path of the file.
                 """
+                if self.data_directory is not None:
+                    return self.data_directory / relative_path
                 return FileLoader.get_path_to_file_in_ros_package(
                     ros_pkg_name=self.ros_package_name, relative_path=relative_path
                 )

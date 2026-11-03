@@ -7,6 +7,7 @@ from __future__ import annotations
 # %% Imports
 import base64
 from enum import IntEnum
+from pathlib import Path
 from io import BytesIO
 
 from llama_cpp import Llama
@@ -67,6 +68,8 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
                 """
                 The ROS package that holds the model files.
                 """
+                self.model_directory: Path | None = None
+                """Directory containing the model files, if configured directly."""
                 self.model_file: str = "weights/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf"
                 """
                 The language model, relative to the ROS package.
@@ -183,14 +186,18 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
         :return: The configured model with its image projector.
         """
         parameters = self.descriptor.parameters
-        model_path = FileLoader.get_path_to_file_in_ros_package(
-            ros_pkg_name=parameters.ros_package_name,
-            relative_path=parameters.model_file,
-        )
-        projector_path = FileLoader.get_path_to_file_in_ros_package(
-            ros_pkg_name=parameters.ros_package_name,
-            relative_path=parameters.projector_file,
-        )
+        if parameters.model_directory is None:
+            model_path = FileLoader.get_path_to_file_in_ros_package(
+                ros_pkg_name=parameters.ros_package_name,
+                relative_path=parameters.model_file,
+            )
+            projector_path = FileLoader.get_path_to_file_in_ros_package(
+                ros_pkg_name=parameters.ros_package_name,
+                relative_path=parameters.projector_file,
+            )
+        else:
+            model_path = parameters.model_directory / parameters.model_file
+            projector_path = parameters.model_directory / parameters.projector_file
         return Llama(
             model_path=str(model_path),
             chat_handler=Qwen25VLChatHandler(

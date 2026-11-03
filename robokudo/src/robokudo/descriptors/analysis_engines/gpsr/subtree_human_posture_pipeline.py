@@ -5,7 +5,6 @@ import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
 from robokudo.annotators.human_and_pose import HumanAndPoseAnnotator
-from robokudo.utils.file_loader import FileLoader
 from robokudo.annotators.gpsr.gpsr_results import GenerateHumanPostureResults
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
@@ -28,12 +27,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
         # CRAM's HumanAndPoseAnnotator works without depth by default, the person's position needs it
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
-        # the pose model lies next to our weights, outside CRAM
-        human_descriptor.parameters.models_directory = (
-            FileLoader.get_path_to_file_in_ros_package(
-                ros_pkg_name="robokudo_suturo", relative_path="weights"
-            )
-        )
 
         seq = py_trees.composites.Sequence(
             "subtree_human_position_pipeline", memory=True

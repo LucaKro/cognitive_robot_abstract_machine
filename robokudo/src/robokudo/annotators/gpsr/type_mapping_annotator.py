@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # %% Imports
 import json
+from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from py_trees.common import Status
@@ -18,20 +19,20 @@ class TypeMappingAnnotator(BaseAnnotator):
     Gives each object hypothesis the semantic type its first classification maps to, as
     a new first classification.
 
-    The mapping is read from a JSON file of the ``robokudo_suturo`` package. A
-    hypothesis that already carries the semantic type, or whose first classification has
-    no mapping, is left unchanged. When a classification is added, the other annotations
-    of the hypothesis follow its classifications.
+    A hypothesis that already carries the semantic type, or whose first classification
+    has no mapping, is left unchanged. When a classification is added, the other
+    annotations of the hypothesis follow its classifications.
     """
 
     def __init__(
         self,
         name: str = "TypeMappingAnnotator",
         mapping_filename: str = "mapping_perception_semantic-annotations.json",
+        mapping_directory: Path | None = None,
     ) -> None:
         """
-        :param mapping_filename: Name of the mapping file in ``data/json`` of the
-            ``robokudo_suturo`` package.
+        :param mapping_filename: Name of the mapping file.
+        :param mapping_directory: Directory containing the mapping, if configured directly.
         """
         super().__init__(name=name)
         self._type_map: dict[str, str] = {}
@@ -40,8 +41,11 @@ class TypeMappingAnnotator(BaseAnnotator):
         read.
         """
         try:
-            package_share = get_package_share_directory("robokudo_suturo")
-            mapping_path = f"{package_share}/data/json/{mapping_filename}"
+            if mapping_directory is None:
+                package_share = get_package_share_directory("robokudo_suturo")
+                mapping_path = Path(package_share) / "data" / "json" / mapping_filename
+            else:
+                mapping_path = mapping_directory / mapping_filename
             with open(mapping_path, "r") as mapping_file:
                 self._type_map = json.load(mapping_file)
         except Exception as error:

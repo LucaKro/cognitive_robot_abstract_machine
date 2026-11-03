@@ -25,28 +25,31 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     Detect, classify and store faces for queries.
     """
 
-    def __init__(self, ros_pkg_path: str = "robokudo_robocup_receptionist") -> None:
-        """:param ros_pkg_path: ROS package containing the face image directory."""
+    def __init__(
+        self,
+        ros_pkg_path: str | None = None,
+        face_directory: Path | None = None,
+    ) -> None:
+        """
+        :param ros_pkg_path: ROS package containing the face image directory.
+        :param face_directory: Directory containing face images.
+        """
         self.ros_pkg_path = ros_pkg_path
         """
         ROS package containing the face image directory.
+        """
+        self.face_directory = face_directory
+        """
+        Directory containing face images, if configured directly.
         """
 
     def implementation(
         self, name: str | None = None, *args: object, **kwargs: object
     ) -> py_trees.composites.Sequence:
         face_classifcation_descriptor = FaceClassification.Descriptor()
-        face_classifcation_descriptor.parameters.ros_pkg_path = self.ros_pkg_path
-        face_classifcation_descriptor.parameters.data_path = "faces"
-        file_loader = robokudo.utils.file_loader.FileLoader()
-        try:
-            full_path = Path(
-                file_loader.get_path_to_file_in_ros_package(
-                    ros_pkg_name=self.ros_pkg_path,
-                    relative_path="faces",
-                )
-            )
-        except Exception:
+        full_path = self.face_directory
+        if full_path is None and self.ros_pkg_path is not None:
+            file_loader = robokudo.utils.file_loader.FileLoader()
             pkg_xml = Path(
                 file_loader.get_path_to_file_in_ros_package(
                     ros_pkg_name=self.ros_pkg_path,
@@ -54,7 +57,10 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                 )
             )
             full_path = pkg_xml.parent / "faces"
+        if full_path is None:
+            full_path = Path.home() / ".local" / "share" / "robokudo" / "faces"
         full_path.mkdir(parents=True, exist_ok=True)
+        face_classifcation_descriptor.parameters.face_directory = full_path
 
         names = []
         classes = []
@@ -67,8 +73,7 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
         face_classifcation_descriptor.parameters.labels = classes
 
         store_faces_descriptor = StoreFaces.Descriptor()
-        store_faces_descriptor.parameters.ros_pkg_path = self.ros_pkg_path
-        store_faces_descriptor.parameters.data_path = "faces"
+        store_faces_descriptor.parameters.face_directory = full_path
         store_faces_descriptor.parameters.noise = 5
 
         human_classifier = FaceClassification(descriptor=face_classifcation_descriptor)
@@ -80,7 +85,7 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                 ClusterPositionAnnotator(),
                 FilterObjectsByArea(),
                 ParametrizeHumanClassifyAnnotator(
-                    human_classifier, ros_pkg_path=self.ros_pkg_path
+                    human_classifier, face_directory=full_path
                 ),
                 human_classifier,
                 StoreFaces(descriptor=store_faces_descriptor),

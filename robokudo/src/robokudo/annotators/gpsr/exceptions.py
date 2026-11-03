@@ -26,14 +26,14 @@ class MissingObjectClassification(DataclassException):
 @dataclass
 class FaceStoragePathMissing(DataclassException):
     """
-    The ROS package for storing face images is not configured.
+    The directory for storing face images is not configured.
     """
 
     def error_message(self) -> str:
-        return "The ROS package for face storage is not set."
+        return "The face image directory is not configured."
 
     def suggest_correction(self) -> str:
-        return "Configure the ROS package containing the face image directory."
+        return "Configure a face image directory or its ROS package."
 
 
 @dataclass
