@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -23,6 +24,47 @@ from robokudo.utils.annotator_helper import transform_pose_from_camera_to_world
 
 if TYPE_CHECKING:
     from robokudo.cas import CAS
+
+# %% observations
+
+
+@dataclass
+class BeliefObservation:
+    """
+    Properties observed for an entity at one time.
+    """
+
+    classname: str
+    """Class assigned to the entity."""
+    yolo_label: str
+    """
+    Object detector label.
+    """
+
+    semantic_labels: list[str]
+    """Semantic labels observed for the entity."""
+    activities: list[str]
+    """
+    Activities observed for the entity.
+    """
+
+    confidence: float
+    """Confidence of the detector label."""
+    name: str
+    """
+    Name assigned to the person.
+    """
+
+    position: list[float]
+    """Observed position."""
+    orientation: list[float]
+    """
+    Observed orientation.
+    """
+
+    dimensions: list[float]
+    """Observed dimensions."""
+
 
 # %% belief entries
 
@@ -45,64 +87,54 @@ class EntityType(str, Enum):
     OBJECT = "object"
 
 
+@dataclass(init=False, eq=False, repr=False)
 class BeliefEntry:
     """
     Latest known properties of an entity.
     """
 
+    id: int
+    """Identifier of the entry."""
+    entity_type: EntityType
+    """Kind of entity."""
+    classname: str
+    """Class assigned to the entity."""
+    yolo_label: str
+    """Object detector label."""
+    semantic_labels: list[str]
+    """Semantic labels assigned to the entity."""
+    activities: list[str]
+    """Activities observed for the entity."""
+    position: list[float]
+    """Most recently observed position."""
+    orientation: list[float]
+    """Most recently observed orientation."""
+    dimensions: list[float]
+    """Most recently observed dimensions."""
+    last_seen: float
+    """Time of the latest observation."""
+    confidence: float
+    """Confidence of the detector label."""
+    status: EntityStatus
+    """Current visibility status."""
+    name: str
+    """Name assigned to a person."""
+
     def __init__(self, entry_id: int, entity_type: EntityType, classname: str) -> None:
+        """Create an entry for the identified entity."""
         self.id = entry_id
-        """
-        Identifier of the entry.
-        """
         self.entity_type = entity_type
-        """
-        Kind of entity.
-        """
         self.classname = classname
-        """
-        Class assigned to the entity.
-        """
         self.yolo_label = ""
-        """
-        Object detector label.
-        """
         self.semantic_labels = []
-        """
-        Semantic labels assigned to the entity.
-        """
         self.activities = []
-        """
-        Activities observed for the entity.
-        """
         self.position = [0.0, 0.0, 0.0]
-        """
-        Most recently observed position.
-        """
         self.orientation = [0.0, 0.0, 0.0, 1.0]
-        """
-        Most recently observed orientation.
-        """
         self.dimensions = [0.0, 0.0, 0.0]
-        """
-        Most recently observed dimensions.
-        """
         self.last_seen = 0.0
-        """
-        Time of the latest observation.
-        """
         self.confidence = 0.0
-        """
-        Confidence of the detector label.
-        """
         self.status = EntityStatus.VISIBLE
-        """
-        Current visibility status.
-        """
         self.name = "anonymous"
-        """
-        Name assigned to a person.
-        """
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -142,16 +174,18 @@ class BeliefEntry:
         return base
 
 
+@dataclass(init=False, eq=False, repr=False)
 class BeliefState:
     """
     Collection of tracked entity beliefs.
     """
 
+    entries: dict[int, BeliefEntry]
+    """Entries indexed by their identifiers."""
+
     def __init__(self) -> None:
-        self.entries: dict[int, BeliefEntry] = {}
-        """
-        Entries indexed by their identifiers.
-        """
+        """Create an empty collection of beliefs."""
+        self.entries = {}
 
     def __len__(self) -> int:
         """
@@ -308,7 +342,7 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
 
     def _integrate(
         self,
-        observation: dict[str, Any],
+        observation: BeliefObservation,
         entity_type: EntityType,
         now: float,
         hypothesis: robokudo.types.scene.HumanHypothesis
@@ -322,39 +356,39 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
 
         if match is None:
             entry = BeliefEntry(
-                BeliefStateAnnotator._next_id, entity_type, observation["classname"]
+                BeliefStateAnnotator._next_id, entity_type, observation.classname
             )
-            entry.yolo_label = observation["yolo_label"]
-            entry.semantic_labels = list(observation["semantic_labels"])
-            entry.activities = list(observation["activities"])
-            entry.position = observation["position"]
-            entry.orientation = observation["orientation"]
-            entry.dimensions = observation["dimensions"]
+            entry.yolo_label = observation.yolo_label
+            entry.semantic_labels = list(observation.semantic_labels)
+            entry.activities = list(observation.activities)
+            entry.position = observation.position
+            entry.orientation = observation.orientation
+            entry.dimensions = observation.dimensions
             entry.last_seen = now
-            entry.confidence = observation["confidence"]
-            entry.name = observation["name"]
+            entry.confidence = observation.confidence
+            entry.name = observation.name
             self._state.entries[entry.id] = entry
             BeliefStateAnnotator._next_id += 1
         else:
             entry = match
-            entry.position = observation["position"]
-            entry.orientation = observation["orientation"]
-            entry.dimensions = observation["dimensions"]
+            entry.position = observation.position
+            entry.orientation = observation.orientation
+            entry.dimensions = observation.dimensions
             entry.last_seen = now
-            entry.confidence = observation["confidence"]
+            entry.confidence = observation.confidence
             entry.status = EntityStatus.VISIBLE
 
-            if observation["yolo_label"]:
-                entry.yolo_label = observation["yolo_label"]
+            if observation.yolo_label:
+                entry.yolo_label = observation.yolo_label
 
-            for label in observation["semantic_labels"]:
+            for label in observation.semantic_labels:
                 if label not in entry.semantic_labels:
                     entry.semantic_labels.append(label)
 
-            entry.activities = list(observation["activities"])
+            entry.activities = list(observation.activities)
 
-            if observation["name"] != "anonymous":
-                entry.name = observation["name"]
+            if observation.name != "anonymous":
+                entry.name = observation.name
 
         if hypothesis is not None:
             hypothesis.annotations.append(entry)
@@ -365,7 +399,7 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         hypothesis: robokudo.types.scene.HumanHypothesis
         | robokudo.types.scene.ObjectHypothesis,
         entity_type: EntityType,
-    ) -> dict[str, Any] | None:
+    ) -> BeliefObservation | None:
         """
         Return the observed entity properties if a position is available.
         """
@@ -434,21 +468,20 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         else:
             classname = "unknown"
 
-        observation = {}
-        observation["classname"] = classname
-        observation["yolo_label"] = yolo_label
-        observation["semantic_labels"] = semantic_labels
-        observation["activities"] = activities
-        observation["confidence"] = confidence
-        observation["name"] = name
-        observation["position"] = position
-        observation["orientation"] = orientation
-        observation["dimensions"] = dimensions
-
-        return observation
+        return BeliefObservation(
+            classname=classname,
+            yolo_label=yolo_label,
+            semantic_labels=semantic_labels,
+            activities=activities,
+            confidence=confidence,
+            name=name,
+            position=position,
+            orientation=orientation,
+            dimensions=dimensions,
+        )
 
     def _find_match(
-        self, observation: dict[str, Any], entity_type: EntityType
+        self, observation: BeliefObservation, entity_type: EntityType
     ) -> BeliefEntry | None:
         """
         Return the nearest matching entry within the configured distance.
@@ -458,9 +491,9 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         for entry in self._state.entries.values():
             if entry.entity_type != entity_type:
                 continue
-            if entry.classname != observation["classname"]:
+            if entry.classname != observation.classname:
                 continue
-            distance = _distance(entry.position, observation["position"])
+            distance = _distance(entry.position, observation.position)
             if distance <= best_distance:
                 best_distance = distance
                 best = entry
