@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # %% imports
 import json
+from enum import StrEnum
 
 import py_trees
 import robokudo.analysis_engine
@@ -22,21 +23,23 @@ from robokudo.annotators.gpsr.furniture_direction import FurnitureDirection
 if TYPE_CHECKING:
     from pathlib import Path
 
-# %% furniture and directions
-# TODO: find a way, to make it cleaner/ better and mapping every item, that could come (maybe like semmanticannotations)
-FURNITURE = {
-    "chair": 56,
-    "couch": 57,
-    "bed": 59,
-    "table": 60,
-    "dining_table": 60,
-    "toilet": 61,
-    "tv": 62,
-    "microwave": 68,
-    "oven": 69,
-    "sink": 71,
-    "refrigerator": 72,
-}
+
+# %% furniture
+class Furniture(StrEnum):
+    """
+    Object classes supported as locations for person queries.
+    """
+
+    CHAIR = "chair"
+    COUCH = "couch"
+    BED = "bed"
+    DINING_TABLE = "dining table"
+    TOILET = "toilet"
+    TV = "tv"
+    MICROWAVE = "microwave"
+    OVEN = "oven"
+    SINK = "sink"
+    REFRIGERATOR = "refrigerator"
 
 
 # %% furniture detector configuration
@@ -76,8 +79,7 @@ class YoloFurnitureSetup(robokudo.annotators.core.BaseAnnotator):
         if cas.contains(CASViews.QUERY):
             query = cas.get(CASViews.QUERY)
             location = query.obj.location
-            furniture_class_identifier = FURNITURE.get(location)
-            if furniture_class_identifier is not None:
+            if location in Furniture:
                 # CRAM's YoloAnnotator has no positive class filter, so every other class is ignored instead
                 class_names = json.loads(
                     self.yolo_params.file_in_ros_package(
@@ -85,9 +87,7 @@ class YoloFurnitureSetup(robokudo.annotators.core.BaseAnnotator):
                     ).read_text()
                 )
                 self.yolo_params.ignored_class_names = [
-                    name
-                    for class_identifier, name in class_names.items()
-                    if int(class_identifier) != furniture_class_identifier
+                    name for name in class_names.values() if name != location
                 ]
             if location:
                 self.filter_params.target_type = location

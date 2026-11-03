@@ -93,21 +93,19 @@ def test_known_furniture_makes_the_detector_ignore_every_other_class(
     ]
 
 
-@pytest.mark.parametrize("table_word", ["table", "dining_table"])
-def test_table_makes_the_detector_keep_the_dining_table(
+def test_dining_table_makes_the_detector_keep_the_dining_table(
     scene: GpsrScene,
     furniture_setup: YoloFurnitureSetup,
     detector_parameters: YoloAnnotator.Descriptor.Parameters,
     class_names_file: Path,
-    table_word: str,
 ) -> None:
-    scene.query.obj.location = table_word
+    scene.query.obj.location = "dining table"
 
     furniture_setup.update()
 
     class_names = json.loads(class_names_file.read_text()).values()
     assert detector_parameters.ignored_class_names == [
-        name for name in class_names if name != "dining table"
+        name for name in class_names if name != scene.query.obj.location
     ]
 
 

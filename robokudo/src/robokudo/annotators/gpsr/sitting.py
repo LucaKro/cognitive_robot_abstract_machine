@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # %% Imports
 import copy
+from enum import StrEnum
 from timeit import default_timer
 
 from py_trees.common import Status
@@ -19,6 +20,17 @@ if TYPE_CHECKING:
     import open3d as o3d
 
     from robokudo.types.human import BodyKeypoint
+
+# %% person postures
+
+
+class HumanPosture(StrEnum):
+    """Postures accepted by person queries."""
+
+    SITTING = "sitting"
+    STANDING = "standing"
+    LAYING = "laying"
+
 
 # %% sitting rule
 
@@ -126,7 +138,7 @@ class HumanSittingAnnotator(BaseAnnotator):
 
             if self.keypoints_sitting(image_keypoints):
                 activity = ActivityAnnotation()
-                activity.type = "sitting"
+                activity.type = HumanPosture.SITTING.value
                 activity.source = type(self).__name__
                 human_hypothesis.annotations.append(activity)
 

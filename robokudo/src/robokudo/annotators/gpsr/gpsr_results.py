@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 # %% imports
+from enum import StrEnum
+
 from builtin_interfaces.msg import Time
 from py_trees.common import Status
 from robokudo_msgs.action import Query
@@ -33,6 +35,21 @@ from robokudo.utils.query import QueryHandler
 from robokudo.utils.type_conversion import (
     get_geometry_msgs_pose_stamped_from_position_annotation,
 )
+
+
+# %% query types
+class QueryType(StrEnum):
+    """
+    Types accepted by GPSR perception queries.
+    """
+
+    HUMAN = "human"
+    HUMANS = "humans"
+    OBJECT = "object"
+    RECALL = "recall"
+    FACE = "face"
+    DOOR = "door"
+    DOOR_OPEN_VOCABULARY = "doorgsam"
 
 
 # %% camera header
@@ -419,7 +436,7 @@ class GenerateOpenVocabularyResult(GenerateResult):
         query = self.get_cas().get(CASViews.QUERY)
 
         # HumanPipeline
-        if query.obj.type == "human" or query.obj.type == "humans":
+        if query.obj.type == QueryType.HUMAN or query.obj.type == QueryType.HUMANS:
             human_hypotheses = self.get_cas().filter_annotations_by_type(
                 HumanHypothesis
             )
@@ -471,7 +488,7 @@ class GenerateOpenVocabularyResult(GenerateResult):
                                 query_result.append(object_designator)
 
         # ObjectPipeline
-        elif query.obj.type == "object":
+        elif query.obj.type == QueryType.OBJECT:
             object_hypotheses = self.get_cas().filter_annotations_by_type(
                 ObjectHypothesis
             )

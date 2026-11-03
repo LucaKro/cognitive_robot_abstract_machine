@@ -10,6 +10,8 @@ from typing_extensions import TYPE_CHECKING
 
 from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
+from robokudo.annotators.gpsr.gpsr_results import QueryType
+from robokudo.annotators.gpsr.sitting import HumanPosture
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.query import QueryAnnotator
 from robokudo.descriptors.analysis_engines.gpsr.subtree_belief_lookup import (
@@ -34,7 +36,7 @@ from robokudo.descriptors.analysis_engines.gpsr.subtree_human_in_room import (
     Subtree as Subtree_HumanInRoomPipeline,
 )
 from robokudo.descriptors.analysis_engines.gpsr.subtree_human_near_object import (
-    FURNITURE,
+    Furniture,
 )
 from robokudo.descriptors.analysis_engines.gpsr.subtree_human_near_object import (
     Subtree as Subtree_HumanNearObjectPipeline,
@@ -149,7 +151,7 @@ class AnalysisEngine(AnalysisEngineInterface):
         # https://github.com/RoboCupAtHome/CommandGenerator/tree/master for details. Check the rulebook to see
         # if the repository is the current correct one for GPSR.
         waving_raising_attributes = ["waving", "raising right arm", "raising left arm"]
-        human_posture_attributes = ["sitting", "standing", "laying"]
+        human_posture_attributes = [posture.value for posture in HumanPosture]
         pointing_attributes = ["pointing right", "pointing left"]
         clothes_attributes = ["t shirt", "shirt", "blouse", "sweater", "coat", "jacket"]
         color_attributes = ["blue", "yellow", "black", "white", "red", "orange", "gray"]
@@ -169,9 +171,7 @@ class AnalysisEngine(AnalysisEngineInterface):
             :return: The only value of the field, or *None* if it holds none or
                 several.
             """
-            if len(values) > 1:
-                return None
-            elif len(values) == 1:
+            if len(values) == 1:
                 return values[0]
             return None
 
@@ -188,12 +188,12 @@ class AnalysisEngine(AnalysisEngineInterface):
             description = filter_query_input(query.obj.description)
 
             # TODO: Add a human query case that applies filtering.
-            if query.obj.type == "human":
+            if query.obj.type == QueryType.HUMAN:
                 if color in color_attributes and description in clothes_attributes:
                     if query.obj.location in rooms:
                         return GpsrRoute.OPEN_VOCABULARY_IN_ROOM.value
                     return GpsrRoute.OPEN_VOCABULARY.value
-                elif query.obj.location in rooms:
+                if query.obj.location in rooms:
                     if (
                         attribute
                         in waving_raising_attributes
@@ -202,39 +202,36 @@ class AnalysisEngine(AnalysisEngineInterface):
                     ):
                         return GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value
                     return GpsrRoute.HUMAN_IN_ROOM.value
-                elif query.obj.location in FURNITURE:
+                if query.obj.location in Furniture:
                     return GpsrRoute.HUMAN_NEAR_OBJECT.value
-                elif attribute in waving_raising_attributes:
+                if attribute in waving_raising_attributes:
                     return GpsrRoute.WAVING_RAISING.value
-                elif attribute in human_posture_attributes:
+                if attribute in human_posture_attributes:
                     return GpsrRoute.HUMAN_POSTURE.value
-                elif attribute in pointing_attributes:
+                if attribute in pointing_attributes:
                     return GpsrRoute.POINTING.value
-                elif attribute == "Attribute":
+                if attribute == "Attribute":
                     return GpsrRoute.HUMAN_ATTRIBUTE.value
-                elif len(query.obj.attribute) >= 2:
+                if len(query.obj.attribute) >= 2:
                     return GpsrRoute.HUMAN_ACTIVITY_FILTERED.value
-                else:
-                    return GpsrRoute.HUMAN_ACTIVITY.value
-            elif query.obj.type == "recall":
+                return GpsrRoute.HUMAN_ACTIVITY.value
+            if query.obj.type == QueryType.RECALL:
                 return GpsrRoute.BELIEF_LOOKUP.value
-            elif query.obj.type == "face":
+            if query.obj.type == QueryType.FACE:
                 return GpsrRoute.FACE.value
-            elif query.obj.type == "door":
+            if query.obj.type == QueryType.DOOR:
                 return GpsrRoute.DOOR.value
-            elif query.obj.type == "doorgsam":
+            if query.obj.type == QueryType.DOOR_OPEN_VOCABULARY:
                 return GpsrRoute.DOOR_OPEN_VOCABULARY.value
-            elif query.obj.type == "object":
+            if query.obj.type == QueryType.OBJECT:
                 if query.obj.location in rooms:
                     return GpsrRoute.OBJECT_IN_ROOM.value
-                elif attribute in object_attributes:
+                if attribute in object_attributes:
                     return GpsrRoute.OPEN_VOCABULARY.value
-                elif attribute and attribute not in object_attributes:
+                if attribute:
                     return None
-                else:
-                    return GpsrRoute.OBJECT_DETECTION.value
-            else:
-                return None
+                return GpsrRoute.OBJECT_DETECTION.value
+            return None
 
         task_trees = {
             GpsrRoute.WAVING_RAISING.value: Subtree_WavingRaisingPipeline().implementation(),

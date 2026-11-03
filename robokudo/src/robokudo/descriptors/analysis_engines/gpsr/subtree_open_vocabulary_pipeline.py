@@ -13,7 +13,10 @@ from robokudo.analysis_engine import SubtreeInterface
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.annotators.gpsr.filter_objects_by_region import FilterObjectsByRegion
-from robokudo.annotators.gpsr.gpsr_results import GenerateOpenVocabularyResult
+from robokudo.annotators.gpsr.gpsr_results import (
+    GenerateOpenVocabularyResult,
+    QueryType,
+)
 from robokudo.annotators.human_and_pose import HumanAndPoseAnnotator
 from robokudo.annotators.open_vocabulary_object_detection_annotator import (
     OpenVocabularyObjectDetectionAnnotator,
@@ -89,14 +92,14 @@ class Subtree(SubtreeInterface):
 
             :return: The branch that prepares the detection for the queried type.
             """
-            if query.obj.type == "object":
+            if query.obj.type == QueryType.OBJECT:
                 if query.obj.attribute[0] in self.object_attributes:
                     detector.classes = [f"{query.obj.attribute[0]} {query.obj.type}"]
                     detector.descriptor.parameters.detection_threshold = (
                         self.object_detection_threshold
                     )
                 return "ObjectPipeline"
-            if query.obj.type == "human":
+            if query.obj.type == QueryType.HUMAN:
                 if (
                     query.obj.color[0] in self.color_attributes
                     and query.obj.description[0] in self.clothes_attributes

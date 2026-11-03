@@ -9,6 +9,7 @@ from py_trees.common import Status
 from typing_extensions import TYPE_CHECKING
 
 from robokudo.annotators.core import BaseAnnotator
+from robokudo.annotators.gpsr.sitting import HumanPosture
 from robokudo.annotators.human_and_pose import PoseKeypoint
 from robokudo.cas import CAS, CASViews
 from robokudo.types.human import ActivityAnnotation, KeypointAnnotation, KeypointKind
@@ -123,7 +124,7 @@ class HumanLyingAnnotator(BaseAnnotator):
         """
         The word GPSR queries use for a lying person.
         """
-        return "laying"
+        return HumanPosture.LAYING.value
 
     @catch_and_raise_to_blackboard
     def update(self) -> Status:

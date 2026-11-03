@@ -13,7 +13,7 @@ from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
     GpsrRoute,
 )
 from robokudo.descriptors.analysis_engines.gpsr.subtree_human_near_object import (
-    FURNITURE,
+    Furniture,
 )
 from robokudo.tree_components.query_based_task_scheduler import QueryBasedScheduler
 from robokudo_msgs.action import Query
@@ -86,6 +86,9 @@ def real_gpsr_tree(
 def test_gpsr_tree_builds_a_real_subtree_for_every_ported_route(
     real_gpsr_tree: Behaviour, ported_routes: list[str]
 ) -> None:
+    """
+    Build every route with its real subtree instead of a success placeholder.
+    """
     routes = scheduler_of(real_gpsr_tree).tasks
     assert sorted(routes) == sorted(ported_routes)
     assert [
@@ -99,6 +102,9 @@ def test_gpsr_tree_builds_a_real_subtree_for_every_ported_route(
 def test_gpsr_tree_holds_a_subtree_for_every_ported_route(
     scheduler: QueryBasedScheduler, ported_routes: list[str]
 ) -> None:
+    """
+    Register every expected route in the scheduler.
+    """
     assert sorted(scheduler.tasks) == sorted(ported_routes)
 
 
@@ -148,28 +154,78 @@ def test_gpsr_tree_holds_a_subtree_for_every_ported_route(
         "pointing right",
         "posture and gesture",
         "any activity",
-        "in a room",
-        "waving in a room",
-        "sitting in a room",
-        "pointing in a room",
+        "in iai_kitchen",
+        "waving in living_room",
+        "sitting in bedroom",
+        "pointing left in office",
         "in the hallway",
-        "in a room of unknown name",
+        "unknown location kitchen",
     ],
 )
 def test_human_query_takes_its_route(
     scheduler: QueryBasedScheduler, query: Query.Goal, route: str
 ) -> None:
+    """
+    Select the expected pipeline for each person query.
+    """
     assert scheduler.filter_fn(query) == route
 
 
-@pytest.mark.parametrize("furniture", list(FURNITURE))
+@pytest.mark.parametrize("furniture", [member.value for member in Furniture])
 def test_human_near_known_furniture_takes_the_furniture_route(
     scheduler: QueryBasedScheduler, furniture: str
 ) -> None:
+    """
+    Select furniture detection for each supported furniture location.
+    """
     assert (
         scheduler.filter_fn(gpsr_query("human", location=furniture))
         == GpsrRoute.HUMAN_NEAR_OBJECT.value
     )
+
+
+# %% combined query precedence
+
+
+@pytest.mark.parametrize(
+    "query, route",
+    [
+        (
+            gpsr_query("human", ["sitting", "waving"], location="living_room"),
+            GpsrRoute.HUMAN_IN_ROOM.value,
+        ),
+        (
+            gpsr_query("human", ["waving"], location="chair"),
+            GpsrRoute.HUMAN_NEAR_OBJECT.value,
+        ),
+        (
+            gpsr_query("human", ["waving"], color=["red"], description=["shirt"]),
+            GpsrRoute.OPEN_VOCABULARY.value,
+        ),
+        (
+            gpsr_query("object", ["largest"], location="living_room"),
+            GpsrRoute.OBJECT_IN_ROOM.value,
+        ),
+        (
+            gpsr_query("object", ["largest", "smallest"]),
+            GpsrRoute.OBJECT_DETECTION.value,
+        ),
+    ],
+    ids=[
+        "two activities in living_room select room pipeline",
+        "waving near chair selects furniture pipeline",
+        "red shirt and waving select open vocabulary",
+        "largest object in living_room selects room pipeline",
+        "multiple object attributes select object detection",
+    ],
+)
+def test_combined_query_preserves_route_precedence(
+    scheduler: QueryBasedScheduler, query: Query.Goal, route: str
+) -> None:
+    """
+    Select the existing route when a query contains multiple conditions.
+    """
+    assert scheduler.filter_fn(query) == route
 
 
 # %% object queries
@@ -188,6 +244,9 @@ def test_human_near_known_furniture_takes_the_furniture_route(
 def test_object_query_takes_its_route(
     scheduler: QueryBasedScheduler, query: Query.Goal, route: str | None
 ) -> None:
+    """
+    Select object detection, room filtering, or no route for each query.
+    """
     assert scheduler.filter_fn(query) == route
 
 
@@ -207,4 +266,7 @@ def test_object_query_takes_its_route(
 def test_other_query_takes_its_route(
     scheduler: QueryBasedScheduler, query: Query.Goal, route: str | None
 ) -> None:
+    """
+    Select recall or door detection, or reject a missing or unknown type.
+    """
     assert scheduler.filter_fn(query) == route
