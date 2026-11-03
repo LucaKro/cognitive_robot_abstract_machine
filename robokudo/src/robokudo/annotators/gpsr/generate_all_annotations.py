@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # %% Imports
-from geometry_msgs.msg import PoseStamped, Vector3
+from geometry_msgs.msg import Vector3
 from py_trees.common import Status
 from robokudo_msgs.action import Query
 from robokudo_msgs.msg import ObjectDesignator, ShapeSize
@@ -21,6 +21,9 @@ from robokudo.types.cv import BoundingBox3D
 from robokudo.types.scene import ObjectHypothesis
 from robokudo.utils.annotator_helper import transform_pose_from_camera_to_world
 from robokudo.utils.query import QueryHandler
+from robokudo.utils.type_conversion import (
+    get_geometry_msgs_pose_stamped_from_pose_annotation,
+)
 
 # %% object answer
 
@@ -39,6 +42,21 @@ class GenerateAllQueryResult(BaseAnnotator):
 
     def __init__(self, name: str = "GenerateQueryResult") -> None:
         super().__init__(name=name)
+
+    def _append_pose(
+        self, object_designator: ObjectDesignator, pose: PoseAnnotation
+    ) -> None:
+        """
+        Append a camera-frame pose in the world frame to an answer.
+        """
+        world_pose = transform_pose_from_camera_to_world(self.get_cas(), pose)
+        header = camera_header(self.get_cas())
+        header.frame_id = "map"
+        pose_stamped = get_geometry_msgs_pose_stamped_from_pose_annotation(
+            world_pose, header
+        )
+        object_designator.pose.append(pose_stamped)
+        object_designator.pose_source.append(pose.source)
 
     def update(self) -> Status:
 
@@ -98,27 +116,7 @@ class GenerateAllQueryResult(BaseAnnotator):
                         object_designator.shape_size.append(shape_size)
 
                     if isinstance(annotation, PoseAnnotation):
-                        pose_stamped = PoseStamped()
-
-                        world_pose = transform_pose_from_camera_to_world(
-                            self.get_cas(), annotation
-                        )
-                        # TODO create PoseStamped and add it to the list
-                        pose_stamped.pose.position.x = world_pose.translation[0]
-                        pose_stamped.pose.position.y = world_pose.translation[1]
-                        pose_stamped.pose.position.z = world_pose.translation[2]
-
-                        pose_stamped.pose.orientation.x = world_pose.rotation[0]
-                        pose_stamped.pose.orientation.y = world_pose.rotation[1]
-                        pose_stamped.pose.orientation.z = world_pose.rotation[2]
-                        pose_stamped.pose.orientation.w = world_pose.rotation[3]
-
-                        # We assume that the pose annotation is in camera coordinates
-                        pose_stamped.header = camera_header(self.get_cas())
-                        pose_stamped.header.frame_id = "map"
-                        object_designator.pose.append(pose_stamped)
-
-                        object_designator.pose_source.append(annotation.source)
+                        self._append_pose(object_designator, annotation)
 
                     if isinstance(annotation, PositionAnnotation):
                         pose = PoseAnnotation()
@@ -132,27 +130,7 @@ class GenerateAllQueryResult(BaseAnnotator):
                         pose.rotation.insert(2, 0)
                         pose.rotation.insert(3, 1)
 
-                        world_pose = transform_pose_from_camera_to_world(
-                            self.get_cas(), pose
-                        )
-
-                        # Must be a PoseStamped due to type specification in ros message
-                        pose_stamped = PoseStamped()
-                        pose_stamped.pose.position.x = world_pose.translation[0]
-                        pose_stamped.pose.position.y = world_pose.translation[1]
-                        pose_stamped.pose.position.z = world_pose.translation[2]
-
-                        pose_stamped.pose.orientation.x = world_pose.rotation[0]
-                        pose_stamped.pose.orientation.y = world_pose.rotation[1]
-                        pose_stamped.pose.orientation.z = world_pose.rotation[2]
-                        pose_stamped.pose.orientation.w = world_pose.rotation[3]
-
-                        # We assume that the pose annotation is in camera coordinates
-                        pose_stamped.header = camera_header(self.get_cas())
-                        pose_stamped.header.frame_id = "map"
-                        object_designator.pose.append(pose_stamped)
-
-                        object_designator.pose_source.append(annotation.source)
+                        self._append_pose(object_designator, pose)
 
                 query_result.append(object_designator)
 
