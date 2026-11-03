@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing_extensions import Any
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
+from robokudo.descriptors.camera_configs.config_hsr import HsrCameraConfig
 from robokudo.descriptors.camera_configs.config_mongodb_playback import (
     MongoCameraConfig,
 )
@@ -53,6 +54,7 @@ class CollectionReaderDescriptorFactory:
         FileReaderCameraConfig.registry_name: RGBDFileReaderInterface,
         RayTracingCameraConfiguration.registry_name: RayTracingCameraInterface,
         HsrRos2CameraConfig.registry_name: KinectCameraInterface,
+        HsrCameraConfig.registry_name: KinectCameraInterface,
     }
     """
     Mapping of camera names to their corresponding camera interface types.
