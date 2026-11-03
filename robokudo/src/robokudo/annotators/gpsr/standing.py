@@ -93,7 +93,7 @@ class HumanStandingAnnotator(BaseAnnotator):
     def __init__(
         self,
         name: str = "HumanStandingAnnotator",
-        descriptor: HumanStandingAnnotator.Descriptor = Descriptor(),
+        descriptor: HumanStandingAnnotator.Descriptor | None = None,
     ) -> None:
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None

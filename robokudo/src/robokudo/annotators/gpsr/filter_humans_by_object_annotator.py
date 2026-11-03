@@ -7,6 +7,7 @@ from py_trees.common import Status
 from typing_extensions import TYPE_CHECKING
 
 from robokudo.annotators.core import BaseAnnotator
+from robokudo.annotators.gpsr.furniture_direction import FurnitureDirection
 from robokudo.types.annotation import (
     CloudAnnotation,
     LocationAnnotation,
@@ -80,7 +81,7 @@ class FilterHumansByObjectAnnotator(BaseAnnotator):
     def __init__(
         self,
         name: str = "FilterHumansByObjectAnnotator",
-        descriptor: FilterHumansByObjectAnnotator.Descriptor = Descriptor(),
+        descriptor: FilterHumansByObjectAnnotator.Descriptor | None = None,
     ) -> None:
         super().__init__(name, descriptor)
 
@@ -114,13 +115,13 @@ class FilterHumansByObjectAnnotator(BaseAnnotator):
             return False
         lateral = float(np.dot(offset, right))
         longitudinal = float(np.dot(offset, forward))
-        if direction == "right":
+        if direction == FurnitureDirection.RIGHT.value:
             return 0.0 <= lateral <= box_x and abs(longitudinal) <= box_y / 2.0
-        if direction == "left":
+        if direction == FurnitureDirection.LEFT.value:
             return -box_x <= lateral <= 0.0 and abs(longitudinal) <= box_y / 2.0
-        if direction == "back":
+        if direction == FurnitureDirection.BACK.value:
             return 0.0 <= longitudinal <= box_y and abs(lateral) <= box_x / 2.0
-        if direction == "front":
+        if direction == FurnitureDirection.FRONT.value:
             return -box_y <= longitudinal <= 0.0 and abs(lateral) <= box_x / 2.0
         return np.all(np.abs(offset) <= np.array(box_size) / 2.0)
 
@@ -302,13 +303,13 @@ class FilterHumansByObjectAnnotator(BaseAnnotator):
                 # camera axes: x=right (box_x), y=down (box_z), z=forward (box_y)
                 half_size = np.array([box_x / 2.0, box_z / 2.0, box_y / 2.0])
                 min_corner, max_corner = center - half_size, center + half_size
-                if direction == "right":
+                if direction == FurnitureDirection.RIGHT.value:
                     min_corner[0], max_corner[0] = center[0], center[0] + box_x
-                elif direction == "left":
+                elif direction == FurnitureDirection.LEFT.value:
                     min_corner[0], max_corner[0] = center[0] - box_x, center[0]
-                elif direction == "back":
+                elif direction == FurnitureDirection.BACK.value:
                     min_corner[2], max_corner[2] = center[2], center[2] + box_y
-                elif direction == "front":
+                elif direction == FurnitureDirection.FRONT.value:
                     min_corner[2], max_corner[2] = center[2] - box_y, center[2]
             else:
                 half_size = np.array(box_size) / 2.0

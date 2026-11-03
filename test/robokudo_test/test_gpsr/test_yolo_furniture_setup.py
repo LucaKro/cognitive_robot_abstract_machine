@@ -126,6 +126,24 @@ def test_unknown_furniture_leaves_the_detector_alone(
 # %% filter target and side
 
 
+@pytest.mark.parametrize("queried_side", ["left", "right", "front", "back"])
+def test_each_query_direction_is_passed_to_the_filter(
+    scene: GpsrScene,
+    furniture_setup: YoloFurnitureSetup,
+    filter_parameters: FilterHumansByObjectAnnotator.Descriptor.Parameters,
+    queried_side: str,
+) -> None:
+    """
+    Preserve each direction received from the query.
+    """
+    scene.query.obj.location = "chair"
+    scene.query.obj.attribute = [queried_side]
+
+    furniture_setup.update()
+
+    assert filter_parameters.direction == queried_side
+
+
 def test_queried_furniture_becomes_the_filter_target(
     scene: GpsrScene,
     furniture_setup: YoloFurnitureSetup,

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import os
 
 import py_trees
@@ -16,12 +19,25 @@ from robokudo.annotators.gpsr.filter_human_by_activity_annotator import (
 )
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def __init__(self, with_filter=False, *args, **kwargs):
+    """
+    Detect and answer queries about human activities.
+    """
+
+    def __init__(
+        self, with_filter: bool = False, *args: object, **kwargs: object
+    ) -> None:
+        """:param with_filter: Whether to filter by the queried activities."""
         super().__init__(*args, **kwargs)
         self.with_filter = with_filter
+        """
+        Whether to filter by the queried activities.
+        """
 
-    def implementation(self, name=None, *args, **kwargs):
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
         # the pose model lies next to our weights, outside CRAM

@@ -96,14 +96,14 @@ class HumanPointingAnnotator(robokudo.annotators.core.BaseAnnotator):
     def __init__(
         self,
         name: str = "HumanPointingAnnotator",
-        descriptor: HumanPointingAnnotator.Descriptor = Descriptor(),
+        descriptor: HumanPointingAnnotator.Descriptor | None = None,
     ) -> None:
         super().__init__(name, descriptor)
         self.node = Node("human_pointing_annotator")
         """ROS node used for marker publication."""
         self.pointing_marker_publisher = self.node.create_publisher(
             visualization_msgs.msg.MarkerArray,
-            "pointing_marker",  # relativ: <node_name>/pointing_marker
+            "pointing_marker",  # relative: <node_name>/pointing_marker
             10,
         )
         """Publisher for pointing direction markers."""

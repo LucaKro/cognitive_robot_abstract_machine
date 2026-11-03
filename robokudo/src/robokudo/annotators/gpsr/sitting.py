@@ -55,7 +55,7 @@ class HumanSittingAnnotator(BaseAnnotator):
                 Smallest confidence of a keypoint for the rule to trust it.
                 """
 
-                # Sitting threshold TODO Anpassen
+                # TODO: Adjust sitting thresholds.
                 self.max_hip_knee_rel_bbox: float = 0.5
                 """
                 Largest vertical distance from hip to knee, relative to the vertical
@@ -87,7 +87,7 @@ class HumanSittingAnnotator(BaseAnnotator):
     def __init__(
         self,
         name: str = "HumanSittingAnnotator",
-        descriptor: HumanSittingAnnotator.Descriptor = Descriptor(),
+        descriptor: HumanSittingAnnotator.Descriptor | None = None,
     ) -> None:
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None

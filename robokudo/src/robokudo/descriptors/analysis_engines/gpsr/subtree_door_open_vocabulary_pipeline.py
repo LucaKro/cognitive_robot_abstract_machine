@@ -11,8 +11,7 @@ from py_trees.composites import Sequence
 from robokudo.analysis_engine import SubtreeInterface
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.annotators.gpsr.door_handle_pose_annotator import (
-    DOOR_CLASSES,
-    HANDLE_CLASS,
+    DoorObjectClass,
     DoorHandlePoseAnnotator,
 )
 from robokudo.annotators.open_vocabulary_object_detection_annotator import (
@@ -43,7 +42,10 @@ class Subtree(SubtreeInterface):
 
     def implementation(self, *args: object, **kwargs: object) -> Sequence:
         detector_descriptor = OpenVocabularyObjectDetectionAnnotator.Descriptor()
-        detector_descriptor.parameters.classes = [DOOR_CLASSES[0], HANDLE_CLASS]
+        detector_descriptor.parameters.classes = [
+            DoorObjectClass.DOOR.value,
+            DoorObjectClass.HANDLE.value,
+        ]
         detector_descriptor.parameters.detection_threshold = self.detection_threshold
 
         sequence = Sequence("subtree_door_open_vocabulary_pipeline", memory=True)

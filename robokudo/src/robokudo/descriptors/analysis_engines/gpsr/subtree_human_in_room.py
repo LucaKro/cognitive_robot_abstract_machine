@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
@@ -16,12 +19,25 @@ from robokudo.annotators.gpsr.filter_objects_by_region import FilterObjectsByReg
 from robokudo.annotators.gpsr.generate_all_annotations import GenerateAllQueryResult
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def __init__(self, with_activity=False, *args, **kwargs):
+    """
+    Find people in the queried room, optionally by activity.
+    """
+
+    def __init__(
+        self, with_activity: bool = False, *args: object, **kwargs: object
+    ) -> None:
+        """:param with_activity: Whether to filter by the queried activity."""
         super().__init__(*args, **kwargs)
         self.with_activity = with_activity
+        """
+        Whether to filter by the queried activity.
+        """
 
-    def implementation(self, name=None, *args, **kwargs):
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
         # the pose model lies next to our weights, outside CRAM

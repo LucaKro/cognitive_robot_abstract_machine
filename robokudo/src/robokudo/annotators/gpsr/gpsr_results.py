@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+# %% imports
 from builtin_interfaces.msg import Time
 from py_trees.common import Status
 from robokudo_msgs.action import Query
 from robokudo_msgs.msg import ObjectDesignator
 from std_msgs.msg import Header
 
-# %% imports
 from typing_extensions import Any
 
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.gpsr.belief_state import BeliefEntry
+from robokudo.annotators.gpsr.exceptions import MissingObjectClassification
 from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
 from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
 from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
@@ -27,6 +28,7 @@ from robokudo.types.annotation import (
 )
 from robokudo.types.human import ActivityAnnotation
 from robokudo.types.scene import HumanHypothesis, ObjectHypothesis
+from robokudo.utils.error_handling import catch_and_raise_to_blackboard
 from robokudo.utils.query import QueryHandler
 from robokudo.utils.type_conversion import (
     get_geometry_msgs_pose_stamped_from_position_annotation,
@@ -49,8 +51,41 @@ def camera_header(cas: CAS) -> Header:
     )
 
 
+# %% person answers
+class GenerateResult(BaseAnnotator):
+    """
+    Build answers for detected hypotheses.
+    """
+
+    def add_identity(
+        self,
+        object_designator: ObjectDesignator,
+        hypothesis: HumanHypothesis,
+    ) -> None:
+        """
+        Add the person's belief identifier to the answer when available.
+        """
+        belief_ids = self.get_cas().filter_by_type(BeliefEntry, hypothesis.annotations)
+        if belief_ids:
+            object_designator.uid = str(belief_ids[0].id)
+
+    def add_positions(
+        self, object_designator: ObjectDesignator, positions: list[PositionAnnotation]
+    ) -> None:
+        """
+        Add observed positions and their sources to the answer.
+        """
+        for position in positions:
+            header = camera_header(self.get_cas())
+            pose_stamped = get_geometry_msgs_pose_stamped_from_position_annotation(
+                position, header
+            )
+            object_designator.pose.append(pose_stamped)
+            object_designator.pose_source.append(position.source)
+
+
 # %% posture answers
-class GenerateHumanPostureResults(BaseAnnotator):
+class GenerateHumanPostureResults(GenerateResult):
     """
     Answer queries for people whose unambiguous posture matches the query.
     """
@@ -103,20 +138,8 @@ class GenerateHumanPostureResults(BaseAnnotator):
                 object_designator.attribute.append(posture)
 
             if object_designator.attribute:
-                belief_ids = self.get_cas().filter_by_type(
-                    BeliefEntry, hypothesis.annotations
-                )
-                if belief_ids:
-                    object_designator.uid = str(belief_ids[0].id)
-                for position in positions:
-                    header = camera_header(self.get_cas())
-                    pose_stamped = (
-                        get_geometry_msgs_pose_stamped_from_position_annotation(
-                            position, header
-                        )
-                    )
-                    object_designator.pose.append(pose_stamped)
-                    object_designator.pose_source.append(position.source)
+                self.add_identity(object_designator, hypothesis)
+                self.add_positions(object_designator, positions)
 
                 query_result.append(object_designator)
 
@@ -127,7 +150,7 @@ class GenerateHumanPostureResults(BaseAnnotator):
 
 
 # %% gesture answers
-class GenerateWavingRaisingResult(BaseAnnotator):
+class GenerateWavingRaisingResult(GenerateResult):
     """
     Answer queries for matching waving and arm raising activities.
     """
@@ -160,20 +183,8 @@ class GenerateWavingRaisingResult(BaseAnnotator):
                         object_designator.description.append(activity.type)
 
             if object_designator.description:
-                belief_ids = self.get_cas().filter_by_type(
-                    BeliefEntry, hypothesis.annotations
-                )
-                if belief_ids:
-                    object_designator.uid = str(belief_ids[0].id)
-                for position in positions:
-                    header = camera_header(self.get_cas())
-                    pose_stamped = (
-                        get_geometry_msgs_pose_stamped_from_position_annotation(
-                            position, header
-                        )
-                    )
-                    object_designator.pose.append(pose_stamped)
-                    object_designator.pose_source.append(position.source)
+                self.add_identity(object_designator, hypothesis)
+                self.add_positions(object_designator, positions)
 
                 query_result.append(object_designator)
 
@@ -185,7 +196,7 @@ class GenerateWavingRaisingResult(BaseAnnotator):
 
 
 # %% pointing answers
-class GeneratePointingResult(BaseAnnotator):
+class GeneratePointingResult(GenerateResult):
     """
     Answer queries for people pointing in the requested direction.
     """
@@ -220,20 +231,8 @@ class GeneratePointingResult(BaseAnnotator):
 
             if object_designator.description:
                 if query.obj.attribute[0] in pointing_directions:
-                    belief_ids = self.get_cas().filter_by_type(
-                        BeliefEntry, hypothesis.annotations
-                    )
-                    if belief_ids:
-                        object_designator.uid = str(belief_ids[0].id)
-                    for position in positions:
-                        header = camera_header(self.get_cas())
-                        pose_stamped = (
-                            get_geometry_msgs_pose_stamped_from_position_annotation(
-                                position, header
-                            )
-                        )
-                        object_designator.pose.append(pose_stamped)
-                        object_designator.pose_source.append(position.source)
+                    self.add_identity(object_designator, hypothesis)
+                    self.add_positions(object_designator, positions)
                 else:
                     continue
 
@@ -247,7 +246,7 @@ class GeneratePointingResult(BaseAnnotator):
 
 
 # %% activity answers
-class GenerateHumanActivityResult(BaseAnnotator):
+class GenerateHumanActivityResult(GenerateResult):
     """
     Answer queries with observed postures and gestures, optionally filtered by room.
     """
@@ -292,7 +291,7 @@ class GenerateHumanActivityResult(BaseAnnotator):
             ]
 
             for activity in activities:
-                if activity.source == "HumanActivityAnnotator":
+                if activity.source == HumanActivityAnnotator.__name__:
                     if (
                         activity.type
                         in HumanActivityAnnotator.Descriptor.Parameters().posture_labels
@@ -318,20 +317,8 @@ class GenerateHumanActivityResult(BaseAnnotator):
                     object_designator.description.append(activity.type)
 
             if object_designator.attribute or object_designator.description:
-                belief_ids = self.get_cas().filter_by_type(
-                    BeliefEntry, hypothesis.annotations
-                )
-                if belief_ids:
-                    object_designator.uid = str(belief_ids[0].id)
-                for position in positions:
-                    header = camera_header(self.get_cas())
-                    pose_stamped = (
-                        get_geometry_msgs_pose_stamped_from_position_annotation(
-                            position, header
-                        )
-                    )
-                    object_designator.pose.append(pose_stamped)
-                    object_designator.pose_source.append(position.source)
+                self.add_identity(object_designator, hypothesis)
+                self.add_positions(object_designator, positions)
 
                 query_result.append(object_designator)
 
@@ -341,7 +328,7 @@ class GenerateHumanActivityResult(BaseAnnotator):
         return Status.SUCCESS
 
 
-class GenerateOpenVocabularyResult(BaseAnnotator):
+class GenerateOpenVocabularyResult(GenerateResult):
     """
     Answers a query with the detections of the
     :class:`OpenVocabularyObjectDetectionAnnotator`.
@@ -351,12 +338,18 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
     """
 
     def __init__(
-        self, name="OpenVocabularyResult", with_region_filter=False, *args, **kwargs
-    ):
+        self,
+        name: str = "OpenVocabularyResult",
+        with_region_filter: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.with_region_filter = with_region_filter
 
-    def containment_ratio(self, inner, outer):
+    def containment_ratio(
+        self, inner: ObjectHypothesis, outer: ObjectHypothesis
+    ) -> float:
         """
         Calculate the containment ratio of two hypotheses.
 
@@ -386,7 +379,9 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
         )
         return interArea / inner_area
 
-    def intersection_over_union(self, detection, human):
+    def intersection_over_union(
+        self, detection: ObjectHypothesis, human: HumanHypothesis
+    ) -> float:
         """
         Calculate the intersection over union of two hypotheses.
 
@@ -419,7 +414,8 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
         )
         return iou
 
-    def update(self):
+    @catch_and_raise_to_blackboard
+    def update(self) -> Status:
         query = self.get_cas().get(CASViews.QUERY)
 
         # HumanPipeline
@@ -465,24 +461,12 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
                                 object_designator.description.append(
                                     detection_classification.classname
                                 )
-                                belief_ids = self.get_cas().filter_by_type(
-                                    BeliefEntry, human_hypothesis.annotations
-                                )
-                                if belief_ids:
-                                    object_designator.uid = str(belief_ids[0].id)
+                                self.add_identity(object_designator, human_hypothesis)
 
                                 positions = self.get_cas().filter_by_type(
                                     PositionAnnotation, human_hypothesis.annotations
                                 )
-                                for position in positions:
-                                    header = camera_header(self.get_cas())
-                                    pose_stamped = get_geometry_msgs_pose_stamped_from_position_annotation(
-                                        position, header
-                                    )
-                                    object_designator.pose.append(pose_stamped)
-                                    object_designator.pose_source.append(
-                                        position.source
-                                    )
+                                self.add_positions(object_designator, positions)
 
                                 query_result.append(object_designator)
 
@@ -495,24 +479,12 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
             result = Query.Result()
 
             for object_hypothesis in object_hypotheses:
-                assert (
-                    len(
-                        self.get_cas().filter_by_type(
-                            Classification, object_hypothesis.annotations
-                        )
-                    )
-                    > 0
-                ), (
-                    len(
-                        self.get_cas().filter_by_type(
-                            Classification, object_hypothesis.annotations
-                        )
-                    )
-                    < 2
-                )
-                detection_classification = self.get_cas().filter_by_type(
+                classifications = self.get_cas().filter_by_type(
                     Classification, object_hypothesis.annotations
-                )[0]
+                )
+                if not classifications:
+                    raise MissingObjectClassification()
+                detection_classification = classifications[0]
                 if (
                     detection_classification.source
                     == OpenVocabularyObjectDetectionAnnotator.__name__
@@ -526,15 +498,7 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
                     positions = self.get_cas().filter_by_type(
                         PositionAnnotation, object_hypothesis.annotations
                     )
-                    for position in positions:
-                        header = camera_header(self.get_cas())
-                        pose_stamped = (
-                            get_geometry_msgs_pose_stamped_from_position_annotation(
-                                position, header
-                            )
-                        )
-                        object_designator.pose.append(pose_stamped)
-                        object_designator.pose_source.append(position.source)
+                    self.add_positions(object_designator, positions)
 
                     query_result.append(object_designator)
         else:
@@ -547,7 +511,7 @@ class GenerateOpenVocabularyResult(BaseAnnotator):
         return Status.SUCCESS
 
 
-class GenerateVisionLanguageResult(BaseAnnotator):
+class GenerateVisionLanguageResult(GenerateResult):
     """
     Answers a query with every person the :class:`VisionLanguageAnnotator` described,
     each part of the description between commas as one attribute.
@@ -574,20 +538,11 @@ class GenerateVisionLanguageResult(BaseAnnotator):
                 )
             if not object_designator.attribute:
                 continue
-            belief_ids = self.get_cas().filter_by_type(
-                BeliefEntry, hypothesis.annotations
-            )
-            if belief_ids:
-                object_designator.uid = str(belief_ids[0].id)
-            for position in self.get_cas().filter_by_type(
+            positions = self.get_cas().filter_by_type(
                 PositionAnnotation, hypothesis.annotations
-            ):
-                object_designator.pose.append(
-                    get_geometry_msgs_pose_stamped_from_position_annotation(
-                        position, camera_header(self.get_cas())
-                    )
-                )
-                object_designator.pose_source.append(position.source)
+            )
+            self.add_identity(object_designator, hypothesis)
+            self.add_positions(object_designator, positions)
             answered.append(object_designator)
         QueryHandler.send_answer(Query.Result(res=answered))
         self.feedback_message = "Query result generated."

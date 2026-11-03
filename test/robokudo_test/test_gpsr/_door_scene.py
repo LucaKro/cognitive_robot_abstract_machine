@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from krrood.ormatic.utils import classproperty
 from robokudo.annotators.gpsr.door_handle_pose_annotator import (
-    GRASP_CLASS,
+    DoorObjectClass,
     DoorHandlePoseAnnotator,
 )
 from robokudo.cas import CAS, CASViews
@@ -146,7 +146,8 @@ class DoorScene(GpsrScene):
         :return: The grasp point hypotheses the door handle annotator added to the CAS.
         """
         grasp_point = Classification(
-            classname=GRASP_CLASS, source=DoorHandlePoseAnnotator.__name__
+            classname=DoorObjectClass.GRASP_POINT.value,
+            source=DoorHandlePoseAnnotator.__name__,
         )
         return [
             hypothesis

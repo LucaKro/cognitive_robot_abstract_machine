@@ -25,8 +25,12 @@ from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
 from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
 from robokudo.annotators.gpsr.vision_language_annotator import VisionLanguageAnnotator
 from robokudo.annotators.gpsr.waving import HumanWavingAnnotator
-from robokudo.types.annotation import LocationAnnotation
+from robokudo.types.annotation import LocationAnnotation, PositionAnnotation
 from robokudo.types.human import ActivityAnnotation
+from robokudo.utils.type_conversion import (
+    get_geometry_msgs_pose_stamped_from_position_annotation,
+)
+from robokudo_msgs.msg import ObjectDesignator
 from typing_extensions import TYPE_CHECKING
 
 from ._gpsr_scene import GpsrScene
@@ -131,6 +135,9 @@ def answered_query(request: pytest.FixtureRequest) -> AnsweredQuery:
 def test_answered_person_carries_its_belief_id(
     scene: GpsrScene, answered_query: AnsweredQuery
 ) -> None:
+    """
+    The person's belief identifier appears in the answer.
+    """
     scene.query.obj.attribute = answered_query.queried_attribute
     annotator = answered_query.result_annotator()
     scene.place_in_pipeline(annotator)
@@ -146,6 +153,9 @@ def test_answered_person_carries_its_belief_id(
 def test_answered_person_carries_its_position_in_the_camera_frame(
     scene: GpsrScene, answered_query: AnsweredQuery
 ) -> None:
+    """
+    The person's position is answered in the camera frame.
+    """
     scene.query.obj.attribute = answered_query.queried_attribute
     annotator = answered_query.result_annotator()
     cas = scene.place_in_pipeline(annotator)
@@ -160,10 +170,57 @@ def test_answered_person_carries_its_position_in_the_camera_frame(
     assert pose.header == camera_header(cas)
 
 
+def test_answered_person_preserves_position_order_and_sources(
+    scene: GpsrScene, answered_query: AnsweredQuery
+) -> None:
+    """
+    The answer carries each position and its source in annotation order.
+    """
+    scene.query.obj.attribute = answered_query.queried_attribute
+    annotator = answered_query.result_annotator()
+    cas = scene.place_in_pipeline(annotator)
+    positions = [
+        PositionAnnotation(translation=[1.0, 2.0, 3.0], source="first"),
+        PositionAnnotation(translation=[4.0, 5.0, 6.0], source="second"),
+    ]
+    scene.add_human(answered_query.matching_activity(), *positions)
+
+    annotator.update()
+
+    [person] = scene.sent_answer().res
+    assert person.pose == [
+        get_geometry_msgs_pose_stamped_from_position_annotation(
+            position, camera_header(cas)
+        )
+        for position in positions
+    ]
+    assert person.pose_source == [position.source for position in positions]
+
+
+def test_answered_person_without_belief_has_empty_id(
+    scene: GpsrScene, answered_query: AnsweredQuery
+) -> None:
+    """
+    An answer without a belief entry keeps the default identifier.
+    """
+    scene.query.obj.attribute = answered_query.queried_attribute
+    annotator = answered_query.result_annotator()
+    scene.place_in_pipeline(annotator)
+    scene.add_human(answered_query.matching_activity())
+
+    annotator.update()
+
+    [person] = scene.sent_answer().res
+    assert person.uid == ObjectDesignator().uid
+
+
 # %% camera header
 
 
 def test_header_names_the_camera_frame_and_the_image_time(scene: GpsrScene) -> None:
+    """
+    The header identifies the camera frame and image acquisition time.
+    """
     scene.timestamp_nanoseconds = 12_000_000_345
     cas = scene.place_in_pipeline(GenerateHumanPostureResults())
 
@@ -177,6 +234,9 @@ def test_header_names_the_camera_frame_and_the_image_time(scene: GpsrScene) -> N
 
 
 def test_person_in_the_queried_posture_is_answered(scene: GpsrScene) -> None:
+    """
+    A person whose posture matches the query appears in the answer.
+    """
     scene.query.obj.type = "human"
     scene.query.obj.attribute = ["sitting"]
     annotator = GenerateHumanPostureResults()
@@ -192,6 +252,9 @@ def test_person_in_the_queried_posture_is_answered(scene: GpsrScene) -> None:
 
 
 def test_person_in_another_posture_is_not_answered(scene: GpsrScene) -> None:
+    """
+    A person with a different posture does not match the query.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = GenerateHumanPostureResults()
     scene.place_in_pipeline(annotator)
@@ -203,6 +266,9 @@ def test_person_in_another_posture_is_not_answered(scene: GpsrScene) -> None:
 
 
 def test_person_with_two_postures_is_undecided(scene: GpsrScene) -> None:
+    """
+    Conflicting posture annotations do not produce a match.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = GenerateHumanPostureResults()
     scene.place_in_pipeline(annotator)
@@ -214,6 +280,9 @@ def test_person_with_two_postures_is_undecided(scene: GpsrScene) -> None:
 
 
 def test_person_without_posture_is_undecided(scene: GpsrScene) -> None:
+    """
+    A person without a posture annotation does not match the query.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = GenerateHumanPostureResults()
     scene.place_in_pipeline(annotator)
@@ -225,6 +294,9 @@ def test_person_without_posture_is_undecided(scene: GpsrScene) -> None:
 
 
 def test_lying_person_answers_a_laying_query(scene: GpsrScene) -> None:
+    """
+    Translate the lying annotation to the query's posture word.
+    """
     scene.query.obj.attribute = ["laying"]
     annotator = GenerateHumanPostureResults()
     scene.place_in_pipeline(annotator)
@@ -239,6 +311,9 @@ def test_lying_person_answers_a_laying_query(scene: GpsrScene) -> None:
 
 
 def test_clip_posture_does_not_decide_the_posture(scene: GpsrScene) -> None:
+    """
+    A CLIP posture alone does not decide the keypoint posture query.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = GenerateHumanPostureResults()
     scene.place_in_pipeline(annotator)
@@ -250,6 +325,9 @@ def test_clip_posture_does_not_decide_the_posture(scene: GpsrScene) -> None:
 
 
 def test_nobody_in_the_scene_answers_with_nobody(scene: GpsrScene) -> None:
+    """
+    An empty scene produces an empty posture answer.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = GenerateHumanPostureResults()
     scene.place_in_pipeline(annotator)
@@ -264,6 +342,9 @@ def test_nobody_in_the_scene_answers_with_nobody(scene: GpsrScene) -> None:
 
 
 def test_person_making_the_queried_gesture_is_answered(scene: GpsrScene) -> None:
+    """
+    A matching gesture is reported for the person who made it.
+    """
     scene.query.obj.type = "human"
     scene.query.obj.attribute = ["waving"]
     annotator = GenerateWavingRaisingResult()
@@ -278,6 +359,9 @@ def test_person_making_the_queried_gesture_is_answered(scene: GpsrScene) -> None
 
 
 def test_person_making_another_gesture_is_not_answered(scene: GpsrScene) -> None:
+    """
+    A different gesture does not match the requested gesture.
+    """
     scene.query.obj.attribute = ["raising left arm"]
     annotator = GenerateWavingRaisingResult()
     scene.place_in_pipeline(annotator)

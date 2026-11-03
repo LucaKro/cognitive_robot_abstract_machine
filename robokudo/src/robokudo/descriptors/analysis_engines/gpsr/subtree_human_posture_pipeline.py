@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
@@ -10,8 +13,15 @@ from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
 from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
 
 
+# %% posture pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def implementation(self, name=None, *args, **kwargs):
+    """
+    Find people whose posture matches the query.
+    """
+
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         """
         Returns the list of annotators to be used in this subtree.
         """

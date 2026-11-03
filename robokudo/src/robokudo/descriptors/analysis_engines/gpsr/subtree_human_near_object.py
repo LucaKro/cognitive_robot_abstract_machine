@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import json
 
 import py_trees
@@ -14,7 +17,9 @@ from robokudo.annotators.gpsr.filter_humans_by_object_annotator import (
     FilterHumansByObjectAnnotator,
 )
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
+from robokudo.annotators.gpsr.furniture_direction import FurnitureDirection
 
+# %% furniture and directions
 # TODO: find a way, to make it cleaner/ better and mapping every item, that could come (maybe like semmanticannotations)
 FURNITURE = {
     "chair": 56,
@@ -30,27 +35,46 @@ FURNITURE = {
     "refrigerator": 72,
 }
 
-# Optional directional
-DIRECTIONS = {"left", "right", "front", "back"}
 
-
+# %% furniture detector configuration
 class YoloFurnitureSetup(robokudo.annotators.core.BaseAnnotator):
-    def __init__(self, yolo_params, filter_params):
+    """
+    Configure furniture detection and person filtering from the query.
+    """
+
+    def __init__(
+        self,
+        yolo_params: YoloAnnotator.Descriptor.Parameters,
+        filter_params: FilterHumansByObjectAnnotator.Descriptor.Parameters,
+    ) -> None:
+        """
+        :param yolo_params: Configuration of the furniture detector.
+        :param filter_params: Configuration of the person filter.
+        """
         super().__init__(name="YoloFurnitureSetup")
         self.yolo_params = yolo_params
+        """
+        Configuration of the furniture detector.
+        """
         self.filter_params = filter_params
+        """
+        Configuration of the person filter.
+        """
         # fallback when the query carries no direction
         self.default_direction = filter_params.direction
+        """
+        Direction used when a query does not specify one.
+        """
 
     # TODO: find a way, to make it cleaner/ better
     # Maybe map the Yolo stuff via an annotator and the location in used annotator not here!
-    def update(self):
+    def update(self) -> py_trees.common.Status:
         cas = self.get_cas()
         if cas.contains(CASViews.QUERY):
             query = cas.get(CASViews.QUERY)
             location = query.obj.location
-            coco_id = FURNITURE.get(location)
-            if coco_id is not None:
+            furniture_class_identifier = FURNITURE.get(location)
+            if furniture_class_identifier is not None:
                 # CRAM's YoloAnnotator has no positive class filter, so every other class is ignored instead
                 class_names = json.loads(
                     self.yolo_params.file_in_ros_package(
@@ -59,14 +83,21 @@ class YoloFurnitureSetup(robokudo.annotators.core.BaseAnnotator):
                 )
                 self.yolo_params.ignored_class_names = [
                     name
-                    for class_id, name in class_names.items()
-                    if int(class_id) != coco_id
+                    for class_identifier, name in class_names.items()
+                    if int(class_identifier) != furniture_class_identifier
                 ]
             if location:
                 self.filter_params.target_type = location
             # optional direction from the query extracted under Attribute
             direction = next(
-                (a for a in (query.obj.attribute or []) if a in DIRECTIONS), None
+                (
+                    attribute
+                    for attribute in (query.obj.attribute or [])
+                    if any(
+                        attribute == direction.value for direction in FurnitureDirection
+                    )
+                ),
+                None,
             )
             self.filter_params.direction = (
                 direction if direction else self.default_direction
@@ -74,20 +105,25 @@ class YoloFurnitureSetup(robokudo.annotators.core.BaseAnnotator):
         return py_trees.common.Status.SUCCESS
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def __init__(self, *args, **kwargs):
+    """
+    Find people near the furniture named in the query.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
 
     def implementation(
         self,
-        name=None,
-        direction=None,
-        box_x=None,
-        box_y=None,
-        box_z=None,
-        *args,
-        **kwargs,
-    ):
+        name: str | None = None,
+        direction: str | None = None,
+        box_x: float | None = None,
+        box_y: float | None = None,
+        box_z: float | None = None,
+        *args: object,
+        **kwargs: object,
+    ) -> py_trees.composites.Sequence:
         yolo_descriptor = YoloAnnotator.Descriptor()
         yolo_descriptor.parameters.precision_mode = True
         yolo_descriptor.parameters.ros_package_name = "robokudo_suturo"

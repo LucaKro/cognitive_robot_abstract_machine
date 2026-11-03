@@ -74,7 +74,7 @@ class HumanWavingAnnotator(BaseAnnotator):
     def __init__(
         self,
         name: str = "HumanWavingAnnotator",
-        descriptor: HumanWavingAnnotator.Descriptor = Descriptor(),
+        descriptor: HumanWavingAnnotator.Descriptor | None = None,
     ) -> None:
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None

@@ -135,15 +135,15 @@ class HumanActivityAnnotator(ThreadedAnnotator):
     def __init__(
         self,
         name: str = "HumanActivityAnnotator",
-        descriptor: HumanActivityAnnotator.Descriptor = Descriptor(),
+        descriptor: HumanActivityAnnotator.Descriptor | None = None,
     ) -> None:
+        super().__init__(name, descriptor)
         self.parameters: HumanActivityAnnotator.Descriptor.Parameters = (
-            descriptor.parameters
+            self.descriptor.parameters
         )
         """
         The parameters of the descriptor.
         """
-        super().__init__(name, descriptor)
         self.model: CLIPModel = CLIPModel.from_pretrained(self.parameters.clip_model)
         """
         The CLIP model, loaded once when the annotator is created.

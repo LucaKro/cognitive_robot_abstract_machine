@@ -1,4 +1,8 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
+from robokudo.annotators.gpsr.exceptions import InvalidAreaPose
 from robokudo.types.annotation import PoseAnnotation, PositionAnnotation
 from robokudo.utils.annotator_helper import transform_pose_from_camera_to_world
 
@@ -7,6 +11,7 @@ import robokudo.annotators.core
 import robokudo.defs
 
 
+# %% area filter
 class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
     """
     This Annotator removes all Annotations that are not in a submitted area.
@@ -22,7 +27,7 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
             Parameters for the Descriptor.
             """
 
-            def __init__(self):
+            def __init__(self) -> None:
                 # Submitted area coordinates
                 self.min_x = -1  # -float('inf')
                 self.min_y = -3
@@ -37,11 +42,15 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
 
         parameters = Parameters()
 
-    def __init__(self, name="FilterObjectsByArea", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "FilterObjectsByArea",
+        descriptor: FilterObjectsByArea.Descriptor | None = None,
+    ) -> None:
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
 
-    def update(self):
+    def update(self) -> py_trees.common.Status:
         cas = self.get_cas()
         object_hypothesis = cas.filter_annotations_by_type(
             robokudo.types.scene.ObjectHypothesis
@@ -97,15 +106,14 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
             return False
         return True
 
-    def __transform(self, pose) -> robokudo.types.annotation.PoseAnnotation:
+    def __transform(self, pose: object) -> robokudo.types.annotation.PoseAnnotation:
         """
-        Returns a PoseAnnotation.
+        Convert a position annotation to a pose, or return an existing pose.
         """
         if isinstance(pose, robokudo.types.annotation.PoseAnnotation):
             return pose
-        # Raise Error, if type is missing
         if not isinstance(pose, robokudo.types.annotation.PositionAnnotation):
-            raise ("Wrong type in transform for area.")
+            raise InvalidAreaPose(type(pose))
 
         pos = robokudo.types.annotation.PoseAnnotation()
         pos.translation.insert(0, pose.translation[0])

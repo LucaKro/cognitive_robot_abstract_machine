@@ -13,6 +13,7 @@ from py_trees.behaviours import Success
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
 from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
     AnalysisEngine,
+    GpsrRoute,
 )
 from robokudo.descriptors.analysis_engines.gpsr.subtree_human_near_object import (
     FURNITURE,
@@ -40,23 +41,23 @@ def ported_routes() -> list[str]:
     The routes of the GPSR perception ported to CRAM so far.
     """
     return [
-        "Attribute",
-        "BeliefStateLookupPipeline",
-        "DoorOpenVocabularyPipeline",
-        "DoorPipeline",
-        "FacePipeline",
-        "HumanActivity",
-        "HumanActivityFiltered",
-        "HumanActivityInRoomPipeline",
-        "HumanInRoomPipeline",
-        "HumanNearObjectPipeline",
-        "HumanPosturePipeline",
-        "ObjInRoomPipeline",
-        "ObjectDetectionPipeline",
-        "OpenVocabularyPipeline",
-        "OpenVocabularyPipelineWithRegion",
-        "PointingPipeline",
-        "WavingRaisingPipeline",
+        GpsrRoute.HUMAN_ATTRIBUTE.value,
+        GpsrRoute.BELIEF_LOOKUP.value,
+        GpsrRoute.DOOR_OPEN_VOCABULARY.value,
+        GpsrRoute.DOOR.value,
+        GpsrRoute.FACE.value,
+        GpsrRoute.HUMAN_ACTIVITY.value,
+        GpsrRoute.HUMAN_ACTIVITY_FILTERED.value,
+        GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value,
+        GpsrRoute.HUMAN_IN_ROOM.value,
+        GpsrRoute.HUMAN_NEAR_OBJECT.value,
+        GpsrRoute.HUMAN_POSTURE.value,
+        GpsrRoute.OBJECT_IN_ROOM.value,
+        GpsrRoute.OBJECT_DETECTION.value,
+        GpsrRoute.OPEN_VOCABULARY.value,
+        GpsrRoute.OPEN_VOCABULARY_IN_ROOM.value,
+        GpsrRoute.POINTING.value,
+        GpsrRoute.WAVING_RAISING.value,
     ]
 
 
@@ -113,31 +114,34 @@ def test_gpsr_tree_holds_a_subtree_for_every_ported_route(
 @pytest.mark.parametrize(
     "query, route",
     [
-        (gpsr_query("human", ["waving"]), "WavingRaisingPipeline"),
-        (gpsr_query("human", ["raising left arm"]), "WavingRaisingPipeline"),
-        (gpsr_query("human", ["raising right arm"]), "WavingRaisingPipeline"),
-        (gpsr_query("human", ["sitting"]), "HumanPosturePipeline"),
-        (gpsr_query("human", ["standing"]), "HumanPosturePipeline"),
-        (gpsr_query("human", ["laying"]), "HumanPosturePipeline"),
-        (gpsr_query("human", ["pointing left"]), "PointingPipeline"),
-        (gpsr_query("human", ["pointing right"]), "PointingPipeline"),
-        (gpsr_query("human", ["sitting", "waving"]), "HumanActivityFiltered"),
-        (gpsr_query("human"), "HumanActivity"),
-        (gpsr_query("human", location="iai_kitchen"), "HumanInRoomPipeline"),
+        (gpsr_query("human", ["waving"]), GpsrRoute.WAVING_RAISING.value),
+        (gpsr_query("human", ["raising left arm"]), GpsrRoute.WAVING_RAISING.value),
+        (gpsr_query("human", ["raising right arm"]), GpsrRoute.WAVING_RAISING.value),
+        (gpsr_query("human", ["sitting"]), GpsrRoute.HUMAN_POSTURE.value),
+        (gpsr_query("human", ["standing"]), GpsrRoute.HUMAN_POSTURE.value),
+        (gpsr_query("human", ["laying"]), GpsrRoute.HUMAN_POSTURE.value),
+        (gpsr_query("human", ["pointing left"]), GpsrRoute.POINTING.value),
+        (gpsr_query("human", ["pointing right"]), GpsrRoute.POINTING.value),
+        (
+            gpsr_query("human", ["sitting", "waving"]),
+            GpsrRoute.HUMAN_ACTIVITY_FILTERED.value,
+        ),
+        (gpsr_query("human"), GpsrRoute.HUMAN_ACTIVITY.value),
+        (gpsr_query("human", location="iai_kitchen"), GpsrRoute.HUMAN_IN_ROOM.value),
         (
             gpsr_query("human", ["waving"], location="living_room"),
-            "HumanActivityInRoomPipeline",
+            GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value,
         ),
         (
             gpsr_query("human", ["sitting"], location="bedroom"),
-            "HumanActivityInRoomPipeline",
+            GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value,
         ),
         (
             gpsr_query("human", ["pointing left"], location="office"),
-            "HumanActivityInRoomPipeline",
+            GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value,
         ),
-        (gpsr_query("human", location="hallway"), "HumanInRoomPipeline"),
-        (gpsr_query("human", location="kitchen"), "HumanActivity"),
+        (gpsr_query("human", location="hallway"), GpsrRoute.HUMAN_IN_ROOM.value),
+        (gpsr_query("human", location="kitchen"), GpsrRoute.HUMAN_ACTIVITY.value),
     ],
     ids=[
         "waving",
@@ -170,7 +174,7 @@ def test_human_near_known_furniture_takes_the_furniture_route(
 ) -> None:
     assert (
         scheduler.filter_fn(gpsr_query("human", location=furniture))
-        == "HumanNearObjectPipeline"
+        == GpsrRoute.HUMAN_NEAR_OBJECT.value
     )
 
 
@@ -180,9 +184,9 @@ def test_human_near_known_furniture_takes_the_furniture_route(
 @pytest.mark.parametrize(
     "query, route",
     [
-        (gpsr_query("object"), "ObjectDetectionPipeline"),
-        (gpsr_query("object", description=["Mug"]), "ObjectDetectionPipeline"),
-        (gpsr_query("object", location="iai_kitchen"), "ObjInRoomPipeline"),
+        (gpsr_query("object"), GpsrRoute.OBJECT_DETECTION.value),
+        (gpsr_query("object", description=["Mug"]), GpsrRoute.OBJECT_DETECTION.value),
+        (gpsr_query("object", location="iai_kitchen"), GpsrRoute.OBJECT_IN_ROOM.value),
         (gpsr_query("object", ["red"]), None),
     ],
     ids=["any object", "object of a type", "object in a room", "unknown attribute"],
@@ -199,8 +203,8 @@ def test_object_query_takes_its_route(
 @pytest.mark.parametrize(
     "query, route",
     [
-        (gpsr_query("recall"), "BeliefStateLookupPipeline"),
-        (gpsr_query("door"), "DoorPipeline"),
+        (gpsr_query("recall"), GpsrRoute.BELIEF_LOOKUP.value),
+        (gpsr_query("door"), GpsrRoute.DOOR.value),
         (gpsr_query(""), None),
         (gpsr_query("animal"), None),
     ],

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
 import robokudo.analysis_engine
 import robokudo.annotators.query
@@ -10,8 +13,15 @@ from robokudo.descriptors.analysis_engines.gpsr.subtree_object_detection import 
 from robokudo.annotators.query import GenerateQueryResult
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def implementation(self, name=None, *args, **kwargs):
+    """
+    Detect objects and answer the query with the observed hypotheses.
+    """
+
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
 
         seq = py_trees.composites.Sequence(
             "subtree_object_detection_pipeline", memory=True

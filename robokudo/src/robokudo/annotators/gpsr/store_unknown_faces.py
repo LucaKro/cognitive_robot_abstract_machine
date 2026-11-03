@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 from timeit import default_timer
 from PIL import Image
 import py_trees
@@ -9,34 +12,55 @@ import robokudo.utils.file_loader
 import robokudo.types.annotation
 import robokudo.types.human
 import robokudo.types.scene
+from robokudo.annotators.gpsr.exceptions import (
+    FaceStoragePathMissing,
+    InvalidFaceHypothesis,
+    NoAvailableFaceIdentifier,
+)
 from robokudo.cas import CASViews
 
 import os
 
+# %% environment
 os.environ["QT_API"] = "pyqt5"
 
 
+# %% face storage
 class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
+    """
+    Store images of people without a face classification.
+    """
+
     class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+        """
+        Configuration of face image storage.
+        """
+
         class Parameters:
-            def __init__(self):
+            """
+            Destination and crop settings for face images.
+            """
+
+            def __init__(self) -> None:
                 self.ros_pkg_path = None
                 self.data_path = None
                 self.noise = 0
 
         parameters = Parameters()
 
-    def __init__(self, name="StoreFaces", descriptor=Descriptor()):
+    def __init__(
+        self, name: str = "StoreFaces", descriptor: StoreFaces.Descriptor | None = None
+    ) -> None:
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def compute(self):
+    def compute(self) -> py_trees.common.Status:
         if (
             self.descriptor.parameters.ros_pkg_path is None
             or self.descriptor.parameters.ros_pkg_path is None
         ):
-            raise "Path is not set"
+            raise FaceStoragePathMissing()
 
         start_timer = default_timer()
 
@@ -93,13 +117,12 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return py_trees.common.Status.SUCCESS
 
-    def _check_if_class_exists(self, human_hypothesis):
+    def _check_if_class_exists(self, human_hypothesis: object) -> bool:
         """
-        This Method returns true, if for a human hypothesis a file already exist and
-        false if not.
+        :return: Whether the person already has a classification.
         """
         if not isinstance(human_hypothesis, robokudo.types.scene.HumanHypothesis):
-            raise ("Check if class exists receives a wrong type")
+            raise InvalidFaceHypothesis(type(human_hypothesis))
 
         for classification in human_hypothesis.annotations:
             # print(type(classification))
@@ -109,9 +132,9 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
         print("Detect unfamiliar face, create a new file for his face!")
         return False
 
-    def _get_id(self, path):
+    def _get_id(self, path: str | os.PathLike[str]) -> str:
         """
-        This method iterates over the files in data and return an unambiguous id.
+        :return: An unused face image identifier in the directory.
         """
         names = []
         for filename in os.listdir(path):
@@ -120,4 +143,4 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
         for i in range(1000):
             if not str(i) in names:
                 return str(i)
-        raise "Coudn't find Id to store faces"
+        raise NoAvailableFaceIdentifier()

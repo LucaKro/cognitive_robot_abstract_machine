@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import os
 from pathlib import Path
 import py_trees
@@ -16,14 +19,22 @@ from robokudo.annotators.gpsr.parametrize_human_classifier import (
 )
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def __init__(self, ros_pkg_path="robokudo_robocup_receptionist"):
-        self.ros_pkg_path = ros_pkg_path
+    """
+    Detect, classify and store faces for queries.
+    """
 
-    def implementation(self, name=None, *args, **kwargs):
+    def __init__(self, ros_pkg_path: str = "robokudo_robocup_receptionist") -> None:
+        """:param ros_pkg_path: ROS package containing the face image directory."""
+        self.ros_pkg_path = ros_pkg_path
         """
-        Create a basic pipeline that does tabletop segmentation.
+        ROS package containing the face image directory.
         """
+
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         face_classifcation_descriptor = FaceClassification.Descriptor()
         face_classifcation_descriptor.parameters.ros_pkg_path = self.ros_pkg_path
         face_classifcation_descriptor.parameters.data_path = "faces"

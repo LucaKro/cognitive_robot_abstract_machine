@@ -66,7 +66,7 @@ class FilterObjectsByRegion(BaseAnnotator):
     def __init__(
         self,
         name: str = "FilterObjectsByRegion",
-        descriptor: FilterObjectsByRegion.Descriptor = Descriptor(),
+        descriptor: FilterObjectsByRegion.Descriptor | None = None,
     ) -> None:
         super().__init__(name=name, descriptor=descriptor)
         self.world_frame_name: str = self.descriptor.parameters.world_frame_name
@@ -154,9 +154,12 @@ class FilterObjectsByRegion(BaseAnnotator):
             return
         image = image.copy()
         for hypothesis in self.get_cas().filter_annotations_by_type(ObjectHypothesis):
-            region = hypothesis.roi.roi
-            x, y = int(region.pos.x), int(region.pos.y)
-            width, height = int(region.width), int(region.height)
+            try:
+                region = hypothesis.roi.roi
+                x, y = int(region.pos.x), int(region.pos.y)
+                width, height = int(region.width), int(region.height)
+            except AttributeError:
+                continue
             in_room = any(
                 isinstance(annotation, LocationAnnotation)
                 and annotation.name == queried_location

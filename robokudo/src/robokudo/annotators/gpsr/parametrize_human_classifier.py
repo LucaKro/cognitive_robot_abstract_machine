@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import os
 
 import py_trees
@@ -11,21 +14,35 @@ import robokudo.utils.file_loader
 import robokudo.annotators.core
 
 
+# %% classifier configuration
 class ParametrizeHumanClassifyAnnotator(robokudo.annotators.core.BaseAnnotator):
+    """
+    Update face classifier parameters from the stored face images.
+    """
+
     def __init__(
         self,
         classify_annotator: robokudo.annotators.gpsr.face_classification.FaceClassification,
-        name="ParametrizeHumanClassifyAnnotator",
-        ros_pkg_path="robokudo_robocup_receptionist",
-    ):
-
+        name: str = "ParametrizeHumanClassifyAnnotator",
+        ros_pkg_path: str = "robokudo_robocup_receptionist",
+    ) -> None:
+        """
+        :param classify_annotator: Classifier whose face images are configured.
+        :param ros_pkg_path: ROS package containing the face image directory.
+        """
         super().__init__(str(name))
 
         self.classify_annotator = classify_annotator
+        """
+        Classifier whose face images are configured.
+        """
         self.ros_pkg_path = ros_pkg_path
+        """
+        ROS package containing the face image directory.
+        """
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    def update(self) -> py_trees.common.Status:
 
         file_loader = robokudo.utils.file_loader.FileLoader()
         full_path = file_loader.get_path_to_file_in_ros_package(

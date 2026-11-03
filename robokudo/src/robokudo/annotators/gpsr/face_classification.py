@@ -1,9 +1,13 @@
+from __future__ import annotations
+
+# %% imports
 import copy
 from pathlib import Path
 from timeit import default_timer
 
 import face_recognition
 import py_trees
+from typing_extensions import TYPE_CHECKING
 
 import robokudo
 import robokudo.annotators.core
@@ -15,15 +19,27 @@ import robokudo.utils.error_handling
 from robokudo.cas import CASViews
 from robokudo.utils.file_loader import FileLoader
 
+if TYPE_CHECKING:
+    import numpy as np
 
+
+# %% face classification
 class FaceClassification(robokudo.annotators.core.BaseAnnotator):
     """
     Classifies detected faces based on face_recognition library.
     """
 
     class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+        """
+        Configuration of face classification.
+        """
+
         class Parameters:
-            def __init__(self):
+            """
+            Known face images and classification threshold.
+            """
+
+            def __init__(self) -> None:
                 self.ros_pkg_path = None  # If set, use data_path as a relative path to self.ros_pkg_path
                 self.data_path = (
                     None  # Relative Path to the folder containing the models
@@ -36,14 +52,21 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
 
-    def __init__(self, name="FaceClassification", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "FaceClassification",
+        descriptor: FaceClassification.Descriptor | None = None,
+    ) -> None:
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
         self.known_face_encodings = []
         self.known_person_image = []
         self.load_faces()
 
-    def load_faces(self):
+    def load_faces(self) -> py_trees.common.Status | None:
+        """
+        Load face encodings, reporting failure if an image contains no face.
+        """
         if (
             self.descriptor.parameters.ros_pkg_path is None
             or self.descriptor.parameters.data_path is None
@@ -82,7 +105,7 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
         return None
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def update(self):
+    def update(self) -> py_trees.common.Status:
         start_timer = default_timer()
         self.load_faces()  # Reload faces before comparison
 
@@ -140,7 +163,7 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return py_trees.common.Status.SUCCESS
 
-    def draw_visualization(self, visualization_img):
+    def draw_visualization(self, visualization_img: np.ndarray) -> np.ndarray:
         """
         Fetch object hypothesis with Annotations done by this Annotator and visualize them in 2D
         :param visualization_img:
@@ -167,7 +190,10 @@ class FaceClassification(robokudo.annotators.core.BaseAnnotator):
         # Warning:If you have multiple Annotators of this type in your BT, you need to switch from self.get_class_name()
         # in the annotation to self.name and set different names in the CTOR. We also assume,
         # that no annotations from this Annotator have existed in the CAS prior to the call of this Annotator
-        def get_class_label_from_h(h):
+        def get_class_label_from_h(h: robokudo.types.scene.HumanHypothesis) -> str:
+            """
+            Return the classifier label for a person, if unambiguous.
+            """
             class_annotations = [
                 a
                 for a in h.annotations

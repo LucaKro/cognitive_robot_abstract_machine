@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import copy
 from timeit import default_timer
 
@@ -20,6 +23,7 @@ import robokudo.utils.o3d_helper
 from robokudo.cas import CASViews
 
 
+# %% face detection
 class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
     """
     Detect faces in 2D images.
@@ -29,8 +33,16 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
     """
 
     class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
+        """
+        Configuration of face detection.
+        """
+
         class Parameters:
-            def __init__(self):
+            """
+            Image scaling and face detection options.
+            """
+
+            def __init__(self) -> None:
                 self.scale_factor = 1.0  # Downscale image before processing.
                 # Will be applied after rgb image is scaled to depth image when with_point_generation is true
 
@@ -41,12 +53,16 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
 
-    def __init__(self, name="FaceDetector", descriptor=Descriptor()):
+    def __init__(
+        self,
+        name: str = "FaceDetector",
+        descriptor: FaceDetector.Descriptor | None = None,
+    ) -> None:
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
-    def compute(self):
+    def compute(self) -> py_trees.common.Status:
         start_timer = default_timer()
 
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
@@ -54,12 +70,21 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         if self.descriptor.parameters.with_point_generation:
             # Scale the color image down so that it matches the depth image size
             self.depth = self.get_cas().get(CASViews.DEPTH_IMAGE)
-            resized_color = (
-                robokudo.utils.cv_helper.get_scaled_color_image_for_depth_image(
-                    self.get_cas(), self.color
+            resized_color = None
+            try:
+                resized_color = (
+                    robokudo.utils.cv_helper.get_scaled_color_image_for_depth_image(
+                        self.get_cas(), self.color
+                    )
                 )
-            )
-            robokudo.utils.annotator_helper.scale_camera_intrinsics(self)
+                robokudo.utils.annotator_helper.scale_camera_intrinsics(self)
+            except RuntimeError as e:
+                self.rk_logger.error(
+                    "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
+                )
+                raise Exception(
+                    "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
+                )
         else:
             resized_color = self.color
 

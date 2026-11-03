@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 import py_trees
-from typing_extensions import TYPE_CHECKING, Any, Iterator
+from typing_extensions import TYPE_CHECKING, Any, ClassVar, Iterator
 
 import robokudo.annotators.core
 import robokudo.types.human
@@ -229,12 +229,12 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
     Track observed entities and age entries that are no longer visible.
     """
 
-    _state = BeliefState()
+    _state: ClassVar[BeliefState] = BeliefState()
     """
     Belief state shared by annotator instances.
     """
 
-    _next_id = 1
+    _next_id: ClassVar[int] = 1
     """
     Identifier assigned to the next new entry, shared by all annotator instances like
     the belief state.

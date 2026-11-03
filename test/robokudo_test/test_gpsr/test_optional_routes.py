@@ -6,6 +6,7 @@ from __future__ import annotations
 
 # %% Imports
 import pytest
+from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import GpsrRoute
 from typing_extensions import TYPE_CHECKING
 
 from ._gpsr_routing import gpsr_query
@@ -19,8 +20,8 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize(
     "query, expected_route",
     [
-        (gpsr_query("face"), "FacePipeline"),
-        (gpsr_query("human", ["Attribute"]), "Attribute"),
+        (gpsr_query("face"), GpsrRoute.FACE.value),
+        (gpsr_query("human", ["Attribute"]), GpsrRoute.HUMAN_ATTRIBUTE.value),
     ],
 )
 def test_query_selects_a_registered_optional_route(

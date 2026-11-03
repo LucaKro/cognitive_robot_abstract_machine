@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 # %% Imports
+from enum import StrEnum
+
 from py_trees.composites import Sequence
 from typing_extensions import TYPE_CHECKING
 
@@ -63,6 +65,32 @@ from robokudo.utils.error_handling import catch_and_raise_to_blackboard
 
 if TYPE_CHECKING:
     from robokudo_msgs.action import Query
+
+
+# %% query routes
+class GpsrRoute(StrEnum):
+    """
+    Routes available to the GPSR query scheduler.
+    """
+
+    WAVING_RAISING = "WavingRaisingPipeline"
+    HUMAN_POSTURE = "HumanPosturePipeline"
+    OBJECT_DETECTION = "ObjectDetectionPipeline"
+    POINTING = "PointingPipeline"
+    OPEN_VOCABULARY = "OpenVocabularyPipeline"
+    OPEN_VOCABULARY_IN_ROOM = "OpenVocabularyPipelineWithRegion"
+    HUMAN_ACTIVITY_FILTERED = "HumanActivityFiltered"
+    HUMAN_ACTIVITY = "HumanActivity"
+    HUMAN_ATTRIBUTE = "Attribute"
+    HUMAN_NEAR_OBJECT = "HumanNearObjectPipeline"
+    HUMAN_IN_ROOM = "HumanInRoomPipeline"
+    HUMAN_ACTIVITY_IN_ROOM = "HumanActivityInRoomPipeline"
+    OBJECT_IN_ROOM = "ObjInRoomPipeline"
+    FACE = "FacePipeline"
+    BELIEF_LOOKUP = "BeliefStateLookupPipeline"
+    DOOR = "DoorPipeline"
+    DOOR_OPEN_VOCABULARY = "DoorOpenVocabularyPipeline"
+
 
 # %% GPSR analysis engine
 
@@ -140,12 +168,12 @@ class AnalysisEngine(AnalysisEngineInterface):
             color = filter_query_input(query.obj.color)
             description = filter_query_input(query.obj.description)
 
-            # TODO query.obj.type = human base case so anpassen, dass wir noch ein fall haben, dass er filtern soll
+            # TODO: Add a human query case that applies filtering.
             if query.obj.type == "human":
                 if color in color_attributes and description in clothes_attributes:
                     if query.obj.location in rooms:
-                        return "OpenVocabularyPipelineWithRegion"
-                    return "OpenVocabularyPipeline"
+                        return GpsrRoute.OPEN_VOCABULARY_IN_ROOM.value
+                    return GpsrRoute.OPEN_VOCABULARY.value
                 elif query.obj.location in rooms:
                     if (
                         attribute
@@ -153,75 +181,75 @@ class AnalysisEngine(AnalysisEngineInterface):
                         + human_posture_attributes
                         + pointing_attributes
                     ):
-                        return "HumanActivityInRoomPipeline"
-                    return "HumanInRoomPipeline"
+                        return GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value
+                    return GpsrRoute.HUMAN_IN_ROOM.value
                 elif query.obj.location in FURNITURE:
-                    return "HumanNearObjectPipeline"
+                    return GpsrRoute.HUMAN_NEAR_OBJECT.value
                 elif attribute in waving_raising_attributes:
-                    return "WavingRaisingPipeline"
+                    return GpsrRoute.WAVING_RAISING.value
                 elif attribute in human_posture_attributes:
-                    return "HumanPosturePipeline"
+                    return GpsrRoute.HUMAN_POSTURE.value
                 elif attribute in pointing_attributes:
-                    return "PointingPipeline"
+                    return GpsrRoute.POINTING.value
                 elif attribute == "Attribute":
-                    return "Attribute"
+                    return GpsrRoute.HUMAN_ATTRIBUTE.value
                 elif len(query.obj.attribute) >= 2:
-                    return "HumanActivityFiltered"
+                    return GpsrRoute.HUMAN_ACTIVITY_FILTERED.value
                 else:
-                    return "HumanActivity"
+                    return GpsrRoute.HUMAN_ACTIVITY.value
             elif query.obj.type == "recall":
-                return "BeliefStateLookupPipeline"
+                return GpsrRoute.BELIEF_LOOKUP.value
             elif query.obj.type == "face":
-                return "FacePipeline"
+                return GpsrRoute.FACE.value
             elif query.obj.type == "door":
-                return "DoorPipeline"
+                return GpsrRoute.DOOR.value
             elif query.obj.type == "doorgsam":
-                return "DoorOpenVocabularyPipeline"
+                return GpsrRoute.DOOR_OPEN_VOCABULARY.value
             elif query.obj.type == "object":
                 if query.obj.location in rooms:
-                    return "ObjInRoomPipeline"
+                    return GpsrRoute.OBJECT_IN_ROOM.value
                 elif attribute in object_attributes:
-                    return "OpenVocabularyPipeline"
+                    return GpsrRoute.OPEN_VOCABULARY.value
                 elif attribute and attribute not in object_attributes:
                     return None
                 else:
-                    return "ObjectDetectionPipeline"
+                    return GpsrRoute.OBJECT_DETECTION.value
             else:
                 return None
 
         task_trees = {
-            "WavingRaisingPipeline": Subtree_WavingRaisingPipeline().implementation(),
-            "HumanPosturePipeline": Subtree_HumanPosturePipeline().implementation(),
-            "ObjectDetectionPipeline": Subtree_ObjectDetectionPipeline().implementation(),
-            "PointingPipeline": Subtree_PointingPipeline().implementation(),
-            "OpenVocabularyPipeline": Subtree_OpenVocabularyPipeline(
+            GpsrRoute.WAVING_RAISING.value: Subtree_WavingRaisingPipeline().implementation(),
+            GpsrRoute.HUMAN_POSTURE.value: Subtree_HumanPosturePipeline().implementation(),
+            GpsrRoute.OBJECT_DETECTION.value: Subtree_ObjectDetectionPipeline().implementation(),
+            GpsrRoute.POINTING.value: Subtree_PointingPipeline().implementation(),
+            GpsrRoute.OPEN_VOCABULARY.value: Subtree_OpenVocabularyPipeline(
                 object_attributes=object_attributes,
                 color_attributes=color_attributes,
                 clothes_attributes=clothes_attributes,
             ).implementation(),
-            "OpenVocabularyPipelineWithRegion": Subtree_OpenVocabularyPipeline(
+            GpsrRoute.OPEN_VOCABULARY_IN_ROOM.value: Subtree_OpenVocabularyPipeline(
                 object_attributes=object_attributes,
                 color_attributes=color_attributes,
                 clothes_attributes=clothes_attributes,
                 with_region_filter=True,
             ).implementation(),
-            "HumanActivityFiltered": Subtree_Human_Activity(
+            GpsrRoute.HUMAN_ACTIVITY_FILTERED.value: Subtree_Human_Activity(
                 with_filter=True
             ).implementation(),
-            "HumanActivity": Subtree_Human_Activity().implementation(),
-            "Attribute": Subtree_HumanAttribute().implementation(),
-            "HumanNearObjectPipeline": Subtree_HumanNearObjectPipeline().implementation(),
-            "HumanInRoomPipeline": Subtree_HumanInRoomPipeline().implementation(),
-            "HumanActivityInRoomPipeline": Subtree_HumanInRoomPipeline(
+            GpsrRoute.HUMAN_ACTIVITY.value: Subtree_Human_Activity().implementation(),
+            GpsrRoute.HUMAN_ATTRIBUTE.value: Subtree_HumanAttribute().implementation(),
+            GpsrRoute.HUMAN_NEAR_OBJECT.value: Subtree_HumanNearObjectPipeline().implementation(),
+            GpsrRoute.HUMAN_IN_ROOM.value: Subtree_HumanInRoomPipeline().implementation(),
+            GpsrRoute.HUMAN_ACTIVITY_IN_ROOM.value: Subtree_HumanInRoomPipeline(
                 with_activity=True
             ).implementation(),
-            "ObjInRoomPipeline": Subtree_ObjInRoomPipeline().implementation(),
-            "FacePipeline": Subtree_FacesPipeline(
+            GpsrRoute.OBJECT_IN_ROOM.value: Subtree_ObjInRoomPipeline().implementation(),
+            GpsrRoute.FACE.value: Subtree_FacesPipeline(
                 ros_pkg_path="robokudo_suturo"
             ).implementation(),
-            "BeliefStateLookupPipeline": Subtree_BeliefLookup().implementation(),
-            "DoorPipeline": Subtree_DoorPipeline().implementation(),
-            "DoorOpenVocabularyPipeline": Subtree_DoorOpenVocabularyPipeline().implementation(),
+            GpsrRoute.BELIEF_LOOKUP.value: Subtree_BeliefLookup().implementation(),
+            GpsrRoute.DOOR.value: Subtree_DoorPipeline().implementation(),
+            GpsrRoute.DOOR_OPEN_VOCABULARY.value: Subtree_DoorOpenVocabularyPipeline().implementation(),
         }
 
         task_scheduling = Sequence("Task Scheduling", memory=True)

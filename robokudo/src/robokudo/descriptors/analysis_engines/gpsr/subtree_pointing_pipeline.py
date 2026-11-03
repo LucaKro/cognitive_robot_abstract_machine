@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
 import robokudo.analysis_engine
 import robokudo.annotators.query
@@ -9,8 +12,15 @@ from robokudo.annotators.gpsr.gpsr_results import GeneratePointingResult
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def implementation(self, name=None, *args, **kwargs):
+    """
+    Find people pointing in the queried direction.
+    """
+
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         """
         Returns the list of annotators to be used in this subtree.
         """

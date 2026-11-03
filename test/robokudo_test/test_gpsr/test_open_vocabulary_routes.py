@@ -6,6 +6,7 @@ from __future__ import annotations
 
 # %% Imports
 import pytest
+from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import GpsrRoute
 from typing_extensions import TYPE_CHECKING
 
 from ._gpsr_routing import gpsr_query
@@ -19,16 +20,16 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize(
     "query, expected_route",
     [
-        (gpsr_query("doorgsam"), "DoorOpenVocabularyPipeline"),
+        (gpsr_query("doorgsam"), GpsrRoute.DOOR_OPEN_VOCABULARY.value),
         (
             gpsr_query("human", color=["red"], description=["shirt"]),
-            "OpenVocabularyPipeline",
+            GpsrRoute.OPEN_VOCABULARY.value,
         ),
         (
             gpsr_query(
                 "human", color=["red"], description=["shirt"], location="living_room"
             ),
-            "OpenVocabularyPipelineWithRegion",
+            GpsrRoute.OPEN_VOCABULARY_IN_ROOM.value,
         ),
     ],
 )

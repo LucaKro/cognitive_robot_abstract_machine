@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.query import GenerateQueryResult
@@ -7,11 +10,22 @@ from robokudo.annotators.gpsr.door_handle_pose_annotator import DoorHandlePoseAn
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def __init__(self, ros_pkg_path="robokudo_suturo"):
-        self.ros_pkg_path = ros_pkg_path
+    """
+    Detect doors and estimate door handle poses.
+    """
 
-    def implementation(self, name=None, *args, **kwargs):
+    def __init__(self, ros_pkg_path: str = "robokudo_suturo") -> None:
+        """:param ros_pkg_path: ROS package containing the detector files."""
+        self.ros_pkg_path = ros_pkg_path
+        """
+        ROS package containing the detector files.
+        """
+
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         """
         Detect doors and handles and estimate a grasp pose for each handle.
         """

@@ -55,7 +55,7 @@ class HumanLyingAnnotator(BaseAnnotator):
                 Smallest confidence of a keypoint for the rule to trust it.
                 """
 
-                # Lying threshold TODO Anpassen
+                # TODO: Adjust lying thresholds.
                 self.max_vertical_rel_height: float = 0.35
                 """
                 Largest share of the vertical extent of the keypoints in the sum of
@@ -99,7 +99,7 @@ class HumanLyingAnnotator(BaseAnnotator):
     def __init__(
         self,
         name: str = "HumanLyingAnnotator",
-        descriptor: HumanLyingAnnotator.Descriptor = Descriptor(),
+        descriptor: HumanLyingAnnotator.Descriptor | None = None,
     ) -> None:
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None
@@ -243,7 +243,7 @@ class HumanLyingAnnotator(BaseAnnotator):
             abs(nose.y - (left_shoulder.y + right_shoulder.y) / 2) / vertical_extent
         )
 
-        # TODO: Thresholds für Liegend Erkennung anpassen
+        # TODO: Adjust thresholds for lying detection.
         lying = (
             relative_height <= parameters.max_vertical_rel_height
             and relative_width >= parameters.min_horizontal_rel_width

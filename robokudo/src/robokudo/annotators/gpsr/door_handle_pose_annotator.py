@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # %% imports
 from timeit import default_timer
+from enum import StrEnum
 
 import cv2
 import numpy as np
@@ -20,9 +21,16 @@ from robokudo.types.annotation import (
 )
 from robokudo.types.scene import ObjectHypothesis
 
-DOOR_CLASSES = ("door", "cabinet door", "refrigerator door")
-HANDLE_CLASS = "handle"
-GRASP_CLASS = "grasp_point"
+
+# %% door object classes
+class DoorObjectClass(StrEnum):
+    """Classifications of doors, handles and grasp points."""
+
+    DOOR = "door"
+    CABINET_DOOR = "cabinet door"
+    REFRIGERATOR_DOOR = "refrigerator door"
+    HANDLE = "handle"
+    GRASP_POINT = "grasp_point"
 
 
 # %% door handle pose
@@ -87,7 +95,7 @@ class DoorHandlePoseAnnotator(robokudo.annotators.core.BaseAnnotator):
     def __init__(
         self,
         name: str = "DoorHandlePoseAnnotator",
-        descriptor: DoorHandlePoseAnnotator.Descriptor = Descriptor(),
+        descriptor: DoorHandlePoseAnnotator.Descriptor | None = None,
     ) -> None:
         super(DoorHandlePoseAnnotator, self).__init__(name, descriptor)
         self.depth: np.ndarray | None = None
@@ -293,12 +301,14 @@ class DoorHandlePoseAnnotator(robokudo.annotators.core.BaseAnnotator):
         Own hypothesis, so the grasp point becomes a separate entry in the query result.
         """
         hypothesis = ObjectHypothesis()
-        hypothesis.type = GRASP_CLASS
+        hypothesis.type = DoorObjectClass.GRASP_POINT.value
         classification = Classification()
-        classification.classname = GRASP_CLASS
+        classification.classname = DoorObjectClass.GRASP_POINT.value
         classification.source = type(self).__name__
         hypothesis.annotations.append(classification)
-        self.add_pose(hypothesis, translation, rotation, GRASP_CLASS)
+        self.add_pose(
+            hypothesis, translation, rotation, DoorObjectClass.GRASP_POINT.value
+        )
         return hypothesis
 
     def add_pose(
@@ -339,8 +349,14 @@ class DoorHandlePoseAnnotator(robokudo.annotators.core.BaseAnnotator):
         self.fx, self.fy, self.cx, self.cy = k[0, 0], k[1, 1], k[0, 2], k[1, 2]
 
         height, width = self.depth.shape[:2]
-        doors = self.get_hypotheses_by_classname(DOOR_CLASSES)
-        handles = self.get_hypotheses_by_classname([HANDLE_CLASS])
+        doors = self.get_hypotheses_by_classname(
+            [
+                DoorObjectClass.DOOR.value,
+                DoorObjectClass.CABINET_DOOR.value,
+                DoorObjectClass.REFRIGERATOR_DOOR.value,
+            ]
+        )
+        handles = self.get_hypotheses_by_classname([DoorObjectClass.HANDLE.value])
 
         geometries = []
         messages = []

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
@@ -8,8 +11,15 @@ from robokudo.descriptors.analysis_engines.gpsr.subtree_object_detection import 
 )
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
-    def implementation(self, name=None, *args, **kwargs):
+    """
+    Detect objects and mark those in the queried room.
+    """
+
+    def implementation(
+        self, name: str | None = None, *args: object, **kwargs: object
+    ) -> py_trees.composites.Sequence:
         filter_region_descriptor = FilterObjectsByRegion.Descriptor()
 
         seq = py_trees.composites.Sequence("subtree_obj_in_room", memory=True)

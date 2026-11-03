@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+# %% imports
 import py_trees.composites
 import py_trees.decorators
 
@@ -15,30 +18,53 @@ from robokudo.annotators.gpsr.type_mapping_annotator import TypeMappingAnnotator
 from robokudo.annotators.yolo_annotator import YoloAnnotator
 
 
+# %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
+    """
+    Detect objects and prepare their spatial and semantic annotations.
+    """
+
     def __init__(
         self,
-        ros_pkg="robokudo_suturo",
-        model="ultimate_model_v11_1.26.4",
-        skip_outlier_removal_classes=None,
-        with_semantic_filter=False,
-        outlier_removal_name="OutlierRemovalOnObjectHypothesis",
-        *args,
-        **kwargs,
-    ):
+        ros_pkg: str = "robokudo_suturo",
+        model: str = "ultimate_model_v11_1.26.4",
+        skip_outlier_removal_classes: list[str] | None = None,
+        with_semantic_filter: bool = False,
+        outlier_removal_name: str = "OutlierRemovalOnObjectHypothesis",
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        """
+        :param ros_pkg: ROS package containing the detector files.
+        :param model: Detector model name.
+        :param skip_outlier_removal_classes: Classes excluded from outlier removal.
+        :param with_semantic_filter: Whether to filter detections by the query.
+        :param outlier_removal_name: Name of the outlier removal annotator.
+        """
         super().__init__(*args, **kwargs)
         # CRAM's outlier removal declares ROS parameters under its name, so every instance needs its own name
         self.outlier_removal_name = outlier_removal_name
+        """
+        Name of the outlier removal annotator.
+        """
         self.ros_pkg = ros_pkg
+        """
+        ROS package containing the detector files.
+        """
         self.model = model
+        """
+        Detector model name.
+        """
         self.skip_outlier_removal_classes = skip_outlier_removal_classes
+        """
+        Classes excluded from outlier removal.
+        """
         self.with_semantic_filter = with_semantic_filter
         """
-        The RoboCup always includes cutlery and cutlery is small/thin and has few depth
-        points, making it hard for outlier removal to yield a good result for the below
-        objects.
+        Whether to filter detections by the query.
         """
         if skip_outlier_removal_classes is None:
+            # Thin cutlery can have too few depth points for outlier removal.
             self.skip_outlier_removal_classes = [
                 "spoon_dinner_blackgrip",
                 "spoon_dinner_redgrip",
@@ -53,10 +79,7 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                 # "wineglass_shortstem"
             ]
 
-    def implementation(self):
-        """
-        Returns a common object detection subtree which is used across all challenges.
-        """
+    def implementation(self) -> py_trees.composites.Sequence:
         yolo_descriptor = YoloAnnotator.Descriptor()
         yolo_descriptor.parameters.precision_mode = True
         yolo_descriptor.parameters.ros_package_name = self.ros_pkg
