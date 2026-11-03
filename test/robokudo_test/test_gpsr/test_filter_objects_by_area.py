@@ -44,6 +44,22 @@ def test_filter_uses_world_position(camera_x: float, is_inside: bool) -> None:
     assert cas.annotations == ([person] if is_inside else [])
 
 
+def test_dynamically_configured_map_frame_uses_world_position() -> None:
+    """
+    Transform positions when the configured frame name is constructed at runtime.
+    """
+    scene = GpsrScene(
+        world_T_camera=HomogeneousTransformationMatrix.from_xyz_rpy(x=12.0)
+    )
+    annotator = FilterObjectsByArea()
+    annotator.descriptor.parameters.frame = "".join(("m", "a", "p"))
+    cas = scene.place_in_pipeline(annotator)
+    scene.add_human(position=[0.0, 0.0, 1.0])
+
+    assert annotator.update() == Status.SUCCESS
+    assert cas.annotations == []
+
+
 def test_person_with_two_positions_outside_area_is_removed_once() -> None:
     """
     Remove a person once when both position annotations are outside the area.

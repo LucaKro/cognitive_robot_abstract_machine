@@ -68,7 +68,7 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
                 pose_map = self.__transform(annotation)
 
                 # If submitted ares coordinates are in map coordinates, transform PoseAnnotation to map
-                if self.descriptor.parameters.frame is "map":
+                if self.descriptor.parameters.frame == "map":
                     pose_map = transform_pose_from_camera_to_world(
                         self.get_cas(), pose_map
                     )
