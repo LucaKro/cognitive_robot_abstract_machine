@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         (gpsr_query("face"), GpsrRoute.FACE.value),
         (gpsr_query("human", ["Attribute"]), GpsrRoute.HUMAN_ATTRIBUTE.value),
     ],
+    ids=["face recognition", "person description"],
 )
 def test_query_selects_a_registered_optional_route(
     scheduler: QueryBasedScheduler, query: Query.Goal, expected_route: str

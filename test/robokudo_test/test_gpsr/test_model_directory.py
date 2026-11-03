@@ -126,6 +126,7 @@ def test_custom_yolo_model_and_class_names_use_model_directory(tmp_path: Path) -
 @pytest.mark.parametrize(
     ("subtree", "model_name"),
     [(DoorSubtree, "door.pt"), (ObjectSubtree, "ultimate_model_v11_1.26.4.pt")],
+    ids=["door detector", "object detector"],
 )
 def test_detector_subtree_uses_configured_model_directory(
     tmp_path: Path,
@@ -146,7 +147,9 @@ def test_detector_subtree_uses_configured_model_directory(
 
 
 @pytest.mark.parametrize(
-    "pipeline", [subtree_obj_in_room, subtree_object_detection_pipeline]
+    "pipeline",
+    [subtree_obj_in_room, subtree_object_detection_pipeline],
+    ids=["objects in a room", "object detection"],
 )
 def test_object_pipeline_passes_the_model_directory_to_its_detector(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pipeline: ModuleType
@@ -187,7 +190,9 @@ def test_furniture_subtree_uses_the_configured_class_names_directory(
 
 
 @pytest.mark.parametrize(
-    "annotator_class", [TypeMappingAnnotator, FilterObjectBySemanticAnnotation]
+    "annotator_class",
+    [TypeMappingAnnotator, FilterObjectBySemanticAnnotation],
+    ids=["type mapping", "semantic filter"],
 )
 def test_semantic_mapping_is_read_from_the_model_directory(
     tmp_path: Path, annotator_class: type
@@ -203,7 +208,11 @@ def test_semantic_mapping_is_read_from_the_model_directory(
     assert annotator._type_map == json.loads(mapping_path.read_text())
 
 
-@pytest.mark.parametrize("subtree", [FurnitureSubtree, PostureSubtree, WavingSubtree])
+@pytest.mark.parametrize(
+    "subtree",
+    [FurnitureSubtree, PostureSubtree, WavingSubtree],
+    ids=["person near furniture", "posture", "waving"],
+)
 def test_pose_subtrees_keep_the_core_model_directory(subtree: type) -> None:
     """
     Use the pose annotator's own model directory in GPSR.
