@@ -20,9 +20,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     def implementation(
         self, name: str | None = None, *args: object, **kwargs: object
     ) -> py_trees.composites.Sequence:
-        """
-        Returns the list of annotators to be used in this subtree.
-        """
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
         human_descriptor.parameters.generate_clouds_for_keypoints = True

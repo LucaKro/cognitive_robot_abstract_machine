@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 # %% imports
-import os
-
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator

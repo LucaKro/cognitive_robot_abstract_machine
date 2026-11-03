@@ -50,43 +50,43 @@ class DoorHandlePoseAnnotator(robokudo.annotators.core.BaseAnnotator):
             """Thresholds and options for door and handle pose estimation."""
 
             def __init__(self) -> None:
-                self.depth_scale = 0.001
+                self.depth_scale: float = 0.001
                 """Scale applied to depth values."""
-                self.plane_distance_threshold = 0.02
+                self.plane_distance_threshold: float = 0.02
                 """Maximum distance of a plane inlier from the plane."""
-                self.ransac_iterations = 200
+                self.ransac_iterations: int = 200
                 """Number of plane fitting iterations."""
-                self.min_protrusion = 0.02
+                self.min_protrusion: float = 0.02
                 """Minimum distance of a handle point in front of the plane."""
-                self.max_protrusion = 0.12
+                self.max_protrusion: float = 0.12
                 """Maximum distance of a handle point in front of the plane."""
-                self.min_handle_points = 40
+                self.min_handle_points: int = 40
                 """Minimum number of handle points required for a grasp pose."""
-                self.valid_depth_range = (0.3, 4.0)
+                self.valid_depth_range: tuple[float, float] = (0.3, 4.0)
                 """Exclusive bounds for valid depth values."""
-                self.jaw_clearance = 0.015
+                self.jaw_clearance: float = 0.015
                 """Clearance added to each side of the handle."""
-                self.jaw_pad_width = 0.04
+                self.jaw_pad_width: float = 0.04
                 """Width of a finger pad along the handle."""
-                self.jaw_pad_depth = 0.035
+                self.jaw_pad_depth: float = 0.035
                 """Depth of a finger pad toward the door."""
-                self.tip_clearance = 0.01
+                self.tip_clearance: float = 0.01
                 """Clearance between the finger pad and the handle tip."""
-                self.min_protrusion_gradient = 0.005
+                self.min_protrusion_gradient: float = 0.005
                 """Minimum protrusion difference for choosing a free end."""
-                self.debug_view = False
+                self.debug_view: bool = False
                 """Draw the plane region and rejected detections."""
-                self.drop_handles_without_pose = True
+                self.drop_handles_without_pose: bool = True
                 """Remove handle hypotheses without a grasp pose."""
-                self.min_plane_points = 100
+                self.min_plane_points: int = 100
                 """Minimum number of points required to fit a plane."""
-                self.plane_sample_points = 3
+                self.plane_sample_points: int = 3
                 """Number of points sampled for each plane fit."""
-                self.end_fraction = 0.1
+                self.end_fraction: float = 0.1
                 """Fraction of handle points used at each end."""
-                self.min_end_points = 5
+                self.min_end_points: int = 5
                 """Minimum number of points used at each handle end."""
-                self.tip_percentile = 98
+                self.tip_percentile: int = 98
                 """Percentile of handle points used to locate the tip."""
 
         parameters = Parameters()

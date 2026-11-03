@@ -46,37 +46,37 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     def implementation(
         self, name: str | None = None, *args: object, **kwargs: object
     ) -> py_trees.composites.Sequence:
-        face_classifcation_descriptor = FaceClassification.Descriptor()
+        face_classification_descriptor = FaceClassification.Descriptor()
         full_path = self.face_directory
         if full_path is None and self.ros_pkg_path is not None:
             file_loader = robokudo.utils.file_loader.FileLoader()
-            pkg_xml = Path(
+            package_path = Path(
                 file_loader.get_path_to_file_in_ros_package(
                     ros_pkg_name=self.ros_pkg_path,
                     relative_path="package.xml",
                 )
             )
-            full_path = pkg_xml.parent / "faces"
+            full_path = package_path.parent / "faces"
         if full_path is None:
             full_path = Path.home() / ".local" / "share" / "robokudo" / "faces"
         full_path.mkdir(parents=True, exist_ok=True)
-        face_classifcation_descriptor.parameters.face_directory = full_path
+        face_classification_descriptor.parameters.face_directory = full_path
 
         names = []
         classes = []
         for filename in os.listdir(full_path):
             names.append(filename)
-            classe = filename.split(".")[0]
-            classes.append(classe)
+            class_label = filename.split(".")[0]
+            classes.append(class_label)
 
-        face_classifcation_descriptor.parameters.file_names = names
-        face_classifcation_descriptor.parameters.labels = classes
+        face_classification_descriptor.parameters.file_names = names
+        face_classification_descriptor.parameters.labels = classes
 
         store_faces_descriptor = StoreFaces.Descriptor()
         store_faces_descriptor.parameters.face_directory = full_path
         store_faces_descriptor.parameters.noise = 5
 
-        human_classifier = FaceClassification(descriptor=face_classifcation_descriptor)
+        human_classifier = FaceClassification(descriptor=face_classification_descriptor)
 
         seq = py_trees.composites.Sequence("subtree_faces", memory=True)
         seq.add_children(

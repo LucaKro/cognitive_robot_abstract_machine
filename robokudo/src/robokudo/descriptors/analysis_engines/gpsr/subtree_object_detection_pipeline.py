@@ -3,10 +3,7 @@ from __future__ import annotations
 # %% imports
 import py_trees
 import robokudo.analysis_engine
-import robokudo.annotators.query
 from typing_extensions import TYPE_CHECKING
-from robokudo.annotators.cluster_position import ClusterPositionAnnotator
-from robokudo.annotators.yolo_annotator import YoloAnnotator
 from robokudo.annotators.gpsr.belief_state import BeliefStateAnnotator
 from robokudo.descriptors.analysis_engines.gpsr.subtree_object_detection import (
     Subtree as ObjectDetectionSubtree,

@@ -12,7 +12,6 @@ import robokudo.utils.annotator_helper
 import robokudo.utils.error_handling
 import robokudo.utils.transform
 import robokudo.utils.file_loader
-import robokudo.annotators.core
 
 
 # %% classifier configuration
@@ -69,13 +68,11 @@ class ParametrizeHumanClassifyAnnotator(robokudo.annotators.core.BaseAnnotator):
         classes = []
         for filename in os.listdir(full_path):
             filenames.append(filename)
-            classe = filename.split(".")[0]
-            classes.append(classe)
+            class_label = filename.split(".")[0]
+            classes.append(class_label)
         self.classify_annotator.descriptor.parameters.file_names = (
             filenames  # files in self.data_path to load
         )
-        self.classify_annotator.descriptor.parameters.labels = (
-            classes  # 'class labels' for each of the fil
-        )
+        self.classify_annotator.descriptor.parameters.labels = classes
 
         return py_trees.common.Status.SUCCESS

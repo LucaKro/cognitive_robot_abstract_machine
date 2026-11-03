@@ -84,9 +84,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                 "knife_butter_redgrip",
                 "knife_dinner_blackgrip",
                 "knife_dinner_redgrip",
-                # "marker_black",
-                # "spatula_black",
-                # "wineglass_shortstem"
             ]
 
     def implementation(self) -> py_trees.composites.Sequence:
@@ -128,7 +125,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                 ),
                 ClusterPoseBBAnnotator(),
                 TypeMappingAnnotator(mapping_directory=mapping_directory),
-                # CutleryHandleAnnotator(),
             ]
         )
         # CRAM's outlier removal raises without object hypotheses; an empty scene is answered with an empty result

@@ -43,13 +43,16 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
             """
 
             def __init__(self) -> None:
-                self.ros_pkg_path = None
-                self.data_path = None
+                self.ros_pkg_path: str | None = None
+                """ROS package containing the face image directory."""
+                self.data_path: str | None = None
+                """Face image directory relative to the ROS package."""
                 self.face_directory: Path | None = None
                 """
                 Directory where face images are stored, if configured directly.
                 """
-                self.noise = 0
+                self.noise: int = 0
+                """Padding around each stored face image."""
 
         parameters = Parameters()
 
@@ -132,7 +135,6 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
             raise InvalidFaceHypothesis(type(human_hypothesis))
 
         for classification in human_hypothesis.annotations:
-            # print(type(classification))
             if isinstance(classification, robokudo.types.annotation.Classification):
                 print(f"Detect {classification.classname}, it's a familiar face")
                 return True
