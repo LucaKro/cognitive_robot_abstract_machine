@@ -8,6 +8,7 @@ from functools import cached_property
 from faster_whisper import WhisperModel
 from krrood.ormatic.utils import classproperty
 
+from cramspeech.exceptions import SampleRateMismatch
 from cramspeech.microphone import Recording
 
 
@@ -100,7 +101,12 @@ class WhisperTranscriber(Transcriber):
         return 16000
 
     def transcribe(self, recording: Recording) -> Transcript:
+        if recording.sample_rate != self.sample_rate:
+            raise SampleRateMismatch(
+                recording_sample_rate=recording.sample_rate,
+                model_sample_rate=self.sample_rate,
+            )
         segments, _ = self.model.transcribe(
             recording.waveform, language=self.language, beam_size=self.beam_size
         )
-        return Transcript(text="".join(segment.text for segment in segments))
+        return Transcript(text=" ".join(segment.text.strip() for segment in segments))
