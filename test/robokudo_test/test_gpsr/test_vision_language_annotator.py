@@ -8,12 +8,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from py_trees.common import Status
 from robokudo.annotators.gpsr import vision_language_annotator
 from robokudo.annotators.gpsr.vision_language_annotator import (
     GpuLayers,
     VisionLanguageAnnotator,
 )
+from robokudo.cas import CASViews
 
 from ._gpsr_scene import GpsrScene
 from ._vision_language_mock import ModelLoader, ProjectorLoader
@@ -48,6 +50,39 @@ def asking_annotator() -> VisionLanguageAnnotator:
 
 
 # %% answers about persons
+
+
+@pytest.mark.parametrize(
+    "bgr, rgb",
+    [
+        ((0, 0, 255), (255, 0, 0)),
+        ((255, 0, 0), (0, 0, 255)),
+        ((0, 255, 0), (0, 255, 0)),
+    ],
+    ids=["red", "blue", "green"],
+)
+def test_person_image_preserves_camera_colors(
+    scene: GpsrScene,
+    monkeypatch: pytest.MonkeyPatch,
+    bgr: tuple[int, int, int],
+    rgb: tuple[int, int, int],
+) -> None:
+    annotator = asking_annotator()
+    cas = scene.place_in_pipeline(annotator)
+    image = scene.color_image()
+    image[:] = bgr
+    cas.set(CASViews.COLOR_IMAGE, image)
+    scene.add_human()
+    received_pixels: list[int | tuple[int, ...]] = []
+
+    def record_pixel(image: Image.Image) -> str:
+        received_pixels.append(image.getpixel((0, 0)))
+        return "person"
+
+    monkeypatch.setattr(annotator, "ask", record_pixel)
+    annotator.compute()
+
+    assert received_pixels == [rgb]
 
 
 def test_answer_of_the_model_is_annotated_on_the_person(

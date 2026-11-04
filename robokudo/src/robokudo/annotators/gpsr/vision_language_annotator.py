@@ -10,6 +10,7 @@ from enum import IntEnum
 from pathlib import Path
 from io import BytesIO
 
+import cv2
 from llama_cpp import Llama
 from llama_cpp.llama_chat_format import Qwen25VLChatHandler
 from PIL import Image
@@ -132,7 +133,8 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
             self.feedback_message = "No humans found"
             return Status.FAILURE
 
-        image = Image.fromarray(self.get_cas().get(CASViews.COLOR_IMAGE))
+        color = self.get_cas().get(CASViews.COLOR_IMAGE)
+        image = Image.fromarray(cv2.cvtColor(color, cv2.COLOR_BGR2RGB))
         for human_hypothesis in human_hypotheses:
             region = human_hypothesis.roi.roi
             crop = image.crop(
