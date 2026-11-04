@@ -21,6 +21,7 @@ import robokudo.utils.cv_helper
 import robokudo.utils.error_handling
 import robokudo.utils.o3d_helper
 from robokudo.cas import CASViews
+from robokudo.types.annotation import Encoding
 from robokudo.annotators.gpsr.exceptions import (
     FaceImageScalingFailed,
     UnequalColorDepthRatios,
@@ -194,7 +195,7 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 person_encoding = face_recognition.face_encodings(
                     color_downsampled, known_face_locations=[original_face_location]
                 )
-                encoding_annotation = robokudo.types.annotation.Encoding()
+                encoding_annotation = Encoding()
                 encoding_annotation.encoding = person_encoding
                 encoding_annotation.source = self.name
                 human_hypothesis.annotations.append(encoding_annotation)

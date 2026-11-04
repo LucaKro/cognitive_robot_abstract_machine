@@ -18,6 +18,7 @@ from robokudo.annotators.gpsr.exceptions import (
     NoAvailableFaceIdentifier,
 )
 from robokudo.cas import CASViews
+from robokudo.types.annotation import Classification
 
 import os
 from pathlib import Path
@@ -117,7 +118,7 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
                     image.save(file)
 
                     # Write Annotation with id of people
-                    classification = robokudo.types.annotation.Classification()
+                    classification = Classification()
                     classification.source = self.name
                     classification.classification_type = "face"
                     classification.classname = file_name.split(".")[0]
@@ -135,7 +136,7 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
             raise InvalidFaceHypothesis(type(human_hypothesis))
 
         for classification in human_hypothesis.annotations:
-            if isinstance(classification, robokudo.types.annotation.Classification):
+            if isinstance(classification, Classification):
                 print(f"Detect {classification.classname}, it's a familiar face")
                 return True
         print("Detect unfamiliar face, create a new file for his face!")

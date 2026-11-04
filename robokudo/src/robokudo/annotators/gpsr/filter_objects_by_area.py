@@ -58,11 +58,7 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
 
         for hypothesis in object_hypothesis:
             for annotation in hypothesis.annotations:
-                if not isinstance(
-                    annotation, robokudo.types.annotation.PoseAnnotation
-                ) and not isinstance(
-                    annotation, robokudo.types.annotation.PositionAnnotation
-                ):
+                if not isinstance(annotation, (PoseAnnotation, PositionAnnotation)):
                     continue
                 # Transform to get unique type
                 pose_map = self.__transform(annotation)
@@ -81,7 +77,7 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
                     break
         return py_trees.common.Status.SUCCESS
 
-    def __in_area(self, pose: robokudo.types.annotation.PoseAnnotation) -> bool:
+    def __in_area(self, pose: PoseAnnotation) -> bool:
         """
         Checks if a submitted PoseAnnotation is in a predefined area.
         """
@@ -107,16 +103,16 @@ class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
             return False
         return True
 
-    def __transform(self, pose: object) -> robokudo.types.annotation.PoseAnnotation:
+    def __transform(self, pose: object) -> PoseAnnotation:
         """
         Convert a position annotation to a pose, or return an existing pose.
         """
-        if isinstance(pose, robokudo.types.annotation.PoseAnnotation):
+        if isinstance(pose, PoseAnnotation):
             return pose
-        if not isinstance(pose, robokudo.types.annotation.PositionAnnotation):
+        if not isinstance(pose, PositionAnnotation):
             raise InvalidAreaPose(type(pose))
 
-        pos = robokudo.types.annotation.PoseAnnotation()
+        pos = PoseAnnotation()
         pos.translation.insert(0, pose.translation[0])
         pos.translation.insert(1, pose.translation[1])
         pos.translation.insert(2, pose.translation[2])
