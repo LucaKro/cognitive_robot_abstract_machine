@@ -25,6 +25,7 @@ dependencies = [
   "physics_simulators>=26.10.0",
   "experiments>=26.10.0",
   "segmind>=26.10.0",
+  "cramspeech>=26.10.0",
   "krrood_spatial_math>=26.10.0",
   "ipykernel>=7.2.0",
   "lark-parser>=0.12.0",
@@ -95,6 +96,7 @@ members = [
   "robokudo",
   "experiments",
   "segmind",
+  "cramspeech",
   "domain_models/krrood_spatial_math"
 ]
 
@@ -109,6 +111,7 @@ random_events         = { workspace = true }
 robokudo              = { workspace = true }
 physics_simulators    = { workspace = true }
 segmind               = { workspace = true }
+cramspeech            = { workspace = true }
 experiments           = { workspace = true }
 krrood_spatial_math   = { workspace = true }
 
@@ -127,6 +130,7 @@ robokudo = { path = "robokudo", develop = true }
 physics_simulators = { path = "physics_simulators", develop = true }
 experiments = { path = "experiments", develop = true }
 segmind = { path = "segmind", develop = true }
+cramspeech = { path = "cramspeech", develop = true }
 krrood_spatial_math = { path = "domain_models/krrood_spatial_math", develop = true }
 
 [tool.setuptools]
