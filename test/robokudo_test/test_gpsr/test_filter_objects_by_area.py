@@ -10,7 +10,7 @@ from py_trees.common import Status
 from robokudo.annotators.gpsr.exceptions import InvalidAreaPose
 from robokudo.annotators.gpsr.filter_objects_by_area import FilterObjectsByArea
 from robokudo.types.annotation import PositionAnnotation
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 
 from ._gpsr_scene import GpsrScene
 

@@ -15,7 +15,7 @@ import robokudo.annotators.gpsr.filter_objects_by_region
 from py_trees.common import Status
 from robokudo.annotators.gpsr.filter_objects_by_region import FilterObjectsByRegion
 from robokudo.types.annotation import PoseAnnotation
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 from typing_extensions import TYPE_CHECKING
 
 from ._gpsr_scene import GpsrScene

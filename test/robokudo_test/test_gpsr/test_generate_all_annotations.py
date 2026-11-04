@@ -21,7 +21,7 @@ from robokudo.types.annotation import (
     SemanticColor,
 )
 from robokudo.types.cv import BoundingBox3D
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 from typing_extensions import TYPE_CHECKING
 
 from ._gpsr_scene import GpsrScene

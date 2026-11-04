@@ -15,7 +15,7 @@ from robokudo.annotators.gpsr.filter_humans_by_object_annotator import (
     FilterHumansByObjectAnnotator,
 )
 from robokudo.types.annotation import Classification
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 
 from ._gpsr_scene import GpsrScene
 

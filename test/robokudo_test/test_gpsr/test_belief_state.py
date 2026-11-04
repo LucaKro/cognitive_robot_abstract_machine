@@ -34,7 +34,7 @@ from robokudo.types.annotation import (
     PositionAnnotation,
 )
 from robokudo.types.human import ActivityAnnotation
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 from typing_extensions import TYPE_CHECKING
 
 from ._data_files import GpsrFileName
