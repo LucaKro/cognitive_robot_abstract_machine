@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cached_property
 
 from faster_whisper import WhisperModel
+from faster_whisper.feature_extractor import FeatureExtractor
 from krrood.ormatic.utils import classproperty
 
 from cramspeech.exceptions import SampleRateMismatch
@@ -16,34 +16,13 @@ from cramspeech.microphone import Recording
 @dataclass
 class Transcript:
     """
-    What a :class:`Transcriber` understood in a recording.
+    What a :class:`WhisperTranscriber` understood in a recording.
     """
 
     text: str
     """
     The recognized words, empty when nothing was said.
     """
-
-
-# %% Transcriber
-class Transcriber(ABC):
-    """
-    A speech recognition model that turns a recording into text.
-    """
-
-    @classproperty
-    @abstractmethod
-    def sample_rate(cls) -> int:
-        """
-        :return: Samples per second, in hertz, that the model expects its recordings at.
-        """
-
-    @abstractmethod
-    def transcribe(self, recording: Recording) -> Transcript:
-        """
-        :param recording: Speech recorded at :attr:`sample_rate`.
-        :return: The text spoken in the recording.
-        """
 
 
 # %% Whisper
@@ -69,7 +48,7 @@ class WhisperModelSize(StrEnum):
 
 
 @dataclass
-class WhisperTranscriber(Transcriber):
+class WhisperTranscriber:
     """
     Transcribes speech with faster-whisper.
     """
@@ -98,15 +77,25 @@ class WhisperTranscriber(Transcriber):
 
     @classproperty
     def sample_rate(cls) -> int:
-        return 16000
+        """
+        :return: Samples per second, in hertz, that Whisper expects its recordings at.
+        """
+        return FeatureExtractor().sampling_rate
 
     def transcribe(self, recording: Recording) -> Transcript:
+        """
+        :param recording: Speech recorded at :attr:`sample_rate`.
+        :return: The text spoken in the recording, empty when nobody spoke.
+        """
         if recording.sample_rate != self.sample_rate:
             raise SampleRateMismatch(
                 recording_sample_rate=recording.sample_rate,
                 model_sample_rate=self.sample_rate,
             )
         segments, _ = self.model.transcribe(
-            recording.waveform, language=self.language, beam_size=self.beam_size
+            recording.waveform,
+            language=self.language,
+            beam_size=self.beam_size,
+            vad_filter=True,
         )
         return Transcript(text=" ".join(segment.text.strip() for segment in segments))

@@ -9,8 +9,7 @@ from krrood.exceptions import DataclassException
 @dataclass
 class SampleRateMismatch(DataclassException):
     """
-    Raised when a recording reaches a transcriber at a sample rate its model does not
-    take.
+    Raised when a recording reaches a model at a sample rate the model does not take.
     """
 
     recording_sample_rate: int
@@ -30,4 +29,4 @@ class SampleRateMismatch(DataclassException):
         )
 
     def suggest_correction(self) -> str:
-        return f"Record at {self.model_sample_rate} Hz, the transcriber's sample_rate."
+        return f"Record at {self.model_sample_rate} Hz, the sample_rate of the model's class."
