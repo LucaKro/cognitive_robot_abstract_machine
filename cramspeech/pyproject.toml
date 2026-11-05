@@ -12,6 +12,7 @@ dependencies = [
     "krrood>=26.10.0",
     "numpy",
     "sounddevice>=0.5.6",
+    "typing_extensions>=4.12.2",
 ]
 description = "Speech recognition for CRAM: records from a microphone and transcribes it with Whisper."
 readme = "README.md"
@@ -21,8 +22,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 keywords = ["robotics", "speech recognition", "whisper", "pycram"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
+
+[project.scripts]
+nlp-listen = "cramspeech.speech_node:ListenCommandLine.run"
 
 [tool.setuptools.packages.find]
 where = ["src"]

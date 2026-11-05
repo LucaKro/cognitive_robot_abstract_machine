@@ -1,22 +1,54 @@
 # cramspeech
 
-Speech recognition for CRAM. When asked to, it records from a microphone for a given time and
-transcribes the recording with [faster-whisper](https://github.com/SYSTRAN/faster-whisper).
+Speech recognition for CRAM. It listens to a microphone, finds where somebody spoke and paused
+with the Silero voice activity model, and transcribes each utterance with
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper). The command `nlp-listen` publishes
+every heard sentence on ROS.
+
+## Listening on ROS
+
+```bash
+source /opt/ros/jazzy/setup.bash   # rclpy and std_msgs come from the ROS installation
+nlp-listen --list-devices          # the input devices, the default one starred
+nlp-listen --device <name>         # any unique part of a listed name
+```
+
+`nlp-listen` listens from its start until it is stopped with Ctrl+C or SIGTERM. Each utterance
+it heard words in goes out as a `std_msgs/String` on two topics:
+
+| Topic | For |
+|---|---|
+| `whisper_out` | anyone who acts on what was said |
+| `/tts_text` | the robot's `tts_node`, which says the sentence back |
+
+Options: `--model-size` (`tiny`, `base`, `small`, default `small`) and `--compute-type`
+(`int8`, `float16`, `float32`, default `int8`). `nlp-listen --help` lists them.
+
+## From Python
 
 ```python
 from cramspeech.microphone import Microphone
 from cramspeech.speech_recognizer import SpeechRecognizer
 from cramspeech.transcription import WhisperTranscriber
 
-recognizer = SpeechRecognizer(microphone=Microphone(), transcriber=WhisperTranscriber())
-print(recognizer.hear(duration=5.0).text)
+recognizer = SpeechRecognizer(microphone=Microphone(device=6), transcriber=WhisperTranscriber())
+
+print(recognizer.hear(duration=5.0).text)                # records for 5 s
+print(recognizer.hear_next_utterance(timeout=10.0).text) # waits for one utterance
+for transcript in recognizer.hear_utterances():          # every utterance, until you stop
+    print(transcript.text)
 ```
+
+`hear_next_utterance` raises `NothingHeard` when nobody starts speaking within the timeout. All
+listening raises `MicrophoneStopped` when the device stops delivering audio.
 
 ## Setup
 
 - The microphone is read through [sounddevice](https://python-sounddevice.readthedocs.io), which
   needs the PortAudio library on Linux: `sudo apt install libportaudio2`.
-- `python -m sounddevice` lists the input devices. Pass an index or name as `Microphone(device=...)`.
+- `nlp-listen --list-devices` (or `InputDevice.list_available()`) lists the input devices. Pass an
+  index or a unique part of a name as `Microphone(device=...)` or `nlp-listen --device ...`.
 - The Whisper model is downloaded from Hugging Face on the first transcription, not at install
-  time, and cached in `~/.cache/huggingface/hub`. To fetch it beforehand:
-  `python -c "import faster_whisper; faster_whisper.download_model('small')"`.
+  time, and cached in `~/.cache/huggingface/hub` (`small` is about 480 MB). To fetch it
+  beforehand: `python -c "import faster_whisper; faster_whisper.download_model('small')"`.
+- `nlp-listen` needs a sourced ROS 2 installation. The Python API works without ROS.
