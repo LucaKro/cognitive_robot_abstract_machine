@@ -30,3 +30,47 @@ class SampleRateMismatch(DataclassException):
 
     def suggest_correction(self) -> str:
         return f"Record at {self.model_sample_rate} Hz, the sample_rate of the model's class."
+
+
+# %% Listening
+@dataclass
+class NothingHeard(DataclassException):
+    """
+    Raised when nobody starts speaking while the microphone is listening.
+    """
+
+    timeout: float
+    """
+    Seconds of audio listened to without any speech starting.
+    """
+
+    def error_message(self) -> str:
+        return f"Nobody started speaking within {self.timeout} s."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Speak while the microphone listens, allow a longer timeout, or check that "
+            "the microphone's device is the input being spoken into."
+        )
+
+
+# %% Microphone
+@dataclass
+class MicrophoneStopped(DataclassException):
+    """
+    Raised when an input device stops delivering audio while it is being listened to.
+    """
+
+    device: int | str | None
+    """
+    The input device as :attr:`cramspeech.microphone.Microphone.device` names it.
+    """
+
+    def error_message(self) -> str:
+        return f"The input device {self.device!r} stopped delivering audio."
+
+    def suggest_correction(self) -> str:
+        return (
+            "Check that the device is still connected and that no other program holds "
+            "it, then listen again."
+        )
