@@ -47,6 +47,28 @@ class WhisperModelSize(StrEnum):
     """
 
 
+class WhisperComputeType(StrEnum):
+    """
+    Number formats faster-whisper can run a Whisper model in. Smaller formats run faster
+    and use less memory, at a small cost in accuracy.
+    """
+
+    INT8 = "int8"
+    """
+    8-bit integer weights, the fastest format on a CPU.
+    """
+
+    FLOAT16 = "float16"
+    """
+    16-bit floating point, the usual format on a GPU.
+    """
+
+    FLOAT32 = "float32"
+    """
+    32-bit floating point, the most accurate and slowest format.
+    """
+
+
 @dataclass
 class WhisperTranscriber:
     """
@@ -68,12 +90,17 @@ class WhisperTranscriber:
     Number of candidate transcriptions kept during decoding.
     """
 
+    compute_type: WhisperComputeType = WhisperComputeType.INT8
+    """
+    Number format the model runs in.
+    """
+
     @cached_property
     def model(self) -> WhisperModel:
         """
         The loaded Whisper model. faster-whisper downloads it from Hugging Face on first use.
         """
-        return WhisperModel(self.model_size)
+        return WhisperModel(self.model_size, compute_type=self.compute_type)
 
     @classproperty
     def sample_rate(cls) -> int:
@@ -86,6 +113,7 @@ class WhisperTranscriber:
         """
         :param recording: Speech recorded at :attr:`sample_rate`.
         :return: The text spoken in the recording, empty when nobody spoke.
+        :raises SampleRateMismatch: When the recording is not at :attr:`sample_rate`.
         """
         if recording.sample_rate != self.sample_rate:
             raise SampleRateMismatch(
