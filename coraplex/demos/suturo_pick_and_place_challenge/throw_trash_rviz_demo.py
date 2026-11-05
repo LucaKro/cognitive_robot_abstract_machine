@@ -25,11 +25,11 @@ from coraplex.plans.executors import (
     PlanExecutor,
 )
 from coraplex.plans.plan_transformation import PlanTransformation
+from coraplex.robot_plans.actions.base import SequentialAction
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
 from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
 from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPickUpAction,
-    MoveAndPlaceAction,
 )
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import (
@@ -38,8 +38,12 @@ from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
-from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from coraplex.robot_plans.mixins import (
+    MovesToolCenterPoint,
+    OperatesGripper,
+    ReattachesBranches,
+)
 from cramph.composites import Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.executor import SimulationPacer
@@ -53,7 +57,7 @@ from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, P
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
-from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.predefined_maps.kitchen_environment import (
     KitchenEnvironment,
@@ -229,6 +233,69 @@ class DrivingKinematicallySimulatedPlanExecutor(KinematicallySimulatedPlanExecut
     """
 
 
+# %% dropping into a container
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class DropAction(
+    MovesToolCenterPoint, OperatesGripper, ReattachesBranches, SequentialAction
+):
+    """
+    Brings a held object over a container and lets go of it, then pulls the hand up.
+    Unlike :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction`, the object
+    never has to touch anything, so collision avoidance keeps it away from everything,
+    the container's rim included.
+    """
+
+    grasp: GraspCandidate
+    """
+    The grasp the object is held by, which also names the object.
+    """
+
+    arm: Arm
+    """
+    The arm that holds the object.
+    """
+
+    release_pose: Pose
+    """
+    Where the object is when the hand lets go of it.
+    """
+
+    retreat_distance: float = 0.15
+    """
+    How far the hand rises after letting go, in meters.
+    """
+
+    def create_steps(self) -> list[StatechartNode]:
+        end_effector = self.arm.end_effector
+        world_T_release = self.world.transform(self.release_pose, self.world.root)
+        world_T_retreat = Pose.from_xyz_rpy(
+            x=float(world_T_release.x),
+            y=float(world_T_release.y),
+            z=float(world_T_release.z) + self.retreat_distance,
+            reference_frame=self.world.root,
+        )
+        return [
+            self.tool_center_point_goal(
+                end_effector.tool_frame_goal_for_grasp(
+                    self.grasp.moved_to(self.release_pose)
+                ),
+                self.arm,
+            ),
+            self.gripper_goal_type.moving_gripper_to(
+                end_effector.default_configuration(GripperState.OPEN)
+            ),
+            *self.reattach(self.grasp.graspable.root, self.world.root),
+            self.tool_center_point_goal(
+                end_effector.tool_frame_goal_for_grasp(
+                    self.grasp.moved_to(world_T_retreat)
+                ),
+                self.arm,
+            ),
+        ]
+
+
 # %% the demonstration
 
 
@@ -244,7 +311,8 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         drive to where the milk can be reached, take it from above and lift it
         park the arm, turn towards the approach spot and drive there with the milk
         park the arm and raise the torso
-        drive on to drop_distance before the trash can, face it and let go of the milk
+        drive on to drop_distance before the trash can and face it
+        bring the milk over the opening, let go of it and pull the hand up
         park the arm
         put the milk onto the trash can's bottom (kinematic simulation only)
     """
@@ -406,6 +474,7 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         self._let_robot_touch_the_floor(hsrb)
         self._let_wrist_touch_the_object(arm, milk.root)
 
+        grasp = self._create_grasp_from_above(milk)
         milk_pose = Pose(reference_frame=milk.root)
         search_pose = self.search_spot.create_transform(world.root).pose
         steps: list[StatechartNode] = [
@@ -424,27 +493,22 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
                     )
                 ),
                 face_and_look_at=self._face_and_look_at(milk_pose),
-                pick_up=a(PickUpAction)(
-                    grasp=self._create_grasp_from_above(milk), arm=arm
-                ),
+                pick_up=a(PickUpAction)(grasp=grasp, arm=arm),
             ),
             ParkArmsAction(arms=hsrb.all_arms),
             FaceAtAction(target=approach_pose),
             CarryAction(navigate=NavigateAction(target_location=approach_pose)),
             ParkArmsAction(arms=hsrb.all_arms),
-            MoveTorsoAction(torso_state=TorsoState.HIGH),
-            # Left open until it runs, so the place finds the grasp of the pick-up.
-            a(MoveAndPlaceAction)(
-                carry=a(CarryAction)(
-                    navigate=a(NavigateAction)(
-                        target_location=self._compute_standing_pose_before(
-                            drop_pose, self.drop_distance
-                        )
+            #MoveTorsoAction(torso_state=TorsoState.HIGH),
+            CarryAction(
+                navigate=NavigateAction(
+                    target_location=self._compute_standing_pose_before(
+                        drop_pose, self.drop_distance
                     )
-                ),
-                face_and_look_at=self._face_and_look_at(drop_pose),
-                place=a(PlaceAction)(object_designator=milk, target_location=drop_pose),
+                )
             ),
+            FaceAtAction(target=drop_pose),
+            DropAction(grasp=grasp, arm=arm, release_pose=drop_pose),
             ParkArmsAction(arms=hsrb.all_arms),
         ]
         if issubclass(self.executor_type, KinematicallySimulatedPlanExecutor):
