@@ -1,0 +1,41 @@
+# Reads the reviews of the pull requests opened upstream that the requests waiting in
+# upstream-review-requests on this notes branch name, whenever they change, and saves
+# GitHub's answers in upstream-reviews for the session to read them from. Written by
+# `python -m github_workflow review list`, since a cloud session cannot reach the
+# upstream repository itself; nothing is written upstream.
+name: Read upstream reviews
+on:
+  push:
+    branches: [github-workflow/notes]
+    paths: ["upstream-review-requests/**"]
+permissions:
+  contents: write
+concurrency:
+  group: read-upstream-reviews
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the workflow
+        run: python -m pip install --quiet 'basstler-domain-model @ git+https://github.com/LucaKro/basstler_domain_model@d6975a1a42fffa2a7ab3b9caca19114ed667af12' 'github-workflow @ git+https://github.com/LucaKro/GitHubWorkflow@main'
+      - name: Read the reviews and save the answers
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          python -m github_workflow.upstream_reviews "upstream-review-requests" "upstream-reviews"
+          git add --all "upstream-review-requests" "upstream-reviews"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit --quiet --message "Answer the upstream review requests"
+          for attempt in 1 2 3; do
+            if git push --quiet origin "HEAD:refs/heads/${GITHUB_REF_NAME}"; then exit 0; fi
+            git pull --quiet --rebase origin "${GITHUB_REF_NAME}"
+          done
+          exit 1
