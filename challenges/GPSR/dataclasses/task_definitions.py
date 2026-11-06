@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from coraplex.robot_plans.actions.base import Action
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
 
+# %% tasks
+
 
 @dataclass(eq=False)
 class GPSRTask:
@@ -20,8 +22,8 @@ class GPSRTask:
 
     rooms: list[set[type[Room]]]
     """
-    The kinds of room the task is performed in, one entry per step and in the order of the
-    steps; each entry holds the rooms that step may be performed in.
+    The kinds of room the task is performed in, one entry per step and in the order of
+    the steps; each entry holds the kinds of room that step may be performed in.
     """
 
     actions: list[list[Action]]

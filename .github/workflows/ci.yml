@@ -48,6 +48,7 @@ jobs:
           - lib: experiments
           - lib: version
           - lib: cognitive_robot_abstract_machine
+          - lib: challenges
     uses: ./.github/workflows/ci_reusable.yml
     with:
       lib: ${{ matrix.lib }}

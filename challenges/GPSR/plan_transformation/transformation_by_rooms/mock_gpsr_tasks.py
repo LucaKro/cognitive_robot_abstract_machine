@@ -3,9 +3,9 @@ A mock GPSR plan: independently issued commands, most of them fetching something
 one room and delivering it to another, listed in arrival order rather than grouped by
 room.
 
-Run it from this folder::
+Run it from the repository root::
 
-    python mock_gpsr_tasks.py
+    python -m challenges.GPSR.plan_transformation.transformation_by_rooms.mock_gpsr_tasks
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation 
 from challenges.GPSR.dataclasses.task_definitions import GPSRTask
 
 from coraplex.robot_plans.actions.base import SequentialAction
+from cramph.node import StatechartNode
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bathroom,
     Bedroom,
@@ -41,7 +42,7 @@ class MockAction(SequentialAction):
     What this action does, e.g. ``"pick up the milk"``.
     """
 
-    def create_steps(self) -> list:
+    def create_steps(self) -> list[StatechartNode]:
         raise NotImplementedError("MockAction stands in for a real action; it is never run.")
 
     def __repr__(self) -> str:
@@ -88,12 +89,21 @@ bring_remote = GPSRTask(
 MOCK_GPSR_PLAN: list[GPSRTask] = [lower_torso, bring_milk, bring_cup, bring_remote]
 """
 The commands queued as they arrived, so performing them in that order visits a room,
-leaves it, and visits it again. :func:`~task_definitions.transform_plan` groups them
-into fewer room visits.
+leaves it, and visits it again.
+:func:`~challenges.GPSR.plan_transformation.transformation_by_rooms.transformation.transform_plan_by_rooms`
+groups them into fewer room visits.
 """
 
 
+# %% printing the room visits
+
+
 def main() -> None:
+    """
+    Prints the room visits :data:`MOCK_GPSR_PLAN` is grouped into, first as task steps
+    and then as their actions, followed by the time the grouping took and the actions in
+    execution order.
+    """
     start = time.time()
     room_visits = transform_plan_by_rooms(MOCK_GPSR_PLAN)
     optimal_plan = []

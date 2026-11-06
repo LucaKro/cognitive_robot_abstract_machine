@@ -1,6 +1,14 @@
-# pip install ortools
+"""
+Orders the steps of GPSR tasks into room visits, so the robot changes rooms as rarely
+as possible while the steps of each task keep their order.
+"""
+from __future__ import annotations
 from ortools.sat.python import cp_model
 from challenges.GPSR.dataclasses.task_definitions import GPSRTask
+from challenges.GPSR.plan_transformation.transformation_by_rooms.exceptions import (
+    MissingTasksOrRooms,
+    NoRoomVisitOrderFound,
+)
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bedroom,
     Kitchen,
@@ -8,80 +16,112 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Room,
 )
 
-rooms = [Kitchen, LivingRoom, Bedroom]
-# task = list of stages, stage = set of allowed rooms
-tasks = [
-    [{Kitchen}, {LivingRoom}],        # first Kitchen, then LivingRoom
-    [{Kitchen, LivingRoom, Bedroom}],  # any room
-    [{Bedroom}, {Kitchen}],           # first Bedroom, then Kitchen
-]
+
+# %% room visit model
+
 
 def _transform_by_rooms(
     task_list: list[list[set[type[Room]]]], room_list: list[type[Room]]
-):
-    T = sum(len(t) for t in task_list)          # upper bound on visits
+) -> tuple[list[type[Room]], list[tuple[type[Room], list[tuple[int, int]]]]]:
+    """
+    Orders the steps of the given tasks into as few room visits as possible, while the
+    steps of each task keep their order.
+
+    :param task_list: The tasks in the order they arrived, each as one set of allowed
+        rooms per step, in step order.
+    :param room_list: Every room a step may be performed in.
+    :return: The visited rooms in visiting order, and one entry per room visit: the room
+        and the steps performed during that visit, each as its task number and step
+        number counted from 1, ordered by task and then by step.
+    :raises MissingTasksOrRooms: If there are no tasks or no rooms.
+    :raises NoRoomVisitOrderFound: If the solver finds no order of room visits that
+        performs every step within 30 seconds.
+    """
+    if len(task_list) == 0 or len(room_list) == 0:
+        raise MissingTasksOrRooms(task_list, room_list)
+
+    # One visit per step is always enough, so the number of steps bounds the visits.
+    T = sum(len(t) for t in task_list)
     m = cp_model.CpModel()
+    # x[t, r] == 1: visit t goes to room r
     x = {(t, r): m.NewBoolVar(f"x_{t}_{r.__name__}") for t in range(T) for r in room_list}
 
     for t in range(T):
         m.AddAtMostOne(x[t, r] for r in room_list)
         if t + 1 < T:
-            # used slots form a prefix
+            # The used visits come first; unused visits only trail at the end.
             m.Add(sum(x[t, r] for r in room_list) >= sum(x[t + 1, r] for r in room_list))
-            # staying in the same room = same visit, so forbid repeats
+            # Staying in a room is one visit, so the next visit goes to another room.
             for r in room_list:
                 m.Add(x[t, r] + x[t + 1, r] <= 1)
 
+    # pos[k, s]: the index of the visit step s of task k is performed in
     pos = {}
-    # y[k, s, t] == 1: stage s of task k is executed during visit t
+    # y[k, s, t] == 1: step s of task k is performed during visit t
     y = {}
     for k, stages in enumerate(task_list):
         for s, allowed in enumerate(stages):
             for t in range(T):
                 y[k, s, t] = m.NewBoolVar(f"y_{k}_{s}_{t}")
             m.AddExactlyOne(y[k, s, t] for t in range(T))
+            # A step is only performed during a visit to one of its allowed rooms.
             for t in range(T):
                 m.Add(y[k, s, t] <= sum(x[t, r] for r in allowed))
             pos[k, s] = sum(t * y[k, s, t] for t in range(T))
+            # The steps of a task keep their order; consecutive steps may share a visit.
             if s > 0:
                 m.Add(pos[k, s - 1] <= pos[k, s])
 
+    # The fewest visits are the fewest room changes.
     m.Minimize(sum(x.values()))
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = 30
     status = solver.Solve(m)
 
-    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        route = [r for t in range(T) for r in room_list if solver.Value(x[t, r])]
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        raise NoRoomVisitOrderFound(
+            task_list, solver.parameters.max_time_in_seconds
+        )
 
-        # one entry per room visit: (room, [(task number, step number), ...]), both
-        # counted from 1; sorted so that two steps of one task in the same visit keep
-        # their order
-        plan = [
-            (
-                room,
-                sorted(
-                    (k + 1, s + 1)
-                    for k, stages in enumerate(task_list)
-                    for s in range(len(stages))
-                    if solver.Value(y[k, s, t])
-                ),
-            )
-            for t, room in enumerate(route)
-        ]
+    route = [r for t in range(T) for r in room_list if solver.Value(x[t, r])]
 
+    # one entry per room visit: (room, [(task number, step number), ...]), both
+    # counted from 1; sorted so that two steps of one task in the same visit keep
+    # their order
+    plan = [
+        (
+            room,
+            sorted(
+                (k + 1, s + 1)
+                for k, stages in enumerate(task_list)
+                for s in range(len(stages))
+                if solver.Value(y[k, s, t])
+            ),
+        )
+        for t, room in enumerate(route)
+    ]
 
-        return route, plan
+    return route, plan
+
+# %% planning by rooms
+
 
 def transform_plan_by_rooms(
     tasks: list[GPSRTask],
 ) -> list[tuple[type[Room], list[tuple[GPSRTask, int]]]]:
     """
+    Groups the steps of the given tasks into as few room visits as possible, while the
+    steps of each task keep their order.
+
     :param tasks: The tasks in the order they arrived.
     :return: One entry per room visit, in the order the rooms are visited: the room
         and the steps performed during that visit, in execution order, each as its
         task and its step number counted from 1.
+    :raises MissingTasksOrRooms: If there are no tasks, or no step of any task has an
+        allowed room.
+    :raises NoRoomVisitOrderFound: If the solver finds no order of room visits that
+        performs every step within 30 seconds.
     """
     all_rooms = sorted(
         {room for task in tasks for step in task.rooms for room in step},
@@ -99,8 +139,23 @@ def transform_plan_by_rooms(
         for room, steps in plan
     ]
 
-# test function
-def main():
+# %% example
+
+
+def main() -> None:
+    """
+    Prints the room visits three example tasks in three rooms are grouped into.
+    """
+
+    # The rooms and tasks scheduled.
+    rooms = [Kitchen, LivingRoom, Bedroom]
+    # A task is a list of steps, a step is the set of rooms it may be performed in.
+    tasks = [
+        [{Kitchen}, {LivingRoom}],  # first Kitchen, then LivingRoom
+        [{Kitchen, LivingRoom, Bedroom}],  # any room
+        [{Bedroom}, {Kitchen}],  # first Bedroom, then Kitchen
+    ]
+
     route, plan = _transform_by_rooms(tasks, rooms)
     print([room.__name__ for room in route], "-> room changes:", len(route) - 1)
 
