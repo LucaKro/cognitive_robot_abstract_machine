@@ -1,5 +1,6 @@
 # pip install ortools
 from ortools.sat.python import cp_model
+from challenges.GPSR.dataclasses.task_definitions import GPSRTask
 
 rooms = ["A", "B", "C"]
 # task = list of stages, stage = set of allowed rooms
@@ -9,7 +10,7 @@ tasks = [
     [{"C"}, {"A"}],        # first C, then A
 ]
 
-def transform_by_rooms(task_list: list[list[set[str]]], room_list: list[str]):
+def _transform_by_rooms(task_list: list[list[set[str]]], room_list: list[str]):
     T = sum(len(t) for t in task_list)          # upper bound on visits
     m = cp_model.CpModel()
     x = {(t, r): m.NewBoolVar(f"x_{t}_{r}") for t in range(T) for r in room_list}
@@ -65,9 +66,31 @@ def transform_by_rooms(task_list: list[list[set[str]]], room_list: list[str]):
 
         return route, plan
 
+def transform_plan_by_rooms(
+    tasks: list[GPSRTask],
+) -> list[tuple[str, list[tuple[GPSRTask, int]]]]:
+    """
+    :param tasks: The tasks in the order they arrived.
+    :return: One entry per room visit, in the order the rooms are visited: the room
+        and the steps performed during that visit, in execution order, each as its
+        task and its step number counted from 1.
+    """
+    all_rooms = sorted({room for task in tasks for step in task.rooms for room in step})
+    route, plan = _transform_by_rooms([task.rooms for task in tasks], all_rooms)
+    return [
+        (
+            room,
+            [
+                (tasks[task_number - 1], step_number)
+                for task_number, step_number in steps
+            ],
+        )
+        for room, steps in plan
+    ]
+
 # test function
 def main():
-    route, plan = transform_by_rooms(tasks, rooms)
+    route, plan = _transform_by_rooms(tasks, rooms)
     print(route, "-> room changes:", len(route) - 1)
 
     for t, (room, steps) in enumerate(plan):

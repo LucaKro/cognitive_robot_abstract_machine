@@ -13,7 +13,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from task_definitions import GPSRTask, transform_plan
+from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import transform_plan_by_rooms
+from challenges.GPSR.dataclasses.task_definitions import GPSRTask
 
 from coraplex.robot_plans.actions.base import SequentialAction
 
@@ -88,7 +89,7 @@ into fewer room visits.
 
 def main() -> None:
     start = time.time()
-    room_visits = transform_plan(MOCK_GPSR_PLAN)
+    room_visits = transform_plan_by_rooms(MOCK_GPSR_PLAN)
     optimal_plan = []
     print("Steps per room visit:")
     for room, steps in room_visits:
