@@ -21,7 +21,6 @@ from types import NoneType
 from typing_extensions import TYPE_CHECKING, ClassVar
 
 from krrood.adapters.json_serializer import JSONSerializableTypeRegistry
-from krrood.class_diagrams.type_of_uninstalled_package import TypeOfUninstalledPackage
 from krrood.class_diagrams.wrapped_field import WrappedField
 from krrood.patterns.specificity_ranking import SpecificityRule
 
@@ -154,27 +153,14 @@ class FieldToStore:
         )
 
     @property
-    def comes_from_an_uninstalled_package(self) -> bool:
-        """
-        Whether the field's type stands in for a type from a package that is not
-        installed.
-        """
-        type_endpoint = self.type_endpoint
-        return isclass(type_endpoint) and issubclass(
-            type_endpoint, TypeOfUninstalledPackage
-        )
-
-    @property
     def cannot_be_stored(self) -> bool:
         """
-        Whether the field's type leaves ORMatic no way to store it: a dictionary, a type
-        from a package that is not installed, or a generic class with free type
-        parameters that nothing in the class diagram could fill.
+        Whether the field's type leaves ORMatic no way to store it: a dictionary, or a
+        generic class with free type parameters that nothing in the class diagram could
+        fill.
         """
         type_endpoint = self.type_endpoint
-        if self.comes_from_an_uninstalled_package or (
-            isclass(type_endpoint) and issubclass(type_endpoint, dict)
-        ):
+        if isclass(type_endpoint) and issubclass(type_endpoint, dict):
             return True
         return (
             self.wrapped_field.is_underspecified_generic
@@ -239,14 +225,8 @@ class NotStoredRule(FieldStorageRule):
 
     @classmethod
     def describe(cls, field_to_store: FieldToStore) -> str:
-        type_endpoint = field_to_store.type_endpoint
-        if issubclass(type_endpoint, dict):
+        if issubclass(field_to_store.type_endpoint, dict):
             return "Not storing, since dictionaries cannot be stored."
-        if field_to_store.comes_from_an_uninstalled_package:
-            return (
-                f"Not storing, since {type_endpoint.__module__}."
-                f"{type_endpoint.__qualname__} comes from a package that is not installed."
-            )
         return "Not storing the underspecified generic field."
 
 
