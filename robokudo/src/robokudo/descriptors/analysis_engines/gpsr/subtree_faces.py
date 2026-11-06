@@ -1,3 +1,7 @@
+"""
+Pipeline that detects, classifies and stores faces.
+"""
+
 from __future__ import annotations
 
 # %% imports
@@ -46,6 +50,9 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     def implementation(
         self, name: str | None = None, *args: object, **kwargs: object
     ) -> py_trees.composites.Sequence:
+        """
+        Build the sequence with one face directory shared by all of its annotators.
+        """
         face_classification_descriptor = FaceClassification.Descriptor()
         full_path = self.face_directory
         if full_path is None and self.ros_pkg_path is not None:
@@ -78,8 +85,8 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
 
         human_classifier = FaceClassification(descriptor=face_classification_descriptor)
 
-        seq = py_trees.composites.Sequence("subtree_faces", memory=True)
-        seq.add_children(
+        sequence = py_trees.composites.Sequence("subtree_faces", memory=True)
+        sequence.add_children(
             [
                 FaceDetector(),
                 ClusterPositionAnnotator(),
@@ -93,4 +100,4 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
                 GenerateAllQueryResult(),
             ]
         )
-        return seq
+        return sequence

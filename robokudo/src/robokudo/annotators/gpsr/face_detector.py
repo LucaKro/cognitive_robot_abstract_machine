@@ -1,3 +1,7 @@
+"""
+Detection of faces in the color image, each turned into a person hypothesis.
+"""
+
 from __future__ import annotations
 
 # %% imports
@@ -6,7 +10,6 @@ from timeit import default_timer
 
 import cv2
 import face_recognition
-import numpy
 import numpy as np
 import open3d as o3d
 import py_trees
@@ -48,6 +51,9 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
             """
 
             def __init__(self) -> None:
+                """
+                Detect at the original image scale and generate points and encodings.
+                """
                 self.scale_factor: float = 1.0
                 """Image scale applied before face detection."""
                 self.with_point_generation: bool = True
@@ -64,11 +70,22 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         name: str = "FaceDetector",
         descriptor: FaceDetector.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def compute(self) -> py_trees.common.Status:
+        """
+        Add a person hypothesis to the CAS for each face in the color image.
+
+        :raises FaceImageScalingFailed: If the color image cannot be scaled to the depth
+            image.
+        :raises UnequalColorDepthRatios: If the ratios differ between image axes.
+        """
         start_timer = default_timer()
 
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
@@ -84,11 +101,11 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                     )
                 )
                 robokudo.utils.annotator_helper.scale_camera_intrinsics(self)
-            except RuntimeError as e:
+            except RuntimeError as error:
                 self.rk_logger.error(
                     "No color to depth ratio set by your camera driver! Can't scale image for Point Cloud creation."
                 )
-                raise FaceImageScalingFailed() from e
+                raise FaceImageScalingFailed() from error
         else:
             resized_color = self.color
 
@@ -104,13 +121,12 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         face_locations = face_recognition.face_locations(color_downsampled)
 
         # Create visualization Output and ObjectHypotheses
-        #
-        visualization_img = copy.deepcopy(self.color)
+        visualization_image = copy.deepcopy(self.color)
         visualization_clouds = []
         object_hypotheses = []
 
         # Each detected face will be considered as an Object Detection for now
-        idx = 0
+        face_index = 0
         for top, right, bottom, left in face_locations:
             original_face_location = (
                 top,
@@ -121,54 +137,59 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
 
             # If the color image has been resized to match it with depth data, respect this scaling
             if self.descriptor.parameters.with_point_generation:
-                color2depth_ratio = self.get_cas().color_to_depth_ratio
-                c2d_ratio_x = color2depth_ratio.horizontal
-                c2d_ratio_y = color2depth_ratio.vertical
-                if c2d_ratio_x != c2d_ratio_y:
+                color_to_depth_ratio = self.get_cas().color_to_depth_ratio
+                horizontal_color_to_depth_ratio = color_to_depth_ratio.horizontal
+                vertical_color_to_depth_ratio = color_to_depth_ratio.vertical
+                if horizontal_color_to_depth_ratio != vertical_color_to_depth_ratio:
                     raise UnequalColorDepthRatios()
-                top *= 1 / c2d_ratio_x
-                right *= 1 / c2d_ratio_x
-                bottom *= 1 / c2d_ratio_x
-                left *= 1 / c2d_ratio_x
+                top *= 1 / horizontal_color_to_depth_ratio
+                right *= 1 / horizontal_color_to_depth_ratio
+                bottom *= 1 / horizontal_color_to_depth_ratio
+                left *= 1 / horizontal_color_to_depth_ratio
 
-            # Respect/Revert downscaling factor to have BBs relative to the original input image
+            # Revert the downscaling so that the bounding boxes match the original input image
             top *= 1 / self.descriptor.parameters.scale_factor
             right *= 1 / self.descriptor.parameters.scale_factor
             bottom *= 1 / self.descriptor.parameters.scale_factor
             left *= 1 / self.descriptor.parameters.scale_factor
 
-            # Create object hypothesis
-            # Add each cluster to CAS
+            # Create object hypothesis and add it to the CAS
             # TODO This should be a Parameter in the future to allow other human detectors to generate
             #      the first hypothesis OR generate two hypotheses and merge them later.
             human_hypothesis = robokudo.types.scene.HumanHypothesis()
-            human_hypothesis.id = idx
+            human_hypothesis.id = face_index
             human_hypothesis.source = self.name
             face_annotation = robokudo.types.human.FaceAnnotation()
 
             # Actual 3D Point generation for face
             if self.descriptor.parameters.with_point_generation:
-                face_mask = np.zeros_like(self.depth, dtype=numpy.uint8)
+                face_mask = np.zeros_like(self.depth, dtype=np.uint8)
                 cv2.rectangle(
                     face_mask,
-                    (int(left * c2d_ratio_x), int(top * c2d_ratio_x)),
-                    (int(right * c2d_ratio_x), int(bottom * c2d_ratio_x)),
+                    (
+                        int(left * horizontal_color_to_depth_ratio),
+                        int(top * horizontal_color_to_depth_ratio),
+                    ),
+                    (
+                        int(right * horizontal_color_to_depth_ratio),
+                        int(bottom * horizontal_color_to_depth_ratio),
+                    ),
                     255,
                     -1,
                 )
                 color_rgb = cv2.cvtColor(resized_color, cv2.COLOR_BGR2RGB)
                 depth_masked = copy.deepcopy(self.depth)
-                depth_masked = numpy.where(
+                depth_masked = np.where(
                     face_mask == 255, depth_masked, 0
                 )  # mask all depth values
 
-                o3d_color = o3d.geometry.Image(color_rgb)
-                o3d_depth = o3d.geometry.Image(
+                color_image = o3d.geometry.Image(color_rgb)
+                depth_image = o3d.geometry.Image(
                     depth_masked
                 )  # Please note that depth values should be in mm
                 rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                    o3d_color,
-                    o3d_depth,
+                    color_image,
+                    depth_image,
                     convert_rgb_to_intensity=False,
                     depth_trunc=9.0,
                 )
@@ -176,7 +197,6 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
                     rgbd_image, self.camera_intrinsics
                 )
-                # visualization_img = face_mask
                 human_hypothesis.points = cloud
                 face_annotation.points = cloud
                 visualization_clouds.append(cloud)
@@ -202,13 +222,13 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
 
             object_hypotheses.append(human_hypothesis)
             self.get_cas().annotations.append(human_hypothesis)
-            idx += 1
+            face_index += 1
 
         # 2D Visualization
         robokudo.utils.annotator_helper.draw_bounding_boxes_from_object_hypotheses(
-            visualization_img, object_hypotheses, lambda oh: f"Face-{oh.id}"
+            visualization_image, object_hypotheses, lambda person: f"Face-{person.id}"
         )
-        self.get_annotator_output_struct().set_image(visualization_img)
+        self.get_annotator_output_struct().set_image(visualization_image)
 
         # 3D Visualization
         if self.descriptor.parameters.with_point_generation:

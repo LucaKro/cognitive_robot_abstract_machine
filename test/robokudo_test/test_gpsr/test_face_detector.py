@@ -47,7 +47,7 @@ def face_finder(with_point_generation: bool) -> FaceDetector:
     return detector
 
 
-def place_depth(scene: GpsrScene, ratio: float, distance_mm: int) -> None:
+def place_depth(scene: GpsrScene, ratio: float, distance_in_millimeters: int) -> None:
     """
     Give the scene a depth image of the given size relative to the color image, at the
     same distance everywhere.
@@ -56,7 +56,9 @@ def place_depth(scene: GpsrScene, ratio: float, distance_mm: int) -> None:
     scene.cas.set(
         CASViews.DEPTH_IMAGE,
         np.full(
-            (int(height * ratio), int(width * ratio)), distance_mm, dtype=np.uint16
+            (int(height * ratio), int(width * ratio)),
+            distance_in_millimeters,
+            dtype=np.uint16,
         ),
     )
     scene.cas.color_to_depth_ratio = ColorToDepthRatio(horizontal=ratio, vertical=ratio)
@@ -75,6 +77,9 @@ def detected_persons(scene: GpsrScene) -> list[HumanHypothesis]:
 def test_face_becomes_a_person_covering_the_face(
     scene: GpsrScene, placed_faces: PlacedFaces
 ) -> None:
+    """
+    A found face becomes a person whose region covers the face.
+    """
     detector = face_finder(with_point_generation=False)
     scene.place_in_pipeline(detector)
 
@@ -95,6 +100,9 @@ def test_face_becomes_a_person_covering_the_face(
 
 
 def test_face_gets_its_encoding(scene: GpsrScene, placed_faces: PlacedFaces) -> None:
+    """
+    A found face carries the encoding of the face recognition library.
+    """
     detector = face_finder(with_point_generation=False)
     scene.place_in_pipeline(detector)
 
@@ -109,6 +117,9 @@ def test_face_gets_its_encoding(scene: GpsrScene, placed_faces: PlacedFaces) -> 
 def test_without_faces_nobody_is_added(
     scene: GpsrScene, placed_faces: PlacedFaces
 ) -> None:
+    """
+    An image without faces adds no person and still succeeds.
+    """
     placed_faces.faces = []
     detector = face_finder(with_point_generation=False)
     scene.place_in_pipeline(detector)
@@ -130,9 +141,12 @@ def test_face_detection_reports_image_scaling_failure(
     """
     detector = face_finder(with_point_generation=True)
     scene.place_in_pipeline(detector)
-    place_depth(scene, ratio=1.0, distance_mm=2000)
+    place_depth(scene, ratio=1.0, distance_in_millimeters=2000)
 
     def fail_scaling(cas: CAS, image: np.ndarray) -> np.ndarray:
+        """
+        Stand in for an image scaling that always fails.
+        """
         raise RuntimeError("scaling failed")
 
     monkeypatch.setattr(
@@ -152,7 +166,7 @@ def test_face_detection_rejects_unequal_color_depth_ratios(
     """
     detector = face_finder(with_point_generation=True)
     scene.place_in_pipeline(detector)
-    place_depth(scene, ratio=1.0, distance_mm=2000)
+    place_depth(scene, ratio=1.0, distance_in_millimeters=2000)
     scene.cas.color_to_depth_ratio = ColorToDepthRatio(horizontal=1.0, vertical=0.5)
     with pytest.raises(UnequalColorDepthRatios):
         FaceDetector.compute.__wrapped__(detector)
@@ -161,9 +175,12 @@ def test_face_detection_rejects_unequal_color_depth_ratios(
 def test_face_gets_its_points_from_the_depth_image(
     scene: GpsrScene, placed_faces: PlacedFaces
 ) -> None:
+    """
+    The points of a person come from the depth image at the distance of the face.
+    """
     detector = face_finder(with_point_generation=True)
     scene.place_in_pipeline(detector)
-    place_depth(scene, ratio=1.0, distance_mm=2000)
+    place_depth(scene, ratio=1.0, distance_in_millimeters=2000)
 
     detector.compute()
 
@@ -176,9 +193,12 @@ def test_face_gets_its_points_from_the_depth_image(
 def test_face_found_in_a_smaller_depth_image_is_placed_in_the_color_image(
     scene: GpsrScene, placed_faces: PlacedFaces
 ) -> None:
+    """
+    A face searched in the scaled image is reported in color image coordinates.
+    """
     detector = face_finder(with_point_generation=True)
     scene.place_in_pipeline(detector)
-    place_depth(scene, ratio=0.5, distance_mm=2000)
+    place_depth(scene, ratio=0.5, distance_in_millimeters=2000)
 
     detector.compute()
 

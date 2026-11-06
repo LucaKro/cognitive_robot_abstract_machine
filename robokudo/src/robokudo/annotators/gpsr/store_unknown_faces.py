@@ -1,3 +1,7 @@
+"""
+Storage of the face images of people without a face classification.
+"""
+
 from __future__ import annotations
 
 # %% imports
@@ -8,7 +12,6 @@ import py_trees
 import robokudo.annotators.core
 import robokudo.utils.cv_helper
 import robokudo.utils.error_handling
-import robokudo.utils.file_loader
 import robokudo.types.annotation
 import robokudo.types.human
 import robokudo.types.scene
@@ -21,7 +24,11 @@ from robokudo.cas import CASViews
 from robokudo.types.annotation import Classification
 
 import os
-from pathlib import Path
+
+from typing_extensions import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # %% environment
 os.environ["QT_API"] = "pyqt5"
@@ -44,14 +51,11 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
             """
 
             def __init__(self) -> None:
-                self.ros_pkg_path: str | None = None
-                """ROS package containing the face image directory."""
-                self.data_path: str | None = None
-                """Face image directory relative to the ROS package."""
+                """
+                Start without a face directory and without padding.
+                """
                 self.face_directory: Path | None = None
-                """
-                Directory where face images are stored, if configured directly.
-                """
+                """Directory where face images are stored."""
                 self.noise: int = 0
                 """Padding around each stored face image."""
 
@@ -60,15 +64,21 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
     def __init__(
         self, name: str = "StoreFaces", descriptor: StoreFaces.Descriptor | None = None
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def compute(self) -> py_trees.common.Status:
-        if (
-            self.descriptor.parameters.face_directory is None
-            and self.descriptor.parameters.ros_pkg_path is None
-        ):
+        """
+        Store the face of each person without a classification and classify the person.
+
+        :raises FaceStoragePathMissing: If no face directory is configured.
+        """
+        if self.descriptor.parameters.face_directory is None:
             raise FaceStoragePathMissing()
 
         start_timer = default_timer()
@@ -86,34 +96,22 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
             # Searching for Face annotations
             for face_annotation in annotation.annotations:
                 if isinstance(face_annotation, robokudo.types.human.FaceAnnotation):
-                    # Get the roi of face, extracted point is top left
-                    width = face_annotation.roi.roi.width
-                    length = face_annotation.roi.roi.height
-                    x = face_annotation.roi.roi.pos.x
-                    y = face_annotation.roi.roi.pos.y
+                    # The region of the face, its position is the top left corner
+                    region = face_annotation.roi.roi
 
                     # Define area of points with face
                     color_image = self.get_cas().get(CASViews.COLOR_IMAGE)
                     noise = self.descriptor.parameters.noise
-                    x_min = x - noise
-                    x_max = x + width + noise
-                    y_min = y - noise
-                    y_max = y + length + noise
-
-                    # Load Path to data
-                    full_path = self.descriptor.parameters.face_directory
-                    if full_path is None:
-                        file_loader = robokudo.utils.file_loader.FileLoader()
-                        full_path = file_loader.get_path_to_file_in_ros_package(
-                            ros_pkg_name=self.descriptor.parameters.ros_pkg_path,
-                            relative_path=self.descriptor.parameters.data_path,
-                        )
-                    file_path = full_path
+                    left = region.pos.x - noise
+                    right = region.pos.x + region.width + noise
+                    top = region.pos.y - noise
+                    bottom = region.pos.y + region.height + noise
 
                     # Store unknown image under a unique id
-                    file_name = self._get_id(full_path) + ".png"
-                    file = os.path.join(file_path, file_name)
-                    cropped_image = color_image[y_min:y_max, x_min:x_max]
+                    face_directory = self.descriptor.parameters.face_directory
+                    file_name = self._get_id(face_directory) + ".png"
+                    file = face_directory / file_name
+                    cropped_image = color_image[top:bottom, left:right]
                     image = Image.fromarray(cropped_image)
                     image.save(file)
 
@@ -130,7 +128,9 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
 
     def _check_if_class_exists(self, human_hypothesis: object) -> bool:
         """
+        :param human_hypothesis: The person to check.
         :return: Whether the person already has a classification.
+        :raises InvalidFaceHypothesis: If the hypothesis is not a person.
         """
         if not isinstance(human_hypothesis, robokudo.types.scene.HumanHypothesis):
             raise InvalidFaceHypothesis(type(human_hypothesis))
@@ -142,15 +142,17 @@ class StoreFaces(robokudo.annotators.core.ThreadedAnnotator):
         print("Detect unfamiliar face, create a new file for his face!")
         return False
 
-    def _get_id(self, path: str | os.PathLike[str]) -> str:
+    def _get_id(self, path: Path) -> str:
         """
+        :param path: Directory containing the face images.
         :return: An unused face image identifier in the directory.
+        :raises NoAvailableFaceIdentifier: If every identifier is in use.
         """
         names = []
         for filename in os.listdir(path):
             names.append(filename.split(".")[0])
         print(len(names))
-        for i in range(1000):
-            if not str(i) in names:
-                return str(i)
+        for identifier in range(1000):
+            if not str(identifier) in names:
+                return str(identifier)
         raise NoAvailableFaceIdentifier()

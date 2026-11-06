@@ -21,9 +21,9 @@ if TYPE_CHECKING:
 
 
 # %% face storage errors
-def test_missing_face_package_is_reported_to_blackboard() -> None:
+def test_missing_face_directory_is_reported_to_blackboard() -> None:
     """
-    A missing ROS package stops face storage with a specific error.
+    A missing face directory stops face storage with a specific error.
     """
     annotator = StoreFaces()
 
