@@ -16,10 +16,6 @@ from typing_extensions import Any, Callable, TypeVar, TypeVarTuple, get_origin
 
 from krrood import logger
 from krrood.class_diagrams.exceptions import CouldNotResolveType
-from krrood.class_diagrams.type_of_uninstalled_package import (
-    ImportFromUninstalledPackage,
-    TypeOfUninstalledPackage,
-)
 from krrood.utils import (
     ensure_hashable,
     get_scope_from_imports,
@@ -72,7 +68,7 @@ def _underlying_function(method: Callable) -> Callable:
     The plain function a resolved method wraps.
 
     :param method: A method as resolved via attribute access on a class.
-    :return:``method.__func__`` when *method* is a bound method (a ``classmethod``
+    :return: ``method.__func__`` when *method* is a bound method (a ``classmethod``
         accessed via its class), otherwise *method* itself (a plain function or
         ``staticmethod`` access is already bare).
     """
@@ -418,13 +414,14 @@ def get_object_by_name_from_another_object_in_same_module(
     """
     Get the object with the given name from another object in the same module.
 
-    Names recovered after a circular import completed are merged back into the module's
-    cached import scope.
+    If the cached import scope for the object's module was built while a dependency was
+    still partially initialized (a circular import during module load), the recovered
+    names are merged back into that cached scope so later lookups do not repeat the
+    uncached recomputation.
 
     :param name: The name of the type to get.
     :param object_: The object to get the type from.
-    :return: The object with the given name, or a :class:`TypeOfUninstalledPackage`
-        stand-in if the module imports the name from a package that is not installed.
+    :return: The object with the given name.
     :raises CouldNotResolveType: If the object cannot be resolved.
     """
     module = inspect.getmodule(object_)
@@ -440,17 +437,19 @@ def get_object_by_name_from_another_object_in_same_module(
         return scope[name]
     if name in builtins.__dict__:
         return builtins.__dict__[name]
-    # a scope first built during a circular import lacks the names of the module still
-    # loading; recompute it once per import generation and keep what it recovers
+    # The cached scope can be incomplete if it was first built while a dependency was only partially
+    # initialized (a circular import during module load), which makes a TYPE_CHECKING import such as
+    # ``World`` silently unresolvable and that absence gets cached. Recompute the scope without the
+    # long-lived cache now that imports may have completed before giving up, but memoized per import
+    # generation so many lookups failing for the same reason at the same moment share one recompute
+    # instead of each re-parsing and re-importing the file from scratch. Merge the recovered names
+    # into the memoized scope so later lookups reuse them instead of repeating this forever.
     fresh_scope = _fallback_scope_for_import_generation(
         source_path, _count_of_modules_that_finished_initializing()
     )
     if name in fresh_scope:
         scope.update(fresh_scope)
         return fresh_scope[name]
-    uninstalled_import = ImportFromUninstalledPackage.binding(name, source_path)
-    if uninstalled_import is not None:
-        return TypeOfUninstalledPackage.standing_in_for(uninstalled_import)
     raise CouldNotResolveType(
         name,
         extra_information=f"Could not find {name} in {source_path}, could be a deprecated import statement or "
