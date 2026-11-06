@@ -1,3 +1,8 @@
+"""
+Recording and streaming through a stand-in audio driver, listing the input devices, and,
+outside CI, the real microphone.
+"""
+
 from __future__ import annotations
 
 import logging

@@ -1,3 +1,8 @@
+"""
+What the transcriber passes to and takes from the Whisper model, and what the real model
+hears in audio without speech.
+"""
+
 from __future__ import annotations
 
 import pytest

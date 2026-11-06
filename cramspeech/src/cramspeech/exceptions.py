@@ -1,3 +1,8 @@
+"""
+Errors of listening and transcribing: audio at the wrong sample rate, nobody speaking in
+time, and a microphone that stopped delivering audio.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

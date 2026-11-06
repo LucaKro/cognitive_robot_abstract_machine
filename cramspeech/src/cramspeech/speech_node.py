@@ -1,3 +1,8 @@
+"""
+The ``nlp-listen`` command, which publishes heard speech on ROS topics. This module
+needs a sourced ROS installation.
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,8 @@
+"""
+Turning the captured audio into text, detect where somebody spoke and paused, and
+transcribing each utterance.
+"""
+
 from __future__ import annotations
 
 from contextlib import closing

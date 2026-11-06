@@ -1,3 +1,8 @@
+"""
+Generated recordings of silence, white noise and a tone, which tests use in place of
+speech.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

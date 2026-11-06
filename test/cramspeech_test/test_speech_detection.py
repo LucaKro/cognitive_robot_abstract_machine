@@ -1,3 +1,7 @@
+"""
+Finding finished utterances in audio, and which audio a search keeps for the next one.
+"""
+
 from __future__ import annotations
 
 import numpy as np

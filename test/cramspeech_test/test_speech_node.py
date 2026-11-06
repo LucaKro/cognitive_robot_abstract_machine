@@ -1,3 +1,7 @@
+"""
+What reaches the ROS topics, and how the options of ``nlp-listen`` become its settings.
+"""
+
 from __future__ import annotations
 
 import signal

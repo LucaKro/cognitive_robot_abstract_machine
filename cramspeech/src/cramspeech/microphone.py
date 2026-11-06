@@ -1,3 +1,8 @@
+"""
+Audio input: finding the input devices, and recording or streaming mono audio from one
+of them.
+"""
+
 from __future__ import annotations
 
 import logging

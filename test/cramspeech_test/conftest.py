@@ -1,3 +1,8 @@
+"""
+Fixtures that replace the microphone driver and the models, and the recordings tests
+play through them.
+"""
+
 from __future__ import annotations
 
 import pytest

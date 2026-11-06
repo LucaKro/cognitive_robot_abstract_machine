@@ -1,3 +1,7 @@
+"""
+Turning recorded speech into text with faster-whisper.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

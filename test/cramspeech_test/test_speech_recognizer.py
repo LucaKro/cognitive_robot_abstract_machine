@@ -1,3 +1,8 @@
+"""
+Hearing for a fixed time, until the next utterance and continuously, with the microphone
+replaying a recording.
+"""
+
 from __future__ import annotations
 
 from itertools import islice
