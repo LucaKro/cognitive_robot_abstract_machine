@@ -25,7 +25,6 @@ dependencies = [
   "physics_simulators>=26.10.0",
   "experiments>=26.10.0",
   "segmind>=26.10.0",
-  "cramspeech>=26.10.0",
   "krrood_spatial_math>=26.10.0",
   "ipykernel>=7.2.0",
   "lark-parser>=0.12.0",
@@ -33,6 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+speech = [
+    "cramspeech>=26.10.0",
+]
 dev = [
     "pytest>=7.0.0,<8.0.0",
     "pytest-asyncio>=0.23.0,<0.24.0",
@@ -130,7 +132,7 @@ robokudo = { path = "robokudo", develop = true }
 physics_simulators = { path = "physics_simulators", develop = true }
 experiments = { path = "experiments", develop = true }
 segmind = { path = "segmind", develop = true }
-cramspeech = { path = "cramspeech", develop = true }
+cramspeech = { path = "cramspeech", develop = true, optional = true }
 krrood_spatial_math = { path = "domain_models/krrood_spatial_math", develop = true }
 
 [tool.setuptools]

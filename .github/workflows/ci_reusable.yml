@@ -46,7 +46,7 @@ jobs:
           cd cognitive_robot_abstract_machine
           source /opt/ros/cram-env/bin/activate
           sudo apt-get update
-          sudo apt-get install -y xvfb libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 libegl1 libportaudio2
+          sudo apt-get install -y xvfb libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 libegl1
           uv sync --extra dev --active
           uv tree --depth 1
           python -c "import sys; print(sys.executable)"
@@ -69,6 +69,16 @@ jobs:
           source /opt/ros/cram-env/bin/activate
           # --no-sources keeps the editable workspace packages from being reinstalled from their paths.
           uv pip install -r robokudo/pyproject.toml --extra dev --no-sources
+
+      - name: Install cramspeech
+        if: ${{ inputs.lib == 'cramspeech' }}
+        env:
+          UV_CACHE_DIR: /opt/ros/.uv_cache
+        run: |
+          cd cognitive_robot_abstract_machine
+          source /opt/ros/cram-env/bin/activate
+          sudo apt-get install -y libportaudio2
+          uv sync --extra speech --active --inexact
 
       - name: Restore cache
         uses: actions/cache/restore@v4

@@ -45,6 +45,8 @@ listening raises `MicrophoneStopped` when the device stops delivering audio.
 
 ## Setup
 
+- `cramspeech` is not part of a plain `uv sync`. Install it from the repository root with
+  `uv sync --extra speech --active --inexact`, where `--inexact` keeps what is already installed.
 - The microphone is read through [sounddevice](https://python-sounddevice.readthedocs.io), which
   needs the PortAudio library on Linux: `sudo apt install libportaudio2`.
 - `nlp-listen --list-devices` (or `InputDevice.list_available()`) lists the input devices. Pass an
