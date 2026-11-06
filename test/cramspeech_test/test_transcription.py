@@ -8,7 +8,12 @@ from __future__ import annotations
 import pytest
 from cramspeech.exceptions import SampleRateMismatch
 from cramspeech.microphone import Recording
-from cramspeech.transcription import Transcript, WhisperModelSize, WhisperTranscriber
+from cramspeech.transcription import (
+    Transcript,
+    WhisperLanguage,
+    WhisperModelSize,
+    WhisperTranscriber,
+)
 from typing_extensions import Callable
 
 from ..pytest_environment import runs_in_continuous_integration
@@ -17,6 +22,13 @@ from .dataset.stand_ins import ModelReturningSegments
 
 
 # %% Settings
+def test_transcriber_expects_english_by_default() -> None:
+    """
+    Speech is taken for English unless the transcriber is told otherwise.
+    """
+    assert WhisperTranscriber().language is WhisperLanguage.ENGLISH
+
+
 def test_transcribe_passes_the_settings_to_the_model(
     one_second_of_silence: Recording,
 ) -> None:
@@ -25,7 +37,7 @@ def test_transcribe_passes_the_settings_to_the_model(
     audio.
     """
     model = ModelReturningSegments(texts=[])
-    transcriber = WhisperTranscriber(language="de", beam_size=2)
+    transcriber = WhisperTranscriber(language=WhisperLanguage.GERMAN, beam_size=2)
     transcriber.model = model
 
     transcriber.transcribe(one_second_of_silence)

@@ -17,7 +17,11 @@ from cramspeech.speech_node import (
     TranscriptPublisher,
 )
 from cramspeech.speech_recognizer import SpeechDetector, SpeechRecognizer
-from cramspeech.transcription import WhisperComputeType, WhisperModelSize
+from cramspeech.transcription import (
+    WhisperComputeType,
+    WhisperLanguage,
+    WhisperModelSize,
+)
 from rclpy.node import Node
 from std_msgs.msg import String
 from typing_extensions import Callable
@@ -196,8 +200,8 @@ def test_command_line_keeps_a_device_name_as_text() -> None:
 
 def test_command_line_reads_the_whisper_settings() -> None:
     """
-    The model size and the number format arrive as plain text and are read as their enum
-    members.
+    The model size, the number format and the language arrive as plain text and are read
+    as their enum members.
     """
     settings = ListenCommandLine.from_arguments(
         [
@@ -205,11 +209,14 @@ def test_command_line_reads_the_whisper_settings() -> None:
             WhisperModelSize.BASE.value,
             CommandLineOption.COMPUTE_TYPE.value,
             WhisperComputeType.FLOAT32.value,
+            CommandLineOption.LANGUAGE.value,
+            WhisperLanguage.GERMAN.value,
         ]
     )
 
     assert settings.model_size is WhisperModelSize.BASE
     assert settings.compute_type is WhisperComputeType.FLOAT32
+    assert settings.language is WhisperLanguage.GERMAN
 
 
 def test_command_line_reads_the_echo_option() -> None:
@@ -244,6 +251,7 @@ def test_publisher_hears_with_the_command_line_settings(rclpy_node: Node) -> Non
         device=6,
         model_size=WhisperModelSize.BASE,
         compute_type=WhisperComputeType.FLOAT32,
+        language=WhisperLanguage.GERMAN,
         echo_heard_speech=True,
     )
 
@@ -255,6 +263,7 @@ def test_publisher_hears_with_the_command_line_settings(rclpy_node: Node) -> Non
     assert publisher.recognizer.microphone.device == settings.device
     assert transcriber.model_size is settings.model_size
     assert transcriber.compute_type is settings.compute_type
+    assert transcriber.language is settings.language
     publisher.node.destroy_node()
 
 

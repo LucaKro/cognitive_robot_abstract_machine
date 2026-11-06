@@ -22,8 +22,9 @@ it heard words in goes out as a `std_msgs/String`:
 | `whisper_out` | anyone who acts on what was said | always |
 | `/tts_text` | the robot's `tts_node`, which says the sentence back | only with `--echo` |
 
-Options: `--model-size` (`tiny`, `base`, `small`, default `small`) and `--compute-type`
-(`int8`, `float16`, `float32`, default `int8`). `nlp-listen --help` lists them.
+Options: `--model-size` (`tiny`, `base`, `small`, default `small`), `--compute-type`
+(`int8`, `float16`, `float32`, default `int8`) and `--language` (`en`, `de`, default `en`).
+`nlp-listen --help` lists them.
 
 ## From Python
 

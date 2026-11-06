@@ -51,6 +51,22 @@ class WhisperModelSize(StrEnum):
     """
 
 
+class WhisperLanguage(StrEnum):
+    """
+    The languages a Whisper model can be told to expect.
+    """
+
+    ENGLISH = "en"
+    """
+    English speech.
+    """
+
+    GERMAN = "de"
+    """
+    German speech.
+    """
+
+
 class WhisperComputeType(StrEnum):
     """
     Number formats faster-whisper can run a Whisper model in. Smaller formats run faster
@@ -84,7 +100,7 @@ class WhisperTranscriber:
     Which Whisper model to run.
     """
 
-    language: str = "en"
+    language: WhisperLanguage = WhisperLanguage.ENGLISH
     """
     The spoken language.
     """

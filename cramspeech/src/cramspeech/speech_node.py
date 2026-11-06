@@ -23,6 +23,7 @@ from cramspeech.microphone import InputDevice, Microphone
 from cramspeech.speech_recognizer import SpeechRecognizer
 from cramspeech.transcription import (
     WhisperComputeType,
+    WhisperLanguage,
     WhisperModelSize,
     WhisperTranscriber,
 )
@@ -132,6 +133,11 @@ class CommandLineOption(StrEnum):
     Prints the available input devices instead of listening.
     """
 
+    LANGUAGE = "--language"
+    """
+    Sets :attr:`ListenCommandLine.language`.
+    """
+
     ECHO = "--echo"
     """
     Sets :attr:`ListenCommandLine.echo_heard_speech`.
@@ -158,6 +164,11 @@ class ListenCommandLine:
     compute_type: WhisperComputeType = WhisperComputeType.INT8
     """
     Number format the Whisper model runs in.
+    """
+
+    language: WhisperLanguage = WhisperLanguage.ENGLISH
+    """
+    The language the Whisper model expects the speech in.
     """
 
     node_name: str = "nlp_listener"
@@ -230,6 +241,13 @@ class ListenCommandLine:
             help=f"number format of the model (default: {defaults.compute_type})",
         )
         parser.add_argument(
+            CommandLineOption.LANGUAGE,
+            type=WhisperLanguage,
+            choices=list(WhisperLanguage),
+            default=defaults.language,
+            help=f"language of the speech (default: {defaults.language})",
+        )
+        parser.add_argument(
             CommandLineOption.ECHO,
             action="store_true",
             default=defaults.echo_heard_speech,
@@ -245,6 +263,7 @@ class ListenCommandLine:
             device=int(device) if device is not None and device.isdigit() else device,
             model_size=options.model_size,
             compute_type=options.compute_type,
+            language=options.language,
             echo_heard_speech=options.echo,
         )
 
@@ -269,7 +288,9 @@ class ListenCommandLine:
             recognizer=SpeechRecognizer(
                 microphone=Microphone(device=self.device),
                 transcriber=WhisperTranscriber(
-                    model_size=self.model_size, compute_type=self.compute_type
+                    model_size=self.model_size,
+                    language=self.language,
+                    compute_type=self.compute_type,
                 ),
             ),
             echo_heard_speech=self.echo_heard_speech,
