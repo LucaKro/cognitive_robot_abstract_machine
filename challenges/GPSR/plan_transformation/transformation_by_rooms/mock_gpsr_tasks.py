@@ -17,6 +17,12 @@ from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation 
 from challenges.GPSR.dataclasses.task_definitions import GPSRTask
 
 from coraplex.robot_plans.actions.base import SequentialAction
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Bathroom,
+    Bedroom,
+    Kitchen,
+    LivingRoom,
+)
 
 # %% stand-in actions
 
@@ -46,13 +52,13 @@ class MockAction(SequentialAction):
 
 lower_torso = GPSRTask(
     name="lower the torso and park the arms",
-    rooms=[{"kitchen", "living_room", "bed_room", "office"}],
+    rooms=[{Kitchen, LivingRoom, Bedroom, Bathroom}],
     actions=[[MockAction("move torso low"), MockAction("park arms")]],
 )
 
 bring_milk = GPSRTask(
     name="bring the milk to the living room",
-    rooms=[{"kitchen"}, {"living_room"}],
+    rooms=[{Kitchen}, {LivingRoom}],
     actions=[
         [MockAction("move torso high"), MockAction("pick up the milk")],
         [MockAction("place the milk")],
@@ -61,7 +67,7 @@ bring_milk = GPSRTask(
 
 bring_cup = GPSRTask(
     name="bring the cup to the bedroom",
-    rooms=[{"living_room"}, {"bed_room"}],
+    rooms=[{LivingRoom}, {Bedroom}],
     actions=[
         [MockAction("park arms"), MockAction("pick up the cup")],
         [MockAction("place the cup")],
@@ -70,7 +76,7 @@ bring_cup = GPSRTask(
 
 bring_remote = GPSRTask(
     name="bring the remote to the kitchen",
-    rooms=[{"living_room"}, {"kitchen"}],
+    rooms=[{LivingRoom}, {Kitchen}],
     actions=[
         [MockAction("pick up the remote")],
         [MockAction("place the remote")],
@@ -93,13 +99,13 @@ def main() -> None:
     optimal_plan = []
     print("Steps per room visit:")
     for room, steps in room_visits:
-        print(f"  In room {room}:")
+        print(f"  In room {room.__name__}:")
         for task, step_number in steps:
             print(f"    part {step_number} of {len(task.rooms)} of task '{task.name}'")
 
     print("\nActions per room visit, grouped by task:")
     for room, steps in room_visits:
-        print(f"  In room {room}:")
+        print(f"  In room {room.__name__}:")
         for task, step_number in steps:
             print(f"    {task.name}: {task.actions[step_number - 1]}")
             optimal_plan.append(task.actions[step_number - 1])

@@ -1,19 +1,27 @@
 # pip install ortools
 from ortools.sat.python import cp_model
 from challenges.GPSR.dataclasses.task_definitions import GPSRTask
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Bedroom,
+    Kitchen,
+    LivingRoom,
+    Room,
+)
 
-rooms = ["A", "B", "C"]
+rooms = [Kitchen, LivingRoom, Bedroom]
 # task = list of stages, stage = set of allowed rooms
 tasks = [
-    [{"A"}, {"B"}],        # first A, then B
-    [{"A", "B", "C"}],     # any room
-    [{"C"}, {"A"}],        # first C, then A
+    [{Kitchen}, {LivingRoom}],        # first Kitchen, then LivingRoom
+    [{Kitchen, LivingRoom, Bedroom}],  # any room
+    [{Bedroom}, {Kitchen}],           # first Bedroom, then Kitchen
 ]
 
-def _transform_by_rooms(task_list: list[list[set[str]]], room_list: list[str]):
+def _transform_by_rooms(
+    task_list: list[list[set[type[Room]]]], room_list: list[type[Room]]
+):
     T = sum(len(t) for t in task_list)          # upper bound on visits
     m = cp_model.CpModel()
-    x = {(t, r): m.NewBoolVar(f"x_{t}_{r}") for t in range(T) for r in room_list}
+    x = {(t, r): m.NewBoolVar(f"x_{t}_{r.__name__}") for t in range(T) for r in room_list}
 
     for t in range(T):
         m.AddAtMostOne(x[t, r] for r in room_list)
@@ -68,14 +76,17 @@ def _transform_by_rooms(task_list: list[list[set[str]]], room_list: list[str]):
 
 def transform_plan_by_rooms(
     tasks: list[GPSRTask],
-) -> list[tuple[str, list[tuple[GPSRTask, int]]]]:
+) -> list[tuple[type[Room], list[tuple[GPSRTask, int]]]]:
     """
     :param tasks: The tasks in the order they arrived.
     :return: One entry per room visit, in the order the rooms are visited: the room
         and the steps performed during that visit, in execution order, each as its
         task and its step number counted from 1.
     """
-    all_rooms = sorted({room for task in tasks for step in task.rooms for room in step})
+    all_rooms = sorted(
+        {room for task in tasks for step in task.rooms for room in step},
+        key=lambda room: room.__name__,
+    )
     route, plan = _transform_by_rooms([task.rooms for task in tasks], all_rooms)
     return [
         (
@@ -91,11 +102,11 @@ def transform_plan_by_rooms(
 # test function
 def main():
     route, plan = _transform_by_rooms(tasks, rooms)
-    print(route, "-> room changes:", len(route) - 1)
+    print([room.__name__ for room in route], "-> room changes:", len(route) - 1)
 
     for t, (room, steps) in enumerate(plan):
         visit_of_room = route[: t + 1].count(room)
-        print(f"In room {room} (visit {visit_of_room} of {room}):")
+        print(f"In room {room.__name__} (visit {visit_of_room} of {room.__name__}):")
         for task_number, step_number in steps:
             print(
                 f"    task {task_number}, step {step_number} of "

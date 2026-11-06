@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from coraplex.robot_plans.actions.base import Action
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
 
 
 @dataclass(eq=False)
@@ -17,9 +18,9 @@ class GPSRTask:
     What this task does, e.g. ``"bring the milk to the living room"``.
     """
 
-    rooms: list[set[str]]
+    rooms: list[set[type[Room]]]
     """
-    The rooms the task is performed in, one entry per step and in the order of the
+    The kinds of room the task is performed in, one entry per step and in the order of the
     steps; each entry holds the rooms that step may be performed in.
     """
 
