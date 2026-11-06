@@ -1,5 +1,8 @@
 import pytest
-from krrood.ormatic.data_access_objects.helper import to_dao
+from krrood.ormatic.data_access_objects.helper import (
+    get_data_access_object_class,
+    to_dao,
+)
 from krrood.ormatic.utils import create_engine
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,6 +13,7 @@ from cramph.monitors import CountTicks
 from cramph.node import EndStatechart
 from cramph.orm.ormatic_interface import Base, CountTicksDAO
 from cramph.statechart import Statechart
+from cramph.visualization import RvizVisualization
 
 # %% fixtures
 
@@ -141,3 +145,14 @@ class TestStatechartSurvivesRoundTrip:
             statechart_read_back.observation_state
             == statechart_run_to_its_end.observation_state
         )
+
+
+# %% classes the schema leaves out
+
+
+def test_rviz_visualization_has_no_table():
+    """
+    The RViz visualization wraps a ROS node rather than holding data, so the schema
+    leaves it out, and generating the schema needs no ROS.
+    """
+    assert get_data_access_object_class(RvizVisualization) is None
