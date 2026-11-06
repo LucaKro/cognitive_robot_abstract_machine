@@ -33,7 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 speech = [
-    "cramspeech>=26.10.0",
+    "cramspeech",
 ]
 dev = [
     "pytest>=7.0.0,<8.0.0",

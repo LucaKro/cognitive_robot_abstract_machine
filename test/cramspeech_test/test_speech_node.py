@@ -21,6 +21,7 @@ from cramspeech.transcription import (
     WhisperComputeType,
     WhisperLanguage,
     WhisperModelSize,
+    WhisperTranscriber,
 )
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -173,9 +174,30 @@ def test_empty_transcripts_are_not_published(
 # %% Command line
 def test_command_line_without_options_keeps_the_defaults() -> None:
     """
-    Started without options, the listener uses the system's input and the default model.
+    An option that is not given leaves its setting at the default of
+    :class:`ListenCommandLine`.
     """
     assert ListenCommandLine.from_arguments([]) == ListenCommandLine()
+
+
+def test_command_line_does_not_echo_by_default() -> None:
+    """
+    Started without the option, the robot does not say back what it heard.
+    """
+    assert ListenCommandLine.from_arguments([]).echo_heard_speech is False
+
+
+def test_command_line_defaults_match_the_transcriber() -> None:
+    """
+    Started without options, the listener transcribes as a default
+    :class:`WhisperTranscriber` does.
+    """
+    settings = ListenCommandLine.from_arguments([])
+    transcriber = WhisperTranscriber()
+
+    assert settings.model_size is transcriber.model_size
+    assert settings.compute_type is transcriber.compute_type
+    assert settings.language is transcriber.language
 
 
 def test_command_line_reads_a_device_index_as_a_number() -> None:
@@ -221,7 +243,7 @@ def test_command_line_reads_the_whisper_settings() -> None:
 
 def test_command_line_reads_the_echo_option() -> None:
     """
-    The robot says back what it heard only when the option is given.
+    With the option, the robot says back what it heard.
     """
     settings = ListenCommandLine.from_arguments([CommandLineOption.ECHO.value])
 
@@ -245,7 +267,7 @@ def test_command_line_lists_the_input_devices_and_exits(
 
 def test_publisher_hears_with_the_command_line_settings(rclpy_node: Node) -> None:
     """
-    The node, the microphone and the transcriber are built from the settings.
+    The node, the microphone, the transcriber and the echoing follow the settings.
     """
     settings = ListenCommandLine(
         device=6,
