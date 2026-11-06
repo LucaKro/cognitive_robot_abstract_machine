@@ -11,15 +11,16 @@ every heard sentence on ROS.
 source /opt/ros/jazzy/setup.bash   # rclpy and std_msgs come from the ROS installation
 nlp-listen --list-devices          # the input devices, the default one starred
 nlp-listen --device <name>         # any unique part of a listed name
+nlp-listen --echo                  # the robot also says every heard sentence back
 ```
 
 `nlp-listen` listens from its start until it is stopped with Ctrl+C or SIGTERM. Each utterance
-it heard words in goes out as a `std_msgs/String` on two topics:
+it heard words in goes out as a `std_msgs/String`:
 
-| Topic | For |
-|---|---|
-| `whisper_out` | anyone who acts on what was said |
-| `/tts_text` | the robot's `tts_node`, which says the sentence back |
+| Topic | For | Published |
+|---|---|---|
+| `whisper_out` | anyone who acts on what was said | always |
+| `/tts_text` | the robot's `tts_node`, which says the sentence back | only with `--echo` |
 
 Options: `--model-size` (`tiny`, `base`, `small`, default `small`) and `--compute-type`
 (`int8`, `float16`, `float32`, default `int8`). `nlp-listen --help` lists them.

@@ -26,7 +26,7 @@ from cramspeech.transcription import (
 # %% Topics
 class SpeechTopic(StrEnum):
     """
-    The ROS topics every heard sentence is published on.
+    The ROS topics heard sentences are published on.
     """
 
     HEARD_TEXT = "whisper_out"
@@ -44,8 +44,9 @@ class SpeechTopic(StrEnum):
 @dataclass
 class TranscriptPublisher:
     """
-    Publishes the text of every utterance the microphone hears on each
-    :class:`SpeechTopic`.
+    Publishes the text of every utterance the microphone hears on
+    :attr:`SpeechTopic.HEARD_TEXT`, and also on :attr:`SpeechTopic.TEXT_TO_SAY` when
+    echoing.
     """
 
     node: Node
@@ -63,15 +64,24 @@ class TranscriptPublisher:
     Number of messages each publisher keeps for subscribers that fall behind.
     """
 
+    echo_heard_speech: bool = False
+    """
+    Whether the robot's text-to-speech node also receives what was heard, and so says
+    it back.
+    """
+
     publishers: dict[SpeechTopic, Publisher] = field(init=False)
     """
-    One publisher per topic.
+    One publisher per topic the heard text goes to.
     """
 
     def __post_init__(self) -> None:
+        topics = [SpeechTopic.HEARD_TEXT]
+        if self.echo_heard_speech:
+            topics.append(SpeechTopic.TEXT_TO_SAY)
         self.publishers = {
             topic: self.node.create_publisher(String, topic, self.message_queue_depth)
-            for topic in SpeechTopic
+            for topic in topics
         }
 
     def publish_heard_speech(self) -> None:
@@ -117,6 +127,11 @@ class CommandLineOption(StrEnum):
     Prints the available input devices instead of listening.
     """
 
+    ECHO = "--echo"
+    """
+    Sets :attr:`ListenCommandLine.echo_heard_speech`.
+    """
+
 
 @dataclass
 class ListenCommandLine:
@@ -143,6 +158,12 @@ class ListenCommandLine:
     node_name: str = "nlp_listener"
     """
     Name of the ROS node that publishes the heard text.
+    """
+
+    echo_heard_speech: bool = False
+    """
+    Whether the robot's text-to-speech node also receives what was heard, and so says
+    it back.
     """
 
     @classproperty
@@ -174,10 +195,9 @@ class ListenCommandLine:
         :return: The settings the options set, the defaults for the others.
         """
         defaults = cls()
-        topics = " and ".join(SpeechTopic)
         parser = argparse.ArgumentParser(
             description=f"Listen to a microphone and publish every heard sentence on "
-            f"{topics}."
+            f"{SpeechTopic.HEARD_TEXT}."
         )
         parser.add_argument(
             CommandLineOption.DEVICE,
@@ -204,6 +224,13 @@ class ListenCommandLine:
             default=defaults.compute_type,
             help=f"number format of the model (default: {defaults.compute_type})",
         )
+        parser.add_argument(
+            CommandLineOption.ECHO,
+            action="store_true",
+            default=defaults.echo_heard_speech,
+            help=f"also publish every heard sentence on {SpeechTopic.TEXT_TO_SAY}, so "
+            f"the robot says it back",
+        )
         options = parser.parse_args(arguments)
         if options.list_devices:
             print("\n".join(str(device) for device in InputDevice.list_available()))
@@ -213,6 +240,7 @@ class ListenCommandLine:
             device=int(device) if device is not None and device.isdigit() else device,
             model_size=options.model_size,
             compute_type=options.compute_type,
+            echo_heard_speech=options.echo,
         )
 
     @classmethod
@@ -239,4 +267,5 @@ class ListenCommandLine:
                     model_size=self.model_size, compute_type=self.compute_type
                 ),
             ),
+            echo_heard_speech=self.echo_heard_speech,
         )

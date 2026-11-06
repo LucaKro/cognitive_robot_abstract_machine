@@ -55,12 +55,19 @@ def received_messages(rclpy_node: Node) -> dict[SpeechTopic, list[str]]:
     return received
 
 
-def publisher_hearing(node: Node, recognizer: SpeechRecognizer) -> TranscriptPublisher:
+def publisher_hearing(
+    node: Node, recognizer: SpeechRecognizer, echo_heard_speech: bool = False
+) -> TranscriptPublisher:
     """
-    :return: A transcript publisher on *node* that hears through *recognizer*, once
-        every topic has a subscriber.
+    :param node: The ROS node the transcript publisher belongs to.
+    :param recognizer: Hears the utterances for the transcript publisher.
+    :param echo_heard_speech: Whether the transcript publisher also sends what it hears
+        to the text-to-speech node.
+    :return: The transcript publisher, once each of its topics has a subscriber.
     """
-    publisher = TranscriptPublisher(node=node, recognizer=recognizer)
+    publisher = TranscriptPublisher(
+        node=node, recognizer=recognizer, echo_heard_speech=echo_heard_speech
+    )
     wait_until(
         lambda: all(
             topic_publisher.get_subscription_count() > 0
@@ -83,7 +90,32 @@ def wait_until(condition: Callable[[], bool], timeout: float = 2.0) -> None:
 
 
 # %% Publishing
-def test_every_transcript_is_published_on_both_topics(
+def test_transcripts_go_only_to_the_heard_text_topic_by_default(
+    rclpy_node: Node,
+    recognizer_hearing_every_sound: SpeechRecognizer,
+    model_hearing_a_request: ModelReturningSegments,
+    two_utterances: Recording,
+    received_messages: dict[SpeechTopic, list[str]],
+    replay_through_the_microphone: Callable[[Recording], ReplayingInputDevice],
+) -> None:
+    """
+    Without echoing, the robot's text-to-speech node is not told what was heard.
+    """
+    publisher = publisher_hearing(rclpy_node, recognizer_hearing_every_sound)
+    replay_through_the_microphone(two_utterances)
+
+    with pytest.raises(MicrophoneStopped):
+        publisher.publish_heard_speech()
+    expected = {
+        SpeechTopic.HEARD_TEXT: 2 * model_hearing_a_request.texts,
+        SpeechTopic.TEXT_TO_SAY: [],
+    }
+    wait_until(lambda: received_messages == expected)
+
+    assert received_messages == expected
+
+
+def test_every_transcript_is_published_on_both_topics_when_echoing(
     rclpy_node: Node,
     recognizer_hearing_every_sound: SpeechRecognizer,
     model_hearing_a_request: ModelReturningSegments,
@@ -94,7 +126,9 @@ def test_every_transcript_is_published_on_both_topics(
     """
     Each utterance reaches every topic as its text, in spoken order.
     """
-    publisher = publisher_hearing(rclpy_node, recognizer_hearing_every_sound)
+    publisher = publisher_hearing(
+        rclpy_node, recognizer_hearing_every_sound, echo_heard_speech=True
+    )
     replay_through_the_microphone(two_utterances)
 
     with pytest.raises(MicrophoneStopped):
@@ -116,7 +150,9 @@ def test_empty_transcripts_are_not_published(
     An utterance Whisper finds no words in, such as a cough, is not sent anywhere.
     """
     recognizer_hearing_every_sound.transcriber.model = ModelReturningSegments(texts=[])
-    publisher = publisher_hearing(rclpy_node, recognizer_hearing_every_sound)
+    publisher = publisher_hearing(
+        rclpy_node, recognizer_hearing_every_sound, echo_heard_speech=True
+    )
     replay_through_the_microphone(two_utterances)
 
     with pytest.raises(MicrophoneStopped):
@@ -172,6 +208,15 @@ def test_command_line_reads_the_whisper_settings() -> None:
     assert settings.compute_type is WhisperComputeType.FLOAT32
 
 
+def test_command_line_reads_the_echo_option() -> None:
+    """
+    The robot says back what it heard only when the option is given.
+    """
+    settings = ListenCommandLine.from_arguments([CommandLineOption.ECHO.value])
+
+    assert settings.echo_heard_speech is True
+
+
 def test_command_line_lists_the_input_devices_and_exits(
     audio_devices_of_a_desktop: AudioDevicesOfADesktop,
     capsys: pytest.CaptureFixture[str],
@@ -195,12 +240,14 @@ def test_publisher_hears_with_the_command_line_settings(rclpy_node: Node) -> Non
         device=6,
         model_size=WhisperModelSize.BASE,
         compute_type=WhisperComputeType.FLOAT32,
+        echo_heard_speech=True,
     )
 
     publisher = settings.publisher(rclpy_node.context)
 
     transcriber = publisher.recognizer.transcriber
     assert publisher.node.get_name() == settings.node_name
+    assert publisher.echo_heard_speech is settings.echo_heard_speech
     assert publisher.recognizer.microphone.device == settings.device
     assert transcriber.model_size is settings.model_size
     assert transcriber.compute_type is settings.compute_type
