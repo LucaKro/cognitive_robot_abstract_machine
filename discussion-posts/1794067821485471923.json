@@ -1,0 +1,7 @@
+{
+  "category": "General",
+  "title": "Session log",
+  "body": "2026-11-07 16:10 UTC: branches whose pull requests are closed or which were discarded: deleted `belief-core`, `ccr-06384811-3c8gcj`, `claude/adoring-bell-hilm79`, `claude/belief-integration-gaussian-zi1o82`, `claude/epic-euler-o9o7v8`, `claude/jolly-edison-k0zkiq`, `claude/jolly-heisenberg-7n8zi8`, `claude/plan-item-kickoff-aicon-0t046w`, `claude/plan-item-kickoff-aicon-belief-84kl68`, `claude/plan-item-kickoff-belief-integration-6uj1wv`, `claude/plan-item-kickoff-belief-pose-j36vt3`, `claude/probability-concepts-probabilistic-model-m0i2n0`, `claude/zealous-maxwell-93feuw`, `disturbance-protocol`, `garmi_demo_revisit`, `ground-truth-separation`, `semdt-attribute-change-needs-open-block`, `semdt-move-branch-keeps-connection-name`, `semdt-remove-dead-tests`, `semdt-reset-world-after-failed-block`, `semdt-ros-test-checks`, `semdt-spatial-types-test-checks`, `semdt_usd_exporter`, `sim-drawer-scene`, `stack-test/bottom`, `stack-test/middle`, `stack-test/top`, `stretch_exec_demo`, `tracy-sensor-mapping`",
+  "kind": "comment",
+  "introduction": "What sessions did on their own, without asking: the findings and pull requests they closed and the branches they deleted. Each entry is one comment, the newest last, posted by the repository's Actions.\n\nPin this discussion to keep it at the top of the repository's Discussions.\n"
+}

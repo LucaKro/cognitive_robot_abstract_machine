@@ -1,0 +1,11 @@
+query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    id
+    discussionCategories(first: 100) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}

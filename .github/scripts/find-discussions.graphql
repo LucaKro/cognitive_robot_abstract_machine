@@ -1,0 +1,10 @@
+query($owner: String!, $name: String!, $categoryId: ID!) {
+  repository(owner: $owner, name: $name) {
+    discussions(first: 100, categoryId: $categoryId, orderBy: {field: CREATED_AT, direction: ASC}) {
+      nodes {
+        id
+        title
+      }
+    }
+  }
+}
