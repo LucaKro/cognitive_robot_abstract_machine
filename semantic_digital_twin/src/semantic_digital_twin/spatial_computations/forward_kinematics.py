@@ -179,10 +179,11 @@ class ForwardKinematicsManager(ModelChangeCallback):
             computed.
         :param tip: Tip KinematicStructureEntity to which the kinematics are computed.
         :return: Transformation matrix representing the relative pose of the tip
-            KinematicStructureEntity with respect to the root KinematicStructureEntity.
+            KinematicStructureEntity with respect to the root KinematicStructureEntity,
+            with the root as reference frame and the tip as child frame.
         """
         return HomogeneousTransformationMatrix(
-            data=self.compute_np(root, tip), reference_frame=root
+            data=self.compute_np(root, tip), reference_frame=root, child_frame=tip
         )
 
     @memoize
