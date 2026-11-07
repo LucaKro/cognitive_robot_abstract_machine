@@ -1,6 +1,10 @@
+"""
+Removal of hypotheses outside of a configured area.
+"""
+
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import py_trees
 from robokudo.annotators.gpsr.exceptions import InvalidAreaPose
 from robokudo.types.annotation import PoseAnnotation, PositionAnnotation
@@ -8,117 +12,113 @@ from robokudo.utils.annotator_helper import transform_pose_from_camera_to_world
 
 import robokudo.types.scene
 import robokudo.annotators.core
-import robokudo.defs
 
 
 # %% area filter
 class FilterObjectsByArea(robokudo.annotators.core.BaseAnnotator):
     """
-    This Annotator removes all Annotations that are not in a submitted area.
+    Removes every hypothesis with a pose or position outside of the configured area.
     """
 
     class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
         """
-        Descriptor for FilterObjectsByArea.
+        Configuration of the area filter.
         """
 
         class Parameters:
             """
-            Parameters for the Descriptor.
+            Bounds of the area.
             """
 
             def __init__(self) -> None:
-                # Submitted area coordinates
-                self.min_x = -1  # -float('inf')
-                self.min_y = -3
-                self.min_z = -float("inf")
-                self.max_x = 11
-                self.max_y = 10
-                self.max_z = float("inf")
-
-                # In which frame are the coordinates?
-                # If \map the coordinates will be transformed first
-                self.frame = "map"
+                """
+                Start with the default area in the map frame.
+                """
+                self.minimum_x: float = -1.0
+                """Lower bound of the area along x, in meters."""
+                self.minimum_y: float = -3.0
+                """Lower bound of the area along y, in meters."""
+                self.minimum_z: float = -float("inf")
+                """Lower bound of the area along z, in meters."""
+                self.maximum_x: float = 11.0
+                """Upper bound of the area along x, in meters."""
+                self.maximum_y: float = 10.0
+                """Upper bound of the area along y, in meters."""
+                self.maximum_z: float = float("inf")
+                """Upper bound of the area along z, in meters."""
+                self.frame: str = "map"
+                """Frame of the bounds, poses are transformed to the world for ``map``."""
 
         parameters = Parameters()
+        """
+        Default parameters on the class. Each descriptor instance gets its own copy.
+        """
 
     def __init__(
         self,
         name: str = "FilterObjectsByArea",
         descriptor: FilterObjectsByArea.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
-        self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
+        self.rk_logger.debug("%s.__init__()" % self.get_class_name())
 
     def update(self) -> py_trees.common.Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to remove each hypothesis with a pose or
+        position outside of the area.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         cas = self.get_cas()
-        object_hypothesis = cas.filter_annotations_by_type(
+        hypotheses = cas.filter_annotations_by_type(
             robokudo.types.scene.ObjectHypothesis
         )
 
-        for hypothesis in object_hypothesis:
+        for hypothesis in hypotheses:
             for annotation in hypothesis.annotations:
                 if not isinstance(annotation, (PoseAnnotation, PositionAnnotation)):
                     continue
-                # Transform to get unique type
-                pose_map = self.__transform(annotation)
+                pose_map = self._as_pose(annotation)
 
-                # If submitted ares coordinates are in map coordinates, transform PoseAnnotation to map
                 if self.descriptor.parameters.frame == "map":
-                    pose_map = transform_pose_from_camera_to_world(
-                        self.get_cas(), pose_map
-                    )
+                    pose_map = transform_pose_from_camera_to_world(cas, pose_map)
 
-                self.__transform(pose_map)
-
-                # If position is not in area, remove Hypothesis out of cas.
-                if not self.__in_area(pose_map):
+                if not self._in_area(pose_map):
                     cas.annotations.remove(hypothesis)
                     break
         return py_trees.common.Status.SUCCESS
 
-    def __in_area(self, pose: PoseAnnotation) -> bool:
+    def _in_area(self, pose: PoseAnnotation) -> bool:
         """
-        Checks if a submitted PoseAnnotation is in a predefined area.
+        :param pose: The pose to check.
+        :return: Whether the pose lies inside of the area.
         """
-        parameter = self.descriptor.parameters
+        parameters = self.descriptor.parameters
+        x, y, z = pose.translation[:3]
+        return not (
+            parameters.minimum_x > x
+            or x > parameters.maximum_x
+            or parameters.minimum_y > y
+            or y > parameters.maximum_y
+            or parameters.minimum_z > z
+            or z > parameters.maximum_z
+        )
 
-        # Check x coordinate
-        if (
-            parameter.min_x > pose.translation[0]
-            or pose.translation[0] > parameter.max_x
-        ):
-            return False
-        # Check Y coordinate
-        if (
-            parameter.min_y > pose.translation[1]
-            or pose.translation[1] > parameter.max_y
-        ):
-            return False
-        # Check Z coordinate
-        if (
-            parameter.min_z > pose.translation[2]
-            or pose.translation[2] > parameter.max_z
-        ):
-            return False
-        return True
-
-    def __transform(self, pose: object) -> PoseAnnotation:
+    def _as_pose(self, pose: object) -> PoseAnnotation:
         """
-        Convert a position annotation to a pose, or return an existing pose.
+        :param pose: A pose or position annotation.
+        :return: The pose, or a pose at the given position.
+        :raises InvalidAreaPose: If the annotation is neither a pose nor a position.
         """
         if isinstance(pose, PoseAnnotation):
             return pose
         if not isinstance(pose, PositionAnnotation):
             raise InvalidAreaPose(type(pose))
 
-        pos = PoseAnnotation()
-        pos.translation.insert(0, pose.translation[0])
-        pos.translation.insert(1, pose.translation[1])
-        pos.translation.insert(2, pose.translation[2])
-
-        pos.rotation.insert(0, 0)
-        pos.rotation.insert(1, 0)
-        pos.rotation.insert(2, 0)
-        pos.rotation.insert(3, 1)
-        return pos
+        return PoseAnnotation(
+            translation=list(pose.translation[:3]), rotation=[0.0, 0.0, 0.0, 1.0]
+        )

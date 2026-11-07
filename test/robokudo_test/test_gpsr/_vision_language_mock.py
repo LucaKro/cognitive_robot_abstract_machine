@@ -41,6 +41,8 @@ class RecordingVisionLanguageModel:
         """
         Record the conversation and answer it.
 
+        :param messages: The conversation.
+        :param temperature: The sampling temperature, as the real model takes it.
         :return: The answer in the shape llama.cpp returns it.
         """
         self.received_messages.append(messages)
@@ -72,6 +74,7 @@ class ModelLoader:
 
     def __call__(self, **arguments: Any) -> RecordingVisionLanguageModel:
         """
+        :param arguments: The keyword arguments of the load.
         :return: The recording model.
         """
         self.load_arguments.append(arguments)
@@ -92,6 +95,8 @@ class ProjectorLoader:
 
     def __call__(self, clip_model_path: str, verbose: bool) -> str:
         """
+        :param clip_model_path: The path of the projector.
+        :param verbose: Whether to log, as the real loader takes it.
         :return: The projector path, standing in for the loaded handler.
         """
         self.projector_paths.append(clip_model_path)

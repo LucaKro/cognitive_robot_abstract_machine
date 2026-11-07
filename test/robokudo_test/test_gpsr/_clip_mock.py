@@ -40,6 +40,10 @@ class RecordingProcessor:
         """
         Record the crops and prepare them for the model.
 
+        :param text: The texts to score.
+        :param images: The crops of the persons.
+        :param return_tensors: The tensor format, as the real processor takes it.
+        :param padding: Whether to pad, as the real processor takes it.
         :return: The texts and one placeholder pixel row per crop.
         """
         self.received_images.append(list(images))
@@ -100,6 +104,8 @@ class ScoringModel:
         """
         Score every crop against the posture or the gesture texts.
 
+        :param texts: The texts to score.
+        :param pixel_values: One placeholder pixel row per crop.
         :return: Logits that give every crop the chosen probabilities.
         """
         self.call_count += 1
@@ -115,6 +121,7 @@ class ScoringModel:
         self, pixel_values: torch.Tensor
     ) -> BaseModelOutputWithPooling:
         """
+        :param pixel_values: One placeholder pixel row per crop.
         :return: The chosen embedding for every crop.
         """
         return BaseModelOutputWithPooling(
@@ -124,6 +131,7 @@ class ScoringModel:
     @staticmethod
     def seen_probabilities(probabilities: list[float]) -> np.ndarray:
         """
+        :param probabilities: The probabilities of the texts.
         :return: The probabilities as the annotator sees them after normalizing the
             reported logits.
         """
@@ -169,6 +177,7 @@ class PretrainedLoader:
 
     def from_pretrained(self, model_name: str) -> ScoringModel | RecordingProcessor:
         """
+        :param model_name: The name of the requested model.
         :return: The stand-in, whichever model was asked for.
         """
         return self.loaded

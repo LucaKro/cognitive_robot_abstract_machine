@@ -24,8 +24,7 @@ from robokudo.annotators.query import GenerateQueryResult
 
 class Subtree(SubtreeInterface):
     """
-    The door subtree with a detector that searches by text instead of the trained door
-    detector, for handles the trained detector does not know.
+    Finds doors and handles by text and estimates a grasp pose for each handle.
     """
 
     def __init__(
@@ -41,6 +40,9 @@ class Subtree(SubtreeInterface):
         """
 
     def implementation(self, *args: object, **kwargs: object) -> Sequence:
+        """
+        :return: The sequence that finds doors and handles by text and answers with their poses.
+        """
         detector_descriptor = OpenVocabularyObjectDetectionAnnotator.Descriptor()
         detector_descriptor.parameters.classes = [
             DoorObjectClass.DOOR.value,

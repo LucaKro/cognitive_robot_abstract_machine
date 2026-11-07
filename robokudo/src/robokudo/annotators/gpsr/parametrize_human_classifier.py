@@ -4,7 +4,7 @@ Configuration of the face classifier from the stored face images.
 
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import os
 
 import py_trees
@@ -12,9 +12,7 @@ from typing_extensions import TYPE_CHECKING
 import robokudo.annotators.gpsr.face_classification
 
 import robokudo.annotators.core
-import robokudo.utils.annotator_helper
 import robokudo.utils.error_handling
-import robokudo.utils.transform
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -23,7 +21,7 @@ if TYPE_CHECKING:
 # %% classifier configuration
 class ParametrizeHumanClassifyAnnotator(robokudo.annotators.core.BaseAnnotator):
     """
-    Update face classifier parameters from the stored face images.
+    Updates face classifier parameters from the stored face images.
     """
 
     def __init__(
@@ -51,18 +49,21 @@ class ParametrizeHumanClassifyAnnotator(robokudo.annotators.core.BaseAnnotator):
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def update(self) -> py_trees.common.Status:
         """
-        Point the classifier to the images in the directory, labeled by file name.
+        Overrides :meth:`BaseAnnotator.update` to point the classifier to the images in
+        the directory, labeled by file name.
+
+        :return: :attr:`Status.SUCCESS`.
         """
         self.classify_annotator.descriptor.parameters.face_directory = (
             self.face_directory
         )
-        filenames = []
-        classes = []
-        for filename in os.listdir(self.face_directory):
-            filenames.append(filename)
-            class_label = filename.split(".")[0]
-            classes.append(class_label)
-        self.classify_annotator.descriptor.parameters.file_names = filenames
-        self.classify_annotator.descriptor.parameters.labels = classes
+        file_names = []
+        labels = []
+        for file_name in os.listdir(self.face_directory):
+            file_names.append(file_name)
+            class_label = file_name.split(".")[0]
+            labels.append(class_label)
+        self.classify_annotator.descriptor.parameters.file_names = file_names
+        self.classify_annotator.descriptor.parameters.labels = labels
 
         return py_trees.common.Status.SUCCESS

@@ -4,7 +4,7 @@ Tests for reporting errors while storing face images.
 
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import pytest
 from py_trees.common import Status
 from robokudo.annotators.gpsr.exceptions import (
@@ -40,7 +40,7 @@ def test_face_storage_rejects_an_invalid_hypothesis() -> None:
     annotator = StoreFaces()
 
     with pytest.raises(InvalidFaceHypothesis):
-        annotator._check_if_class_exists(object())
+        annotator._has_classification(object())
 
 
 def test_face_storage_reports_exhausted_identifiers(tmp_path: Path) -> None:

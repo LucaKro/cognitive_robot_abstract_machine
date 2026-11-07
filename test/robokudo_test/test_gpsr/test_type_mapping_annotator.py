@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 def test_mapped_type_is_put_first(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    The semantic type of a detected class is placed before that class.
+    """
     annotator = TypeMappingAnnotator()
     scene.place_in_pipeline(annotator)
     detected = Classification(classname="mug_highgrip_blue")
@@ -39,6 +42,9 @@ def test_mapped_type_is_put_first(
 def test_already_mapped_type_is_not_added_twice(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    Already mapped type is not added twice.
+    """
     annotator = TypeMappingAnnotator()
     scene.place_in_pipeline(annotator)
     detected = Classification(classname="mug_highgrip_blue")
@@ -53,6 +59,9 @@ def test_already_mapped_type_is_not_added_twice(
 def test_other_annotations_follow_the_classifications(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    Other annotations move behind the classifications.
+    """
     annotator = TypeMappingAnnotator()
     scene.place_in_pipeline(annotator)
     position = PositionAnnotation(translation=[1.0, 0.0, 2.0])
@@ -70,6 +79,9 @@ def test_other_annotations_follow_the_classifications(
 def test_class_without_mapping_is_left_alone(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    Class without mapping is left alone.
+    """
     annotator = TypeMappingAnnotator()
     scene.place_in_pipeline(annotator)
     detected = Classification(classname="toy_robot")
@@ -83,6 +95,9 @@ def test_class_without_mapping_is_left_alone(
 def test_object_without_classification_is_left_alone(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    Object without classification is left alone.
+    """
     annotator = TypeMappingAnnotator()
     scene.place_in_pipeline(annotator)
     position = PositionAnnotation(translation=[1.0, 0.0, 2.0])
@@ -96,6 +111,9 @@ def test_object_without_classification_is_left_alone(
 def test_only_the_first_classification_is_mapped(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    Only the first classification is mapped.
+    """
     annotator = TypeMappingAnnotator()
     scene.place_in_pipeline(annotator)
     unmapped = Classification(classname="toy_robot")
@@ -110,6 +128,9 @@ def test_only_the_first_classification_is_mapped(
 def test_annotations_outside_of_objects_are_left_alone(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
+    """
+    Annotations outside of objects are left alone.
+    """
     annotator = TypeMappingAnnotator()
     cas = scene.place_in_pipeline(annotator)
     loose_classification = Classification(classname="mug_highgrip_blue")
@@ -123,7 +144,10 @@ def test_annotations_outside_of_objects_are_left_alone(
 def test_without_mapping_file_nothing_is_mapped(
     scene: GpsrScene, semantic_type_mapping: dict[str, str]
 ) -> None:
-    annotator = TypeMappingAnnotator(mapping_filename=GpsrFileName.MISSING_MAPPING)
+    """
+    Without mapping file nothing is mapped.
+    """
+    annotator = TypeMappingAnnotator(mapping_file_name=GpsrFileName.MISSING_MAPPING)
     scene.place_in_pipeline(annotator)
     detected = Classification(classname="mug_highgrip_blue")
     cup = scene.add_object(detected)

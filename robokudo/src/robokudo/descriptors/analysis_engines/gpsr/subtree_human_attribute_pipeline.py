@@ -6,7 +6,6 @@ from __future__ import annotations
 
 # %% Imports
 from py_trees.composites import Sequence
-from typing_extensions import TYPE_CHECKING
 
 from robokudo.analysis_engine import SubtreeInterface
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
@@ -16,8 +15,6 @@ from robokudo.annotators.gpsr.gpsr_results import GenerateVisionLanguageResult
 from robokudo.annotators.gpsr.vision_language_annotator import VisionLanguageAnnotator
 from robokudo.annotators.human_and_pose import HumanAndPoseAnnotator
 
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # %% subtree
 
@@ -32,7 +29,6 @@ class Subtree(SubtreeInterface):
         self,
         question: str | None = None,
         system_prompt: str | None = None,
-        model_directory: Path | None = None,
         *args: object,
         **kwargs: object,
     ) -> None:
@@ -41,7 +37,6 @@ class Subtree(SubtreeInterface):
             default question of the :class:`VisionLanguageAnnotator`.
         :param system_prompt: The instructions given to the model, or *None* for the
             default instructions of the :class:`VisionLanguageAnnotator`.
-        :param model_directory: Directory containing the vision language model.
         """
         super().__init__(*args, **kwargs)
         self.question = question
@@ -52,17 +47,15 @@ class Subtree(SubtreeInterface):
         """
         The instructions given to the model, or *None* for the default instructions.
         """
-        self.model_directory = model_directory
-        """
-        Directory containing the vision language model, if set.
-        """
 
     def implementation(self, *args: object, **kwargs: object) -> Sequence:
+        """
+        :return: The sequence that describes every person and answers with the descriptions.
+        """
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
 
         vision_language_descriptor = VisionLanguageAnnotator.Descriptor()
-        vision_language_descriptor.parameters.model_directory = self.model_directory
         if self.question is not None:
             vision_language_descriptor.parameters.question = self.question
         if self.system_prompt is not None:

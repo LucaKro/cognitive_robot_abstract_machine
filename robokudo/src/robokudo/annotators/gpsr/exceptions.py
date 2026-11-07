@@ -2,7 +2,7 @@
 Exceptions raised by GPSR annotators.
 """
 
-# %% imports
+# %% Imports
 from dataclasses import dataclass
 
 from krrood.exceptions import DataclassException
@@ -91,7 +91,7 @@ class FaceStoragePathMissing(DataclassException):
 @dataclass
 class InvalidFaceHypothesis(DataclassException):
     """
-    A face storage operation received an invalid person hypothesis.
+    A face storage operation received an invalid human hypothesis.
     """
 
     actual_type: type

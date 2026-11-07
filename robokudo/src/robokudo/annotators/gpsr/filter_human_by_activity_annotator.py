@@ -1,3 +1,7 @@
+"""
+Removal of everything but the persons with the queried posture and gesture.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -20,25 +24,31 @@ if TYPE_CHECKING:
 
 class FilterHumanByActivityAnnotator(BaseAnnotator):
     """
-    Keeps only the persons that hold the posture and make the gesture the query asks
-    for.
+    Keeps only the persons with the queried posture and gesture.
 
-    The first attribute of the query is the posture, the second the gesture; an empty or
-    missing attribute does not filter. Both are compared to the activities of a person
-    without regard to letter case or surrounding spaces, and the query word for lying
-    stands for the lying posture. When the query filters, every annotation other than
-    the matching persons is removed from the CAS.
+    The first query attribute is the posture and the second the gesture. An empty or
+    missing attribute does not filter, and letter case and surrounding spaces are
+    ignored. All annotations other than the matching persons are removed from the CAS.
     """
 
     def __init__(self, name: str = "FilterHumanByActivityAnnotator") -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        """
         super().__init__(name=name)
 
     @catch_and_raise_to_blackboard
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to remove everything but the persons with
+        the queried posture and gesture.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         query = self.get_cas().get(CASViews.QUERY)
         attributes = query.obj.attribute
         cas = self.get_cas()
-        matching_humans = []
+        matching_human_hypotheses = []
 
         if len(attributes) > 0:
             posture_filter = attributes[0].strip().lower()
@@ -56,13 +66,13 @@ class FilterHumanByActivityAnnotator(BaseAnnotator):
             self.feedback_message = "No activity filter requested, skipping"
             return Status.SUCCESS
 
-        for human in cas.annotations:
-            if not isinstance(human, HumanHypothesis):
+        for human_hypothesis in cas.annotations:
+            if not isinstance(human_hypothesis, HumanHypothesis):
                 continue
 
             activity_types = {
                 annotation.type.lower()
-                for annotation in human.annotations
+                for annotation in human_hypothesis.annotations
                 if isinstance(annotation, ActivityAnnotation)
             }
 
@@ -77,33 +87,33 @@ class FilterHumanByActivityAnnotator(BaseAnnotator):
                 makes_gesture = gesture_filter in activity_types
 
             if holds_posture and makes_gesture:
-                matching_humans.append(human)
+                matching_human_hypotheses.append(human_hypothesis)
 
-        self._draw_filter_overlay(cas, matching_humans)
-        cas.annotations = matching_humans
+        self._draw_filter_overlay(cas, matching_human_hypotheses)
+        cas.annotations = matching_human_hypotheses
         return Status.SUCCESS
 
     def _draw_filter_overlay(
-        self, cas: CAS, matching_humans: list[HumanHypothesis]
+        self, cas: CAS, matching_human_hypotheses: list[HumanHypothesis]
     ) -> None:
         """
         Draw every person of the CAS into the output image: a green frame for a matching
         person, a red frame over a red veil for a removed one.
 
         :param cas: The CAS whose color image and persons are drawn.
-        :param matching_humans: The persons the filter keeps.
+        :param matching_human_hypotheses: The persons the filter keeps.
         """
         image = cas.get(CASViews.COLOR_IMAGE)
         if image is None:
             return
         image = image.copy()
-        for human in cas.annotations:
-            if not isinstance(human, HumanHypothesis):
+        for human_hypothesis in cas.annotations:
+            if not isinstance(human_hypothesis, HumanHypothesis):
                 continue
-            region = human.roi.roi
+            region = human_hypothesis.roi.roi
             x, y = int(region.pos.x), int(region.pos.y)
             width, height = int(region.width), int(region.height)
-            kept = human in matching_humans
+            kept = human_hypothesis in matching_human_hypotheses
             color = (0, 200, 0) if kept else (0, 0, 255)
             if not kept:
                 overlay = image.copy()

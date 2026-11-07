@@ -71,6 +71,7 @@ class PlacedFaces:
 
     def face_locations(self, image: np.ndarray) -> list[tuple[int, int, int, int]]:
         """
+        :param image: The image to search.
         :return: The placed faces.
         """
         self.searched_image_sizes.append((image.shape[1], image.shape[0]))
@@ -80,6 +81,8 @@ class PlacedFaces:
         self, image: np.ndarray, known_face_locations: list[tuple[int, int, int, int]]
     ) -> list[np.ndarray]:
         """
+        :param image: The image of the faces.
+        :param known_face_locations: The faces to encode.
         :return: The encoding of every given face.
         """
         return [self.encoding for _ in known_face_locations]

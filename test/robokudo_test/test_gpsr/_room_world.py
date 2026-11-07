@@ -47,19 +47,23 @@ class TwoRoomWorld:
             world.add_body(Body(name=PrefixedName("map")))
         with world.modify_world():
             rooms = [
-                self._room(world, self.kitchen_name, x_min=0.0, x_max=4.0),
-                self._room(world, self.office_name, x_min=4.0, x_max=7.0),
+                self._room(world, self.kitchen_name, minimum_x=0.0, maximum_x=4.0),
+                self._room(world, self.office_name, minimum_x=4.0, maximum_x=7.0),
             ]
             world.add_semantic_annotations(rooms)
         return world
 
     @staticmethod
-    def _room(world: World, name: str, x_min: float, x_max: float) -> Room:
+    def _room(world: World, name: str, minimum_x: float, maximum_x: float) -> Room:
         """
-        :return: A room whose floor reaches from *x_min* to *x_max* and from y = 0 to
-            y = 3 m.
+        :param world: The world that receives the room.
+        :param name: The name of the room.
+        :param minimum_x: Where the floor starts along x, in meters.
+        :param maximum_x: Where the floor ends along x, in meters.
+        :return: A room whose floor reaches from *minimum_x* to *maximum_x* and from y =
+            0 to y = 3 m.
         """
-        width = x_max - x_min
+        width = maximum_x - minimum_x
         floor = Floor.create_with_new_body_from_polytope_in_world(
             name=f"{name}_floor",
             world=world,
@@ -70,7 +74,7 @@ class TwoRoomWorld:
                 Point3(width, 0, 0),
             ],
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=x_min + width / 2.0, y=1.5
+                x=minimum_x + width / 2.0, y=1.5
             ),
         )
         return Room(floor=floor, name=PrefixedName(name))

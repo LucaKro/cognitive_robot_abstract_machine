@@ -12,13 +12,16 @@ from py_trees.common import Status
 from robokudo.annotators.gpsr.belief_state import BeliefEntry, EntityType
 from robokudo.annotators.gpsr.gpsr_results import (
     GenerateHumanActivityResult,
-    GenerateHumanPostureResults,
+    GenerateHumanPostureResult,
     GeneratePointingResult,
     GenerateVisionLanguageResult,
     GenerateWavingRaisingResult,
-    camera_header,
+    create_camera_header,
 )
-from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
+from robokudo.annotators.gpsr.human_activity_annotator import (
+    HumanActivityAnnotator,
+    HumanGesture,
+)
 from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
 from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
@@ -31,13 +34,11 @@ from robokudo.utils.type_conversion import (
     get_geometry_msgs_pose_stamped_from_position_annotation,
 )
 from robokudo_msgs.msg import ObjectDesignator
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, Callable
 
 from ._gpsr_scene import GpsrScene
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from robokudo.annotators.core import BaseAnnotator
 
 # %% activities as the annotators report them
@@ -59,6 +60,7 @@ def standing_rule() -> ActivityAnnotation:
 
 def gesture_rule(gesture: str) -> ActivityAnnotation:
     """
+    :param gesture: The gesture.
     :return: A gesture as the waving and arm raising rules report it.
     """
     return ActivityAnnotation(type=gesture, source=HumanWavingAnnotator.__name__)
@@ -66,6 +68,7 @@ def gesture_rule(gesture: str) -> ActivityAnnotation:
 
 def pointing_rule(direction: str) -> ActivityAnnotation:
     """
+    :param direction: The pointing direction.
     :return: A pointing direction as the pointing rules report it.
     """
     return ActivityAnnotation(type=direction, source=HumanPointingAnnotator.__name__)
@@ -73,6 +76,7 @@ def pointing_rule(direction: str) -> ActivityAnnotation:
 
 def vision_language_answer(answer: str) -> ActivityAnnotation:
     """
+    :param answer: The answer of the model.
     :return: An answer as the vision language annotator reports it.
     """
     return ActivityAnnotation(type=answer, source=VisionLanguageAnnotator.__name__)
@@ -105,7 +109,7 @@ class AnsweredQuery:
 
 @pytest.fixture(
     params=[
-        AnsweredQuery(GenerateHumanPostureResults, ["sitting"], sitting_rule),
+        AnsweredQuery(GenerateHumanPostureResult, ["sitting"], sitting_rule),
         AnsweredQuery(
             GenerateWavingRaisingResult, ["waving"], lambda: gesture_rule("waving")
         ),
@@ -115,7 +119,9 @@ class AnsweredQuery:
             lambda: pointing_rule("pointing left"),
         ),
         AnsweredQuery(
-            GenerateHumanActivityResult, [], lambda: GpsrScene.clip_activity("Waving")
+            GenerateHumanActivityResult,
+            [],
+            lambda: GpsrScene.clip_activity(HumanGesture.WAVING),
         ),
         AnsweredQuery(
             GenerateVisionLanguageResult,
@@ -127,7 +133,8 @@ class AnsweredQuery:
 )
 def answered_query(request: pytest.FixtureRequest) -> AnsweredQuery:
     """
-    Each result annotator in turn, with a person it answers the query with.
+    :param request: Holds the result annotator of this run.
+    :return: Each result annotator in turn, with a person it answers the query with.
     """
     return request.param
 
@@ -146,8 +153,8 @@ def test_answered_person_carries_its_belief_id(
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert person.uid == str(belief.id)
+    [object_designator] = scene.sent_answer().res
+    assert object_designator.uid == str(belief.id)
 
 
 def test_answered_person_carries_its_position_in_the_camera_frame(
@@ -163,11 +170,11 @@ def test_answered_person_carries_its_position_in_the_camera_frame(
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    [pose] = person.pose
+    [object_designator] = scene.sent_answer().res
+    [pose] = object_designator.pose
     position = pose.pose.position
     assert (position.x, position.y, position.z) == (1.0, 2.0, 3.0)
-    assert pose.header == camera_header(cas)
+    assert pose.header == create_camera_header(cas)
 
 
 def test_answered_person_preserves_position_order_and_sources(
@@ -187,14 +194,14 @@ def test_answered_person_preserves_position_order_and_sources(
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert person.pose == [
+    [object_designator] = scene.sent_answer().res
+    assert object_designator.pose == [
         get_geometry_msgs_pose_stamped_from_position_annotation(
-            position, camera_header(cas)
+            position, create_camera_header(cas)
         )
         for position in positions
     ]
-    assert person.pose_source == [position.source for position in positions]
+    assert object_designator.pose_source == [position.source for position in positions]
 
 
 def test_answered_person_without_belief_has_empty_id(
@@ -210,8 +217,8 @@ def test_answered_person_without_belief_has_empty_id(
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert person.uid == ObjectDesignator().uid
+    [object_designator] = scene.sent_answer().res
+    assert object_designator.uid == ObjectDesignator().uid
 
 
 # %% camera header
@@ -222,9 +229,9 @@ def test_header_names_the_camera_frame_and_the_image_time(scene: GpsrScene) -> N
     The header identifies the camera frame and image acquisition time.
     """
     scene.timestamp_nanoseconds = 12_000_000_345
-    cas = scene.place_in_pipeline(GenerateHumanPostureResults())
+    cas = scene.place_in_pipeline(GenerateHumanPostureResult())
 
-    header = camera_header(cas)
+    header = create_camera_header(cas)
 
     assert header.frame_id == str(scene.camera_body.name)
     assert (header.stamp.sec, header.stamp.nanosec) == (12, 345)
@@ -239,16 +246,16 @@ def test_person_in_the_queried_posture_is_answered(scene: GpsrScene) -> None:
     """
     scene.query.obj.type = "human"
     scene.query.obj.attribute = ["sitting"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(sitting_rule())
 
     status = annotator.update()
 
     assert status == Status.SUCCESS
-    [person] = scene.sent_answer().res
-    assert person.type == "human"
-    assert list(person.attribute) == ["sitting"]
+    [object_designator] = scene.sent_answer().res
+    assert object_designator.type == "human"
+    assert list(object_designator.attribute) == ["sitting"]
 
 
 def test_person_in_another_posture_is_not_answered(scene: GpsrScene) -> None:
@@ -256,7 +263,7 @@ def test_person_in_another_posture_is_not_answered(scene: GpsrScene) -> None:
     A person with a different posture does not match the query.
     """
     scene.query.obj.attribute = ["sitting"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(standing_rule())
 
@@ -270,7 +277,7 @@ def test_person_with_two_postures_is_undecided(scene: GpsrScene) -> None:
     Conflicting posture annotations do not produce a match.
     """
     scene.query.obj.attribute = ["sitting"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(sitting_rule(), standing_rule())
 
@@ -284,7 +291,7 @@ def test_person_without_posture_is_undecided(scene: GpsrScene) -> None:
     A person without a posture annotation does not match the query.
     """
     scene.query.obj.attribute = ["sitting"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
     scene.add_human()
 
@@ -298,7 +305,7 @@ def test_lying_person_answers_a_laying_query(scene: GpsrScene) -> None:
     Translate the lying annotation to the query's posture word.
     """
     scene.query.obj.attribute = ["laying"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(
         ActivityAnnotation(type="lying", source=HumanLyingAnnotator.__name__)
@@ -306,8 +313,8 @@ def test_lying_person_answers_a_laying_query(scene: GpsrScene) -> None:
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.attribute) == ["laying"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.attribute) == ["laying"]
 
 
 def test_clip_posture_does_not_decide_the_posture(scene: GpsrScene) -> None:
@@ -315,7 +322,7 @@ def test_clip_posture_does_not_decide_the_posture(scene: GpsrScene) -> None:
     A CLIP posture alone does not decide the keypoint posture query.
     """
     scene.query.obj.attribute = ["sitting"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(GpsrScene.clip_activity("sitting"))
 
@@ -329,7 +336,7 @@ def test_nobody_in_the_scene_answers_with_nobody(scene: GpsrScene) -> None:
     An empty scene produces an empty posture answer.
     """
     scene.query.obj.attribute = ["sitting"]
-    annotator = GenerateHumanPostureResults()
+    annotator = GenerateHumanPostureResult()
     scene.place_in_pipeline(annotator)
 
     status = annotator.update()
@@ -354,8 +361,8 @@ def test_person_making_the_queried_gesture_is_answered(scene: GpsrScene) -> None
     status = annotator.update()
 
     assert status == Status.SUCCESS
-    [person] = scene.sent_answer().res
-    assert list(person.description) == ["waving"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.description) == ["waving"]
 
 
 def test_person_making_another_gesture_is_not_answered(scene: GpsrScene) -> None:
@@ -373,6 +380,9 @@ def test_person_making_another_gesture_is_not_answered(scene: GpsrScene) -> None
 
 
 def test_clip_gesture_does_not_answer_a_waving_query(scene: GpsrScene) -> None:
+    """
+    A waving query is not answered by a gesture from CLIP alone.
+    """
     scene.query.obj.attribute = ["waving"]
     annotator = GenerateWavingRaisingResult()
     scene.place_in_pipeline(annotator)
@@ -384,6 +394,9 @@ def test_clip_gesture_does_not_answer_a_waving_query(scene: GpsrScene) -> None:
 
 
 def test_nobody_waving_answers_with_nobody(scene: GpsrScene) -> None:
+    """
+    Nobody waving answers with nobody.
+    """
     scene.query.obj.attribute = ["waving"]
     annotator = GenerateWavingRaisingResult()
     scene.place_in_pipeline(annotator)
@@ -397,6 +410,9 @@ def test_nobody_waving_answers_with_nobody(scene: GpsrScene) -> None:
 
 
 def test_person_pointing_in_the_queried_direction_is_answered(scene: GpsrScene) -> None:
+    """
+    Person pointing in the queried direction is answered.
+    """
     scene.query.obj.type = "human"
     scene.query.obj.attribute = ["pointing left"]
     annotator = GeneratePointingResult()
@@ -406,11 +422,14 @@ def test_person_pointing_in_the_queried_direction_is_answered(scene: GpsrScene) 
     status = annotator.update()
 
     assert status == Status.SUCCESS
-    [person] = scene.sent_answer().res
-    assert list(person.description) == ["Behavior suggests pointing left."]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.description) == ["Behavior suggests pointing left."]
 
 
 def test_person_pointing_in_another_direction_is_not_answered(scene: GpsrScene) -> None:
+    """
+    Person pointing in another direction is not answered.
+    """
     scene.query.obj.attribute = ["pointing right"]
     annotator = GeneratePointingResult()
     scene.place_in_pipeline(annotator)
@@ -422,6 +441,9 @@ def test_person_pointing_in_another_direction_is_not_answered(scene: GpsrScene) 
 
 
 def test_person_pointing_and_doing_more_is_answered(scene: GpsrScene) -> None:
+    """
+    Person pointing and doing more is answered.
+    """
     scene.query.obj.attribute = ["pointing left"]
     annotator = GeneratePointingResult()
     scene.place_in_pipeline(annotator)
@@ -429,14 +451,18 @@ def test_person_pointing_and_doing_more_is_answered(scene: GpsrScene) -> None:
 
     annotator.update()
 
-    assert [list(person.description) for person in scene.sent_answer().res] == [
-        ["Behavior suggests pointing left."]
-    ]
+    assert [
+        list(object_designator.description)
+        for object_designator in scene.sent_answer().res
+    ] == [["Behavior suggests pointing left."]]
 
 
 def test_person_pointing_elsewhere_and_doing_more_is_not_answered(
     scene: GpsrScene,
 ) -> None:
+    """
+    Person pointing elsewhere and doing more is not answered.
+    """
     scene.query.obj.attribute = ["pointing left"]
     annotator = GeneratePointingResult()
     scene.place_in_pipeline(annotator)
@@ -448,6 +474,9 @@ def test_person_pointing_elsewhere_and_doing_more_is_not_answered(
 
 
 def test_nobody_pointing_answers_with_nobody(scene: GpsrScene) -> None:
+    """
+    Nobody pointing answers with nobody.
+    """
     scene.query.obj.attribute = ["pointing left"]
     annotator = GeneratePointingResult()
     scene.place_in_pipeline(annotator)
@@ -462,6 +491,9 @@ def test_nobody_pointing_answers_with_nobody(scene: GpsrScene) -> None:
 
 
 def test_clip_posture_is_answered_as_attribute(scene: GpsrScene) -> None:
+    """
+    CLIP posture is answered as attribute.
+    """
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
     posture = HumanActivityAnnotator.Descriptor.Parameters().posture_labels[0]
@@ -469,80 +501,102 @@ def test_clip_posture_is_answered_as_attribute(scene: GpsrScene) -> None:
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.attribute) == [posture]
-    assert list(person.description) == []
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.attribute) == [posture]
+    assert list(object_designator.description) == []
 
 
 def test_clip_gesture_is_answered_as_description(scene: GpsrScene) -> None:
+    """
+    CLIP gesture is answered as description.
+    """
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
-    scene.add_human(GpsrScene.clip_activity("Waving"))
+    scene.add_human(GpsrScene.clip_activity(HumanGesture.WAVING))
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.description) == ["Waving"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.description) == [HumanGesture.WAVING]
 
 
 def test_pointing_direction_replaces_the_clip_pointing(scene: GpsrScene) -> None:
-    annotator = GenerateHumanActivityResult()
-    scene.place_in_pipeline(annotator)
-    scene.add_human(GpsrScene.clip_activity("Pointing"), pointing_rule("pointing left"))
-
-    annotator.update()
-
-    [person] = scene.sent_answer().res
-    assert list(person.description) == ["pointing left"]
-
-
-def test_skeleton_gesture_replaces_the_clip_no_gesture(scene: GpsrScene) -> None:
+    """
+    The direction from the pointing rule replaces the plain CLIP pointing.
+    """
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(
-        GpsrScene.clip_activity("No gesture"), gesture_rule("raising left arm")
+        GpsrScene.clip_activity(HumanGesture.POINTING), pointing_rule("pointing left")
     )
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.description) == ["raising left arm"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.description) == ["pointing left"]
 
 
-def test_clip_no_gesture_is_answered_without_skeleton_gesture(scene: GpsrScene) -> None:
+def test_skeleton_gesture_replaces_the_clip_no_gesture(scene: GpsrScene) -> None:
+    """
+    A gesture from the keypoint rules replaces the CLIP no gesture.
+    """
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
-    scene.add_human(GpsrScene.clip_activity("No gesture"))
+    scene.add_human(
+        GpsrScene.clip_activity(HumanGesture.NONE), gesture_rule("raising left arm")
+    )
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.description) == ["No gesture"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.description) == ["raising left arm"]
+
+
+def test_clip_no_gesture_is_answered_without_skeleton_gesture(scene: GpsrScene) -> None:
+    """
+    Without a gesture from the keypoint rules, the CLIP no gesture is answered.
+    """
+    annotator = GenerateHumanActivityResult()
+    scene.place_in_pipeline(annotator)
+    scene.add_human(GpsrScene.clip_activity(HumanGesture.NONE))
+
+    annotator.update()
+
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.description) == [HumanGesture.NONE]
 
 
 def test_activity_result_answers_only_persons_in_the_queried_room(
     scene: GpsrScene,
 ) -> None:
+    """
+    Activity result answers only persons in the queried room.
+    """
     scene.query.obj.location = "iai_kitchen"
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
     in_the_room = BeliefEntry(1, EntityType.PERSON, "human")
     scene.add_human(
-        GpsrScene.clip_activity("Waving"),
+        GpsrScene.clip_activity(HumanGesture.WAVING),
         LocationAnnotation(name=scene.query.obj.location),
         in_the_room,
     )
     scene.add_human(
-        GpsrScene.clip_activity("Waving"), LocationAnnotation(name="office")
+        GpsrScene.clip_activity(HumanGesture.WAVING), LocationAnnotation(name="office")
     )
-    scene.add_human(GpsrScene.clip_activity("Waving"))
+    scene.add_human(GpsrScene.clip_activity(HumanGesture.WAVING))
 
     annotator.update()
 
-    assert [person.uid for person in scene.sent_answer().res] == [str(in_the_room.id)]
+    assert [object_designator.uid for object_designator in scene.sent_answer().res] == [
+        str(in_the_room.id)
+    ]
 
 
 def test_person_without_activity_is_not_answered(scene: GpsrScene) -> None:
+    """
+    Person without activity is not answered.
+    """
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(standing_rule())
@@ -553,6 +607,9 @@ def test_person_without_activity_is_not_answered(scene: GpsrScene) -> None:
 
 
 def test_nobody_active_answers_with_nobody(scene: GpsrScene) -> None:
+    """
+    Nobody active answers with nobody.
+    """
     annotator = GenerateHumanActivityResult()
     scene.place_in_pipeline(annotator)
 
@@ -566,22 +623,28 @@ def test_nobody_active_answers_with_nobody(scene: GpsrScene) -> None:
 
 
 def test_vision_language_answer_is_split_into_attributes(scene: GpsrScene) -> None:
+    """
+    Vision language answer is split into attributes.
+    """
     annotator = GenerateVisionLanguageResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(vision_language_answer("blue jeans, white t-shirt,"))
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.attribute) == ["blue jeans", "white t-shirt"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.attribute) == ["blue jeans", "white t-shirt"]
 
 
 def test_person_without_vision_language_answer_is_not_answered(
     scene: GpsrScene,
 ) -> None:
+    """
+    Person without vision language answer is not answered.
+    """
     annotator = GenerateVisionLanguageResult()
     scene.place_in_pipeline(annotator)
-    scene.add_human(GpsrScene.clip_activity("Waving"))
+    scene.add_human(GpsrScene.clip_activity(HumanGesture.WAVING))
 
     annotator.update()
 
@@ -589,6 +652,9 @@ def test_person_without_vision_language_answer_is_not_answered(
 
 
 def test_nobody_described_answers_with_nobody(scene: GpsrScene) -> None:
+    """
+    Nobody described answers with nobody.
+    """
     annotator = GenerateVisionLanguageResult()
     scene.place_in_pipeline(annotator)
 
@@ -601,11 +667,14 @@ def test_nobody_described_answers_with_nobody(scene: GpsrScene) -> None:
 def test_brackets_around_the_vision_language_answer_are_dropped(
     scene: GpsrScene,
 ) -> None:
+    """
+    Brackets around the vision language answer are dropped.
+    """
     annotator = GenerateVisionLanguageResult()
     scene.place_in_pipeline(annotator)
     scene.add_human(vision_language_answer("[gray shirt, black shoes]"))
 
     annotator.update()
 
-    [person] = scene.sent_answer().res
-    assert list(person.attribute) == ["gray shirt", "black shoes"]
+    [object_designator] = scene.sent_answer().res
+    assert list(object_designator.attribute) == ["gray shirt", "black shoes"]

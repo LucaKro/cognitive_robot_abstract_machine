@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 
 
 def test_a_human_in_the_cas_lets_the_pipeline_go_on(scene: GpsrScene) -> None:
+    """
+    A human in the CAS lets the pipeline go on.
+    """
     annotator = CheckForHumanHypothesis()
     scene.place_in_pipeline(annotator)
     scene.add_human()
@@ -29,6 +32,9 @@ def test_a_human_in_the_cas_lets_the_pipeline_go_on(scene: GpsrScene) -> None:
 
 
 def test_a_human_among_objects_lets_the_pipeline_go_on(scene: GpsrScene) -> None:
+    """
+    A human among objects lets the pipeline go on.
+    """
     annotator = CheckForHumanHypothesis()
     scene.place_in_pipeline(annotator)
     scene.add_object(Classification(classname="cup"))
@@ -45,6 +51,10 @@ def test_a_human_among_objects_lets_the_pipeline_go_on(scene: GpsrScene) -> None
 def test_only_objects_in_the_cas_answer_with_nobody_and_stop_the_pipeline(
     scene: GpsrScene,
 ) -> None:
+    """
+    With only objects in the CAS, the query is answered with nobody and the pipeline
+    stops.
+    """
     annotator = CheckForHumanHypothesis()
     scene.place_in_pipeline(annotator)
     scene.add_object(Classification(classname="cup"))
@@ -59,6 +69,9 @@ def test_only_objects_in_the_cas_answer_with_nobody_and_stop_the_pipeline(
 def test_an_empty_cas_answers_with_nobody_and_stops_the_pipeline(
     scene: GpsrScene,
 ) -> None:
+    """
+    With an empty CAS, the query is answered with nobody and the pipeline stops.
+    """
     annotator = CheckForHumanHypothesis()
     scene.place_in_pipeline(annotator)
 

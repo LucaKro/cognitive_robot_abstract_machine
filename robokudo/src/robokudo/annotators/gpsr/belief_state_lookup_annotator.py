@@ -1,3 +1,7 @@
+"""
+Answers to recall queries about remembered persons and objects.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -17,26 +21,29 @@ from robokudo.utils.query import QueryHandler
 
 class BeliefStateLookupAnnotator(BaseAnnotator):
     """
-    Answers a recall query with remembered persons and objects, as JSON in the text
-    result of the answer.
+    Answers a recall query in the text result with one JSON object, a list, or an error.
 
-    - With a ``uid``, the answer is the entry with that id.
-    - With a description, the answer is every person for "human" or "person", and
-      otherwise the entries whose class, detector label or semantic label is the
-      description, tried in that order.
-    - Without either, the answer is every entry.
-
-    A single entry is answered as one JSON object, several as a list. When nothing
-    matches, the answer is an error object.
+    A query uid selects that entry. The description "human" or "person" selects all
+    persons. Any other description selects entries by class, else by detector label,
+    else by semantic label. With neither uid nor description, every entry is answered.
     """
 
     def __init__(
         self, name: str = "BeliefStateLookupAnnotator", *args: Any, **kwargs: Any
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        """
         super().__init__(*args, **kwargs)
         self.name = name
 
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to send the entries matching the query as
+        the answer.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         query = self.get_cas().get(CASViews.QUERY)
         uid = query.obj.uid.strip()
         result = Query.Result()
@@ -57,7 +64,7 @@ class BeliefStateLookupAnnotator(BaseAnnotator):
             except ValueError:
                 entries = []
         elif category in ("human", "person"):
-            entries = list(state.persons())
+            entries = list(state.find_persons())
         elif category:
             entries = (
                 state.find_by_classname(category)

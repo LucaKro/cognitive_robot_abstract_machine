@@ -2,7 +2,7 @@
 Directions relative to furniture.
 """
 
-# %% imports
+# %% Imports
 from enum import StrEnum
 
 
@@ -13,6 +13,21 @@ class FurnitureDirection(StrEnum):
     """
 
     LEFT = "left"
+    """
+    Left of the furniture, seen from the robot.
+    """
+
     RIGHT = "right"
+    """
+    Right of the furniture, seen from the robot.
+    """
+
     FRONT = "front"
+    """
+    In front of the furniture, seen from the robot.
+    """
+
     BACK = "back"
+    """
+    Behind the furniture, seen from the robot.
+    """

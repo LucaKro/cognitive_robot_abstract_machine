@@ -1,10 +1,10 @@
 """
-Detection of faces in the color image, each turned into a person hypothesis.
+Detection of faces in the color image, each turned into a human hypothesis.
 """
 
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import copy
 from timeit import default_timer
 
@@ -14,9 +14,7 @@ import numpy as np
 import open3d as o3d
 import py_trees
 
-import robokudo
 import robokudo.annotators.core
-import robokudo.types.annotation
 import robokudo.types.human
 import robokudo.types.scene
 import robokudo.utils.annotator_helper
@@ -34,10 +32,7 @@ from robokudo.annotators.gpsr.exceptions import (
 # %% face detection
 class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
     """
-    Detect faces in 2D images.
-
-    This annotator is not provided labels/classes/identification. Based on
-    face_recognition library.
+    Detects faces in the color image with the face_recognition library, without identifying them.
     """
 
     class Descriptor(robokudo.annotators.core.BaseAnnotator.Descriptor):
@@ -64,6 +59,9 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         parameters = (
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
+        """
+        Default parameters on the class. Each descriptor instance gets its own copy.
+        """
 
     def __init__(
         self,
@@ -75,13 +73,15 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         :param descriptor: Configuration of this annotator.
         """
         super().__init__(name, descriptor)
-        self.rk_logger.debug("%s.__init__()" % self.__class__.__name__)
+        self.rk_logger.debug("%s.__init__()" % self.get_class_name())
 
     @robokudo.utils.error_handling.catch_and_raise_to_blackboard
     def compute(self) -> py_trees.common.Status:
         """
-        Add a person hypothesis to the CAS for each face in the color image.
+        Overrides :meth:`ThreadedAnnotator.compute` to add a human hypothesis to the CAS
+        for each face in the color image.
 
+        :return: :attr:`Status.SUCCESS`.
         :raises FaceImageScalingFailed: If the color image cannot be scaled to the depth
             image.
         :raises UnequalColorDepthRatios: If the ratios differ between image axes.
@@ -91,7 +91,6 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
 
         if self.descriptor.parameters.with_point_generation:
-            # Scale the color image down so that it matches the depth image size
             self.depth = self.get_cas().get(CASViews.DEPTH_IMAGE)
             resized_color = None
             try:
@@ -109,7 +108,6 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
         else:
             resized_color = self.color
 
-        # Downsample camera image before face recognition, if necessary
         color_downsampled = cv2.resize(
             resized_color,
             (0, 0),
@@ -117,15 +115,12 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
             fy=self.descriptor.parameters.scale_factor,
         )
 
-        # Actual face detection
         face_locations = face_recognition.face_locations(color_downsampled)
 
-        # Create visualization Output and ObjectHypotheses
         visualization_image = copy.deepcopy(self.color)
         visualization_clouds = []
-        object_hypotheses = []
+        human_hypotheses = []
 
-        # Each detected face will be considered as an Object Detection for now
         face_index = 0
         for top, right, bottom, left in face_locations:
             original_face_location = (
@@ -133,7 +128,7 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 right,
                 bottom,
                 left,
-            )  # store for face encoding computation later on
+            )
 
             # If the color image has been resized to match it with depth data, respect this scaling
             if self.descriptor.parameters.with_point_generation:
@@ -153,15 +148,13 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
             bottom *= 1 / self.descriptor.parameters.scale_factor
             left *= 1 / self.descriptor.parameters.scale_factor
 
-            # Create object hypothesis and add it to the CAS
             # TODO This should be a Parameter in the future to allow other human detectors to generate
-            #      the first hypothesis OR generate two hypotheses and merge them later.
+            #      the first hypothesis or generate two hypotheses and merge them later.
             human_hypothesis = robokudo.types.scene.HumanHypothesis()
             human_hypothesis.id = face_index
             human_hypothesis.source = self.name
             face_annotation = robokudo.types.human.FaceAnnotation()
 
-            # Actual 3D Point generation for face
             if self.descriptor.parameters.with_point_generation:
                 face_mask = np.zeros_like(self.depth, dtype=np.uint8)
                 cv2.rectangle(
@@ -179,14 +172,12 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
                 )
                 color_rgb = cv2.cvtColor(resized_color, cv2.COLOR_BGR2RGB)
                 depth_masked = copy.deepcopy(self.depth)
-                depth_masked = np.where(
-                    face_mask == 255, depth_masked, 0
-                )  # mask all depth values
+                depth_masked = np.where(face_mask == 255, depth_masked, 0)
 
                 color_image = o3d.geometry.Image(color_rgb)
                 depth_image = o3d.geometry.Image(
                     depth_masked
-                )  # Please note that depth values should be in mm
+                )  # depth values in millimeters
                 rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
                     color_image,
                     depth_image,
@@ -209,28 +200,26 @@ class FaceDetector(robokudo.annotators.core.ThreadedAnnotator):
             face_annotation.roi = human_hypothesis.roi
             human_hypothesis.annotations.append(face_annotation)
 
-            # Generate an encoding for the detected face if desired
-            # The encoding will be used by a classifier to recognize pre-trained people
             if self.descriptor.parameters.generate_encodings:
-                person_encoding = face_recognition.face_encodings(
+                face_encoding = face_recognition.face_encodings(
                     color_downsampled, known_face_locations=[original_face_location]
                 )
                 encoding_annotation = Encoding()
-                encoding_annotation.encoding = person_encoding
+                encoding_annotation.encoding = face_encoding
                 encoding_annotation.source = self.name
                 human_hypothesis.annotations.append(encoding_annotation)
 
-            object_hypotheses.append(human_hypothesis)
+            human_hypotheses.append(human_hypothesis)
             self.get_cas().annotations.append(human_hypothesis)
             face_index += 1
 
-        # 2D Visualization
         robokudo.utils.annotator_helper.draw_bounding_boxes_from_object_hypotheses(
-            visualization_image, object_hypotheses, lambda person: f"Face-{person.id}"
+            visualization_image,
+            human_hypotheses,
+            lambda human_hypothesis: f"Face-{human_hypothesis.id}",
         )
         self.get_annotator_output_struct().set_image(visualization_image)
 
-        # 3D Visualization
         if self.descriptor.parameters.with_point_generation:
             if len(visualization_clouds) > 0:
                 visualization_cloud = robokudo.utils.o3d_helper.concatenate_clouds(

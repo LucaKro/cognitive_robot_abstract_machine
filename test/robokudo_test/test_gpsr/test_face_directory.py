@@ -4,7 +4,7 @@ Tests for using a local directory for GPSR face images.
 
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 from unittest.mock import Mock
 from pathlib import Path
 
@@ -21,10 +21,11 @@ from robokudo.annotators.gpsr.parametrize_human_classifier import (
     ParametrizeHumanClassifyAnnotator,
 )
 from robokudo.annotators.gpsr.store_unknown_faces import StoreFaces
-from robokudo.descriptors.analysis_engines.gpsr.subtree_faces import Subtree
+from robokudo.descriptors.analysis_engines.gpsr.subtree_faces import (
+    Subtree as FaceSubtree,
+)
 from robokudo.types.annotation import Classification
 from robokudo.types.human import FaceAnnotation
-from robokudo.utils.file_loader import FileLoader
 from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -93,14 +94,16 @@ def test_new_face_is_saved_to_the_local_directory(
     annotator = StoreFaces(descriptor=descriptor)
     scene.place_in_pipeline(annotator)
     face = FaceAnnotation()
-    person = scene.add_human(face)
-    face.roi = person.roi
+    human_hypothesis = scene.add_human(face)
+    face.roi = human_hypothesis.roi
 
     status = annotator.compute()
 
     assert status == Status.SUCCESS
     assert (tmp_path / "0.png").is_file()
-    [classification] = scene.cas.filter_by_type(Classification, person.annotations)
+    [classification] = scene.cas.filter_by_type(
+        Classification, human_hypothesis.annotations
+    )
     assert classification.classname == "0"
 
 
@@ -134,7 +137,7 @@ def test_face_subtree_creates_and_shares_the_local_directory(tmp_path: Path) -> 
     """
     face_directory = tmp_path / "faces"
 
-    tree = Subtree(face_directory=face_directory).implementation()
+    tree = FaceSubtree(face_directory=face_directory).implementation()
 
     [classifier] = [
         child for child in tree.children if isinstance(child, FaceClassification)
@@ -159,27 +162,9 @@ def test_face_subtree_uses_local_share_by_default(
     """
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
-    tree = Subtree().implementation()
+    tree = FaceSubtree().implementation()
 
     [storage] = [child for child in tree.children if isinstance(child, StoreFaces)]
     assert storage.descriptor.parameters.face_directory == (
         tmp_path / ".local" / "share" / "robokudo" / "faces"
     )
-
-
-def test_face_subtree_accepts_a_ros_package(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """
-    Keep face images in the specified ROS package when one is provided.
-    """
-    monkeypatch.setattr(
-        FileLoader,
-        "get_path_to_file_in_ros_package",
-        Mock(return_value=tmp_path / "package.xml"),
-    )
-
-    tree = Subtree(ros_pkg_path="face_package").implementation()
-
-    [storage] = [child for child in tree.children if isinstance(child, StoreFaces)]
-    assert storage.descriptor.parameters.face_directory == tmp_path / "faces"

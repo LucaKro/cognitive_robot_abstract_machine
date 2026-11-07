@@ -8,6 +8,7 @@ from __future__ import annotations
 # %% Imports
 import pytest
 from py_trees.common import Status
+from robokudo.annotators.gpsr.human_activity_annotator import HumanGesture
 from robokudo.annotators.gpsr.waving import HumanWavingAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
 
@@ -28,6 +29,9 @@ def offset_above(
     annotator: HumanWavingAnnotator, posture: BodyPosture, side: BodySide
 ) -> float:
     """
+    :param annotator: The waving rule.
+    :param posture: The posture of the person.
+    :param side: The side of the wrist.
     :return: How far a wrist has to be above eye or shoulder level to count, in pixels.
     """
     shoulder = posture.keypoints[side.shoulder]
@@ -39,6 +43,8 @@ def wrist_above_the_eyes(
     annotator: HumanWavingAnnotator, side: BodySide
 ) -> BodyPosture:
     """
+    :param annotator: The waving rule.
+    :param side: The side of the wrist.
     :return: A standing person holding one wrist above eye level.
     """
     standing = BodyPosture.standing()
@@ -52,6 +58,8 @@ def wrist_above_the_shoulder(
     annotator: HumanWavingAnnotator, side: BodySide
 ) -> BodyPosture:
     """
+    :param annotator: The waving rule.
+    :param side: The side of the wrist.
     :return: A standing person holding one wrist above the shoulder but below the eyes.
     """
     standing = BodyPosture.standing()
@@ -67,6 +75,9 @@ def wrist_above_the_shoulder(
 def test_left_wrist_above_the_eyes_waves_and_raises_the_left_arm(
     scene: GpsrScene,
 ) -> None:
+    """
+    Left wrist above the eyes waves and raises the left arm.
+    """
     annotator = waving_annotator()
     posture = wrist_above_the_eyes(annotator, BodySide.LEFT)
 
@@ -79,6 +90,9 @@ def test_left_wrist_above_the_eyes_waves_and_raises_the_left_arm(
 def test_right_wrist_above_the_eyes_waves_and_raises_the_right_arm(
     scene: GpsrScene,
 ) -> None:
+    """
+    Right wrist above the eyes waves and raises the right arm.
+    """
     annotator = waving_annotator()
     posture = wrist_above_the_eyes(annotator, BodySide.RIGHT)
 
@@ -96,6 +110,9 @@ def test_right_wrist_above_the_eyes_waves_and_raises_the_right_arm(
 def test_wrist_exactly_at_the_waving_height_does_not_wave(
     scene: GpsrScene, side: BodySide, raised_arm: str
 ) -> None:
+    """
+    Wrist exactly at the waving height does not wave.
+    """
     annotator = waving_annotator()
     standing = BodyPosture.standing()
     eye_y = standing.keypoints[side.eye].y
@@ -112,6 +129,9 @@ def test_wrist_exactly_at_the_waving_height_does_not_wave(
 
 
 def test_left_wrist_above_the_shoulder_raises_the_left_arm(scene: GpsrScene) -> None:
+    """
+    Left wrist above the shoulder raises the left arm.
+    """
     annotator = waving_annotator()
     posture = wrist_above_the_shoulder(annotator, BodySide.LEFT)
 
@@ -121,6 +141,9 @@ def test_left_wrist_above_the_shoulder_raises_the_left_arm(scene: GpsrScene) -> 
 
 
 def test_right_wrist_above_the_shoulder_raises_the_right_arm(scene: GpsrScene) -> None:
+    """
+    Right wrist above the shoulder raises the right arm.
+    """
     annotator = waving_annotator()
     posture = wrist_above_the_shoulder(annotator, BodySide.RIGHT)
 
@@ -130,6 +153,9 @@ def test_right_wrist_above_the_shoulder_raises_the_right_arm(scene: GpsrScene) -
 
 
 def test_both_arms_raised_reports_only_the_left_arm(scene: GpsrScene) -> None:
+    """
+    Both arms raised reports only the left arm.
+    """
     annotator = waving_annotator()
     left_raised = wrist_above_the_shoulder(annotator, BodySide.LEFT)
     right_wrist_y = (
@@ -148,6 +174,9 @@ def test_both_arms_raised_reports_only_the_left_arm(scene: GpsrScene) -> None:
 def test_wrist_exactly_at_the_raising_height_does_not_raise(
     scene: GpsrScene, side: BodySide
 ) -> None:
+    """
+    Wrist exactly at the raising height does not raise.
+    """
     annotator = waving_annotator()
     standing = BodyPosture.standing()
     shoulder_y = standing.keypoints[side.shoulder].y
@@ -159,6 +188,9 @@ def test_wrist_exactly_at_the_raising_height_does_not_raise(
 
 
 def test_arms_down_make_no_gesture(scene: GpsrScene) -> None:
+    """
+    Arms down make no gesture.
+    """
     assert (
         scene.decide_activities(
             waving_annotator(), BodyPosture.standing().keypoint_annotation()
@@ -168,6 +200,9 @@ def test_arms_down_make_no_gesture(scene: GpsrScene) -> None:
 
 
 def test_wrist_at_the_confidence_threshold_makes_no_gesture(scene: GpsrScene) -> None:
+    """
+    Wrist at the confidence threshold makes no gesture.
+    """
     annotator = waving_annotator()
     threshold = annotator.descriptor.parameters.keypoint_confidence_threshold
     posture = wrist_above_the_eyes(annotator, BodySide.LEFT).with_confidence(
@@ -181,28 +216,34 @@ def test_wrist_at_the_confidence_threshold_makes_no_gesture(scene: GpsrScene) ->
 
 
 def test_person_without_keypoints_is_skipped(scene: GpsrScene) -> None:
+    """
+    Person without keypoints is skipped.
+    """
     annotator = waving_annotator()
     scene.place_in_pipeline(annotator)
-    person = scene.add_human()
+    human_hypothesis = scene.add_human()
 
     status = annotator.update()
 
     assert status == Status.SUCCESS
-    assert scene.activities_of(person, HumanWavingAnnotator) == []
+    assert scene.activities_of(human_hypothesis, HumanWavingAnnotator) == []
 
 
 def test_activity_check_decides_only_persons_without_gesture(scene: GpsrScene) -> None:
+    """
+    With the activity check, only persons tagged no gesture are decided.
+    """
     annotator = waving_annotator()
     annotator.descriptor.parameters.check_activity = True
     scene.place_in_pipeline(annotator)
     raising = wrist_above_the_shoulder(annotator, BodySide.LEFT).keypoint_annotation()
     without_gesture = scene.add_human(
         raising,
-        GpsrScene.clip_activity("No gesture"),
+        GpsrScene.clip_activity(HumanGesture.NONE),
     )
     already_pointing = scene.add_human(
         wrist_above_the_shoulder(annotator, BodySide.LEFT).keypoint_annotation(),
-        GpsrScene.clip_activity("Pointing"),
+        GpsrScene.clip_activity(HumanGesture.POINTING),
     )
 
     annotator.update()
@@ -216,14 +257,17 @@ def test_activity_check_decides_only_persons_without_gesture(scene: GpsrScene) -
 def test_activity_check_without_persons_without_gesture_decides_nobody(
     scene: GpsrScene,
 ) -> None:
+    """
+    With the activity check, a person without a no gesture tag is not decided.
+    """
     annotator = waving_annotator()
     annotator.descriptor.parameters.check_activity = True
     scene.place_in_pipeline(annotator)
-    person = scene.add_human(
+    human_hypothesis = scene.add_human(
         wrist_above_the_shoulder(annotator, BodySide.LEFT).keypoint_annotation()
     )
 
     status = annotator.update()
 
     assert status == Status.SUCCESS
-    assert scene.activities_of(person, HumanWavingAnnotator) == []
+    assert scene.activities_of(human_hypothesis, HumanWavingAnnotator) == []

@@ -1,17 +1,21 @@
+"""
+Check that stops a human pipeline with an empty answer when no human was detected.
+"""
+
 from __future__ import annotations
 
 # %% Imports
 from py_trees.common import Status
 from robokudo_msgs.action import Query
 
-from robokudo.annotators.core import BaseAnnotator
+from robokudo.annotators.cas_check import CASCheckAnnotationTypeExists
 from robokudo.types.scene import HumanHypothesis
 from robokudo.utils.query import QueryHandler
 
 # %% human check
 
 
-class CheckForHumanHypothesis(BaseAnnotator):
+class CheckForHumanHypothesis(CASCheckAnnotationTypeExists):
     """
     Checks whether the CAS holds a :class:`HumanHypothesis`.
 
@@ -19,13 +23,20 @@ class CheckForHumanHypothesis(BaseAnnotator):
     """
 
     def __init__(self, name: str = "CheckForHumanHypothesis") -> None:
-        super().__init__(name=name)
+        """
+        :param name: Name of this annotator in the tree.
+        """
+        super().__init__(name=name, annotation_type=HumanHypothesis)
 
     def update(self) -> Status:
-        annotations = self.get_cas().annotations
-        for annotation in annotations:
-            if isinstance(annotation, HumanHypothesis):
-                return Status.SUCCESS
-        QueryHandler.send_answer(Query.Result())
-        self.feedback_message = "No human detected, answered with nobody"
-        return Status.FAILURE
+        """
+        Extends :meth:`CASCheckFunc.update` by answering the query when no human exists.
+
+        :return: :attr:`Status.SUCCESS` if a human exists, otherwise
+            :attr:`Status.FAILURE`.
+        """
+        status = super().update()
+        if status == Status.FAILURE:
+            QueryHandler.send_answer(Query.Result())
+            self.feedback_message = "No human detected, answered with nobody"
+        return status

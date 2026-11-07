@@ -1,6 +1,10 @@
+"""
+The GPSR subtree that finds the persons in the queried room.
+"""
+
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
@@ -21,7 +25,7 @@ from robokudo.annotators.gpsr.generate_all_annotations import GenerateAllQueryRe
 # %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
     """
-    Find people in the queried room, optionally by activity.
+    Finds persons in the queried room, optionally by activity.
     """
 
     def __init__(
@@ -37,16 +41,20 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     def implementation(
         self, name: str | None = None, *args: object, **kwargs: object
     ) -> py_trees.composites.Sequence:
+        """
+        :param name: Name of this subtree.
+        :return: The sequence that answers with the persons in the queried room.
+        """
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
         if self.with_activity:
             human_descriptor.parameters.generate_clouds_for_keypoints = True
 
-        filter_region_descriptor = FilterObjectsByRegion.Descriptor()
+        filter_room_descriptor = FilterObjectsByRegion.Descriptor()
 
-        seq = py_trees.composites.Sequence("subtree_human_in_room", memory=True)
-        seq.add_child(HumanAndPoseAnnotator(descriptor=human_descriptor))
-        seq.add_child(CheckForHumanHypothesis())
+        sequence = py_trees.composites.Sequence("subtree_human_in_room", memory=True)
+        sequence.add_child(HumanAndPoseAnnotator(descriptor=human_descriptor))
+        sequence.add_child(CheckForHumanHypothesis())
 
         if self.with_activity:
             waving_descriptor = HumanWavingAnnotator.Descriptor()
@@ -55,28 +63,28 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
             pointing_descriptor = HumanPointingAnnotator.Descriptor()
             pointing_descriptor.parameters.pointing_length_meters = 5
             pointing_descriptor.parameters.known = True
-            pointing_descriptor.parameters.min_arm_extension = 0.25
+            pointing_descriptor.parameters.minimum_arm_extension = 0.25
 
-            seq.add_children(
+            sequence.add_children(
                 [
                     HumanActivityAnnotator(),
                     ClusterPositionAnnotator(),
                     HumanWavingAnnotator(descriptor=waving_descriptor),
                     HumanPointingAnnotator(descriptor=pointing_descriptor),
-                    FilterObjectsByRegion(descriptor=filter_region_descriptor),
+                    FilterObjectsByRegion(descriptor=filter_room_descriptor),
                     BeliefStateAnnotator(),
                     FilterHumanByActivityAnnotator(),
                     GenerateHumanActivityResult(),
                 ]
             )
         else:
-            seq.add_children(
+            sequence.add_children(
                 [
                     ClusterPositionAnnotator(),
-                    FilterObjectsByRegion(descriptor=filter_region_descriptor),
+                    FilterObjectsByRegion(descriptor=filter_room_descriptor),
                     BeliefStateAnnotator(),
                     GenerateAllQueryResult(),
                 ]
             )
 
-        return seq
+        return sequence

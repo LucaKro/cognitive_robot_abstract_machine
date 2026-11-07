@@ -4,7 +4,7 @@ Tests for GPSR annotator configuration.
 
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import pytest
 from robokudo.annotators.gpsr.filter_objects_by_area import FilterObjectsByArea
 from robokudo.annotators.gpsr.lying import HumanLyingAnnotator

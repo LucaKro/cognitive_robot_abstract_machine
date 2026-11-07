@@ -6,8 +6,10 @@ from __future__ import annotations
 
 # %% Imports
 import pytest
+from ament_index_python.packages import get_packages_with_prefixes
 from py_trees.behaviours import Success
 from robokudo.annotators.gpsr.pointing import HumanPointingAnnotator
+from robokudo.annotators.gpsr.vision_language_annotator import VisionLanguageAnnotator
 from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
     AnalysisEngine,
     GpsrRoute,
@@ -15,15 +17,13 @@ from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
 from robokudo.descriptors.analysis_engines.gpsr.subtree_human_near_object import (
     Furniture,
 )
-from robokudo.tree_components.query_based_task_scheduler import QueryBasedScheduler
-from robokudo_msgs.action import Query
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, Iterator
 
 from ._gpsr_routing import gpsr_query, scheduler_of
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
+    from robokudo_msgs.action import Query
+    from robokudo.tree_components.query_based_task_scheduler import QueryBasedScheduler
     from py_trees.behaviour import Behaviour
     from rclpy.node import Node
 
@@ -33,9 +33,9 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def ported_routes() -> list[str]:
+def gpsr_routes() -> list[str]:
     """
-    The routes of the GPSR perception ported to CRAM so far.
+    :return: The routes of the GPSR tree.
     """
     return [
         GpsrRoute.HUMAN_ATTRIBUTE.value,
@@ -66,17 +66,22 @@ def real_gpsr_tree(
     node: Node, scoring_clip: ScoringModelAndProcessor
 ) -> Iterator[Behaviour]:
     """
-    The whole GPSR tree with its real subtrees, built with the CLIP stand-in, whose
-    pointing nodes are destroyed after the test.
+    The whole GPSR tree with its real subtrees, built with the CLIP stand-in.
+
+    Its pointing nodes are destroyed after the test.
 
     .. note::
-        The real subtrees load detector weights from the configured model directory, so
-        the test is skipped where those files are not installed, as in CI.
+        The real subtrees load detector weights from their ROS package. The test is
+        skipped where that package is not installed, as in CI.
+
+    :param node: The shared ROS node.
+    :param scoring_clip: The CLIP stand-in.
+    :return: An iterator over the tree.
     """
-    engine = AnalysisEngine()
-    if not (engine.model_directory / "weights").is_dir():
-        pytest.skip("GPSR model weights are not installed")
-    tree = engine.implementation()
+    model_package = VisionLanguageAnnotator.Descriptor.Parameters().ros_package_name
+    if model_package not in get_packages_with_prefixes():
+        pytest.skip("GPSR model package is not installed")
+    tree = AnalysisEngine().implementation()
     yield tree
     for behaviour in tree.iterate():
         if isinstance(behaviour, HumanPointingAnnotator):
@@ -84,13 +89,13 @@ def real_gpsr_tree(
 
 
 def test_gpsr_tree_builds_a_real_subtree_for_every_ported_route(
-    real_gpsr_tree: Behaviour, ported_routes: list[str]
+    real_gpsr_tree: Behaviour, gpsr_routes: list[str]
 ) -> None:
     """
     Build every route with its real subtree instead of a success placeholder.
     """
     routes = scheduler_of(real_gpsr_tree).tasks
-    assert sorted(routes) == sorted(ported_routes)
+    assert sorted(routes) == sorted(gpsr_routes)
     assert [
         route for route, subtree in routes.items() if isinstance(subtree, Success)
     ] == []
@@ -100,12 +105,12 @@ def test_gpsr_tree_builds_a_real_subtree_for_every_ported_route(
 
 
 def test_gpsr_tree_holds_a_subtree_for_every_ported_route(
-    scheduler: QueryBasedScheduler, ported_routes: list[str]
+    scheduler: QueryBasedScheduler, gpsr_routes: list[str]
 ) -> None:
     """
     Register every expected route in the scheduler.
     """
-    assert sorted(scheduler.tasks) == sorted(ported_routes)
+    assert sorted(scheduler.tasks) == sorted(gpsr_routes)
 
 
 # %% human queries

@@ -1,14 +1,17 @@
+"""
+Memory of the persons and objects seen, with their latest known properties.
+"""
+
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import json
-import math
 import time
 from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
+from enum import StrEnum
 
 import py_trees
+from krrood_spatial_math.spatial_types import Point3, Quaternion
 from typing_extensions import TYPE_CHECKING, Any, ClassVar, Iterator
 
 import robokudo.annotators.core
@@ -55,36 +58,50 @@ class BeliefObservation:
     Name assigned to the person.
     """
 
-    position: list[float]
-    """Observed position."""
-    orientation: list[float]
+    position: Point3
     """
-    Observed orientation.
+    Observed position in the world frame, or in the camera frame without a transform.
+    """
+    orientation: Quaternion
+    """
+    Observed orientation, in the same frame as :attr:`position`.
     """
 
     dimensions: list[float]
-    """Observed dimensions."""
+    """Observed extent along x, y and z, in meters."""
 
 
 # %% belief entries
 
 
-class EntityStatus(str, Enum):
+class EntityStatus(StrEnum):
     """
     Visibility of an entity in the belief state.
     """
 
     VISIBLE = "visible"
+    """
+    The entity was seen recently.
+    """
     PROBABLY_THERE = "probably_there"
+    """
+    The entity was not seen for a while and is still remembered.
+    """
 
 
-class EntityType(str, Enum):
+class EntityType(StrEnum):
     """
     Kind of entity represented by a belief entry.
     """
 
     PERSON = "person"
+    """
+    A detected person.
+    """
     OBJECT = "object"
+    """
+    A detected object.
+    """
 
 
 @dataclass(init=False, eq=False, repr=False)
@@ -105,14 +122,14 @@ class BeliefEntry:
     """Semantic labels assigned to the entity."""
     activities: list[str]
     """Activities observed for the entity."""
-    position: list[float]
-    """Most recently observed position."""
-    orientation: list[float]
-    """Most recently observed orientation."""
+    position: Point3
+    """Most recently observed position, see :attr:`BeliefObservation.position`."""
+    orientation: Quaternion
+    """Most recently observed orientation, see :attr:`BeliefObservation.orientation`."""
     dimensions: list[float]
-    """Most recently observed dimensions."""
+    """Most recently observed extent along x, y and z, in meters."""
     last_seen: float
-    """Time of the latest observation."""
+    """Time of the latest observation, in seconds since the epoch."""
     confidence: float
     """Confidence of the detector label."""
     status: EntityStatus
@@ -121,15 +138,21 @@ class BeliefEntry:
     """Name assigned to a person."""
 
     def __init__(self, entry_id: int, entity_type: EntityType, classname: str) -> None:
-        """Create an entry for the identified entity."""
+        """
+        Create an entry for the identified entity.
+
+        :param entry_id: Identifier of the entry.
+        :param entity_type: Kind of entity.
+        :param classname: Class assigned to the entity.
+        """
         self.id = entry_id
         self.entity_type = entity_type
         self.classname = classname
         self.yolo_label = ""
         self.semantic_labels = []
         self.activities = []
-        self.position = [0.0, 0.0, 0.0]
-        self.orientation = [0.0, 0.0, 0.0, 1.0]
+        self.position = Point3()
+        self.orientation = Quaternion()
         self.dimensions = [0.0, 0.0, 0.0]
         self.last_seen = 0.0
         self.confidence = 0.0
@@ -138,21 +161,21 @@ class BeliefEntry:
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Return the entry as a dictionary for the debug output.
+        :return: The entry as a dictionary that can be written as JSON.
         """
         base = {}
         base["id"] = self.id
         base["entity_type"] = self.entity_type.value
         base["position"] = {
-            "x": self.position[0],
-            "y": self.position[1],
-            "z": self.position[2],
+            "x": float(self.position.x),
+            "y": float(self.position.y),
+            "z": float(self.position.z),
         }
         base["orientation"] = {
-            "x": self.orientation[0],
-            "y": self.orientation[1],
-            "z": self.orientation[2],
-            "w": self.orientation[3],
+            "x": float(self.orientation.x),
+            "y": float(self.orientation.y),
+            "z": float(self.orientation.z),
+            "w": float(self.orientation.w),
         }
         base["dimensions"] = {
             "x": self.dimensions[0],
@@ -189,25 +212,27 @@ class BeliefState:
 
     def __len__(self) -> int:
         """
-        Return the number of entries.
+        :return: The number of entries.
         """
         return len(self.entries)
 
     def __iter__(self) -> Iterator[BeliefEntry]:
         """
-        Iterate over the entries.
+        :return: An iterator over the entries.
         """
         return iter(self.entries.values())
 
     def find_by_id(self, entry_id: int) -> BeliefEntry | None:
         """
-        Return the entry with the identifier, if present.
+        :param entry_id: Identifier of the entry.
+        :return: The entry with the identifier, if present.
         """
         return self.entries.get(entry_id)
 
     def find_by_classname(self, classname: str) -> list[BeliefEntry]:
         """
-        Return entries with the given class.
+        :param classname: Class assigned to the entries.
+        :return: The entries with the given class.
         """
         result = []
         for entry in self.entries.values():
@@ -217,7 +242,8 @@ class BeliefState:
 
     def find_by_yolo_label(self, label: str) -> list[BeliefEntry]:
         """
-        Return entries with the given detector label.
+        :param label: Object detector label of the entries.
+        :return: The entries with the given detector label.
         """
         result = []
         for entry in self.entries.values():
@@ -227,7 +253,8 @@ class BeliefState:
 
     def find_by_semantic_label(self, label: str) -> list[BeliefEntry]:
         """
-        Return entries carrying the semantic label.
+        :param label: Semantic label of the entries.
+        :return: The entries carrying the semantic label.
         """
         result = []
         for entry in self.entries.values():
@@ -235,9 +262,9 @@ class BeliefState:
                 result.append(entry)
         return result
 
-    def persons(self) -> list[BeliefEntry]:
+    def find_persons(self) -> list[BeliefEntry]:
         """
-        Return entries representing people.
+        :return: The entries representing persons.
         """
         result = []
         for entry in self.entries.values():
@@ -246,21 +273,10 @@ class BeliefState:
         return result
 
 
-def _distance(first_position: list[float], second_position: list[float]) -> float:
-    """
-    Return the Euclidean distance between positions.
-    """
-    squared_distance = 0.0
-    for index in range(len(first_position)):
-        difference = first_position[index] - second_position[index]
-        squared_distance += difference * difference
-    return math.sqrt(squared_distance)
-
-
 # %% belief state annotator
 class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
     """
-    Track observed entities and age entries that are no longer visible.
+    Tracks observed entities and ages entries that are no longer visible.
     """
 
     _state: ClassVar[BeliefState] = BeliefState()
@@ -281,38 +297,45 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         probably_there_after: float = 60.0,
         person_delete_after: float = 120.0,
         object_delete_after: float = 300.0,
-        debug_json_path: str = str(Path.home() / "Desktop" / "belief_state.json"),
+        debug_json_path: str = "",
     ) -> None:
         """
-        :param match_distance: Maximum distance for matching observations.
-        :param probably_there_after: Time before an unseen entry is marked probably there.
-        :param person_delete_after: Time before an unseen person is removed.
-        :param object_delete_after: Time before an unseen object is removed.
-        :param debug_json_path: Destination for the debug output, or an empty string to disable it.
+        :param name: Name of this annotator in the tree.
+        :param match_distance: Maximum distance for matching observations, in meters.
+        :param probably_there_after: Time before an unseen entry is marked probably there, in seconds.
+        :param person_delete_after: Time before an unseen person is removed, in seconds.
+        :param object_delete_after: Time before an unseen object is removed, in seconds.
+        :param debug_json_path: Destination for the debug output, empty to disable it.
         """
         super().__init__(name=name)
         self.match_distance = match_distance
         """
-        Maximum distance for matching observations.
+        Maximum distance for matching observations, in meters.
         """
         self.probably_there_after = probably_there_after
         """
-        Time before an unseen entry is marked probably there.
+        Time before an unseen entry is marked probably there, in seconds.
         """
         self.person_delete_after = person_delete_after
         """
-        Time before an unseen person is removed.
+        Time before an unseen person is removed, in seconds.
         """
         self.object_delete_after = object_delete_after
         """
-        Time before an unseen object is removed.
+        Time before an unseen object is removed, in seconds.
         """
         self.debug_json_path = debug_json_path
         """
-        Destination for debug output.
+        Destination for the debug output, empty to disable it.
         """
 
     def update(self) -> py_trees.common.Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to integrate the observed entities and
+        publish the belief state in the CAS.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         now = time.time()
         cas = self.get_cas()
 
@@ -351,6 +374,11 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
     ) -> None:
         """
         Add or update an entry from an observation.
+
+        :param observation: Properties observed for the entity.
+        :param entity_type: Kind of entity.
+        :param now: Time of the observation, in seconds since the epoch.
+        :param hypothesis: Hypothesis that receives the entry, if given.
         """
         match = self._find_match(observation, entity_type)
 
@@ -401,7 +429,10 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         entity_type: EntityType,
     ) -> BeliefObservation | None:
         """
-        Return the observed entity properties if a position is available.
+        :param cas: The CAS holding the camera pose.
+        :param hypothesis: Hypothesis to read the properties of.
+        :param entity_type: Kind of entity.
+        :return: The observed entity properties if a position is available.
         """
         yolo_label = ""
         confidence = 0.0
@@ -409,7 +440,7 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         activities = []
         name = "anonymous"
         position = None
-        orientation = [0.0, 0.0, 0.0, 1.0]
+        orientation = Quaternion()
         dimensions = [0.0, 0.0, 0.0]
 
         for annotation in hypothesis.annotations:
@@ -436,20 +467,20 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
             if isinstance(annotation, PoseAnnotation):
                 try:
                     world_pose = transform_pose_from_camera_to_world(cas, annotation)
-                    position = list(world_pose.translation)
-                    orientation = list(world_pose.rotation)
+                    position = Point3.from_iterable(world_pose.translation)
+                    orientation = Quaternion.from_iterable(world_pose.rotation)
                 except Exception:
-                    position = list(annotation.translation)
-                    orientation = list(annotation.rotation)
+                    position = Point3.from_iterable(annotation.translation)
+                    orientation = Quaternion.from_iterable(annotation.rotation)
             elif isinstance(annotation, PositionAnnotation) and position is None:
                 pose_like = PoseAnnotation()
                 pose_like.translation = list(annotation.translation)
                 pose_like.rotation = [0.0, 0.0, 0.0, 1.0]
                 try:
                     world_pose = transform_pose_from_camera_to_world(cas, pose_like)
-                    position = list(world_pose.translation)
+                    position = Point3.from_iterable(world_pose.translation)
                 except Exception:
-                    position = list(annotation.translation)
+                    position = Point3.from_iterable(annotation.translation)
 
             if isinstance(annotation, BoundingBox3DAnnotation):
                 dimensions = [
@@ -484,7 +515,9 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
         self, observation: BeliefObservation, entity_type: EntityType
     ) -> BeliefEntry | None:
         """
-        Return the nearest matching entry within the configured distance.
+        :param observation: Properties observed for the entity.
+        :param entity_type: Kind of entity.
+        :return: The nearest matching entry within the configured distance, if any.
         """
         best = None
         best_distance = self.match_distance
@@ -493,7 +526,9 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
                 continue
             if entry.classname != observation.classname:
                 continue
-            distance = _distance(entry.position, observation.position)
+            distance = (
+                entry.position.euclidean_distance(observation.position).to_np().item()
+            )
             if distance <= best_distance:
                 best_distance = distance
                 best = entry
@@ -502,6 +537,8 @@ class BeliefStateAnnotator(robokudo.annotators.core.BaseAnnotator):
     def _age_entries(self, now: float) -> None:
         """
         Update or remove entries according to their last observation time.
+
+        :param now: Current time, in seconds since the epoch.
         """
         entries_to_delete = []
         for entry_id, entry in self._state.entries.items():

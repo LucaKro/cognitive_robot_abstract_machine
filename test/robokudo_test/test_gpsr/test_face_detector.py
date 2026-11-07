@@ -21,7 +21,10 @@ from robokudo.types.human import FaceAnnotation
 from robokudo.types.scene import HumanHypothesis
 
 from ._face_recognition_mock import FaceLocation, PlacedFaces
-from ._gpsr_scene import GpsrScene
+from typing_extensions import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._gpsr_scene import GpsrScene
 
 # %% scene and annotator
 
@@ -30,6 +33,9 @@ from ._gpsr_scene import GpsrScene
 def placed_faces(monkeypatch: pytest.MonkeyPatch) -> PlacedFaces:
     """
     Make the face detector find the faces the test places.
+
+    :param monkeypatch: Replaces the face recognition.
+    :return: The placed faces.
     """
     faces = PlacedFaces(faces=[FaceLocation(top=50, right=150, bottom=120, left=100)])
     monkeypatch.setattr(face_detector, "face_recognition", faces)
@@ -51,6 +57,10 @@ def place_depth(scene: GpsrScene, ratio: float, distance_in_millimeters: int) ->
     """
     Give the scene a depth image of the given size relative to the color image, at the
     same distance everywhere.
+
+    :param scene: The scene that receives the depth image.
+    :param ratio: The size of the depth image relative to the color image.
+    :param distance_in_millimeters: The depth value of every pixel.
     """
     height, width = scene.color_image().shape[:2]
     scene.cas.set(
@@ -64,8 +74,9 @@ def place_depth(scene: GpsrScene, ratio: float, distance_in_millimeters: int) ->
     scene.cas.color_to_depth_ratio = ColorToDepthRatio(horizontal=ratio, vertical=ratio)
 
 
-def detected_persons(scene: GpsrScene) -> list[HumanHypothesis]:
+def detected_human_hypotheses(scene: GpsrScene) -> list[HumanHypothesis]:
     """
+    :param scene: The scene after the update.
     :return: The persons the face detector added to the CAS.
     """
     return scene.cas.filter_annotations_by_type(HumanHypothesis)
@@ -86,17 +97,17 @@ def test_face_becomes_a_person_covering_the_face(
     status = detector.compute()
 
     assert status == Status.SUCCESS
-    [person] = detected_persons(scene)
+    [human_hypothesis] = detected_human_hypotheses(scene)
     [face] = placed_faces.faces
-    region = person.roi.roi
+    region = human_hypothesis.roi.roi
     assert (region.pos.x, region.pos.y, region.width, region.height) == (
         face.left,
         face.top,
         face.right - face.left,
         face.bottom - face.top,
     )
-    [face_annotation] = CAS.filter_by_type(FaceAnnotation, person.annotations)
-    assert face_annotation.roi == person.roi
+    [face_annotation] = CAS.filter_by_type(FaceAnnotation, human_hypothesis.annotations)
+    assert face_annotation.roi == human_hypothesis.roi
 
 
 def test_face_gets_its_encoding(scene: GpsrScene, placed_faces: PlacedFaces) -> None:
@@ -108,8 +119,8 @@ def test_face_gets_its_encoding(scene: GpsrScene, placed_faces: PlacedFaces) -> 
 
     detector.compute()
 
-    [person] = detected_persons(scene)
-    [encoding] = CAS.filter_by_type(Encoding, person.annotations)
+    [human_hypothesis] = detected_human_hypotheses(scene)
+    [encoding] = CAS.filter_by_type(Encoding, human_hypothesis.annotations)
     [face_encoding] = encoding.encoding
     np.testing.assert_array_equal(face_encoding, placed_faces.encoding)
 
@@ -127,7 +138,7 @@ def test_without_faces_nobody_is_added(
     status = detector.compute()
 
     assert status == Status.SUCCESS
-    assert detected_persons(scene) == []
+    assert detected_human_hypotheses(scene) == []
 
 
 # %% points of a face
@@ -146,6 +157,10 @@ def test_face_detection_reports_image_scaling_failure(
     def fail_scaling(cas: CAS, image: np.ndarray) -> np.ndarray:
         """
         Stand in for an image scaling that always fails.
+
+        :param cas: The CAS of the annotator.
+        :param image: The image to scale.
+        :raises RuntimeError: Always.
         """
         raise RuntimeError("scaling failed")
 
@@ -184,8 +199,8 @@ def test_face_gets_its_points_from_the_depth_image(
 
     detector.compute()
 
-    [person] = detected_persons(scene)
-    depths = np.asarray(person.points.points)[:, 2]
+    [human_hypothesis] = detected_human_hypotheses(scene)
+    depths = np.asarray(human_hypothesis.points.points)[:, 2]
     assert len(depths) > 0
     np.testing.assert_allclose(depths, 2.0)
 
@@ -204,9 +219,9 @@ def test_face_found_in_a_smaller_depth_image_is_placed_in_the_color_image(
 
     height, width = scene.color_image().shape[:2]
     assert placed_faces.searched_image_sizes == [(width // 2, height // 2)]
-    [person] = detected_persons(scene)
+    [human_hypothesis] = detected_human_hypotheses(scene)
     [face] = placed_faces.faces
-    region = person.roi.roi
+    region = human_hypothesis.roi.roi
     assert (region.pos.x, region.pos.y, region.width, region.height) == (
         face.left * 2,
         face.top * 2,

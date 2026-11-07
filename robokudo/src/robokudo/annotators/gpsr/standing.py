@@ -1,3 +1,7 @@
+"""
+Keypoint rule for the standing posture.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -24,14 +28,11 @@ if TYPE_CHECKING:
 
 class HumanStandingAnnotator(BaseAnnotator):
     """
-    Annotates every person whose image keypoints show a standing posture with the
-    activity ``standing``.
+    Annotates every person whose image keypoints show a standing posture.
 
-    The rule needs reliable shoulders and nose and at least one reliable leg (hip and
-    knee); the left leg is used when it is reliable, otherwise the right one. The person
-    stands when the keypoints are clearly taller than wide and nose, shoulders, hip and
-    knee follow each other from top to bottom with clear distances, all relative to the
-    vertical extent of the keypoints. Persons without image keypoints are skipped.
+    The rule needs reliable shoulders, nose and one leg, the left leg if it is reliable.
+    The keypoints have to be clearly taller than wide. Nose, shoulders, hip and knee
+    have to follow each other from top to bottom at clear distances.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -41,13 +42,16 @@ class HumanStandingAnnotator(BaseAnnotator):
 
         class Parameters:
             """
-            Parameters of the standing rule.
+            Thresholds of the standing rule.
             """
 
             def __init__(self) -> None:
+                """
+                Start with the default thresholds of the standing rule.
+                """
                 self.raise_on_failure: bool = False
                 """
-                Not read by this annotator.
+                Whether a failure raises an error.
                 """
 
                 self.keypoint_confidence_threshold: float = 0.5
@@ -55,32 +59,32 @@ class HumanStandingAnnotator(BaseAnnotator):
                 Smallest confidence of a keypoint for the rule to trust it.
                 """
 
-                self.min_rel_vertical: float = 0.6
+                self.minimum_relative_height: float = 0.6
                 """
                 Smallest share of the vertical extent of the keypoints in the sum of
                 their vertical and horizontal extent for which the person stands.
                 """
-                self.max_rel_horizontal: float = 0.45
+                self.maximum_relative_width: float = 0.45
                 """
                 Largest share of the horizontal extent of the keypoints in the sum of
                 their vertical and horizontal extent for which the person stands.
                 """
-                self.min_shoulder_over_hip: float = 0.25
+                self.minimum_shoulder_over_hip: float = 0.25
                 """
                 Smallest height of the shoulders above the hip, relative to the vertical
                 extent of the keypoints, for which the person stands.
                 """
-                self.min_hip_over_knee: float = 0.30
+                self.minimum_hip_over_knee: float = 0.30
                 """
                 Smallest height of the hip above the knee, relative to the vertical
                 extent of the keypoints, for which the person stands.
                 """
-                self.min_head_over_shoulder: float = 0.10
+                self.minimum_nose_over_shoulder: float = 0.10
                 """
                 Smallest height of the nose above the shoulders, relative to the
                 vertical extent of the keypoints, for which the person stands.
                 """
-                self.min_body_height: float = 20
+                self.minimum_body_height: float = 20
                 """
                 Smallest vertical extent of the keypoints in the image, in pixels, for
                 which the posture is decided.
@@ -88,7 +92,7 @@ class HumanStandingAnnotator(BaseAnnotator):
 
         parameters = Parameters()
         """
-        Default parameters on the class; each descriptor instance gets its own.
+        Default parameters on the class. Each descriptor instance gets its own copy.
         """
 
     def __init__(
@@ -96,6 +100,10 @@ class HumanStandingAnnotator(BaseAnnotator):
         name: str = "HumanStandingAnnotator",
         descriptor: HumanStandingAnnotator.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None
         """
@@ -108,6 +116,12 @@ class HumanStandingAnnotator(BaseAnnotator):
 
     @catch_and_raise_to_blackboard
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to annotate every person whose image
+        keypoints show a standing posture.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         start_timer = default_timer()
 
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
@@ -132,10 +146,10 @@ class HumanStandingAnnotator(BaseAnnotator):
 
             image_keypoints = image_keypoint_annotations[0]
 
-            if self.keypoints_standing(image_keypoints):
+            if self.keypoints_suggest_standing(image_keypoints):
                 activity = ActivityAnnotation()
                 activity.type = HumanPosture.STANDING.value
-                activity.source = type(self).__name__
+                activity.source = self.get_class_name()
                 human_hypothesis.annotations.append(activity)
 
         self.get_annotator_output_struct().set_geometries(visualization_geometries)
@@ -145,21 +159,21 @@ class HumanStandingAnnotator(BaseAnnotator):
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return Status.SUCCESS
 
-    def keypoints_standing(self, keypoint_2d_annotation: KeypointAnnotation) -> bool:
+    def keypoints_suggest_standing(self, image_keypoints: KeypointAnnotation) -> bool:
         """
-        :param keypoint_2d_annotation: The image keypoints of one person.
+        :param image_keypoints: The image keypoints of one person.
         :return: Whether the keypoints show a standing person.
         """
         parameters = self.descriptor.parameters
         confidence_threshold = parameters.keypoint_confidence_threshold
 
-        left_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_HIP]
-        right_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_HIP]
-        left_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_KNEE]
-        right_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_KNEE]
-        left_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_SHOULDER]
-        right_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_SHOULDER]
-        nose = keypoint_2d_annotation.keypoints[PoseKeypoint.NOSE]
+        left_hip = image_keypoints.keypoints[PoseKeypoint.LEFT_HIP]
+        right_hip = image_keypoints.keypoints[PoseKeypoint.RIGHT_HIP]
+        left_knee = image_keypoints.keypoints[PoseKeypoint.LEFT_KNEE]
+        right_knee = image_keypoints.keypoints[PoseKeypoint.RIGHT_KNEE]
+        left_shoulder = image_keypoints.keypoints[PoseKeypoint.LEFT_SHOULDER]
+        right_shoulder = image_keypoints.keypoints[PoseKeypoint.RIGHT_SHOULDER]
+        nose = image_keypoints.keypoints[PoseKeypoint.NOSE]
 
         upper_body_reliable = (
             min(left_shoulder.confidence, right_shoulder.confidence, nose.confidence)
@@ -199,7 +213,7 @@ class HumanStandingAnnotator(BaseAnnotator):
         vertical_extent = max(image_rows) - min(image_rows)
         horizontal_extent = max(image_columns) - min(image_columns)
 
-        if vertical_extent < parameters.min_body_height:
+        if vertical_extent < parameters.minimum_body_height:
             return False
 
         relative_height = vertical_extent / (vertical_extent + horizontal_extent)
@@ -217,14 +231,14 @@ class HumanStandingAnnotator(BaseAnnotator):
 
         shoulder_hip_offset = (shoulder_y - hip_y) / vertical_extent
         hip_knee_offset = (hip_y - knee_y) / vertical_extent
-        head_shoulder_offset = (nose.y - shoulder_y) / vertical_extent
+        nose_shoulder_offset = (nose.y - shoulder_y) / vertical_extent
 
         standing = (
-            relative_height >= parameters.min_rel_vertical
-            and relative_width <= parameters.max_rel_horizontal
-            and shoulder_hip_offset <= -parameters.min_shoulder_over_hip
-            and hip_knee_offset <= -parameters.min_hip_over_knee
-            and head_shoulder_offset <= -parameters.min_head_over_shoulder
+            relative_height >= parameters.minimum_relative_height
+            and relative_width <= parameters.maximum_relative_width
+            and shoulder_hip_offset <= -parameters.minimum_shoulder_over_hip
+            and hip_knee_offset <= -parameters.minimum_hip_over_knee
+            and nose_shoulder_offset <= -parameters.minimum_nose_over_shoulder
         )
 
         return standing

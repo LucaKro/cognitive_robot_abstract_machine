@@ -1,3 +1,7 @@
+"""
+Keypoint rule for the sitting posture.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -28,8 +32,17 @@ class HumanPosture(StrEnum):
     """Postures accepted by person queries."""
 
     SITTING = "sitting"
+    """
+    The sitting posture.
+    """
     STANDING = "standing"
+    """
+    The standing posture.
+    """
     LAYING = "laying"
+    """
+    The lying posture, with the word GPSR queries use for it.
+    """
 
 
 # %% sitting rule
@@ -37,13 +50,11 @@ class HumanPosture(StrEnum):
 
 class HumanSittingAnnotator(BaseAnnotator):
     """
-    Annotates every person whose image keypoints show a sitting posture with the
-    activity ``sitting``.
+    Annotates every person whose image keypoints show a sitting posture.
 
-    A body side sits when its keypoints are reliable, its knee is below the hip and its
-    ankle below the knee, the drop from hip to knee is short and the drop from knee to
-    ankle is long, both relative to the vertical extent of the side. One sitting side is
-    enough. Persons without image keypoints are skipped.
+    A body side sits when its keypoints are reliable, knee below hip and ankle below knee,
+    with a short hip to knee drop and a long knee to ankle drop relative to the vertical
+    extent of the side. One sitting side is enough.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -53,13 +64,16 @@ class HumanSittingAnnotator(BaseAnnotator):
 
         class Parameters:
             """
-            Parameters of the sitting rule.
+            Thresholds of the sitting rule.
             """
 
             def __init__(self) -> None:
+                """
+                Start with the default thresholds of the sitting rule.
+                """
                 self.raise_on_failure: bool = False
                 """
-                Not read by this annotator.
+                Whether a failure raises an error.
                 """
 
                 self.keypoint_confidence_threshold: float = 0.5
@@ -68,32 +82,32 @@ class HumanSittingAnnotator(BaseAnnotator):
                 """
 
                 # TODO: Adjust sitting thresholds.
-                self.max_hip_knee_rel_bbox: float = 0.5
+                self.maximum_relative_hip_knee_height: float = 0.5
                 """
                 Largest vertical distance from hip to knee, relative to the vertical
                 extent of the body side, for which the side sits.
                 """
-                self.max_knee_knee_rel_bbox: float = 0.5
+                self.maximum_relative_knee_knee_height: float = 0.5
                 """
                 Largest vertical distance between the two knees, relative to the
                 vertical extent of both legs, for which both sides are checked again.
                 """
-                self.min_ankle_knee_rel_bbox: float = 0.2
+                self.minimum_relative_knee_ankle_height: float = 0.2
                 """
                 Smallest vertical distance from knee to ankle, relative to the vertical
                 extent of the body side, for which the side sits.
                 """
-                self.min_leg_height: float = 20
+                self.minimum_leg_height: float = 20
                 """
-                Smallest vertical extent of hip, knee and ankle in the image, in pixels,
-                for which a body side is decided.
+                Smallest vertical extent of hip, knee and ankle in the image for which a
+                body side is decided, in pixels.
                 """
 
         parameters = (
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
         """
-        Default parameters on the class; each descriptor instance gets its own.
+        Default parameters on the class. Each descriptor instance gets its own copy.
         """
 
     def __init__(
@@ -101,6 +115,10 @@ class HumanSittingAnnotator(BaseAnnotator):
         name: str = "HumanSittingAnnotator",
         descriptor: HumanSittingAnnotator.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None
         """
@@ -113,6 +131,12 @@ class HumanSittingAnnotator(BaseAnnotator):
 
     @catch_and_raise_to_blackboard
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to annotate every person whose image
+        keypoints show a sitting posture.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         start_timer = default_timer()
 
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
@@ -136,10 +160,10 @@ class HumanSittingAnnotator(BaseAnnotator):
 
             image_keypoints = image_keypoint_annotations[0]
 
-            if self.keypoints_sitting(image_keypoints):
+            if self.keypoints_suggest_sitting(image_keypoints):
                 activity = ActivityAnnotation()
                 activity.type = HumanPosture.SITTING.value
-                activity.source = type(self).__name__
+                activity.source = self.get_class_name()
                 human_hypothesis.annotations.append(activity)
 
         self.get_annotator_output_struct().set_geometries(visualization_geometries)
@@ -149,21 +173,21 @@ class HumanSittingAnnotator(BaseAnnotator):
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return Status.SUCCESS
 
-    def keypoints_sitting(self, keypoint_2d_annotation: KeypointAnnotation) -> bool:
+    def keypoints_suggest_sitting(self, image_keypoints: KeypointAnnotation) -> bool:
         """
-        :param keypoint_2d_annotation: The image keypoints of one person.
+        :param image_keypoints: The image keypoints of one person.
         :return: Whether the keypoints show a sitting person.
         """
         parameters = self.descriptor.parameters
         confidence_threshold = parameters.keypoint_confidence_threshold
 
-        left_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_HIP]
-        left_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_KNEE]
-        left_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_ANKLE]
+        left_hip = image_keypoints.keypoints[PoseKeypoint.LEFT_HIP]
+        left_knee = image_keypoints.keypoints[PoseKeypoint.LEFT_KNEE]
+        left_ankle = image_keypoints.keypoints[PoseKeypoint.LEFT_ANKLE]
 
-        right_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_HIP]
-        right_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_KNEE]
-        right_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_ANKLE]
+        right_hip = image_keypoints.keypoints[PoseKeypoint.RIGHT_HIP]
+        right_knee = image_keypoints.keypoints[PoseKeypoint.RIGHT_KNEE]
+        right_ankle = image_keypoints.keypoints[PoseKeypoint.RIGHT_ANKLE]
 
         left_side_reliable = (
             min(left_hip.confidence, left_knee.confidence, left_ankle.confidence)
@@ -181,13 +205,16 @@ class HumanSittingAnnotator(BaseAnnotator):
             hip: BodyKeypoint, knee: BodyKeypoint, ankle: BodyKeypoint
         ) -> bool:
             """
+            :param hip: The hip keypoint of the side.
+            :param knee: The knee keypoint of the side.
+            :param ankle: The ankle keypoint of the side.
             :return: Whether the hip, knee and ankle of one body side show a sitting
                 posture.
             """
             image_rows = [hip.y, knee.y, ankle.y]
             side_height = max(image_rows) - min(image_rows)
 
-            if side_height < parameters.min_leg_height:
+            if side_height < parameters.minimum_leg_height:
                 return False
 
             relative_hip_knee_height = abs(hip.y - knee.y) / side_height
@@ -199,8 +226,10 @@ class HumanSittingAnnotator(BaseAnnotator):
             return (
                 knee_below_hip
                 and ankle_below_knee
-                and relative_hip_knee_height <= parameters.max_hip_knee_rel_bbox
-                and relative_knee_ankle_height >= parameters.min_ankle_knee_rel_bbox
+                and relative_hip_knee_height
+                <= parameters.maximum_relative_hip_knee_height
+                and relative_knee_ankle_height
+                >= parameters.minimum_relative_knee_ankle_height
             )
 
         if left_side_reliable and side_is_sitting(left_hip, left_knee, left_ankle):
@@ -225,11 +254,14 @@ class HumanSittingAnnotator(BaseAnnotator):
                 right_knee.y,
                 right_ankle.y,
             )
-            if legs_height > parameters.min_leg_height:
+            if legs_height > parameters.minimum_leg_height:
                 relative_knee_knee_height = (
                     abs(left_knee.y - right_knee.y) / legs_height
                 )
-                if relative_knee_knee_height <= parameters.max_knee_knee_rel_bbox:
+                if (
+                    relative_knee_knee_height
+                    <= parameters.maximum_relative_knee_knee_height
+                ):
                     return side_is_sitting(
                         left_hip, left_knee, left_ankle
                     ) or side_is_sitting(right_hip, right_knee, right_ankle)

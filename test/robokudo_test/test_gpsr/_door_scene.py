@@ -56,8 +56,8 @@ class DoorScene(GpsrScene):
     @classproperty
     def depth_image_units_per_meter(cls) -> float:
         """
-        Depth image value per meter of measured distance, since RoboKudo stores depth
-        images in millimeters.
+        :return: Depth image value per meter of measured distance, since RoboKudo stores
+            depth images in millimeters.
         """
         return 1000.0
 
@@ -74,6 +74,7 @@ class DoorScene(GpsrScene):
     @staticmethod
     def detection_box_around(region: Rect, margin: int = 5) -> Rect:
         """
+        :param region: The region to enclose.
         :param margin: How far the box reaches beyond the region on every side, in
             pixels.
         :return: A detection box around the region, with some of its surroundings.
@@ -86,6 +87,7 @@ class DoorScene(GpsrScene):
 
     def camera_position_of(self, region: Rect, distance: float) -> np.ndarray:
         """
+        :param region: The image region.
         :param distance: Distance of the region from the camera, in meters.
         :return: The camera frame position of the middle of an image region.
         """
@@ -99,6 +101,9 @@ class DoorScene(GpsrScene):
         """
         Like :meth:`GpsrScene.place_in_pipeline`, and also put the depth image of the
         door into the CAS.
+
+        :param annotator: The annotator to set up.
+        :return: The CAS the annotator reads and writes.
         """
         cas = super().place_in_pipeline(annotator)
         self.depth = np.full(
@@ -111,8 +116,9 @@ class DoorScene(GpsrScene):
 
     def stand_out(self, region: Rect, distances: np.ndarray | float) -> None:
         """
-        Let an image region stand out of the door towards the camera.
+        Let an image region stand out of the door toward the camera.
 
+        :param region: The image region.
         :param distances: How far the region stands out in meters, for every column of
             the region or for the whole region.
         """
@@ -125,6 +131,8 @@ class DoorScene(GpsrScene):
     def clear(self, region: Rect) -> None:
         """
         Remove the depth measurements of an image region.
+
+        :param region: The image region.
         """
         x, y = region.pos.x, region.pos.y
         self.depth[y : y + region.height, x : x + region.width] = 0
@@ -133,6 +141,8 @@ class DoorScene(GpsrScene):
         """
         Add an object detected as the given class in the given image region.
 
+        :param classname: The class of the object.
+        :param region: The image region of the object.
         :return: The added detection.
         """
         hypothesis = ObjectHypothesis()

@@ -1,59 +1,77 @@
+"""
+Mapping of detector classes to semantic types.
+"""
+
 from __future__ import annotations
 
 # %% Imports
 import json
-from pathlib import Path
 
-from ament_index_python.packages import get_package_share_directory
 from py_trees.common import Status
 
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.types.annotation import Classification
 from robokudo.types.scene import ObjectHypothesis
+from robokudo.utils.file_loader import FileLoader
 
-# %% type mapping
+
+# %% semantic type mapping
 
 
-class TypeMappingAnnotator(BaseAnnotator):
+class SemanticTypeMappingAnnotator(BaseAnnotator):
     """
-    Gives each object hypothesis the semantic type its first classification maps to, as
-    a new first classification.
+    Annotator that knows the semantic type of each detector class.
 
-    A hypothesis that already carries the semantic type, or whose first classification
-    has no mapping, is left unchanged. When a classification is added, the other
-    annotations of the hypothesis follow its classifications.
+    The mapping is read from a JSON file of the ``robokudo_suturo`` package.
     """
 
     def __init__(
         self,
-        name: str = "TypeMappingAnnotator",
-        mapping_filename: str = "mapping_perception_semantic-annotations.json",
-        mapping_directory: Path | None = None,
+        name: str | None = None,
+        mapping_file_name: str = "mapping_perception_semantic-annotations.json",
     ) -> None:
         """
-        :param mapping_filename: Name of the mapping file.
-        :param mapping_directory: Directory containing the mapping, if configured directly.
+        :param name: Name of this annotator in the tree, the class name if not given.
+        :param mapping_file_name: Name of the mapping file.
         """
-        super().__init__(name=name)
-        self._type_map: dict[str, str] = {}
+        super().__init__(name=self.get_class_name() if name is None else name)
+        self._type_mapping: dict[str, str] = {}
         """
         The semantic type of each detector class, empty if the mapping file could not be
         read.
         """
         try:
-            if mapping_directory is None:
-                package_share = get_package_share_directory("robokudo_suturo")
-                mapping_path = Path(package_share) / "data" / "json" / mapping_filename
-            else:
-                mapping_path = mapping_directory / mapping_filename
+            mapping_path = FileLoader.get_path_to_file_in_ros_package(
+                ros_pkg_name="robokudo_suturo",
+                relative_path=f"data/json/{mapping_file_name}",
+            )
             with open(mapping_path, "r") as mapping_file:
-                self._type_map = json.load(mapping_file)
+                self._type_mapping = json.load(mapping_file)
         except Exception as error:
             self.rk_logger.warning(
-                f"Could not load mapping file '{mapping_filename}': {error}"
+                f"Could not load mapping file '{mapping_file_name}': {error}"
             )
 
+
+# %% type mapping
+
+
+class TypeMappingAnnotator(SemanticTypeMappingAnnotator):
+    """
+    Gives each object hypothesis the semantic type of its first classification.
+
+    The type becomes a new first classification, followed by the other classifications
+    and then the other annotations. A hypothesis that already carries the type, or whose
+    first classification has no mapping, is left unchanged.
+    """
+
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to add the semantic type to each object
+        hypothesis with a mapped classification.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         cas = self.get_cas()
         for object_hypothesis in cas.annotations:
             if not isinstance(object_hypothesis, ObjectHypothesis):
@@ -70,7 +88,7 @@ class TypeMappingAnnotator(BaseAnnotator):
                 continue
 
             detected_class = classifications[0].classname
-            semantic_type = self._type_map.get(detected_class)
+            semantic_type = self._type_mapping.get(detected_class)
             if not semantic_type:
                 continue
 

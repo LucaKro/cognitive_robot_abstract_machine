@@ -1,8 +1,8 @@
 """
-Body keypoints of people holding a known posture, in the image and in the camera frame.
+Body keypoints of persons holding a known posture, in the image and in the camera frame.
 
-Image positions are pixels with *y* growing downwards. Camera frame positions are meters
-with *x* to the image right, *y* downwards and *z* away from the camera.
+Image positions are pixels with *y* growing downward. Camera frame positions are meters
+with *x* to the image right, *y* downward and *z* away from the camera.
 """
 
 from __future__ import annotations
@@ -31,33 +31,40 @@ class BodySide(StrEnum):
     """
 
     LEFT = "LEFT"
+    """
+    The left side of the person.
+    """
+
     RIGHT = "RIGHT"
+    """
+    The right side of the person.
+    """
 
     @property
     def eye(self) -> PoseKeypoint:
         """
-        The eye on this side.
+        :return: The eye on this side.
         """
         return PoseKeypoint[f"{self.value}_EYE"]
 
     @property
     def shoulder(self) -> PoseKeypoint:
         """
-        The shoulder on this side.
+        :return: The shoulder on this side.
         """
         return PoseKeypoint[f"{self.value}_SHOULDER"]
 
     @property
     def elbow(self) -> PoseKeypoint:
         """
-        The elbow on this side.
+        :return: The elbow on this side.
         """
         return PoseKeypoint[f"{self.value}_ELBOW"]
 
     @property
     def wrist(self) -> PoseKeypoint:
         """
-        The wrist on this side.
+        :return: The wrist on this side.
         """
         return PoseKeypoint[f"{self.value}_WRIST"]
 
@@ -81,6 +88,8 @@ class BodyPosture:
         cls, positions: dict[PoseKeypoint, tuple[float, float]], confidence: float = 0.9
     ) -> BodyPosture:
         """
+        :param positions: The image position of every keypoint.
+        :param confidence: The confidence of all keypoints.
         :return: A posture whose keypoints are all detected with the same confidence.
         """
         return cls(
@@ -174,6 +183,9 @@ class BodyPosture:
 
     def moved(self, keypoint: PoseKeypoint, x: float, y: float) -> BodyPosture:
         """
+        :param keypoint: The keypoint to move.
+        :param x: The new image column.
+        :param y: The new image row.
         :return: A copy of this posture with one keypoint at another image position.
         """
         keypoints = dict(self.keypoints)
@@ -182,6 +194,8 @@ class BodyPosture:
 
     def moved_to_height(self, y: float, *keypoints: PoseKeypoint) -> BodyPosture:
         """
+        :param y: The new image row.
+        :param keypoints: The keypoints to move.
         :return: A copy of this posture in which the given keypoints are at another
             image height.
         """
@@ -192,6 +206,7 @@ class BodyPosture:
 
     def scaled(self, factor: float) -> BodyPosture:
         """
+        :param factor: The factor on every image position.
         :return: A copy of this posture shrunk or grown about the image origin, as the
             same person seen from another distance.
         """
@@ -208,6 +223,8 @@ class BodyPosture:
         self, confidence: float, *keypoints: PoseKeypoint
     ) -> BodyPosture:
         """
+        :param confidence: The new confidence.
+        :param keypoints: The keypoints to change.
         :return: A copy of this posture in which the given keypoints are detected with
             another confidence.
         """
@@ -274,6 +291,8 @@ class BodyInSpace:
 
     def with_arm(self, side: BodySide, forearm: Forearm) -> BodyInSpace:
         """
+        :param side: The side of the arm.
+        :param forearm: The new forearm.
         :return: A copy of this body with the elbow and wrist of the given side at the
             forearm's positions.
         """
@@ -285,10 +304,11 @@ class BodyInSpace:
         self, side: BodySide, lowered_by: float = 0.0, forearm_length: float = 0.25
     ) -> BodyInSpace:
         """
+        :param side: The side of the arm.
         :param lowered_by: Angle of the forearm below the horizontal, in degrees.
         :param forearm_length: Distance from the elbow to the wrist, in meters.
-        :return: A copy of this body holding the forearm of the given side sideways
-            away from the body, the elbow beside the shoulder.
+        :return: A copy of this body holding the forearm of the given side sideways away
+            from the body, the elbow beside the shoulder.
         """
         away_from_the_body = 1.0 if side is BodySide.LEFT else -1.0
         elbow = np.array([away_from_the_body * 0.45, 0.1, 2.0])
@@ -303,12 +323,14 @@ class BodyInSpace:
 
     def with_positions(self, positions: dict[PoseKeypoint, list[float]]) -> BodyInSpace:
         """
+        :param positions: The new position of every keypoint to change.
         :return: A copy of this body with the given keypoints at other positions.
         """
         return BodyInSpace(positions={**self.positions, **positions})
 
     def without(self, *keypoints: PoseKeypoint) -> BodyInSpace:
         """
+        :param keypoints: The keypoints to leave out.
         :return: A copy of this body in which the given keypoints were not measured.
         """
         return BodyInSpace(

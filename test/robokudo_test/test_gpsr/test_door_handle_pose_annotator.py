@@ -17,13 +17,11 @@ from robokudo.annotators.query import GenerateQueryResult
 from robokudo.types.annotation import Classification, PoseAnnotation
 from robokudo.types.cv import Point2D, Rect
 from robokudo.utils.transform import get_rotation_matrix_from_q
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, Callable
 
 from ._door_scene import DoorScene
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from robokudo.types.scene import ObjectHypothesis
 
 # %% scene and annotator
@@ -32,7 +30,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def door_scene() -> DoorScene:
     """
-    A camera facing a door one and a half meters away.
+    :return: A camera facing a door one and a half meters away.
     """
     return DoorScene()
 
@@ -40,21 +38,21 @@ def door_scene() -> DoorScene:
 @pytest.fixture
 def handle_estimator() -> DoorHandlePoseAnnotator:
     """
-    A door handle annotator with its own default parameters.
+    :return: A door handle annotator with its own default parameters.
     """
     return DoorHandlePoseAnnotator(descriptor=DoorHandlePoseAnnotator.Descriptor())
 
 
 def horizontal_handle() -> Rect:
     """
-    :return: The image region of a horizontal handle right of the image centre.
+    :return: The image region of a horizontal handle right of the image center.
     """
     return Rect(pos=Point2D(x=100, y=57), width=30, height=6)
 
 
 def vertical_handle() -> Rect:
     """
-    :return: The image region of a vertical handle right of the image centre.
+    :return: The image region of a vertical handle right of the image center.
     """
     return Rect(pos=Point2D(x=110, y=40), width=6, height=30)
 
@@ -68,7 +66,8 @@ def handle_box() -> Rect:
 
 def handle_axis(handle: ObjectHypothesis) -> np.ndarray:
     """
-    :return: The direction from the handle's pose towards its free end.
+    :param handle: The handle with its pose.
+    :return: The direction from the handle's pose toward its free end.
     """
     [pose] = CAS.filter_by_type(PoseAnnotation, handle.annotations)
     return get_rotation_matrix_from_q(np.array(pose.rotation))[:, 1]
@@ -86,19 +85,22 @@ def test_grasp_point_is_returned_to_the_query(
     result_annotator = GenerateQueryResult()
     cas = door_scene.place_in_pipeline(result_annotator)
     cas.annotations.append(
-        handle_estimator.grasp_hypothesis(np.array([0.0, 0.0, 1.0]), np.eye(3))
+        handle_estimator.create_grasp_hypothesis(np.array([0.0, 0.0, 1.0]), np.eye(3))
     )
 
     result_annotator.update()
 
-    [answer] = door_scene.sent_answer().res
-    assert answer.type == "grasp_point"
-    assert list(answer.pose_source) == ["grasp_point"]
+    [object_designator] = door_scene.sent_answer().res
+    assert object_designator.type == "grasp_point"
+    assert list(object_designator.pose_source) == ["grasp_point"]
 
 
 def test_handle_standing_out_of_the_door_gets_a_grasp_pose(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Handle standing out of the door gets a grasp pose.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(horizontal_handle(), 0.05)
     handle = door_scene.add_detection(DoorObjectClass.HANDLE.value, handle_box())
@@ -121,6 +123,9 @@ def test_handle_standing_out_of_the_door_gets_a_grasp_pose(
 def test_grasp_approaches_the_door_from_the_camera(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Grasp approaches the door from the camera.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(horizontal_handle(), 0.05)
     handle = door_scene.add_detection(DoorObjectClass.HANDLE.value, handle_box())
@@ -146,6 +151,9 @@ def test_handle_axis_follows_the_handle(
     handle_region: Rect,
     axis_index: int,
 ) -> None:
+    """
+    Handle axis follows the handle.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(handle_region, 0.05)
     handle = door_scene.add_detection(
@@ -171,6 +179,9 @@ def test_grasp_pose_lies_on_the_middle_line_of_the_handle(
     handle_region: Rect,
     across_index: int,
 ) -> None:
+    """
+    Grasp pose lies on the middle line of the handle.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(handle_region, 0.05)
     handle = door_scene.add_detection(
@@ -188,9 +199,12 @@ def test_grasp_pose_lies_on_the_middle_line_of_the_handle(
     )
 
 
-def test_handle_axis_points_to_the_end_standing_out_furthest(
+def test_handle_axis_points_to_the_end_standing_out_farthest(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Handle axis points to the end standing out farthest.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     region = horizontal_handle()
     door_scene.stand_out(region, np.linspace(0.04, 0.06, region.width))
@@ -201,9 +215,12 @@ def test_handle_axis_points_to_the_end_standing_out_furthest(
     assert handle_axis(handle)[0] > 0.99
 
 
-def test_handle_axis_of_an_even_handle_points_to_the_door_centre(
+def test_handle_axis_of_an_even_handle_points_to_the_door_center(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    A handle standing out evenly has its axis pointing toward the door center.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(horizontal_handle(), 0.05)
     door_scene.add_detection(
@@ -222,8 +239,8 @@ def test_handle_axis_of_an_even_handle_points_to_the_door_centre(
 @pytest.mark.parametrize(
     "standing_out",
     [
-        lambda parameters: parameters.min_protrusion - 0.01,
-        lambda parameters: parameters.max_protrusion + 0.01,
+        lambda parameters: parameters.minimum_protrusion - 0.01,
+        lambda parameters: parameters.maximum_protrusion + 0.01,
     ],
     ids=["too close to the door", "too far out of the door"],
 )
@@ -232,6 +249,9 @@ def test_handle_outside_the_reach_of_the_gripper_is_dropped(
     handle_estimator: DoorHandlePoseAnnotator,
     standing_out: Callable[[DoorHandlePoseAnnotator.Descriptor.Parameters], float],
 ) -> None:
+    """
+    Handle outside the reach of the gripper is dropped.
+    """
     cas = door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(
         horizontal_handle(), standing_out(handle_estimator.descriptor.parameters)
@@ -246,6 +266,9 @@ def test_handle_outside_the_reach_of_the_gripper_is_dropped(
 def test_handle_with_too_few_points_is_dropped(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Handle with too few points is dropped.
+    """
     cas = door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(Rect(pos=Point2D(x=110, y=58), width=3, height=3), 0.05)
     door_scene.add_detection(DoorObjectClass.HANDLE.value, handle_box())
@@ -258,6 +281,9 @@ def test_handle_with_too_few_points_is_dropped(
 def test_handle_without_depth_measurements_is_dropped(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Handle without depth measurements is dropped.
+    """
     cas = door_scene.place_in_pipeline(handle_estimator)
     door_scene.clear(handle_box())
     door_scene.add_detection(DoorObjectClass.HANDLE.value, handle_box())
@@ -270,6 +296,9 @@ def test_handle_without_depth_measurements_is_dropped(
 def test_dropping_can_be_turned_off(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    With dropping turned off, a handle without a pose stays in the CAS.
+    """
     handle_estimator.descriptor.parameters.drop_handles_without_pose = False
     cas = door_scene.place_in_pipeline(handle_estimator)
     handle = door_scene.add_detection(DoorObjectClass.HANDLE.value, handle_box())
@@ -286,6 +315,9 @@ def test_dropping_can_be_turned_off(
 def test_door_gets_a_pose_on_its_plane(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Door gets a pose on its plane.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door = door_scene.add_detection(
         DoorObjectClass.DOOR.value, door_scene.whole_image()
@@ -302,6 +334,9 @@ def test_door_gets_a_pose_on_its_plane(
 def test_largest_of_several_doors_gets_the_pose(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Largest of several doors gets the pose.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     small_door = door_scene.add_detection(
         DoorObjectClass.CABINET_DOOR.value,
@@ -321,6 +356,10 @@ def test_largest_of_several_doors_gets_the_pose(
 def test_door_too_small_for_a_plane_falls_back_to_the_whole_image(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    A door detection too small for a plane falls back to the whole image for the handle
+    pose.
+    """
     door_scene.place_in_pipeline(handle_estimator)
     door_scene.stand_out(horizontal_handle(), 0.05)
     door_scene.add_detection(
@@ -337,6 +376,9 @@ def test_door_too_small_for_a_plane_falls_back_to_the_whole_image(
 def test_without_door_plane_nothing_is_estimated(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Without door plane nothing is estimated.
+    """
     cas = door_scene.place_in_pipeline(handle_estimator)
     door_scene.clear(door_scene.whole_image())
     handle = door_scene.add_detection(DoorObjectClass.HANDLE.value, handle_box())
@@ -349,6 +391,9 @@ def test_without_door_plane_nothing_is_estimated(
 
 
 def test_door_beyond_the_valid_depth_has_no_plane() -> None:
+    """
+    Door beyond the valid depth has no plane.
+    """
     handle_estimator = DoorHandlePoseAnnotator(
         descriptor=DoorHandlePoseAnnotator.Descriptor()
     )
@@ -368,6 +413,9 @@ def test_door_beyond_the_valid_depth_has_no_plane() -> None:
 def test_without_handle_only_the_door_is_posed(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Without handle only the door is posed.
+    """
     cas = door_scene.place_in_pipeline(handle_estimator)
     door = door_scene.add_detection(
         DoorObjectClass.DOOR.value, door_scene.whole_image()
@@ -382,6 +430,9 @@ def test_without_handle_only_the_door_is_posed(
 def test_detections_of_other_classes_are_left_alone(
     door_scene: DoorScene, handle_estimator: DoorHandlePoseAnnotator
 ) -> None:
+    """
+    Detections of other classes are left alone.
+    """
     cas = door_scene.place_in_pipeline(handle_estimator)
     cup = door_scene.add_detection("cup", handle_box())
 

@@ -15,13 +15,11 @@ from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
 from robokudo.annotators.human_and_pose import PoseKeypoint
 from robokudo.cas import CAS
 from robokudo.types.human import ActivityAnnotation
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, Callable
 
 from ._body_postures import BodyInSpace, BodyPosture
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from robokudo.annotators.core import BaseAnnotator
 
     from ._gpsr_scene import GpsrScene
@@ -33,6 +31,7 @@ def unreliable_confidence(
     annotator: HumanStandingAnnotator | HumanSittingAnnotator | HumanLyingAnnotator,
 ) -> float:
     """
+    :param annotator: The posture rule.
     :return: A keypoint confidence just below the one the posture rule trusts.
     """
     return annotator.descriptor.parameters.keypoint_confidence_threshold - 0.01
@@ -42,6 +41,9 @@ def unreliable_confidence(
 
 
 def test_standing_person_is_standing(scene: GpsrScene) -> None:
+    """
+    A person in a standing body pose is decided as standing.
+    """
     assert scene.decide_activities(
         HumanStandingAnnotator(), BodyPosture.standing().keypoint_annotation()
     ) == ["standing"]
@@ -53,6 +55,9 @@ def test_standing_person_is_standing(scene: GpsrScene) -> None:
 def test_person_in_another_posture_is_not_standing(
     scene: GpsrScene, posture: Callable[[], BodyPosture]
 ) -> None:
+    """
+    Person in another posture is not standing.
+    """
     assert (
         scene.decide_activities(
             HumanStandingAnnotator(), posture().keypoint_annotation()
@@ -81,6 +86,9 @@ def test_person_in_another_posture_is_not_standing(
 def test_standing_needs_every_body_proportion(
     scene: GpsrScene, posture: BodyPosture
 ) -> None:
+    """
+    Standing needs every body proportion.
+    """
     assert (
         scene.decide_activities(HumanStandingAnnotator(), posture.keypoint_annotation())
         == []
@@ -88,6 +96,9 @@ def test_standing_needs_every_body_proportion(
 
 
 def test_upper_body_at_the_confidence_threshold_counts(scene: GpsrScene) -> None:
+    """
+    Upper body at the confidence threshold counts.
+    """
     annotator = HumanStandingAnnotator(descriptor=HumanStandingAnnotator.Descriptor())
     threshold = annotator.descriptor.parameters.keypoint_confidence_threshold
     posture = BodyPosture.standing().with_confidence(threshold, PoseKeypoint.NOSE)
@@ -100,6 +111,9 @@ def test_upper_body_at_the_confidence_threshold_counts(scene: GpsrScene) -> None
 def test_upper_body_below_the_confidence_threshold_is_not_decided(
     scene: GpsrScene,
 ) -> None:
+    """
+    Upper body below the confidence threshold is not decided.
+    """
     annotator = HumanStandingAnnotator(descriptor=HumanStandingAnnotator.Descriptor())
     posture = BodyPosture.standing().with_confidence(
         unreliable_confidence(annotator), PoseKeypoint.NOSE
@@ -109,6 +123,9 @@ def test_upper_body_below_the_confidence_threshold_is_not_decided(
 
 
 def test_one_visible_leg_is_enough_to_stand(scene: GpsrScene) -> None:
+    """
+    One visible leg is enough to stand.
+    """
     annotator = HumanStandingAnnotator(descriptor=HumanStandingAnnotator.Descriptor())
     posture = BodyPosture.standing().with_confidence(
         unreliable_confidence(annotator), PoseKeypoint.LEFT_HIP, PoseKeypoint.LEFT_KNEE
@@ -120,6 +137,9 @@ def test_one_visible_leg_is_enough_to_stand(scene: GpsrScene) -> None:
 
 
 def test_standing_without_a_visible_leg_is_not_decided(scene: GpsrScene) -> None:
+    """
+    Standing without a visible leg is not decided.
+    """
     annotator = HumanStandingAnnotator(descriptor=HumanStandingAnnotator.Descriptor())
     posture = BodyPosture.standing().with_confidence(
         unreliable_confidence(annotator),
@@ -133,6 +153,9 @@ def test_standing_without_a_visible_leg_is_not_decided(scene: GpsrScene) -> None
 
 
 def test_person_too_small_in_the_image_is_not_standing(scene: GpsrScene) -> None:
+    """
+    Person too small in the image is not standing.
+    """
     posture = BodyPosture.standing().scaled(0.05)
 
     assert (
@@ -145,6 +168,9 @@ def test_person_too_small_in_the_image_is_not_standing(scene: GpsrScene) -> None
 
 
 def test_sitting_person_is_sitting(scene: GpsrScene) -> None:
+    """
+    A person in a sitting body pose is decided as sitting.
+    """
     assert scene.decide_activities(
         HumanSittingAnnotator(), BodyPosture.sitting().keypoint_annotation()
     ) == ["sitting"]
@@ -156,6 +182,9 @@ def test_sitting_person_is_sitting(scene: GpsrScene) -> None:
 def test_person_in_another_posture_is_not_sitting(
     scene: GpsrScene, posture: Callable[[], BodyPosture]
 ) -> None:
+    """
+    Person in another posture is not sitting.
+    """
     assert (
         scene.decide_activities(
             HumanSittingAnnotator(), posture().keypoint_annotation()
@@ -165,6 +194,9 @@ def test_person_in_another_posture_is_not_sitting(
 
 
 def test_one_visible_side_is_enough_to_sit(scene: GpsrScene) -> None:
+    """
+    One visible side is enough to sit.
+    """
     annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
     posture = BodyPosture.sitting().with_confidence(
         unreliable_confidence(annotator),
@@ -179,6 +211,9 @@ def test_one_visible_side_is_enough_to_sit(scene: GpsrScene) -> None:
 
 
 def test_sitting_without_a_visible_side_is_not_decided(scene: GpsrScene) -> None:
+    """
+    Sitting without a visible side is not decided.
+    """
     annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
     posture = BodyPosture.sitting().with_confidence(
         unreliable_confidence(annotator),
@@ -194,6 +229,9 @@ def test_sitting_without_a_visible_side_is_not_decided(scene: GpsrScene) -> None
 
 
 def test_knees_above_the_hips_are_not_sitting(scene: GpsrScene) -> None:
+    """
+    Knees above the hips are not sitting.
+    """
     sitting = BodyPosture.sitting()
     above_the_hips = sitting.keypoints[PoseKeypoint.LEFT_HIP].y - 10
     posture = sitting.moved_to_height(
@@ -207,6 +245,9 @@ def test_knees_above_the_hips_are_not_sitting(scene: GpsrScene) -> None:
 
 
 def test_person_too_small_in_the_image_is_not_sitting(scene: GpsrScene) -> None:
+    """
+    Person too small in the image is not sitting.
+    """
     posture = BodyPosture.sitting().scaled(0.1)
 
     assert (
@@ -217,8 +258,9 @@ def test_person_too_small_in_the_image_is_not_sitting(scene: GpsrScene) -> None:
 
 def sitting_with_knees_lowered_to(fraction_of_leg: float) -> BodyPosture:
     """
-    :return: The sitting person with both knees lowered to the given fraction of the
-        way from the hips down to the ankles.
+    :param fraction_of_leg: The fraction of the way from the hips to the ankles.
+    :return: The sitting person with both knees lowered to the given fraction of the way
+        from the hips down to the ankles.
     """
     sitting = BodyPosture.sitting()
     hip_y = sitting.keypoints[PoseKeypoint.LEFT_HIP].y
@@ -230,8 +272,11 @@ def sitting_with_knees_lowered_to(fraction_of_leg: float) -> BodyPosture:
 
 
 def test_knees_at_the_largest_hip_to_knee_drop_are_sitting(scene: GpsrScene) -> None:
+    """
+    Knees at the largest hip to knee drop are sitting.
+    """
     annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
-    largest_drop = annotator.descriptor.parameters.max_hip_knee_rel_bbox
+    largest_drop = annotator.descriptor.parameters.maximum_relative_hip_knee_height
 
     posture = sitting_with_knees_lowered_to(largest_drop)
 
@@ -243,8 +288,11 @@ def test_knees_at_the_largest_hip_to_knee_drop_are_sitting(scene: GpsrScene) -> 
 def test_knees_beyond_the_largest_hip_to_knee_drop_are_not_sitting(
     scene: GpsrScene,
 ) -> None:
+    """
+    Knees beyond the largest hip to knee drop are not sitting.
+    """
     annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
-    largest_drop = annotator.descriptor.parameters.max_hip_knee_rel_bbox
+    largest_drop = annotator.descriptor.parameters.maximum_relative_hip_knee_height
 
     posture = sitting_with_knees_lowered_to(largest_drop + 0.01)
 
@@ -252,6 +300,9 @@ def test_knees_beyond_the_largest_hip_to_knee_drop_are_not_sitting(
 
 
 def test_ankles_above_the_knees_are_not_sitting(scene: GpsrScene) -> None:
+    """
+    Ankles above the knees are not sitting.
+    """
     sitting = BodyPosture.sitting()
     above_the_hips = sitting.keypoints[PoseKeypoint.LEFT_HIP].y - 20
     posture = sitting.moved_to_height(
@@ -267,9 +318,12 @@ def test_ankles_above_the_knees_are_not_sitting(scene: GpsrScene) -> None:
 def test_shins_just_longer_than_the_least_knee_to_ankle_drop_are_sitting(
     scene: GpsrScene,
 ) -> None:
+    """
+    Shins just longer than the least knee to ankle drop are sitting.
+    """
     annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
-    annotator.descriptor.parameters.min_ankle_knee_rel_bbox = 0.7
-    least_drop = annotator.descriptor.parameters.min_ankle_knee_rel_bbox
+    annotator.descriptor.parameters.minimum_relative_knee_ankle_height = 0.7
+    least_drop = annotator.descriptor.parameters.minimum_relative_knee_ankle_height
 
     posture = sitting_with_knees_lowered_to(1.0 - least_drop - 0.01)
 
@@ -281,9 +335,12 @@ def test_shins_just_longer_than_the_least_knee_to_ankle_drop_are_sitting(
 def test_shins_shorter_than_the_least_knee_to_ankle_drop_are_not_sitting(
     scene: GpsrScene,
 ) -> None:
+    """
+    Shins shorter than the least knee to ankle drop are not sitting.
+    """
     annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
-    annotator.descriptor.parameters.min_ankle_knee_rel_bbox = 0.7
-    least_drop = annotator.descriptor.parameters.min_ankle_knee_rel_bbox
+    annotator.descriptor.parameters.minimum_relative_knee_ankle_height = 0.7
+    least_drop = annotator.descriptor.parameters.minimum_relative_knee_ankle_height
 
     posture = sitting_with_knees_lowered_to(1.0 - least_drop + 0.01)
 
@@ -294,6 +351,9 @@ def test_shins_shorter_than_the_least_knee_to_ankle_drop_are_not_sitting(
 
 
 def test_lying_person_is_lying(scene: GpsrScene) -> None:
+    """
+    A person in a lying body pose is decided as lying.
+    """
     assert scene.decide_activities(
         HumanLyingAnnotator(), BodyPosture.lying().keypoint_annotation()
     ) == ["lying"]
@@ -305,6 +365,9 @@ def test_lying_person_is_lying(scene: GpsrScene) -> None:
 def test_person_in_another_posture_is_not_lying(
     scene: GpsrScene, posture: Callable[[], BodyPosture]
 ) -> None:
+    """
+    Person in another posture is not lying.
+    """
     assert (
         scene.decide_activities(HumanLyingAnnotator(), posture().keypoint_annotation())
         == []
@@ -312,6 +375,9 @@ def test_person_in_another_posture_is_not_lying(
 
 
 def test_one_knee_at_hip_height_is_enough_to_lie(scene: GpsrScene) -> None:
+    """
+    One knee at hip height is enough to lie.
+    """
     lying = BodyPosture.lying()
     far_below_the_hips = lying.keypoints[PoseKeypoint.LEFT_HIP].y + 20
     posture = lying.moved_to_height(far_below_the_hips, PoseKeypoint.LEFT_KNEE)
@@ -322,6 +388,9 @@ def test_one_knee_at_hip_height_is_enough_to_lie(scene: GpsrScene) -> None:
 
 
 def test_knees_far_below_the_hips_are_not_lying(scene: GpsrScene) -> None:
+    """
+    Knees far below the hips are not lying.
+    """
     lying = BodyPosture.lying()
     far_below_the_hips = lying.keypoints[PoseKeypoint.LEFT_HIP].y + 20
     posture = lying.moved_to_height(
@@ -335,6 +404,9 @@ def test_knees_far_below_the_hips_are_not_lying(scene: GpsrScene) -> None:
 
 
 def test_head_far_from_the_shoulders_is_not_lying(scene: GpsrScene) -> None:
+    """
+    Head far from the shoulders is not lying.
+    """
     lying = BodyPosture.lying()
     far_above_the_shoulders = lying.keypoints[PoseKeypoint.LEFT_SHOULDER].y - 15
     posture = lying.moved_to_height(far_above_the_shoulders, PoseKeypoint.NOSE)
@@ -346,6 +418,9 @@ def test_head_far_from_the_shoulders_is_not_lying(scene: GpsrScene) -> None:
 
 
 def test_person_too_small_in_the_image_is_not_lying(scene: GpsrScene) -> None:
+    """
+    Person too small in the image is not lying.
+    """
     posture = BodyPosture.lying().scaled(0.5)
 
     assert (
@@ -355,6 +430,9 @@ def test_person_too_small_in_the_image_is_not_lying(scene: GpsrScene) -> None:
 
 
 def test_lying_is_not_decided_without_visible_legs(scene: GpsrScene) -> None:
+    """
+    Lying is not decided without visible legs.
+    """
     annotator = HumanLyingAnnotator(descriptor=HumanLyingAnnotator.Descriptor())
     posture = BodyPosture.lying().with_confidence(
         unreliable_confidence(annotator),
@@ -412,28 +490,29 @@ class PostureRule:
             BodyPosture.standing,
             "standing",
             (PoseKeypoint.NOSE, PoseKeypoint.LEFT_KNEE),
-            lambda annotator: annotator.descriptor.parameters.min_body_height,
+            lambda annotator: annotator.descriptor.parameters.minimum_body_height,
         ),
         PostureRule(
             HumanSittingAnnotator,
             BodyPosture.sitting,
             "sitting",
             (PoseKeypoint.LEFT_HIP, PoseKeypoint.LEFT_ANKLE),
-            lambda annotator: annotator.descriptor.parameters.min_leg_height,
+            lambda annotator: annotator.descriptor.parameters.minimum_leg_height,
         ),
         PostureRule(
             HumanLyingAnnotator,
             BodyPosture.lying,
             "lying",
             (PoseKeypoint.NOSE, PoseKeypoint.RIGHT_ANKLE),
-            lambda annotator: annotator.descriptor.parameters.min_body_height,
+            lambda annotator: annotator.descriptor.parameters.minimum_body_height,
         ),
     ],
     ids=["standing", "sitting", "lying"],
 )
 def posture_rule(request: pytest.FixtureRequest) -> PostureRule:
     """
-    Each posture rule in turn.
+    :param request: Holds the posture rule of this run.
+    :return: Each posture rule in turn.
     """
     return request.param
 
@@ -442,33 +521,42 @@ def test_person_without_keypoints_is_skipped(
     scene: GpsrScene,
     posture_rule: PostureRule,
 ) -> None:
+    """
+    Person without keypoints is skipped.
+    """
     annotator = posture_rule.annotator_class()
     scene.place_in_pipeline(annotator)
-    person = scene.add_human()
+    human_hypothesis = scene.add_human()
 
     status = annotator.update()
 
     assert status == Status.SUCCESS
-    assert scene.activities_of(person) == []
+    assert scene.activities_of(human_hypothesis) == []
 
 
 def test_person_with_only_keypoint_clouds_is_skipped(
     scene: GpsrScene,
     posture_rule: PostureRule,
 ) -> None:
+    """
+    Person with only keypoint clouds is skipped.
+    """
     annotator = posture_rule.annotator_class()
     scene.place_in_pipeline(annotator)
-    person = scene.add_human(BodyInSpace().keypoint_annotation())
+    human_hypothesis = scene.add_human(BodyInSpace().keypoint_annotation())
 
     annotator.update()
 
-    assert scene.activities_of(person) == []
+    assert scene.activities_of(human_hypothesis) == []
 
 
 def test_every_person_is_decided_on_their_own(
     scene: GpsrScene,
     posture_rule: PostureRule,
 ) -> None:
+    """
+    Every person is decided on their own.
+    """
     annotator = posture_rule.annotator_class()
     scene.place_in_pipeline(annotator)
     holding_the_posture = scene.add_human(posture_rule.posture().keypoint_annotation())
@@ -486,15 +574,20 @@ def test_posture_names_the_rule_as_its_source(
     scene: GpsrScene,
     posture_rule: PostureRule,
 ) -> None:
+    """
+    Posture names the rule as its source.
+    """
     annotator = posture_rule.annotator_class()
     scene.place_in_pipeline(annotator)
-    person = scene.add_human(posture_rule.posture().keypoint_annotation())
+    human_hypothesis = scene.add_human(posture_rule.posture().keypoint_annotation())
 
     annotator.update()
 
     assert [
         activity.source
-        for activity in CAS.filter_by_type(ActivityAnnotation, person.annotations)
+        for activity in CAS.filter_by_type(
+            ActivityAnnotation, human_hypothesis.annotations
+        )
     ] == [posture_rule.annotator_class.__name__]
 
 
@@ -502,6 +595,9 @@ def test_person_exactly_the_smallest_decided_height_is_decided(
     scene: GpsrScene,
     posture_rule: PostureRule,
 ) -> None:
+    """
+    Person exactly the smallest decided height is decided.
+    """
     annotator = posture_rule.annotator_class()
     posture = posture_rule.posture()
     heights = [

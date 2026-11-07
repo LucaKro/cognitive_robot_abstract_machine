@@ -117,7 +117,7 @@ class GpsrScene:
     def camera_model(self) -> PinholeCameraModel:
         """
         :return: A pinhole camera of the scene's resolution looking through the image
-            centre.
+            center.
         """
         return PinholeCameraModel(
             image_resolution=self.resolution,
@@ -156,6 +156,7 @@ class GpsrScene:
         """
         Set the annotator up in a pipeline whose CAS holds the scene.
 
+        :param annotator: The annotator to set up.
         :return: The CAS the annotator reads and writes.
         """
         annotator.setup()
@@ -176,12 +177,13 @@ class GpsrScene:
         """
         Add a human carrying the given annotations to the CAS.
 
+        :param annotations: The annotations of the human.
         :param position: Position of the human in the camera frame, if one is known.
         :return: The added human.
         """
-        human = HumanHypothesis()
-        self._fill(human, annotations, position)
-        return human
+        human_hypothesis = HumanHypothesis()
+        self._fill(human_hypothesis, annotations, position)
+        return human_hypothesis
 
     def add_object(
         self, *annotations: Any, position: list[float] | None = None
@@ -189,6 +191,7 @@ class GpsrScene:
         """
         Add an object carrying the given annotations to the CAS.
 
+        :param annotations: The annotations of the object.
         :param position: Position of the object in the camera frame, if one is known.
         :return: The added object.
         """
@@ -204,6 +207,10 @@ class GpsrScene:
     ) -> None:
         """
         Give the hypothesis its annotations and position and add it to the CAS.
+
+        :param hypothesis: The hypothesis to fill.
+        :param annotations: The annotations of the hypothesis.
+        :param position: The position of the hypothesis, if any.
         """
         hypothesis.roi.roi = copy.deepcopy(self.hypothesis_region)
         hypothesis.annotations.extend(annotations)
@@ -217,16 +224,19 @@ class GpsrScene:
         """
         Run the annotator on one person with the given keypoints.
 
+        :param annotator: The annotator to run.
+        :param keypoints: The keypoints of the person.
         :return: The activities the annotator annotated the person with.
         """
         self.place_in_pipeline(annotator)
-        person = self.add_human(keypoints)
+        human_hypothesis = self.add_human(keypoints)
         annotator.update()
-        return self.activities_of(person)
+        return self.activities_of(human_hypothesis)
 
     @staticmethod
     def clip_activity(activity: str) -> ActivityAnnotation:
         """
+        :param activity: The posture or gesture.
         :return: A posture or gesture as the CLIP activity annotator reports it.
         """
         return ActivityAnnotation(type=activity, source=HumanActivityAnnotator.__name__)
@@ -236,6 +246,7 @@ class GpsrScene:
         hypothesis: ObjectHypothesis, source: type[BaseAnnotator] | None = None
     ) -> list[str]:
         """
+        :param hypothesis: The hypothesis to read.
         :param source: The annotator whose activities are returned, or *None* for the
             activities of every annotator.
         :return: The activities the hypothesis was annotated with.
@@ -251,6 +262,7 @@ class GpsrScene:
     @staticmethod
     def locations_of(hypothesis: ObjectHypothesis) -> list[str]:
         """
+        :param hypothesis: The hypothesis to read.
         :return: The names of the locations the hypothesis was marked with.
         """
         return [

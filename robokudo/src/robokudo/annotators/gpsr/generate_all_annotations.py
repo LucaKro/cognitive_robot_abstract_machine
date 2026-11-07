@@ -1,3 +1,7 @@
+"""
+Answers with one object designator per object hypothesis.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -6,9 +10,10 @@ from py_trees.common import Status
 from robokudo_msgs.action import Query
 from robokudo_msgs.msg import ObjectDesignator, ShapeSize
 
+from robokudo.annotators.clip_annotator import CLIPAnnotator
 from robokudo.annotators.core import BaseAnnotator
 from robokudo.annotators.gpsr.belief_state import BeliefEntry
-from robokudo.annotators.gpsr.gpsr_results import camera_header
+from robokudo.annotators.gpsr.gpsr_results import create_camera_header
 from robokudo.cas import CASViews
 from robokudo.types.annotation import (
     Classification,
@@ -30,27 +35,30 @@ from robokudo.utils.type_conversion import (
 
 class GenerateAllQueryResult(BaseAnnotator):
     """
-    Answers the query with one object designator per object hypothesis, built from the
-    annotations of the hypothesis.
+    Answers the query with one object designator per object hypothesis.
 
-    With a room in the query, only the hypotheses marked with that room are answered.
-    Classifications of the CLIP annotator become attributes and the last other
-    classification becomes the type; semantic colors, the 3D bounding box, the belief id
-    and every pose and position are taken over, poses and positions in the world frame
-    ``map``.
+    With a queried room, only the hypotheses marked with it are answered. CLIP
+    classifications become attributes, the last other classification the type. Colors,
+    bounding box, belief id, poses and positions are copied.
     """
 
-    def __init__(self, name: str = "GenerateQueryResult") -> None:
-        super().__init__(name=name)
+    def __init__(self, name: str | None = None) -> None:
+        """
+        :param name: Name of this annotator in the tree, the class name if not given.
+        """
+        super().__init__(name=self.get_class_name() if name is None else name)
 
     def _append_pose(
         self, object_designator: ObjectDesignator, pose: PoseAnnotation
     ) -> None:
         """
         Append a camera-frame pose in the world frame to an answer.
+
+        :param object_designator: The answer that receives the pose.
+        :param pose: The pose in the camera frame.
         """
         world_pose = transform_pose_from_camera_to_world(self.get_cas(), pose)
-        header = camera_header(self.get_cas())
+        header = create_camera_header(self.get_cas())
         header.frame_id = "map"
         pose_stamped = get_geometry_msgs_pose_stamped_from_pose_annotation(
             world_pose, header
@@ -59,16 +67,21 @@ class GenerateAllQueryResult(BaseAnnotator):
         object_designator.pose_source.append(pose.source)
 
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to answer with a designator for every
+        object hypothesis the query selects.
 
+        :return: :attr:`Status.SUCCESS`.
+        """
         query = self.get_cas().get(CASViews.QUERY)
         queried_location = query.obj.location
         if queried_location == "":
-            filter_by_region = False
+            filter_by_room = False
         else:
-            filter_by_region = True
+            filter_by_room = True
 
         annotations = self.get_cas().annotations
-        object_hypotheses_count = 0
+        hypotheses_count = 0
         query_result = []
         result = Query.Result()
 
@@ -76,28 +89,28 @@ class GenerateAllQueryResult(BaseAnnotator):
             if not isinstance(hypothesis, ObjectHypothesis):
                 continue
 
-            object_hypotheses_count += 1
+            hypotheses_count += 1
             in_queried_room = False
-            if filter_by_region:
+            if filter_by_room:
                 for annotation in hypothesis.annotations:
                     if isinstance(annotation, LocationAnnotation):
                         if annotation.name == queried_location:
                             in_queried_room = True
 
             object_designator = ObjectDesignator()
-            belief_ids = [
+            belief_entries = [
                 annotation
                 for annotation in hypothesis.annotations
                 if isinstance(annotation, BeliefEntry)
             ]
-            if belief_ids:
-                object_designator.uid = str(belief_ids[0].id)
-            if filter_by_region == in_queried_room:
+            if belief_entries:
+                object_designator.uid = str(belief_entries[0].id)
+            if filter_by_room == in_queried_room:
                 for annotation in hypothesis.annotations:
                     # TODO Rewrite with a generic conversion module for each of the types
 
                     if isinstance(annotation, Classification):
-                        if annotation.source == "CLIPAnnotator":
+                        if annotation.source == CLIPAnnotator.__name__:
                             object_designator.attribute.append(annotation.classname)
                         else:
                             object_designator.type = annotation.classname
@@ -136,7 +149,5 @@ class GenerateAllQueryResult(BaseAnnotator):
 
         result.res = query_result
         QueryHandler.send_answer(result)
-        self.feedback_message = (
-            f"Send result for {object_hypotheses_count} object hypotheses"
-        )
+        self.feedback_message = f"Sent result for {hypotheses_count} object hypotheses"
         return Status.SUCCESS

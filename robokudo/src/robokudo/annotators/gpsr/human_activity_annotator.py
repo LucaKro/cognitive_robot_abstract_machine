@@ -1,18 +1,11 @@
 """
-This module implements a RoboKudo Annotator: The HumanActivityAnnotator.
-
-This annotator uses a pretrained CLIP model to classify human activities with a zeroshot
-approach. It distinguishes between mutually exclusive postures (e.g. sitting, standing)
-and gestures (raising, waving, pointing).
-
-Gesture direction (left/right) is not determined here.
-
-Author: Ali Talha Sükür Created at: 2026-04-14
+Zero-shot classification of the postures and gestures of persons with CLIP.
 """
 
 from __future__ import annotations
 
 # %% Imports
+from enum import StrEnum
 from timeit import default_timer
 
 import cv2
@@ -29,18 +22,42 @@ from robokudo.types.human import ActivityAnnotation
 from robokudo.types.scene import HumanHypothesis
 from robokudo.utils.error_handling import catch_and_raise_to_blackboard
 
+# %% gestures
+
+
+class HumanGesture(StrEnum):
+    """
+    Gestures the CLIP activity annotator annotates.
+    """
+
+    WAVING = "Waving"
+    """
+    A hand waves.
+    """
+    POINTING = "Pointing"
+    """
+    An arm points at something.
+    """
+    RAISING = "Raising"
+    """
+    An arm is raised.
+    """
+    NONE = "No gesture"
+    """
+    Both arms hang down, or no gesture reaches the threshold.
+    """
+
+
 # %% CLIP activity annotator
 
 
 class HumanActivityAnnotator(ThreadedAnnotator):
     """
-    Annotates every person with the posture and the gesture CLIP finds most probable,
-    and with the CLIP embedding of the person.
+    Annotates every person with the posture and gesture CLIP finds most probable.
 
-    The posture is decided on the whole person, the gesture on the upper body, widened
-    to both sides. The most probable posture is always annotated; a gesture only when
-    its probability reaches the gesture threshold, otherwise the person is annotated
-    with ``No gesture``.
+    The posture is decided on the whole person, the gesture on the widened upper body.
+    A gesture below the threshold is annotated as :attr:`HumanGesture.NONE`. Each person
+    also gets its CLIP embedding.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -54,7 +71,10 @@ class HumanActivityAnnotator(ThreadedAnnotator):
             """
 
             def __init__(self) -> None:
-                self.posture_classes: tuple[str, ...] = (
+                """
+                Start with the default texts, labels and CLIP model.
+                """
+                self.posture_texts: tuple[str, ...] = (
                     "a person standing upright with arms at their sides",
                     "a person sitting upright with torso vertical",
                     "a person lying down with their body mostly horizontal",
@@ -71,11 +91,11 @@ class HumanActivityAnnotator(ThreadedAnnotator):
                     "Crouching",
                 )
                 """
-                The posture annotated for each text of :attr:`posture_classes`, in the
+                The posture annotated for each text of :attr:`posture_texts`, in the
                 same order.
                 """
 
-                self.gesture_classes: tuple[str, ...] = (
+                self.gesture_texts: tuple[str, ...] = (
                     "a person waving hello with an open palm",
                     "a person with their arm extended out pointing at something",
                     "a person with one arm raised up in the air",
@@ -85,33 +105,33 @@ class HumanActivityAnnotator(ThreadedAnnotator):
                 The texts CLIP compares the crop of the upper body with, one per
                 gesture.
                 """
-                self.gesture_labels: tuple[str, ...] = (
-                    "Waving",
-                    "Pointing",
-                    "Raising",
-                    "No gesture",
+                self.gesture_labels: tuple[HumanGesture, ...] = (
+                    HumanGesture.WAVING,
+                    HumanGesture.POINTING,
+                    HumanGesture.RAISING,
+                    HumanGesture.NONE,
                 )
                 """
-                The gesture annotated for each text of :attr:`gesture_classes`, in the
+                The gesture annotated for each text of :attr:`gesture_texts`, in the
                 same order.
                 """
 
                 self.gesture_threshold: float = 0.65
                 """
-                Smallest probability of a gesture for it to be annotated; a person
-                without such a gesture is annotated with ``No gesture``.
+                Smallest probability of a gesture for it to be annotated. A person
+                without such a gesture is annotated with :attr:`HumanGesture.NONE`.
                 """
-                self.save_top_k: int = 1
+                self.maximum_gestures_per_person: int = 1
                 """
                 How many gestures reaching the threshold are annotated per person, the
                 most probable first.
                 """
 
-                self.clip_model: str = "openai/clip-vit-large-patch14"
+                self.clip_model_name: str = "openai/clip-vit-large-patch14"
                 """
                 Name of the pretrained CLIP model.
                 """
-                self.clip_processor: str = "openai/clip-vit-large-patch14"
+                self.clip_processor_name: str = "openai/clip-vit-large-patch14"
                 """
                 Name of the pretrained CLIP processor.
                 """
@@ -129,7 +149,7 @@ class HumanActivityAnnotator(ThreadedAnnotator):
 
         parameters = Parameters()
         """
-        Default parameters on the class; each descriptor instance gets its own.
+        Default parameters on the class. Each descriptor instance gets its own copy.
         """
 
     def __init__(
@@ -137,6 +157,12 @@ class HumanActivityAnnotator(ThreadedAnnotator):
         name: str = "HumanActivityAnnotator",
         descriptor: HumanActivityAnnotator.Descriptor | None = None,
     ) -> None:
+        """
+        Load the CLIP model and processor.
+
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.parameters: HumanActivityAnnotator.Descriptor.Parameters = (
             self.descriptor.parameters
@@ -144,12 +170,14 @@ class HumanActivityAnnotator(ThreadedAnnotator):
         """
         The parameters of the descriptor.
         """
-        self.model: CLIPModel = CLIPModel.from_pretrained(self.parameters.clip_model)
+        self.model: CLIPModel = CLIPModel.from_pretrained(
+            self.parameters.clip_model_name
+        )
         """
         The CLIP model, loaded once when the annotator is created.
         """
         self.processor: CLIPProcessor = CLIPProcessor.from_pretrained(
-            self.parameters.clip_processor
+            self.parameters.clip_processor_name
         )
         """
         The CLIP processor, loaded once when the annotator is created.
@@ -157,6 +185,12 @@ class HumanActivityAnnotator(ThreadedAnnotator):
 
     @catch_and_raise_to_blackboard
     def compute(self) -> Status:
+        """
+        Overrides :meth:`ThreadedAnnotator.compute` to annotate every person in the CAS
+        with its posture, gesture and embedding.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         start_timer = default_timer()
         self.analyze_human_hypotheses()
         self.feedback_message = (
@@ -164,7 +198,7 @@ class HumanActivityAnnotator(ThreadedAnnotator):
         )
         return Status.SUCCESS
 
-    def cutout_human_rois(
+    def crop_human_hypotheses(
         self, human_hypotheses: list[HumanHypothesis], upper_body: bool = False
     ) -> list[Image.Image]:
         """
@@ -182,11 +216,11 @@ class HumanActivityAnnotator(ThreadedAnnotator):
 
         image_width, _ = image.size
         crops = []
-        for human in human_hypotheses:
-            x = human.roi.roi.pos.x
-            y = human.roi.roi.pos.y
-            width = human.roi.roi.width
-            height = human.roi.roi.height
+        for human_hypothesis in human_hypotheses:
+            x = human_hypothesis.roi.roi.pos.x
+            y = human_hypothesis.roi.roi.pos.y
+            width = human_hypothesis.roi.roi.width
+            height = human_hypothesis.roi.roi.height
 
             if upper_body:
                 padding = int(width * self.parameters.upper_body_padding_fraction)
@@ -216,17 +250,17 @@ class HumanActivityAnnotator(ThreadedAnnotator):
         if not human_hypotheses:
             return
 
-        whole_person_crops = self.cutout_human_rois(human_hypotheses)
-        upper_body_crops = self.cutout_human_rois(human_hypotheses, upper_body=True)
+        whole_person_crops = self.crop_human_hypotheses(human_hypotheses)
+        upper_body_crops = self.crop_human_hypotheses(human_hypotheses, upper_body=True)
 
         posture_inputs = self.processor(
-            text=list(self.parameters.posture_classes),
+            text=list(self.parameters.posture_texts),
             images=whole_person_crops,
             return_tensors="pt",
             padding=True,
         )
         gesture_inputs = self.processor(
-            text=list(self.parameters.gesture_classes),
+            text=list(self.parameters.gesture_texts),
             images=upper_body_crops,
             return_tensors="pt",
             padding=True,
@@ -255,56 +289,64 @@ class HumanActivityAnnotator(ThreadedAnnotator):
                 .numpy()
             )
 
-        for human, posture_distribution, gesture_distribution, image_feature in zip(
+        for (
+            human_hypothesis,
+            posture_distribution,
+            gesture_distribution,
+            image_feature,
+        ) in zip(
             human_hypotheses,
             posture_probabilities,
             gesture_probabilities,
             image_features,
         ):
-            self.annotate_person(
-                human, posture_distribution, gesture_distribution, image_feature
+            self.annotate_human_hypothesis(
+                human_hypothesis,
+                posture_distribution,
+                gesture_distribution,
+                image_feature,
             )
 
-        self.visualize_humans(human_hypotheses)
+        self.visualize_human_hypotheses(human_hypotheses)
 
-    def annotate_person(
+    def annotate_human_hypothesis(
         self,
-        hh: HumanHypothesis,
-        posture_dist: np.ndarray,
-        gesture_dist: np.ndarray,
-        img_feat: np.ndarray,
+        human_hypothesis: HumanHypothesis,
+        posture_distribution: np.ndarray,
+        gesture_distribution: np.ndarray,
+        image_feature: np.ndarray,
     ) -> None:
         """
-        Annotate one person with the CLIP image embedding, the most probable posture,
-        and the most probable gestures that reach the threshold, or ``No gesture`` if
-        none does.
+        Annotate one person with the CLIP image embedding and the most probable posture.
+        Also annotate the most probable gestures that reach the threshold, or
+        :attr:`HumanGesture.NONE` if none does.
 
-        :param hh: The person.
-        :param posture_dist: Probability of each posture text.
-        :param gesture_dist: Probability of each gesture text.
-        :param img_feat: The normalized CLIP embedding of the crop of the whole person.
+        :param human_hypothesis: The person.
+        :param posture_distribution: Probability of each posture text.
+        :param gesture_distribution: Probability of each gesture text.
+        :param image_feature: The normalized CLIP embedding of the crop of the whole person.
         """
         clip_encoding = Encoding()
-        clip_encoding.encoding = img_feat
-        clip_encoding.source = type(self).__name__
-        hh.annotations.append(clip_encoding)
+        clip_encoding.encoding = image_feature
+        clip_encoding.source = self.get_class_name()
+        human_hypothesis.annotations.append(clip_encoding)
 
-        posture_label = self.parameters.posture_labels[posture_dist.argmax()]
+        posture_label = self.parameters.posture_labels[posture_distribution.argmax()]
         posture_annotation = ActivityAnnotation()
         posture_annotation.type = posture_label
-        posture_annotation.source = type(self).__name__
-        hh.annotations.append(posture_annotation)
+        posture_annotation.source = self.get_class_name()
+        human_hypothesis.annotations.append(posture_annotation)
 
         for index, (label, score) in enumerate(
-            zip(self.parameters.posture_labels, posture_dist)
+            zip(self.parameters.posture_labels, posture_distribution)
         ):
             self.rk_logger.info(
-                f"  Posture HH {hh.id}: {label} = {score:.2f}"
-                + ("  <-- WINNER" if index == posture_dist.argmax() else "")
+                f"  Posture human {human_hypothesis.id}: {label} = {score:.2f}"
+                + ("  <-- WINNER" if index == posture_distribution.argmax() else "")
             )
 
-        self.rk_logger.info(f"  Gesture scores HH {hh.id}:")
-        for label, score in zip(self.parameters.gesture_labels, gesture_dist):
+        self.rk_logger.info(f"  Gesture scores human {human_hypothesis.id}:")
+        for label, score in zip(self.parameters.gesture_labels, gesture_distribution):
             self.rk_logger.info(
                 f"    {label} = {score:.2f}"
                 + (
@@ -315,30 +357,34 @@ class HumanActivityAnnotator(ThreadedAnnotator):
             )
 
         gesture_count = 0
-        for index in gesture_dist.argsort()[::-1]:
-            if gesture_count >= self.parameters.save_top_k:
+        for index in gesture_distribution.argsort()[::-1]:
+            if gesture_count >= self.parameters.maximum_gestures_per_person:
                 break
             label = self.parameters.gesture_labels[index]
-            if label == "No gesture":
+            if label == HumanGesture.NONE:
                 continue
-            if gesture_dist[index] >= self.parameters.gesture_threshold:
+            if gesture_distribution[index] >= self.parameters.gesture_threshold:
                 gesture_annotation = ActivityAnnotation()
-                gesture_annotation.type = label
-                gesture_annotation.source = type(self).__name__
-                hh.annotations.append(gesture_annotation)
+                gesture_annotation.type = label.value
+                gesture_annotation.source = self.get_class_name()
+                human_hypothesis.annotations.append(gesture_annotation)
                 self.rk_logger.info(
-                    f"Gesture for HH {hh.id}: {label} ({gesture_dist[index]:.2f})"
+                    f"Gesture for human {human_hypothesis.id}: {label} ({gesture_distribution[index]:.2f})"
                 )
                 gesture_count += 1
 
         if gesture_count == 0:
             no_gesture_annotation = ActivityAnnotation()
-            no_gesture_annotation.type = "No gesture"
-            no_gesture_annotation.source = type(self).__name__
-            hh.annotations.append(no_gesture_annotation)
-            self.rk_logger.info(f"Gesture for HH {hh.id}: No gesture")
+            no_gesture_annotation.type = HumanGesture.NONE.value
+            no_gesture_annotation.source = self.get_class_name()
+            human_hypothesis.annotations.append(no_gesture_annotation)
+            self.rk_logger.info(
+                f"Gesture for human {human_hypothesis.id}: {HumanGesture.NONE}"
+            )
 
-    def visualize_humans(self, human_hypotheses: list[HumanHypothesis]) -> None:
+    def visualize_human_hypotheses(
+        self, human_hypotheses: list[HumanHypothesis]
+    ) -> None:
         """
         Draw the box of every person with its posture and gestures into the output
         image.
@@ -348,14 +394,17 @@ class HumanActivityAnnotator(ThreadedAnnotator):
         image = Image.fromarray(self.get_cas().get_copy(CASViews.COLOR_IMAGE))
         draw = ImageDraw.Draw(image)
 
-        for human in human_hypotheses:
-            x, y = human.roi.roi.pos.x, human.roi.roi.pos.y
-            width, height = human.roi.roi.width, human.roi.roi.height
+        for human_hypothesis in human_hypotheses:
+            x, y = human_hypothesis.roi.roi.pos.x, human_hypothesis.roi.roi.pos.y
+            width, height = (
+                human_hypothesis.roi.roi.width,
+                human_hypothesis.roi.roi.height,
+            )
             draw.rectangle((x, y, x + width, y + height), outline=(0, 255, 0), width=2)
 
             activities = [
                 annotation
-                for annotation in human.annotations
+                for annotation in human_hypothesis.annotations
                 if isinstance(annotation, ActivityAnnotation)
             ]
             postures = [

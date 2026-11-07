@@ -11,11 +11,7 @@ import shutil
 
 import pytest
 from robokudo.analysis_engine import SubtreeInterface
-from robokudo.annotators.gpsr import (
-    filter_object_by_semantic_annotation,
-    human_activity_annotator,
-    type_mapping_annotator,
-)
+from robokudo.annotators.gpsr import human_activity_annotator
 from robokudo.annotators.gpsr.belief_state import BeliefState, BeliefStateAnnotator
 from robokudo.annotators.gpsr.filter_object_by_semantic_annotation import (
     FilterObjectBySemanticAnnotation,
@@ -26,6 +22,7 @@ from robokudo.descriptors.analysis_engines.gpsr import gpsr_implementation
 from robokudo.descriptors.analysis_engines.gpsr.gpsr_implementation import (
     AnalysisEngine,
 )
+from robokudo.utils.file_loader import FileLoader
 from typing_extensions import TYPE_CHECKING
 
 from ._clip_mock import PretrainedLoader, ScoringModel, ScoringModelAndProcessor
@@ -50,6 +47,9 @@ def visualization_output(
 ) -> AnnotatorOutputPerPipelineMap:
     """
     Give every annotator under test a buffer to write its visualization output to.
+
+    :param annotator_output_buffer: The buffer the annotators write to.
+    :return: The buffer.
     """
     return annotator_output_buffer
 
@@ -60,7 +60,9 @@ def visualization_output(
 @pytest.fixture(autouse=True)
 def belief_state(monkeypatch: pytest.MonkeyPatch) -> BeliefState:
     """
-    The belief state all belief state annotators share, empty at the start of each test.
+    :param monkeypatch: Replaces the shared belief state.
+    :return: The belief state all belief state annotators share, empty at the start of
+        each test.
     """
     shared_belief_state = BeliefState()
     monkeypatch.setattr(BeliefStateAnnotator, "_state", shared_belief_state)
@@ -79,25 +81,26 @@ def semantic_type_mapping(
     Make the annotators read the mapping from detector classes to semantic types from
     the test data instead of the installed ROS package.
 
+    :param monkeypatch: Redirects the package file lookup.
+    :param tmp_path: Directory of the stand-in package.
     :return: The mapping the annotators read.
     """
     package_share = tmp_path / "package_share"
     mapping_directory = package_share / "data" / "json"
     mapping_directory.mkdir(parents=True)
-    for module, annotator_class in (
-        (type_mapping_annotator, TypeMappingAnnotator),
-        (filter_object_by_semantic_annotation, FilterObjectBySemanticAnnotation),
-    ):
-        default_mapping_filename = (
-            inspect.signature(annotator_class).parameters["mapping_filename"].default
+    for annotator_class in (TypeMappingAnnotator, FilterObjectBySemanticAnnotation):
+        default_mapping_file_name = (
+            inspect.signature(annotator_class).parameters["mapping_file_name"].default
         )
         shutil.copy(
             GpsrDataFile.SEMANTIC_TYPE_MAPPING,
-            mapping_directory / default_mapping_filename,
+            mapping_directory / default_mapping_file_name,
         )
-        monkeypatch.setattr(
-            module, "get_package_share_directory", lambda package: str(package_share)
-        )
+    monkeypatch.setattr(
+        FileLoader,
+        "get_path_to_file_in_ros_package",
+        lambda ros_pkg_name, relative_path: package_share / relative_path,
+    )
     return json.loads(GpsrDataFile.SEMANTIC_TYPE_MAPPING.read_text())
 
 
@@ -108,8 +111,11 @@ def semantic_type_mapping(
 def scoring_clip(monkeypatch: pytest.MonkeyPatch) -> ScoringModelAndProcessor:
     """
     Make the activity annotator load the scoring stand-in instead of pretrained CLIP.
+
+    :param monkeypatch: Replaces the CLIP loaders.
+    :return: The stand-in.
     """
-    posture_texts = HumanActivityAnnotator.Descriptor.Parameters().posture_classes
+    posture_texts = HumanActivityAnnotator.Descriptor.Parameters().posture_texts
     clip = ScoringModelAndProcessor(
         model=ScoringModel(posture_texts=tuple(posture_texts))
     )
@@ -130,7 +136,7 @@ def scoring_clip(monkeypatch: pytest.MonkeyPatch) -> ScoringModelAndProcessor:
 @pytest.fixture
 def scene() -> GpsrScene:
     """
-    A camera at the world origin, asked an empty query.
+    :return: A camera at the world origin, asked an empty query.
     """
     return GpsrScene()
 
@@ -141,8 +147,10 @@ def scene() -> GpsrScene:
 @pytest.fixture
 def gpsr_tree(node: Node, monkeypatch: pytest.MonkeyPatch) -> Behaviour:
     """
-    The GPSR tree with its real routing, every subtree it routes to replaced by a
-    :class:`PlaceholderSubtree`.
+    :param node: The shared ROS node.
+    :param monkeypatch: Replaces the subtrees.
+    :return: The GPSR tree with its real routing, every subtree it routes to replaced by
+        a :class:`PlaceholderSubtree`.
     """
     for module_attribute, value in list(vars(gpsr_implementation).items()):
         if isinstance(value, type) and issubclass(value, SubtreeInterface):
@@ -155,6 +163,7 @@ def gpsr_tree(node: Node, monkeypatch: pytest.MonkeyPatch) -> Behaviour:
 @pytest.fixture
 def scheduler(gpsr_tree: Behaviour) -> QueryBasedScheduler:
     """
-    The scheduler of the GPSR tree with placeholder subtrees.
+    :param gpsr_tree: The GPSR tree with placeholder subtrees.
+    :return: The scheduler of the GPSR tree with placeholder subtrees.
     """
     return scheduler_of(gpsr_tree)

@@ -10,7 +10,10 @@ from py_trees.common import Status
 from robokudo.annotators.gpsr.filter_human_by_activity_annotator import (
     FilterHumanByActivityAnnotator,
 )
-from robokudo.annotators.gpsr.human_activity_annotator import HumanActivityAnnotator
+from robokudo.annotators.gpsr.human_activity_annotator import (
+    HumanActivityAnnotator,
+    HumanGesture,
+)
 from robokudo.annotators.gpsr.lying import HumanLyingAnnotator
 from robokudo.types.annotation import Classification
 from robokudo.types.human import ActivityAnnotation
@@ -23,6 +26,9 @@ if TYPE_CHECKING:
 
 
 def test_without_filter_every_person_is_kept(scene: GpsrScene) -> None:
+    """
+    Without filter every person is kept.
+    """
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
     standing = scene.add_human(ActivityAnnotation(type="Standing"))
@@ -35,6 +41,9 @@ def test_without_filter_every_person_is_kept(scene: GpsrScene) -> None:
 
 
 def test_posture_filter_ignores_letter_case(scene: GpsrScene) -> None:
+    """
+    Posture filter ignores letter case.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
@@ -49,14 +58,18 @@ def test_posture_filter_ignores_letter_case(scene: GpsrScene) -> None:
 def test_gesture_filter_alone_keeps_persons_making_the_gesture(
     scene: GpsrScene,
 ) -> None:
+    """
+    Gesture filter alone keeps persons making the gesture.
+    """
     scene.query.obj.attribute = ["", "waving"]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
     waving = scene.add_human(
-        ActivityAnnotation(type="Standing"), ActivityAnnotation(type="Waving")
+        ActivityAnnotation(type="Standing"),
+        ActivityAnnotation(type=HumanGesture.WAVING),
     )
     scene.add_human(
-        ActivityAnnotation(type="Standing"), ActivityAnnotation(type="No gesture")
+        ActivityAnnotation(type="Standing"), ActivityAnnotation(type=HumanGesture.NONE)
     )
 
     annotator.update()
@@ -65,17 +78,21 @@ def test_gesture_filter_alone_keeps_persons_making_the_gesture(
 
 
 def test_both_filters_keep_persons_matching_both(scene: GpsrScene) -> None:
+    """
+    Both filters keep persons matching both.
+    """
     scene.query.obj.attribute = ["sitting", "waving"]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
     sitting_and_waving = scene.add_human(
-        ActivityAnnotation(type="Sitting"), ActivityAnnotation(type="Waving")
+        ActivityAnnotation(type="Sitting"), ActivityAnnotation(type=HumanGesture.WAVING)
     )
     scene.add_human(
-        ActivityAnnotation(type="Standing"), ActivityAnnotation(type="Waving")
+        ActivityAnnotation(type="Standing"),
+        ActivityAnnotation(type=HumanGesture.WAVING),
     )
     scene.add_human(
-        ActivityAnnotation(type="Sitting"), ActivityAnnotation(type="No gesture")
+        ActivityAnnotation(type="Sitting"), ActivityAnnotation(type=HumanGesture.NONE)
     )
 
     annotator.update()
@@ -84,6 +101,9 @@ def test_both_filters_keep_persons_matching_both(scene: GpsrScene) -> None:
 
 
 def test_filters_ignore_surrounding_spaces(scene: GpsrScene) -> None:
+    """
+    Filters ignore surrounding spaces.
+    """
     scene.query.obj.attribute = [" sitting "]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
@@ -106,6 +126,9 @@ def clip_lying_label() -> str:
 
 
 def test_laying_query_keeps_a_person_clip_sees_lying(scene: GpsrScene) -> None:
+    """
+    Laying query keeps a person CLIP sees lying.
+    """
     scene.query.obj.attribute = [HumanLyingAnnotator.query_word]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
@@ -118,6 +141,9 @@ def test_laying_query_keeps_a_person_clip_sees_lying(scene: GpsrScene) -> None:
 
 
 def test_laying_query_keeps_a_person_the_lying_rule_decided(scene: GpsrScene) -> None:
+    """
+    Laying query keeps a person the lying rule decided.
+    """
     scene.query.obj.attribute = [HumanLyingAnnotator.query_word]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
@@ -136,6 +162,9 @@ def test_laying_query_keeps_a_person_the_lying_rule_decided(scene: GpsrScene) ->
 
 
 def test_nobody_matching_leaves_no_person(scene: GpsrScene) -> None:
+    """
+    Nobody matching leaves no person.
+    """
     scene.query.obj.attribute = ["lying"]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)
@@ -148,6 +177,9 @@ def test_nobody_matching_leaves_no_person(scene: GpsrScene) -> None:
 
 
 def test_annotations_other_than_persons_are_removed(scene: GpsrScene) -> None:
+    """
+    Annotations other than persons are removed.
+    """
     scene.query.obj.attribute = ["sitting"]
     annotator = FilterHumanByActivityAnnotator()
     cas = scene.place_in_pipeline(annotator)

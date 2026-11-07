@@ -1,3 +1,7 @@
+"""
+Keypoint rule for the lying posture.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -25,14 +29,11 @@ if TYPE_CHECKING:
 
 class HumanLyingAnnotator(BaseAnnotator):
     """
-    Annotates every person whose image keypoints show a lying posture with the activity
-    :attr:`posture`.
+    Annotates every person whose image keypoints show a lying posture.
 
-    The rule needs reliable hips, knees and ankles on both sides. The person lies when
-    the keypoints are clearly wider than tall, the knee of at least one side is about
-    level with its hip, the shoulders are about level with each other and the nose is
-    about level with the shoulders, all relative to the vertical extent of the
-    keypoints. Persons without image keypoints are skipped.
+    The rule needs reliable hips, knees and ankles on both sides. The keypoints have to
+    be clearly wider than tall, with one knee about level with its hip and nose and
+    shoulders about level with each other.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -42,13 +43,16 @@ class HumanLyingAnnotator(BaseAnnotator):
 
         class Parameters:
             """
-            Parameters of the lying rule.
+            Thresholds of the lying rule.
             """
 
             def __init__(self) -> None:
+                """
+                Start with the default thresholds of the lying rule.
+                """
                 self.raise_on_failure: bool = False
                 """
-                Not read by this annotator.
+                Whether a failure raises an error.
                 """
 
                 self.keypoint_confidence_threshold: float = 0.5
@@ -57,34 +61,34 @@ class HumanLyingAnnotator(BaseAnnotator):
                 """
 
                 # TODO: Adjust lying thresholds.
-                self.max_vertical_rel_height: float = 0.35
+                self.maximum_relative_height: float = 0.35
                 """
                 Largest share of the vertical extent of the keypoints in the sum of
                 their vertical and horizontal extent for which the person lies.
                 """
-                self.min_horizontal_rel_width: float = 0.4
+                self.minimum_relative_width: float = 0.4
                 """
                 Smallest share of the horizontal extent of the keypoints in the sum of
                 their vertical and horizontal extent for which the person lies.
                 """
-                self.max_knee_hip_vertical_diff: float = 0.2
+                self.maximum_knee_hip_height_difference: float = 0.2
                 """
-                Largest vertical distance between the knee and the hip of one side,
-                relative to the vertical extent of the keypoints, for which the person
-                lies; one side is enough.
+                Largest vertical distance between knee and hip of one side, relative to
+                the vertical extent of the keypoints, for which the person lies. One
+                side is enough.
                 """
-                self.max_shoulder_height_difference: float = 0.35
+                self.maximum_shoulder_height_difference: float = 0.35
                 """
                 Largest vertical distance between the two shoulders, relative to the
                 vertical extent of the keypoints, for which the person lies.
                 """
-                self.max_head_shoulder_height_difference: float = 0.4
+                self.maximum_nose_shoulder_height_difference: float = 0.4
                 """
                 Largest vertical distance between the nose and the middle of the
                 shoulders, relative to the vertical extent of the keypoints, for which
                 the person lies.
                 """
-                self.min_body_height: float = 20
+                self.minimum_body_height: float = 20
                 """
                 Smallest vertical extent of the keypoints in the image, in pixels, for
                 which the posture is decided.
@@ -94,7 +98,7 @@ class HumanLyingAnnotator(BaseAnnotator):
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
         """
-        Default parameters on the class; each descriptor instance gets its own.
+        Default parameters on the class. Each descriptor instance gets its own copy.
         """
 
     def __init__(
@@ -102,6 +106,10 @@ class HumanLyingAnnotator(BaseAnnotator):
         name: str = "HumanLyingAnnotator",
         descriptor: HumanLyingAnnotator.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.color: np.ndarray | None = None
         """
@@ -115,19 +123,25 @@ class HumanLyingAnnotator(BaseAnnotator):
     @classproperty
     def posture(cls) -> str:
         """
-        The activity this rule annotates a lying person with.
+        :return: The activity this rule annotates a lying person with.
         """
         return "lying"
 
     @classproperty
     def query_word(cls) -> str:
         """
-        The word GPSR queries use for a lying person.
+        :return: The word GPSR queries use for a lying person.
         """
         return HumanPosture.LAYING.value
 
     @catch_and_raise_to_blackboard
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to annotate every person whose image
+        keypoints show a lying posture.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         start_timer = default_timer()
 
         self.color = self.get_cas().get(CASViews.COLOR_IMAGE)
@@ -152,10 +166,10 @@ class HumanLyingAnnotator(BaseAnnotator):
 
             image_keypoints = image_keypoint_annotations[0]
 
-            if self.keypoints_lying(image_keypoints):
+            if self.keypoints_suggest_lying(image_keypoints):
                 activity = ActivityAnnotation()
                 activity.type = HumanLyingAnnotator.posture
-                activity.source = type(self).__name__
+                activity.source = self.get_class_name()
                 human_hypothesis.annotations.append(activity)
 
         self.get_annotator_output_struct().set_geometries(visualization_geometries)
@@ -165,25 +179,25 @@ class HumanLyingAnnotator(BaseAnnotator):
         self.feedback_message = f"Processing took {(end_timer - start_timer):.4f}s"
         return Status.SUCCESS
 
-    def keypoints_lying(self, keypoint_2d_annotation: KeypointAnnotation) -> bool:
+    def keypoints_suggest_lying(self, image_keypoints: KeypointAnnotation) -> bool:
         """
-        :param keypoint_2d_annotation: The image keypoints of one person.
+        :param image_keypoints: The image keypoints of one person.
         :return: Whether the keypoints show a lying person.
         """
         parameters = self.descriptor.parameters
         confidence_threshold = parameters.keypoint_confidence_threshold
 
-        left_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_HIP]
-        left_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_KNEE]
-        left_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_ANKLE]
+        left_hip = image_keypoints.keypoints[PoseKeypoint.LEFT_HIP]
+        left_knee = image_keypoints.keypoints[PoseKeypoint.LEFT_KNEE]
+        left_ankle = image_keypoints.keypoints[PoseKeypoint.LEFT_ANKLE]
 
-        right_hip = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_HIP]
-        right_knee = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_KNEE]
-        right_ankle = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_ANKLE]
+        right_hip = image_keypoints.keypoints[PoseKeypoint.RIGHT_HIP]
+        right_knee = image_keypoints.keypoints[PoseKeypoint.RIGHT_KNEE]
+        right_ankle = image_keypoints.keypoints[PoseKeypoint.RIGHT_ANKLE]
 
-        left_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.LEFT_SHOULDER]
-        right_shoulder = keypoint_2d_annotation.keypoints[PoseKeypoint.RIGHT_SHOULDER]
-        nose = keypoint_2d_annotation.keypoints[PoseKeypoint.NOSE]
+        left_shoulder = image_keypoints.keypoints[PoseKeypoint.LEFT_SHOULDER]
+        right_shoulder = image_keypoints.keypoints[PoseKeypoint.RIGHT_SHOULDER]
+        nose = image_keypoints.keypoints[PoseKeypoint.NOSE]
 
         lower_body_reliable = (
             min(
@@ -227,7 +241,7 @@ class HumanLyingAnnotator(BaseAnnotator):
         vertical_extent = max(image_rows) - min(image_rows)
         horizontal_extent = max(image_columns) - min(image_columns)
 
-        if vertical_extent < parameters.min_body_height:
+        if vertical_extent < parameters.minimum_body_height:
             return False
 
         relative_height = vertical_extent / (vertical_extent + horizontal_extent)
@@ -240,21 +254,22 @@ class HumanLyingAnnotator(BaseAnnotator):
             abs(left_shoulder.y - right_shoulder.y) / vertical_extent
         )
 
-        head_shoulder_height_difference = (
+        nose_shoulder_height_difference = (
             abs(nose.y - (left_shoulder.y + right_shoulder.y) / 2) / vertical_extent
         )
 
-        # TODO: Adjust thresholds for lying detection.
         lying = (
-            relative_height <= parameters.max_vertical_rel_height
-            and relative_width >= parameters.min_horizontal_rel_width
+            relative_height <= parameters.maximum_relative_height
+            and relative_width >= parameters.minimum_relative_width
             and (
-                left_knee_hip_height <= parameters.max_knee_hip_vertical_diff
-                or right_knee_hip_height <= parameters.max_knee_hip_vertical_diff
+                left_knee_hip_height <= parameters.maximum_knee_hip_height_difference
+                or right_knee_hip_height
+                <= parameters.maximum_knee_hip_height_difference
             )
-            and shoulder_height_difference <= parameters.max_shoulder_height_difference
-            and head_shoulder_height_difference
-            <= parameters.max_head_shoulder_height_difference
+            and shoulder_height_difference
+            <= parameters.maximum_shoulder_height_difference
+            and nose_shoulder_height_difference
+            <= parameters.maximum_nose_shoulder_height_difference
         )
 
         return lying

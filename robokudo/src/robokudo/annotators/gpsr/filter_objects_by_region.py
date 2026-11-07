@@ -1,3 +1,7 @@
+"""
+Marking of the hypotheses that stand in the queried room.
+"""
+
 from __future__ import annotations
 
 # %% Imports
@@ -30,10 +34,8 @@ class FilterObjectsByRegion(BaseAnnotator):
     Marks every hypothesis that stands in the queried room with a
     :class:`LocationAnnotation` naming the room.
 
-    The rooms come from the shared world, which is fetched on the first query that
-    names a room and kept up to date afterwards. Only the position on the floor decides,
-    not the height of a hypothesis. A query without a room, a room the world does not
-    know or a CAS without a query marks nothing.
+    The rooms come from the shared world and only the position on the floor decides. A
+    query without a known room or a CAS without a query marks nothing.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -47,20 +49,23 @@ class FilterObjectsByRegion(BaseAnnotator):
             """
 
             def __init__(self) -> None:
+                """
+                Start with the world frame ``map`` and no active region.
+                """
                 self.world_frame_name: str = "map"
                 """
-                Name of the world frame. Not read by this annotator.
+                Name of the world frame.
                 """
                 self.active_region: str = ""
                 """
-                Not read by this annotator.
+                Name of the active region.
                 """
 
         parameters = (
             Parameters()
         )  # overwrite the parameters explicitly to enable auto-completion
         """
-        Default parameters on the class; each descriptor instance gets its own.
+        Default parameters on the class. Each descriptor instance gets its own copy.
         """
 
     def __init__(
@@ -68,14 +73,18 @@ class FilterObjectsByRegion(BaseAnnotator):
         name: str = "FilterObjectsByRegion",
         descriptor: FilterObjectsByRegion.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name=name, descriptor=descriptor)
         self.world_frame_name: str = self.descriptor.parameters.world_frame_name
         """
-        The world frame name of the parameters. Not read by this annotator.
+        The world frame name of the parameters.
         """
         self.active_region: str = self.descriptor.parameters.active_region
         """
-        The active region of the parameters. Not read by this annotator.
+        The active region of the parameters.
         """
         self.world: World | None = None
         """
@@ -83,6 +92,12 @@ class FilterObjectsByRegion(BaseAnnotator):
         """
 
     def update(self) -> Status:
+        """
+        Overrides :meth:`BaseAnnotator.update` to mark every hypothesis that stands in
+        the queried room.
+
+        :return: :attr:`Status.SUCCESS`.
+        """
         if not self.get_cas().contains(CASViews.QUERY):
             return Status.SUCCESS
         queried_location = self.get_cas().get(CASViews.QUERY).obj.location
@@ -93,7 +108,7 @@ class FilterObjectsByRegion(BaseAnnotator):
         if self.world is None:
             node = ROSNodeRegistry().get()
             self.world = fetch_world_from_service(node)
-            # keeps the fetched copy up to date, e.g. with rooms added after the fetch
+            # keeps the fetched copy up to date, for example with rooms added after the fetch
             WorldSynchronizer(_world=self.world, node=node)
         rooms = [
             room
@@ -101,11 +116,11 @@ class FilterObjectsByRegion(BaseAnnotator):
             if room.name.name == queried_location
         ]
         if not rooms:
-            # No exception here: an unknown room yields an empty answer instead of a query that never returns.
+            # an unknown room gets an empty answer, raising would leave the query open
             self.rk_logger.warning(
-                f"The shared world has no room '{queried_location}', no hypothesis is kept"
+                f"The shared world has no room '{queried_location}', no hypothesis is marked"
             )
-            self._draw_region_overlay(queried_location)
+            self._draw_room_overlay(queried_location)
             return Status.SUCCESS
         floor_boxes = list(
             rooms[0].floor.root.collision.as_bounding_box_collection_in_frame(
@@ -113,14 +128,13 @@ class FilterObjectsByRegion(BaseAnnotator):
             )
         )
 
-        region_annotation = LocationAnnotation()
-        region_annotation.name = queried_location
+        location_annotation = LocationAnnotation()
+        location_annotation.name = queried_location
         for hypothesis in self.get_cas().filter_annotations_by_type(ObjectHypothesis):
             for annotation in hypothesis.annotations:
                 if isinstance(annotation, PoseAnnotation):
                     pose_to_transform = annotation
                 elif isinstance(annotation, PositionAnnotation):
-                    # If PositionAnnotation does not have a rotation, then wrap it
                     pose_to_transform = PoseAnnotation()
                     pose_to_transform.rotation = [0.0, 0.0, 0.0, 1.0]
                     pose_to_transform.translation = annotation.translation
@@ -131,18 +145,17 @@ class FilterObjectsByRegion(BaseAnnotator):
                     self.get_cas(), pose_to_transform
                 )
                 x, y = world_pose.translation[0], world_pose.translation[1]
-                # the floor is flat, so only x and y decide whether the hypothesis stands in the room
                 if any(
                     box.min_x <= x <= box.max_x and box.min_y <= y <= box.max_y
                     for box in floor_boxes
                 ):
-                    hypothesis.annotations.append(region_annotation)
+                    hypothesis.annotations.append(location_annotation)
                     break
 
-        self._draw_region_overlay(queried_location)
+        self._draw_room_overlay(queried_location)
         return Status.SUCCESS
 
-    def _draw_region_overlay(self, queried_location: str) -> None:
+    def _draw_room_overlay(self, queried_location: str) -> None:
         """
         Draw every hypothesis of the CAS into the output image: a green frame for one
         marked with the queried room, a red frame over a red veil for any other.

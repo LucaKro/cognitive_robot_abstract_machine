@@ -1,6 +1,10 @@
+"""
+The GPSR subtree that detects the postures and gestures of persons.
+"""
+
 from __future__ import annotations
 
-# %% imports
+# %% Imports
 import py_trees
 import robokudo.analysis_engine
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
@@ -19,7 +23,7 @@ from robokudo.annotators.gpsr.filter_human_by_activity_annotator import (
 # %% pipeline
 class Subtree(robokudo.analysis_engine.SubtreeInterface):
     """
-    Detect and answer queries about human activities.
+    Detects human activities and answers queries about them.
     """
 
     def __init__(
@@ -35,6 +39,10 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
     def implementation(
         self, name: str | None = None, *args: object, **kwargs: object
     ) -> py_trees.composites.Sequence:
+        """
+        :param name: Name of this subtree.
+        :return: The sequence that detects the activities of the persons and answers with them.
+        """
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
         human_descriptor.parameters.generate_clouds_for_keypoints = True
@@ -45,12 +53,12 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
         pointing_descriptor = HumanPointingAnnotator.Descriptor()
         pointing_descriptor.parameters.pointing_length_meters = 5
         pointing_descriptor.parameters.known = True
-        pointing_descriptor.parameters.min_arm_extension = 0.25
+        pointing_descriptor.parameters.minimum_arm_extension = 0.25
 
-        seq = py_trees.composites.Sequence(
+        sequence = py_trees.composites.Sequence(
             "subtree_human_activity_pipeline", memory=True
         )
-        seq.add_children(
+        sequence.add_children(
             [
                 HumanAndPoseAnnotator(descriptor=human_descriptor),
                 CheckForHumanHypothesis(),
@@ -62,6 +70,6 @@ class Subtree(robokudo.analysis_engine.SubtreeInterface):
             ]
         )
         if self.with_filter:
-            seq.add_child(FilterHumanByActivityAnnotator())
-        seq.add_child(GenerateHumanActivityResult())
-        return seq
+            sequence.add_child(FilterHumanByActivityAnnotator())
+        sequence.add_child(GenerateHumanActivityResult())
+        return sequence

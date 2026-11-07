@@ -7,7 +7,6 @@ from __future__ import annotations
 # %% Imports
 import base64
 from enum import IntEnum
-from pathlib import Path
 from io import BytesIO
 
 import cv2
@@ -38,7 +37,7 @@ class GpuLayers(IntEnum):
 
     NONE = 0
     """
-    No layer; the model runs on the CPU.
+    No layer, so the model runs on the CPU.
     """
 
 
@@ -50,8 +49,7 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
     Asks a local vision language model a question about the crop of every person and
     annotates the person with the answer.
 
-    Persons with an empty answer are left without annotation. Without persons it
-    returns ``FAILURE``.
+    Persons with an empty answer are left without annotation.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -65,12 +63,13 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
             """
 
             def __init__(self) -> None:
+                """
+                Start with the default model files and question.
+                """
                 self.ros_package_name: str = "robokudo_suturo"
                 """
                 The ROS package that holds the model files.
                 """
-                self.model_directory: Path | None = None
-                """Directory containing the model files, if configured directly."""
                 self.model_file: str = "weights/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf"
                 """
                 The language model, relative to the ROS package.
@@ -112,7 +111,7 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
 
         parameters = Parameters()
         """
-        Default parameters on the class; each descriptor instance gets its own.
+        Default parameters on the class. Each descriptor instance gets its own copy.
         """
 
     def __init__(
@@ -120,6 +119,10 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
         name: str = "VisionLanguageAnnotator",
         descriptor: VisionLanguageAnnotator.Descriptor | None = None,
     ) -> None:
+        """
+        :param name: Name of this annotator in the tree.
+        :param descriptor: Configuration of this annotator.
+        """
         super().__init__(name, descriptor)
         self.model: Llama | None = None
         """
@@ -128,6 +131,13 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
 
     @catch_and_raise_to_blackboard
     def compute(self) -> Status:
+        """
+        Overrides :meth:`ThreadedAnnotator.compute` to ask the model about every person
+        and annotate each answer.
+
+        :return: :attr:`Status.FAILURE` without persons, otherwise
+            :attr:`Status.SUCCESS`.
+        """
         human_hypotheses = self.get_cas().filter_annotations_by_type(HumanHypothesis)
         if not human_hypotheses:
             self.feedback_message = "No humans found"
@@ -149,7 +159,7 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
             if not answer:
                 continue
             human_hypothesis.annotations.append(
-                ActivityAnnotation(type=answer, source=type(self).__name__)
+                ActivityAnnotation(type=answer, source=self.get_class_name())
             )
             self.feedback_message = answer
         return Status.SUCCESS
@@ -158,6 +168,7 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
         """
         Ask the configured question about an image.
 
+        :param image: The crop of the person.
         :return: The answer of the model without surrounding spaces.
         """
         parameters = self.descriptor.parameters
@@ -188,18 +199,14 @@ class VisionLanguageAnnotator(ThreadedAnnotator):
         :return: The configured model with its image projector.
         """
         parameters = self.descriptor.parameters
-        if parameters.model_directory is None:
-            model_path = FileLoader.get_path_to_file_in_ros_package(
-                ros_pkg_name=parameters.ros_package_name,
-                relative_path=parameters.model_file,
-            )
-            projector_path = FileLoader.get_path_to_file_in_ros_package(
-                ros_pkg_name=parameters.ros_package_name,
-                relative_path=parameters.projector_file,
-            )
-        else:
-            model_path = parameters.model_directory / parameters.model_file
-            projector_path = parameters.model_directory / parameters.projector_file
+        model_path = FileLoader.get_path_to_file_in_ros_package(
+            ros_pkg_name=parameters.ros_package_name,
+            relative_path=parameters.model_file,
+        )
+        projector_path = FileLoader.get_path_to_file_in_ros_package(
+            ros_pkg_name=parameters.ros_package_name,
+            relative_path=parameters.projector_file,
+        )
         return Llama(
             model_path=str(model_path),
             chat_handler=Qwen25VLChatHandler(

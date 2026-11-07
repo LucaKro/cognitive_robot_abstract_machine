@@ -40,6 +40,7 @@ class PlaceholderSubtree(SubtreeInterface):
 
 def scheduler_of(tree: Behaviour) -> QueryBasedScheduler:
     """
+    :param tree: The GPSR tree.
     :return: The scheduler of the GPSR tree, which picks a subtree for every query.
     """
     return next(
@@ -60,6 +61,11 @@ def gpsr_query(
     color: list[str] | None = None,
 ) -> Query.Goal:
     """
+    :param object_type: The queried kind of thing.
+    :param attribute: The queried attributes.
+    :param location: The queried location.
+    :param description: The queried descriptions.
+    :param color: The queried colors.
     :return: A query asking for the given kind of thing.
     """
     query = Query.Goal()

@@ -9,7 +9,7 @@ from robokudo.annotators.gpsr.belief_state import BeliefEntry, EntityType
 from robokudo.annotators.gpsr.exceptions import MissingObjectClassification
 from robokudo.annotators.gpsr.gpsr_results import (
     GenerateOpenVocabularyResult,
-    camera_header,
+    create_camera_header,
 )
 from robokudo.annotators.open_vocabulary_object_detection_annotator import (
     OpenVocabularyObjectDetectionAnnotator,
@@ -59,8 +59,8 @@ def test_clothing_answer_preserves_person_type_and_detected_description(
     scene.query.obj.type = "human"
     annotator = GenerateOpenVocabularyResult()
     scene.place_in_pipeline(annotator)
-    person = scene.add_human()
-    person.roi.roi = Rect(pos=Point2D(x=10, y=10), width=80, height=120)
+    human_hypothesis = scene.add_human()
+    human_hypothesis.roi.roi = Rect(pos=Point2D(x=10, y=10), width=80, height=120)
     garment = scene.add_object(
         Classification(
             classname="red shirt",
@@ -87,8 +87,8 @@ def test_clothing_answer_includes_person_identity_and_position(
     cas = scene.place_in_pipeline(annotator)
     belief = BeliefEntry(7, EntityType.PERSON, "human")
     position = PositionAnnotation(translation=[1.0, 2.0, 3.0], source="camera")
-    person = scene.add_human(belief, position)
-    person.roi.roi = Rect(pos=Point2D(x=10, y=10), width=80, height=120)
+    human_hypothesis = scene.add_human(belief, position)
+    human_hypothesis.roi.roi = Rect(pos=Point2D(x=10, y=10), width=80, height=120)
     garment = scene.add_object(
         Classification(
             classname="red shirt",
@@ -106,7 +106,7 @@ def test_clothing_answer_includes_person_identity_and_position(
             uid=str(belief.id),
             pose=[
                 get_geometry_msgs_pose_stamped_from_position_annotation(
-                    position, camera_header(cas)
+                    position, create_camera_header(cas)
                 )
             ],
             pose_source=[position.source],
@@ -138,7 +138,7 @@ def test_object_answer_includes_position_without_belief_id(scene: GpsrScene) -> 
             description=["cup"],
             pose=[
                 get_geometry_msgs_pose_stamped_from_position_annotation(
-                    position, camera_header(cas)
+                    position, create_camera_header(cas)
                 )
             ],
             pose_source=[position.source],
@@ -146,18 +146,20 @@ def test_object_answer_includes_position_without_belief_id(scene: GpsrScene) -> 
     ]
 
 
-def test_clothing_answer_filters_people_by_queried_room(scene: GpsrScene) -> None:
+def test_clothing_answer_filters_persons_by_queried_room(scene: GpsrScene) -> None:
     """
-    A room query answers only matching people in the requested room.
+    A room query answers only matching persons in the requested room.
     """
     scene.query.obj.type = "human"
     scene.query.obj.location = "kitchen"
-    annotator = GenerateOpenVocabularyResult(with_region_filter=True)
+    annotator = GenerateOpenVocabularyResult(with_room_filter=True)
     scene.place_in_pipeline(annotator)
-    person = scene.add_human(LocationAnnotation(name=scene.query.obj.location))
-    person.roi.roi = Rect(pos=Point2D(x=10, y=10), width=80, height=120)
+    human_hypothesis = scene.add_human(
+        LocationAnnotation(name=scene.query.obj.location)
+    )
+    human_hypothesis.roi.roi = Rect(pos=Point2D(x=10, y=10), width=80, height=120)
     other = scene.add_human(LocationAnnotation(name="office"))
-    other.roi.roi = person.roi.roi
+    other.roi.roi = human_hypothesis.roi.roi
     garment = scene.add_object(
         Classification(
             classname="red shirt",
