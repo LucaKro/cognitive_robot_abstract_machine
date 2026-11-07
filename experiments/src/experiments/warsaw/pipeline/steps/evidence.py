@@ -256,11 +256,15 @@ class MeasureScene(PipelineStep):
             "%s pairs stand in some measurable relation", len(measured.pairs)
         )
 
-        classes = self.vocabulary_classes().by_label()
-        relations = self.relations_of(loader, measured, classes)
+        read = self.vocabulary_classes()
+        classes = read.by_label()
+        alternatives = self.alternative_classes(read)
+        relations = self.relations_of(loader, measured, classes, alternatives)
 
         request = self.vocabulary_request(loader, measured)
-        open_now = self.open_questions(loader, measured, relations, classes)
+        open_now = self.open_questions(
+            loader, measured, relations, classes, alternatives
+        )
         relations = replace(relations, settled=open_now.settled, forced=open_now.forced)
         self.logger.info(
             "%s class patterns and %s memberships are open; %s groups the ontology "
@@ -345,29 +349,29 @@ class MeasureScene(PipelineStep):
         loader: WarsawWorldLoader,
         measured: SegmentRelations,
         classes: Dict[str, Optional[Type]],
+        alternatives: Dict[str, List[Type]],
     ) -> Relations:
         """
         :param loader: The loaded scene.
         :param measured: The measured scene.
         :param classes: Per label, the class it was read as.
-        :return: Every measured pair, with what the ontology makes of it.
+        :param alternatives: Per label, the other classes it may just as well be.
+        :return: Every measured pair, with the classes it was judged by and what the
+            ontology makes of them.
         """
         pairs = []
         for pair in measured.pairs:
-            one = measured.descriptors[pair.one]
-            other = measured.descriptors[pair.other]
+            one = measured.descriptors[pair.one].class_name
+            other = measured.descriptors[pair.other].class_name
+            judged = self.classes_to_judge(one, other, classes, alternatives)
             pairs.append(
                 PairRecord(
                     evidence=pair,
                     classes={
-                        one.class_name: self.class_name_of(classes.get(one.class_name)),
-                        other.class_name: self.class_name_of(
-                            classes.get(other.class_name)
-                        ),
+                        label: self.class_name_of(read_as)
+                        for label, read_as in judged.items()
                     },
-                    view=self.ontology_view(
-                        classes.get(one.class_name), classes.get(other.class_name)
-                    ),
+                    view=self.ontology_view(judged[one], judged[other]),
                     prompt_block=pair.as_prompt_block(measured.descriptors),
                 )
             )
@@ -376,6 +380,71 @@ class MeasureScene(PipelineStep):
             segments=list(measured.descriptors.values()),
             pairs=pairs,
         )
+
+    def alternative_classes(self, read: VocabularyClasses) -> Dict[str, List[Type]]:
+        """
+        :param read: What each label was answered to be.
+        :return: Per label, the other classes a pair of it is judged by, where the run is
+            told to consider them, and none where it is not.
+        """
+        if not self.settings.consider_alternative_classes:
+            return {}
+        return read.alternatives_by_label()
+
+    @staticmethod
+    def classes_to_judge(
+        one: str,
+        other: str,
+        classes: Dict[str, Optional[Type]],
+        alternatives: Dict[str, List[Type]],
+    ) -> Dict[str, Optional[Type]]:
+        """
+        :param one: The label of one segment of a pair.
+        :param other: The label of the other.
+        :param classes: Per label, the class it was read as.
+        :param alternatives: Per label, the other classes it may just as well be.
+        :return: Per label of the pair, the class it is judged by: the first readings, or,
+            where the ontology relates no part of those, the first combination of
+            readings it does relate.
+        """
+        first = {one: classes.get(one), other: classes.get(other)}
+        readings_of_one = [classes.get(one), *alternatives.get(one, [])]
+        readings_of_other = [classes.get(other), *alternatives.get(other, [])]
+        combinations = (
+            [(reading, reading) for reading in readings_of_one]
+            if one == other
+            else [(a, b) for a in readings_of_one for b in readings_of_other]
+        )
+        for a, b in combinations:
+            if a is not None and b is not None and admissible_mounts(a, b):
+                return {one: a, other: b}
+        return first
+
+    def classes_judged_with(
+        self,
+        part: str,
+        wholes: Sequence[MembershipCandidate],
+        labels: Dict[str, str],
+        classes: Dict[str, Optional[Type]],
+        alternatives: Dict[str, List[Type]],
+    ) -> Dict[str, Optional[Type]]:
+        """
+        :param part: A part with candidates.
+        :param wholes: Its candidates.
+        :param labels: Per segment, the label it carries.
+        :param classes: Per label, the class it was read as.
+        :param alternatives: Per label, the other classes it may just as well be.
+        :return: Per label, the class the part's pairs with its candidates were judged by,
+            which is what a question about them says each object is.
+        """
+        judged = dict(classes)
+        for whole in wholes:
+            judged.update(
+                self.classes_to_judge(
+                    labels[part], labels[whole.name], classes, alternatives
+                )
+            )
+        return judged
 
     @staticmethod
     def class_name_of(annotation_class: Optional[Type]) -> Optional[str]:
@@ -688,6 +757,7 @@ class MeasureScene(PipelineStep):
         measured: SegmentRelations,
         relations: Relations,
         classes: Dict[str, Optional[Type]],
+        alternatives: Dict[str, List[Type]],
     ) -> WhatIsOpen:
         """
         Work out what is actually left to decide, and how few questions it takes.
@@ -707,6 +777,7 @@ class MeasureScene(PipelineStep):
         :param measured: The measured scene.
         :param relations: The pairs, as they were written out.
         :param classes: Per label, the class it was read as.
+        :param alternatives: Per label, the other classes a pair of it is judged by.
         :return: What is left to decide, and what each question is rendered around.
         """
         segments = loader.label_segments
@@ -759,7 +830,9 @@ class MeasureScene(PipelineStep):
             ownership.append(question)
             contested[question.name] = exemplar.faces
 
-        memberships = self.memberships(relations, labels, classes, measured)
+        memberships = self.memberships(
+            relations, labels, classes, measured, alternatives
+        )
         return WhatIsOpen(
             questions=OpenQuestions(
                 scene=relations.scene,
@@ -776,6 +849,7 @@ class MeasureScene(PipelineStep):
         labels: Dict[str, str],
         classes: Dict[str, Optional[Type]],
         measured: SegmentRelations,
+        alternatives: Optional[Dict[str, List[Type]]] = None,
     ) -> Memberships:
         """
         Work out which parts have a whole to choose and which have only one.
@@ -793,6 +867,7 @@ class MeasureScene(PipelineStep):
         :param labels: Per segment, the label it carries.
         :param classes: Per label, the class it was read as.
         :param measured: The measured scene.
+        :param alternatives: Per label, the other classes a pair of it is judged by.
         :return: The parts with a whole to choose, and the parts with only one.
         """
         meeting: Dict[str, Dict[str, MembershipCandidate]] = defaultdict(dict)
@@ -843,7 +918,11 @@ class MeasureScene(PipelineStep):
                 candidates=wholes,
                 may_belong_to_none=part in to_confirm,
                 ontology=self.ontology_slice(
-                    [part] + [one.name for one in wholes], labels, classes
+                    [part] + [one.name for one in wholes],
+                    labels,
+                    self.classes_judged_with(
+                        part, wholes, labels, classes, alternatives or {}
+                    ),
                 ),
                 measured=self.measured_of(
                     [part] + [one.name for one in wholes], measured

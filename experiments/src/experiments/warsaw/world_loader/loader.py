@@ -9,6 +9,7 @@ painted, which is how a model is shown what it is being asked about.
 
 from __future__ import annotations
 
+import gc
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -193,6 +194,22 @@ class WarsawWorldLoader:
     render_sizes: RenderSizes = field(default_factory=RenderSizes)
     """
     How large the renders are drawn.
+    """
+
+    faces_worth_cropping: int = field(default=60_000)
+    """
+    How many faces a scene has to have for a picture of it to be drawn from only the
+    faces in view. Drawing costs far more memory than working out what is in view, on a
+    scan.
+
+    The renderer smooth-shades a mesh below this size, so a scene below it is drawn
+    whole, and one above it never is, whatever remains of it once cropped.
+    """
+
+    view_margin: float = field(default=1.1)
+    """
+    How much wider than the camera's field of view to look for faces, so that no face at
+    the edge of a picture depends on how the renderer rounds its view.
     """
 
     unhighlighted_dimming: float = field(default=0.35)
@@ -497,6 +514,7 @@ class WarsawWorldLoader:
         camera_poses: Dict[str, np.ndarray],
         headless: bool = False,
         resolution: Optional[Tuple[int, int]] = None,
+        smooth: bool = True,
     ) -> Dict[str, bytes]:
         """
         Render one scene from several camera poses.
@@ -507,6 +525,7 @@ class WarsawWorldLoader:
         :param resolution: How large to render, defaulting to the size a picture is kept
             at. A render made only to be measured and thrown away costs what its pixels
             cost and needs none of them.
+        :param smooth: Whether the renderer may smooth-shade a mesh small enough for it.
         :return: Per viewpoint, its render as PNG bytes.
         """
         scene.camera.fov = self._camera_field_of_view
@@ -521,9 +540,79 @@ class WarsawWorldLoader:
                 # the room for no reason a viewer could tell -- a drawer front vanishes
                 # while the handle on it stays.
                 flags={"cull": False},
+                smooth=smooth,
             )
+            # A closed window stays in a reference cycle holding all it drew, which on a
+            # scan is about a gigabyte per picture.
+            gc.collect()
             self._verify_the_renderer_draws(pose_name, images[pose_name])
         return images
+
+    def _render_what_is_in_view(
+        self, camera_poses: Dict[str, np.ndarray], headless: bool = False
+    ) -> Dict[str, bytes]:
+        """
+        Render the scene as it stands from several camera poses, sending the renderer
+        only the faces each camera could see where the scene is worth cropping.
+
+        :param camera_poses: The poses to render from, by the name of each viewpoint.
+        :param headless: Whether to render without opening a window.
+        :return: Per viewpoint, its render as PNG bytes.
+        """
+        whole = self._render_scene()
+        if len(self.scene_mesh.faces) < self.faces_worth_cropping:
+            return self._render_from_poses(whole, camera_poses, headless)
+        colors = np.asarray(self.scene_mesh.visual.face_colors)
+        images = {}
+        for name, pose in camera_poses.items():
+            in_view = self._faces_in_view(pose)
+            if not len(in_view):
+                images.update(self._render_from_poses(whole, {name: pose}, headless))
+                continue
+            cropped = trimesh.Scene()
+            # Placed by the scene rather than in its vertices, as in the whole scene, so
+            # that the renderer rounds every corner to the same pixel.
+            cropped.add_geometry(
+                self._faces_alone(in_view, colors),
+                transform=self.world_T_scene_mesh,
+            )
+            # The renderer places its lights from a scene's bounds, so a scene left to
+            # place its own would come out lit differently once cropped.
+            cropped.lights = whole.lights
+            for light in whole.lights:
+                cropped.graph[light.name] = whole.graph.get(light.name)[0]
+            images.update(
+                self._render_from_poses(cropped, {name: pose}, headless, smooth=False)
+            )
+        return images
+
+    def _faces_in_view(self, camera_pose: np.ndarray) -> np.ndarray:
+        """
+        :param camera_pose: Where a camera stands, in the world's frame.
+        :return: The faces of the scene it could see: all but those with every corner
+            beyond the same side of its view, which leaves one crossing the view from
+            corners outside it.
+        """
+        mesh = self.scene_mesh
+        camera_T_mesh = np.linalg.inv(camera_pose) @ self.world_T_scene_mesh
+        corners = trimesh.transformations.transform_points(mesh.vertices, camera_T_mesh)
+        across, up, depth = corners[:, 0], corners[:, 1], -corners[:, 2]
+        horizontal, vertical = (
+            self.view_margin * np.tan(np.radians(angle) / 2)
+            for angle in self._camera_field_of_view
+        )
+        beyond_a_side = np.stack(
+            [
+                depth <= 0,
+                across > horizontal * depth,
+                across < -horizontal * depth,
+                up > vertical * depth,
+                up < -vertical * depth,
+            ],
+            axis=1,
+        )
+        outside = beyond_a_side[mesh.faces].all(axis=1).any(axis=1)
+        return np.flatnonzero(~outside)
 
     def _verify_the_renderer_draws(self, viewpoint: str, render: bytes) -> None:
         """
@@ -840,10 +929,24 @@ class WarsawWorldLoader:
         :return: Their geometry by itself, where the world holds it.
         :raises NoSegmentsGivenError: If no segments were given.
         """
-        faces = np.unique(self.face_indices_of(segments))
+        alone = self._faces_alone(
+            np.unique(self.face_indices_of(segments)), face_colors
+        )
+        alone.apply_transform(self.world_T_scene_mesh)
+        return alone
+
+    def _faces_alone(
+        self, faces: np.ndarray, face_colors: np.ndarray
+    ) -> trimesh.Trimesh:
+        """
+        Cut some faces out of the scene, in the coordinates of :attr:`scene_mesh`.
+
+        :param faces: The faces to cut out.
+        :param face_colors: The color of every face of the whole scene.
+        :return: Those faces by themselves.
+        """
         alone = self.scene_mesh.submesh([faces], append=True)
         alone.visual.face_colors = face_colors[faces]
-        alone.apply_transform(self.world_T_scene_mesh)
         return alone
 
     def segments_as_scanned(
@@ -1019,7 +1122,7 @@ class WarsawWorldLoader:
             self.compute_camera_poses(frame), viewpoints
         )
         contexts = self._pictures(
-            self._render_from_poses(self._render_scene(), context_poses, headless),
+            self._render_what_is_in_view(context_poses, headless),
             context_poses,
         )
 

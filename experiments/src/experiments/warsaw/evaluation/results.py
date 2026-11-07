@@ -135,6 +135,11 @@ class SettingName(StrEnum):
     Whether a whole only found nearby is asked about.
     """
 
+    CONSIDER_ALTERNATIVE_CLASSES = "consider_alternative_classes"
+    """
+    Whether a pair is judged by the classes its labels may also be.
+    """
+
     @property
     def words_for_on_and_off(self) -> tuple[str, str] | None:
         """
@@ -149,6 +154,10 @@ class SettingName(StrEnum):
             SettingName.DEFER_NEW_CLASSES: ("deferred", "immediate"),
             SettingName.SETTLE_CLASSES_BY_LABEL: ("settled", "asked"),
             SettingName.CONFIRM_WHOLES_WITHIN_THE_GAP: ("confirmed", "unconfirmed"),
+            SettingName.CONSIDER_ALTERNATIVE_CLASSES: (
+                "alternatives",
+                "first readings",
+            ),
         }[self]
 
 

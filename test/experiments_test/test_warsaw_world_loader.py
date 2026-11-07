@@ -6,8 +6,10 @@ checked is the reading and not the scan: which objects a file's labels describe,
 directory that holds no scene says, and where the cameras end up standing.
 """
 
+import gc
 import io
 import json
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -606,6 +608,211 @@ def test_a_renderer_that_has_drawn_is_not_doubted_again(two_class_scene):
     )
 
     assert list(drawn) == ["front_left", "back_right"]
+
+
+# %% drawing no more than a camera can see
+
+
+@pytest.fixture
+def triangles_around_a_camera(tmp_path) -> Path:
+    """
+    :return: A scene of four objects along the source's x axis and around it: one ahead of
+        a camera at the origin looking along x, one behind it, one far off to its side,
+        and a large one in front of it whose corners all lie outside the view.
+    """
+    vertices = np.array(
+        [
+            [5.0, 0.0, 0.0],
+            [5.0, 0.1, 0.0],
+            [5.0, 0.0, 0.1],
+            [-5.0, 0.0, 0.0],
+            [-5.0, 0.1, 0.0],
+            [-5.0, 0.0, 0.1],
+            [0.1, 40.0, 0.0],
+            [0.1, 40.1, 0.0],
+            [0.1, 40.0, 0.1],
+            [3.0, 60.0, 0.0],
+            [3.0, -60.0, 60.0],
+            [3.0, -60.0, -60.0],
+        ]
+    )
+    write_scene(
+        tmp_path / "scene.ply",
+        vertices,
+        np.arange(12).reshape(-1, 3),
+        {"thing": [1, 2, 3, 4]},
+    )
+    return tmp_path
+
+
+def camera_along_the_x_axis(loader: WarsawWorldLoader) -> np.ndarray:
+    """
+    :return: The pose of a camera at the source's origin looking along its x axis.
+    """
+    source_to_world = loader.world_T_scene_mesh
+    mesh = loader.scene_mesh
+    ahead, behind = mesh.vertices[0], mesh.vertices[3]
+    eye = (source_to_world @ np.append((ahead + behind) / 2, 1.0))[:3]
+    target = (source_to_world @ np.append(ahead, 1.0))[:3]
+    return loader._looking_at(eye, target)
+
+
+def test_only_the_faces_a_camera_could_see_are_in_view(triangles_around_a_camera):
+    loader = WarsawWorldLoader(input_directory=triangles_around_a_camera)
+
+    in_view = loader._faces_in_view(camera_along_the_x_axis(loader))
+
+    assert in_view.tolist() == [0, 3]
+
+
+def test_a_face_whose_corners_all_lie_outside_the_view_can_still_cross_it(
+    triangles_around_a_camera,
+):
+    """
+    Its corners lie on different sides of the view, so it can cover all of it.
+    """
+    loader = WarsawWorldLoader(input_directory=triangles_around_a_camera)
+
+    assert 3 in loader._faces_in_view(camera_along_the_x_axis(loader))
+
+
+@dataclass
+class KeepsWhatItIsGiven:
+    """
+    A render that keeps the scenes it is asked to draw, rather than drawing them.
+    """
+
+    scenes: list = field(default_factory=list)
+    """
+    The scenes drawn so far.
+    """
+
+    smoothing: list = field(default_factory=list)
+    """
+    Whether each was asked to be smooth shaded.
+    """
+
+    def __call__(self, scene, poses, headless=False, resolution=None, smooth=True):
+        self.scenes.append(scene)
+        self.smoothing.append(smooth)
+        return {name: rendered_with_a_mark((0, 0, 0), (255, 0, 0)) for name in poses}
+
+
+def test_a_scene_worth_cropping_is_drawn_with_only_the_faces_in_view(
+    triangles_around_a_camera, monkeypatch
+):
+    loader = WarsawWorldLoader(
+        input_directory=triangles_around_a_camera, faces_worth_cropping=1
+    )
+    drawn = KeepsWhatItIsGiven()
+    monkeypatch.setattr(loader, "_render_from_poses", drawn)
+
+    loader._render_what_is_in_view({"ahead": camera_along_the_x_axis(loader)})
+
+    [scene] = drawn.scenes
+    assert len(scene.triangles) == 2
+
+
+def test_a_cropped_scene_is_lit_and_shaded_as_the_whole_scene_is(
+    triangles_around_a_camera, monkeypatch
+):
+    """
+    A scene's lights are placed from its bounds and a small mesh is smooth shaded, so
+    otherwise the same faces would come out looking different once they were cropped.
+    """
+    loader = WarsawWorldLoader(
+        input_directory=triangles_around_a_camera, faces_worth_cropping=1
+    )
+    whole = loader._render_scene()
+    drawn = KeepsWhatItIsGiven()
+    monkeypatch.setattr(loader, "_render_from_poses", drawn)
+
+    loader._render_what_is_in_view({"ahead": camera_along_the_x_axis(loader)})
+
+    [scene] = drawn.scenes
+    assert scene.lights is whole.lights
+    for light in whole.lights:
+        assert np.array_equal(
+            scene.graph.get(light.name)[0], whole.graph.get(light.name)[0]
+        )
+    assert drawn.smoothing == [False]
+
+
+def test_a_scene_too_small_to_be_worth_cropping_is_drawn_whole(
+    triangles_around_a_camera, monkeypatch
+):
+    loader = WarsawWorldLoader(input_directory=triangles_around_a_camera)
+    drawn = KeepsWhatItIsGiven()
+    monkeypatch.setattr(loader, "_render_from_poses", drawn)
+
+    loader._render_what_is_in_view({"ahead": camera_along_the_x_axis(loader)})
+
+    assert drawn.scenes == [loader._render_scene()]
+    assert drawn.smoothing == [True]
+
+
+def test_a_view_with_nothing_in_it_is_drawn_from_the_whole_scene(
+    triangles_around_a_camera, monkeypatch
+):
+    loader = WarsawWorldLoader(
+        input_directory=triangles_around_a_camera, faces_worth_cropping=1
+    )
+    drawn = KeepsWhatItIsGiven()
+    monkeypatch.setattr(loader, "_render_from_poses", drawn)
+    monkeypatch.setattr(
+        loader, "_faces_in_view", lambda pose: np.array([], dtype=np.int64)
+    )
+
+    loader._render_what_is_in_view({"ahead": np.eye(4)})
+
+    assert drawn.scenes == [loader._render_scene()]
+
+
+@dataclass
+class LeavesAWindowInACycle:
+    """
+    A renderer whose window keeps a reference to itself once it is closed, as a closed
+    window does, and which notes where that window can be looked up.
+    """
+
+    camera: PlacedCamera = field(default_factory=PlacedCamera)
+    """
+    The camera the poses are written to.
+    """
+
+    graph: Dict[str, np.ndarray] = field(default_factory=dict)
+    """
+    Where a pose is put for the camera to be moved by it.
+    """
+
+    window: Optional[weakref.ref] = None
+    """
+    The last window closed.
+    """
+
+    def save_image(self, **kwargs) -> bytes:
+        """
+        :return: A picture with something in it.
+        """
+        window = PlacedCamera()
+        window.itself = window
+        self.window = weakref.ref(window)
+        return rendered_with_a_mark((0, 0, 0), (255, 0, 0))
+
+
+def test_a_closed_window_does_not_stay_in_memory_after_its_picture(two_class_scene):
+    """
+    A window holds a copy of everything it drew, so one left for the garbage collector to
+    come across keeps a whole scene in memory per picture.
+    """
+    loader = WarsawWorldLoader(input_directory=two_class_scene)
+    renderer = LeavesAWindowInACycle()
+    gc.disable()
+
+    loader._render_from_poses(renderer, {"front_left": np.eye(4)})
+
+    gc.enable()
+    assert renderer.window() is None
 
 
 def test_the_predefined_poses_are_drawn_through_the_checked_renderer(

@@ -178,3 +178,32 @@ def test_every_usable_answer_of_a_real_run_becomes_a_class(vocabulary, known):
     classes = VocabularyClasses(vocabulary=vocabulary, known=known).by_label()
     for answer in vocabulary.labels:
         assert (classes[answer.label] is not None) == answer.is_usable
+
+
+# %% the classes a label might just as well be
+
+
+def alternatives_of(answer: LabelAnswer, known) -> list:
+    """
+    :return: The other classes a label answered like this might be.
+    """
+    return VocabularyClasses(
+        vocabulary=Vocabulary(
+            model="", scene="", labels=[replace(answer, label="cabinet")]
+        ),
+        known=known,
+    ).alternatives_by_label()["cabinet"]
+
+
+def test_the_alternatives_of_a_label_are_the_classes_of_the_ontology_it_named(known):
+    answer = LabelAnswer(class_name="Door", alternatives=["Cabinet", "Cupboardish"])
+
+    assert alternatives_of(answer, known) == [known["Cabinet"]]
+
+
+def test_an_answer_with_a_problem_has_no_alternatives(known):
+    answer = LabelAnswer(
+        class_name="Door", alternatives=["Cabinet"], problems=["unusable"]
+    )
+
+    assert alternatives_of(answer, known) == []

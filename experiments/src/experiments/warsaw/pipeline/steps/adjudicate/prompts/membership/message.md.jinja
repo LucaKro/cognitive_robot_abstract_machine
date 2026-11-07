@@ -8,7 +8,13 @@
 
 ## The candidates
 {% for candidate in candidates %}
+{% if not may_belong_to_none %}
 {{ candidate.name }}: shares {{ candidate.shared_faces }} faces with it, touches it along {{ candidate.touching_edges }} edges, {{ candidate.distance }} m between their surfaces, and would hold it in its {{ candidate.field_name }}
+{% elif shows_pictures %}
+{{ candidate.name }}: would hold it in its {{ candidate.field_name }}
+{% else %}
+{{ candidate.name }}: {{ candidate.distance }} m between their surfaces, and would hold it in its {{ candidate.field_name }}
+{% endif %}
 {% endfor %}
 
 {% if shows_pictures %}## The picture

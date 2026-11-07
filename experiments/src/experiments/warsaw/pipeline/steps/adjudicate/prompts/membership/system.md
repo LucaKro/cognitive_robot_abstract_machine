@@ -1,20 +1,21 @@
 {% if may_belong_to_none %}
 You decide whether a part belongs to one of the objects near it.
 
-A scanned room labelled a part that touches nothing it could belong to. The candidates lie
-near it and the ontology says it could be a part of them, but lying near an object does not
-make it a part of that object: it may be fixed to something that is not among them. Whether
-it belongs to one of them, and to which, is what you are deciding.
+A scanned room labelled a part, and the ontology says it could be a part of each of the
+candidates. It may also be fixed to something that is not among them, and then it belongs
+to none of them. Whether it belongs to one of them, and to which, is what you are deciding.
 {% if shows_pictures %}
 Each candidate has its own color and the part has its own.
 {% else %}
-Each candidate is listed with how far it was measured to be from the part.
+Each candidate is listed with how far it was measured to be from the part. A scan leaves
+gaps between objects that are fixed together, so a gap alone does not say they are apart.
 {% endif %}
 
 {% if shows_pictures %}
-Judge by what the pictures show: whether the part is fixed to the candidate, or only beside it.
+Judge by what the pictures show: whether the part is mounted on the candidate.
 {% else %}
-Judge by what the measurements say: whether the part is fixed to the candidate, or only beside it.
+Judge by what the objects are and where they are: whether the part is mounted on the
+candidate.
 {% endif %}
 
 Answer with JSON and nothing else. Write "reason" first: say in one sentence what the part

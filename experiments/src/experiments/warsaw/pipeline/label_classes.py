@@ -19,7 +19,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     compose_class,
     relations_of,
 )
-from typing_extensions import Any, Dict, Optional, Type
+from typing_extensions import Any, Dict, List, Optional, Type
 
 from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
 from experiments.warsaw.bases import HasLogger
@@ -87,6 +87,22 @@ class VocabularyClasses(HasLogger):
             else:
                 classes[label] = self.composed(answer)
         return classes
+
+    def alternatives_by_label(self) -> Dict[str, List[Type]]:
+        """
+        :return: Per label, the other classes of the ontology it was answered it may just as
+            well be, and none for an answer with problems.
+        """
+        return {
+            answer.label: (
+                []
+                if answer.problems
+                else [
+                    self.known[one] for one in answer.alternatives if one in self.known
+                ]
+            )
+            for answer in self.vocabulary.labels
+        }
 
     # %% putting the proposals beside the ontology
 

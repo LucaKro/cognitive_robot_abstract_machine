@@ -13,7 +13,14 @@ from __future__ import annotations
 import pytest
 
 
-from experiments.warsaw.pipeline.records import PairRecord, Relations, RelationStatus
+from experiments.warsaw.pipeline.records import (
+    LabelAnswer,
+    PairRecord,
+    Relations,
+    RelationStatus,
+    Vocabulary,
+)
+from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene
@@ -375,6 +382,164 @@ def test_without_the_setting_several_wholes_within_the_gap_have_to_be_chosen_fro
     ).to_ask_about
 
     assert question.may_belong_to_none is False
+
+
+# %% judging a pair by the classes its labels might be
+
+
+@pytest.fixture
+def step_considering_alternatives(tmp_path):
+    """
+    :return: The measuring step of a run judging pairs by every class a label might be.
+    """
+    return MeasureScene(
+        settings=PipelineSettings(consider_alternative_classes=True),
+        run=Run(directory=tmp_path),
+    )
+
+
+def test_a_pair_no_first_reading_relates_is_judged_by_an_alternative(
+    step_considering_alternatives, known
+):
+    judged = step_considering_alternatives.classes_to_judge(
+        "cabinet",
+        "door",
+        {"cabinet": known["Door"], "door": known["Door"]},
+        {"cabinet": [known["Cabinet"]]},
+    )
+
+    assert judged == {"cabinet": known["Cabinet"], "door": known["Door"]}
+
+
+def test_a_pair_the_first_reading_relates_keeps_it(
+    step_considering_alternatives, known
+):
+    judged = step_considering_alternatives.classes_to_judge(
+        "cabinet",
+        "door",
+        {"cabinet": known["Cabinet"], "door": known["Door"]},
+        {"cabinet": [known["Door"]]},
+    )
+
+    assert judged == {"cabinet": known["Cabinet"], "door": known["Door"]}
+
+
+def test_a_pair_no_reading_relates_keeps_the_first(
+    step_considering_alternatives, known
+):
+    judged = step_considering_alternatives.classes_to_judge(
+        "door",
+        "window",
+        {"door": known["Door"], "window": known["Door"]},
+        {"door": [known["Hinge"]]},
+    )
+
+    assert judged == {"door": known["Door"], "window": known["Door"]}
+
+
+def test_alternatives_are_considered_only_where_the_run_is_told_to(
+    step, step_considering_alternatives, known
+):
+    vocabulary = Vocabulary(
+        model="",
+        scene="",
+        labels=[
+            LabelAnswer(label="cabinet", class_name="Door", alternatives=["Cabinet"])
+        ],
+    )
+
+    read = VocabularyClasses(vocabulary=vocabulary, known=known)
+
+    assert step.alternative_classes(read) == {}
+    assert step_considering_alternatives.alternative_classes(read) == {
+        "cabinet": [known["Cabinet"]]
+    }
+
+
+def test_a_door_is_offered_the_cabinet_an_alternative_reading_lets_hold_it(
+    step_considering_alternatives, known
+):
+    """
+    Which end is the whole is read from the classes the pair was judged by, so the
+    cabinet has to be the whole although its label was first read as a door.
+    """
+    step = step_considering_alternatives
+    judged = step.classes_to_judge(
+        "cabinet",
+        "door",
+        {"cabinet": known["Door"], "door": known["Door"]},
+        {"cabinet": [known["Cabinet"]]},
+    )
+    pair = PairRecord(
+        evidence=PairEvidence(
+            one="cabinet_3",
+            other="door_1",
+            shared_faces=0,
+            share_of_one=0.0,
+            share_of_other=0.0,
+            touching_edges=167,
+            distance=0.0,
+        ),
+        classes={label: one.__name__ for label, one in judged.items()},
+        view=step.ontology_view(judged["cabinet"], judged["door"]),
+    )
+    labels = {"cabinet_3": "cabinet", "door_1": "door"}
+    relations = Relations(
+        scene="a kitchen",
+        pairs=[pair],
+        segments=[described(name, label) for name, label in labels.items()],
+    )
+
+    memberships = step.memberships(relations, labels, judged, self_measured(relations))
+
+    assert [(one.part, one.whole, one.field_name) for one in memberships.forced] == [
+        ("door_1", "cabinet_3", "doors")
+    ]
+
+
+def test_a_question_says_the_classes_the_pairs_were_judged_by(
+    step_considering_alternatives, known
+):
+    """
+    Told that a cabinet was read as a door and that the ontology admits nothing between
+    it and the door, a model is asked to put the door into it all the same.
+    """
+    step = step_considering_alternatives
+    classes = {"cabinet": known["Door"], "door": known["Door"]}
+    alternatives = {"cabinet": [known["Cabinet"]]}
+    judged = step.classes_to_judge("cabinet", "door", classes, alternatives)
+    pairs = [
+        PairRecord(
+            evidence=PairEvidence(
+                one=cabinet,
+                other="door_1",
+                shared_faces=0,
+                share_of_one=0.0,
+                share_of_other=0.0,
+                touching_edges=edges,
+                distance=0.0,
+            ),
+            classes={label: one.__name__ for label, one in judged.items()},
+            view=step.ontology_view(judged["cabinet"], judged["door"]),
+        )
+        for cabinet, edges in (("cabinet_3", 167), ("cabinet_1", 60))
+    ]
+    labels = {"cabinet_3": "cabinet", "cabinet_1": "cabinet", "door_1": "door"}
+    relations = Relations(
+        scene="a kitchen",
+        pairs=pairs,
+        segments=[described(name, label) for name, label in labels.items()],
+    )
+
+    [question] = step.memberships(
+        relations, labels, classes, self_measured(relations), alternatives
+    ).to_ask_about
+
+    assert question.ontology.read_as == {
+        "door_1": "Door",
+        "cabinet_3": "Cabinet",
+        "cabinet_1": "Cabinet",
+    }
 
 
 def self_classes(relations: Relations, known):

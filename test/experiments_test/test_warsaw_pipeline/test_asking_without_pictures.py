@@ -16,11 +16,15 @@ import json
 from dataclasses import dataclass, replace
 
 import pytest
+from PIL import Image
 from semantic_digital_twin.adapters.vision_language_model.client import (
     ModelResponse,
     VisionLanguageModel,
 )
-from semantic_digital_twin.adapters.vision_language_model.message import MessagePart
+from semantic_digital_twin.adapters.vision_language_model.message import (
+    MessagePart,
+    TextPart,
+)
 from typing_extensions import Dict, Sequence
 
 from experiments.warsaw.pipeline.steps import step as pipeline_step
@@ -55,8 +59,6 @@ def three_renders(tmp_path) -> list:
     """
     :return: One render of each kind, named as the pipeline names them.
     """
-    from PIL import Image
-
     names = []
     for kind in ("context", "plain", "closeup"):
         name = f"chair__{kind}_front_left.png"
@@ -461,6 +463,61 @@ def test_an_undrawn_question_that_may_end_in_none_mentions_no_picture_or_colour(
 
     assert "picture" not in said
     assert "color" not in said
+
+
+@pytest.fixture
+def drawn_confirmation(undrawn_membership, tmp_path) -> MembershipDecision:
+    """
+    :return: The fixture run's membership question, drawn, about a part that may belong
+        to none of its candidates.
+    """
+    names = []
+    for kind in ("closeup", "context", "plain"):
+        name = f"{undrawn_membership.asked.part}__{kind}_front_left.png"
+        Image.new("RGB", (4, 4), (200, 0, 0)).save(tmp_path / name)
+        names.append(name)
+    asked = replace(undrawn_membership.asked, images=names, may_belong_to_none=True)
+    return replace(undrawn_membership, asked=asked, renders_directory=tmp_path)
+
+
+def said_about_meeting(question: MembershipDecision) -> list[str]:
+    """
+    :return: What of the instruction and the message says how the part meets its
+        candidates.
+    """
+    text = question.system_prompt + "".join(
+        one.text for one in question.message() if isinstance(one, TextPart)
+    )
+    return [
+        words
+        for words in ("touch", "edges", "shares", "between their surfaces")
+        if words in text.lower()
+    ]
+
+
+def test_a_part_shown_in_pictures_is_not_told_how_it_meets_its_candidates(
+    drawn_confirmation,
+) -> None:
+    """
+    Every part asked this meets none of its candidates, which is why it is asked; told
+    so, a model answers that it belongs to none of them for that reason alone.
+    """
+    distances = [str(one.distance) for one in drawn_confirmation.asked.candidates]
+    [text, *_] = drawn_confirmation.message()
+
+    assert said_about_meeting(drawn_confirmation) == []
+    assert not any(distance in text.text for distance in distances)
+
+
+def test_a_part_asked_without_pictures_is_told_only_how_far_off_its_candidates_are(
+    undrawn_membership,
+) -> None:
+    undrawn_membership.asked.may_belong_to_none = True
+    [text] = undrawn_membership.message()
+
+    assert said_about_meeting(undrawn_membership) == ["between their surfaces"]
+    for candidate in undrawn_membership.asked.candidates:
+        assert str(candidate.distance) in text.text
 
 
 def test_an_undrawn_membership_question_carries_no_image(undrawn_membership) -> None:

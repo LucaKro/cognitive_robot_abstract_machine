@@ -264,6 +264,15 @@ class PipelineSettings:
     to, and still be offered as the whole it belongs to.
     """
 
+    consider_alternative_classes: bool = False
+    """
+    Whether a pair of objects the first readings of their labels relate in no way is
+    judged by the other classes the labels were answered they may just as well be, so a
+    part keeps its whole where a label was first misread.
+
+    Off, a pair is judged by the first readings alone.
+    """
+
     confirm_wholes_within_the_gap: bool = False
     """
     Whether a part that meets no whole is asked about those within

@@ -285,6 +285,7 @@ class MembershipDecision(OverlapDecision[MembershipAnswer, MembershipQuestion]):
                     candidates=self.asked.candidates,
                     painted=self.painted(),
                     shows_pictures=self.shows_pictures,
+                    may_belong_to_none=self.asked.may_belong_to_none,
                 )
             )
         ] + self.pictures()
