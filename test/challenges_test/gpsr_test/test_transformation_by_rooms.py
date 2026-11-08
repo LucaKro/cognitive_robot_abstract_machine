@@ -1,10 +1,14 @@
+"""
+Tests for ordering the steps of GPSR tasks into room visits.
+"""
+
 from __future__ import annotations
 
 from itertools import pairwise
 
 import pytest
 
-from challenges.GPSR.dataclasses.task_definitions import GPSRTask
+from challenges.GPSR.dataclasses.task_definitions import Command
 from challenges.GPSR.plan_transformation.transformation_by_rooms.exceptions import (
     MissingTasksOrRooms,
     NoRoomVisitOrderFound,
@@ -13,7 +17,7 @@ from challenges.GPSR.plan_transformation.transformation_by_rooms.mock_gpsr_tasks
     MOCK_GPSR_PLAN,
 )
 from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import (
-    transform_plan_by_rooms,
+    RoomVisitPlanner,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Kitchen,
@@ -24,15 +28,16 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 
 
 @pytest.fixture
-def room_visits() -> list[tuple[type[Room], list[tuple[GPSRTask, int]]]]:
+def room_visits() -> list[tuple[type[Room], list[tuple[Command, int]]]]:
     """
     :return: The room visits the mock plan is grouped into.
     """
-    return transform_plan_by_rooms(MOCK_GPSR_PLAN)
+    planner = RoomVisitPlanner()
+    return planner.transform_plan_by_rooms(MOCK_GPSR_PLAN)
 
 
 def test_steps_of_each_task_are_performed_once_and_in_order(
-    room_visits: list[tuple[type[Room], list[tuple[GPSRTask, int]]]],
+    room_visits: list[tuple[type[Room], list[tuple[Command, int]]]],
 ):
     for task in MOCK_GPSR_PLAN:
         performed_step_numbers = [
@@ -45,7 +50,7 @@ def test_steps_of_each_task_are_performed_once_and_in_order(
 
 
 def test_every_step_is_performed_in_an_allowed_room(
-    room_visits: list[tuple[type[Room], list[tuple[GPSRTask, int]]]],
+    room_visits: list[tuple[type[Room], list[tuple[Command, int]]]],
 ):
     for room, steps in room_visits:
         for task, step_number in steps:
@@ -53,14 +58,14 @@ def test_every_step_is_performed_in_an_allowed_room(
 
 
 def test_consecutive_visits_go_to_different_rooms(
-    room_visits: list[tuple[type[Room], list[tuple[GPSRTask, int]]]],
+    room_visits: list[tuple[type[Room], list[tuple[Command, int]]]],
 ):
     visited_rooms = [room for room, _ in room_visits]
     assert all(room != next_room for room, next_room in pairwise(visited_rooms))
 
 
 def test_steps_sharing_a_visit_are_ordered_by_task_and_then_by_step(
-    room_visits: list[tuple[type[Room], list[tuple[GPSRTask, int]]]],
+    room_visits: list[tuple[type[Room], list[tuple[Command, int]]]],
 ):
     for _, steps in room_visits:
         positions = [
@@ -70,7 +75,7 @@ def test_steps_sharing_a_visit_are_ordered_by_task_and_then_by_step(
 
 
 def test_mock_plan_needs_the_fewest_room_visits(
-    room_visits: list[tuple[type[Room], list[tuple[GPSRTask, int]]]],
+    room_visits: list[tuple[type[Room], list[tuple[Command, int]]]],
 ):
     # The remote leaves the living room before the milk can arrive there from the
     # kitchen, so the living room is visited twice, the kitchen and bedroom once each.
@@ -81,14 +86,14 @@ def test_mock_plan_needs_the_fewest_room_visits(
 
 
 def test_tasks_in_a_single_room_need_a_single_visit():
-    two_step_task = GPSRTask(
+    two_step_task = Command(
         name="two steps in the kitchen", rooms=[{Kitchen}, {Kitchen}], actions=[[], []]
     )
-    one_step_task = GPSRTask(
+    one_step_task = Command(
         name="one step in the kitchen", rooms=[{Kitchen}], actions=[[]]
     )
-
-    room_visits = transform_plan_by_rooms([two_step_task, one_step_task])
+    planner = RoomVisitPlanner()
+    room_visits = planner.transform_plan_by_rooms([two_step_task, one_step_task])
 
     assert room_visits == [
         (Kitchen, [(two_step_task, 1), (two_step_task, 2), (one_step_task, 1)])
@@ -99,24 +104,39 @@ def test_tasks_in_a_single_room_need_a_single_visit():
 
 
 def test_no_tasks_cannot_be_transformed():
+    planner = RoomVisitPlanner()
     with pytest.raises(MissingTasksOrRooms):
-        transform_plan_by_rooms([])
+        planner.transform_plan_by_rooms([])
 
 
 def test_tasks_without_allowed_rooms_cannot_be_transformed():
-    task = GPSRTask(name="go nowhere", rooms=[set()], actions=[[]])
+    task = Command(name="go nowhere", rooms=[set()], actions=[[]])
+    planner = RoomVisitPlanner()
 
     with pytest.raises(MissingTasksOrRooms):
-        transform_plan_by_rooms([task])
+        planner.transform_plan_by_rooms([task])
 
 
 # %% unsolvable tasks
 
 
 def test_step_without_an_allowed_room_next_to_others_cannot_be_transformed():
-    task = GPSRTask(
+    task = Command(
         name="cook, then go nowhere", rooms=[{Kitchen}, set()], actions=[[], []]
     )
+    planner = RoomVisitPlanner()
 
     with pytest.raises(NoRoomVisitOrderFound):
-        transform_plan_by_rooms([task])
+        planner.transform_plan_by_rooms([task])
+
+
+def test_unsolvable_tasks_report_the_search_time_limit_of_the_planner():
+    task = Command(
+        name="cook, then go nowhere", rooms=[{Kitchen}, set()], actions=[[], []]
+    )
+    planner = RoomVisitPlanner(search_time_limit=5.0)
+
+    with pytest.raises(NoRoomVisitOrderFound) as error:
+        planner.transform_plan_by_rooms([task])
+
+    assert error.value.search_time_limit == planner.search_time_limit

@@ -1,3 +1,7 @@
+"""
+Exceptions raised when the steps of Command are ordered into room visits.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -54,7 +58,7 @@ class NoRoomVisitOrderFound(DataclassException):
     The tasks that were to be ordered, each as one set of allowed rooms per step.
     """
 
-    time_limit: float
+    search_time_limit: float
     """
     How long the solver was allowed to search, in seconds.
     """
@@ -62,7 +66,7 @@ class NoRoomVisitOrderFound(DataclassException):
     def error_message(self) -> str:
         return (
             f"No order of room visits performs every step of the {len(self.task_list)} "
-            f"tasks within {self.time_limit} seconds."
+            f"tasks within {self.search_time_limit} seconds."
         )
 
     def suggest_correction(self) -> str:

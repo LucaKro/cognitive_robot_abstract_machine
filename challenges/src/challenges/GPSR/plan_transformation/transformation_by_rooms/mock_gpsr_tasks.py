@@ -10,11 +10,10 @@ Run it from the repository root::
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 
-from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import transform_plan_by_rooms
-from challenges.GPSR.dataclasses.task_definitions import GPSRTask
+from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import RoomVisitPlanner
+from challenges.GPSR.dataclasses.task_definitions import Command
 
 from coraplex.robot_plans.actions.base import SequentialAction
 from cramph.node import StatechartNode
@@ -51,13 +50,13 @@ class MockAction(SequentialAction):
 
 # %% the commands: one set of allowed rooms and one list of actions per step
 
-lower_torso = GPSRTask(
+lower_torso = Command(
     name="lower the torso and park the arms",
     rooms=[{Kitchen, LivingRoom, Bedroom, Bathroom}],
     actions=[[MockAction("move torso low"), MockAction("park arms")]],
 )
 
-bring_milk = GPSRTask(
+bring_milk = Command(
     name="bring the milk to the living room",
     rooms=[{Kitchen}, {LivingRoom}],
     actions=[
@@ -66,7 +65,7 @@ bring_milk = GPSRTask(
     ],
 )
 
-bring_cup = GPSRTask(
+bring_cup = Command(
     name="bring the cup to the bedroom",
     rooms=[{LivingRoom}, {Bedroom}],
     actions=[
@@ -75,7 +74,7 @@ bring_cup = GPSRTask(
     ],
 )
 
-bring_remote = GPSRTask(
+bring_remote = Command(
     name="bring the remote to the kitchen",
     rooms=[{LivingRoom}, {Kitchen}],
     actions=[
@@ -86,7 +85,7 @@ bring_remote = GPSRTask(
 
 # %% the plan: arrival order, not room order
 
-MOCK_GPSR_PLAN: list[GPSRTask] = [lower_torso, bring_milk, bring_cup, bring_remote]
+MOCK_GPSR_PLAN: list[Command] = [lower_torso, bring_milk, bring_cup, bring_remote]
 """
 The commands queued as they arrived, so performing them in that order visits a room,
 leaves it, and visits it again.
@@ -98,30 +97,28 @@ groups them into fewer room visits.
 # %% printing the room visits
 
 
-def main() -> None:
+def main() -> list[MockAction]:
     """
-    Prints the room visits :data:`MOCK_GPSR_PLAN` is grouped into, first as task steps
-    and then as their actions, followed by the time the grouping took and the actions in
-    execution order.
+    Collects the room visits :data:`MOCK_GPSR_PLAN` is grouped into, first as task steps
+    and then as their actions and the actions in execution order.
     """
-    start = time.time()
-    room_visits = transform_plan_by_rooms(MOCK_GPSR_PLAN)
+    planner = RoomVisitPlanner()
+    room_visits = planner.transform_plan_by_rooms(MOCK_GPSR_PLAN)
     optimal_plan = []
-    print("Steps per room visit:")
+    printable_output = ''
+    printable_output += "Steps per room visit: \n"
     for room, steps in room_visits:
-        print(f"  In room {room.__name__}:")
+        printable_output += f"  In room {room.__name__}:\n"
         for task, step_number in steps:
-            print(f"    part {step_number} of {len(task.rooms)} of task '{task.name}'")
+            printable_output += f"    part {step_number} of {len(task.rooms)} of task '{task.name}'\n"
 
-    print("\nActions per room visit, grouped by task:")
+    printable_output += "\nActions per room visit, grouped by task:\n"
     for room, steps in room_visits:
-        print(f"  In room {room.__name__}:")
+        printable_output += f"  In room {room.__name__}:\n"
         for task, step_number in steps:
-            print(f"    {task.name}: {task.actions[step_number - 1]}")
+            printable_output += f"    {task.name}: {task.actions[step_number - 1]}\n"
             optimal_plan.append(task.actions[step_number - 1])
-
-    print(time.time()-start)
-    print(optimal_plan)
+    return optimal_plan
 
 
 

@@ -1,3 +1,8 @@
+"""
+Commands given to the robot in the GPSR challenge, split into the actions they perform
+room by room.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,9 +14,9 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
 
 
 @dataclass(eq=False)
-class GPSRTask:
+class Command:
     """
-    One GPSR command, such as "bring the milk to the living room", split into the
+    One command, such as "bring the milk to the living room", split into the
     actions it performs room by room.
     """
 
@@ -31,5 +36,3 @@ class GPSRTask:
     The actions of each step, in execution order: ``actions[i]`` is performed in one
     of the rooms in ``rooms[i]``.
     """
-
-
