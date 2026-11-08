@@ -177,6 +177,19 @@ class PairEvidence(JsonRecord):
     Where the first ranks among the second's nearest, or None if further away.
     """
 
+    def meets(self, largest_gap_counted_as_touching: float) -> bool:
+        """
+        :param largest_gap_counted_as_touching: How far apart, in metres, two segments may
+            be and still count as touching.
+        :return: Whether the two share faces, touch along an edge, or lie no further
+            apart than that.
+        """
+        return bool(
+            self.shared_faces
+            or self.touching_edges
+            or self.distance <= largest_gap_counted_as_touching
+        )
+
     def as_prompt_block(self, descriptors: Dict[str, SegmentDescriptor]) -> str:
         """
         State the measurements in the words a model reads them in.

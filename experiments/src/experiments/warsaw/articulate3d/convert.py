@@ -225,6 +225,13 @@ class ConvertedScene(JsonRecord):
             return Path(directory).name
         return cls.beside(directory).scene_id
 
+    @property
+    def segment_of_part(self) -> dict[int, str]:
+        """
+        :return: Per annotated part written, the segment it was written as.
+        """
+        return {one.part_id: one.segment for one in self.parts}
+
     def write_beside(self, directory: Path) -> None:
         """
         :param directory: The converted scene's directory.
@@ -324,6 +331,44 @@ class SceneConversion:
         )
         converted.write_beside(output)
         return converted
+
+    def write_from_dataset(
+        self,
+        scene_id: str,
+        dataset: Path,
+        scannetpp: Path,
+        protocol: EvaluationProtocol,
+        output: Path,
+    ) -> ConvertedScene:
+        """
+        Write a scene of the datasets as the protocol's annotation rules correct it.
+
+        :param scene_id: The scene.
+        :param dataset: The directory holding Articulate3D's annotation files.
+        :param scannetpp: ScanNet++'s data directory.
+        :param protocol: The protocol whose annotation rules the scene is written by.
+        :param output: The directory to write it into.
+        :return: What was written.
+        :raises SceneExcludedError: If the annotation rules leave the scene out.
+        :raises ValidationSceneLockedError: If it is a validation scene and the checkout
+            is not frozen.
+        """
+        ruled = self.spelling.rules(protocol.annotation_rules).apply(
+            AnnotatedScene.read(scene_id, dataset, scannetpp)
+        )
+        if ruled.excluded:
+            raise SceneExcludedError(
+                scene_id=scene_id,
+                findings=[finding.finding for finding in ruled.exclusions],
+            )
+        scene = replace(
+            Articulate3DDatasetLoader(
+                directory=dataset,
+                scannetpp_dataset_loader=ScanNetPPDatasetLoader(directory=scannetpp),
+            ).load(scene_id),
+            parts=ruled.scene.parts,
+        )
+        return self.write(scene, output)
 
     def _properties(
         self, parts: list[Articulate3DPart], random: np.random.Generator
@@ -476,31 +521,18 @@ def main(arguments: list[str] | None = None) -> int:
     """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     parsed = argument_parser().parse_args(arguments)
-    conversion = SceneConversion(
+    converted = SceneConversion(
         disclosure=parsed.disclosure,
         overlap=parsed.overlap,
         spelling=parsed.spelling,
         seed=parsed.seed,
+    ).write_from_dataset(
+        parsed.scene,
+        parsed.dataset,
+        parsed.scannetpp,
+        EvaluationProtocol.read(parsed.protocol),
+        parsed.output,
     )
-    rules = conversion.spelling.rules(
-        EvaluationProtocol.read(parsed.protocol).annotation_rules
-    )
-    ruled = rules.apply(
-        AnnotatedScene.read(parsed.scene, parsed.dataset, parsed.scannetpp)
-    )
-    if ruled.excluded:
-        raise SceneExcludedError(
-            scene_id=parsed.scene,
-            findings=[finding.finding for finding in ruled.exclusions],
-        )
-    scene = replace(
-        Articulate3DDatasetLoader(
-            directory=parsed.dataset,
-            scannetpp_dataset_loader=ScanNetPPDatasetLoader(directory=parsed.scannetpp),
-        ).load(parsed.scene),
-        parts=ruled.scene.parts,
-    )
-    converted = conversion.write(scene, parsed.output)
     logging.getLogger(__name__).info(
         "wrote %s parts of %s to %s, %s without faces left out",
         len(converted.parts),

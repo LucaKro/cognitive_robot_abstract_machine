@@ -111,6 +111,22 @@ classes in the checkout (see above). Settings a script leaves out keep their def
 two runs differ in exactly what their scripts set differently; compare their
 `provenance.json` to be sure.
 
+### Running many scenes
+
+A batch runs the settings as they stand on many scenes, several times each:
+
+```bash
+python -m experiments.warsaw.pipeline.batch run --name <batch> --runs-per-scene 2 \
+    [--headless] <scene directory> [<scene directory> ...]
+```
+
+Every scene gets its next run before any scene gets the one after, so a batch cut short
+has run every scene alike. Each run is a program of its own and writes its output to a
+log in `pipeline_runs/batches/<batch>/`; a run that fails is reported and the batch goes
+on. The runs that finished are kept in that directory's `ledger.json`, so starting the
+same batch again makes only the runs still missing. A batch sets nothing but the scene
+and `headless`: to run another version, change the defaults it runs with.
+
 ### The model
 
 `PipelineSettings.model` takes a member of `Model`, and each member knows where it is

@@ -32,7 +32,16 @@ from semantic_digital_twin.semantic_annotations.part_whole import (
     IsPartWholeRelationship,
 )
 
+from experiments.warsaw.articulate3d.convert import (
+    ConvertedPart,
+    ConvertedScene,
+    LabelDisclosure,
+    LabelOverlap,
+    NameSpelling,
+)
+from experiments.warsaw.articulate3d.measured_scene import MeasuredScene
 from experiments.warsaw.articulate3d.rules import MeshSize
+from experiments.warsaw.segment_relations import PairEvidence, SegmentDescriptor
 from experiments.warsaw.articulate3d.protocol import (
     EvaluationProtocol,
     PartClass,
@@ -269,6 +278,100 @@ def kitchen_corner_protocol() -> EvaluationProtocol:
                 part_id=6,
                 semantic_class="ElectricalDevice",
             )
+        ],
+    )
+
+
+# %% the scene, as the pipeline measures it
+
+
+def measured_segment(name: str, label: str, faces: int) -> SegmentDescriptor:
+    """
+    :param name: The segment.
+    :param label: The label it carries.
+    :param faces: How many faces it covers.
+    :return: The segment, measured as a small square of scan.
+    """
+    return SegmentDescriptor(
+        name=name,
+        class_name=label,
+        instance=int(name.rsplit("_", 1)[1]),
+        faces=faces,
+        exclusive_faces=faces,
+        area=0.01,
+        exclusive_area=0.01,
+        centroid=(0.0, 0.0, 1.0),
+        minimum_corner=(0.0, 0.0, 1.0),
+        maximum_corner=(0.1, 0.1, 1.0),
+        components=1,
+        height=1.0,
+    )
+
+
+def measured_pair(
+    one: str, other: str, touching_edges: int = 0, distance: float = 0.0
+) -> PairEvidence:
+    """
+    :param one: One segment.
+    :param other: The other.
+    :param touching_edges: How many edges they touch along.
+    :param distance: How far apart their surfaces are.
+    :return: How the two were measured to meet, sharing no faces.
+    """
+    return PairEvidence(
+        one=one,
+        other=other,
+        shared_faces=0,
+        share_of_one=0.0,
+        share_of_other=0.0,
+        touching_edges=touching_edges,
+        distance=distance,
+    )
+
+
+def measured_kitchen_corner() -> MeasuredScene:
+    """
+    The scene as the pipeline would measure it.
+
+    The second handle touches the cabinet beside its drawer and sits a 5 mm seam away
+    from the drawer itself, and the door and the drawer touch as neighbours do.
+
+    :return: The measured scene, its segments numbered in the order of the parts.
+    """
+    named = [
+        (1, "cabinet.1.1", "cabinet_1", 4),
+        (2, "door.1.1.2_1", "door_1", 2),
+        (3, "handle.1.1.2_1.3_1", "handle_1", 1),
+        (4, "drawer.1.1.2_2", "drawer_1", 2),
+        (5, "handle.1.1.2_2.3_1", "handle_2", 1),
+        (6, "switch base.2.1", "switch_base_1", 2),
+        (7, "control.2.1.2_1", "control_1", 1),
+    ]
+    return MeasuredScene(
+        converted=ConvertedScene(
+            scene_id=SceneName.KITCHEN_CORNER,
+            disclosure=LabelDisclosure.WORDS,
+            overlap=LabelOverlap.DISJOINT,
+            spelling=NameSpelling.AS_WRITTEN,
+            seed=0,
+            parts=[
+                ConvertedPart(part_id=part_id, label=label, segment=name, faces=faces)
+                for part_id, label, name, faces in named
+            ],
+            faceless=[8],
+        ),
+        segments=[
+            measured_segment(name, name.rsplit("_", 1)[0], faces)
+            for _, _, name, faces in named
+        ],
+        pairs=[
+            measured_pair("cabinet_1", "door_1", touching_edges=10),
+            measured_pair("door_1", "handle_1", touching_edges=4),
+            measured_pair("cabinet_1", "drawer_1", touching_edges=8),
+            measured_pair("drawer_1", "handle_2", distance=0.005),
+            measured_pair("cabinet_1", "handle_2", touching_edges=6),
+            measured_pair("door_1", "drawer_1", touching_edges=5),
+            measured_pair("switch_base_1", "control_1", touching_edges=2),
         ],
     )
 

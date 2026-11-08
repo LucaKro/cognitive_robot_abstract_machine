@@ -119,6 +119,68 @@ part. A class the run generated is judged as the one class of the ontology it de
 from, with mixins left out. A share with nothing to divide by is reported as `n/a`,
 never as a perfect score.
 
+## Baselines and what the rule allows
+
+Both need every scene measured once as the pipeline measures it. Measuring converts the
+scene with the default conversion (annotators' words, disjoint labels, spelling as
+written), measures it, and keeps only a small file per scene:
+
+```bash
+python -m experiments.warsaw.articulate3d.measured_scene --dataset <articulate3d> \
+    --scannetpp <scannet++ data> --output measured/ <scene id> [<scene id> ...]
+```
+
+A scene already measured is skipped. Measuring many scenes in one process lets memory
+grow, so measure each scene in a process of its own, for instance through `xargs -n1`.
+
+**What the rule allows.** With the protocol's classes in place of a model's readings,
+the pipeline's candidate rule decides each relation of the part hierarchy: it takes the
+true whole without asking, asks with the true whole among the candidates, or loses the
+relation. The share taken or asked about, of the relations the ontology can hold, is the
+most any model answering the rule's questions can reach:
+
+```bash
+python -m experiments.warsaw.articulate3d.rule_ceiling --measured measured/ \
+    --ground-truth ground_truth/ [--largest-gap-to-a-whole 0.10] \
+    [--largest-gap-counted-as-touching 0.01] [--no-confirm-wholes-within-the-gap] \
+    [--output ceiling.json]
+```
+
+**Baselines.** Each baseline reads every label as a class and chooses every part's whole
+without a model, builds the graph a run writes, and is scored like a run:
+
+| Baseline | Label to class | Part to whole |
+| --- | --- | --- |
+| `embedding-and-geometry` | nearest class name by Sentence-BERT | the larger object the part touches most |
+| `spelling-and-rule` | the class name spelled most alike | the pipeline's rule, each question answered by its first candidate |
+| `embedding-and-rule` | nearest class name by Sentence-BERT | the pipeline's rule, as above: the pipeline without a model |
+| `true-classes-and-rule` | the protocol's classes | the pipeline's rule, as above: the most the rule gives without a model |
+
+```bash
+python -m experiments.warsaw.articulate3d.baselines --measured measured/ \
+    --ground-truth ground_truth/ --output baselines/ \
+    [--baseline <name> ...] [--scenes <scene id> ...]
+```
+
+Each baseline's summary is written as `<name>.json` and holds the same counts as a
+run's. Sentence-BERT (`sentence-transformers/all-MiniLM-L6-v2`) is fetched from the
+Hugging Face hub on first use. Restrict `--scenes` to the scenes of a set of runs to set
+the baselines beside those runs.
+
+**What a run's answers add.** A finished run is judged twice: as it is, and with every
+question about wholes answered by its first candidate, the one touching the part along
+the most edges. Everything else the run did stays, its readings of the labels included,
+so the difference is the model's answers alone. The questions that may be answered with
+none are counted by how they came out: true whole kept, true whole declined, another
+taken, wrong whole avoided, wrong whole taken. The share that offered the true whole is
+how often always taking a candidate would have been right, which the model's answers
+have to beat for asking to pay off:
+
+```bash
+python -m experiments.warsaw.articulate3d.run_answers <run> [<run> ...] \
+    --ground-truth ground_truth/ --output answers/
+```
+
 ## Not covered yet
 
 - **Joints.** The pipeline mounts every part with a fixed connection, and the

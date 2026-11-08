@@ -124,6 +124,11 @@ class TaxonomyKey(StrEnum):
     Whether a class is a mixin, which says what a class can hold rather than what it is.
     """
 
+    ABSTRACT = "abstract"
+    """
+    Whether a class is a category, which no object may be given.
+    """
+
 
 @dataclass(frozen=True)
 class ClassLineage:

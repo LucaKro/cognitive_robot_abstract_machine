@@ -17,7 +17,7 @@ dependencies = [
     "probabilistic_model>=26.10.0",
     "pymysql",
     "random_events>=26.10.0",
-    "semantic_digital_twin>=26.10.0",
+    "semantic_digital_twin[vision]>=26.10.0",
     "krrood_spatial_math[casadi]>=26.10.0",
 ]
 

@@ -273,3 +273,42 @@ class ValidationSceneLockedError(DataclassException, PermissionError):
             "ontology and the protocol are frozen: commit everything, tag the commit "
             f"'{self.tag_prefix}<name>', and run from that commit with no local changes."
         )
+
+
+# %% a baseline that cannot stand for the ground truth
+
+
+@dataclass
+class LabelWithSeveralClassesError(DataclassException, ValueError):
+    """
+    Raised when the parts carrying one label have different true classes, so no reading
+    that gives every part with a label one class can be the ground truth's.
+    """
+
+    scene_id: str
+    """
+    The scene.
+    """
+
+    label: str
+    """
+    The label the parts carry.
+    """
+
+    classes: list[str | None]
+    """
+    The true classes of the parts carrying it.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"In scene {self.scene_id}, the parts labelled '{self.label}' have the true "
+            f"classes {self.classes}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Check the protocol's classifications on sight for this scene. A part "
+            "classified otherwise than its name says cannot be matched by a reading of "
+            "labels, so leave the scene out of the baselines that read the true classes."
+        )

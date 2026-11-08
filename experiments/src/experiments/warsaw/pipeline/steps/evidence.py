@@ -259,7 +259,9 @@ class MeasureScene(PipelineStep):
         read = self.vocabulary_classes()
         classes = read.by_label()
         alternatives = self.alternative_classes(read)
-        relations = self.relations_of(loader, measured, classes, alternatives)
+        relations = self.relations_of(
+            str(loader.scene.mesh_path), measured, classes, alternatives
+        )
 
         request = self.vocabulary_request(loader, measured)
         open_now = self.open_questions(
@@ -346,13 +348,13 @@ class MeasureScene(PipelineStep):
 
     def relations_of(
         self,
-        loader: WarsawWorldLoader,
+        scene: str,
         measured: SegmentRelations,
-        classes: Dict[str, Optional[Type]],
-        alternatives: Dict[str, List[Type]],
+        classes: dict[str, type | None],
+        alternatives: dict[str, list[type]],
     ) -> Relations:
         """
-        :param loader: The loaded scene.
+        :param scene: The mesh the scene was measured on.
         :param measured: The measured scene.
         :param classes: Per label, the class it was read as.
         :param alternatives: Per label, the other classes it may just as well be.
@@ -376,7 +378,7 @@ class MeasureScene(PipelineStep):
                 )
             )
         return Relations(
-            scene=str(loader.scene.mesh_path),
+            scene=scene,
             segments=list(measured.descriptors.values()),
             pairs=pairs,
         )
@@ -877,12 +879,7 @@ class MeasureScene(PipelineStep):
         for pair in relations.pairs:
             if pair.status is not RelationStatus.RELATION_KNOWN:
                 continue
-            meets = (
-                pair.evidence.shared_faces
-                or pair.evidence.touching_edges
-                or pair.evidence.distance
-                <= self.settings.largest_gap_counted_as_touching
-            )
+            meets = pair.evidence.meets(self.settings.largest_gap_counted_as_touching)
             if (
                 not meets
                 and pair.evidence.distance > self.settings.largest_gap_to_a_whole
