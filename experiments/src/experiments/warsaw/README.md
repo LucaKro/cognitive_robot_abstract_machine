@@ -68,7 +68,7 @@ Two things about the file are easy to lose:
 
 | Variable | What for |
 |---|---|
-| `OPENROUTER_API_KEY` | Questions to every model but the one on denver go to OpenRouter. A run is about a hundred calls; on the default model that is a few cents. |
+| `OPENROUTER_API_KEY` | Questions to every model but the one on denver go to OpenRouter. A run is about a hundred calls; on `Model.QWEN3_VL_30B` that is a few cents. |
 | `QWEN_API_KEY` | Questions to `Model.QWEN3_8_27B_DENVER`, the group's own server; see [the model](#the-model). |
 | `SEMANTIC_DIGITAL_TWIN_DATABASE_URI` | A `postgresql+psycopg://` URI. Each run gets a schema of its own under it, so no run inherits another's tables. |
 
@@ -118,9 +118,9 @@ asked:
 
 | Model | Where | Needs |
 |---|---|---|
-| `Model.QWEN3_VL_30B` (the default), and every other member | OpenRouter | `OPENROUTER_API_KEY` |
+| `Model.QWEN3_VL_30B`, and every other member | OpenRouter | `OPENROUTER_API_KEY` |
 | `Model.QWEN3_8_27B_OPENROUTER` | OpenRouter (`qwen/qwen3.8-27b`) | `OPENROUTER_API_KEY` |
-| `Model.QWEN3_8_27B_DENVER` | the group's server on denver, at `localhost:8443` | `QWEN_API_KEY`, and an SSH tunnel open while the run lasts |
+| `Model.QWEN3_8_27B_DENVER` (the default) | the group's server on denver, at `localhost:8443` | `QWEN_API_KEY`, and an SSH tunnel open while the run lasts |
 
 Select `PipelineSettings(model=Model.QWEN3_8_27B_OPENROUTER)` to use the hosted 27B.
 Both 27B variants receive an additional 12,288 tokens on top of
@@ -147,8 +147,9 @@ OpenRouter. It reasons before answering, and its reasoning is allowed on top of
 | `defer_new_classes` | `True` | On, a label is first read only as a class the ontology already holds, or as none; a new class is proposed afterwards, once per label left without one, with how every other label was read in view, and naming a body never proposes one. Off, a new class may be proposed the moment a label or a body is asked about. |
 | `settle_classes_by_label` | `True` | On, a body whose label was read as one class takes that class without a question, and one whose label was left open between several classes (the label's `alternatives`) is asked to choose among them or say none fits. Off, every body is asked what it is. |
 | `largest_gap_to_a_whole` | `0.10` | How far, in metres, a whole may be from a part that touches none it could belong to, and still be offered as its whole. |
-| `consider_alternative_classes` | `False` | On, a pair of objects whose labels' first readings the ontology relates in no way is judged by the alternatives the labels were answered they may also be, so a door keeps its cabinet where `cabinet` was first read as `Door` with `Cabinet` as an alternative. A mount the bodies' final classes do not allow is still refused. Off, only the first readings count. |
-| `confirm_wholes_within_the_gap` | `False` | On, a part that touches no whole it could belong to is asked about the wholes within that gap, and may answer that it belongs to none of them. A part touching a whole is never asked this. Off, the only such whole is taken without asking, and one of several has to be chosen. |
+| `largest_gap_counted_as_touching` | `0.01` | How far apart, in metres, a part and a whole may be and still count as touching, so a handle a seam away from its drawer front is offered that drawer beside the cabinet it touches. A touching whole is offered before any within `largest_gap_to_a_whole`. |
+| `consider_alternative_classes` | `True` | On, a pair of objects whose labels' first readings the ontology relates in no way is judged by the alternatives the labels were answered they may also be, so a door keeps its cabinet where `cabinet` was first read as `Door` with `Cabinet` as an alternative. A mount the bodies' final classes do not allow is still refused. Off, only the first readings count. |
+| `confirm_wholes_within_the_gap` | `True` | On, a part that touches no whole it could belong to is asked about the wholes within that gap, and may answer that it belongs to none of them. A part touching a whole is never asked this. Off, the only such whole is taken without asking, and one of several has to be chosen. |
 | `ignore_amendments` | `False` | On, a run starts although the ontology's files carry uncommitted changes, for a run meant to use them. |
 | `headless` | `False` | See [below](#when-the-renders-come-back-blank). |
 

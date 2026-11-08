@@ -209,7 +209,7 @@ class PipelineSettings:
     The directory holding the scene's labelled mesh.
     """
 
-    model: Model = Model.QWEN3_VL_30B
+    model: Model = Model.QWEN3_8_27B_DENVER
     """
     Which model every question goes to.
     """
@@ -270,7 +270,16 @@ class PipelineSettings:
     to, and still be offered as the whole it belongs to.
     """
 
-    consider_alternative_classes: bool = False
+    largest_gap_counted_as_touching: float = 0.01
+    """
+    How far apart, in metres, a part and a whole may be and still count as touching,
+    since a scan leaves a seam between a handle and the drawer front it is mounted on.
+
+    A whole that touches a part is offered before any within
+    :attr:`largest_gap_to_a_whole`.
+    """
+
+    consider_alternative_classes: bool = True
     """
     Whether a pair of objects the first readings of their labels relate in no way is
     judged by the other classes the labels were answered they may just as well be, so a
@@ -279,7 +288,7 @@ class PipelineSettings:
     Off, a pair is judged by the first readings alone.
     """
 
-    confirm_wholes_within_the_gap: bool = False
+    confirm_wholes_within_the_gap: bool = True
     """
     Whether a part that meets no whole is asked about those within
     :attr:`largest_gap_to_a_whole`, and may answer that it belongs to none of them.

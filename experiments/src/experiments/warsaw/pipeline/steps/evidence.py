@@ -854,8 +854,10 @@ class MeasureScene(PipelineStep):
         """
         Work out which parts have a whole to choose and which have only one.
 
-        A part that shares faces with a whole it could belong to, or touches one along an
-        edge, is offered only those. A part that meets none is offered the wholes within
+        A part that shares faces with a whole it could belong to, touches one along an
+        edge, or lies within
+        :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.largest_gap_counted_as_touching`
+        of one, is offered only those. A part that meets none is offered the wholes within
         :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.largest_gap_to_a_whole`
         of it, since a scan leaves gaps between what is mounted together.
 
@@ -875,7 +877,12 @@ class MeasureScene(PipelineStep):
         for pair in relations.pairs:
             if pair.status is not RelationStatus.RELATION_KNOWN:
                 continue
-            meets = pair.evidence.shared_faces or pair.evidence.touching_edges
+            meets = (
+                pair.evidence.shared_faces
+                or pair.evidence.touching_edges
+                or pair.evidence.distance
+                <= self.settings.largest_gap_counted_as_touching
+            )
             if (
                 not meets
                 and pair.evidence.distance > self.settings.largest_gap_to_a_whole

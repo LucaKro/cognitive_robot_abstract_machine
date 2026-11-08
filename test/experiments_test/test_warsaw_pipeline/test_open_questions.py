@@ -34,9 +34,16 @@ from experiments.warsaw.segment_relations import (
 @pytest.fixture
 def step(tmp_path):
     """
-    :return: The measuring step, for what it works out rather than what it renders.
+    :return: The measuring step, for what it works out rather than what it renders,
+        judging pairs by first readings alone and taking wholes within the gap without
+        asking.
     """
-    return MeasureScene(settings=PipelineSettings(), run=Run(directory=tmp_path))
+    return MeasureScene(
+        settings=PipelineSettings(
+            consider_alternative_classes=False, confirm_wholes_within_the_gap=False
+        ),
+        run=Run(directory=tmp_path),
+    )
 
 
 @pytest.fixture
@@ -302,6 +309,36 @@ def test_a_part_that_meets_a_whole_is_not_offered_a_nearby_one(step, known):
     ]
 
 
+def test_a_whole_a_seam_away_is_offered_beside_the_one_touched(step, known):
+    """
+    A scan leaves a seam between what is mounted together, as between a handle and the
+    drawer front it is screwed to, while the handle touches the cabinet beside it.
+    """
+    seam = step.settings.largest_gap_counted_as_touching
+
+    memberships = memberships_of(
+        step, known, ("rail_1", 12, 0.0), ("rail_2", 0, seam / 2)
+    )
+
+    assert memberships.forced == []
+    [question] = memberships.to_ask_about
+    assert question.candidate_names == ["rail_1", "rail_2"]
+    assert question.may_belong_to_none is False
+
+
+def test_a_whole_past_the_seam_is_not_offered_beside_the_one_touched(step, known):
+    seam = step.settings.largest_gap_counted_as_touching
+    relations, labels, classes = blinds_and_rails(
+        step, known, ("rail_1", 12, 0.0), ("rail_2", 0, seam * 2)
+    )
+
+    memberships = step.memberships(relations, labels, classes, self_measured(relations))
+
+    assert [(one.part, one.whole) for one in memberships.forced] == [
+        ("blinds_1", "rail_1")
+    ]
+
+
 # %% asking about a whole that was only found nearby
 
 
@@ -359,6 +396,15 @@ def test_a_touched_whole_is_taken_without_asking(confirming_step, known):
     memberships = memberships_of(
         confirming_step, known, ("rail_1", 12, 0.0), ("rail_2", 0, gap / 2)
     )
+
+    assert memberships.to_ask_about == []
+    assert [one.whole for one in memberships.forced] == ["rail_1"]
+
+
+def test_the_one_whole_a_seam_away_is_taken_without_asking(confirming_step, known):
+    seam = confirming_step.settings.largest_gap_counted_as_touching
+
+    memberships = memberships_of(confirming_step, known, ("rail_1", 0, seam / 2))
 
     assert memberships.to_ask_about == []
     assert [one.whole for one in memberships.forced] == ["rail_1"]
