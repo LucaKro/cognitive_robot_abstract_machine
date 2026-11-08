@@ -373,7 +373,7 @@ def test_a_part_hung_from_its_whole_s_whole_is_wrong_but_on_the_right_branch(
     assert handle.shared_ancestors == 1
 
 
-def test_a_link_with_a_misclassified_end_is_right_but_not_as_a_triplet(
+def test_a_part_whole_relation_with_a_misclassified_end_is_right_but_not_with_classes(
     ground_truth, bodies, graph, lineage
 ):
     links = judged(
@@ -391,22 +391,24 @@ def test_a_link_with_a_misclassified_end_is_right_but_not_as_a_triplet(
     assert links.recall == Share(
         len(ground_truth.relations), len(ground_truth.relations)
     )
-    assert links.triplet_recall == Share(
+    assert links.recall_with_classes == Share(
         len(with_both_classes_judged) - len(through_the_drawer),
         len(with_both_classes_judged),
     )
-    assert links.triplet_precision == links.triplet_recall
+    assert links.precision_with_classes == links.recall_with_classes
 
 
 def test_the_ontology_bounds_what_a_run_can_make(ground_truth, bodies, graph, lineage):
     links = judged(ground_truth, bodies, graph, lineage).links
-    reachable = [one for one in ground_truth.relations if one.field_name is not None]
+    representable = [
+        one for one in ground_truth.relations if one.field_name is not None
+    ]
 
-    assert links.reachable == Share(len(reachable), len(ground_truth.relations))
-    assert links.reachable_recall == Share(len(reachable), len(reachable))
+    assert links.representable == Share(len(representable), len(ground_truth.relations))
+    assert links.representable_recall == Share(len(representable), len(representable))
 
 
-def test_a_relation_held_the_other_way_round_by_a_carrying_part_is_reachable(
+def test_a_relation_held_the_other_way_round_by_a_carrying_part_is_representable(
     ground_truth, bodies, graph, lineage
 ):
     """
@@ -424,7 +426,9 @@ def test_a_relation_held_the_other_way_round_by_a_carrying_part_is_reachable(
         one for one in ground_truth.relations if one.field_name is not None
     ]
 
-    assert links.reachable == Share(len(held_by_a_field), len(ground_truth.relations))
+    assert links.representable == Share(
+        len(held_by_a_field), len(ground_truth.relations)
+    )
 
 
 # %% many runs together

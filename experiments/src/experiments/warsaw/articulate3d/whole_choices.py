@@ -12,8 +12,16 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    annotation_classes,
+    load_annotation_modules,
+)
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 from experiments.warsaw.articulate3d.measured_scene import MeasuredScene
+from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene, Memberships
 from experiments.warsaw.segment_relations import PairEvidence
@@ -114,6 +122,21 @@ class FirstCandidateOfTheRule(WholeChoice):
     """
     The ontology's classes, by name.
     """
+
+    @classmethod
+    def from_settings(
+        cls, settings: PipelineSettings, run_directory: Path
+    ) -> FirstCandidateOfTheRule:
+        """
+        :param settings: The pipeline's settings the rule works with.
+        :param run_directory: Where the measuring step may keep what it writes.
+        :return: The rule over the whole ontology.
+        """
+        load_annotation_modules()
+        return cls(
+            step=MeasureScene(settings=settings, run=Run(directory=run_directory)),
+            ontology=annotation_classes(SemanticAnnotation),
+        )
 
     def memberships(
         self, scene: MeasuredScene, classes: dict[str, str | None]

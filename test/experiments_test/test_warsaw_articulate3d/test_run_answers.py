@@ -24,7 +24,7 @@ from experiments.warsaw.articulate3d.run_answers import (
     RunAnswersJudged,
     main,
 )
-from experiments.warsaw.articulate3d.score import Share
+from experiments.warsaw.articulate3d.score import ScoreFile, Share
 from experiments.warsaw.evaluation.graph import EvaluationGraph, EvaluationNode
 from experiments.warsaw.pipeline.records import (
     Adjudications,
@@ -216,23 +216,14 @@ def test_a_question_that_must_be_answered_is_no_confirmation(answers):
 # %% every run, from the command line
 
 
-def test_the_command_writes_what_each_run_s_answers_came_to(
-    run_of_the_kitchen_corner, tmp_path
+def test_the_command_writes_what_each_run_s_answers_came_to_beside_the_run(
+    run_of_the_kitchen_corner,
 ):
     run, _, ground_truth_directory = run_of_the_kitchen_corner
-    output = tmp_path / "answers"
 
-    main(
-        [
-            str(run.directory),
-            "--ground-truth",
-            str(ground_truth_directory),
-            "--output",
-            str(output),
-        ]
-    )
+    main([str(run.directory), "--ground-truth", str(ground_truth_directory)])
 
     judged = RunAnswersJudged.from_json(
-        json.loads((output / f"{run.directory.name}.json").read_text())
+        json.loads((run.directory / ScoreFile.ANSWERS).read_text())
     )
     assert judged.confirmations(ConfirmationOutcome.TRUE_WHOLE_DECLINED) == 1

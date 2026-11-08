@@ -30,7 +30,25 @@ trail, and a failed attempt stays in it when a later correction succeeds.
 
 ## Tables of results
 
-Any finished run can be reported, whatever scene it was made of:
+For runs of Articulate3D scenes, one command does everything: it scores every run, judges
+its answers, judges the baselines and the rule on the same scenes, and writes the tables.
+Point it at runs, at batches (`pipeline_runs/batches/<batch>/`, which give the runs their
+ledger holds) or at directories holding runs (`pipeline_runs/`); a run that did not finish
+is left out with a warning:
+
+```bash
+python -m experiments.warsaw.articulate3d.evaluate_runs <run, batch or directory> [...] \
+    --ground-truth ground_truth/ --output tables/ [--measured measured/] \
+    [--rename "<method>=<name for the reader>" ...]
+```
+
+Without `--measured`, the tables leave out the baselines and `rule_ceiling`. The baselines
+are judged on every scene a run was scored on, and the rule on the scenes of each method's
+runs with the settings they recorded; a method whose runs predate one of the rule's
+settings gets no ceiling. [The Articulate3D README](../articulate3d/README.md#baselines-and-what-the-rule-allows)
+says what the baselines are.
+
+Runs of any other scene, scored as below, are reported by:
 
 ```bash
 python -m experiments.warsaw.evaluation.results <run> [<run> ...] --output tables/ \
@@ -42,21 +60,25 @@ code are one method. A method is called by a short name saying only what tells i
 from the others, such as `Qwen3.8-27B, images`, or `v2` for a later version of the code.
 `methods.tex` defines each name, and `shared_settings.json` holds every setting the methods
 have in common. The scene, where a run was kept and whether its renders were drawn in a
-hidden window do not make a method. The command prints the names it found; pass `--rename`
+hidden window do not make a method. A gap is named in centimetres, such as
+`touching within 1 cm`, and a setting missing from the provenance of a run made before it
+existed is `not recorded` in `methods.tex`. The command prints the names it found; pass `--rename`
 to call them something else in the tables, which can be done again at any time. A run that
 did not finish is refused rather than averaged in, so leave it out and say so in the text.
 
 | Table | What it says | Columns | Needs a score |
 | --- | --- | --- | --- |
-| `classes` | whether the objects and their classes are right | parts found, class accuracy, hierarchical F1 | yes |
-| `links` | whether the part hierarchy is right | link precision, recall and F1, ancestor F1, triplet F1 | yes |
+| `classes` | whether the objects and their classes are right | parts found, class accuracy, class-hierarchy F1 | yes |
+| `part_whole` | whether the part hierarchy is right | part-whole precision, recall and F1, representable recall, whole-chain F1, part-whole with classes F1 | yes |
+| `answers` | what the model's answers about wholes add | part-whole F1 as answered and with every question answered by its first candidate, how the questions that may be answered with none came out | the runs' answers judged |
 | `structure` | how much a method asserted, whether right or not | labels mapped, new classes, bodies annotated, bodies mounted, mounts accepted | no |
 | `effort` | what was asked of the model and how long it took | questions, corrected and unusable answers, thousand tokens, cost, model and total minutes | no |
+| `rule_ceiling` | what the rule does with the relations the ontology can hold, given the true classes and each method's settings | taken right, left to the model, wrong whole taken, true whole not offered, no candidate, ceiling | the measured scenes |
 
-`classes` and `links` compare a run with the ground truth. `structure` does not know what
-is right: a method mounting every part into the wrong whole looks perfect there. It is what
-a scene without a ground truth can report, and it shows whether a method got its score by
-asserting little.
+`classes` and `part_whole` compare a run with the ground truth. `structure` does not know
+what is right: a method mounting every part into the wrong whole looks perfect there. It is
+what a scene without a ground truth can report, and it shows whether a method got its score
+by asserting little. In `answers`, the outcomes of the questions are totals over the runs.
 
 Each exists per method as `conditions_<table>.tex` and per run as `runs_<table>.tex`, and
 `all_tables.tex` holds them all. What every row of a table shows the same is said once in
@@ -76,7 +98,7 @@ The document needs:
 
 ```latex
 \input{tables/methods}
-\input{tables/conditions_links}
+\input{tables/conditions_part_whole}
 ```
 
 ### Scoring a run of any scene

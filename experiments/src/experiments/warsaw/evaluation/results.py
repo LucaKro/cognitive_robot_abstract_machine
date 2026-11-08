@@ -1,10 +1,10 @@
 """
 What finished runs come to, as tables for a document.
 
-Any run reports what it built, what it asked of its model and how long that took, whatever
-scene it was made of. A run that was scored against a ground truth reports that as well.
-Runs made under the same settings by the same code are one method, so a comparison needs no
-more than the runs themselves.
+Any run reports what it built, what it asked of its model and how long that took,
+whatever scene it was made of. A run that was scored against a ground truth reports that
+as well. Runs made under the same settings by the same code are one method, so a
+comparison needs no more than the runs themselves.
 
 Run ``python -m experiments.warsaw.evaluation.results --help`` for its options.
 """
@@ -30,6 +30,11 @@ from experiments.experiment_definitions import (
     MeanAndStandardDeviation,
 )
 from experiments.warsaw.articulate3d.convert import ConvertedScene
+from experiments.warsaw.articulate3d.rule_ceiling import CandidateOutcome, RuleCeiling
+from experiments.warsaw.articulate3d.run_answers import (
+    ConfirmationOutcome,
+    RunAnswersJudged,
+)
 from experiments.warsaw.articulate3d.score import SceneScore, ScoreFile, Share
 from experiments.warsaw.evaluation.exceptions import RunNotFinishedError
 from experiments.warsaw.evaluation.graph import EvaluationGraph
@@ -70,7 +75,8 @@ class ProvenanceKey(StrEnum):
 
 class SettingOutsideConditions(StrEnum):
     """
-    The settings that say where or how a run was kept rather than what it did to a scene.
+    The settings that say where or how a run was kept rather than what it did to a
+    scene.
     """
 
     SCENE_DIRECTORY = "scene_directory"
@@ -140,15 +146,30 @@ class SettingName(StrEnum):
     Whether a pair is judged by the classes its labels may also be.
     """
 
-    @property
-    def words_for_on_and_off(self) -> tuple[str, str] | None:
+    LARGEST_GAP_TO_A_WHOLE = "largest_gap_to_a_whole"
+    """
+    How far a whole a part touches no whole may be from it.
+    """
+
+    LARGEST_GAP_COUNTED_AS_TOUCHING = "largest_gap_counted_as_touching"
+    """
+    How far apart a part and a whole may be and still count as touching.
+    """
+
+    def short_description(self, value: Any) -> str:
         """
-        :return: What a method with the setting on and off is called, or nothing for a
-            setting that is not on or off.
+        :param value: The setting's value in a run, nothing where the run recorded none.
+        :return: What the name of a method made with that value says about it.
         """
-        if self is SettingName.MODEL:
-            return None
-        return {
+        match self:
+            case SettingName.MODEL:
+                known = {one.value: one.short_name for one in Model}
+                return known.get(value, str(value))
+            case SettingName.LARGEST_GAP_TO_A_WHOLE:
+                return self.distance_described("wholes within", value)
+            case SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING:
+                return self.distance_described("touching within", value)
+        on, off = {
             SettingName.SHOW_THE_PICTURES: ("images", "text"),
             SettingName.SHOW_THE_CONTESTED_FACES: ("face images", "face text"),
             SettingName.DEFER_NEW_CLASSES: ("deferred", "immediate"),
@@ -159,6 +180,17 @@ class SettingName(StrEnum):
                 "first readings",
             ),
         }[self]
+        return on if value else off
+
+    def distance_described(self, words: str, metres: float | None) -> str:
+        """
+        :param words: What the distance is said after.
+        :param metres: The distance, nothing where a run recorded none.
+        :return: The distance in centimetres after those words.
+        """
+        if metres is None:
+            return f"{self.value.replace('_', ' ')} not recorded"
+        return f"{words} {100 * metres:g} cm"
 
 
 class UsageKey(StrEnum):
@@ -332,6 +364,12 @@ class RunMeasurements:
     How it agrees with the scene's ground truth, or nothing where it was not scored.
     """
 
+    answers: RunAnswersJudged | None
+    """
+    It judged with and without its model's answers about wholes, or nothing where that
+    was not judged.
+    """
+
     @classmethod
     def of(cls, run: Run) -> RunMeasurements:
         """
@@ -345,7 +383,6 @@ class RunMeasurements:
         counted = RunReport(run=run).context()
         graph = run.read_record(RunFile.EVALUATION_GRAPH, EvaluationGraph)
         durations = run.read_record(RunFile.STEP_DURATIONS, StepDurations)
-        score_path = run.directory / ScoreFile.SCENE
         return cls(
             run=run.directory.name,
             scene=ConvertedScene.scene_id_of(run.scene_directory),
@@ -362,11 +399,8 @@ class RunMeasurements:
             answers_with_problems=counted["answers_with_problems"],
             model_use=ModelUse.of(run),
             total_seconds=durations.total_seconds,
-            score=(
-                SceneScore.from_json(json.loads(score_path.read_text()))
-                if score_path.is_file()
-                else None
-            ),
+            score=ScoreFile.SCENE.read(run, SceneScore),
+            answers=ScoreFile.ANSWERS.read(run, RunAnswersJudged),
         )
 
     @staticmethod
@@ -384,9 +418,9 @@ class RunMeasurements:
 
 
 @dataclass(frozen=True)
-class RunGroup:
+class ScoredGroup(ABC):
     """
-    Runs reported as one row.
+    Scores reported as one row.
     """
 
     name: str
@@ -394,28 +428,44 @@ class RunGroup:
     What the row is called.
     """
 
-    runs: list[RunMeasurements]
-    """
-    The runs it reports.
-    """
+    @property
+    @abstractmethod
+    def scores(self) -> list[SceneScore | None]:
+        """
+        :return: The score of each run the row covers, nothing for a run not scored.
+        """
+
+    @property
+    @abstractmethod
+    def scene_of_each_run(self) -> list[str]:
+        """
+        :return: The scene each run the row covers was made of.
+        """
 
     @property
     def scenes(self) -> str | int:
         """
         :return: The name of the one scene the runs were made of, or how many there were.
         """
-        scenes = {one.scene for one in self.runs}
+        scenes = set(self.scene_of_each_run)
         return next(iter(scenes)) if len(scenes) == 1 else len(scenes)
 
-    def over(
-        self, measured: Callable[[RunMeasurements], float | None]
+    @property
+    def run_count(self) -> int:
+        """
+        :return: How many runs the row covers.
+        """
+        return len(self.scene_of_each_run)
+
+    @staticmethod
+    def summarised(
+        values: list[float | None],
     ) -> float | MeanAndStandardDeviation | None:
         """
-        :param measured: What to read of a run, which a run may not have.
-        :return: The value of the only run holding it, the mean and the standard deviation
-            of several, and nothing where no run holds it.
+        :param values: One value per run, nothing where a run has none.
+        :return: The only value, the mean and the standard deviation of several, and
+            nothing where no run has one.
         """
-        values = [measured(one) for one in self.runs]
         present = [one for one in values if one is not None]
         if not present:
             return None
@@ -428,9 +478,66 @@ class RunGroup:
     ) -> float | MeanAndStandardDeviation | None:
         """
         :param measured: What to read of a score, which a score may leave undefined.
-        :return: :meth:`over` that, for the runs that were scored.
+        :return: :meth:`summarised` that, for the runs that were scored.
         """
-        return self.over(lambda one: measured(one.score) if one.score else None)
+        return self.summarised([measured(one) if one else None for one in self.scores])
+
+
+@dataclass(frozen=True)
+class RunGroup(ScoredGroup):
+    """
+    Runs reported as one row.
+    """
+
+    runs: list[RunMeasurements]
+    """
+    The runs it reports.
+    """
+
+    @property
+    def scores(self) -> list[SceneScore | None]:
+        return [one.score for one in self.runs]
+
+    @property
+    def scene_of_each_run(self) -> list[str]:
+        return [one.scene for one in self.runs]
+
+    def over(
+        self, measured: Callable[[RunMeasurements], float | None]
+    ) -> float | MeanAndStandardDeviation | None:
+        """
+        :param measured: What to read of a run, which a run may not have.
+        :return: :meth:`summarised` that, over the runs.
+        """
+        return self.summarised([measured(one) for one in self.runs])
+
+    def total(self, measured: Callable[[RunMeasurements], int | None]) -> int | None:
+        """
+        :param measured: What to count of a run, which a run may not have.
+        :return: The counts of the runs holding it added up, nothing where none does.
+        """
+        present = [one for one in map(measured, self.runs) if one is not None]
+        return sum(present) if present else None
+
+
+@dataclass(frozen=True)
+class BaselineGroup(ScoredGroup):
+    """
+    A baseline reported as one row, judged once on each scene.
+    """
+
+    scene_scores: list[SceneScore]
+    """
+    The baseline's score on each scene.
+    """
+
+    @property
+    def scores(self) -> list[SceneScore | None]:
+        return list(self.scene_scores)
+
+    @property
+    def scene_of_each_run(self) -> list[str]:
+        return [one.scene_id for one in self.scene_scores]
 
 
 @dataclass
@@ -523,13 +630,9 @@ class RunComparison:
         pictures = settings.get(SettingName.SHOW_THE_PICTURES)
         if setting == SettingName.SHOW_THE_CONTESTED_FACES and value == pictures:
             return ""
-        if setting == SettingName.MODEL:
-            known = {one.value: one.short_name for one in Model}
-            return known.get(value, str(value))
-        words = setting.replace("_", " ")
         if setting in set(SettingName):
-            on, off = SettingName(setting).words_for_on_and_off
-            return on if value else off
+            return SettingName(setting).short_description(value)
+        words = setting.replace("_", " ")
         if value is True:
             return words
         if value is False:
@@ -543,7 +646,8 @@ class RunComparison:
             spelled out.
         """
         said = [
-            f"{key.replace('_', ' ')} {run.settings.get(key)}"
+            f"{key.replace('_', ' ')} "
+            + (str(run.settings[key]) if key in run.settings else "not recorded")
             for key in self.varying_settings
         ]
         if len(self.code_versions) > 1:
@@ -578,6 +682,13 @@ class RunComparison:
         """
         return any(one.score for one in self.runs)
 
+    @property
+    def any_answers_judged(self) -> bool:
+        """
+        :return: Whether any of the runs was judged with and without its answers.
+        """
+        return any(one.answers for one in self.runs)
+
 
 # %% what each method is
 
@@ -603,24 +714,14 @@ class MethodDefinition(ExperimentResult):
 
 
 @dataclass
-class RunGroupResult(ExperimentResult, ABC):
+class TableRow(ExperimentResult, ABC):
     """
-    One row reporting one :class:`RunGroup`.
+    One row of a table of results.
     """
 
     method: str
     """
     The method the row reports, and the run where it reports only one.
-    """
-
-    runs: int
-    """
-    How many runs it covers.
-    """
-
-    scenes: str | int
-    """
-    The scene they were made of, or how many there were.
     """
 
     @classproperty
@@ -638,18 +739,59 @@ class RunGroupResult(ExperimentResult, ABC):
         raise NotImplementedError
 
     @classproperty
-    def needs_a_score(cls) -> bool:
+    def context_columns(cls) -> list[str]:
         """
-        :return: Whether every column of such a row comes from a ground truth.
+        :return: The columns that say what a row covers rather than what it measured.
+        """
+        return ["scenes"]
+
+    @property
+    def covers_several_runs(self) -> bool:
+        """
+        :return: Whether the row gives a mean and a standard deviation over runs.
+        """
+        return False
+
+
+@dataclass
+class RunGroupResult(TableRow, ABC):
+    """
+    One row reporting one :class:`RunGroup`.
+    """
+
+    runs: int
+    """
+    How many runs it covers.
+    """
+
+    scenes: str | int
+    """
+    The scene they were made of, or how many there were.
+    """
+
+    @property
+    def covers_several_runs(self) -> bool:
+        return self.runs > 1
+
+    @classproperty
+    def reads_only_the_score(cls) -> bool:
+        """
+        :return: Whether every column of such a row comes from a score alone, so a
+            baseline can be reported by it as well.
         """
         return False
 
     @classproperty
     def context_columns(cls) -> list[str]:
-        """
-        :return: The columns that say what a row covers rather than what it measured.
-        """
         return ["runs", "scenes"]
+
+    @classmethod
+    def can_report(cls, comparison: RunComparison) -> bool:
+        """
+        :param comparison: The runs compared.
+        :return: Whether any of them holds what such a row reports.
+        """
+        return True
 
     @classmethod
     @abstractmethod
@@ -661,7 +803,30 @@ class RunGroupResult(ExperimentResult, ABC):
 
 
 @dataclass
-class ClassResult(RunGroupResult):
+class ScoreResult(RunGroupResult, ABC):
+    """
+    A row read from scores alone, of runs or of a baseline.
+    """
+
+    @classproperty
+    def reads_only_the_score(cls) -> bool:
+        return True
+
+    @classmethod
+    def can_report(cls, comparison: RunComparison) -> bool:
+        return comparison.any_scored
+
+    @classmethod
+    @abstractmethod
+    def of(cls, group: ScoredGroup) -> ScoreResult:
+        """
+        :param group: The scores to report.
+        :return: The row reporting them.
+        """
+
+
+@dataclass
+class ClassResult(ScoreResult):
     """
     How the objects and classes of runs agree with a ground truth.
     """
@@ -676,7 +841,7 @@ class ClassResult(RunGroupResult):
     The share of the found parts given exactly their class.
     """
 
-    hierarchical_f1: float | MeanAndStandardDeviation | None
+    class_hierarchy_f1: float | MeanAndStandardDeviation | None
     """
     The partial credit for answers on the right branch of the class hierarchy.
     """
@@ -689,92 +854,179 @@ class ClassResult(RunGroupResult):
     def what_it_shows(cls) -> str:
         return "Whether the objects and their classes are right, judged against the ground truth."
 
-    @classproperty
-    def needs_a_score(cls) -> bool:
-        return True
-
     @classmethod
-    def of(cls, group: RunGroup) -> ClassResult:
+    def of(cls, group: ScoredGroup) -> ClassResult:
         return cls(
             method=group.name,
-            runs=len(group.runs),
+            runs=group.run_count,
             scenes=group.scenes,
             parts_found=group.over_scores(
                 lambda one: one.correspondence.found_share.value
             ),
             class_accuracy=group.over_scores(lambda one: one.classes.accuracy.value),
-            hierarchical_f1=group.over_scores(
-                lambda one: one.classes.hierarchical_precision.harmonic_mean_with(
-                    one.classes.hierarchical_recall
-                )
+            class_hierarchy_f1=group.over_scores(
+                lambda one: one.classes.class_hierarchy_f1
             ),
         )
 
 
 @dataclass
-class LinkResult(RunGroupResult):
+class PartWholeResult(ScoreResult):
     """
     How the part hierarchies of runs agree with a ground truth.
     """
 
-    link_precision: float | MeanAndStandardDeviation | None
+    part_whole_precision: float | MeanAndStandardDeviation | None
     """
     The parts hung from another part that hang from their annotated whole.
     """
 
-    link_recall: float | MeanAndStandardDeviation | None
+    part_whole_recall: float | MeanAndStandardDeviation | None
     """
     The relations of the part hierarchy that were made.
     """
 
-    link_f1: float | MeanAndStandardDeviation | None
+    part_whole_f1: float | MeanAndStandardDeviation | None
     """
     The harmonic mean of the two.
     """
 
-    ancestor_f1: float | MeanAndStandardDeviation | None
+    representable_recall: float | MeanAndStandardDeviation | None
+    """
+    The relations the ontology can hold that were made.
+    """
+
+    whole_chain_f1: float | MeanAndStandardDeviation | None
     """
     The partial credit for a part hung on the right branch.
     """
 
-    triplet_f1: float | MeanAndStandardDeviation | None
+    part_whole_with_classes_f1: float | MeanAndStandardDeviation | None
     """
-    The links made with both ends given exactly their class.
+    The relations made with both ends given exactly their class.
     """
 
     @classproperty
     def table_name(cls) -> str:
-        return "links"
+        return "part_whole"
 
     @classproperty
     def what_it_shows(cls) -> str:
         return "Whether the part hierarchy is right, judged against the ground truth."
 
-    @classproperty
-    def needs_a_score(cls) -> bool:
-        return True
-
     @classmethod
-    def of(cls, group: RunGroup) -> LinkResult:
+    def of(cls, group: ScoredGroup) -> PartWholeResult:
         return cls(
             method=group.name,
-            runs=len(group.runs),
+            runs=group.run_count,
             scenes=group.scenes,
-            link_precision=group.over_scores(lambda one: one.links.precision.value),
-            link_recall=group.over_scores(lambda one: one.links.recall.value),
-            link_f1=group.over_scores(
-                lambda one: one.links.precision.harmonic_mean_with(one.links.recall)
+            part_whole_precision=group.over_scores(
+                lambda one: one.links.precision.value
             ),
-            ancestor_f1=group.over_scores(
-                lambda one: one.links.ancestor_precision.harmonic_mean_with(
-                    one.links.ancestor_recall
+            part_whole_recall=group.over_scores(lambda one: one.links.recall.value),
+            part_whole_f1=group.over_scores(lambda one: one.links.f1),
+            representable_recall=group.over_scores(
+                lambda one: one.links.representable_recall.value
+            ),
+            whole_chain_f1=group.over_scores(lambda one: one.links.whole_chain_f1),
+            part_whole_with_classes_f1=group.over_scores(
+                lambda one: one.links.f1_with_classes
+            ),
+        )
+
+
+@dataclass
+class AnswersResult(RunGroupResult):
+    """
+    What the model's answers to the questions about wholes added, and how the questions
+    that may be answered with none came out.
+    """
+
+    part_whole_f1_answered: float | MeanAndStandardDeviation | None
+    """
+    The part-whole F1 of the runs as they are.
+    """
+
+    part_whole_f1_first_candidates: float | MeanAndStandardDeviation | None
+    """
+    The part-whole F1 with every question about wholes answered by its first candidate.
+    """
+
+    true_whole_kept: int | None
+    """
+    How many questions that may be answered with none kept the true whole.
+    """
+
+    true_whole_declined: int | None
+    """
+    How many declined every whole although the true one was offered.
+    """
+
+    other_whole_taken: int | None
+    """
+    How many took another whole although the true one was offered.
+    """
+
+    wrong_whole_avoided: int | None
+    """
+    How many declined every whole where the true one was not offered.
+    """
+
+    wrong_whole_taken: int | None
+    """
+    How many took a whole where the true one was not offered.
+    """
+
+    true_whole_offered: float | None
+    """
+    The share of those questions that offered the true whole: how often always taking a
+    candidate would have been right.
+    """
+
+    @classproperty
+    def table_name(cls) -> str:
+        return "answers"
+
+    @classproperty
+    def what_it_shows(cls) -> str:
+        return (
+            "What the model's answers about wholes add, against answering every "
+            "question by its first candidate, and how the questions that may be "
+            "answered with none came out, counted over every run."
+        )
+
+    @classmethod
+    def can_report(cls, comparison: RunComparison) -> bool:
+        return comparison.any_answers_judged
+
+    @classmethod
+    def of(cls, group: RunGroup) -> AnswersResult:
+        def counted(outcome: ConfirmationOutcome) -> int | None:
+            return group.total(
+                lambda one: one.answers.confirmations(outcome) if one.answers else None
+            )
+
+        offered = [one.answers.true_whole_offered for one in group.runs if one.answers]
+        return cls(
+            method=group.name,
+            runs=group.run_count,
+            scenes=group.scenes,
+            part_whole_f1_answered=group.over(
+                lambda one: one.answers.with_answers.links.f1 if one.answers else None
+            ),
+            part_whole_f1_first_candidates=group.over(
+                lambda one: (
+                    one.answers.without_answers.links.f1 if one.answers else None
                 )
             ),
-            triplet_f1=group.over_scores(
-                lambda one: one.links.triplet_precision.harmonic_mean_with(
-                    one.links.triplet_recall
-                )
-            ),
+            true_whole_kept=counted(ConfirmationOutcome.TRUE_WHOLE_KEPT),
+            true_whole_declined=counted(ConfirmationOutcome.TRUE_WHOLE_DECLINED),
+            other_whole_taken=counted(ConfirmationOutcome.OTHER_WHOLE_TAKEN),
+            wrong_whole_avoided=counted(ConfirmationOutcome.WRONG_WHOLE_AVOIDED),
+            wrong_whole_taken=counted(ConfirmationOutcome.WRONG_WHOLE_TAKEN),
+            true_whole_offered=Share(
+                sum(one.count for one in offered), sum(one.total for one in offered)
+            ).value,
         )
 
 
@@ -824,7 +1076,7 @@ class StructureResult(RunGroupResult):
     def of(cls, group: RunGroup) -> StructureResult:
         return cls(
             method=group.name,
-            runs=len(group.runs),
+            runs=group.run_count,
             scenes=group.scenes,
             labels_mapped=group.over(
                 lambda one: Share(one.labels_mapped, one.labels).value
@@ -899,7 +1151,7 @@ class EffortResult(RunGroupResult):
     def of(cls, group: RunGroup) -> EffortResult:
         return cls(
             method=group.name,
-            runs=len(group.runs),
+            runs=group.run_count,
             scenes=group.scenes,
             questions=group.over(lambda one: one.model_use.questions),
             corrected_answers=group.over(
@@ -915,6 +1167,81 @@ class EffortResult(RunGroupResult):
             cost_cents=group.over(lambda one: one.model_use.cost_cents),
             model_minutes=group.over(lambda one: one.model_use.seconds / 60),
             total_minutes=group.over(lambda one: one.total_seconds / 60),
+        )
+
+
+@dataclass
+class RuleCeilingResult(TableRow):
+    """
+    What the pipeline's rule does with the relations the ontology can hold, given the
+    true classes and a method's settings, and so the most of them any model can make.
+    """
+
+    scenes: str | int
+    """
+    The scene the method's runs were made of, or how many there were.
+    """
+
+    taken_right: int
+    """
+    How many relations the rule settles without a question.
+    """
+
+    left_to_the_model: int
+    """
+    How many it asks about with the true whole offered.
+    """
+
+    wrong_whole_taken: int
+    """
+    How many it settles wrongly without a question.
+    """
+
+    true_whole_not_offered: int
+    """
+    How many it asks about without offering the true whole.
+    """
+
+    no_candidate: int
+    """
+    How many it offers no whole for.
+    """
+
+    ceiling: float | None
+    """
+    The share of the relations settled right or asked about with the true whole offered.
+    """
+
+    @classproperty
+    def table_name(cls) -> str:
+        return "rule_ceiling"
+
+    @classproperty
+    def what_it_shows(cls) -> str:
+        return (
+            "What the rule does with the relations the ontology can hold, given the true "
+            "classes and each method's settings: the most a model answering its "
+            "questions can make."
+        )
+
+    @classmethod
+    def of(cls, group: RunGroup, ceiling: RuleCeiling) -> RuleCeilingResult:
+        """
+        :param group: The runs of a method.
+        :param ceiling: What the rule did on their scenes, with their settings.
+        :return: The row reporting it.
+        """
+        return cls(
+            method=group.name,
+            scenes=group.scenes,
+            taken_right=ceiling.count(CandidateOutcome.TAKEN_RIGHT, True),
+            left_to_the_model=ceiling.count(CandidateOutcome.LEFT_TO_THE_MODEL, True),
+            wrong_whole_taken=ceiling.count(CandidateOutcome.WRONG_WHOLE_TAKEN, True),
+            true_whole_not_offered=ceiling.count(
+                CandidateOutcome.TRUE_WHOLE_NOT_OFFERED, True
+            ),
+            no_candidate=ceiling.count(CandidateOutcome.NO_CANDIDATE, True),
+            ceiling=ceiling.ceiling.value,
         )
 
 
@@ -956,17 +1283,33 @@ class ResultTables:
     The runs compared.
     """
 
+    baselines: list[BaselineGroup] = field(default_factory=list)
+    """
+    The baselines reported beside the methods in every table read from scores alone.
+    """
+
+    ceilings: dict[str, RuleCeiling] = field(default_factory=dict)
+    """
+    Per method, by name, what the rule does on its scenes with its settings.
+    """
+
     @classproperty
     def row_kinds(cls) -> list[type[RunGroupResult]]:
         """
         :return: Each kind of row a table is made of, so a table fits on a page.
         """
-        return [ClassResult, LinkResult, StructureResult, EffortResult]
+        return [
+            ClassResult,
+            PartWholeResult,
+            AnswersResult,
+            StructureResult,
+            EffortResult,
+        ]
 
     def write(self, directory: Path) -> list[Path]:
         """
-        Write each table as LaTeX, with all of its rows and columns as JSON beside it, and
-        every table again in one file.
+        Write each table as LaTeX, with all of its rows and columns as JSON beside it,
+        and every table again in one file.
 
         :param directory: Where to write them, made where it is not there.
         :return: The tables written, without the one holding them all.
@@ -976,29 +1319,64 @@ class ResultTables:
             json.dumps(self.comparison.shared_settings, indent=2)
         )
         written = [self.write_methods(directory)]
-        figures = [written[0].read_text()]
         levels = [
             ("conditions", "Per method.", self.comparison.by_condition),
             ("runs", "Per run.", self.comparison.by_run),
         ]
         for level, level_caption, groups in levels:
             for kind in self.row_kinds:
-                if kind.needs_a_score and not self.comparison.any_scored:
+                if not kind.can_report(self.comparison):
                     continue
-                name = f"{level}_{kind.table_name}"
-                table = ExperimentsTable([kind.of(group) for group in groups])
-                path = directory / f"{name}.tex"
-                path.write_text(
-                    self.figure_of(
-                        table, kind, f"{kind.what_it_shows} {level_caption}", name
+                rows = [kind.of(group) for group in groups]
+                if kind.reads_only_the_score and level == "conditions":
+                    rows += [kind.of(baseline) for baseline in self.baselines]
+                written.append(
+                    self.write_table(
+                        directory, f"{level}_{kind.table_name}", rows, level_caption
                     )
-                    + "\n"
                 )
-                table.write_manifest(directory, f"{name}.json")
-                written.append(path)
-                figures.append(path.read_text())
-        (directory / TableFile.EVERY_TABLE).write_text("\n".join(figures))
+        ceilings = [
+            RuleCeilingResult.of(group, self.ceilings[group.name])
+            for group in self.comparison.by_condition
+            if group.name in self.ceilings
+        ]
+        if ceilings:
+            written.append(
+                self.write_table(
+                    directory,
+                    f"conditions_{RuleCeilingResult.table_name}",
+                    ceilings,
+                    "Per method.",
+                )
+            )
+        (directory / TableFile.EVERY_TABLE).write_text(
+            "\n".join(path.read_text() for path in written)
+        )
         return written
+
+    def write_table(
+        self,
+        directory: Path,
+        name: str,
+        rows: Sequence[TableRow],
+        level_caption: str,
+    ) -> Path:
+        """
+        :param directory: Where to write the table.
+        :param name: What it is named after.
+        :param rows: Its rows, all of one kind.
+        :param level_caption: What the caption says the rows are, after what they show.
+        :return: The table, written as LaTeX with its rows as JSON beside it.
+        """
+        table = ExperimentsTable(list(rows))
+        kind = type(rows[0])
+        path = directory / f"{name}.tex"
+        path.write_text(
+            self.figure_of(table, kind, f"{kind.what_it_shows} {level_caption}", name)
+            + "\n"
+        )
+        table.write_manifest(directory, f"{name}.json")
+        return path
 
     def write_methods(self, directory: Path) -> Path:
         """
@@ -1029,7 +1407,7 @@ class ResultTables:
     @staticmethod
     def figure_of(
         table: ExperimentsTable,
-        kind: type[RunGroupResult],
+        kind: type[TableRow],
         what_it_shows: str,
         name: str,
     ) -> str:
@@ -1056,7 +1434,7 @@ class ResultTables:
         caption = [what_it_shows]
         if said:
             caption.append(f"For every row: {', '.join(said)}.")
-        if any(row.runs > 1 for row in table.experiments):
+        if any(row.covers_several_runs for row in table.experiments):
             caption.append(r"Several runs are given as mean $\pm$ standard deviation.")
         return LatexRenderer(
             table, left_out_columns=frozenset(left_out), fit_to_line_width=True

@@ -16,25 +16,45 @@ import subprocess
 import pytest
 
 from experiments.experiment_definitions import MeanAndStandardDeviation
+from experiments.warsaw.articulate3d.ground_truth import (
+    Expressibility,
+    GroundTruthRelation,
+)
+from experiments.warsaw.articulate3d.rule_ceiling import (
+    CandidateOutcome,
+    CountedOutcome,
+    RuleCeiling,
+)
+from experiments.warsaw.articulate3d.run_answers import (
+    ConfirmationOutcome,
+    CountedConfirmation,
+    RunAnswersJudged,
+)
 from experiments.warsaw.articulate3d.score import (
     ClassAgreement,
+    ClassVerdict,
     FaceCorrespondence,
+    JudgedAttachment,
     JudgedClass,
     LinkAgreement,
     SceneScore,
     ScoreFile,
+    Share,
 )
 from experiments.warsaw.evaluation.exceptions import RunNotFinishedError
 from experiments.warsaw.evaluation.graph import EvaluationGraph, EvaluationNode
 from experiments.warsaw.evaluation.results import (
+    AnswersResult,
+    BaselineGroup,
     ClassResult,
     EffortResult,
-    LinkResult,
+    PartWholeResult,
     ModelUse,
     ResultTables,
     RunComparison,
     RunGroup,
     RunMeasurements,
+    SettingName,
     StructureResult,
     main,
 )
@@ -68,6 +88,7 @@ def written_run(
     seconds: float = 10.0,
     pictures: bool = True,
     contested_faces_pictured: bool | None = None,
+    further_settings: dict | None = None,
 ) -> Run:
     """
     :return: A finished run with two labels, two bodies, one part mounted and one refused,
@@ -88,6 +109,7 @@ def written_run(
                     else {"show_the_contested_faces": contested_faces_pictured}
                 ),
                 "runs_directory": f"/somewhere/{name}",
+                **(further_settings or {}),
             },
             "source": {"commit": commit, "dirty": False, "patch_sha256": None},
         },
@@ -188,14 +210,19 @@ def written_run(
     return run
 
 
-def scored(run: Run, correct: bool = True) -> Run:
+def scene_score(
+    run_name: str,
+    scene_id: str = "kitchen",
+    correct: bool = True,
+    links: LinkAgreement | None = None,
+) -> SceneScore:
     """
-    :return: The run, holding a score that gives its one judged part the right class or
-        the wrong one.
+    :return: A score giving its one judged part the right class or the wrong one, and
+        holding those links.
     """
-    score = SceneScore(
-        run=run.directory.name,
-        scene_id="kitchen",
+    return SceneScore(
+        run=run_name,
+        scene_id=scene_id,
         correspondence=FaceCorrespondence(minimum_overlap=0.5),
         classes=ClassAgreement(
             judged=[
@@ -212,9 +239,68 @@ def scored(run: Run, correct: bool = True) -> Run:
             ],
             classified_parts=1,
         ),
-        links=LinkAgreement(),
+        links=links or LinkAgreement(),
     )
+
+
+def scored(run: Run, correct: bool = True, links: LinkAgreement | None = None) -> Run:
+    """
+    :return: The run, holding the score :func:`scene_score` makes.
+    """
+    score = scene_score(run.directory.name, correct=correct, links=links)
     (run.directory / ScoreFile.SCENE).write_text(json.dumps(score.to_json()))
+    return run
+
+
+def attachment(correct: bool, representable: bool = True) -> JudgedAttachment:
+    """
+    :return: A handle whose whole is part 1, hung from it or from part 3, by a relation
+        the ontology can hold or cannot.
+    """
+    return JudgedAttachment(
+        part_id=2,
+        relation=GroundTruthRelation(
+            whole=1,
+            part=2,
+            expressibility=(
+                Expressibility.EXPRESSIBLE
+                if representable
+                else Expressibility.INEXPRESSIBLE
+            ),
+        ),
+        predicted_whole=1 if correct else 3,
+        true_ancestors=[1],
+        predicted_ancestors=[1] if correct else [3],
+        part_class=ClassVerdict.RIGHT,
+        true_whole_class=ClassVerdict.RIGHT,
+        predicted_whole_class=ClassVerdict.RIGHT,
+    )
+
+
+def answered(
+    run: Run,
+    answers_right: bool = True,
+    outcomes: dict[ConfirmationOutcome, int] | None = None,
+) -> Run:
+    """
+    :return: The run, judged with its model's answers hanging its one handle right or
+        wrong, with its first candidates hanging it wrong, and with those outcomes of
+        its confirming questions.
+    """
+    judged = RunAnswersJudged(
+        run=run.directory.name,
+        with_answers=scene_score(
+            run.directory.name, links=LinkAgreement([attachment(answers_right)])
+        ),
+        without_answers=scene_score(
+            run.directory.name, links=LinkAgreement([attachment(False)])
+        ),
+        confirmation_outcomes=[
+            CountedConfirmation(outcome=outcome, count=count)
+            for outcome, count in (outcomes or {}).items()
+        ],
+    )
+    (run.directory / ScoreFile.ANSWERS).write_text(json.dumps(judged.to_json()))
     return run
 
 
@@ -391,6 +477,34 @@ def test_contested_faces_shown_like_the_pictures_are_not_said_twice(runs_directo
     ]
 
 
+def test_the_gaps_a_method_is_told_apart_by_are_named_in_centimetres(runs_directory):
+    touching = SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING
+    comparison = comparison_of(
+        written_run(runs_directory, "one", further_settings={touching: 0.01}),
+        written_run(runs_directory, "two", further_settings={touching: 0.02}),
+    )
+
+    assert sorted(group.name for group in comparison.by_condition) == [
+        "touching within 1 cm",
+        "touching within 2 cm",
+    ]
+
+
+def test_a_setting_a_run_did_not_record_is_said_to_be_not_recorded(runs_directory):
+    """
+    A run made before a setting existed has nothing recorded for it.
+    """
+    touching = SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING
+    comparison = comparison_of(
+        written_run(runs_directory, "one", further_settings={touching: 0.01}),
+        written_run(runs_directory, "two"),
+    )
+
+    assert comparison.definition_of(comparison.runs[1]) == (
+        "largest gap counted as touching not recorded"
+    )
+
+
 def test_a_method_is_defined_by_every_setting_it_is_told_apart_by(runs_directory):
     comparison = comparison_of(
         written_run(runs_directory, "one", model="a/model", pictures=True),
@@ -494,9 +608,72 @@ def test_a_run_with_no_score_is_left_out_of_a_mean_of_scores(runs_directory):
 
 
 def test_scores_nobody_has_are_absent(runs_directory):
-    row = LinkResult.of(group_of(written_run(runs_directory, "one")))
+    row = PartWholeResult.of(group_of(written_run(runs_directory, "one")))
 
-    assert (row.link_f1, row.triplet_f1) == (None, None)
+    assert (row.part_whole_f1, row.part_whole_with_classes_f1) == (None, None)
+
+
+def test_the_relations_the_ontology_can_hold_are_reported_apart(runs_directory):
+    """
+    The run hangs one handle right, by a relation the ontology can hold, and one wrong,
+    by a relation it cannot.
+    """
+    links = LinkAgreement(
+        [attachment(correct=True), attachment(correct=False, representable=False)]
+    )
+
+    row = PartWholeResult.of(
+        group_of(scored(written_run(runs_directory, "one"), links=links))
+    )
+
+    assert (row.part_whole_recall, row.representable_recall) == (
+        links.recall.value,
+        links.representable_recall.value,
+    )
+
+
+def test_a_run_s_answers_are_set_against_its_first_candidates(runs_directory):
+    row = AnswersResult.of(
+        group_of(answered(written_run(runs_directory, "one"), answers_right=True))
+    )
+
+    assert (row.part_whole_f1_answered, row.part_whole_f1_first_candidates) == (
+        LinkAgreement([attachment(True)]).f1,
+        LinkAgreement([attachment(False)]).f1,
+    )
+
+
+def test_confirming_questions_are_counted_over_every_run(runs_directory):
+    outcomes = {
+        ConfirmationOutcome.TRUE_WHOLE_KEPT: 2,
+        ConfirmationOutcome.WRONG_WHOLE_AVOIDED: 1,
+    }
+    row = AnswersResult.of(
+        group_of(
+            answered(written_run(runs_directory, "one"), outcomes=outcomes),
+            answered(written_run(runs_directory, "two"), outcomes=outcomes),
+        )
+    )
+
+    assert (row.true_whole_kept, row.wrong_whole_avoided, row.true_whole_offered) == (
+        4,
+        2,
+        Share(4, 6).value,
+    )
+
+
+def test_a_baseline_counts_one_run_per_scene(runs_directory):
+    row = ClassResult.of(
+        BaselineGroup(
+            "a baseline",
+            [
+                scene_score("kitchen", scene_id="kitchen"),
+                scene_score("office", scene_id="office"),
+            ],
+        )
+    )
+
+    assert (row.method, row.runs, row.scenes) == ("a baseline", 2, 2)
 
 
 def test_what_a_run_built_is_reported_as_shares_of_the_scene(runs_directory):
@@ -563,10 +740,72 @@ def test_scored_runs_are_also_given_the_tables_of_their_scores(
 
     assert {
         "conditions_classes",
-        "conditions_links",
+        "conditions_part_whole",
         "runs_classes",
-        "runs_links",
+        "runs_part_whole",
     } <= tables_in(output)
+
+
+def test_runs_whose_answers_were_judged_are_given_a_table_of_them(
+    runs_directory, tmp_path
+):
+    output = tmp_path / "tables"
+
+    ResultTables(
+        comparison_of(answered(scored(written_run(runs_directory, "one"))))
+    ).write(output)
+
+    assert {"conditions_answers", "runs_answers"} <= tables_in(output)
+
+
+def methods_in(table: pathlib.Path) -> list[str]:
+    """
+    :return: The methods of the rows a table's record holds.
+    """
+    return [row["method"] for row in json.loads(table.read_text())]
+
+
+def test_a_baseline_is_a_row_of_every_table_of_scores_per_method(
+    runs_directory, tmp_path
+):
+    output = tmp_path / "tables"
+    baseline = BaselineGroup("a baseline", [scene_score("kitchen")])
+
+    ResultTables(
+        comparison_of(scored(written_run(runs_directory, "one"))),
+        baselines=[baseline],
+    ).write(output)
+
+    assert methods_in(output / "conditions_classes.json")[-1] == baseline.name
+    assert methods_in(output / "conditions_part_whole.json")[-1] == baseline.name
+    assert baseline.name not in methods_in(output / "runs_part_whole.json")
+
+
+def test_what_the_rule_allows_each_method_has_a_table(runs_directory, tmp_path):
+    output = tmp_path / "tables"
+    ceiling = RuleCeiling(
+        outcomes=[
+            CountedOutcome(CandidateOutcome.TAKEN_RIGHT, representable=True, count=3),
+            CountedOutcome(
+                CandidateOutcome.TRUE_WHOLE_NOT_OFFERED, representable=True, count=1
+            ),
+            CountedOutcome(
+                CandidateOutcome.LEFT_WITHOUT_A_WHOLE, representable=None, count=2
+            ),
+        ]
+    )
+    comparison = comparison_of(written_run(runs_directory, "one"))
+
+    ResultTables(comparison, ceilings={comparison.everything_alike: ceiling}).write(
+        output
+    )
+
+    [row] = json.loads((output / "conditions_rule_ceiling.json").read_text())
+    assert (row["taken_right"], row["true_whole_not_offered"], row["ceiling"]) == (
+        3,
+        1,
+        ceiling.ceiling.value,
+    )
 
 
 def conditions_table(runs_directory, tmp_path, *runs) -> str:

@@ -37,7 +37,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from scipy.sparse import csr_matrix
-from typing_extensions import Any, Sequence
+from typing_extensions import Any, Sequence, TypeVar
 
 from experiments.warsaw.articulate3d.convert import ConvertedScene
 from experiments.warsaw.articulate3d.exceptions import ClassNotInOntologyError
@@ -143,7 +143,8 @@ class ClassLineage:
 
     generated: dict[str, list[str]] = field(default_factory=dict)
     """
-    The classes of the ontology each class the run generated derives from, by class name.
+    The classes of the ontology each class the run generated derives from, by class
+    name.
     """
 
     @classmethod
@@ -608,7 +609,7 @@ class ClassAgreement(JsonRecord):
         )
 
     @property
-    def hierarchical_precision(self) -> Share:
+    def class_hierarchy_precision(self) -> Share:
         """
         :return: Of the classes the answers are, those the truths are too.
         """
@@ -618,13 +619,22 @@ class ClassAgreement(JsonRecord):
         )
 
     @property
-    def hierarchical_recall(self) -> Share:
+    def class_hierarchy_recall(self) -> Share:
         """
         :return: Of the classes the truths are, those the answers are too.
         """
         return Share(
             sum(one.shared_ancestry for one in self.judged),
             sum(one.true_ancestry for one in self.judged),
+        )
+
+    @property
+    def class_hierarchy_f1(self) -> float | None:
+        """
+        :return: The harmonic mean of the class-hierarchy precision and recall.
+        """
+        return self.class_hierarchy_precision.harmonic_mean_with(
+            self.class_hierarchy_recall
         )
 
     def confusions(self) -> list[ClassConfusion]:
@@ -848,25 +858,27 @@ class LinkAgreement(JsonRecord):
         )
 
     @property
-    def reachable(self) -> Share:
+    def representable(self) -> Share:
         """
         :return: Of the relations of the part hierarchy, those the ontology lets a run
             make, which is the most of them any run can make.
         """
         return Share(
-            len(self._reachable),
+            len(self._representable),
             sum(one.relation is not None for one in self.attachments),
         )
 
     @property
-    def reachable_recall(self) -> Share:
+    def representable_recall(self) -> Share:
         """
         :return: Of the relations the ontology lets a run make, those the run made.
         """
-        return Share(sum(one.correct for one in self._reachable), len(self._reachable))
+        return Share(
+            sum(one.correct for one in self._representable), len(self._representable)
+        )
 
     @property
-    def ancestor_precision(self) -> Share:
+    def whole_chain_precision(self) -> Share:
         """
         :return: Of the parts the run hung each part below, those it does lie below.
         """
@@ -876,7 +888,7 @@ class LinkAgreement(JsonRecord):
         )
 
     @property
-    def ancestor_recall(self) -> Share:
+    def whole_chain_recall(self) -> Share:
         """
         :return: Of the parts each part lies below, those the run hung it below.
         """
@@ -886,7 +898,7 @@ class LinkAgreement(JsonRecord):
         )
 
     @property
-    def triplet_precision(self) -> Share:
+    def precision_with_classes(self) -> Share:
         """
         :return: Of the parts the run hung from another, both classes judged, those hung
             from their whole with both given exactly their class.
@@ -900,7 +912,7 @@ class LinkAgreement(JsonRecord):
         return Share(sum(one.classes_right for one in judged), len(judged))
 
     @property
-    def triplet_recall(self) -> Share:
+    def recall_with_classes(self) -> Share:
         """
         :return: Of the relations of the part hierarchy, both classes judged, those the
             run made with both ends given exactly their class.
@@ -914,7 +926,29 @@ class LinkAgreement(JsonRecord):
         return Share(sum(one.classes_right for one in judged), len(judged))
 
     @property
-    def _reachable(self) -> list[JudgedAttachment]:
+    def f1(self) -> float | None:
+        """
+        :return: The harmonic mean of :attr:`precision` and :attr:`recall`.
+        """
+        return self.precision.harmonic_mean_with(self.recall)
+
+    @property
+    def whole_chain_f1(self) -> float | None:
+        """
+        :return: The harmonic mean of the whole-chain precision and recall.
+        """
+        return self.whole_chain_precision.harmonic_mean_with(self.whole_chain_recall)
+
+    @property
+    def f1_with_classes(self) -> float | None:
+        """
+        :return: The harmonic mean of :attr:`precision_with_classes` and
+            :attr:`recall_with_classes`.
+        """
+        return self.precision_with_classes.harmonic_mean_with(self.recall_with_classes)
+
+    @property
+    def _representable(self) -> list[JudgedAttachment]:
         """
         :return: The parts held by a relation the ontology lets a run make.
         """
@@ -928,15 +962,44 @@ class LinkAgreement(JsonRecord):
 # %% one run, judged
 
 
+Judged = TypeVar("Judged", bound=JsonRecord)
+"""
+What judging a run wrote into its directory.
+"""
+
+
 class ScoreFile(StrEnum):
     """
-    Where a run's score is written.
+    What judging a run writes into the run's own directory.
     """
 
     SCENE = "articulate3d_score.json"
     """
-    The score of one run, in the run's own directory.
+    The score of the run.
     """
+
+    ANSWERS = "articulate3d_answers.json"
+    """
+    The run judged with and without its model's answers about wholes.
+    """
+
+    def write(self, run: Run, judged: JsonRecord) -> None:
+        """
+        :param run: The run judged.
+        :param judged: What it was judged to be.
+        """
+        (run.directory / self).write_text(json.dumps(judged.to_json(), indent=2))
+
+    def read(self, run: Run, record: type[Judged]) -> Judged | None:
+        """
+        :param run: A run.
+        :param record: What the file holds.
+        :return: What it holds, nothing where the run was not judged so.
+        """
+        path = run.directory / self
+        if not path.is_file():
+            return None
+        return record.from_json(json.loads(path.read_text()))
 
 
 @dataclass(frozen=True)
@@ -1145,27 +1208,27 @@ class ScoreOverRuns(JsonRecord):
         :return: The headline numbers, one per line.
         """
         classes, links = self.classes, self.links
-        link_f1 = links.precision.harmonic_mean_with(links.recall)
-        triplet_f1 = links.triplet_precision.harmonic_mean_with(links.triplet_recall)
         return [
             f"{len(self.runs)} runs, {self.parts} annotated parts",
-            f"parts found          {self._shown(self.found)}",
-            f"bodies that are parts {self._shown(self.matched_bodies)}",
+            f"parts found                  {self._shown(self.found)}",
+            f"bodies that are parts        {self._shown(self.matched_bodies)}",
             f"fragmented parts {self.fragmented_parts}, merged bodies "
             f"{self.merged_bodies}, bodies outside {self.outside_bodies}",
-            f"class accuracy       {self._shown(classes.accuracy)}",
-            f"classes recognised   {self._shown(classes.recognised)}",
-            f"hierarchical P / R   {self._shown(classes.hierarchical_precision)} / "
-            f"{self._shown(classes.hierarchical_recall)}",
+            f"class accuracy               {self._shown(classes.accuracy)}",
+            f"classes recognised           {self._shown(classes.recognised)}",
+            f"class-hierarchy P / R        "
+            f"{self._shown(classes.class_hierarchy_precision)} / "
+            f"{self._shown(classes.class_hierarchy_recall)}",
             f"answers standing for no class {classes.unprojectable}",
-            f"link P / R           {self._shown(links.precision)} / "
-            f"{self._shown(links.recall)}, F1 {self._number(link_f1)}",
-            f"links reachable      {self._shown(links.reachable)}",
-            f"reachable recall     {self._shown(links.reachable_recall)}",
-            f"ancestor P / R       {self._shown(links.ancestor_precision)} / "
-            f"{self._shown(links.ancestor_recall)}",
-            f"triplet P / R        {self._shown(links.triplet_precision)} / "
-            f"{self._shown(links.triplet_recall)}, F1 {self._number(triplet_f1)}",
+            f"part-whole P / R             {self._shown(links.precision)} / "
+            f"{self._shown(links.recall)}, F1 {self._number(links.f1)}",
+            f"representable relations      {self._shown(links.representable)}",
+            f"representable recall         {self._shown(links.representable_recall)}",
+            f"whole-chain P / R            {self._shown(links.whole_chain_precision)} / "
+            f"{self._shown(links.whole_chain_recall)}",
+            f"part-whole with classes P / R {self._shown(links.precision_with_classes)}"
+            f" / {self._shown(links.recall_with_classes)}, "
+            f"F1 {self._number(links.f1_with_classes)}",
         ]
 
     @staticmethod
@@ -1226,9 +1289,7 @@ def main(arguments: list[str] | None = None) -> int:
     for directory in parsed.runs:
         run = Run(directory=directory)
         score = SceneScore.of(run, parsed.ground_truth, parsed.minimum_overlap)
-        (run.directory / ScoreFile.SCENE).write_text(
-            json.dumps(score.to_json(), indent=2)
-        )
+        ScoreFile.SCENE.write(run, score)
         scores.append(score)
     summary = ScoreOverRuns.over(scores)
     for line in summary.lines():

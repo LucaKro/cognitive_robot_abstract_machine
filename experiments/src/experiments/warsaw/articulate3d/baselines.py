@@ -20,11 +20,10 @@ from functools import cached_property
 from pathlib import Path
 
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
     build_taxonomy,
-    load_annotation_modules,
 )
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
+from typing_extensions import Sequence
 
 from experiments.warsaw.articulate3d.ground_truth import SceneGroundTruth
 from experiments.warsaw.articulate3d.label_readings import (
@@ -46,9 +45,7 @@ from experiments.warsaw.articulate3d.whole_choices import (
     WholeChoice,
 )
 from experiments.warsaw.evaluation.graph import EvaluationGraph, EvaluationNode
-from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
-from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 
 # %% one baseline
 
@@ -115,6 +112,18 @@ class Baseline:
             lineage=lineage,
         )
 
+    def scores(
+        self, scenes: Sequence[SceneToJudge], lineage: ClassLineage
+    ) -> list[SceneScore]:
+        """
+        :param scenes: The scenes, measured, with their ground truth.
+        :param lineage: What each class of the ontology derives from.
+        :return: :meth:`score` on each scene.
+        """
+        return [
+            self.score(scene.measured, scene.ground_truth, lineage) for scene in scenes
+        ]
+
 
 # %% the baselines compared
 
@@ -136,7 +145,8 @@ class BaselineName(StrEnum):
 
     EMBEDDING_AND_RULE = "embedding-and-rule"
     """
-    Classes by Sentence-BERT, wholes by the pipeline's rule: the pipeline without a model.
+    Classes by Sentence-BERT, wholes by the pipeline's rule: the pipeline without a
+    model.
     """
 
     TRUE_CLASSES_AND_RULE = "true-classes-and-rule"
@@ -166,6 +176,29 @@ class Baselines:
     """
     The classes a label may be read as.
     """
+
+    lineage: ClassLineage
+    """
+    What each class of the ontology derives from, which the baselines are judged by.
+    """
+
+    @classmethod
+    def from_settings(
+        cls, settings: PipelineSettings, run_directory: Path
+    ) -> Baselines:
+        """
+        :param settings: The pipeline's settings the rule and geometry work with.
+        :param run_directory: Where the rule's measuring step may keep what it writes.
+        :return: Every reading and choice, over the whole ontology.
+        """
+        rule = FirstCandidateOfTheRule.from_settings(settings, run_directory)
+        taxonomy = build_taxonomy(SemanticAnnotation)
+        return cls(
+            rule=rule,
+            geometry=LargerObjectTouchedMost(settings=settings),
+            vocabulary=ClassVocabulary.from_taxonomy(taxonomy),
+            lineage=ClassLineage.from_taxonomy(taxonomy, {}),
+        )
 
     @cached_property
     def by_embedding(self) -> NearestByEmbedding:
@@ -244,26 +277,11 @@ def main(arguments: list[str] | None = None) -> int:
     logger = logging.getLogger(__name__)
     parsed = argument_parser().parse_args(arguments)
     parsed.output.mkdir(parents=True, exist_ok=True)
-    load_annotation_modules()
-    taxonomy = build_taxonomy(SemanticAnnotation)
-    lineage = ClassLineage.from_taxonomy(taxonomy, {})
-    settings = PipelineSettings()
-    baselines = Baselines(
-        rule=FirstCandidateOfTheRule(
-            step=MeasureScene(settings=settings, run=Run(directory=parsed.output)),
-            ontology=annotation_classes(SemanticAnnotation),
-        ),
-        geometry=LargerObjectTouchedMost(settings=settings),
-        vocabulary=ClassVocabulary.from_taxonomy(taxonomy),
-    )
+    baselines = Baselines.from_settings(PipelineSettings(), parsed.output)
     scenes = SceneToJudge.all_in(parsed.measured, parsed.ground_truth, parsed.scenes)
     for name in parsed.baseline or list(BaselineName):
-        baseline = baselines.named(name)
         summary = ScoreOverRuns.over(
-            [
-                baseline.score(scene.measured, scene.ground_truth, lineage)
-                for scene in scenes
-            ]
+            baselines.named(name).scores(scenes, baselines.lineage)
         )
         (parsed.output / f"{name}.json").write_text(
             json.dumps(summary.to_json(), indent=2)

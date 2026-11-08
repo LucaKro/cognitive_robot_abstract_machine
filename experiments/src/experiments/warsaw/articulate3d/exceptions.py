@@ -312,3 +312,36 @@ class LabelWithSeveralClassesError(DataclassException, ValueError):
             "classified otherwise than its name says cannot be matched by a reading of "
             "labels, so leave the scene out of the baselines that read the true classes."
         )
+
+
+# %% evaluating runs
+
+
+@dataclass
+class SceneNotMeasuredError(DataclassException, LookupError):
+    """
+    Raised when runs were scored on scenes the directory of measured scenes lacks, so
+    the baselines and the rule could not be judged on the same scenes.
+    """
+
+    scene_ids: list[str]
+    """
+    The scenes not measured.
+    """
+
+    measured_directory: Path
+    """
+    The directory of measured scenes.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The scenes {', '.join(self.scene_ids)} were not measured in "
+            f"{self.measured_directory}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Measure them with 'python -m experiments.warsaw.articulate3d.measured_scene', "
+            "or leave out --measured to write the tables without baselines."
+        )

@@ -4,8 +4,8 @@ What the pipeline's candidate rule allows before any model is asked.
 For every relation of the part hierarchy, the rule either takes the true whole without a
 question, leaves the choice to the model with the true whole among the candidates, or
 loses the relation: it takes another whole, asks without offering the true one, or
-offers nothing. Read with the true classes, the share it settles or leaves to the model is
-the most any model answering its questions can reach.
+offers nothing. Read with the true classes, the share it settles or leaves to the model
+is the most any model answering its questions can reach.
 
 Run ``python -m experiments.warsaw.articulate3d.rule_ceiling --help`` for its options.
 """
@@ -20,11 +20,6 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from semantic_digital_twin.semantic_annotations.taxonomy_export import (
-    annotation_classes,
-    load_annotation_modules,
-)
-from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from typing_extensions import Sequence
 
 from experiments.warsaw.articulate3d.ground_truth import (
@@ -37,9 +32,8 @@ from experiments.warsaw.articulate3d.score import Share
 from experiments.warsaw.articulate3d.whole_choices import FirstCandidateOfTheRule
 from experiments.warsaw.bases import JsonRecord
 from experiments.warsaw.pipeline.records import MembershipQuestion
-from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
-from experiments.warsaw.pipeline.steps.evidence import MeasureScene, Memberships
+from experiments.warsaw.pipeline.steps.evidence import Memberships
 
 # %% what the rule does with one part
 
@@ -108,8 +102,8 @@ class PartOutcome:
 
     representable: bool | None
     """
-    Whether the ontology can hold the part's relation to its whole, or nothing for a part
-    with no whole.
+    Whether the ontology can hold the part's relation to its whole, or nothing for a
+    part with no whole.
     """
 
 
@@ -126,8 +120,8 @@ class CountedOutcome(JsonRecord):
 
     representable: bool | None
     """
-    Whether the ontology can hold the part's relation to its whole, or nothing for a part
-    with no whole.
+    Whether the ontology can hold the part's relation to its whole, or nothing for a
+    part with no whole.
     """
 
     count: int
@@ -374,11 +368,7 @@ def main(arguments: list[str] | None = None) -> int:
         largest_gap_counted_as_touching=parsed.largest_gap_counted_as_touching,
         confirm_wholes_within_the_gap=parsed.confirm_wholes_within_the_gap,
     )
-    load_annotation_modules()
-    rule = FirstCandidateOfTheRule(
-        step=MeasureScene(settings=settings, run=Run(directory=parsed.measured)),
-        ontology=annotation_classes(SemanticAnnotation),
-    )
+    rule = FirstCandidateOfTheRule.from_settings(settings, parsed.measured)
     ceiling = RuleCeiling.of(
         SceneToJudge.all_in(parsed.measured, parsed.ground_truth),
         rule=rule,

@@ -1,9 +1,9 @@
 """
 What a run's answers to the questions about wholes add.
 
-A run's rule takes some wholes without asking and puts the rest to the model. Judging the
-run again with every question answered by its first candidate, the one touching the part
-along the most edges, keeps everything else the run did, its readings of the labels
+A run's rule takes some wholes without asking and puts the rest to the model. Judging
+the run again with every question answered by its first candidate, the one touching the
+part along the most edges, keeps everything else the run did, its readings of the labels
 included, so the difference is the model's answers alone.
 
 A question about wholes only found within the gap may be answered with none. Most of the
@@ -16,7 +16,6 @@ Run ``python -m experiments.warsaw.articulate3d.run_answers --help`` for its opt
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from collections import Counter
 from dataclasses import dataclass, field, replace
@@ -34,6 +33,7 @@ from experiments.warsaw.articulate3d.ground_truth import (
 from experiments.warsaw.articulate3d.score import (
     ClassLineage,
     SceneScore,
+    ScoreFile,
     ScoreOverRuns,
     Share,
 )
@@ -126,7 +126,8 @@ class RunAnswersJudged(JsonRecord):
 
     confirmation_outcomes: list[CountedConfirmation] = field(default_factory=list)
     """
-    How often each outcome came about among the questions that may be answered with none.
+    How often each outcome came about among the questions that may be answered with
+    none.
     """
 
     def confirmations(self, outcome: ConfirmationOutcome) -> int:
@@ -299,19 +300,13 @@ def argument_parser() -> argparse.ArgumentParser:
         required=True,
         help="The directory holding every scene's ground truth",
     )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="Where to write what each run's answers came to, named after the run",
-    )
     return parser
 
 
 def main(arguments: list[str] | None = None) -> int:
     """
-    Judge each run with and without its model's answers, write what each came to, and
-    say what they came to together.
+    Judge each run with and without its model's answers, write what each came to into
+    the run's directory, and say what they came to together.
 
     :param arguments: Command-line arguments without the program name.
     :return: Zero once every run is judged.
@@ -319,7 +314,6 @@ def main(arguments: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logger = logging.getLogger(__name__)
     parsed = argument_parser().parse_args(arguments)
-    parsed.output.mkdir(parents=True, exist_ok=True)
     judged = []
     for directory in parsed.runs:
         run = Run(directory=directory)
@@ -328,9 +322,7 @@ def main(arguments: list[str] | None = None) -> int:
             GroundTruthFile.SUFFIX.path(parsed.ground_truth, scene_id)
         )
         one = RunAnswers(run=run, ground_truth=ground_truth).judged()
-        (parsed.output / f"{one.run}.json").write_text(
-            json.dumps(one.to_json(), indent=2)
-        )
+        ScoreFile.ANSWERS.write(run, one)
         judged.append(one)
     for title, scores in (
         ("with the model's answers", [one.with_answers for one in judged]),

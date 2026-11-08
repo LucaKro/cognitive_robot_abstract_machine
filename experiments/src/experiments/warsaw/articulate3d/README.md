@@ -80,15 +80,22 @@ commit carries a tag starting with `articulate3d-frozen-`. Train scenes
    [the pipeline's README](../README.md#running-a-version-of-the-pipeline) says how to
    run each version.
 
-6. **Score the runs**:
+6. **Evaluate the runs**: score each, judge its answers, judge the baselines and what the
+   rule allows on the same scenes, and write the tables for a document. Point it at the
+   runs, at a batch, or at `pipeline_runs/`:
+
+   ```bash
+   python -m experiments.warsaw.articulate3d.evaluate_runs <run, batch or directory> \
+       --ground-truth ground_truth/ --measured measured/ --output tables/
+   ```
+
+   [The evaluation's README](../evaluation/README.md#tables-of-results) says what the
+   tables hold. To score runs without the rest:
 
    ```bash
    python -m experiments.warsaw.articulate3d.score <run> [<run> ...] \
        --ground-truth ground_truth/ --summary summary.json
    ```
-
-   [The evaluation's README](../evaluation/README.md#tables-of-results) says how to turn
-   the scored runs into tables for a document.
 
 ## What the score means
 
@@ -103,19 +110,19 @@ so a misclassified body is still found and counted as a misclassification.
 | bodies outside | bodies lying on faces the annotation does not cover; not judged |
 | class accuracy | found parts given exactly their class |
 | classes recognised | the same, out of every part whose class is judged, found or not |
-| hierarchical precision / recall | partial credit for an answer on the right branch of the class hierarchy |
+| class-hierarchy precision / recall | partial credit for an answer on the right branch of the class hierarchy |
 | answers standing for no class | generated classes with no single class of the ontology as their base |
-| link precision | parts the run hung from another part that hang from their annotated whole |
-| link recall | relations of the part hierarchy the run made |
-| links reachable | relations a field of either class can make: the most any run can make |
-| reachable recall | of those, the ones the run made |
-| ancestor precision / recall | partial credit for a part hung on the right branch, such as a handle hung from its door rather than from the plate on it |
-| triplet precision / recall | links made with both ends given exactly their class, out of the links whose ends' classes are judged |
+| part-whole precision | parts the run hung from another part that hang from their annotated whole |
+| part-whole recall | relations of the part hierarchy the run made |
+| representable relations | relations a field of either class can make: the most any run can make |
+| representable recall | of those, the ones the run made |
+| whole-chain precision / recall | partial credit for a part hung on the right branch, such as a handle hung from its door rather than from the plate on it |
+| part-whole with classes precision / recall | relations made with both ends given exactly their class, out of the relations whose ends' classes are judged |
 
-Links are read from the tree the run built. A part counts as hung from the nearest
-annotated part above it, past any body between that matches no part. A part the
-annotation hangs from nothing counts against precision when the run hangs it from a
-part. A class the run generated is judged as the one class of the ontology it derives
+Part-whole relations are read from the tree the run built. A part counts as hung from the
+nearest annotated part above it, past any body between that matches no part. A part the
+annotation hangs from nothing counts against precision when the run hangs it from a part.
+A class the run generated is judged as the one class of the ontology it derives
 from, with mixins left out. A share with nothing to divide by is reported as `n/a`,
 never as a perfect score.
 
@@ -178,8 +185,11 @@ have to beat for asking to pay off:
 
 ```bash
 python -m experiments.warsaw.articulate3d.run_answers <run> [<run> ...] \
-    --ground-truth ground_truth/ --output answers/
+    --ground-truth ground_truth/
 ```
+
+Each run's result is kept in its directory as `articulate3d_answers.json`, beside its
+`articulate3d_score.json`.
 
 ## Not covered yet
 

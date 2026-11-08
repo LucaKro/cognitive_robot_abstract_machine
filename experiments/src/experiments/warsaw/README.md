@@ -125,7 +125,9 @@ has run every scene alike. Each run is a program of its own and writes its outpu
 log in `pipeline_runs/batches/<batch>/`; a run that fails is reported and the batch goes
 on. The runs that finished are kept in that directory's `ledger.json`, so starting the
 same batch again makes only the runs still missing. A batch sets nothing but the scene
-and `headless`: to run another version, change the defaults it runs with.
+and `headless`: to run another version, change the defaults it runs with. To evaluate
+what a batch made, point `experiments.warsaw.articulate3d.evaluate_runs` at its directory
+([the evaluation's README](evaluation/README.md#tables-of-results)).
 
 ### The model
 
