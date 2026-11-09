@@ -20,9 +20,9 @@ class Command:
     actions it performs room by room.
     """
 
-    name: str
+    instruction: str
     """
-    What this task does, e.g. ``"bring the milk to the living room"``.
+    What the goal of this task is, e.g. ``"bring the milk to the living room"``.
     """
 
     rooms: list[set[type[Room]]]

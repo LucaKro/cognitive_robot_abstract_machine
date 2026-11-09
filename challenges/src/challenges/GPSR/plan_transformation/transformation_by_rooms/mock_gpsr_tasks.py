@@ -10,6 +10,7 @@ Run it from the repository root::
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import RoomVisitPlanner
@@ -51,13 +52,13 @@ class MockAction(SequentialAction):
 # %% the commands: one set of allowed rooms and one list of actions per step
 
 lower_torso = Command(
-    name="lower the torso and park the arms",
+    instruction="lower the torso and park the arms",
     rooms=[{Kitchen, LivingRoom, Bedroom, Bathroom}],
     actions=[[MockAction("move torso low"), MockAction("park arms")]],
 )
 
 bring_milk = Command(
-    name="bring the milk to the living room",
+    instruction="bring the milk to the living room",
     rooms=[{Kitchen}, {LivingRoom}],
     actions=[
         [MockAction("move torso high"), MockAction("pick up the milk")],
@@ -66,7 +67,7 @@ bring_milk = Command(
 )
 
 bring_cup = Command(
-    name="bring the cup to the bedroom",
+    instruction="bring the cup to the bedroom",
     rooms=[{LivingRoom}, {Bedroom}],
     actions=[
         [MockAction("park arms"), MockAction("pick up the cup")],
@@ -75,7 +76,7 @@ bring_cup = Command(
 )
 
 bring_remote = Command(
-    name="bring the remote to the kitchen",
+    instruction="bring the remote to the kitchen",
     rooms=[{LivingRoom}, {Kitchen}],
     actions=[
         [MockAction("pick up the remote")],
@@ -102,25 +103,28 @@ def main() -> list[MockAction]:
     Collects the room visits :data:`MOCK_GPSR_PLAN` is grouped into, first as task steps
     and then as their actions and the actions in execution order.
     """
+    logger = logging.getLogger(__name__)
     planner = RoomVisitPlanner()
     room_visits = planner.transform_plan_by_rooms(MOCK_GPSR_PLAN)
     optimal_plan = []
-    printable_output = ''
-    printable_output += "Steps per room visit: \n"
+    logger.info("Steps per room visit:")
     for room, steps in room_visits:
-        printable_output += f"  In room {room.__name__}:\n"
+        logger.info(f"  In room {room.__name__}:")
         for task, step_number in steps:
-            printable_output += f"    part {step_number} of {len(task.rooms)} of task '{task.name}'\n"
+            logger.info(
+                f"    part {step_number} of {len(task.rooms)} of task '{task.instruction}'"
+            )
 
-    printable_output += "\nActions per room visit, grouped by task:\n"
+    logger.info("Actions per room visit, grouped by task:")
     for room, steps in room_visits:
-        printable_output += f"  In room {room.__name__}:\n"
+        logger.info(f"  In room {room.__name__}:")
         for task, step_number in steps:
-            printable_output += f"    {task.name}: {task.actions[step_number - 1]}\n"
+            logger.info(f"    {task.instruction}: {task.actions[step_number - 1]}")
             optimal_plan.append(task.actions[step_number - 1])
     return optimal_plan
 
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s", force=True)
     main()

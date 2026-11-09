@@ -58,56 +58,72 @@ class RoomVisitPlanner:
             raise MissingTasksOrRooms(task_list, room_list)
 
         # One visit per step is always enough, so the number of steps bounds the visits.
-        T = sum(len(t) for t in task_list)
-        m = cp_model.CpModel()
+        maximum_visit_count = sum(len(element) for element in task_list)
+        model = cp_model.CpModel()
         # visit_goes_to[visit, room] == 1: specific visit goes to specific room
         visit_goes_to = {
-            (visit, room): m.NewBoolVar(f"visit_goes_to_{visit}_{room.__name__}")
-            for visit in range(T)
+            (visit, room): model.NewBoolVar(f"visit_goes_to_{visit}_{room.__name__}")
+            for visit in range(maximum_visit_count)
             for room in room_list
         }
 
-        for t in range(T):
-            m.AddAtMostOne(visit_goes_to[t, r] for r in room_list)
-            if t + 1 < T:
+        for visit in range(maximum_visit_count):
+            model.AddAtMostOne(visit_goes_to[visit, room] for room in room_list)
+            if visit + 1 < maximum_visit_count:
                 # The used visits come first; unused visits only trail at the end.
-                m.Add(
-                    sum(visit_goes_to[t, r] for r in room_list)
-                    >= sum(visit_goes_to[t + 1, r] for r in room_list)
+                model.Add(
+                    sum(visit_goes_to[visit, room] for room in room_list)
+                    >= sum(visit_goes_to[visit + 1, room] for room in room_list)
                 )
                 # Staying in a room is one visit, so the next visit goes to another room.
-                for r in room_list:
-                    m.Add(visit_goes_to[t, r] + visit_goes_to[t + 1, r] <= 1)
+                for room in room_list:
+                    model.Add(
+                        visit_goes_to[visit, room] + visit_goes_to[visit + 1, room] <= 1
+                    )
 
-        # pos[k, s]: the index of the visit step s of task k is performed in
+        # pos[task, step]: the index of the visit step of task is performed in
         pos = {}
-        # y[k, s, visit] == 1: step s of task k is performed during visit
-        y = {}
-        for k, stages in enumerate(task_list):
-            for s, allowed in enumerate(stages):
-                for t in range(T):
-                    y[k, s, t] = m.NewBoolVar(f"y_{k}_{s}_{t}")
-                m.AddExactlyOne(y[k, s, t] for t in range(T))
+        # step_performed_during[task, step, visit] == 1: step of task is performed during visit
+        step_performed_during = {}
+        for task, stages in enumerate(task_list):
+            for step, allowed in enumerate(stages):
+                for visit in range(maximum_visit_count):
+                    step_performed_during[task, step, visit] = model.NewBoolVar(
+                        f"step_performed_during_{task}_{step}_{visit}"
+                    )
+                model.AddExactlyOne(
+                    step_performed_during[task, step, visit]
+                    for visit in range(maximum_visit_count)
+                )
                 # A step is only performed during a visit to one of its allowed rooms.
-                for t in range(T):
-                    m.Add(y[k, s, t] <= sum(visit_goes_to[t, r] for r in allowed))
-                pos[k, s] = sum(t * y[k, s, t] for t in range(T))
+                for visit in range(maximum_visit_count):
+                    model.Add(
+                        step_performed_during[task, step, visit]
+                        <= sum(visit_goes_to[visit, room] for room in allowed)
+                    )
+                pos[task, step] = sum(
+                    visit * step_performed_during[task, step, visit]
+                    for visit in range(maximum_visit_count)
+                )
                 # The steps of a task keep their order; consecutive steps may share a visit.
-                if s > 0:
-                    m.Add(pos[k, s - 1] <= pos[k, s])
+                if step > 0:
+                    model.Add(pos[task, step - 1] <= pos[task, step])
 
         # The fewest visits are the fewest room changes.
-        m.Minimize(sum(visit_goes_to.values()))
+        model.Minimize(sum(visit_goes_to.values()))
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.search_time_limit
-        status = solver.Solve(m)
+        status = solver.Solve(model)
 
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             raise NoRoomVisitOrderFound(task_list, self.search_time_limit)
 
         route = [
-            r for t in range(T) for r in room_list if solver.Value(visit_goes_to[t, r])
+            room
+            for visit in range(maximum_visit_count)
+            for room in room_list
+            if solver.Value(visit_goes_to[visit, room])
         ]
 
         # one entry per room visit: (room, [(task number, step number), ...]), both
@@ -117,13 +133,13 @@ class RoomVisitPlanner:
             (
                 room,
                 sorted(
-                    (k + 1, s + 1)
-                    for k, stages in enumerate(task_list)
-                    for s in range(len(stages))
-                    if solver.Value(y[k, s, t])
+                    (task + 1, step + 1)
+                    for task, stages in enumerate(task_list)
+                    for step in range(len(stages))
+                    if solver.Value(step_performed_during[task, step, visit])
                 ),
             )
-            for t, room in enumerate(route)
+            for task, room in enumerate(route)
         ]
 
         return route, plan
@@ -187,8 +203,8 @@ def main() -> None:
     route, plan = planner_main._transform_by_rooms(tasks, rooms)
     print([room.__name__ for room in route], "-> room changes:", len(route) - 1)
 
-    for t, (room, steps) in enumerate(plan):
-        visit_of_room = route[: t + 1].count(room)
+    for visit, (room, steps) in enumerate(plan):
+        visit_of_room = route[: visit + 1].count(room)
         print(f"In room {room.__name__} (visit {visit_of_room} of {room.__name__}):")
         for task_number, step_number in steps:
             print(
