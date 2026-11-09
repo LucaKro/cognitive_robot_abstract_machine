@@ -27,7 +27,7 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     admissible_mounts,
     describe_class,
 )
-from typing_extensions import Dict, List, Optional, Sequence, Tuple, Type
+from typing_extensions import Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from semantic_digital_twin.world_description.geometry import Color
 
@@ -854,7 +854,8 @@ class MeasureScene(PipelineStep):
         of it, since a scan leaves gaps between what is mounted together.
 
         With :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.prefer_nested_wholes`,
-        a candidate another candidate meets as a part of it is no longer offered.
+        a candidate another candidate meets as a part of it is no longer offered, and a
+        part left one candidate that way takes it without being asked.
 
         A question lists its candidates by the edges they touch the part along, most
         first, then by the faces they share with it and by how close they are; the
@@ -893,11 +894,18 @@ class MeasureScene(PipelineStep):
             part: meeting.get(part) or nearby[part]
             for part in sorted(set(meeting) | set(nearby))
         }
+        narrowed_to_one: Set[str] = set()
         if self.settings.prefer_nested_wholes:
-            offered = {
+            innermost = {
                 part: self.innermost_candidates(wholes, meeting)
                 for part, wholes in offered.items()
             }
+            narrowed_to_one = {
+                part
+                for part, wholes in innermost.items()
+                if len(wholes) == 1 < len(offered[part])
+            }
+            offered = innermost
         candidates = {
             part: sorted(
                 wholes.values(),
@@ -911,7 +919,7 @@ class MeasureScene(PipelineStep):
             for part, wholes in offered.items()
         }
         to_confirm = (
-            set(nearby) - set(meeting)
+            set(nearby) - set(meeting) - narrowed_to_one
             if self.settings.confirm_wholes_within_the_gap
             else set()
         )

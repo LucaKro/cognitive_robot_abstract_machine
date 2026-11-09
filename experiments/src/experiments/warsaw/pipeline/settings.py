@@ -283,7 +283,8 @@ class PipelineSettings:
     """
     Whether a candidate whole is dropped where another of the part's candidates touches
     it and could be a part of it, so a handle offered a window and the backplate fixed
-    to it is the backplate's.
+    to it is the backplate's. A part left one candidate that way takes it without a
+    question, even when it touches nothing.
 
     Off, every candidate stays offered.
     """

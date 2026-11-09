@@ -696,19 +696,84 @@ def test_a_whole_not_touching_the_other_candidate_stays_offered(nesting_step, kn
     assert question.candidate_names == ["window_1", "backplate_1"]
 
 
-def test_a_part_near_a_whole_and_a_part_of_it_is_asked_about_the_part_of_it(
+def test_a_part_near_a_whole_and_a_part_of_it_takes_the_part_of_it(nesting_step, known):
+    """
+    The handle touches neither, but lies near the window and the backplate fixed to it,
+    so it is the backplate's: asked about the backplate alone, a model takes the gap
+    between them for the handle belonging to nothing.
+    """
+    gap = nesting_step.settings.largest_gap_to_a_whole
+    memberships = handle_on_a_window(
+        nesting_step, known, (0, gap / 2), (0, gap / 3), (30, 0.0)
+    )
+
+    assert [one for one in memberships.to_ask_about if one.part == "handle_1"] == []
+    assert ("handle_1", "backplate_1") in [
+        (one.part, one.whole) for one in memberships.forced
+    ]
+
+
+def test_a_part_near_several_wholes_left_after_narrowing_is_still_asked(
     nesting_step, known
 ):
     """
-    The handle touches neither, so whether it belongs to the backplate is still asked,
-    with the window it is fixed to no longer offered.
+    Two drawers and the cabinet both are fixed to: the cabinet is no longer offered, and
+    which drawer, if either, the handle belongs to is asked.
     """
     gap = nesting_step.settings.largest_gap_to_a_whole
-    [question] = handle_on_a_window(
-        nesting_step, known, (0, gap / 2), (0, gap / 3), (30, 0.0)
-    ).to_ask_about
+    labels = {
+        "handle_1": "handle",
+        "drawer_1": "drawer",
+        "drawer_2": "drawer",
+        "cabinet_1": "cabinet",
+    }
+    classes = {
+        "handle": known["Handle"],
+        "drawer": known["Drawer"],
+        "cabinet": known["Cabinet"],
+    }
+    pairs = [
+        PairRecord(
+            evidence=PairEvidence(
+                one=whole,
+                other=part,
+                shared_faces=0,
+                share_of_one=0.0,
+                share_of_other=0.0,
+                touching_edges=edges,
+                distance=distance,
+            ),
+            classes={
+                labels[whole]: classes[labels[whole]].__name__,
+                labels[part]: classes[labels[part]].__name__,
+            },
+            view=nesting_step.ontology_view(
+                classes[labels[whole]], classes[labels[part]]
+            ),
+        )
+        for whole, part, edges, distance in (
+            ("drawer_1", "handle_1", 0, gap / 3),
+            ("drawer_2", "handle_1", 0, gap / 2),
+            ("cabinet_1", "handle_1", 0, gap / 4),
+            ("cabinet_1", "drawer_1", 40, 0.0),
+            ("cabinet_1", "drawer_2", 40, 0.0),
+        )
+    ]
+    relations = Relations(
+        scene="a cabinet",
+        pairs=pairs,
+        segments=[described(name, label) for name, label in labels.items()],
+    )
 
-    assert question.candidate_names == ["backplate_1"]
+    [question] = [
+        one
+        for one in nesting_step.memberships(
+            relations, labels, classes, self_measured(relations)
+        ).to_ask_about
+        if one.part == "handle_1"
+    ]
+
+    assert question.candidate_names == ["drawer_1", "drawer_2"]
     assert question.may_belong_to_none is True
 
 
