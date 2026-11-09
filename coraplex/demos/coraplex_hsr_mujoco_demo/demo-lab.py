@@ -62,6 +62,10 @@ if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
     from semantic_digital_twin.world import World
     from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.connections import (
+    ActiveConnection1DOF,
+    FixedConnection,
+)
 
 # %% the scene
 
@@ -190,6 +194,11 @@ class LabMilkTransportDemonstration(RobotDemonstration):
     Whether collision avoidance is added to every motion state chart of this run.
     """
 
+    lab_environment_movable : bool = True
+    """
+    Wether the lab environment is movable or not.
+    """
+
     robot_start: HomogeneousTransformationMatrix = field(
         default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
             x=2.6, y=-0.9
@@ -249,7 +258,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     def robot_specification(self) -> RobotSpecification:
         return RobotSpecification(
-            semantic_annotation_type=self.used_robot, world_T_odom=self.robot_start
+            semantic_annotation_type=self.used_robot, odometry_T_robot_start=self.robot_start
         )
 
     def is_scene_populated(self, world: World) -> bool:
@@ -302,7 +311,38 @@ class LabMilkTransportDemonstration(RobotDemonstration):
                     ],
                 )
             )
+        if not self.lab_environment_movable:
+            self.weld_movable_parts(world)
         return world
+
+    def weld_movable_parts(self, world: World) -> None:
+        """
+        Replace every joint of *world* outside the robot that moves along or about one
+        axis by a fixed connection holding its child where it currently is.
+
+        :param world: The world whose joints are replaced.
+        """
+        [robot] = world.get_semantic_annotations_by_type(self.used_robot)
+        robot_connections = set(robot.connections)
+        joints = [
+            connection
+            for connection in world.connections
+            if isinstance(connection, ActiveConnection1DOF)
+            and connection not in robot_connections
+        ]
+        welds = [
+            FixedConnection(
+                parent=joint.parent,
+                child=joint.child,
+                parent_T_connection_expression=joint.origin,
+            )
+            for joint in joints
+        ]
+        with world.modify_world():
+            for joint in joints:
+                world.remove_connection(joint)
+            for weld in welds:
+                world.add_connection(weld)
 
     def build_context_extensions(self, world: World) -> list[ContextExtension]:
         return [RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0])]
@@ -407,6 +447,7 @@ def main(
     :return: The world the milk was carried in.
     """
     return LabMilkTransportDemonstration(
+        lab_environment_movable=False,
         executor_type=executor_type,
         collision_avoidance=collision_avoidance,
         event_segmentation=event_segmentation,
