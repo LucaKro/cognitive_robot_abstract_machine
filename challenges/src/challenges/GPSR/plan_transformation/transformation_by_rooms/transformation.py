@@ -139,7 +139,7 @@ class RoomVisitPlanner:
                     if solver.Value(step_performed_during[task, step, visit])
                 ),
             )
-            for task, room in enumerate(route)
+            for visit, room in enumerate(route)
         ]
 
         return route, plan

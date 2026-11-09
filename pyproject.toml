@@ -28,7 +28,7 @@ dependencies = [
   "krrood_spatial_math>=26.10.0",
   "ipykernel>=7.2.0",
   "lark-parser>=0.12.0",
-  "challenges",
+  "challenges>=26.10.0",
   "tqdm",
 ]
 
@@ -96,7 +96,7 @@ members = [
   "robokudo",
   "experiments",
   "segmind",
-  "domain_models/krrood_spatial_math"
+  "domain_models/krrood_spatial_math",
   "challenges"
 ]
 
