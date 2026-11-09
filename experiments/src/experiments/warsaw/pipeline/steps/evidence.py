@@ -40,6 +40,8 @@ from typing_extensions import (
 
 from semantic_digital_twin.world_description.geometry import Color
 
+from krrood.ormatic.utils import classproperty
+
 from experiments.warsaw.painting import PaintColor
 from experiments.warsaw.pipeline.camera_poses import CameraPoses
 from experiments.warsaw.pipeline.templates import PipelineTemplates
@@ -972,7 +974,8 @@ class MeasureScene(PipelineStep):
 
         An object is offered the neighbours it meets, as :meth:`memberships` counts
         meeting, and one meeting none is offered those within
-        :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.largest_gap_to_a_whole`.
+        :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.largest_gap_to_a_whole`;
+        at most :attr:`candidates_one_picture_tells_apart` of them, first in asking order.
 
         :param relations: The pairs, as they were written out.
         :param labels: Per segment, the label it carries.
@@ -998,7 +1001,9 @@ class MeasureScene(PipelineStep):
             to_ask_about=[
                 self.membership_question(
                     part,
-                    self.in_asking_order((meeting.get(part) or nearby[part]).values()),
+                    self.in_asking_order((meeting.get(part) or nearby[part]).values())[
+                        : self.candidates_one_picture_tells_apart
+                    ],
                     True,
                     labels,
                     classes,
@@ -1007,6 +1012,14 @@ class MeasureScene(PipelineStep):
                 for part in sorted(set(meeting) | set(nearby))
             ]
         )
+
+    @classproperty
+    def candidates_one_picture_tells_apart(cls) -> int:
+        """
+        :return: How many candidates a question can paint apart, beside the part and the
+            faces they contest, which take a colour each.
+        """
+        return len(PaintColor) - 2
 
     @staticmethod
     def membership_candidate(

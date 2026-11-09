@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from experiments.warsaw.evaluation.graph import EvaluationGraph
+from experiments.warsaw.painting import PaintColor
 from experiments.warsaw.pipeline.database.ontology_export import OntologyExport
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.provenance import settings_to_json
@@ -188,6 +189,29 @@ def test_a_neighbour_past_the_gap_is_not_offered(tmp_path, known):
     memberships = memberships_of(step, known, ("rail_1", 0, gap * 2))
 
     assert (memberships.forced, memberships.to_ask_about) == ([], [])
+
+
+def test_an_object_with_more_neighbours_than_one_picture_paints_is_shown_the_closest(
+    tmp_path, known
+):
+    """
+    A wall touches everything mounted on it, and every object of a question is painted a
+    colour of its own.
+    """
+    step = unknowing_step(tmp_path)
+    kept = MeasureScene.candidates_one_picture_tells_apart
+    rails = [(f"rail_{edges}", edges, 0.0) for edges in range(1, kept + 4)]
+
+    [blinds] = [
+        one
+        for one in memberships_of(step, known, *rails).to_ask_about
+        if one.part == "blinds_1"
+    ]
+
+    assert blinds.candidate_names == [
+        name for name, _, _ in sorted(rails, key=lambda one: -one[1])[:kept]
+    ]
+    assert len(PaintColor.distinct(len(blinds.shown) + 1)) == len(blinds.shown) + 1
 
 
 def test_a_question_about_a_neighbour_names_no_field_to_hold_it(tmp_path, known):
