@@ -27,6 +27,10 @@ Segmind:
   - changed-files:
       - any-glob-to-any-file: ['segmind/**', 'test/segmind_test/**']
 
+Cramspeech:
+  - changed-files:
+      - any-glob-to-any-file: ['cramspeech/**', 'test/cramspeech_test/**']
+
 Experiment:
   - changed-files:
       - any-glob-to-any-file: ['experiments/**', 'test/experiments_test/**']

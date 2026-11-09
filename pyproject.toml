@@ -32,6 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+speech = [
+    "cramspeech",
+]
 dev = [
     "pytest>=7.0.0,<8.0.0",
     "pytest-asyncio>=0.23.0,<0.24.0",
@@ -95,6 +98,7 @@ members = [
   "robokudo",
   "experiments",
   "segmind",
+  "cramspeech",
   "domain_models/krrood_spatial_math"
 ]
 
@@ -109,6 +113,7 @@ random_events         = { workspace = true }
 robokudo              = { workspace = true }
 physics_simulators    = { workspace = true }
 segmind               = { workspace = true }
+cramspeech            = { workspace = true }
 experiments           = { workspace = true }
 krrood_spatial_math   = { workspace = true }
 
@@ -127,6 +132,7 @@ robokudo = { path = "robokudo", develop = true }
 physics_simulators = { path = "physics_simulators", develop = true }
 experiments = { path = "experiments", develop = true }
 segmind = { path = "segmind", develop = true }
+cramspeech = { path = "cramspeech", develop = true, optional = true }
 krrood_spatial_math = { path = "domain_models/krrood_spatial_math", develop = true }
 
 [tool.setuptools]

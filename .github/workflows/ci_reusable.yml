@@ -83,6 +83,16 @@ jobs:
           # --no-sources keeps the editable workspace packages from being reinstalled from their paths.
           uv pip install -r robokudo/pyproject.toml --extra dev --no-sources
 
+      - name: Install cramspeech
+        if: ${{ inputs.lib == 'cramspeech' }}
+        env:
+          UV_CACHE_DIR: /opt/ros/.uv_cache
+        run: |
+          cd cognitive_robot_abstract_machine
+          source /opt/ros/cram-env/bin/activate
+          sudo apt-get install -y libportaudio2
+          uv sync --extra speech --active --inexact
+
       - name: Restore cache
         uses: actions/cache/restore@v4
         with:
