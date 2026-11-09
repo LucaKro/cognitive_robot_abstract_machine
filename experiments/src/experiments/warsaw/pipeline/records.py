@@ -59,6 +59,12 @@ class RelationStatus(StrEnum):
     too.
     """
 
+    UNJUDGED = "unjudged"
+    """
+    The run was told not to use what the ontology knows of parts and wholes, so it was
+    not asked.
+    """
+
 
 # %% what every artefact says about itself
 
@@ -256,6 +262,12 @@ class OntologySlice(JsonRecord):
     admits: List[str] = field(default_factory=list)
     """
     What the ontology admits between them.
+    """
+
+    knows_part_whole_relations: bool = True
+    """
+    Whether the ontology was asked what its classes may hold, which a run told not to use
+    that knowledge does not do.
     """
 
 
@@ -975,6 +987,26 @@ class Adjudications(AnsweredByModel):
         :return: Which whole each part belongs to.
         """
         return [one for one in self.answered if isinstance(one, MembershipAnswer)]
+
+    @property
+    def membership_without_cycles(self) -> List[MembershipAnswer]:
+        """
+        :return: The answers naming a whole, without the least confident answer of every
+            cycle they form, as a door answered to be the cabinet's part and the cabinet
+            the door's.
+        """
+        kept = {answer.part: answer for answer in self.membership if answer.whole}
+        for start in list(kept):
+            walked: List[str] = []
+            current = start
+            while current in kept and current not in walked:
+                walked.append(current)
+                current = kept[current].whole
+            if current not in walked:
+                continue
+            cycle = walked[walked.index(current) :]
+            del kept[min(cycle, key=lambda part: kept[part].confidence or 0.0)]
+        return [answer for answer in self.membership if kept.get(answer.part) is answer]
 
     @property
     def owner_by_pattern(self) -> Dict[Tuple[str, ...], str]:

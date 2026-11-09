@@ -169,6 +169,8 @@ class OverlapDecision(Question[AnswerType], Generic[AnswerType, AskedType]):
             f"{name} was read as {class_name or 'no class'}"
             for name, class_name in known.read_as.items()
         )
+        if not known.knows_part_whole_relations:
+            return f"## What each object was read as\n{read_as}"
         lines = [f"## What the ontology says\n{read_as}"]
         if known.classes:
             lines.append("\n".join(known.classes))
@@ -271,6 +273,9 @@ class MembershipDecision(OverlapDecision[MembershipAnswer, MembershipQuestion]):
         return {
             **super().prompt_variables,
             "may_belong_to_none": self.asked.may_belong_to_none,
+            "knows_part_whole_relations": (
+                self.asked.ontology.knows_part_whole_relations
+            ),
         }
 
     def message(self) -> List[MessagePart]:
@@ -286,6 +291,9 @@ class MembershipDecision(OverlapDecision[MembershipAnswer, MembershipQuestion]):
                     painted=self.painted(),
                     shows_pictures=self.shows_pictures,
                     may_belong_to_none=self.asked.may_belong_to_none,
+                    knows_part_whole_relations=(
+                        self.asked.ontology.knows_part_whole_relations
+                    ),
                 )
             )
         ] + self.pictures()

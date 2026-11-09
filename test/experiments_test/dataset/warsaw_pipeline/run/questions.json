@@ -43,7 +43,8 @@
               "Cabinet.drawers may hold a Drawer (part)",
               "KitchenIsland.drawers may hold a Drawer (part)"
             ]
-          }
+          },
+          "knows_part_whole_relations": true
         },
         "measured": {
           "__collection_type__": "builtins.list",
@@ -220,7 +221,8 @@
             "__items__": [
               "Cabinet.doors may hold a Door (part)"
             ]
-          }
+          },
+          "knows_part_whole_relations": true
         },
         "measured": {
           "__collection_type__": "builtins.list",

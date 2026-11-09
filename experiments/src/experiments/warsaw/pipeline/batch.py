@@ -2,10 +2,12 @@
 Run the pipeline over many scenes, several times each, one run after another.
 
     python -m experiments.warsaw.pipeline.batch run --name <batch> \
-        --runs-per-scene 2 [--headless] <scene directory> [<scene directory> ...]
+        --runs-per-scene 2 [--headless] [--without-part-whole-knowledge] \
+        <scene directory> [<scene directory> ...]
 
-Every run is told the settings as they stand, with only its scene and whether to draw
-on screen set, so a batch runs exactly the configuration the code holds. Each run is a
+Every run is told the settings as they stand, with only its scene, whether to draw on
+screen and whether it is the baseline without the ontology's part-whole knowledge set, so
+a batch runs exactly the configuration the code holds. Each run is a
 program of its own: it starts with the ontology and the ORM as committed, leaves nothing
 behind in the next run's interpreter, and a run that fails is reported while the batch
 goes on. The runs finished are kept in the batch's ledger, so the same batch started
@@ -179,12 +181,32 @@ class PipelineBatch(HasLogger):
     Whether the runs render without a window, for a machine nobody watches.
     """
 
+    uses_part_whole_knowledge: bool = True
+    """
+    Whether the runs use what the ontology knows of parts and wholes; a batch without it
+    is the baseline without the ontology.
+    """
+
     runs_directory: Path = field(
         default_factory=lambda: PipelineSettings().runs_directory
     )
     """
     Where the runs write, and where the batch keeps its own directory.
     """
+
+    @classmethod
+    def from_arguments(cls, parsed: argparse.Namespace) -> PipelineBatch:
+        """
+        :param parsed: What the command line of :attr:`BatchCommand.RUN` was parsed into.
+        :return: The batch it describes.
+        """
+        return cls(
+            name=parsed.name,
+            scene_directories=parsed.scenes,
+            runs_per_scene=parsed.runs_per_scene,
+            headless=parsed.headless,
+            uses_part_whole_knowledge=not parsed.without_part_whole_knowledge,
+        )
 
     @property
     def directory(self) -> Path:
@@ -226,11 +248,16 @@ class PipelineBatch(HasLogger):
             "-m",
             __spec__.name,
             BatchCommand.ONE,
-            "--scene",
+            BatchOption.SCENE,
             str(scene_directory),
-            "--ledger",
+            BatchOption.LEDGER,
             str(self.ledger_path),
-            *(["--headless"] if self.headless else []),
+            *([BatchOption.HEADLESS] if self.headless else []),
+            *(
+                []
+                if self.uses_part_whole_knowledge
+                else [BatchOption.WITHOUT_PART_WHOLE_KNOWLEDGE]
+            ),
         ]
 
     def log_for(self, index: int, scene_directory: Path) -> Path:
@@ -305,6 +332,42 @@ class BatchCommand(StrEnum):
     """
 
 
+class BatchOption(StrEnum):
+    """
+    The options the program is told what to do with.
+    """
+
+    NAME = "--name"
+    """
+    What the batch is called.
+    """
+
+    RUNS_PER_SCENE = "--runs-per-scene"
+    """
+    How many runs each scene gets.
+    """
+
+    SCENE = "--scene"
+    """
+    The scene one run runs on.
+    """
+
+    LEDGER = "--ledger"
+    """
+    The ledger one run is recorded in.
+    """
+
+    HEADLESS = "--headless"
+    """
+    Render without a window.
+    """
+
+    WITHOUT_PART_WHOLE_KNOWLEDGE = "--without-part-whole-knowledge"
+    """
+    Run the baseline without the ontology's part-whole knowledge.
+    """
+
+
 def argument_parser() -> argparse.ArgumentParser:
     """
     Build the command-line interface for running a batch.
@@ -312,15 +375,12 @@ def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     batch = commands.add_parser(BatchCommand.RUN, help="Carry out a batch")
-    batch.add_argument("--name", required=True, help="What the batch is called")
+    batch.add_argument(BatchOption.NAME, required=True, help="What the batch is called")
     batch.add_argument(
-        "--runs-per-scene",
+        BatchOption.RUNS_PER_SCENE,
         type=int,
         required=True,
         help="How many runs each scene gets",
-    )
-    batch.add_argument(
-        "--headless", action="store_true", help="Render without a window"
     )
     batch.add_argument(
         "scenes", type=Path, nargs="+", help="The scene directories to run on"
@@ -328,12 +388,37 @@ def argument_parser() -> argparse.ArgumentParser:
     one = commands.add_parser(
         BatchCommand.ONE, help="Make one run of a batch; the batch starts these itself"
     )
-    one.add_argument("--scene", type=Path, required=True, help="The scene to run on")
     one.add_argument(
-        "--ledger", type=Path, required=True, help="The ledger to record the run in"
+        BatchOption.SCENE, type=Path, required=True, help="The scene to run on"
     )
-    one.add_argument("--headless", action="store_true", help="Render without a window")
+    one.add_argument(
+        BatchOption.LEDGER,
+        type=Path,
+        required=True,
+        help="The ledger to record the run in",
+    )
+    for either in (batch, one):
+        either.add_argument(
+            BatchOption.HEADLESS, action="store_true", help="Render without a window"
+        )
+        either.add_argument(
+            BatchOption.WITHOUT_PART_WHOLE_KNOWLEDGE,
+            action="store_true",
+            help="Run the baseline without the ontology's part-whole knowledge",
+        )
     return parser
+
+
+def one_run_settings(parsed: argparse.Namespace) -> PipelineSettings:
+    """
+    :param parsed: What the command line of :attr:`BatchCommand.ONE` was parsed into.
+    :return: The settings as they stand, with what that command line sets.
+    """
+    return PipelineSettings(
+        scene_directory=parsed.scene,
+        headless=parsed.headless,
+        use_part_whole_knowledge=not parsed.without_part_whole_knowledge,
+    )
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -346,19 +431,10 @@ def main(arguments: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     parsed = argument_parser().parse_args(arguments)
     if parsed.command == BatchCommand.ONE:
-        run = WarsawPipeline(
-            settings=PipelineSettings(
-                scene_directory=parsed.scene, headless=parsed.headless
-            )
-        ).carry_out()
+        run = WarsawPipeline(settings=one_run_settings(parsed)).carry_out()
         record_finished_run(parsed.ledger, parsed.scene, run.directory)
         return 0
-    outcome = PipelineBatch(
-        name=parsed.name,
-        scene_directories=parsed.scenes,
-        runs_per_scene=parsed.runs_per_scene,
-        headless=parsed.headless,
-    ).carry_out()
+    outcome = PipelineBatch.from_arguments(parsed).carry_out()
     return 1 if outcome.failed else 0
 
 

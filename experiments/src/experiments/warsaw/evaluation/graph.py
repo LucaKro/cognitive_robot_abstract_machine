@@ -15,6 +15,8 @@ from experiments.warsaw.pipeline.records import Classifications, SplitRecord
 if TYPE_CHECKING:
     from semantic_digital_twin.world import World
 
+    from experiments.warsaw.scene_split import Pairing
+
 # %% graph nodes and edges
 
 
@@ -144,6 +146,26 @@ class EvaluationGraph(JsonRecord):
             source_world_id=split.world_id,
             annotated_world_id=split.annotated_world_id,
         )
+
+    @staticmethod
+    def paired_parents(
+        pairings: list[Pairing], names: set[str]
+    ) -> dict[str, str | None]:
+        """
+        :param pairings: The mounts a run named, carried past its split.
+        :param names: The bodies of its split.
+        :return: For each of those bodies, the whole it was paired with as a part, or
+            nothing where it was paired with none.
+        """
+        parents: dict[str, str | None] = dict.fromkeys(names)
+        parents.update(
+            {
+                pairing.part: pairing.whole
+                for pairing in pairings
+                if pairing.part in names and pairing.whole in names
+            }
+        )
+        return parents
 
     @staticmethod
     def parents_in(world: World, names: set[str]) -> dict[str, str | None]:

@@ -337,11 +337,15 @@ class ClassifyBodies(PipelineStep):
         """
         :return: What every label was answered to mean, a label left open between several
             classes narrowed to those the ontology relates to something its objects
-            touch.
+            touch, where the run is told to use what the ontology knows of parts and
+            wholes.
         """
+        vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
+        if not self.settings.use_part_whole_knowledge:
+            return vocabulary
         relations = self.run.read_record(RunFile.RELATIONS, Relations)
         return VocabularyClasses(
-            vocabulary=self.run.read_record(RunFile.VOCABULARY, Vocabulary),
+            vocabulary=vocabulary,
             known=self.ontology_classes(),
         ).narrowed_by_contact(
             relations.touching_labels(self.settings.largest_gap_counted_as_touching)

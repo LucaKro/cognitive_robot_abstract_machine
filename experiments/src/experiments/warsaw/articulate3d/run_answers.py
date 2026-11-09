@@ -317,6 +317,11 @@ def main(arguments: list[str] | None = None) -> int:
     judged = []
     for directory in parsed.runs:
         run = Run(directory=directory)
+        if not run.uses_part_whole_knowledge:
+            logger.info(
+                "%s used no part-whole knowledge, so no rule", run.directory.name
+            )
+            continue
         scene_id = ConvertedScene.scene_id_of(run.scene_directory)
         ground_truth = SceneGroundTruth.read(
             GroundTruthFile.SUFFIX.path(parsed.ground_truth, scene_id)

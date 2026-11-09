@@ -227,3 +227,22 @@ def test_the_command_writes_what_each_run_s_answers_came_to_beside_the_run(
         json.loads((run.directory / ScoreFile.ANSWERS).read_text())
     )
     assert judged.confirmations(ConfirmationOutcome.TRUE_WHOLE_DECLINED) == 1
+
+
+def test_the_command_leaves_a_run_without_part_whole_knowledge_unjudged(
+    run_of_the_kitchen_corner,
+):
+    run, _, ground_truth_directory = run_of_the_kitchen_corner
+    run.write_json(
+        RunFile.PROVENANCE,
+        {
+            "settings": {
+                **run.read_json(RunFile.PROVENANCE)["settings"],
+                "use_part_whole_knowledge": False,
+            }
+        },
+    )
+
+    main([str(run.directory), "--ground-truth", str(ground_truth_directory)])
+
+    assert not (run.directory / ScoreFile.ANSWERS).exists()

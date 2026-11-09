@@ -170,6 +170,10 @@ python -m experiments.warsaw.articulate3d.baselines --measured measured/ \
     [--baseline <name> ...] [--scenes <scene id> ...]
 ```
 
+The baseline with a model but without the ontology is a run of the pipeline with
+`use_part_whole_knowledge` off, started as a batch with `--without-part-whole-knowledge`
+(see the pipeline's README), and is scored like any run.
+
 Each baseline's summary is written as `<name>.json` and holds the same counts as a
 run's. Sentence-BERT (`sentence-transformers/all-MiniLM-L6-v2`) is fetched from the
 Hugging Face hub on first use. Restrict `--scenes` to the scenes of a set of runs to set

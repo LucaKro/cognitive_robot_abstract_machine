@@ -27,7 +27,16 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     admissible_mounts,
     describe_class,
 )
-from typing_extensions import Dict, List, Optional, Sequence, Set, Tuple, Type
+from typing_extensions import (
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+)
 
 from semantic_digital_twin.world_description.geometry import Color
 
@@ -297,6 +306,8 @@ class MeasureScene(PipelineStep):
         :param other_class: The class of the other segment.
         :return: The admissible relations and what that leaves open.
         """
+        if not self.settings.use_part_whole_knowledge:
+            return OntologyView(status=RelationStatus.UNJUDGED)
         if one_class is None or other_class is None:
             return OntologyView(status=RelationStatus.CLASS_UNKNOWN)
 
@@ -674,8 +685,8 @@ class MeasureScene(PipelineStep):
 
     # %% what a model is told about the classes
 
-    @staticmethod
     def ontology_slice(
+        self,
         names: Sequence[str],
         labels: Dict[str, str],
         classes: Dict[str, Optional[Type]],
@@ -692,9 +703,16 @@ class MeasureScene(PipelineStep):
         :param labels: Per segment, the label it carries.
         :param classes: Per label, the class it was read as.
         :return: Per segment its class, each class written out, and what the ontology
-            admits between each pair of them.
+            admits between each pair of them; only the classes in a run told not to use
+            what the ontology knows of parts and wholes.
         """
         read_as = {name: classes.get(labels[name]) for name in names}
+        named = {
+            name: None if held is None else held.__name__
+            for name, held in read_as.items()
+        }
+        if not self.settings.use_part_whole_knowledge:
+            return OntologySlice(read_as=named, knows_part_whole_relations=False)
         admits = []
         for one, other in combinations(names, 2):
             if read_as[one] is None or read_as[other] is None:
@@ -705,10 +723,7 @@ class MeasureScene(PipelineStep):
                     f"{relation.target} as a part"
                 )
         return OntologySlice(
-            read_as={
-                name: None if held is None else held.__name__
-                for name, held in read_as.items()
-            },
+            read_as=named,
             classes=[
                 describe_class(held)
                 for held in dict.fromkeys(
@@ -866,8 +881,12 @@ class MeasureScene(PipelineStep):
         :param classes: Per label, the class it was read as.
         :param measured: The measured scene.
         :param alternatives: Per label, the other classes a pair of it is judged by.
-        :return: The parts with a whole to choose, and the parts with only one.
+        :return: The parts with a whole to choose, and the parts with only one; in a run
+            told not to use what the ontology knows of parts and wholes, what
+            :meth:`neighbour_memberships` asks.
         """
+        if not self.settings.use_part_whole_knowledge:
+            return self.neighbour_memberships(relations, labels, classes, measured)
         meeting: Dict[str, Dict[str, MembershipCandidate]] = defaultdict(dict)
         nearby: Dict[str, Dict[str, MembershipCandidate]] = defaultdict(dict)
         for pair in relations.pairs:
@@ -883,12 +902,8 @@ class MeasureScene(PipelineStep):
             whole, part = pair.evidence.one, pair.evidence.other
             if pair.classes.get(labels[whole]) != admitted.whole:
                 whole, part = part, whole
-            (meeting if meets else nearby)[part][whole] = MembershipCandidate(
-                name=whole,
-                field_name=admitted.field_name,
-                shared_faces=pair.evidence.shared_faces,
-                touching_edges=pair.evidence.touching_edges,
-                distance=round(pair.evidence.distance, 4),
+            (meeting if meets else nearby)[part][whole] = self.membership_candidate(
+                pair, whole, admitted.field_name
             )
         offered = {
             part: meeting.get(part) or nearby[part]
@@ -907,15 +922,7 @@ class MeasureScene(PipelineStep):
             }
             offered = innermost
         candidates = {
-            part: sorted(
-                wholes.values(),
-                key=lambda one: (
-                    -one.touching_edges,
-                    -one.shared_faces,
-                    one.distance,
-                    one.name,
-                ),
-            )
+            part: self.in_asking_order(wholes.values())
             for part, wholes in offered.items()
         }
         to_confirm = (
@@ -925,22 +932,15 @@ class MeasureScene(PipelineStep):
         )
 
         to_ask_about = [
-            MembershipQuestion(
-                name=part,
-                part=part,
-                shown=[part] + [one.name for one in wholes],
-                candidates=wholes,
-                may_belong_to_none=part in to_confirm,
-                ontology=self.ontology_slice(
-                    [part] + [one.name for one in wholes],
-                    labels,
-                    self.classes_judged_with(
-                        part, wholes, labels, classes, alternatives or {}
-                    ),
+            self.membership_question(
+                part,
+                wholes,
+                part in to_confirm,
+                labels,
+                self.classes_judged_with(
+                    part, wholes, labels, classes, alternatives or {}
                 ),
-                measured=self.measured_of(
-                    [part] + [one.name for one in wholes], measured
-                ),
+                measured,
             )
             for part, wholes in candidates.items()
             if len(wholes) > 1 or part in to_confirm
@@ -958,6 +958,122 @@ class MeasureScene(PipelineStep):
             if len(wholes) == 1 and part not in to_confirm
         ]
         return Memberships(to_ask_about=to_ask_about, forced=forced)
+
+    def neighbour_memberships(
+        self,
+        relations: Relations,
+        labels: Dict[str, str],
+        classes: Dict[str, Optional[Type]],
+        measured: SegmentRelations,
+    ) -> Memberships:
+        """
+        Ask every object which of its neighbours it belongs to, if any of them, as a run
+        not told what the ontology knows of parts and wholes has to.
+
+        An object is offered the neighbours it meets, as :meth:`memberships` counts
+        meeting, and one meeting none is offered those within
+        :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.largest_gap_to_a_whole`.
+
+        :param relations: The pairs, as they were written out.
+        :param labels: Per segment, the label it carries.
+        :param classes: Per label, the class it was read as.
+        :param measured: The measured scene.
+        :return: One question per object with a neighbour, none of them forced.
+        """
+        meeting: Dict[str, Dict[str, MembershipCandidate]] = defaultdict(dict)
+        nearby: Dict[str, Dict[str, MembershipCandidate]] = defaultdict(dict)
+        for pair in relations.pairs:
+            meets = pair.evidence.meets(self.settings.largest_gap_counted_as_touching)
+            if (
+                not meets
+                and pair.evidence.distance > self.settings.largest_gap_to_a_whole
+            ):
+                continue
+            ends = (pair.evidence.one, pair.evidence.other)
+            for part, whole in (ends, ends[::-1]):
+                (meeting if meets else nearby)[part][whole] = self.membership_candidate(
+                    pair, whole, ""
+                )
+        return Memberships(
+            to_ask_about=[
+                self.membership_question(
+                    part,
+                    self.in_asking_order((meeting.get(part) or nearby[part]).values()),
+                    True,
+                    labels,
+                    classes,
+                    measured,
+                )
+                for part in sorted(set(meeting) | set(nearby))
+            ]
+        )
+
+    @staticmethod
+    def membership_candidate(
+        pair: PairRecord, whole: str, field_name: str
+    ) -> MembershipCandidate:
+        """
+        :param pair: A part and a whole it could belong to, as they were measured.
+        :param whole: Which of the two is the whole.
+        :param field_name: The field of the whole that would hold the part.
+        :return: The whole, with how the part was measured to meet it.
+        """
+        return MembershipCandidate(
+            name=whole,
+            field_name=field_name,
+            shared_faces=pair.evidence.shared_faces,
+            touching_edges=pair.evidence.touching_edges,
+            distance=round(pair.evidence.distance, 4),
+        )
+
+    @staticmethod
+    def in_asking_order(
+        candidates: Iterable[MembershipCandidate],
+    ) -> List[MembershipCandidate]:
+        """
+        :param candidates: A part's candidate wholes.
+        :return: Them by the edges they touch the part along, most first, then by the
+            faces they share with it and by how close they are, the order a question
+            lists and paints them in.
+        """
+        return sorted(
+            candidates,
+            key=lambda one: (
+                -one.touching_edges,
+                -one.shared_faces,
+                one.distance,
+                one.name,
+            ),
+        )
+
+    def membership_question(
+        self,
+        part: str,
+        wholes: List[MembershipCandidate],
+        may_belong_to_none: bool,
+        labels: Dict[str, str],
+        classes: Dict[str, Optional[Type]],
+        measured: SegmentRelations,
+    ) -> MembershipQuestion:
+        """
+        :param part: The part being asked about.
+        :param wholes: Its candidates, in the order they are listed.
+        :param may_belong_to_none: Whether it may belong to none of them.
+        :param labels: Per segment, the label it carries.
+        :param classes: Per label, the class the question says it is.
+        :param measured: The measured scene.
+        :return: Which of those wholes the part belongs to, as it is asked.
+        """
+        shown = [part] + [one.name for one in wholes]
+        return MembershipQuestion(
+            name=part,
+            part=part,
+            shown=shown,
+            candidates=wholes,
+            may_belong_to_none=may_belong_to_none,
+            ontology=self.ontology_slice(shown, labels, classes),
+            measured=self.measured_of(shown, measured),
+        )
 
     @staticmethod
     def innermost_candidates(

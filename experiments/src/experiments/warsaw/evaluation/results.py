@@ -151,6 +151,11 @@ class SettingName(StrEnum):
     Whether a candidate whole another candidate is fixed to is dropped.
     """
 
+    USE_PART_WHOLE_KNOWLEDGE = "use_part_whole_knowledge"
+    """
+    Whether the ontology's knowledge of which class can hold which as a part is used.
+    """
+
     LARGEST_GAP_TO_A_WHOLE = "largest_gap_to_a_whole"
     """
     How far a whole a part touches no whole may be from it.
@@ -174,6 +179,9 @@ class SettingName(StrEnum):
                 return self.distance_described("wholes within", value)
             case SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING:
                 return self.distance_described("touching within", value)
+            case SettingName.USE_PART_WHOLE_KNOWLEDGE:
+                # A run made before the setting existed used the knowledge.
+                return "ontology" if value is not False else "no ontology"
         on, off = {
             SettingName.SHOW_THE_PICTURES: ("images", "text"),
             SettingName.SHOW_THE_CONTESTED_FACES: ("face images", "face text"),

@@ -3,8 +3,9 @@ Everything a run of the Warsaw pipeline can be told.
 
 A run is started by constructing :class:`PipelineSettings` and handing it to
 :class:`experiments.warsaw.pipeline.pipeline.WarsawPipeline`. Change a default here and
-run the pipeline again; nothing is passed on a command line, because a setting spelled on
-a command line is a setting nobody can find again when they want to know what a run was.
+run the pipeline again; a batch's command line sets only the scene, whether to draw on
+screen and whether to leave out the part-whole knowledge, because a setting spelled on a
+command line is a setting nobody can find again when they want to know what a run was.
 """
 
 from __future__ import annotations
@@ -304,6 +305,15 @@ class PipelineSettings:
     :attr:`largest_gap_to_a_whole`, and may answer that it belongs to none of them.
 
     Off, the only such whole is taken without asking, and one of several has to be chosen.
+    """
+
+    use_part_whole_knowledge: bool = True
+    """
+    Whether the ontology's knowledge of which class can hold which as a part is used.
+
+    Off, the model is shown the classes by name alone, every object is asked which of the
+    neighbours within :attr:`largest_gap_to_a_whole` it belongs to, if any, and the graph
+    is written from those answers instead of mounted: the baseline without the ontology.
     """
 
     corrections: int = 1

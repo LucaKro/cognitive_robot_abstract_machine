@@ -507,6 +507,25 @@ def test_a_run_from_before_nested_wholes_were_preferred_is_named_as_without(
     )
 
 
+def test_a_run_from_before_the_knowledge_could_be_left_out_is_named_as_using_it(
+    runs_directory,
+):
+    """
+    A run made before the setting existed used the ontology's part-whole knowledge.
+    """
+    knowledge = SettingName.USE_PART_WHOLE_KNOWLEDGE
+    comparison = comparison_of(
+        written_run(runs_directory, "one", further_settings={knowledge: True}),
+        written_run(runs_directory, "two"),
+        written_run(runs_directory, "three", further_settings={knowledge: False}),
+    )
+
+    assert names_and_runs(comparison.by_condition) == {
+        knowledge.short_description(True): ["one", "two"],
+        knowledge.short_description(False): ["three"],
+    }
+
+
 def test_a_setting_a_run_did_not_record_is_said_to_be_not_recorded(runs_directory):
     """
     A run made before a setting existed has nothing recorded for it.

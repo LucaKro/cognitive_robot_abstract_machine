@@ -229,7 +229,9 @@ class SplitScene(PipelineStep):
         :param adjudications: What the adjudication wrote.
         :param relations: What the measurement wrote, which is where the memberships
             with only one candidate are recorded.
-        :return: Every mount the run named, before the split drops any.
+        :return: Every mount the run named, before the split drops any, of the answers
+            those :attr:`~experiments.warsaw.pipeline.records.Adjudications.membership_without_cycles`
+            keeps.
         """
         carried = [
             Pairing(whole=forced.whole, part=forced.part, field_name=forced.field_name)
@@ -241,8 +243,7 @@ class SplitScene(PipelineStep):
                 part=answer.part,
                 field_name=answer.field_name,
             )
-            for answer in adjudications.membership
-            if answer.whole
+            for answer in adjudications.membership_without_cycles
         ]
         return carried
 

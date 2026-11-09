@@ -283,7 +283,13 @@ class MountAnnotations(HasLogger):
         )
 
         annotations = self.annotate(world, classifications)
-        mounted = self.mount(world, annotations, split.pairings)
+        # A run told nothing of parts and wholes has no field to mount a part in, so its
+        # graph is written from the answers instead.
+        mounted = (
+            self.mount(world, annotations, split.pairings)
+            if self.run.uses_part_whole_knowledge
+            else Mounted()
+        )
 
         self.logger.info(
             "%s of %s pairings mounted", mounted.carried_out, mounted.attempted
@@ -309,12 +315,15 @@ class MountAnnotations(HasLogger):
             split.world_id,
         )
         self.run.write_record(RunFile.SPLIT, split)
+        names = {body.name for body in split.bodies}
         graph = EvaluationGraph.from_run_products(
             split=split,
             classifications=classifications,
             annotated_names=set(annotations),
-            parents=EvaluationGraph.parents_in(
-                world, {body.name for body in split.bodies}
+            parents=(
+                EvaluationGraph.parents_in(world, names)
+                if self.run.uses_part_whole_knowledge
+                else EvaluationGraph.paired_parents(split.pairings, names)
             ),
         )
         self.run.write_record(RunFile.EVALUATION_GRAPH, graph)

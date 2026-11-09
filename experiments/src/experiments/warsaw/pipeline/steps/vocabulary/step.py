@@ -123,6 +123,12 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
     with a class the ontology holds or with none.
     """
 
+    knows_part_whole_relations: bool = True
+    """
+    Whether the taxonomy shown says which class can hold which as a part, and a proposed
+    class may be composed with the mixins that let it.
+    """
+
     @classproperty
     def prompt(cls) -> Prompt:
         """
@@ -132,7 +138,11 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
 
     @property
     def prompt_variables(self) -> Dict[str, Any]:
-        return {**super().prompt_variables, "proposes_classes": self.proposes_classes}
+        return {
+            **super().prompt_variables,
+            "proposes_classes": self.proposes_classes,
+            "knows_part_whole_relations": self.knows_part_whole_relations,
+        }
 
     @property
     def message_variables(self) -> Dict[str, Any]:
@@ -384,6 +394,7 @@ class MapLabelVocabulary(PipelineStep):
                     renders_directory=self.run.path(RunFile.EXEMPLARS),
                     meets=self.meetings(relations, entry.exemplar),
                     proposes_classes=not self.settings.defer_new_classes,
+                    knows_part_whole_relations=self.settings.use_part_whole_knowledge,
                 )
             )
             answer = answered.answer
@@ -418,6 +429,7 @@ class MapLabelVocabulary(PipelineStep):
                             for one in vocabulary.labels
                             if one.class_name and one.label != answer.label
                         },
+                        knows_part_whole_relations=self.settings.use_part_whole_knowledge,
                     )
                 )
                 proposed = answered.answer

@@ -8,14 +8,18 @@ it stopped.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
 
 from experiments.warsaw.pipeline.batch import (
+    BatchCommand,
     BatchLedger,
+    BatchOption,
     PipelineBatch,
+    argument_parser,
+    one_run_settings,
     record_finished_run,
 )
 
@@ -108,6 +112,42 @@ def test_each_run_is_its_own_program_told_its_scene_and_the_ledger(tmp_path):
 
 def test_a_run_drawing_on_screen_is_not_told_to_be_headless(tmp_path):
     assert "--headless" not in batch_of(tmp_path).command_for(tmp_path / "kitchen")
+
+
+# %% a batch of the baseline without the ontology
+
+
+def test_each_run_of_a_batch_without_the_knowledge_is_told_so(tmp_path):
+    batch = replace(batch_of(tmp_path), uses_part_whole_knowledge=False)
+    [_, _, _, *arguments] = batch.command_for(tmp_path / "kitchen")
+
+    settings = one_run_settings(argument_parser().parse_args(arguments))
+
+    assert settings.use_part_whole_knowledge is False
+
+
+def test_a_run_of_an_ordinary_batch_uses_the_knowledge(tmp_path):
+    [_, _, _, *arguments] = batch_of(tmp_path).command_for(tmp_path / "kitchen")
+
+    settings = one_run_settings(argument_parser().parse_args(arguments))
+
+    assert settings.use_part_whole_knowledge is True
+
+
+def test_a_batch_is_started_without_the_knowledge_from_the_command_line(tmp_path):
+    parsed = argument_parser().parse_args(
+        [
+            BatchCommand.RUN,
+            BatchOption.NAME,
+            "baseline",
+            BatchOption.RUNS_PER_SCENE,
+            "1",
+            BatchOption.WITHOUT_PART_WHOLE_KNOWLEDGE,
+            str(tmp_path / "kitchen"),
+        ]
+    )
+
+    assert PipelineBatch.from_arguments(parsed).uses_part_whole_knowledge is False
 
 
 # %% carrying a batch out

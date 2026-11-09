@@ -97,9 +97,13 @@ class PipelineStep(HasLogger, ABC):
         """
         :param read: What each label was answered to be.
         :return: Per label, the other classes a pair of it is judged by, where the run is
-            told to consider them, and none where it is not.
+            told to consider them and to use what the ontology knows of parts and wholes,
+            and none where it is not.
         """
-        if not self.settings.consider_alternative_classes:
+        if not (
+            self.settings.consider_alternative_classes
+            and self.settings.use_part_whole_knowledge
+        ):
             return {}
         return read.alternatives_by_label()
 

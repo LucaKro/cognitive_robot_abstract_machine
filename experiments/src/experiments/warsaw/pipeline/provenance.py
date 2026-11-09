@@ -286,6 +286,7 @@ def settings_to_json(settings: PipelineSettings) -> dict[str, Any]:
         "confirm_wholes_within_the_gap": settings.confirm_wholes_within_the_gap,
         "consider_alternative_classes": settings.consider_alternative_classes,
         "prefer_nested_wholes": settings.prefer_nested_wholes,
+        "use_part_whole_knowledge": settings.use_part_whole_knowledge,
         "corrections": settings.corrections,
         "presence_penalty": settings.presence_penalty,
         "maximum_answer_tokens": settings.maximum_answer_tokens,

@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from experiments.warsaw.articulate3d.convert import SceneConversion
+from experiments.warsaw.articulate3d.exceptions import CyclicParentsError
 from experiments.warsaw.articulate3d.ground_truth import Expressibility, GroundTruthFile
 from experiments.warsaw.articulate3d.score import (
     ClassLineage,
@@ -342,6 +343,18 @@ def test_a_part_hung_below_a_body_that_is_no_part_hangs_from_the_part_above_that
     links = judged(ground_truth, bodies, graph, lineage).links
 
     assert attachment_of(links, 2).correct
+
+
+def test_parents_that_go_round_in_a_circle_are_refused(
+    ground_truth, bodies, graph, lineage
+):
+    """
+    Walking up from the handle would never end.
+    """
+    circle = with_parents(graph, {"door_1": "handle_1", "handle_1": "door_1"})
+
+    with pytest.raises(CyclicParentsError):
+        judged(ground_truth, bodies, circle, lineage)
 
 
 def test_a_part_the_annotation_hangs_from_nothing_is_wrong_when_hung_from_a_part(

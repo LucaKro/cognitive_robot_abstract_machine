@@ -345,3 +345,30 @@ class SceneNotMeasuredError(DataclassException, LookupError):
             "Measure them with 'python -m experiments.warsaw.articulate3d.measured_scene', "
             "or leave out --measured to write the tables without baselines."
         )
+
+
+# %% a graph that cannot be scored
+
+
+@dataclass
+class CyclicParentsError(DataclassException, ValueError):
+    """
+    Raised when the bodies of a run's graph hang from one another in a circle, so
+    walking up from one of them never reaches the top.
+    """
+
+    circle: list[str]
+    """
+    The bodies of the circle, each hanging from the next and the last from the first.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The bodies {' -> '.join(self.circle)} hang from one another in a circle."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give the graph at most one way up from each body, by dropping one parent of "
+            "the circle before it is scored."
+        )

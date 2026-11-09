@@ -256,6 +256,15 @@ class Run:
         """
         return Path(self.read_json(RunFile.PROVENANCE)["settings"]["scene_directory"])
 
+    @property
+    def uses_part_whole_knowledge(self) -> bool:
+        """
+        :return: Whether this run was told to use what the ontology knows of parts and
+            wholes, as its provenance records it. A run that says nothing was.
+        """
+        settings = self.read_json_if_written(RunFile.PROVENANCE).get("settings", {})
+        return bool(settings.get("use_part_whole_knowledge", True))
+
     def holds(self, run_file: RunFile) -> bool:
         """
         :param run_file: The file to look for.

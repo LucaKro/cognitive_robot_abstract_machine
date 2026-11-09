@@ -99,6 +99,33 @@ def test_a_run_is_scored_and_judged_with_and_without_its_answers(
     )
 
 
+def unknowing(run: Run) -> Run:
+    """
+    :return: The run, as told not to use the ontology's part-whole knowledge.
+    """
+    settings = run.read_json(RunFile.PROVENANCE)["settings"]
+    run.write_json(
+        RunFile.PROVENANCE,
+        {"settings": {**settings, SettingName.USE_PART_WHOLE_KNOWLEDGE: False}},
+    )
+    return run
+
+
+def test_a_run_without_part_whole_knowledge_is_scored_but_has_no_rule_to_answer_by(
+    run_of_the_kitchen_corner,
+):
+    """
+    Every object of such a run is asked about its neighbours, so taking each first
+    candidate is no rule, and hangs objects from one another in circles.
+    """
+    run, _, ground_truth_directory = run_of_the_kitchen_corner
+
+    RunsEvaluation(ground_truth_directory=ground_truth_directory).judge(unknowing(run))
+
+    assert ScoreFile.SCENE.read(run, SceneScore) is not None
+    assert ScoreFile.ANSWERS.read(run, RunAnswersJudged) is None
+
+
 def test_a_run_of_a_scene_with_no_ground_truth_is_not_scored(
     run_of_the_kitchen_corner, tmp_path
 ):
@@ -140,6 +167,21 @@ def test_a_method_from_before_nested_wholes_were_preferred_worked_without(evalua
     }
 
     assert evaluation.rule_settings(recorded).prefer_nested_wholes is False
+
+
+def test_a_method_that_used_no_part_whole_knowledge_has_no_rule(evaluation):
+    """
+    The rule is what the ontology offers a part, so a run not told it followed none.
+    """
+    recorded = {
+        SettingName.LARGEST_GAP_TO_A_WHOLE: 0.1,
+        SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING: 0.01,
+        SettingName.CONFIRM_WHOLES_WITHIN_THE_GAP: True,
+        SettingName.PREFER_NESTED_WHOLES: True,
+        SettingName.USE_PART_WHOLE_KNOWLEDGE: False,
+    }
+
+    assert evaluation.rule_settings(recorded) is None
 
 
 def test_a_method_that_did_not_record_the_rule_s_settings_has_no_rule(evaluation):

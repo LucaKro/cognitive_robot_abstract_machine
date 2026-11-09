@@ -40,7 +40,10 @@ from scipy.sparse import csr_matrix
 from typing_extensions import Any, Sequence, TypeVar
 
 from experiments.warsaw.articulate3d.convert import ConvertedScene
-from experiments.warsaw.articulate3d.exceptions import ClassNotInOntologyError
+from experiments.warsaw.articulate3d.exceptions import (
+    ClassNotInOntologyError,
+    CyclicParentsError,
+)
 from experiments.warsaw.articulate3d.splits import ValidationLock
 from experiments.warsaw.articulate3d.ground_truth import (
     GroundTruthFile,
@@ -805,8 +808,12 @@ class LinkAgreement(JsonRecord):
                 true_ancestors.append(holder.whole)
                 holder = holding.get(holder.whole)
             predicted_ancestors = []
+            passed: list[str] = []
             above = parents[body_of[part.part_id]] if part.part_id in body_of else None
             while above is not None:
+                if above in passed:
+                    raise CyclicParentsError(circle=passed[passed.index(above) :])
+                passed.append(above)
                 if above in part_of:
                     predicted_ancestors.append(part_of[above])
                 above = parents[above]

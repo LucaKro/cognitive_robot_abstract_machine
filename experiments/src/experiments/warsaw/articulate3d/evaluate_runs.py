@@ -152,7 +152,8 @@ class RunsEvaluation(HasLogger):
     def judge(self, run: Run) -> None:
         """
         Score the run and judge it with and without its model's answers, keeping both in
-        its directory, where its scene has a ground truth.
+        its directory, where its scene has a ground truth; a run told not to use the
+        part-whole knowledge only scored, since it asked no question of the rule.
 
         :param run: A finished run.
         :raises ValidationSceneLockedError: If the run is of a validation scene and the
@@ -166,6 +167,8 @@ class RunsEvaluation(HasLogger):
         ScoreFile.SCENE.write(
             run, SceneScore.of(run, self.ground_truth_directory, lock=self.lock)
         )
+        if not run.uses_part_whole_knowledge:
+            return
         answers = RunAnswers(
             run=run, ground_truth=SceneGroundTruth.read(truth), lock=self.lock
         )
@@ -209,8 +212,11 @@ class RunsEvaluation(HasLogger):
         """
         :param recorded: Every setting a run recorded.
         :return: The pipeline's settings with the rule's as the run recorded them, or
-            nothing where it recorded one of them not that it could have.
+            nothing where it recorded one of them not that it could have, or was told not
+            to use the part-whole knowledge the rule is made of.
         """
+        if recorded.get(SettingName.USE_PART_WHOLE_KNOWLEDGE) is False:
+            return None
         recorded = {**self.settings_runs_may_predate, **recorded}
         missing = [one for one in self.settings_of_the_rule if one not in recorded]
         if missing:

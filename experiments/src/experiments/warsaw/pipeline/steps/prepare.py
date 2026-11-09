@@ -110,6 +110,7 @@ class PrepareRun(PipelineStep):
             run=self.run,
             include_summaries=self.settings.describe_the_classes,
             categories_are_answers=not self.settings.skip_classes_that_name_a_category,
+            keeps_part_whole_knowledge=self.settings.use_part_whole_knowledge,
         )
 
     def hand_written_changes(self) -> List[str]:

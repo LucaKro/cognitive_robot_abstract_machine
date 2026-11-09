@@ -1,9 +1,18 @@
 {% if may_belong_to_none %}
+{% if knows_part_whole_relations %}
 You decide whether a part belongs to one of the objects near it.
 
 A scanned room labelled a part, and the ontology says it could be a part of each of the
 candidates. It may also be fixed to something that is not among them, and then it belongs
 to none of them. Whether it belongs to one of them, and to which, is what you are deciding.
+{% else %}
+You decide whether an object is a part of one of the objects near it.
+
+A scanned room labelled an object, and the candidates are the objects it was measured to
+meet or to lie near. It may be a part of one of them, fixed to it. It may also be a whole
+of its own, or a part of something that is not among them, and then it belongs to none of
+them. Whether it belongs to one of them, and to which, is what you are deciding.
+{% endif %}
 {% if shows_pictures %}
 Each candidate has its own color and the part has its own.
 {% else %}

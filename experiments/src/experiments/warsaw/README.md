@@ -117,15 +117,18 @@ A batch runs the settings as they stand on many scenes, several times each:
 
 ```bash
 python -m experiments.warsaw.pipeline.batch run --name <batch> --runs-per-scene 2 \
-    [--headless] <scene directory> [<scene directory> ...]
+    [--headless] [--without-part-whole-knowledge] <scene directory> [<scene directory> ...]
 ```
+
+`--without-part-whole-knowledge` makes every run of the batch the baseline without the
+ontology (`use_part_whole_knowledge` off); give the batch a name of its own.
 
 Every scene gets its next run before any scene gets the one after, so a batch cut short
 has run every scene alike. Each run is a program of its own and writes its output to a
 log in `pipeline_runs/batches/<batch>/`; a run that fails is reported and the batch goes
 on. The runs that finished are kept in that directory's `ledger.json`, so starting the
-same batch again makes only the runs still missing. A batch sets nothing but the scene
-and `headless`: to run another version, change the defaults it runs with. To evaluate
+same batch again makes only the runs still missing. A batch sets nothing but the scene,
+`headless` and the baseline flag: to run another version, change the defaults it runs with. To evaluate
 what a batch made, point `experiments.warsaw.articulate3d.evaluate_runs` at its directory
 ([the evaluation's README](evaluation/README.md#tables-of-results)).
 
@@ -169,6 +172,7 @@ OpenRouter. It reasons before answering, and its reasoning is allowed on top of
 | `consider_alternative_classes` | `True` | On, a pair of objects whose labels' first readings the ontology relates in no way is judged by the alternatives the labels were answered they may also be, so a door keeps its cabinet where `cabinet` was first read as `Door` with `Cabinet` as an alternative. A mount the bodies' final classes do not allow is still refused. Off, only the first readings count. |
 | `prefer_nested_wholes` | `True` | On, a candidate whole is no longer offered where another of the part's candidates touches it and could be a part of it: a handle offered a window and the backplate fixed to it belongs to the backplate, and one offered a cabinet and its drawer to the drawer. A part left a single candidate that way takes it without a question, even one touching nothing, which would otherwise be asked whether it belongs to it or to none. Off, every candidate stays offered. |
 | `confirm_wholes_within_the_gap` | `True` | On, a part that touches no whole it could belong to is asked about the wholes within that gap, and may answer that it belongs to none of them. A part touching a whole is never asked this. Off, the only such whole is taken without asking, and one of several has to be chosen. |
+| `use_part_whole_knowledge` | `True` | Off, the run is the baseline without the ontology: the model is shown the classes by name alone (no mixins, no relations, a proposed class gets a superclass only), a label is not narrowed by what its objects touch, every object is asked which of the neighbours it touches (or, touching none, lies within `largest_gap_to_a_whole` of) it belongs to, and may answer none, and the graph is written from those answers, the least confident answer of every cycle dropped, rather than mounted. Its runs have no rule ceiling. |
 | `ignore_amendments` | `False` | On, a run starts although the ontology's files carry uncommitted changes, for a run meant to use them. |
 | `headless` | `False` | See [below](#when-the-renders-come-back-blank). |
 
