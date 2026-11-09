@@ -87,10 +87,10 @@ def test_mock_plan_needs_the_fewest_room_visits(
 
 def test_tasks_in_a_single_room_need_a_single_visit():
     two_step_task = Command(
-        name="two steps in the kitchen", rooms=[{Kitchen}, {Kitchen}], actions=[[], []]
+        instruction="two steps in the kitchen", rooms=[{Kitchen}, {Kitchen}], actions=[[], []]
     )
     one_step_task = Command(
-        name="one step in the kitchen", rooms=[{Kitchen}], actions=[[]]
+        instruction="one step in the kitchen", rooms=[{Kitchen}], actions=[[]]
     )
     planner = RoomVisitPlanner()
     room_visits = planner.transform_plan_by_rooms([two_step_task, one_step_task])
@@ -110,7 +110,7 @@ def test_no_tasks_cannot_be_transformed():
 
 
 def test_tasks_without_allowed_rooms_cannot_be_transformed():
-    task = Command(name="go nowhere", rooms=[set()], actions=[[]])
+    task = Command(instruction="go nowhere", rooms=[set()], actions=[[]])
     planner = RoomVisitPlanner()
 
     with pytest.raises(MissingTasksOrRooms):
@@ -122,7 +122,7 @@ def test_tasks_without_allowed_rooms_cannot_be_transformed():
 
 def test_step_without_an_allowed_room_next_to_others_cannot_be_transformed():
     task = Command(
-        name="cook, then go nowhere", rooms=[{Kitchen}, set()], actions=[[], []]
+        instruction="cook, then go nowhere", rooms=[{Kitchen}, set()], actions=[[], []]
     )
     planner = RoomVisitPlanner()
 
@@ -132,7 +132,7 @@ def test_step_without_an_allowed_room_next_to_others_cannot_be_transformed():
 
 def test_unsolvable_tasks_report_the_search_time_limit_of_the_planner():
     task = Command(
-        name="cook, then go nowhere", rooms=[{Kitchen}, set()], actions=[[], []]
+        instruction="cook, then go nowhere", rooms=[{Kitchen}, set()], actions=[[], []]
     )
     planner = RoomVisitPlanner(search_time_limit=5.0)
 
