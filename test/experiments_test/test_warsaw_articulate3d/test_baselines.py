@@ -9,9 +9,14 @@ import json
 
 import pytest
 
-from experiments.warsaw.articulate3d.baselines import Baseline, BaselineName, main
+from experiments.warsaw.articulate3d.baselines import (
+    Baseline,
+    BaselineName,
+    Baselines,
+    main,
+)
 from experiments.warsaw.articulate3d.ground_truth import GroundTruthFile
-from experiments.warsaw.articulate3d.label_readings import TrueClasses
+from experiments.warsaw.articulate3d.label_readings import ClassVocabulary, TrueClasses
 from experiments.warsaw.articulate3d.measured_scene import MeasuredSceneFile
 from experiments.warsaw.articulate3d.score import ClassLineage, ScoreOverRuns, Share
 from experiments.warsaw.articulate3d.whole_choices import (
@@ -44,6 +49,25 @@ def lineage(taxonomy):
     :return: What the ontology's classes derive from.
     """
     return ClassLineage.from_taxonomy(taxonomy, {})
+
+
+def test_true_classes_and_geometry_reads_the_true_classes_and_hangs_by_geometry(
+    rule, lineage, taxonomy
+):
+    """
+    Set beside the rule with the true classes, it shows what the ontology adds to the
+    geometry when no class is wrong.
+    """
+    baselines = Baselines(
+        rule=rule,
+        geometry=LargerObjectTouchedMost(settings=PipelineSettings()),
+        vocabulary=ClassVocabulary.from_taxonomy(taxonomy),
+        lineage=lineage,
+    )
+
+    assert baselines.named(BaselineName.TRUE_CLASSES_AND_GEOMETRY) == Baseline(
+        reading=TrueClasses(), choice=baselines.geometry
+    )
 
 
 def test_each_segment_becomes_a_node_with_its_class_and_whole(rule, ground_truth):

@@ -52,7 +52,8 @@ class WholeChoice(ABC):
 class LargerObjectTouchedMost(WholeChoice):
     """
     Each part hangs from the larger object it touches along the most edges, then shares
-    the most faces with, then lies nearest.
+    the most faces with, then lies nearest, an object being larger by its
+    :attr:`~experiments.warsaw.segment_relations.SegmentDescriptor.extent`.
 
     With none meeting it, the nearest larger object within the gap is taken. Labels,
     classes and the ontology are not looked at.
@@ -66,13 +67,13 @@ class LargerObjectTouchedMost(WholeChoice):
     def wholes_of(
         self, scene: MeasuredScene, classes: dict[str, str | None]
     ) -> dict[str, str]:
-        faces = {one.name: one.faces for one in scene.segments}
+        extent = {one.name: one.extent for one in scene.segments}
         meeting: dict[str, list[PairEvidence]] = defaultdict(list)
         nearby: dict[str, list[PairEvidence]] = defaultdict(list)
         for pair in scene.pairs:
-            if faces[pair.one] == faces[pair.other]:
+            if extent[pair.one] == extent[pair.other]:
                 continue
-            part = min((pair.one, pair.other), key=faces.__getitem__)
+            part = min((pair.one, pair.other), key=extent.__getitem__)
             if pair.meets(self.settings.largest_gap_counted_as_touching):
                 meeting[part].append(pair)
             elif pair.distance <= self.settings.largest_gap_to_a_whole:

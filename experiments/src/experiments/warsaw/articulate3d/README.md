@@ -158,10 +158,11 @@ without a model, builds the graph a run writes, and is scored like a run:
 
 | Baseline | Label to class | Part to whole |
 | --- | --- | --- |
-| `embedding-and-geometry` | nearest class name by Sentence-BERT | the larger object the part touches most |
+| `embedding-and-geometry` | nearest class name by Sentence-BERT | the larger object the part touches most, larger by the diagonal of its bounding box |
 | `spelling-and-rule` | the class name spelled most alike | the pipeline's rule, each question answered by its first candidate |
 | `embedding-and-rule` | nearest class name by Sentence-BERT | the pipeline's rule, as above: the pipeline without a model |
 | `true-classes-and-rule` | the protocol's classes | the pipeline's rule, as above: the most the rule gives without a model |
+| `true-classes-and-geometry` | the protocol's classes | as `embedding-and-geometry`: geometry with no class wrong |
 
 ```bash
 python -m experiments.warsaw.articulate3d.baselines --measured measured/ \

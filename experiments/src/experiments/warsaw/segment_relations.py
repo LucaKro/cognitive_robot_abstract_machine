@@ -118,6 +118,15 @@ class SegmentDescriptor(JsonRecord):
         """
         return self.exclusive_faces / self.faces if self.faces else 0.0
 
+    @property
+    def extent(self) -> float:
+        """
+        :return: The length of its bounding box's diagonal, in metres.
+        """
+        return float(
+            np.linalg.norm(np.subtract(self.maximum_corner, self.minimum_corner))
+        )
+
 
 @dataclass
 class PairEvidence(JsonRecord):

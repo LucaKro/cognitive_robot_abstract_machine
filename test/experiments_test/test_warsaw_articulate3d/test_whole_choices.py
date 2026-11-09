@@ -18,7 +18,7 @@ from experiments.warsaw.pipeline.run import Run
 from experiments.warsaw.pipeline.settings import PipelineSettings
 from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 
-from .scenes import measured_kitchen_corner, measured_pair
+from .scenes import measured_kitchen_corner, measured_pair, measured_segment
 
 # %% by geometry alone
 
@@ -39,6 +39,30 @@ def test_a_part_hangs_from_the_larger_object_it_touches_along_the_most_edges(geo
         "cabinet_1",
         "cabinet_1",
     )
+
+
+def test_the_larger_object_is_the_one_with_the_larger_box_not_more_faces(geometry):
+    """
+    A door is scanned in more faces than the thin frame around it, but the frame's box
+    encloses the door's, so the door hangs from the frame.
+    """
+    door = replace(
+        measured_segment("door_1", "door", faces=200),
+        minimum_corner=(0.05, 0.0, 0.0),
+        maximum_corner=(0.95, 0.05, 2.0),
+    )
+    frame = replace(
+        measured_segment("door_frame_1", "door_frame", faces=50),
+        minimum_corner=(0.0, 0.0, 0.0),
+        maximum_corner=(1.0, 0.1, 2.1),
+    )
+    scene = replace(
+        measured_kitchen_corner(),
+        segments=[door, frame],
+        pairs=[measured_pair("door_frame_1", "door_1", touching_edges=40)],
+    )
+
+    assert geometry.wholes_of(scene, {}) == {"door_1": "door_frame_1"}
 
 
 def test_an_object_with_no_larger_neighbour_hangs_from_nothing(geometry):

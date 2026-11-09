@@ -290,7 +290,7 @@ def measured_segment(name: str, label: str, faces: int) -> SegmentDescriptor:
     :param name: The segment.
     :param label: The label it carries.
     :param faces: How many faces it covers.
-    :return: The segment, measured as a small square of scan.
+    :return: The segment, measured as a strip of scan whose length grows with its faces.
     """
     return SegmentDescriptor(
         name=name,
@@ -302,7 +302,7 @@ def measured_segment(name: str, label: str, faces: int) -> SegmentDescriptor:
         exclusive_area=0.01,
         centroid=(0.0, 0.0, 1.0),
         minimum_corner=(0.0, 0.0, 1.0),
-        maximum_corner=(0.1, 0.1, 1.0),
+        maximum_corner=(0.1 * faces, 0.1, 1.0),
         components=1,
         height=1.0,
     )

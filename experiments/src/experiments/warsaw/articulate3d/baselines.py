@@ -155,6 +155,12 @@ class BaselineName(StrEnum):
     without a model.
     """
 
+    TRUE_CLASSES_AND_GEOMETRY = "true-classes-and-geometry"
+    """
+    The protocol's classes, wholes by geometry alone: what the geometry gives with no
+    class wrong and no ontology.
+    """
+
 
 @dataclass
 class Baselines:
@@ -225,6 +231,8 @@ class Baselines:
                 return Baseline(reading=self.by_embedding, choice=self.rule)
             case BaselineName.TRUE_CLASSES_AND_RULE:
                 return Baseline(reading=TrueClasses(), choice=self.rule)
+            case BaselineName.TRUE_CLASSES_AND_GEOMETRY:
+                return Baseline(reading=TrueClasses(), choice=self.geometry)
 
 
 # %% command-line entry point
