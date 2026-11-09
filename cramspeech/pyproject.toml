@@ -1,0 +1,44 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cramspeech"
+dynamic = ["version"]
+dependencies = [
+    "faster-whisper>=1.2.1",
+    "krrood>=26.10.0",
+    "numpy",
+    "sounddevice>=0.5.6",
+    "typing_extensions>=4.12.2",
+]
+description = "Speech recognition for CRAM: records from a microphone and transcribes it with Whisper."
+readme = "README.md"
+authors = [{ name = "Jan Witt", email = "jan9@uni-bremen.de" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+keywords = ["robotics", "speech recognition", "whisper", "pycram"]
+requires-python = ">=3.11"
+
+
+[project.scripts]
+nlp-listen = "cramspeech.speech_node:ListenCommandLine.run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cramspeech*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "cramspeech._version.__version__"}
+
+[dependency-groups]
+workspace = [
+    "krrood",
+]
+
+[project.urls]
+Homepage = "https://github.com/cram2/cognitive_robot_abstract_machine"

@@ -45,6 +45,7 @@ jobs:
           - lib: physics_simulators
           - lib: robokudo
           - lib: segmind
+          - lib: cramspeech
           - lib: experiments
           - lib: krrood_spatial_math
           - lib: version
