@@ -10,6 +10,8 @@ candidate.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 
@@ -586,6 +588,128 @@ def test_a_question_says_the_classes_the_pairs_were_judged_by(
         "cabinet_3": "Cabinet",
         "cabinet_1": "Cabinet",
     }
+
+
+# %% preferring the whole that is itself part of another candidate
+
+
+@pytest.fixture
+def nesting_step(tmp_path):
+    """
+    :return: The measuring step of a run preferring a whole that is part of another
+        candidate, asking about the wholes it only found nearby.
+    """
+    return MeasureScene(
+        settings=PipelineSettings(
+            consider_alternative_classes=False, prefer_nested_wholes=True
+        ),
+        run=Run(directory=tmp_path),
+    )
+
+
+def handle_on_a_window(step, known, handle_to_window, handle_to_plate, plate_to_window):
+    """
+    :param handle_to_window: How many edges the handle touches the window along and how
+        far apart the two are.
+    :param handle_to_plate: The same, between the handle and the backplate.
+    :param plate_to_window: The same, between the backplate and the window.
+    :return: What the step makes of the handle, the backplate and the window.
+    """
+    labels = {"handle_1": "handle", "backplate_1": "backplate", "window_1": "window"}
+    classes = {
+        "handle": known["Handle"],
+        "backplate": known["Backplate"],
+        "window": known["Window"],
+    }
+    pairs = [
+        PairRecord(
+            evidence=PairEvidence(
+                one=whole,
+                other=part,
+                shared_faces=0,
+                share_of_one=0.0,
+                share_of_other=0.0,
+                touching_edges=edges,
+                distance=distance,
+            ),
+            classes={
+                labels[whole]: classes[labels[whole]].__name__,
+                labels[part]: classes[labels[part]].__name__,
+            },
+            view=step.ontology_view(classes[labels[whole]], classes[labels[part]]),
+        )
+        for whole, part, (edges, distance) in (
+            ("window_1", "handle_1", handle_to_window),
+            ("backplate_1", "handle_1", handle_to_plate),
+            ("window_1", "backplate_1", plate_to_window),
+        )
+    ]
+    relations = Relations(
+        scene="a window",
+        pairs=pairs,
+        segments=[described(name, label) for name, label in labels.items()],
+    )
+    return step.memberships(relations, labels, classes, self_measured(relations))
+
+
+def test_a_part_touching_a_whole_and_a_part_of_it_takes_the_part_of_it(
+    nesting_step, known
+):
+    """
+    The handle touches the window and the backplate fixed to the window, so it is the
+    backplate's handle.
+    """
+    memberships = handle_on_a_window(
+        nesting_step, known, (10, 0.0), (5, 0.0), (30, 0.0)
+    )
+
+    assert memberships.to_ask_about == []
+    assert ("handle_1", "backplate_1") in [
+        (one.part, one.whole) for one in memberships.forced
+    ]
+
+
+def test_without_the_setting_a_part_touching_a_whole_and_a_part_of_it_is_asked(
+    nesting_step, known
+):
+    step = replace(
+        nesting_step,
+        settings=replace(nesting_step.settings, prefer_nested_wholes=False),
+    )
+    memberships = handle_on_a_window(step, known, (10, 0.0), (5, 0.0), (30, 0.0))
+
+    [question] = memberships.to_ask_about
+    assert question.candidate_names == ["window_1", "backplate_1"]
+
+
+def test_a_whole_not_touching_the_other_candidate_stays_offered(nesting_step, known):
+    """
+    A backplate that is not fixed to the window says nothing about which of the two the
+    handle belongs to.
+    """
+    gap = nesting_step.settings.largest_gap_counted_as_touching
+    memberships = handle_on_a_window(
+        nesting_step, known, (10, 0.0), (5, 0.0), (0, 2 * gap)
+    )
+
+    [question] = [one for one in memberships.to_ask_about if one.part == "handle_1"]
+    assert question.candidate_names == ["window_1", "backplate_1"]
+
+
+def test_a_part_near_a_whole_and_a_part_of_it_is_asked_about_the_part_of_it(
+    nesting_step, known
+):
+    """
+    The handle touches neither, so whether it belongs to the backplate is still asked,
+    with the window it is fixed to no longer offered.
+    """
+    gap = nesting_step.settings.largest_gap_to_a_whole
+    [question] = handle_on_a_window(
+        nesting_step, known, (0, gap / 2), (0, gap / 3), (30, 0.0)
+    ).to_ask_about
+
+    assert question.candidate_names == ["backplate_1"]
+    assert question.may_belong_to_none is True
 
 
 def self_classes(relations: Relations, known):

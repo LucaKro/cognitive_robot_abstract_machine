@@ -150,7 +150,7 @@ most any model answering the rule's questions can reach:
 python -m experiments.warsaw.articulate3d.rule_ceiling --measured measured/ \
     --ground-truth ground_truth/ [--largest-gap-to-a-whole 0.10] \
     [--largest-gap-counted-as-touching 0.01] [--no-confirm-wholes-within-the-gap] \
-    [--output ceiling.json]
+    [--no-prefer-nested-wholes] [--output ceiling.json]
 ```
 
 **Baselines.** Each baseline reads every label as a class and chooses every part's whole

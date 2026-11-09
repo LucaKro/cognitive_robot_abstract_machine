@@ -490,6 +490,23 @@ def test_the_gaps_a_method_is_told_apart_by_are_named_in_centimetres(runs_direct
     ]
 
 
+def test_a_run_from_before_nested_wholes_were_preferred_is_named_as_without(
+    runs_directory,
+):
+    """
+    A run made before the setting existed kept every candidate.
+    """
+    nested = SettingName.PREFER_NESTED_WHOLES
+    comparison = comparison_of(
+        written_run(runs_directory, "one", further_settings={nested: True}),
+        written_run(runs_directory, "two"),
+    )
+
+    assert sorted(group.name for group in comparison.by_condition) == sorted(
+        [nested.short_description(True), nested.short_description(False)]
+    )
+
+
 def test_a_setting_a_run_did_not_record_is_said_to_be_not_recorded(runs_directory):
     """
     A run made before a setting existed has nothing recorded for it.

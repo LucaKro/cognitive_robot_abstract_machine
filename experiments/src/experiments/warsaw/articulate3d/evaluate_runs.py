@@ -95,7 +95,16 @@ class RunsEvaluation(HasLogger):
             SettingName.LARGEST_GAP_TO_A_WHOLE,
             SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING,
             SettingName.CONFIRM_WHOLES_WITHIN_THE_GAP,
+            SettingName.PREFER_NESTED_WHOLES,
         ]
+
+    @classproperty
+    def settings_runs_may_predate(cls) -> dict[SettingName, Any]:
+        """
+        :return: The rule's settings added after runs were already made, each with the
+            value a run made before it worked with.
+        """
+        return {SettingName.PREFER_NESTED_WHOLES: False}
 
     def finished_runs(self, paths: Sequence[Path]) -> list[Run]:
         """
@@ -200,8 +209,9 @@ class RunsEvaluation(HasLogger):
         """
         :param recorded: Every setting a run recorded.
         :return: The pipeline's settings with the rule's as the run recorded them, or
-            nothing where it recorded one of them not.
+            nothing where it recorded one of them not that it could have.
         """
+        recorded = {**self.settings_runs_may_predate, **recorded}
         missing = [one for one in self.settings_of_the_rule if one not in recorded]
         if missing:
             return None

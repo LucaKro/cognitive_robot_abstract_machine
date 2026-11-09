@@ -42,7 +42,12 @@ from experiments.warsaw.pipeline.asking import (
 )
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 from experiments.warsaw.pipeline.camera_poses import CameraPoses
-from experiments.warsaw.pipeline.records import BodyAnswer, Classifications, Vocabulary
+from experiments.warsaw.pipeline.records import (
+    BodyAnswer,
+    Classifications,
+    Relations,
+    Vocabulary,
+)
 from experiments.warsaw.pipeline.run import RunFile
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.world_loader.loader import (
@@ -328,13 +333,27 @@ class ClassifyBodies(PipelineStep):
     def name(self) -> str:
         return "name each body"
 
+    def readings_to_choose_from(self) -> Vocabulary:
+        """
+        :return: What every label was answered to mean, a label left open between several
+            classes narrowed to those the ontology relates to something its objects
+            touch.
+        """
+        relations = self.run.read_record(RunFile.RELATIONS, Relations)
+        return VocabularyClasses(
+            vocabulary=self.run.read_record(RunFile.VOCABULARY, Vocabulary),
+            known=self.ontology_classes(),
+        ).narrowed_by_contact(
+            relations.touching_labels(self.settings.largest_gap_counted_as_touching)
+        )
+
     def carry_out(self) -> None:
         """
         Name every body: from its label where the label means one class, by a choice
         where the label was left open between several, and by an open question
         otherwise, and write the answers.
         """
-        vocabulary = self.run.read_record(RunFile.VOCABULARY, Vocabulary)
+        vocabulary = self.readings_to_choose_from()
         taxonomy = VocabularyClasses(
             vocabulary=vocabulary, known=self.ontology_classes()
         ).widened(self.run.read_json(RunFile.TAXONOMY))

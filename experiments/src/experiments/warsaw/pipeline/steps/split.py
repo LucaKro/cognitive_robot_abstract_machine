@@ -18,6 +18,7 @@ stop being shared.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from itertools import combinations
 from dataclasses import dataclass
 
 import numpy as np
@@ -35,6 +36,7 @@ from experiments.warsaw.pipeline.records import (
     Vocabulary,
 )
 from experiments.warsaw.pipeline.run import RunFile
+from experiments.warsaw.pipeline.steps.evidence import MeasureScene
 from experiments.warsaw.pipeline.steps.step import PipelineStep
 from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.scene_split import (
@@ -97,11 +99,14 @@ class SplitScene(PipelineStep):
             [str(segment.name) for segment in segments],
             len(loader.scene_mesh.faces),
         )
-        classes = VocabularyClasses(
-            vocabulary=vocabulary, known=self.ontology_classes()
-        ).by_label()
+        read = VocabularyClasses(vocabulary=vocabulary, known=self.ontology_classes())
         ownerships, unreached = self.resolve_owners(
-            groups, adjudications, relations, labels, classes
+            groups,
+            adjudications,
+            relations,
+            labels,
+            read.by_label(),
+            self.alternative_classes(read),
         )
         self.report_unreached(unreached)
         ownerships = self.divide_ties(
@@ -128,15 +133,16 @@ class SplitScene(PipelineStep):
         relations: Relations,
         labels: Dict[str, str],
         classes: Dict[str, Optional[Type]],
+        alternatives: Optional[Dict[str, List[Type]]] = None,
     ) -> Tuple[List[Ownership], List[ClaimedFaces]]:
         """
         Work out who each set of contested faces belongs to.
 
-        A set the ontology settled is answered from the ontology; the rest are answered
-        by the class pattern they belong to, since that is the grain the question was
-        asked at. Where several claimants carry the label the answer names, the first is
-        made the owner and the others are recorded as tied with it, for the faces to be
-        divided between them.
+        A set the ontology settled is answered from the ontology, by the readings its
+        pairs were settled with; the rest are answered by the class pattern they belong
+        to, since that is the grain the question was asked at. Where several claimants
+        carry the label the answer names, the first is made the owner and the others are
+        recorded as tied with it, for the faces to be divided between them.
 
         :param groups: The sets of faces and who claims them.
         :param adjudications: What the adjudication wrote.
@@ -144,6 +150,7 @@ class SplitScene(PipelineStep):
             ontology settled are recorded.
         :param labels: Per segment, the label it carries.
         :param classes: Per label, the class it was read as.
+        :param alternatives: Per label, the other classes a pair of it is judged by.
         :return: The ownerships, and the groups no answer reached.
         """
         settled = relations.settled_claimants
@@ -151,10 +158,19 @@ class SplitScene(PipelineStep):
 
         ownerships, unreached = [], []
         for group in groups:
-            by_class = {name: classes.get(labels[name]) for name in group.names}
             settled_here = tuple(group.names) in settled
             if settled_here:
-                candidates = owners_by_ontology(group.names, by_class)
+                judged = dict(classes)
+                for one, other in combinations(group.names, 2):
+                    judged.update(
+                        MeasureScene.classes_to_judge(
+                            labels[one], labels[other], classes, alternatives or {}
+                        )
+                    )
+                candidates = owners_by_ontology(
+                    group.names,
+                    {name: judged.get(labels[name]) for name in group.names},
+                )
             else:
                 wanted = answers.get(
                     tuple(sorted(labels[name] for name in group.names))

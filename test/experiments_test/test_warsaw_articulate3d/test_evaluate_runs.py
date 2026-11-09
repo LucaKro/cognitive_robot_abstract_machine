@@ -117,13 +117,29 @@ def test_the_rule_works_with_the_settings_a_method_recorded(evaluation):
         SettingName.LARGEST_GAP_TO_A_WHOLE: 0.2,
         SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING: 0.03,
         SettingName.CONFIRM_WHOLES_WITHIN_THE_GAP: False,
+        SettingName.PREFER_NESTED_WHOLES: True,
     }
 
     assert evaluation.rule_settings(recorded) == PipelineSettings(
         largest_gap_to_a_whole=0.2,
         largest_gap_counted_as_touching=0.03,
         confirm_wholes_within_the_gap=False,
+        prefer_nested_wholes=True,
     )
+
+
+def test_a_method_from_before_nested_wholes_were_preferred_worked_without(evaluation):
+    """
+    A run made before the setting existed recorded nothing for it, and kept every
+    candidate.
+    """
+    recorded = {
+        SettingName.LARGEST_GAP_TO_A_WHOLE: 0.1,
+        SettingName.LARGEST_GAP_COUNTED_AS_TOUCHING: 0.01,
+        SettingName.CONFIRM_WHOLES_WITHIN_THE_GAP: True,
+    }
+
+    assert evaluation.rule_settings(recorded).prefer_nested_wholes is False
 
 
 def test_a_method_that_did_not_record_the_rule_s_settings_has_no_rule(evaluation):

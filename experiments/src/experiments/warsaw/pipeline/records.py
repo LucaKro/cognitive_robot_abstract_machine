@@ -460,6 +460,25 @@ class Relations(RunArtefact):
         """
         return {descriptor.name: descriptor.class_name for descriptor in self.segments}
 
+    def touching_labels(
+        self, largest_gap_counted_as_touching: float
+    ) -> Dict[str, Set[str]]:
+        """
+        :param largest_gap_counted_as_touching: How far apart, in metres, two objects may
+            be and still count as touching.
+        :return: Per label, the labels of the objects its objects touch, for every label
+            whose objects touch any.
+        """
+        labels = self.labels
+        touching: Dict[str, Set[str]] = {}
+        for pair in self.pairs:
+            if not pair.evidence.meets(largest_gap_counted_as_touching):
+                continue
+            one, other = labels[pair.evidence.one], labels[pair.evidence.other]
+            touching.setdefault(one, set()).add(other)
+            touching.setdefault(other, set()).add(one)
+        return touching
+
 
 # %% vocabulary_request.json
 

@@ -13,13 +13,14 @@ for it wherever the run asks the ontology a question.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from semantic_digital_twin.semantic_annotations.taxonomy_export import (
+    admissible_mounts,
     compose_class,
     relations_of,
 )
-from typing_extensions import Any, Dict, List, Optional, Type
+from typing_extensions import Any, Dict, List, Optional, Set, Type
 
 from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
 from experiments.warsaw.bases import HasLogger
@@ -103,6 +104,43 @@ class VocabularyClasses(HasLogger):
             )
             for answer in self.vocabulary.labels
         }
+
+    # %% the readings a label keeps beside what its objects touch
+
+    def narrowed_by_contact(self, touching: Dict[str, Set[str]]) -> Vocabulary:
+        """
+        :param touching: Per label, the labels its objects were measured to touch.
+        :return: The vocabulary with every label left open between several classes
+            narrowed to those the ontology relates to a reading of a label it touches,
+            or kept whole where it relates none of them to anything touched.
+        """
+        first = self.by_label()
+        alternatives = self.alternatives_by_label()
+        readings = {
+            label: [
+                one
+                for one in [first.get(label), *alternatives.get(label, [])]
+                if one is not None
+            ]
+            for label in first
+        }
+        narrowed = []
+        for answer in self.vocabulary.labels:
+            neighbours = [
+                reading
+                for label in touching.get(answer.label, set())
+                for reading in readings.get(label, [])
+            ]
+            kept = [
+                one.__name__
+                for one in readings.get(answer.label, [])
+                if any(admissible_mounts(one, other) for other in neighbours)
+            ]
+            if not answer.alternatives or not kept:
+                narrowed.append(answer)
+                continue
+            narrowed.append(replace(answer, class_name=kept[0], alternatives=kept[1:]))
+        return replace(self.vocabulary, labels=narrowed)
 
     # %% putting the proposals beside the ontology
 

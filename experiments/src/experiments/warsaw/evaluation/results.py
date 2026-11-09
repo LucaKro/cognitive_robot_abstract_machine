@@ -146,6 +146,11 @@ class SettingName(StrEnum):
     Whether a pair is judged by the classes its labels may also be.
     """
 
+    PREFER_NESTED_WHOLES = "prefer_nested_wholes"
+    """
+    Whether a candidate whole another candidate is fixed to is dropped.
+    """
+
     LARGEST_GAP_TO_A_WHOLE = "largest_gap_to_a_whole"
     """
     How far a whole a part touches no whole may be from it.
@@ -179,6 +184,7 @@ class SettingName(StrEnum):
                 "alternatives",
                 "first readings",
             ),
+            SettingName.PREFER_NESTED_WHOLES: ("nested wholes", "every candidate"),
         }[self]
         return on if value else off
 

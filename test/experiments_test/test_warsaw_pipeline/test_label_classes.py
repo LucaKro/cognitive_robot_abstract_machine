@@ -16,8 +16,17 @@ from dataclasses import replace
 import pytest
 
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
-from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
+from experiments.warsaw.pipeline.records import (
+    LabelAnswer,
+    PairRecord,
+    Relations,
+    Vocabulary,
+)
+from experiments.warsaw.pipeline.settings import PipelineSettings
+from experiments.warsaw.segment_relations import PairEvidence
 from semantic_digital_twin.semantic_annotations.part_whole import admissible_relations
+
+from .test_open_questions import described
 
 
 def classes_of(labels, known):
@@ -207,3 +216,148 @@ def test_an_answer_with_a_problem_has_no_alternatives(known):
     )
 
     assert alternatives_of(answer, known) == []
+
+
+# %% the readings a label keeps beside what its objects touch
+
+
+def narrowed(answers: dict, touching: dict, known) -> dict:
+    """
+    :param answers: What was answered about each label.
+    :param touching: Per label, the labels its objects were measured to touch.
+    :return: Per label, every class it may still mean, its class first.
+    """
+    vocabulary = VocabularyClasses(
+        vocabulary=Vocabulary(
+            model="",
+            scene="",
+            labels=[replace(answer, label=label) for label, answer in answers.items()],
+        ),
+        known=known,
+    ).narrowed_by_contact(touching)
+    return {answer.label: answer.candidates for answer in vocabulary.labels}
+
+
+def test_a_reading_the_ontology_relates_to_nothing_touched_is_dropped(known):
+    """
+    A handle base on a door read as a door attachment could neither hang from the door
+    nor hold the handle, so only the backplate is left for it to be.
+    """
+    candidates = narrowed(
+        {
+            "handle_base": LabelAnswer(
+                class_name="Backplate", alternatives=["DoorAttachment"]
+            ),
+            "door": LabelAnswer(class_name="Door"),
+            "handle": LabelAnswer(class_name="Handle"),
+        },
+        {"handle_base": {"door", "handle"}},
+        known,
+    )
+
+    assert candidates["handle_base"] == ["Backplate"]
+
+
+def test_a_first_reading_relating_to_nothing_touched_gives_way_to_an_alternative(
+    known,
+):
+    """
+    The order the model gave its readings in does not keep one the ontology cannot
+    place.
+    """
+    candidates = narrowed(
+        {
+            "handle_base": LabelAnswer(
+                class_name="DoorAttachment", alternatives=["Backplate"]
+            ),
+            "door": LabelAnswer(class_name="Door"),
+        },
+        {"handle_base": {"door"}},
+        known,
+    )
+
+    assert candidates["handle_base"] == ["Backplate"]
+
+
+def test_readings_that_all_relate_to_something_touched_are_all_kept(known):
+    """
+    A backplate and a frame can both hang from a door, so the choice stays open.
+    """
+    answer = LabelAnswer(class_name="Backplate", alternatives=["Frame"])
+
+    candidates = narrowed(
+        {"base": answer, "door": LabelAnswer(class_name="Door")},
+        {"base": {"door"}},
+        known,
+    )
+
+    assert candidates["base"] == answer.candidates
+
+
+def test_readings_none_of_which_relates_to_anything_touched_are_all_kept(known):
+    """
+    Dropping every reading would leave the object nothing to be, so a misread neighbour
+    narrows nothing.
+    """
+    answer = LabelAnswer(class_name="Backplate", alternatives=["DoorAttachment"])
+
+    candidates = narrowed(
+        {"base": answer, "ceiling": LabelAnswer(class_name=None)},
+        {"base": {"ceiling"}},
+        known,
+    )
+
+    assert candidates["base"] == answer.candidates
+
+
+def test_a_label_touching_nothing_keeps_its_readings(known):
+    """
+    An object measured to touch nothing gives nothing to narrow its readings by.
+    """
+    answer = LabelAnswer(class_name="Backplate", alternatives=["DoorAttachment"])
+
+    assert narrowed({"base": answer}, {}, known)["base"] == answer.candidates
+
+
+def apart(one: str, other: str, distance: float) -> PairRecord:
+    """
+    :return: Two objects measured *distance* apart, touching along no edge.
+    """
+    return PairRecord(
+        evidence=PairEvidence(
+            one=one,
+            other=other,
+            shared_faces=0,
+            share_of_one=0.0,
+            share_of_other=0.0,
+            touching_edges=0,
+            distance=distance,
+        )
+    )
+
+
+def test_labels_whose_objects_meet_within_the_gap_touch_each_other():
+    """
+    The wall lies twice the gap away, so it is not counted as touched.
+    """
+    gap = PipelineSettings().largest_gap_counted_as_touching
+    relations = Relations(
+        scene="a door",
+        segments=[
+            described(name, label)
+            for name, label in [
+                ("handle_base_1", "handle_base"),
+                ("door_1", "door"),
+                ("wall_1", "wall"),
+            ]
+        ],
+        pairs=[
+            apart("handle_base_1", "door_1", gap),
+            apart("handle_base_1", "wall_1", 2 * gap),
+        ],
+    )
+
+    assert relations.touching_labels(gap) == {
+        "handle_base": {"door"},
+        "door": {"handle_base"},
+    }

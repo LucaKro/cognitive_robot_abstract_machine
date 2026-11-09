@@ -383,16 +383,6 @@ class MeasureScene(PipelineStep):
             pairs=pairs,
         )
 
-    def alternative_classes(self, read: VocabularyClasses) -> Dict[str, List[Type]]:
-        """
-        :param read: What each label was answered to be.
-        :return: Per label, the other classes a pair of it is judged by, where the run is
-            told to consider them, and none where it is not.
-        """
-        if not self.settings.consider_alternative_classes:
-            return {}
-        return read.alternatives_by_label()
-
     @staticmethod
     def classes_to_judge(
         one: str,
@@ -863,6 +853,9 @@ class MeasureScene(PipelineStep):
         :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.largest_gap_to_a_whole`
         of it, since a scan leaves gaps between what is mounted together.
 
+        With :attr:`~experiments.warsaw.pipeline.settings.PipelineSettings.prefer_nested_wholes`,
+        a candidate another candidate meets as a part of it is no longer offered.
+
         A question lists its candidates by the edges they touch the part along, most
         first, then by the faces they share with it and by how close they are; the
         colours they are painted in follow that order.
@@ -896,9 +889,18 @@ class MeasureScene(PipelineStep):
                 touching_edges=pair.evidence.touching_edges,
                 distance=round(pair.evidence.distance, 4),
             )
+        offered = {
+            part: meeting.get(part) or nearby[part]
+            for part in sorted(set(meeting) | set(nearby))
+        }
+        if self.settings.prefer_nested_wholes:
+            offered = {
+                part: self.innermost_candidates(wholes, meeting)
+                for part, wholes in offered.items()
+            }
         candidates = {
             part: sorted(
-                (meeting.get(part) or nearby[part]).values(),
+                wholes.values(),
                 key=lambda one: (
                     -one.touching_edges,
                     -one.shared_faces,
@@ -906,7 +908,7 @@ class MeasureScene(PipelineStep):
                     one.name,
                 ),
             )
-            for part in sorted(set(meeting) | set(nearby))
+            for part, wholes in offered.items()
         }
         to_confirm = (
             set(nearby) - set(meeting)
@@ -948,6 +950,26 @@ class MeasureScene(PipelineStep):
             if len(wholes) == 1 and part not in to_confirm
         ]
         return Memberships(to_ask_about=to_ask_about, forced=forced)
+
+    @staticmethod
+    def innermost_candidates(
+        candidates: Dict[str, MembershipCandidate],
+        meeting: Dict[str, Dict[str, MembershipCandidate]],
+    ) -> Dict[str, MembershipCandidate]:
+        """
+        :param candidates: A part's candidate wholes, by name.
+        :param meeting: Per part, the wholes it meets that could hold it.
+        :return: The candidates no other candidate meets as a part of it, or all of them
+            where that would leave none.
+        """
+        outer = {
+            whole
+            for name in candidates
+            for whole in meeting.get(name, {})
+            if whole in candidates
+        }
+        innermost = {name: one for name, one in candidates.items() if name not in outer}
+        return innermost or candidates
 
     # %% saying what was measured
 

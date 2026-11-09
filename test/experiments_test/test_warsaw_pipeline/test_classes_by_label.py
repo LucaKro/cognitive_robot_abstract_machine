@@ -7,9 +7,17 @@ from __future__ import annotations
 
 import numpy as np
 
-from experiments.warsaw.pipeline.records import LabelAnswer, Vocabulary
-from experiments.warsaw.pipeline.steps.classify.step import BodiesByLabel
+from experiments.warsaw.pipeline.records import LabelAnswer, Relations, Vocabulary
+from experiments.warsaw.pipeline.run import Run, RunFile
+from experiments.warsaw.pipeline.settings import PipelineSettings
+from experiments.warsaw.pipeline.steps.classify.step import (
+    BodiesByLabel,
+    ClassifyBodies,
+)
 from experiments.warsaw.world_loader.scene import LabelSegment
+
+from .test_label_classes import apart
+from .test_open_questions import described
 
 # %% a scene of three labels
 
@@ -84,3 +92,55 @@ def test_a_body_named_by_its_label_takes_the_class_the_label_was_read_as():
         "drawer_4",
         vocabulary().answer_for("drawer").class_name,
     )
+
+
+# %% the readings a body chooses among, beside what it touches
+
+
+def test_a_body_left_one_reading_by_what_it_touches_needs_no_question(tmp_path):
+    """
+    The handle base touches only a door, which no door attachment can hang from, so the
+    backplate is all it can be.
+    """
+    run = Run(directory=tmp_path)
+    vocabulary_of_the_door = Vocabulary(
+        model="",
+        scene="",
+        labels=[
+            LabelAnswer(
+                label="handle_base",
+                class_name="Backplate",
+                alternatives=["DoorAttachment"],
+            ),
+            LabelAnswer(label="door", class_name="Door"),
+        ],
+    )
+    run.write_record(RunFile.VOCABULARY, vocabulary_of_the_door)
+    run.write_json(
+        RunFile.TAXONOMY,
+        {
+            "classes": [
+                {"name": name}
+                for answer in vocabulary_of_the_door.labels
+                for name in answer.candidates
+            ]
+        },
+    )
+    run.write_record(
+        RunFile.RELATIONS,
+        Relations(
+            scene="a door",
+            segments=[
+                described("handle_base_1", "handle_base"),
+                described("door_1", "door"),
+            ],
+            pairs=[apart("handle_base_1", "door_1", 0.0)],
+        ),
+    )
+    step = ClassifyBodies(settings=PipelineSettings(), run=run)
+
+    sorted_out = BodiesByLabel.of(
+        [segment("handle_base")], step.readings_to_choose_from(), settle=True
+    )
+
+    assert names(sorted_out) == (["handle_base_1"], [], [])

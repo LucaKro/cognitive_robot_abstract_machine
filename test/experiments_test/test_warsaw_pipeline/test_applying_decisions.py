@@ -163,6 +163,27 @@ def test_two_parts_of_one_label_the_ontology_settles_are_left_to_divide(step, kn
     assert ownerships[0].settled_by_ontology
 
 
+def test_a_set_settled_by_an_alternative_reading_is_given_to_the_part(step, known):
+    """
+    The cabinet's label was read as a door first and as a cabinet second, and the set
+    was settled because a cabinet holds the door, so the door keeps the faces.
+    """
+    group = ClaimedFaces(names=("cabinet_1", "door_1"), faces=np.array([1, 2]))
+    ownerships, unreached = step.resolve_owners(
+        [group],
+        Adjudications(model="", scene=""),
+        Relations(
+            scene="",
+            settled=[CountedClaimants(claimants=("cabinet_1", "door_1"), faces=2)],
+        ),
+        {"cabinet_1": "cabinet", "door_1": "door"},
+        {"cabinet": known["Door"], "door": known["Door"]},
+        {"cabinet": [known["Cabinet"]]},
+    )
+    assert unreached == []
+    assert ownerships[0].owner == "door_1"
+
+
 # %% the mounts carried out of the answers
 
 

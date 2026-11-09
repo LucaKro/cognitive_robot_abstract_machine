@@ -350,6 +350,12 @@ def argument_parser() -> argparse.ArgumentParser:
         default=defaults.confirm_wholes_within_the_gap,
         help="See PipelineSettings.confirm_wholes_within_the_gap",
     )
+    parser.add_argument(
+        "--prefer-nested-wholes",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.prefer_nested_wholes,
+        help="See PipelineSettings.prefer_nested_wholes",
+    )
     return parser
 
 
@@ -367,6 +373,7 @@ def main(arguments: list[str] | None = None) -> int:
         largest_gap_to_a_whole=parsed.largest_gap_to_a_whole,
         largest_gap_counted_as_touching=parsed.largest_gap_counted_as_touching,
         confirm_wholes_within_the_gap=parsed.confirm_wholes_within_the_gap,
+        prefer_nested_wholes=parsed.prefer_nested_wholes,
     )
     rule = FirstCandidateOfTheRule.from_settings(settings, parsed.measured)
     ceiling = RuleCeiling.of(

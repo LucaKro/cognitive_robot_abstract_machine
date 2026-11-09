@@ -102,8 +102,26 @@ def test_a_question_is_answered_with_the_whole_touched_along_the_most_edges(
     """
     measured = measured_kitchen_corner()
     classes = TrueClasses().classes_of(measured, ground_truth)
+    keeping_every_candidate = FirstCandidateOfTheRule(
+        step=MeasureScene(
+            settings=PipelineSettings(prefer_nested_wholes=False), run=rule.step.run
+        ),
+        ontology=rule.ontology,
+    )
 
-    assert rule.wholes_of(measured, classes)["handle_2"] == "cabinet_1"
+    assert keeping_every_candidate.wholes_of(measured, classes)["handle_2"] == (
+        "cabinet_1"
+    )
+
+
+def test_preferring_nested_wholes_the_handle_hangs_from_its_drawer(rule, ground_truth):
+    """
+    The drawer the handle lies a seam from touches the cabinet the handle touches.
+    """
+    measured = measured_kitchen_corner()
+    classes = TrueClasses().classes_of(measured, ground_truth)
+
+    assert rule.wholes_of(measured, classes)["handle_2"] == "drawer_1"
 
 
 def test_a_part_of_no_known_class_hangs_from_nothing(rule, ground_truth):

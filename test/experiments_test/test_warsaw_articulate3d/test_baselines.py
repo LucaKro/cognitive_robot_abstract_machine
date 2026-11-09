@@ -71,7 +71,13 @@ def test_the_rule_s_wholes_are_judged_as_a_run_s(rule, ground_truth, lineage):
 
     The control, of no known class, is hung from nothing.
     """
-    score = Baseline(reading=TrueClasses(), choice=rule).score(
+    keeping_every_candidate = FirstCandidateOfTheRule(
+        step=MeasureScene(
+            settings=PipelineSettings(prefer_nested_wholes=False), run=rule.step.run
+        ),
+        ontology=rule.ontology,
+    )
+    score = Baseline(reading=TrueClasses(), choice=keeping_every_candidate).score(
         measured_kitchen_corner(), ground_truth, lineage
     )
 
@@ -91,7 +97,9 @@ def test_geometry_hangs_the_control_from_its_switch_base(ground_truth, lineage):
 # %% every scene, from the command line
 
 
-def test_the_command_writes_each_baseline_s_summary(tmp_path, ground_truth):
+def test_the_command_writes_each_baseline_s_summary(
+    tmp_path, ground_truth, rule, lineage
+):
     measured_directory = tmp_path / "measured"
     measured_directory.mkdir()
     measured_kitchen_corner().write(
@@ -120,4 +128,7 @@ def test_the_command_writes_each_baseline_s_summary(tmp_path, ground_truth):
     summary = ScoreOverRuns.from_json(
         json.loads((output / f"{BaselineName.TRUE_CLASSES_AND_RULE}.json").read_text())
     )
-    assert summary.links.precision == Share(3, 4)
+    expected = Baseline(reading=TrueClasses(), choice=rule).score(
+        measured_kitchen_corner(), ground_truth, lineage
+    )
+    assert summary.links.precision == expected.links.precision

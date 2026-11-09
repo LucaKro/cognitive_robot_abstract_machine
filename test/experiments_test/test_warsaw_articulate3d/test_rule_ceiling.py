@@ -41,9 +41,12 @@ def ceiling_with(settings, tmp_path, ontology, ground_truth):
 @pytest.fixture
 def ceiling(tmp_path, ontology, ground_truth):
     """
-    :return: What the rule allows with the pipeline's settings.
+    :return: What the rule allows with the pipeline's settings, every candidate kept
+        offered.
     """
-    return ceiling_with(PipelineSettings(), tmp_path, ontology, ground_truth)
+    return ceiling_with(
+        PipelineSettings(prefer_nested_wholes=False), tmp_path, ontology, ground_truth
+    )
 
 
 def test_a_whole_the_rule_takes_without_asking_is_settled(ceiling):
@@ -88,3 +91,18 @@ def test_without_counting_the_seam_as_touching_the_ceiling_drops(
     ceiling = ceiling_with(settings, tmp_path, ontology, ground_truth)
 
     assert ceiling.ceiling == Share(3, 4)
+
+
+def test_preferring_nested_wholes_the_handle_takes_its_drawer_without_asking(
+    tmp_path, ontology, ground_truth
+):
+    """
+    The handle's drawer touches the cabinet the handle touches, so the drawer is its
+    whole and nothing is left to the model.
+    """
+    ceiling = ceiling_with(PipelineSettings(), tmp_path, ontology, ground_truth)
+
+    assert (
+        ceiling.count(CandidateOutcome.TAKEN_RIGHT, representable=True),
+        ceiling.count(CandidateOutcome.LEFT_TO_THE_MODEL, representable=True),
+    ) == (ceiling.ceiling.total, 0)

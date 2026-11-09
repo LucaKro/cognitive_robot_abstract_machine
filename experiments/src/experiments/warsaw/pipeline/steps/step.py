@@ -18,13 +18,16 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     annotation_classes,
 )
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
-from typing_extensions import Dict, List, Optional, Sequence, Type
+from typing_extensions import TYPE_CHECKING, Dict, List, Optional, Sequence, Type
 
 from experiments.warsaw.pipeline.asking import Questioner
 from experiments.warsaw.bases import HasLogger
 from experiments.warsaw.pipeline.new_interpreter import NewInterpreter
 from experiments.warsaw.pipeline.run import Run, RunFile
 from experiments.warsaw.pipeline.settings import PipelineSettings
+
+if TYPE_CHECKING:
+    from experiments.warsaw.pipeline.label_classes import VocabularyClasses
 
 
 @dataclass
@@ -89,6 +92,16 @@ class PipelineStep(HasLogger, ABC):
             for name, annotation_class in annotation_classes(SemanticAnnotation).items()
             if name in declared
         }
+
+    def alternative_classes(self, read: VocabularyClasses) -> Dict[str, List[Type]]:
+        """
+        :param read: What each label was answered to be.
+        :return: Per label, the other classes a pair of it is judged by, where the run is
+            told to consider them, and none where it is not.
+        """
+        if not self.settings.consider_alternative_classes:
+            return {}
+        return read.alternatives_by_label()
 
     # %% what a step needs to do its work
 

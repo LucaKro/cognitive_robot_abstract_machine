@@ -279,6 +279,15 @@ class PipelineSettings:
     :attr:`largest_gap_to_a_whole`.
     """
 
+    prefer_nested_wholes: bool = True
+    """
+    Whether a candidate whole is dropped where another of the part's candidates touches
+    it and could be a part of it, so a handle offered a window and the backplate fixed
+    to it is the backplate's.
+
+    Off, every candidate stays offered.
+    """
+
     consider_alternative_classes: bool = True
     """
     Whether a pair of objects the first readings of their labels relate in no way is
