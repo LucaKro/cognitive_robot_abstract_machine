@@ -260,14 +260,14 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         Stand the milk on the counter, free to be picked up, see
         :meth:`RobotDemonstration.populate_scene`.
         """
-        milk = SemanticAnnotationWithRootSpecification(
+        milk = Milk.get_annotation_specification(
             name=SceneBody.MILK,
-            semantic_annotation_type=Milk,
             root_specification=BodySpecification.mesh(
                 SceneBody.MILK,
                 str(SceneFile.MILK),
                 connection_specification=Connection6DoFSpecification(),
             ),
+            annotation_kwargs={"grasp_candidate_count": self.milk_face_count},
         ).spawn(world)
         ContactParameters.create_for_grasped_object().apply_to([milk.root])
         milk.root.parent_connection.origin = self.milk_start.compute_milk_pose(
