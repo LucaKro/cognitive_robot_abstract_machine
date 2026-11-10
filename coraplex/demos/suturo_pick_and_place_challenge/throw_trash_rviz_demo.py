@@ -38,13 +38,17 @@ from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
-from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from coraplex.robot_plans.actions.core.robot_body import (
+    MoveManipulatorAction,
+    MoveTorsoAction,
+    ParkArmsAction,
+)
 from coraplex.robot_plans.mixins import (
     MovesToolCenterPoint,
     OperatesGripper,
     ReattachesBranches,
 )
-from cramph.composites import Sequence
+from cramph.composites import Parallel, Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.executor import SimulationPacer
 from cramph.node import NodeArtifacts, StatechartNode, SucceedsOnObservingTrue
@@ -309,11 +313,11 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         park the arm
         turn to and look at search_spot, then detect the milk
         drive to where the milk can be reached, take it from above and lift it
-        park the arm, turn towards the approach spot and drive there with the milk
-        park the arm and raise the torso
+        bring the milk upright in front of the base, as high as it is dropped from
+        turn towards the approach spot and drive there, keeping the milk upright
         drive on to drop_distance before the trash can and face it
         bring the milk over the opening, let go of it and pull the hand up
-        park the arm
+        park the arm and lower the torso
         put the milk onto the trash can's bottom (kinematic simulation only)
     """
 
@@ -372,6 +376,11 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     drops the milk, in meters.
     """
 
+    carrying_reach: float = 0.45
+    """
+    How far in front of the base's origin the milk is carried, in meters.
+    """
+
     grasp_height: float = 0.04
     """
     How far above the milk's origin the hand takes hold of it, in meters.
@@ -401,7 +410,7 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     def robot_specification(self) -> RobotSpecification:
         return RobotSpecification(
             semantic_annotation_type=self.used_robot,
-            world_T_odom=self.robot_start.create_transform(),
+            localization_pose=self.robot_start.create_transform(),
         )
 
     def is_scene_populated(self, world: World) -> bool:
@@ -495,21 +504,35 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
                 face_and_look_at=self._face_and_look_at(milk_pose),
                 pick_up=a(PickUpAction)(grasp=grasp, arm=arm),
             ),
-            ParkArmsAction(arms=hsrb.all_arms),
+            MoveManipulatorAction(
+                target_pose=arm.end_effector.tool_frame_goal_for_grasp(
+                    grasp.moved_to(self._compute_carrying_pose(hsrb, drop_pose))
+                ),
+                end_effector=arm.end_effector,
+                allow_gripper_collision=False,
+            ),
             FaceAtAction(target=approach_pose),
-            CarryAction(navigate=NavigateAction(target_location=approach_pose)),
-            ParkArmsAction(arms=hsrb.all_arms),
-            #MoveTorsoAction(torso_state=TorsoState.HIGH),
+            CarryAction(
+                navigate=NavigateAction(target_location=approach_pose),
+                holding_arms=[arm],
+            ),
+            # MoveTorsoAction(torso_state=TorsoState.HIGH),
             CarryAction(
                 navigate=NavigateAction(
                     target_location=self._compute_standing_pose_before(
                         drop_pose, self.drop_distance
                     )
-                )
+                ),
+                holding_arms=[arm],
             ),
             FaceAtAction(target=drop_pose),
             DropAction(grasp=grasp, arm=arm, release_pose=drop_pose),
-            ParkArmsAction(arms=hsrb.all_arms),
+            Parallel(
+                nodes=[
+                    ParkArmsAction(arms=hsrb.all_arms),
+                    MoveTorsoAction(torso_state=TorsoState.LOW),
+                ]
+            ),
         ]
         if issubclass(self.executor_type, KinematicallySimulatedPlanExecutor):
             steps.append(
@@ -639,6 +662,21 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
             y=(trash_can_box.min_y + trash_can_box.max_y) / 2,
             z=trash_can_box.max_z + self.drop_clearance - milk_box.min_z,
             reference_frame=world.root,
+        )
+
+    def _compute_carrying_pose(self, robot: AbstractRobot, drop_pose: Pose) -> Pose:
+        """
+        :param robot: The robot carrying the milk.
+        :param drop_pose: Where the milk is let go of, above the trash can.
+        :return: Where the milk is while the robot drives: upright, :attr:`carrying_reach`
+            in front of the base and as high above the floor as `drop_pose`.
+        """
+        world = robot._world
+        base_height = world.compute_forward_kinematics_np(world.root, robot.root)[2, 3]
+        return Pose.from_xyz_rpy(
+            x=self.carrying_reach,
+            z=float(drop_pose.z) - base_height,
+            reference_frame=robot.root,
         )
 
 
