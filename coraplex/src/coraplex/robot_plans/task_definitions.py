@@ -16,8 +16,8 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
 @dataclass(eq=False)
 class Command:
     """
-    One command, such as "bring the milk to the living room", split into the
-    actions it performs room by room.
+    One command, such as "bring the milk to the living room", split into the actions it
+    performs room by room.
     """
 
     instruction: str
@@ -33,6 +33,6 @@ class Command:
 
     actions: list[list[Action]]
     """
-    The actions of each step, in execution order: ``actions[i]`` is performed in one
-    of the rooms in ``rooms[i]``.
+    The actions of each step, in execution order: ``actions[i]`` is performed in one of
+    the rooms in ``rooms[i]``.
     """

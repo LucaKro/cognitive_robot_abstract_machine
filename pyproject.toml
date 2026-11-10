@@ -28,7 +28,6 @@ dependencies = [
   "krrood_spatial_math>=26.10.0",
   "ipykernel>=7.2.0",
   "lark-parser>=0.12.0",
-  "challenges>=26.10.0",
   "tqdm",
 ]
 
@@ -97,7 +96,6 @@ members = [
   "experiments",
   "segmind",
   "domain_models/krrood_spatial_math",
-  "challenges"
 ]
 
 [tool.uv.sources]
@@ -113,7 +111,6 @@ physics_simulators    = { workspace = true }
 segmind               = { workspace = true }
 experiments           = { workspace = true }
 krrood_spatial_math   = { workspace = true }
-challenges            = { workspace = true }
 
 [tool.poetry]
 package-mode = false
@@ -131,7 +128,6 @@ physics_simulators = { path = "physics_simulators", develop = true }
 experiments = { path = "experiments", develop = true }
 segmind = { path = "segmind", develop = true }
 krrood_spatial_math = { path = "domain_models/krrood_spatial_math", develop = true }
-challenges = { path = "challenges", develop = true }
 
 [tool.setuptools]
 packages = ["cognitive_robot_abstract_machine"]

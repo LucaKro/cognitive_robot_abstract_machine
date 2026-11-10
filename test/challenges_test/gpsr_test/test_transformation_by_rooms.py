@@ -8,21 +8,19 @@ from itertools import pairwise
 
 import pytest
 
-from challenges.GPSR.dataclasses.task_definitions import Command
-from challenges.GPSR.plan_transformation.transformation_by_rooms.exceptions import (
-    MissingTasksOrRooms,
-    NoRoomVisitOrderFound,
-)
-from challenges.GPSR.plan_transformation.transformation_by_rooms.mock_gpsr_tasks import (
-    MOCK_GPSR_PLAN,
-)
-from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import (
+from coraplex.exceptions import MissingTasksOrRooms, NoRoomVisitOrderFound
+from coraplex.robot_plans.task_definitions import Command
+
+
+from coraplex.robot_plans.transformation_by_room import (
     RoomVisitPlanner,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Kitchen,
     Room,
 )
+from ...dataset.mock_gpsr_tasks import MOCK_GPSR_PLAN
+
 
 # %% room visits of the mock plan
 
@@ -87,7 +85,9 @@ def test_mock_plan_needs_the_fewest_room_visits(
 
 def test_tasks_in_a_single_room_need_a_single_visit():
     two_step_task = Command(
-        instruction="two steps in the kitchen", rooms=[{Kitchen}, {Kitchen}], actions=[[], []]
+        instruction="two steps in the kitchen",
+        rooms=[{Kitchen}, {Kitchen}],
+        actions=[[], []],
     )
     one_step_task = Command(
         instruction="one step in the kitchen", rooms=[{Kitchen}], actions=[[]]

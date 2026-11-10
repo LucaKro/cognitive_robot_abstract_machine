@@ -44,6 +44,7 @@ dependencies = [
     "cramph>=26.10.0",
     "giskardpy>=26.10.0",
     "krrood>=26.10.0",
+    "ortools"
 ]
 license = "LGPL-3.0-only"
 

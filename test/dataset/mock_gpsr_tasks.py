@@ -2,10 +2,6 @@
 A mock GPSR plan: independently issued commands, most of them fetching something from
 one room and delivering it to another, listed in arrival order rather than grouped by
 room.
-
-Run it from the repository root::
-
-    python -m challenges.GPSR.plan_transformation.transformation_by_rooms.mock_gpsr_tasks
 """
 
 from __future__ import annotations
@@ -13,8 +9,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from challenges.GPSR.plan_transformation.transformation_by_rooms.transformation import RoomVisitPlanner
-from challenges.GPSR.dataclasses.task_definitions import Command
+from coraplex.robot_plans.transformation_by_room import RoomVisitPlanner
+from coraplex.robot_plans.task_definitions import Command
 
 from coraplex.robot_plans.actions.base import SequentialAction
 from cramph.node import StatechartNode
@@ -33,8 +29,8 @@ class MockAction(SequentialAction):
     """
     A named stand-in for a real :class:`SequentialAction`, such as
     :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction`, so a mock plan
-    reads as what each step does without a live world and robot to build the real
-    action against.
+    reads as what each step does without a live world and robot to build the real action
+    against.
     """
 
     description: str
@@ -43,7 +39,9 @@ class MockAction(SequentialAction):
     """
 
     def create_steps(self) -> list[StatechartNode]:
-        raise NotImplementedError("MockAction stands in for a real action; it is never run.")
+        raise NotImplementedError(
+            "MockAction stands in for a real action; it is never run."
+        )
 
     def __repr__(self) -> str:
         return self.description
@@ -90,15 +88,13 @@ MOCK_GPSR_PLAN: list[Command] = [lower_torso, bring_milk, bring_cup, bring_remot
 """
 The commands queued as they arrived, so performing them in that order visits a room,
 leaves it, and visits it again.
-:func:`~challenges.GPSR.plan_transformation.transformation_by_rooms.transformation.transform_plan_by_rooms`
-groups them into fewer room visits.
 """
 
 
 # %% printing the room visits
 
 
-def main() -> list[MockAction]:
+def main() -> list[list[MockAction]]:
     """
     Collects the room visits :data:`MOCK_GPSR_PLAN` is grouped into, first as task steps
     and then as their actions and the actions in execution order.
@@ -122,7 +118,6 @@ def main() -> list[MockAction]:
             logger.info(f"    {task.instruction}: {task.actions[step_number - 1]}")
             optimal_plan.append(task.actions[step_number - 1])
     return optimal_plan
-
 
 
 if __name__ == "__main__":

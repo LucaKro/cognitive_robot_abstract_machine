@@ -1,6 +1,6 @@
 """
-Orders the steps of GPSR tasks into room visits, so the robot changes rooms as rarely
-as possible while the steps of each task keep their order.
+Orders the steps of GPSR tasks into room visits, so the robot changes rooms as rarely as
+possible while the steps of each task keep their order.
 """
 
 from __future__ import annotations
@@ -8,16 +8,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
-from challenges.GPSR.dataclasses.task_definitions import Command
-from challenges.GPSR.plan_transformation.transformation_by_rooms.exceptions import (
-    MissingTasksOrRooms,
-    NoRoomVisitOrderFound,
-)
+
+from coraplex.exceptions import MissingTasksOrRooms, NoRoomVisitOrderFound
+from coraplex.robot_plans.task_definitions import Command
+
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    Bedroom,
-    Kitchen,
-    LivingRoom,
     Room,
+    LivingRoom,
+    Kitchen,
+    Bedroom,
 )
 
 
@@ -40,8 +39,8 @@ class RoomVisitPlanner:
         self, task_list: list[list[set[type[Room]]]], room_list: list[type[Room]]
     ) -> tuple[list[type[Room]], list[tuple[type[Room], list[tuple[int, int]]]]]:
         """
-        Orders the steps of the given tasks into as few room visits as possible, while the
-        steps of each task keep their order.
+        Orders the steps of the given tasks into as few room visits as possible, while
+        the steps of each task keep their order.
 
         :param task_list: The tasks in the order they arrived, each as one set of allowed
             rooms per step, in step order.
@@ -151,8 +150,8 @@ class RoomVisitPlanner:
         tasks: list[Command],
     ) -> list[tuple[type[Room], list[tuple[Command, int]]]]:
         """
-        Groups the steps of the given tasks into as few room visits as possible, while the
-        steps of each task keep their order.
+        Groups the steps of the given tasks into as few room visits as possible, while
+        the steps of each task keep their order.
 
         :param tasks: The tasks in the order they arrived.
         :return: One entry per room visit, in the order the rooms are visited: the room
