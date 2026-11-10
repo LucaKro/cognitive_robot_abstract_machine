@@ -18,7 +18,7 @@ from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.context_extensions import RobotAccess
 from coraplex.plans.executors import PhysicallySimulatedPlanExecutor
 from coraplex.robot_plans.actions.composite.searching import SearchAction
-from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.robot_plans.actions.core.navigation import NavigateAction, PathPlanningNavigateAction, FaceAtAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
@@ -40,7 +40,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.predefined_maps.kitchen_environment import KitchenEnvironment
 from semantic_digital_twin.robots.hsrb import HSRB
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor, Milk
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor, Milk, TrashCan
 from semantic_digital_twin.specifications.connections import (
     Connection6DoFSpecification,
 )
@@ -52,6 +52,7 @@ from semantic_digital_twin.specifications.semantic_annotations import (
     SemanticAnnotationWithRootSpecification,
 )
 from semantic_digital_twin.specifications.worlds import WorldSpecification
+from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.contact import ContactParameters
 from typing_extensions import TYPE_CHECKING
 
@@ -255,8 +256,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     def robot_specification(self) -> RobotSpecification:
         return RobotSpecification(
-            semantic_annotation_type=self.used_robot,
-            odometry_T_robot_start=self.robot_start,
+            semantic_annotation_type=self.used_robot, odometry_T_robot_start=self.robot_start
         )
 
     def is_scene_populated(self, world: World) -> bool:
@@ -267,6 +267,25 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         Stand the milk on the counter, free to be picked up, see
         :meth:`RobotDemonstration.populate_scene`.
         """
+        [trash_can] = world.get_semantic_annotations_by_type(TrashCan)
+        trash_can_box = trash_can.root.collision.as_bounding_box_collection_in_frame(
+            trash_can.root
+        ).bounding_box()
+
+        with world.modify_world():
+            world.remove_connection(trash_can.root.parent_connection)
+            world.add_connection(
+                FixedConnection(
+                    parent=world.root,
+                    child=trash_can.root,
+                    parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                        x=2.45,
+                        y=1.6,
+                        z=-trash_can_box.min_z,
+                        reference_frame=world.root,
+                    ),
+                )
+            )
         milk = Milk.get_annotation_specification(
             name=SceneBody.MILK,
             root_specification=BodySpecification.mesh(
@@ -327,25 +346,29 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     def build_statechart(self, context: StatechartContext) -> Statechart:
         robot = context.require_extension(RobotAccess).robot
+
         [milk] = context.world.get_semantic_annotations_by_type(Milk)
+        [trash_can] = context.world.get_semantic_annotations_by_type(TrashCan)
         [arm] = robot.all_arms
         taking_pose = self._standing_pose_facing(
             self.milk_start.compute_milk_pose(milk.root)
         )
-        target = self.milk_target.compute_milk_pose(milk.root)
+        target = trash_can.root.global_pose
         grasp_target = self.find_grasp_pose(milk.root)
-        search_milk = SearchAction.looking_around(milk.root.global_pose, Milk, context)
+        search_trash_can = SearchAction.looking_around(trash_can.root.global_pose, TrashCan, context)
         statechart = Statechart(context=context)
         statechart.add_node(
             Sequence(
                 nodes=[
                     MoveTorsoAction(torso_state=TorsoState.LOW),
                     ParkArmsAction(arms=robot.all_arms),
-                    search_milk,
+                    NavigateAction(target_location=taking_pose),
                     PickUpAction(grasp=GraspCandidate(milk, grasp_target), arm=arm),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # MoveTorsoAction(torso_state=TorsoState.LOW),
-                    # NavigateAction(target_location=self._standing_pose_facing(target)),
+                    ParkArmsAction(arms=robot.all_arms),
+                    NavigateAction(target_location=target),
+                    # search_trash_can,
+                    # NavigateAction(target_location=self._standing_pose_facing(trash_can.root.global_pose)),
+                    # FaceAtAction(target=target),
                     # MoveTorsoAction(torso_state=TorsoState.HIGH),
                     # PlaceAction(object_designator=milk, target_location=target),
                     # ParkArmsAction(arms=robot.all_arms),
