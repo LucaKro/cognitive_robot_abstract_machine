@@ -11,18 +11,28 @@ import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
+from enum import StrEnum
 from uuid import UUID
 
+import numpy as np
 import pytest
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from typing_extensions import Iterator
 
 from coraplex.demonstrations import RobotDemonstration, RobotDemonstrationRosSession
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Vector3
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.specifications.robots import RobotSpecification
 from semantic_digital_twin.specifications.worlds import WorldSpecification
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import (
+    Connection6DoF,
+    FixedConnection,
+    RevoluteConnection,
+)
+from semantic_digital_twin.world_description.world_entity import Body
 from cramph.threaded_nodes import FunctionCall
 
 from ..plan_running import robot_extensions
@@ -177,6 +187,64 @@ class RecordingDemonstration(RobotDemonstration):
         super().tear_down()
 
 
+class HingedSceneBody(StrEnum):
+    """
+    The bodies of the scene of a :class:`HingedSceneDemonstration`.
+    """
+
+    DOOR = "door"
+    """
+    The door, which turns on a hinge.
+    """
+
+    BOX = "box"
+    """
+    The box, which lies freely in the scene.
+    """
+
+
+@dataclass(kw_only=True)
+class HingedSceneDemonstration(RecordingDemonstration):
+    """
+    A demonstration whose scene holds a door on a hinge, opened by :attr:`door_opening`,
+    and a box lying freely next to it.
+    """
+
+    door_opening: float = 0.5
+    """
+    The angle the door is opened to on its hinge, in radians.
+    """
+
+    hinge_distance: float = 1.0
+    """
+    How far the hinge stands from the root of the scene along its x axis, in meters.
+    """
+
+    def populate_scene(self, world: World) -> None:
+        """
+        Differs from :meth:`RecordingDemonstration.populate_scene` in also adding the
+        opened door and the box.
+        """
+        super().populate_scene(world)
+        door = Body(name=PrefixedName(HingedSceneBody.DOOR))
+        box = Body(name=PrefixedName(HingedSceneBody.BOX))
+        with world.modify_world():
+            hinge = RevoluteConnection.create_with_dofs(
+                world,
+                world.root,
+                door,
+                axis=Vector3.Z(reference_frame=world.root),
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    x=self.hinge_distance, reference_frame=world.root
+                ),
+            )
+            world.add_connection(hinge)
+            world.add_connection(
+                Connection6DoF.create_with_dofs(world, world.root, box)
+            )
+        hinge.position = self.door_opening
+
+
 # %% world acquisition
 
 
@@ -265,6 +333,90 @@ def test_real_run_does_not_merge_the_scene_into_a_world_that_has_it(
 
     assert demonstration.populated_scene_roots == []
     assert len(cylinder_bot_world.kinematic_structure_entities) == bodies_before
+
+
+# %% scene joints
+
+
+@pytest.fixture
+def scene_with_movable_joints() -> World:
+    """
+    The scene of a :class:`HingedSceneDemonstration`, with the door on its hinge.
+    """
+    return HingedSceneDemonstration(used_robot=MinimalRobot).build_scene()
+
+
+@pytest.fixture
+def scene_with_fixed_joints() -> World:
+    """
+    The scene of a :class:`HingedSceneDemonstration` that does not let its joints move.
+    """
+    return HingedSceneDemonstration(
+        used_robot=MinimalRobot, scene_joints_movable=False
+    ).build_scene()
+
+
+def test_the_joints_of_the_scene_move_by_default(
+    scene_with_movable_joints: World,
+) -> None:
+    """
+    A demonstration that does not ask for fixed joints acts on the scene as its
+    specification builds it.
+    """
+    door = scene_with_movable_joints.get_body_by_name(HingedSceneBody.DOOR)
+
+    assert type(door.parent_connection) is RevoluteConnection
+
+
+def test_the_joints_of_a_scene_that_must_not_move_become_fixed_connections(
+    scene_with_fixed_joints: World,
+) -> None:
+    """
+    Neither the plan nor physics can swing the door once its hinge is replaced.
+    """
+    door = scene_with_fixed_joints.get_body_by_name(HingedSceneBody.DOOR)
+
+    assert type(door.parent_connection) is FixedConnection
+
+
+def test_a_replaced_joint_holds_its_child_where_the_joint_had_it(
+    scene_with_movable_joints: World, scene_with_fixed_joints: World
+) -> None:
+    """
+    The door stays where its opened hinge held it, offset from the root as the hinge
+    is, rather than falling back to where a closed hinge would hold it.
+    """
+    movable_door = scene_with_movable_joints.get_body_by_name(HingedSceneBody.DOOR)
+    fixed_door = scene_with_fixed_joints.get_body_by_name(HingedSceneBody.DOOR)
+
+    np.testing.assert_allclose(
+        fixed_door.global_transform.to_np(), movable_door.global_transform.to_np()
+    )
+
+
+def test_a_replaced_joint_keeps_its_name(
+    scene_with_movable_joints: World, scene_with_fixed_joints: World
+) -> None:
+    """
+    Code that looks a connection up by name finds the fixed connection where the
+    joint was.
+    """
+    movable_door = scene_with_movable_joints.get_body_by_name(HingedSceneBody.DOOR)
+    fixed_door = scene_with_fixed_joints.get_body_by_name(HingedSceneBody.DOOR)
+
+    assert fixed_door.parent_connection.name == movable_door.parent_connection.name
+
+
+def test_a_free_body_stays_free_when_the_joints_of_the_scene_are_replaced(
+    scene_with_fixed_joints: World,
+) -> None:
+    """
+    An object attached by a free connection, such as one the plan picks up, can still
+    be moved.
+    """
+    box = scene_with_fixed_joints.get_body_by_name(HingedSceneBody.BOX)
+
+    assert type(box.parent_connection) is Connection6DoF
 
 
 # %% execution environment
