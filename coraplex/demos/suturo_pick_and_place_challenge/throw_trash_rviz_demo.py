@@ -26,7 +26,6 @@ from coraplex.plans.executors import (
     PlanExecutor,
 )
 from coraplex.plans.plan_transformation import PlanTransformation
-from coraplex.robot_plans.actions.base import SequentialAction
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
 from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
 from coraplex.robot_plans.actions.composite.transporting import (
@@ -39,15 +38,11 @@ from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
     MoveManipulatorAction,
     MoveTorsoAction,
     ParkArmsAction,
-)
-from coraplex.robot_plans.mixins import (
-    MovesToolCenterPoint,
-    OperatesGripper,
-    ReattachesBranches,
 )
 from cramph.composites import Parallel, Sequence
 from cramph.context import ContextExtension, StatechartContext
@@ -62,7 +57,7 @@ from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, P
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
-from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
+from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.predefined_maps.kitchen_environment import (
     KitchenEnvironment,
@@ -268,69 +263,6 @@ class ReachabilityFromAboveLocation(ReachabilityLocation):
                 yield candidate
 
 
-# %% dropping into a container
-
-
-@dataclass(eq=False, repr=False, kw_only=True)
-class DropAction(
-    MovesToolCenterPoint, OperatesGripper, ReattachesBranches, SequentialAction
-):
-    """
-    Brings a held object over a container and lets go of it, then pulls the hand up.
-    Unlike :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction`, the object
-    never has to touch anything, so collision avoidance keeps it away from everything,
-    the container's rim included.
-    """
-
-    grasp: GraspCandidate
-    """
-    The grasp the object is held by, which also names the object.
-    """
-
-    arm: Arm
-    """
-    The arm that holds the object.
-    """
-
-    release_pose: Pose
-    """
-    Where the object is when the hand lets go of it.
-    """
-
-    retreat_distance: float = 0.15
-    """
-    How far the hand rises after letting go, in meters.
-    """
-
-    def create_steps(self) -> list[StatechartNode]:
-        end_effector = self.arm.end_effector
-        world_T_release = self.world.transform(self.release_pose, self.world.root)
-        world_T_retreat = Pose.from_xyz_rpy(
-            x=float(world_T_release.x),
-            y=float(world_T_release.y),
-            z=float(world_T_release.z) + self.retreat_distance,
-            reference_frame=self.world.root,
-        )
-        return [
-            self.tool_center_point_goal(
-                end_effector.tool_frame_goal_for_grasp(
-                    self.grasp.moved_to(self.release_pose)
-                ),
-                self.arm,
-            ),
-            self.gripper_goal_type.moving_gripper_to(
-                end_effector.default_configuration(GripperState.OPEN)
-            ),
-            *self.reattach(self.grasp.graspable.root, self.world.root),
-            self.tool_center_point_goal(
-                end_effector.tool_frame_goal_for_grasp(
-                    self.grasp.moved_to(world_T_retreat)
-                ),
-                self.arm,
-            ),
-        ]
-
-
 # %% the demonstration
 
 
@@ -348,7 +280,7 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         turn towards passage_spot and drive there, keeping the milk upright
         drive on to the approach spot, keeping the milk upright
         drive on to drop_distance before the trash can and face it
-        bring the milk over the opening, let go of it and pull the hand up
+        bring the milk over the opening, lower it, let go of it and pull the hand up
         park the arm and lower the torso
         put the milk onto the trash can's bottom (kinematic simulation only)
     """
@@ -519,7 +451,9 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         approach_pose = self._compute_standing_pose_before(
             drop_pose, self.approach_distance
         )
-        passage_pose = self._compute_passage_pose(approach_pose)
+        passage_pose = self._compute_floor_pose_facing(
+            np.array([self.passage_spot.x, self.passage_spot.y]), approach_pose
+        )
         # the floor rule comes last: once it is in place, every change of the collision
         # rules takes about a second to record
         self._let_wrist_touch_the_object(arm, milk.root)
@@ -571,7 +505,7 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
                 holding_arms=[arm],
             ),
             FaceAtAction(target=drop_pose),
-            DropAction(grasp=grasp, arm=arm, release_pose=drop_pose),
+            a(PlaceAction)(object_designator=milk, target_location=drop_pose),
             Parallel(
                 nodes=[
                     ParkArmsAction(arms=hsrb.all_arms),
@@ -668,31 +602,22 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         drop_xy = np.array([float(drop_pose.x), float(drop_pose.y)])
         towards_milk = np.array([self.milk_start.x, self.milk_start.y]) - drop_xy
         standing_xy = drop_xy + distance * towards_milk / np.linalg.norm(towards_milk)
-        facing = drop_xy - standing_xy
+        return self._compute_floor_pose_facing(standing_xy, drop_pose)
+
+    @staticmethod
+    def _compute_floor_pose_facing(standing_xy: np.ndarray, target: Pose) -> Pose:
+        """
+        :param standing_xy: Where on the floor the pose lies, as x and y in the frame of
+            `target`.
+        :param target: What the pose faces; only its horizontal position matters.
+        :return: A pose on the floor at `standing_xy` whose x-axis points at `target`.
+        """
+        facing = np.array([float(target.x), float(target.y)]) - standing_xy
         return Pose.from_xyz_rpy(
             x=standing_xy[0],
             y=standing_xy[1],
             yaw=np.arctan2(facing[1], facing[0]),
-            reference_frame=drop_pose.reference_frame,
-        )
-
-    def _compute_passage_pose(self, approach_pose: Pose) -> Pose:
-        """
-        :param approach_pose: Where the robot stops with the milk before the trash can.
-        :return: A pose on the floor at :attr:`passage_spot`, facing `approach_pose`, so
-            the drive on to it needs no turn first.
-        """
-        towards_approach = np.array(
-            [
-                float(approach_pose.x) - self.passage_spot.x,
-                float(approach_pose.y) - self.passage_spot.y,
-            ]
-        )
-        return Pose.from_xyz_rpy(
-            x=self.passage_spot.x,
-            y=self.passage_spot.y,
-            yaw=np.arctan2(towards_approach[1], towards_approach[0]),
-            reference_frame=approach_pose.reference_frame,
+            reference_frame=target.reference_frame,
         )
 
     def _create_grasp_from_above(self, milk: Milk) -> GraspCandidate:
