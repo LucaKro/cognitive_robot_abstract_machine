@@ -92,6 +92,11 @@ class SceneBody(StrEnum):
     The worktop of the kitchen island.
     """
 
+    LIVING_ROOM_FLOOR = "living_room_floor"
+    """
+    The floor of the living room.
+    """
+
     MILK = "milk"
     """
     The milk carton the plan carries, which marks whether the scene was already populated.
@@ -202,7 +207,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     milk_start: SurfaceSpot = field(
         default_factory=lambda: SurfaceSpot(
-            SceneBody.COUNTER, x=2.6, y=-2.05, yaw=-np.pi / 2
+            SceneBody.LIVING_ROOM_FLOOR, x=3.5, y=3.3, yaw=-np.pi / 2
         )
     )
     """
@@ -334,15 +339,15 @@ class LabMilkTransportDemonstration(RobotDemonstration):
                 nodes=[
                     MoveTorsoAction(torso_state=TorsoState.HIGH),
                     ParkArmsAction(arms=robot.all_arms),
-                    NavigateAction(target_location=taking_pose),
-                    PickUpAction(grasp=GraspCandidate(milk, grasp_target), arm=arm),
-                    ParkArmsAction(arms=robot.all_arms),
-                    MoveTorsoAction(torso_state=TorsoState.LOW),
-                    NavigateAction(target_location=self._standing_pose_facing(target)),
-                    MoveTorsoAction(torso_state=TorsoState.HIGH),
-                    PlaceAction(object_designator=milk, target_location=target),
-                    ParkArmsAction(arms=robot.all_arms),
-                    MoveTorsoAction(torso_state=TorsoState.LOW),
+                    # NavigateAction(target_location=taking_pose),
+                    # PickUpAction(grasp=GraspCandidate(milk, grasp_target), arm=arm),
+                    # ParkArmsAction(arms=robot.all_arms),
+                    # MoveTorsoAction(torso_state=TorsoState.LOW),
+                    # NavigateAction(target_location=self._standing_pose_facing(target)),
+                    # MoveTorsoAction(torso_state=TorsoState.HIGH),
+                    # PlaceAction(object_designator=milk, target_location=target),
+                    # ParkArmsAction(arms=robot.all_arms),
+                    # MoveTorsoAction(torso_state=TorsoState.LOW),
                 ]
             )
         )
