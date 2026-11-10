@@ -56,7 +56,7 @@ def test_seat_regions_are_ordered_left_to_right(
     annotator = annotate(SofaSplitAnnotator(), sofa(sofa_width, seat_distance))
 
     left, right = [
-        SeatOccupancyAnnotator.camera_position(region)
+        SeatOccupancyAnnotator.position_in_camera_frame(region)
         for region in created_seat_regions(annotator)
     ]
     assert left[0] < 0 < right[0]
