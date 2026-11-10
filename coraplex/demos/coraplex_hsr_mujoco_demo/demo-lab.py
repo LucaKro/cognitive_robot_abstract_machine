@@ -17,6 +17,7 @@ import numpy as np
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.context_extensions import RobotAccess
 from coraplex.plans.executors import PhysicallySimulatedPlanExecutor
+from coraplex.robot_plans.actions.composite.searching import SearchAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
@@ -197,7 +198,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     robot_start: HomogeneousTransformationMatrix = field(
         default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=2.6, y=-0.9
+            x=1.1, y=2.5
         )
     )
     """
@@ -333,14 +334,15 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         )
         target = self.milk_target.compute_milk_pose(milk.root)
         grasp_target = self.find_grasp_pose(milk.root)
+        search_milk = SearchAction.looking_around(milk.root.global_pose, Milk, context)
         statechart = Statechart(context=context)
         statechart.add_node(
             Sequence(
                 nodes=[
-                    MoveTorsoAction(torso_state=TorsoState.HIGH),
+                    MoveTorsoAction(torso_state=TorsoState.LOW),
                     ParkArmsAction(arms=robot.all_arms),
-                    # NavigateAction(target_location=taking_pose),
-                    # PickUpAction(grasp=GraspCandidate(milk, grasp_target), arm=arm),
+                    search_milk,
+                    PickUpAction(grasp=GraspCandidate(milk, grasp_target), arm=arm),
                     # ParkArmsAction(arms=robot.all_arms),
                     # MoveTorsoAction(torso_state=TorsoState.LOW),
                     # NavigateAction(target_location=self._standing_pose_facing(target)),
