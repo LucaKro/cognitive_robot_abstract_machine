@@ -249,7 +249,8 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     def robot_specification(self) -> RobotSpecification:
         return RobotSpecification(
-            semantic_annotation_type=self.used_robot, world_T_odom=self.robot_start
+            semantic_annotation_type=self.used_robot,
+            odometry_T_robot_start=self.robot_start,
         )
 
     def is_scene_populated(self, world: World) -> bool:
@@ -393,6 +394,7 @@ def main(
     event_segmentation: bool = False,
     debug: bool = False,
     headless: bool = False,
+    scene_joints_movable: bool = False,
 ) -> World:
     """
     Run the demonstration.
@@ -404,6 +406,8 @@ def main(
     :param debug: Whether to run in debug mode, publishing every copy of the world a
         candidate is tried in.
     :param headless: Whether the physics runs without a viewer.
+    :param scene_joints_movable: Whether the joints of the scene, such as those of its doors
+        and drawers, can move, instead of being replaced with fixed connections.
     :return: The world the milk was carried in.
     """
     return LabMilkTransportDemonstration(
@@ -412,6 +416,7 @@ def main(
         event_segmentation=event_segmentation,
         debug=debug,
         headless=headless,
+        scene_joints_movable=scene_joints_movable,
     ).run()
 
 

@@ -37,7 +37,10 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.specifications.robots import RobotSpecification
 from semantic_digital_twin.specifications.worlds import WorldSpecification
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.connections import (
+    ActiveConnection,
+    FixedConnection,
+)
 
 # %% ros session
 
@@ -143,17 +146,10 @@ class RobotDemonstrationRosSession:
 @dataclass
 class RobotDemonstration(ABC):
     """
-    A robot demonstration that runs either in simulation or against a real controller.
-
-    The scene, the map the robot acts in together with the objects the plan acts on, is
-    built the same way for both kinds of run, by :meth:`build_scene`, and holds no robot.
-
-    A real run takes its world, with the robot in it, from the controller and keeps it
-    synchronized, and merges the scene into it unless the controller already holds it,
-    so the scene reaches the controller before the plan needs it. A simulated run puts
-    the robot into the scene instead, and publishes it to Rviz, so its progress can be
-    watched the same way a real run's can. A physically simulated run performs its plan
-    in the physics of :meth:`build_simulation`.
+    A robot demonstration that performs its plan in the scene of :meth:`build_scene`,
+    either against a real controller, whose world the scene is merged into, or in
+    simulation, where the robot is put into the scene. A physically simulated run
+    performs the plan in the physics of :meth:`build_simulation`.
     """
 
     used_robot: type[AbstractRobot]
@@ -195,6 +191,13 @@ class RobotDemonstration(ABC):
 
     Repeating only makes sense for a plan that leaves the scene as it found it, such as
     one carrying an object away and back again.
+    """
+
+    scene_joints_movable: bool = True
+    """
+    Whether the joints of the scene, such as the hinges of its doors and the slides of
+    its drawers, can move. If not, :meth:`build_scene` replaces each of them with a fixed
+    connection holding it where the scene was built with it.
     """
 
     simulation_time_per_action: timedelta | None = None
@@ -308,13 +311,41 @@ class RobotDemonstration(ABC):
     def build_scene(self) -> World:
         """
         Build the scene: the map of :meth:`scene_specification`, populated by
-        :meth:`populate_scene`.
+        :meth:`populate_scene`, with its joints replaced by
+        :meth:`replace_joints_with_fixed_connections` unless
+        :attr:`scene_joints_movable`.
 
         :return: A world holding the scene and no robot.
         """
         scene = self.scene_specification().create_world()
         self.populate_scene(scene)
+        if not self.scene_joints_movable:
+            self.replace_joints_with_fixed_connections(scene)
         return scene
+
+    def replace_joints_with_fixed_connections(self, world: World) -> None:
+        """
+        Replace every joint of ``world``, every connection with a degree of freedom that
+        can be actuated, with a fixed connection of the same name that holds its child
+        where it currently is. Bodies attached by a free connection stay free.
+
+        :param world: The world whose joints are replaced.
+        """
+        joints = world.get_connections_by_type(ActiveConnection)
+        fixed_connections = [
+            FixedConnection(
+                name=joint.name,
+                parent=joint.parent,
+                child=joint.child,
+                parent_T_connection_expression=joint.origin,
+            )
+            for joint in joints
+        ]
+        with world.modify_world():
+            for joint in joints:
+                world.remove_connection(joint)
+            for fixed_connection in fixed_connections:
+                world.add_connection(fixed_connection)
 
     def build_simulated_world(self) -> World:
         """
