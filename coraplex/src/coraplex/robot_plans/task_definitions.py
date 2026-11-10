@@ -14,9 +14,27 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
 
 
 @dataclass(eq=False)
+class Step:
+    """
+    One part of a command that is performed within a single room, such as picking up the
+    milk in the kitchen.
+    """
+
+    rooms: set[type[Room]]
+    """
+    The kinds of room this step may be performed in.
+    """
+
+    actions: list[Action]
+    """
+    The actions of this step, in execution order.
+    """
+
+
+@dataclass(eq=False)
 class Command:
     """
-    One command, such as "bring the milk to the living room", split into the actions it
+    One command, such as "bring the milk to the living room", split into the steps it
     performs room by room.
     """
 
@@ -25,14 +43,7 @@ class Command:
     What the goal of this task is, e.g. ``"bring the milk to the living room"``.
     """
 
-    rooms: list[set[type[Room]]]
+    steps: list[Step]
     """
-    The kinds of room the task is performed in, one entry per step and in the order of
-    the steps; each entry holds the kinds of room that step may be performed in.
-    """
-
-    actions: list[list[Action]]
-    """
-    The actions of each step, in execution order: ``actions[i]`` is performed in one of
-    the rooms in ``rooms[i]``.
+    The steps of this command, in the order they are performed.
     """
