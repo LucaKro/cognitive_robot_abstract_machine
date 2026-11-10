@@ -8,6 +8,9 @@ from krrood.adapters.json_serializer import SubclassJSONSerializer
 from krrood.ormatic.ormatic import ORMatic
 from krrood.ormatic.utils import classes_of_module
 
+import coraplex.robot_plans.task_definitions
+import coraplex.robot_plans.transformation_by_room
+
 # ----------------------------------------------------------------------------------------------------------------------
 # This script generates the ORM classes for the coraplex package
 # ----------------------------------------------------------------------------------------------------------------------
@@ -16,6 +19,9 @@ from krrood.ormatic.utils import classes_of_module
 ignored_classes = set(classes_of_module(coraplex.locations.costmaps))
 # profiling and benchmarking measure a running system instead of describing it
 ignored_classes |= {SubclassJSONSerializer}
+# GPSR tasks and room visits only plan a run and are never stored
+ignored_classes |= set(classes_of_module(coraplex.robot_plans.task_definitions))
+ignored_classes |= set(classes_of_module(coraplex.robot_plans.transformation_by_room))
 
 dependencies = [giskardpy.orm.ormatic_interface]
 

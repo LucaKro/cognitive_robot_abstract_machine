@@ -9,9 +9,11 @@ from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
     from coraplex.robot_plans.actions.base import Action
+    from coraplex.robot_plans.task_definitions import Command
     from cramph.node import StatechartNode
     from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
     from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+    from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
     from semantic_digital_twin.world_description.world_entity import (
         SemanticAnnotation,
     )
@@ -389,3 +391,64 @@ class NotOnASingleLevelException(DataclassException):
 
     def suggest_correction(self) -> str:
         return f"Move the robot to a recognized level"
+
+
+# %% transformation by rooms
+
+
+@dataclass
+class MissingTasksOrRooms(DataclassException):
+    """
+    Raised when the steps of tasks are to be ordered into room visits, but there are no
+    tasks or no rooms to perform their steps in.
+    """
+
+    commands: list[Command]
+    """
+    The tasks that were to be ordered.
+    """
+
+    rooms: list[type[Room]]
+    """
+    The rooms the steps were allowed to be performed in.
+    """
+
+    def error_message(self) -> str:
+        if len(self.commands) == 0:
+            return "No tasks were given, so there is nothing to plan room visits for."
+        return (
+            "No rooms were given, so none of the steps of the "
+            f"{len(self.commands)} tasks can be performed anywhere."
+        )
+
+    def suggest_correction(self) -> str:
+        if len(self.commands) == 0:
+            return "Pass at least one task."
+        return "Give every step of every task at least one room it may be performed in."
+
+
+@dataclass
+class NoRoomVisitOrderFound(DataclassException):
+    """
+    Raised when the solver finds no order of room visits that performs every step of the
+    given tasks.
+    """
+
+    commands: list[Command]
+    """
+    The tasks that were to be ordered.
+    """
+
+    search_time_limit: float
+    """
+    How long the solver was allowed to search, in seconds.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"No order of room visits performs every step of the {len(self.commands)} "
+            f"tasks within {self.search_time_limit} seconds."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Give every step at least one allowed room, or raise the time limit."
