@@ -11,12 +11,13 @@ Run it from this folder, with ROS 2 and the ROS workspace sourced::
 
 from __future__ import annotations
 
-import throw_trash_rviz_demo as demo
 import numpy as np
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Milk,
     TrashCan,
 )
+
+import throw_trash_rviz_demo as demo
 
 # %% checking where the milk ends up
 

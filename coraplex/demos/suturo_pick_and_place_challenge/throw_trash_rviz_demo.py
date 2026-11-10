@@ -345,7 +345,8 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         turn to and look at search_spot, then detect the milk
         drive to where the milk can be reached, take it from above and lift it
         bring the milk upright in front of the base, as high as it is dropped from
-        turn towards the approach spot and drive there, keeping the milk upright
+        turn towards passage_spot and drive there, keeping the milk upright
+        drive on to the approach spot, keeping the milk upright
         drive on to drop_distance before the trash can and face it
         bring the milk over the opening, let go of it and pull the hand up
         park the arm and lower the torso
@@ -393,6 +394,13 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     search_spot: FloorSpot = field(default_factory=lambda: FloorSpot(x=1.7, y=4.6))
     """
     The spot on the floor the robot looks at to find the milk.
+    """
+
+    passage_spot: FloorSpot = field(default_factory=lambda: FloorSpot(x=1.7, y=3.3))
+    """
+    Where the robot passes with the milk from the bedroom into the living room, south of
+    the wall between the bedroom and the office, which a drive straight to the trash can
+    would run along.
     """
 
     approach_distance: float = 1.0
@@ -511,7 +519,9 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         approach_pose = self._compute_standing_pose_before(
             drop_pose, self.approach_distance
         )
-        # the floor rule makes every later change of the rules slow to record
+        passage_pose = self._compute_passage_pose(approach_pose)
+        # the floor rule comes last: once it is in place, every change of the collision
+        # rules takes about a second to record
         self._let_wrist_touch_the_object(arm, milk.root)
         self._let_robot_touch_the_floor(hsrb)
 
@@ -543,12 +553,15 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
                 end_effector=arm.end_effector,
                 allow_gripper_collision=False,
             ),
-            FaceAtAction(target=approach_pose),
+            FaceAtAction(target=passage_pose),
+            CarryAction(
+                navigate=NavigateAction(target_location=passage_pose),
+                holding_arms=[arm],
+            ),
             CarryAction(
                 navigate=NavigateAction(target_location=approach_pose),
                 holding_arms=[arm],
             ),
-            # MoveTorsoAction(torso_state=TorsoState.HIGH),
             CarryAction(
                 navigate=NavigateAction(
                     target_location=self._compute_standing_pose_before(
@@ -661,6 +674,25 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
             y=standing_xy[1],
             yaw=np.arctan2(facing[1], facing[0]),
             reference_frame=drop_pose.reference_frame,
+        )
+
+    def _compute_passage_pose(self, approach_pose: Pose) -> Pose:
+        """
+        :param approach_pose: Where the robot stops with the milk before the trash can.
+        :return: A pose on the floor at :attr:`passage_spot`, facing `approach_pose`, so
+            the drive on to it needs no turn first.
+        """
+        towards_approach = np.array(
+            [
+                float(approach_pose.x) - self.passage_spot.x,
+                float(approach_pose.y) - self.passage_spot.y,
+            ]
+        )
+        return Pose.from_xyz_rpy(
+            x=self.passage_spot.x,
+            y=self.passage_spot.y,
+            yaw=np.arctan2(towards_approach[1], towards_approach[0]),
+            reference_frame=approach_pose.reference_frame,
         )
 
     def _create_grasp_from_above(self, milk: Milk) -> GraspCandidate:
