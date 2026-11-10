@@ -355,7 +355,6 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         )
         target = trash_can.root.global_pose
         grasp_target = self.find_grasp_pose(milk.root)
-        search_trash_can = SearchAction.looking_around(trash_can.root.global_pose, TrashCan, context)
         statechart = Statechart(context=context)
         statechart.add_node(
             Sequence(
@@ -365,14 +364,10 @@ class LabMilkTransportDemonstration(RobotDemonstration):
                     NavigateAction(target_location=taking_pose),
                     PickUpAction(grasp=GraspCandidate(milk, grasp_target), arm=arm),
                     ParkArmsAction(arms=robot.all_arms),
-                    NavigateAction(target_location=target),
-                    # search_trash_can,
-                    # NavigateAction(target_location=self._standing_pose_facing(trash_can.root.global_pose)),
-                    # FaceAtAction(target=target),
-                    # MoveTorsoAction(torso_state=TorsoState.HIGH),
+                    NavigateAction(target_location=self._standing_pose_facing(target)),
+                    # MoveTorsoAction(torso_state=TorsoState.MID),
                     # PlaceAction(object_designator=milk, target_location=target),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # MoveTorsoAction(torso_state=TorsoState.LOW),
+                    # ParkArmsAction(arms=robot.all_arms)
                 ]
             )
         )
