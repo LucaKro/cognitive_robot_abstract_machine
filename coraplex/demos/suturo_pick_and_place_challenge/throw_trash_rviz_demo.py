@@ -10,6 +10,7 @@ Run it from this folder, with ROS 2 and the ROS workspace sourced::
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -235,6 +236,36 @@ class DrivingKinematicallySimulatedPlanExecutor(KinematicallySimulatedPlanExecut
     """
     No plan transformations, so that no drive is replaced by setting the base's pose.
     """
+
+
+# %% standing to reach down onto an object
+
+
+@dataclass
+class ReachabilityFromAboveLocation(ReachabilityLocation):
+    """
+    Where the robot can stand to reach down onto a target on the floor: like
+    :class:`~coraplex.locations.locations.ReachabilityLocation`, but never closer to
+    the target than :attr:`minimum_distance`, from where the hand cannot turn to point
+    down onto it.
+    """
+
+    minimum_distance: float = field(default=0.4, kw_only=True)
+    """
+    How close to the target, along the floor, the robot may stand at the least, in
+    meters.
+    """
+
+    def candidates(self) -> Iterator[Pose]:
+        """
+        Unlike :meth:`ReachabilityLocation.candidates`, leaves out the poses closer to
+        the target than :attr:`minimum_distance`.
+        """
+        target = self._in_world(self.target_pose).position.to_np()[:2]
+        for candidate in super().candidates():
+            offset = candidate.position.to_np()[:2] - target
+            if np.linalg.norm(offset) >= self.minimum_distance:
+                yield candidate
 
 
 # %% dropping into a container
@@ -480,8 +511,9 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         approach_pose = self._compute_standing_pose_before(
             drop_pose, self.approach_distance
         )
-        self._let_robot_touch_the_floor(hsrb)
+        # the floor rule makes every later change of the rules slow to record
         self._let_wrist_touch_the_object(arm, milk.root)
+        self._let_robot_touch_the_floor(hsrb)
 
         grasp = self._create_grasp_from_above(milk)
         milk_pose = Pose(reference_frame=milk.root)
@@ -597,7 +629,9 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         """
         return variable(
             Pose,
-            domain=ReachabilityLocation(target_pose=target, arm=arm, context=context),
+            domain=ReachabilityFromAboveLocation(
+                target_pose=target, arm=arm, context=context
+            ),
         )
 
     @staticmethod
