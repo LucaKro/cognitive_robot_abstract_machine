@@ -1,13 +1,21 @@
+from __future__ import annotations
+
 import os
 
 import pytest
+from robokudo.descriptors.camera_configs.config_hsr import HsrCameraConfig
 from robokudo.descriptors.camera_configs.config_mongodb_playback import (
     MongoCameraConfig,
 )
-from robokudo.io.storage_reader_interface import StorageReaderInterface
 from robokudo.descriptors.factories.cr_descriptor_factory import (
     CollectionReaderDescriptorFactory,
 )
+from robokudo.io.camera_interface import KinectCameraInterface
+from robokudo.io.storage_reader_interface import StorageReaderInterface
+from typing_extensions import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rclpy.node import Node
 
 
 class TestCrDescriptorFactory(object):
@@ -66,3 +74,14 @@ class TestCrDescriptorFactory(object):
             CollectionReaderDescriptorFactory.create_descriptor(
                 "mongo", invalid_config_key="any_value"
             )
+
+    def test_cr_descriptor_factory_creates_hsr_descriptor(self, node: Node) -> None:
+        """
+        Test for creating a HSR descriptor.
+        """
+        descriptor = CollectionReaderDescriptorFactory.create_descriptor(
+            HsrCameraConfig.registry_name
+        )
+
+        assert type(descriptor.parameters.camera_config) == HsrCameraConfig
+        assert type(descriptor.parameters.camera_interface) == KinectCameraInterface
