@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from robokudo.annotators.human_standing import HumanActivity
+from robokudo.annotators.gpsr.sitting import HumanPosture
 from robokudo.annotators.outputs import AnnotatorOutputStruct
 from robokudo.annotators.seat_detection import SeatDetection
 from robokudo.annotators.seat_occupancy import OccupancyMarking, SeatOccupancyAnnotator
@@ -59,7 +59,7 @@ def test_standing_human_leaves_seat_free(seat_distance: float) -> None:
     A standing human at a seat leaves it free.
     """
     chair = located(seat(), x=0.0, z=seat_distance)
-    person = located(human(HumanActivity.STANDING), x=0.0, z=seat_distance)
+    person = located(human(HumanPosture.STANDING), x=0.0, z=seat_distance)
 
     annotate(SeatOccupancyAnnotator(), chair, person)
 
@@ -75,7 +75,7 @@ def test_distant_human_leaves_seat_free(
     """
     chair = located(seat(), x=0.0, z=seat_distance)
     person = located(
-        human(HumanActivity.SITTING),
+        human(HumanPosture.SITTING),
         x=parameters.maximum_occupant_distance * 2,
         z=seat_distance,
     )
@@ -91,7 +91,7 @@ def test_unlocated_human_leaves_seat_free(seat_distance: float) -> None:
     """
     chair = located(seat(), x=0.0, z=seat_distance)
 
-    annotate(SeatOccupancyAnnotator(), chair, human(HumanActivity.SITTING))
+    annotate(SeatOccupancyAnnotator(), chair, human(HumanPosture.SITTING))
 
     assert occupancies(chair) == [False]
 
@@ -114,7 +114,7 @@ def test_standing_overrules_sitting(seat_distance: float) -> None:
     """
     chair = located(seat(), x=0.0, z=seat_distance)
     person = located(
-        human(HumanActivity.STANDING, HumanActivity.SITTING), x=0.0, z=seat_distance
+        human(HumanPosture.STANDING, HumanPosture.SITTING), x=0.0, z=seat_distance
     )
 
     annotate(SeatOccupancyAnnotator(), chair, person)
@@ -133,7 +133,7 @@ def test_sitting_human_occupies_seat(
     """
     chair = located(seat(), x=0.0, z=seat_distance)
     person = located(
-        human(HumanActivity.SITTING),
+        human(HumanPosture.SITTING),
         x=parameters.maximum_occupant_distance / 2,
         z=seat_distance,
     )
@@ -153,7 +153,7 @@ def test_human_occupies_only_the_close_seat(
     free_chair = located(
         seat(), x=parameters.maximum_occupant_distance * 3, z=seat_distance
     )
-    person = located(human(HumanActivity.SITTING), x=0.0, z=seat_distance)
+    person = located(human(HumanPosture.SITTING), x=0.0, z=seat_distance)
 
     annotate(SeatOccupancyAnnotator(), occupied_chair, free_chair, person)
 
@@ -229,7 +229,7 @@ def test_seat_region_is_annotated_like_a_seat(seat_distance: float) -> None:
     """
     occupied_region = seat_region(x=-1.0, z=seat_distance)
     free_region = seat_region(x=1.0, z=seat_distance)
-    person = located(human(HumanActivity.SITTING), x=-1.0, z=seat_distance)
+    person = located(human(HumanPosture.SITTING), x=-1.0, z=seat_distance)
 
     annotate(SeatOccupancyAnnotator(), occupied_region, free_region, person)
 
@@ -277,7 +277,7 @@ def test_split_sofa_has_one_free_seat_beside_a_sitting_human(
     annotate_in_order(
         [SofaSplitAnnotator(), occupancy],
         sofa(sofa_width, seat_distance),
-        located(human(HumanActivity.SITTING), x=-sofa_width / 4, z=seat_distance),
+        located(human(HumanPosture.SITTING), x=-sofa_width / 4, z=seat_distance),
     )
 
     assert [occupancies(region) for region in created_seat_regions(occupancy)] == [
@@ -308,7 +308,7 @@ def test_occupied_seat_is_marked_as_occupied(seat_distance: float) -> None:
     annotator = annotate(
         SeatOccupancyAnnotator(),
         located(seat(), x=0.0, z=seat_distance),
-        located(human(HumanActivity.SITTING), x=0.0, z=seat_distance),
+        located(human(HumanPosture.SITTING), x=0.0, z=seat_distance),
     )
 
     image = annotator.get_annotator_output_struct().image

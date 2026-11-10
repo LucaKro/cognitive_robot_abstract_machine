@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing_extensions import TYPE_CHECKING
 
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
+from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
 from robokudo.annotators.query import QueryAnnotator
 from robokudo.annotators.seat_occupancy import (
     SeatOccupancyAnnotator,
@@ -38,6 +39,24 @@ def test_humans_are_only_detected_with_body_keypoints(node: Node) -> None:
     ]
     parameters = object_detection.descriptor.parameters
     assert parameters.person_class_name in parameters.ignored_class_names
+
+
+# %% posture
+
+
+def test_knee_at_hip_height_counts_as_sitting(node: Node) -> None:
+    """
+    The sitting rule of the pipeline also decides persons with hidden ankles, whose
+    knees are at hip height, as sitting.
+    """
+    pipeline = AnalysisEngine().implementation()
+
+    (sitting_rule,) = [
+        behaviour
+        for behaviour in pipeline.iterate()
+        if isinstance(behaviour, HumanSittingAnnotator)
+    ]
+    assert sitting_rule.descriptor.parameters.knee_at_hip_height_is_sitting
 
 
 # %% query answering

@@ -19,7 +19,7 @@ from robokudo_msgs.msg import ObjectDesignator
 from typing_extensions import TYPE_CHECKING
 
 from robokudo.annotators.core import BaseAnnotator
-from robokudo.annotators.human_standing import HumanActivity
+from robokudo.annotators.gpsr.sitting import HumanPosture
 from robokudo.annotators.seat_detection import SeatDetection, SeatRegion
 from robokudo.cas import CAS, CASViews
 from robokudo.types.annotation import PositionAnnotation
@@ -249,9 +249,9 @@ class SeatOccupancyAnnotator(BaseAnnotator):
             activity.type
             for activity in CAS.filter_by_type(ActivityAnnotation, human.annotations)
         }
-        if HumanActivity.STANDING in activities:
+        if HumanPosture.STANDING in activities:
             return False
-        if HumanActivity.SITTING in activities:
+        if HumanPosture.SITTING in activities:
             return True
         return self.descriptor.parameters.unclear_posture_occupies
 

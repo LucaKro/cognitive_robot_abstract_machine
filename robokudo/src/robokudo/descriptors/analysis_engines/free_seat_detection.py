@@ -13,9 +13,9 @@ from __future__ import annotations
 from robokudo.analysis_engine import AnalysisEngineInterface
 from robokudo.annotators.cluster_position import ClusterPositionAnnotator
 from robokudo.annotators.collection_reader import CollectionReaderAnnotator
+from robokudo.annotators.gpsr.sitting import HumanSittingAnnotator
+from robokudo.annotators.gpsr.standing import HumanStandingAnnotator
 from robokudo.annotators.human_and_pose import HumanAndPoseAnnotator
-from robokudo.annotators.human_sitting import HumanSittingAnnotator
-from robokudo.annotators.human_standing import HumanStandingAnnotator
 from robokudo.annotators.image_preprocessor import ImagePreprocessorAnnotator
 from robokudo.annotators.query import QueryAnnotator
 from robokudo.annotators.seat_occupancy import (
@@ -72,6 +72,9 @@ class AnalysisEngine(AnalysisEngineInterface):
         human_descriptor = HumanAndPoseAnnotator.Descriptor()
         human_descriptor.parameters.global_with_depth = True
 
+        sitting_descriptor = HumanSittingAnnotator.Descriptor()
+        sitting_descriptor.parameters.knee_at_hip_height_is_sitting = True
+
         seq = Pipeline("FreeSeatDetectionPipeline")
         seq.add_children(
             [
@@ -83,7 +86,7 @@ class AnalysisEngine(AnalysisEngineInterface):
                 HumanAndPoseAnnotator(descriptor=human_descriptor),
                 ClusterPositionAnnotator(),
                 HumanStandingAnnotator(),
-                HumanSittingAnnotator(),
+                HumanSittingAnnotator(descriptor=sitting_descriptor),
                 SofaSplitAnnotator(),
                 SeatOccupancyAnnotator(),
                 SeatQueryAnswerAnnotator(),

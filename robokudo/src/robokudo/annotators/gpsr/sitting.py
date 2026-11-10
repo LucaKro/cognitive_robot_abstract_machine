@@ -54,7 +54,8 @@ class HumanSittingAnnotator(BaseAnnotator):
 
     A body side sits when its keypoints are reliable, knee below hip and ankle below knee,
     with a short hip to knee drop and a long knee to ankle drop relative to the vertical
-    extent of the side. One sitting side is enough.
+    extent of the side. One sitting side is enough, and so is :meth:`knee_is_at_hip_height`
+    if :attr:`Descriptor.Parameters.knee_at_hip_height_is_sitting` is set.
     """
 
     class Descriptor(BaseAnnotator.Descriptor):
@@ -101,6 +102,21 @@ class HumanSittingAnnotator(BaseAnnotator):
                 """
                 Smallest vertical extent of hip, knee and ankle in the image for which a
                 body side is decided, in pixels.
+                """
+                self.knee_at_hip_height_is_sitting: bool = False
+                """
+                Whether a person also sits when :meth:`knee_is_at_hip_height`, which
+                needs no visible ankle.
+                """
+                self.minimum_torso_height: float = 20
+                """
+                Smallest vertical distance of a hip below the shoulders, in pixels, for
+                which :meth:`knee_is_at_hip_height` judges its leg.
+                """
+                self.maximum_knee_drop_ratio: float = 0.55
+                """
+                Largest vertical distance of a knee below its hip, relative to the
+                vertical distance of the hip below the shoulders, of a sitting person.
                 """
 
         parameters = (
@@ -180,6 +196,11 @@ class HumanSittingAnnotator(BaseAnnotator):
         """
         parameters = self.descriptor.parameters
         confidence_threshold = parameters.keypoint_confidence_threshold
+
+        if parameters.knee_at_hip_height_is_sitting and self.knee_is_at_hip_height(
+            image_keypoints
+        ):
+            return True
 
         left_hip = image_keypoints.keypoints[PoseKeypoint.LEFT_HIP]
         left_knee = image_keypoints.keypoints[PoseKeypoint.LEFT_KNEE]
@@ -266,4 +287,43 @@ class HumanSittingAnnotator(BaseAnnotator):
                         left_hip, left_knee, left_ankle
                     ) or side_is_sitting(right_hip, right_knee, right_ankle)
 
+        return False
+
+    def knee_is_at_hip_height(self, image_keypoints: KeypointAnnotation) -> bool:
+        """
+        :param image_keypoints: The image keypoints of one person.
+        :return: Whether a shoulder and a hip with its knee are reliable and the knee is
+            not farther below the hip than
+            :attr:`Descriptor.Parameters.maximum_knee_drop_ratio` of the torso height.
+        """
+        parameters = self.descriptor.parameters
+        confidence_threshold = parameters.keypoint_confidence_threshold
+        keypoints = image_keypoints.keypoints
+
+        reliable_shoulders = [
+            shoulder
+            for shoulder in (
+                keypoints[PoseKeypoint.LEFT_SHOULDER],
+                keypoints[PoseKeypoint.RIGHT_SHOULDER],
+            )
+            if shoulder.confidence >= confidence_threshold
+        ]
+        if not reliable_shoulders:
+            return False
+        shoulder_y = sum(shoulder.y for shoulder in reliable_shoulders) / len(
+            reliable_shoulders
+        )
+
+        for hip, knee in (
+            (keypoints[PoseKeypoint.LEFT_HIP], keypoints[PoseKeypoint.LEFT_KNEE]),
+            (keypoints[PoseKeypoint.RIGHT_HIP], keypoints[PoseKeypoint.RIGHT_KNEE]),
+        ):
+            torso_height = hip.y - shoulder_y
+            if (
+                min(hip.confidence, knee.confidence) < confidence_threshold
+                or torso_height < parameters.minimum_torso_height
+            ):
+                continue
+            if (knee.y - hip.y) / torso_height <= parameters.maximum_knee_drop_ratio:
+                return True
         return False

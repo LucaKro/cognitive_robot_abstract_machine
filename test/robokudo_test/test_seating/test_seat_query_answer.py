@@ -17,7 +17,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_parts import Camera
 from semantic_digital_twin.world_description.world_entity import Body
 
-from robokudo.annotators.human_standing import HumanActivity
+from robokudo.annotators.gpsr.sitting import HumanPosture
 from robokudo.annotators.seat_occupancy import (
     SeatFurniture,
     SeatQueryAnswerAnnotator,
@@ -157,7 +157,7 @@ def test_only_annotated_seats_are_reported(
     Seats without an occupancy, such as those beyond reach, and humans are not reported.
     """
     unannotated_chair = located(seat(), x=0.0, z=seat_distance)
-    person = located(human(HumanActivity.SITTING), x=0.0, z=seat_distance)
+    person = located(human(HumanPosture.SITTING), x=0.0, z=seat_distance)
 
     answer = answer_query(camera_observation, unannotated_chair, person)
 

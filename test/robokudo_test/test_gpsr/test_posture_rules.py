@@ -347,6 +347,190 @@ def test_shins_shorter_than_the_least_knee_to_ankle_drop_are_not_sitting(
     assert scene.decide_activities(annotator, posture.keypoint_annotation()) == []
 
 
+# %% sitting with the knee at hip height
+
+
+@pytest.fixture
+def knee_rule_annotator() -> HumanSittingAnnotator:
+    """
+    :return: A sitting rule that also counts a knee at hip height as sitting.
+    """
+    annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
+    annotator.descriptor.parameters.knee_at_hip_height_is_sitting = True
+    return annotator
+
+
+def sitting_without_ankles(annotator: HumanSittingAnnotator) -> BodyPosture:
+    """
+    :param annotator: The sitting rule.
+    :return: The sitting person with both ankles below the trusted confidence.
+    """
+    return BodyPosture.sitting().with_confidence(
+        unreliable_confidence(annotator),
+        PoseKeypoint.LEFT_ANKLE,
+        PoseKeypoint.RIGHT_ANKLE,
+    )
+
+
+def sitting_without_ankles_with_knee_drop(
+    annotator: HumanSittingAnnotator, knee_drop_ratio: float
+) -> BodyPosture:
+    """
+    :param annotator: The sitting rule.
+    :param knee_drop_ratio: How far the knees are below the hips, relative to the
+        vertical distance of the hips below the shoulders.
+    :return: The sitting person without ankles and with both knees at that drop.
+    """
+    posture = sitting_without_ankles(annotator)
+    hip_y = posture.keypoints[PoseKeypoint.LEFT_HIP].y
+    torso_height = hip_y - posture.keypoints[PoseKeypoint.LEFT_SHOULDER].y
+    return posture.moved_to_height(
+        hip_y + knee_drop_ratio * torso_height,
+        PoseKeypoint.LEFT_KNEE,
+        PoseKeypoint.RIGHT_KNEE,
+    )
+
+
+def test_knee_at_hip_height_sits_without_ankles(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    With the knee rule, a person with hidden ankles and the knees at hip height sits.
+    """
+    posture = sitting_without_ankles(knee_rule_annotator)
+
+    assert scene.decide_activities(
+        knee_rule_annotator, posture.keypoint_annotation()
+    ) == ["sitting"]
+
+
+def test_knee_rule_is_off_by_default(scene: GpsrScene) -> None:
+    """
+    Without the knee rule, a person with hidden ankles is not decided as sitting.
+    """
+    annotator = HumanSittingAnnotator(descriptor=HumanSittingAnnotator.Descriptor())
+    posture = sitting_without_ankles(annotator)
+
+    assert scene.decide_activities(annotator, posture.keypoint_annotation()) == []
+
+
+def test_knees_above_the_hips_sit_by_the_knee_rule(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    With the knee rule, knees slightly above the hips sit.
+    """
+    posture = sitting_without_ankles_with_knee_drop(knee_rule_annotator, -0.2)
+
+    assert scene.decide_activities(
+        knee_rule_annotator, posture.keypoint_annotation()
+    ) == ["sitting"]
+
+
+def test_knees_at_the_largest_knee_drop_sit_by_the_knee_rule(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    With the knee rule, knees exactly the largest knee drop below the hips sit.
+    """
+    largest_drop = knee_rule_annotator.descriptor.parameters.maximum_knee_drop_ratio
+    posture = sitting_without_ankles_with_knee_drop(knee_rule_annotator, largest_drop)
+
+    assert scene.decide_activities(
+        knee_rule_annotator, posture.keypoint_annotation()
+    ) == ["sitting"]
+
+
+def test_knees_beyond_the_largest_knee_drop_do_not_sit_by_the_knee_rule(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    With the knee rule, knees farther below the hips than the largest knee drop do not
+    sit.
+    """
+    largest_drop = knee_rule_annotator.descriptor.parameters.maximum_knee_drop_ratio
+    posture = sitting_without_ankles_with_knee_drop(
+        knee_rule_annotator, largest_drop + 0.01
+    )
+
+    assert (
+        scene.decide_activities(knee_rule_annotator, posture.keypoint_annotation())
+        == []
+    )
+
+
+def test_one_shoulder_is_enough_for_the_knee_rule(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    The knee rule judges the torso on the one reliable shoulder.
+    """
+    posture = sitting_without_ankles(knee_rule_annotator).with_confidence(
+        unreliable_confidence(knee_rule_annotator), PoseKeypoint.LEFT_SHOULDER
+    )
+
+    assert scene.decide_activities(
+        knee_rule_annotator, posture.keypoint_annotation()
+    ) == ["sitting"]
+
+
+def test_knee_rule_needs_a_shoulder(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    Without a reliable shoulder, the knee rule does not decide a person as sitting.
+    """
+    posture = sitting_without_ankles(knee_rule_annotator).with_confidence(
+        unreliable_confidence(knee_rule_annotator),
+        PoseKeypoint.LEFT_SHOULDER,
+        PoseKeypoint.RIGHT_SHOULDER,
+    )
+
+    assert (
+        scene.decide_activities(knee_rule_annotator, posture.keypoint_annotation())
+        == []
+    )
+
+
+def test_knee_rule_skips_a_too_short_torso(
+    scene: GpsrScene, knee_rule_annotator: HumanSittingAnnotator
+) -> None:
+    """
+    The knee rule does not judge a leg whose hip is less than the smallest torso height
+    below the shoulders.
+    """
+    posture = sitting_without_ankles(knee_rule_annotator)
+    hip_y = posture.keypoints[PoseKeypoint.LEFT_HIP].y
+    smallest_torso = knee_rule_annotator.descriptor.parameters.minimum_torso_height
+    posture = posture.moved_to_height(
+        hip_y - smallest_torso / 2,
+        PoseKeypoint.LEFT_SHOULDER,
+        PoseKeypoint.RIGHT_SHOULDER,
+    )
+
+    assert (
+        scene.decide_activities(knee_rule_annotator, posture.keypoint_annotation())
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "posture", [BodyPosture.standing, BodyPosture.lying], ids=["standing", "lying"]
+)
+def test_person_in_another_posture_does_not_sit_by_the_knee_rule(
+    scene: GpsrScene,
+    knee_rule_annotator: HumanSittingAnnotator,
+    posture: Callable[[], BodyPosture],
+) -> None:
+    """
+    With the knee rule, a standing or lying person is still not sitting.
+    """
+    assert (
+        scene.decide_activities(knee_rule_annotator, posture().keypoint_annotation())
+        == []
+    )
+
+
 # %% lying
 
 

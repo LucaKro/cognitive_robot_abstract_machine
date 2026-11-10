@@ -11,7 +11,7 @@ import open3d
 from py_trees.common import Status
 
 from robokudo.annotators.core import BaseAnnotator
-from robokudo.annotators.human_standing import HumanActivity
+from robokudo.annotators.gpsr.sitting import HumanPosture
 from robokudo.annotators.seat_detection import SeatDetection, SeatRegion
 from robokudo.annotators.sofa_split import SofaSplitAnnotator
 from robokudo.cas import CAS, CASViews
@@ -106,7 +106,7 @@ def seat_region(x: float, z: float) -> SeatRegion:
     return region
 
 
-def human(*activities: HumanActivity) -> HumanHypothesis:
+def human(*activities: HumanPosture) -> HumanHypothesis:
     """
     :param activities: The activities the human is annotated with; none for a human
         whose posture is unclear.
