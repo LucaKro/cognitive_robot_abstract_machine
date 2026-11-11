@@ -70,6 +70,7 @@ did not finish is refused rather than averaged in, so leave it out and say so in
 | --- | --- | --- | --- |
 | `classes` | whether the objects and their classes are right | parts found, class accuracy, class-hierarchy F1 | yes |
 | `part_whole` | whether the part hierarchy is right | part-whole precision, recall and F1, representable recall, whole-chain F1, part-whole with classes F1 | yes |
+| `connectivity` | whether the pairs of parts within each annotated object are related as annotated, as Articulate3D judges connectivity graphs | pairs within objects right, objects entirely right | yes |
 | `answers` | what the model's answers about wholes add | part-whole F1 as answered and with every question answered by its first candidate, how the questions that may be answered with none came out | the runs' answers judged |
 | `structure` | how much a method asserted, whether right or not | labels mapped, new classes, bodies annotated, bodies mounted, mounts accepted | no |
 | `effort` | what was asked of the model and how long it took | questions, corrected and unusable answers, thousand tokens, cost, model and total minutes | no |

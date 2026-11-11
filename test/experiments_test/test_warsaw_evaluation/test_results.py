@@ -33,6 +33,7 @@ from experiments.warsaw.articulate3d.run_answers import (
 from experiments.warsaw.articulate3d.score import (
     ClassAgreement,
     ClassVerdict,
+    ConnectivityAgreement,
     FaceCorrespondence,
     JudgedAttachment,
     JudgedClass,
@@ -47,6 +48,7 @@ from experiments.warsaw.evaluation.results import (
     AnswersResult,
     BaselineGroup,
     ClassResult,
+    ConnectivityResult,
     EffortResult,
     PartWholeResult,
     ModelUse,
@@ -668,6 +670,22 @@ def test_the_relations_the_ontology_can_hold_are_reported_apart(runs_directory):
     )
 
 
+def test_the_pairs_within_each_object_are_reported_as_articulate3d_judges_them(
+    runs_directory,
+):
+    links = LinkAgreement([attachment(correct=False)])
+
+    row = ConnectivityResult.of(
+        group_of(scored(written_run(runs_directory, "one"), links=links))
+    )
+
+    connectivity = ConnectivityAgreement.from_links(links)
+    assert (row.part_pair_accuracy, row.object_accuracy) == (
+        connectivity.pair_accuracy.value,
+        connectivity.object_accuracy.value,
+    )
+
+
 def test_a_run_s_answers_are_set_against_its_first_candidates(runs_directory):
     row = AnswersResult.of(
         group_of(answered(written_run(runs_directory, "one"), answers_right=True))
@@ -780,6 +798,18 @@ def test_scored_runs_are_also_given_the_tables_of_their_scores(
         "runs_classes",
         "runs_part_whole",
     } <= tables_in(output)
+
+
+def test_scored_runs_are_given_a_table_of_the_pairs_within_each_object(
+    runs_directory, tmp_path
+):
+    output = tmp_path / "tables"
+
+    ResultTables(comparison_of(scored(written_run(runs_directory, "one")))).write(
+        output
+    )
+
+    assert {"conditions_connectivity", "runs_connectivity"} <= tables_in(output)
 
 
 def test_runs_whose_answers_were_judged_are_given_a_table_of_them(

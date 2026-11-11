@@ -118,6 +118,8 @@ so a misclassified body is still found and counted as a misclassification.
 | representable recall | of those, the ones the run made |
 | whole-chain precision / recall | partial credit for a part hung on the right branch, such as a handle hung from its door rather than from the plate on it |
 | part-whole with classes precision / recall | relations made with both ends given exactly their class, out of the relations whose ends' classes are judged |
+| pairs within objects right | pairs of parts within one annotated object that the run relates as annotated: one the whole of the other, the same way round, or neither; Articulate3D's edge accuracy for connectivity graphs |
+| objects entirely right | annotated objects of more than one part with every such pair right; Articulate3D's object accuracy |
 
 Part-whole relations are read from the tree the run built. A part counts as hung from the
 nearest annotated part above it, past any body between that matches no part. A part the

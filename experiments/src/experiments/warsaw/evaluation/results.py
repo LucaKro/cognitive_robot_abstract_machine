@@ -950,6 +950,46 @@ class PartWholeResult(ScoreResult):
 
 
 @dataclass
+class ConnectivityResult(ScoreResult):
+    """
+    How the parts within each annotated object are related, judged pair by pair as
+    Articulate3D judges the prediction of its connectivity graphs.
+    """
+
+    part_pair_accuracy: float | MeanAndStandardDeviation | None
+    """
+    The share of the pairs of parts within one object related as annotated.
+    """
+
+    object_accuracy: float | MeanAndStandardDeviation | None
+    """
+    The share of the objects of more than one part with every pair related as annotated.
+    """
+
+    @classproperty
+    def table_name(cls) -> str:
+        return "connectivity"
+
+    @classproperty
+    def what_it_shows(cls) -> str:
+        return "Whether the pairs of parts within each annotated object are related as annotated."
+
+    @classmethod
+    def of(cls, group: ScoredGroup) -> ConnectivityResult:
+        return cls(
+            method=group.name,
+            runs=group.run_count,
+            scenes=group.scenes,
+            part_pair_accuracy=group.over_scores(
+                lambda one: one.connectivity.pair_accuracy.value
+            ),
+            object_accuracy=group.over_scores(
+                lambda one: one.connectivity.object_accuracy.value
+            ),
+        )
+
+
+@dataclass
 class AnswersResult(RunGroupResult):
     """
     What the model's answers to the questions about wholes added, and how the questions
@@ -1315,6 +1355,7 @@ class ResultTables:
         return [
             ClassResult,
             PartWholeResult,
+            ConnectivityResult,
             AnswersResult,
             StructureResult,
             EffortResult,

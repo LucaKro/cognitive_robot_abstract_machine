@@ -17,7 +17,9 @@ What is judged, each over the whole ground truth so that nothing a run missed dr
   class hierarchy, with a class the run generated read as the class it derives from;
 - **links**: whether each part hangs from its whole in the tree the run built, how far
   up the hierarchy it is placed right where it is not, and whether link and classes are
-  right together.
+  right together;
+- **connectivity**: whether each pair of parts within one annotated object is related as
+  annotated, as Articulate3D judges the prediction of its connectivity graphs.
 
 A share with nothing to divide by is reported as nothing, never as a perfect score.
 
@@ -32,6 +34,7 @@ import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
@@ -966,6 +969,145 @@ class LinkAgreement(JsonRecord):
         ]
 
 
+# %% the pairs of parts within each object
+
+
+class PairRelation(StrEnum):
+    """
+    How two parts of one object are related in a part hierarchy.
+    """
+
+    UNRELATED = "neither holds the other"
+    """
+    Neither part is the whole of the other.
+    """
+
+    FIRST_HOLDS_SECOND = "the first holds the second"
+    """
+    The first part is the whole of the second.
+    """
+
+    SECOND_HOLDS_FIRST = "the second holds the first"
+    """
+    The second part is the whole of the first.
+    """
+
+    @classmethod
+    def between(
+        cls, first: int, second: int, whole_of: dict[int, int | None]
+    ) -> PairRelation:
+        """
+        :param first: One part.
+        :param second: Another part.
+        :param whole_of: The whole of each part, or nothing where it has none.
+        :return: How the two are related.
+        """
+        if whole_of.get(second) == first:
+            return cls.FIRST_HOLDS_SECOND
+        if whole_of.get(first) == second:
+            return cls.SECOND_HOLDS_FIRST
+        return cls.UNRELATED
+
+
+@dataclass(frozen=True)
+class JudgedObject(JsonRecord):
+    """
+    One annotated object, and how many pairs of its parts a run related as annotated.
+    """
+
+    root: int
+    """
+    The part no annotated part holds, which every other part of the object lies below.
+    """
+
+    part_pairs: int
+    """
+    How many pairs its parts make, the root included.
+    """
+
+    pairs_right: int
+    """
+    How many of them the run related as annotated.
+    """
+
+
+@dataclass(frozen=True)
+class ConnectivityAgreement(JsonRecord):
+    """
+    How a run relates the pairs of parts within each annotated object.
+
+    A pair is right where the run makes the same part the whole of the other as the
+    annotation does, or neither where the annotation makes neither, so a pair is judged
+    by direct wholes alone.
+    """
+
+    objects: list[JudgedObject] = field(default_factory=list)
+    """
+    Every annotated object.
+    """
+
+    @classmethod
+    def from_links(cls, links: LinkAgreement) -> ConnectivityAgreement:
+        """
+        :param links: Where a run hung every annotated part of one scene.
+        :return: Every object of the scene, its pairs judged.
+        """
+        true_whole = {
+            one.part_id: one.relation.whole if one.relation else None
+            for one in links.attachments
+        }
+        predicted_whole = {
+            one.part_id: one.predicted_whole for one in links.attachments
+        }
+        parts_of_object: dict[int, set[int]] = {}
+        for one in links.attachments:
+            lineage = [one.part_id, *one.true_ancestors]
+            parts_of_object.setdefault(lineage[-1], set()).update(lineage)
+        objects = []
+        for root, parts in sorted(parts_of_object.items()):
+            pairs = list(combinations(sorted(parts), 2))
+            objects.append(
+                JudgedObject(
+                    root=root,
+                    part_pairs=len(pairs),
+                    pairs_right=sum(
+                        PairRelation.between(first, second, predicted_whole)
+                        is PairRelation.between(first, second, true_whole)
+                        for first, second in pairs
+                    ),
+                )
+            )
+        return cls(objects=objects)
+
+    def combined_with(self, other: ConnectivityAgreement) -> ConnectivityAgreement:
+        """
+        :param other: The agreement of other scenes or runs.
+        :return: Both, as one.
+        """
+        return ConnectivityAgreement(objects=self.objects + other.objects)
+
+    @property
+    def pair_accuracy(self) -> Share:
+        """
+        :return: Of the pairs of parts within one object, those related as annotated.
+        """
+        return Share(
+            sum(one.pairs_right for one in self.objects),
+            sum(one.part_pairs for one in self.objects),
+        )
+
+    @property
+    def object_accuracy(self) -> Share:
+        """
+        :return: Of the objects of more than one part, those with every pair related as
+            annotated.
+        """
+        judged = [one for one in self.objects if one.part_pairs]
+        return Share(
+            sum(one.pairs_right == one.part_pairs for one in judged), len(judged)
+        )
+
+
 # %% one run, judged
 
 
@@ -1115,6 +1257,13 @@ class SceneScore(JsonRecord):
             minimum_overlap=minimum_overlap,
         )
 
+    @property
+    def connectivity(self) -> ConnectivityAgreement:
+        """
+        :return: How the run relates the pairs of parts within each annotated object.
+        """
+        return ConnectivityAgreement.from_links(self.links)
+
 
 # %% many runs, judged together
 
@@ -1170,6 +1319,11 @@ class ScoreOverRuns(JsonRecord):
     How the trees agree with the part hierarchy, over every run.
     """
 
+    connectivity: ConnectivityAgreement = field(default_factory=ConnectivityAgreement)
+    """
+    How the pairs of parts within each object agree, over every run.
+    """
+
     @classmethod
     def over(cls, scores: Sequence[SceneScore]) -> ScoreOverRuns:
         """
@@ -1193,6 +1347,7 @@ class ScoreOverRuns(JsonRecord):
                 merged_bodies=summary.merged_bodies + len(matching.merged_bodies),
                 classes=summary.classes.combined_with(score.classes),
                 links=summary.links.combined_with(score.links),
+                connectivity=summary.connectivity.combined_with(score.connectivity),
             )
         return summary
 
@@ -1214,7 +1369,7 @@ class ScoreOverRuns(JsonRecord):
         """
         :return: The headline numbers, one per line.
         """
-        classes, links = self.classes, self.links
+        classes, links, connectivity = self.classes, self.links, self.connectivity
         return [
             f"{len(self.runs)} runs, {self.parts} annotated parts",
             f"parts found                  {self._shown(self.found)}",
@@ -1236,6 +1391,8 @@ class ScoreOverRuns(JsonRecord):
             f"part-whole with classes P / R {self._shown(links.precision_with_classes)}"
             f" / {self._shown(links.recall_with_classes)}, "
             f"F1 {self._number(links.f1_with_classes)}",
+            f"pairs within objects right   {self._shown(connectivity.pair_accuracy)}",
+            f"objects entirely right       {self._shown(connectivity.object_accuracy)}",
         ]
 
     @staticmethod

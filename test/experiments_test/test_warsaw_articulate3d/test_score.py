@@ -447,6 +447,96 @@ def test_a_relation_held_the_other_way_round_by_a_carrying_part_is_representable
 # %% many runs together
 
 
+# %% the pairs of parts within each object
+
+
+def test_the_perfect_run_relates_every_pair_within_each_object_as_annotated(
+    ground_truth, bodies, graph, lineage
+):
+    """
+    The cabinet holds four parts below it, which make ten pairs with it, and the switch
+    base holds one control, which makes one.
+    """
+    connectivity = judged(ground_truth, bodies, graph, lineage).connectivity
+
+    assert connectivity.pair_accuracy == Share(11, 11)
+    assert connectivity.object_accuracy == Share(2, 2)
+
+
+def test_hanging_every_part_off_the_outermost_whole_gets_no_object_entirely_right(
+    ground_truth, bodies, graph, lineage
+):
+    """
+    Of the cabinet's ten pairs, the two holding its door and drawer stay right, and so
+    do the four pairs no part holds the other in; the two handles it is wrongly made to
+    hold and the two it no longer leaves to its door and drawer are wrong.
+
+    The control, hung from the cabinet, is no longer held by its switch base.
+    """
+    flat = with_parents(
+        graph, {name: "cabinet_1" for name in bodies if name != "cabinet_1"}
+    )
+
+    connectivity = judged(ground_truth, bodies, flat, lineage).connectivity
+
+    assert connectivity.pair_accuracy == Share(6, 11)
+    assert connectivity.object_accuracy == Share(0, 2)
+
+
+def test_a_part_hung_from_the_wrong_whole_costs_the_pair_it_left_and_the_pair_it_joined(
+    ground_truth, bodies, graph, lineage
+):
+    graph = with_parents(graph, {"handle_1": "cabinet_1"})
+
+    connectivity = judged(ground_truth, bodies, graph, lineage).connectivity
+
+    assert connectivity.pair_accuracy == Share(9, 11)
+    assert connectivity.object_accuracy == Share(1, 2)
+
+
+def test_a_part_holding_its_own_whole_relates_the_pair_the_wrong_way_round(
+    ground_truth, bodies, graph, lineage
+):
+    graph = with_parents(graph, {"switch_base_1": "control_1", "control_1": None})
+
+    connectivity = judged(ground_truth, bodies, graph, lineage).connectivity
+
+    assert connectivity.pair_accuracy == Share(10, 11)
+
+
+def test_an_object_of_one_part_has_no_pair_to_judge(
+    ground_truth, bodies, graph, lineage
+):
+    """
+    Without its control, the switch base is an object of one part.
+    """
+    ground_truth = replace(
+        ground_truth,
+        parts=[one for one in ground_truth.parts if one.part_id != 7],
+        relations=[one for one in ground_truth.relations if one.part != 7],
+    )
+
+    connectivity = judged(ground_truth, bodies, graph, lineage).connectivity
+
+    assert connectivity.object_accuracy == Share(1, 1)
+
+
+def test_a_summary_keeps_the_objects_of_every_run_apart(
+    ground_truth, bodies, graph, lineage
+):
+    """
+    Two runs of one scene number their objects alike, and still count twice.
+    """
+    score = judged(ground_truth, bodies, graph, lineage)
+
+    summary = ScoreOverRuns.over([score, replace(score, run="other")])
+
+    assert summary.connectivity.object_accuracy == Share(
+        2 * score.connectivity.object_accuracy.count,
+        2 * score.connectivity.object_accuracy.total,
+    )
+
+
 def test_a_summary_adds_every_count_up(ground_truth, bodies, graph, lineage):
     score = judged(ground_truth, bodies, graph, lineage)
 
