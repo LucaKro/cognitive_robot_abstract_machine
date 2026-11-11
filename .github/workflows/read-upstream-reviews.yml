@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install the workflow
-        run: python -m pip install --quiet 'basstler-domain-model @ git+https://github.com/LucaKro/basstler_domain_model@d6975a1a42fffa2a7ab3b9caca19114ed667af12' 'github-workflow @ git+https://github.com/LucaKro/GitHubWorkflow@main'
+        run: python -m pip install --quiet 'basstler-domain-model @ git+https://github.com/LucaKro/basstler_domain_model@d49c137202e9f1d5672aaad7bdb9ab82be9af72a' 'github-workflow @ git+https://github.com/LucaKro/GitHubWorkflow@main'
       - name: Read the reviews and save the answers
         env:
           GITHUB_TOKEN: ${{ github.token }}
