@@ -18,11 +18,8 @@ from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.context_extensions import RobotAccess
 from coraplex.plans.executors import PhysicallySimulatedPlanExecutor
 from coraplex.querying.grasp_closeness import GraspsByCloseness
-from coraplex.robot_plans.actions.composite.searching import SearchAction
 from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
-    PathPlanningNavigateAction,
-    FaceAtAction,
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
@@ -30,7 +27,7 @@ from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkAr
 from cramph.composites import Sequence
 from cramph.statechart import Statechart
 from krrood.patterns.path_enumeration import PathEnumeration
-from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Pose
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Pose, Point3, RotationMatrix, Vector3
 from segmind.detectors.agent_event_detector_nodes import GraspDetector
 from segmind.detectors.coarse_event_detector_nodes import (
     PickUpDetector,
@@ -38,7 +35,6 @@ from segmind.detectors.coarse_event_detector_nodes import (
 )
 from segmind.event_segmentation import Segmind
 
-from semantic_digital_twin import world
 from semantic_digital_twin.adapters.multi_sim import MujocoSim
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
@@ -60,11 +56,8 @@ from semantic_digital_twin.specifications.kinematic_structure_entities import (
     BodySpecification,
 )
 from semantic_digital_twin.specifications.robots import RobotSpecification
-from semantic_digital_twin.specifications.semantic_annotations import (
-    SemanticAnnotationWithRootSpecification,
-)
+
 from semantic_digital_twin.specifications.worlds import WorldSpecification
-from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.contact import ContactParameters
 from typing_extensions import TYPE_CHECKING
 
@@ -352,6 +345,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         )
 
         target = self._standing_pose_facing(trash_can.root.global_pose, middle_pose)
+        drop_pose = self._get_pose_dropping(trash_can, context.world)
         statechart = Statechart(context=context)
         statechart.add_node(
             Sequence(
@@ -362,15 +356,9 @@ class LabMilkTransportDemonstration(RobotDemonstration):
                     PickUpAction(grasp=self.find_grasp(milk, taking_pose), arm=arm),
                     ParkArmsAction(arms=robot.all_arms),
                     NavigateAction(target_location=middle_pose),
-                    MoveTorsoAction(torso_state=TorsoState.HIGH),
                     NavigateAction(target_location=target),
-                    # search_trash_can,
-                    # NavigateAction(target_location=self._standing_pose_facing(trash_can.root.global_pose, taking_pose)),
-                    # FaceAtAction(target=target),
-                    # MoveTorsoAction(torso_state=TorsoState.HIGH),
-                    # PlaceAction(object_designator=milk, target_location=target),
-                    # ParkArmsAction(arms=robot.all_arms),
-                    # MoveTorsoAction(torso_state=TorsoState.LOW),
+                    PlaceAction(object_designator=milk, target_location=drop_pose),
+                    ParkArmsAction(arms=robot.all_arms)
                 ]
             )
         )
@@ -429,7 +417,17 @@ class LabMilkTransportDemonstration(RobotDemonstration):
             reference_frame=target.reference_frame,
         )
 
+    def _get_pose_dropping(self, trash_can: TrashCan, world: World) -> Pose:
+        trash_can_box = trash_can.root.collision.as_bounding_box_collection_in_frame(
+            world.root
+            ).bounding_box()
+        z_offset = 0.1
 
+        x = (trash_can_box.min_x + trash_can_box.max_x) / 2
+        y = (trash_can_box.min_y + trash_can_box.max_y) / 2
+        z = trash_can_box.max_z + z_offset
+
+        return Pose.from_xyz_rpy(x, y, z, reference_frame=trash_can.root.global_pose.reference_frame)
 
 def main(
     executor_type: type[PlanExecutor] = PhysicallySimulatedPlanExecutor,
