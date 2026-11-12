@@ -418,6 +418,12 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         )
 
     def _get_pose_dropping(self, trash_can: TrashCan, world: World) -> Pose:
+        """
+        Calculate a drop pose above the trash can based on its bounding box.
+        :param trash_can: The trash can into which the object will be dropped.
+        :param world: The simulation world used as the reference frame.
+        :return: The calculated drop pose above the trash can.
+        """
         trash_can_box = trash_can.root.collision.as_bounding_box_collection_in_frame(
             world.root
             ).bounding_box()
