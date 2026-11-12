@@ -340,7 +340,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
             milk.root.global_pose, robot.root.global_pose
         )
         middle_pose = self._standing_pose_facing(
-            Pose.from_xyz_rpy(1, 3, reference_frame=trash_can.root.global_pose.reference_frame),
+            Pose.from_xyz_rpy(1, 3, reference_frame=context.world.root.global_pose.reference_frame),
             taking_pose
         )
 
