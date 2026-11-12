@@ -10,12 +10,10 @@ Run it from this folder, with ROS 2 and the ROS workspace sourced::
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-import krrood.symbolic_math.symbolic_math as sm
 import numpy as np
 from coraplex.datastructures.enums import DetectionTechnique
 from coraplex.demonstrations import RobotDemonstration
@@ -26,6 +24,7 @@ from coraplex.plans.executors import (
     PlanExecutor,
 )
 from coraplex.plans.plan_transformation import PlanTransformation
+from coraplex.querying.grasp_closeness import GraspsByCloseness
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
 from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
 from coraplex.robot_plans.actions.composite.transporting import (
@@ -40,20 +39,23 @@ from coraplex.robot_plans.actions.core.navigation import (
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
-    MoveManipulatorAction,
     MoveTorsoAction,
     ParkArmsAction,
 )
 from cramph.composites import Parallel, Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.executor import SimulationPacer
-from cramph.node import NodeArtifacts, StatechartNode, SucceedsOnObservingTrue
+from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import a, variable
 from krrood.entity_query_language.query.match import Match
 from krrood.patterns.path_enumeration import PathEnumeration
-from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Pose
+from krrood_spatial_math.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Pose,
+    Pose2D,
+)
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionBetweenGroups,
 )
@@ -76,16 +78,10 @@ from semantic_digital_twin.specifications.kinematic_structure_entities import (
     BodySpecification,
 )
 from semantic_digital_twin.specifications.robots import RobotSpecification
-from semantic_digital_twin.specifications.semantic_annotations import (
-    SemanticAnnotationWithRootSpecification,
-)
 from semantic_digital_twin.specifications.worlds import WorldSpecification
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
-from semantic_digital_twin.world_description.world_entity import (
-    Body,
-    KinematicStructureEntity,
-)
+from semantic_digital_twin.world_description.world_entity import Body
 
 # %% the scene
 
@@ -110,109 +106,6 @@ class SceneBody(StrEnum):
     MILK = "milk"
 
 
-@dataclass
-class FloorSpot:
-    """
-    A spot on the floor: where something stands, in the world frame, and which way it
-    faces.
-    """
-
-    x: float
-    """
-    The spot's x-coordinate, in meters.
-    """
-
-    y: float
-    """
-    The spot's y-coordinate, in meters.
-    """
-
-    yaw: float = 0.0
-    """
-    Which way the thing standing there faces, as a turn about the world's z-axis, in rad.
-    """
-
-    def create_transform(
-        self,
-        reference_frame: KinematicStructureEntity | None = None,
-        height: float = 0.0,
-    ) -> HomogeneousTransformationMatrix:
-        """
-        :param reference_frame: The world root the spot is given in; ``None`` for a
-            transform that is not tied to a world yet.
-        :param height: How far above the floor the transform lies, in meters.
-        :return: The position and orientation of this spot, `height` above the floor.
-        """
-        return HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=self.x,
-            y=self.y,
-            z=height,
-            yaw=self.yaw,
-            reference_frame=reference_frame,
-        )
-
-
-# %% letting go of the milk in a world without gravity
-
-
-@dataclass(eq=False, repr=False, kw_only=True)
-class SettleOnContainerBottom(SucceedsOnObservingTrue, StatechartNode):
-    """
-    Puts an object upright onto the inner bottom of a container, under the container in
-    the kinematic structure, right below where it was let go of.
-
-    Stands in for gravity in a kinematic simulation, where a released object stays in the
-    air.
-    """
-
-    item: Body
-    """
-    The object that falls into the container.
-    """
-
-    container: Body
-    """
-    The container the object falls into.
-    """
-
-    wall_thickness: float
-    """
-    How thick the bottom of the container is, in meters.
-    """
-
-    def build_artifacts(self) -> NodeArtifacts:
-        """
-        Unlike :meth:`StatechartNode.build_artifacts`, observes ``TRUE`` from the start,
-        so the node succeeds as soon as it has moved the object.
-        """
-        return NodeArtifacts(observation=sm.Scalar.const_true())
-
-    def on_start(self) -> None:
-        """
-        Unlike :meth:`StatechartNode.on_start`, moves :attr:`item` onto the bottom of
-        :attr:`container`.
-        """
-        world = self.context.world
-        container_box = self.container.collision.as_bounding_box_collection_in_frame(
-            self.container
-        ).bounding_box()
-        item_box = self.item.collision.as_bounding_box_collection_in_frame(
-            self.item
-        ).bounding_box()
-        container_P_item = world.transform(
-            self.item.global_pose, self.container
-        ).position
-        world.move_branch(self.item, self.container)
-        self.item.parent_connection.origin = (
-            HomogeneousTransformationMatrix.from_xyz_rpy(
-                x=float(container_P_item.x),
-                y=float(container_P_item.y),
-                z=container_box.min_z + self.wall_thickness - item_box.min_z,
-                reference_frame=self.container,
-            )
-        )
-
-
 # %% driving the base in a world without a drive
 
 
@@ -233,36 +126,6 @@ class DrivingKinematicallySimulatedPlanExecutor(KinematicallySimulatedPlanExecut
     """
 
 
-# %% standing to reach down onto an object
-
-
-@dataclass
-class ReachabilityFromAboveLocation(ReachabilityLocation):
-    """
-    Where the robot can stand to reach down onto a target on the floor: like
-    :class:`~coraplex.locations.locations.ReachabilityLocation`, but never closer to
-    the target than :attr:`minimum_distance`, from where the hand cannot turn to point
-    down onto it.
-    """
-
-    minimum_distance: float = field(default=0.4, kw_only=True)
-    """
-    How close to the target, along the floor, the robot may stand at the least, in
-    meters.
-    """
-
-    def candidates(self) -> Iterator[Pose]:
-        """
-        Unlike :meth:`ReachabilityLocation.candidates`, leaves out the poses closer to
-        the target than :attr:`minimum_distance`.
-        """
-        target = self._in_world(self.target_pose).position.to_np()[:2]
-        for candidate in super().candidates():
-            offset = candidate.position.to_np()[:2] - target
-            if np.linalg.norm(offset) >= self.minimum_distance:
-                yield candidate
-
-
 # %% the demonstration
 
 
@@ -275,14 +138,14 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
 
         park the arm
         turn to and look at search_spot, then detect the milk
-        drive to where the milk can be reached, take it from above and lift it
-        bring the milk upright in front of the base, as high as it is dropped from
+        drive to where the milk can be reached, take it from the side facing the
+        robot and lift it
+        park the arm, so the milk is held close beside the robot
         turn towards passage_spot and drive there, keeping the milk upright
         drive on to the approach spot, keeping the milk upright
         drive on to drop_distance before the trash can and face it
-        bring the milk over the opening, lower it, let go of it and pull the hand up
+        bring the milk over the opening, lower it, let go of it and pull the hand back
         park the arm and lower the torso
-        put the milk onto the trash can's bottom (kinematic simulation only)
     """
 
     used_robot: type[AbstractRobot] = HSRB
@@ -305,30 +168,38 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     Whether the robot keeps away from the furniture, from itself and from what it holds.
     """
 
-    robot_start: FloorSpot = field(default_factory=lambda: FloorSpot(x=0.9, y=4.2))
+    robot_start: Pose2D = field(
+        default_factory=lambda: Pose2D.from_xy_yaw(x=0.9, y=4.2)
+    )
     """
     Where the HSR stands before the plan begins, facing along the world's x-axis.
     """
 
-    milk_start: FloorSpot = field(
-        default_factory=lambda: FloorSpot(x=1.7, y=4.6, yaw=0.3)
+    milk_start: Pose2D = field(
+        default_factory=lambda: Pose2D.from_xy_yaw(x=1.7, y=4.6, yaw=0.3)
     )
     """
     Where the milk stands on the floor before the plan begins.
     """
 
-    trash_can_spot: FloorSpot = field(default_factory=lambda: FloorSpot(x=2.45, y=1.6))
+    trash_can_spot: Pose2D = field(
+        default_factory=lambda: Pose2D.from_xy_yaw(x=2.45, y=1.6)
+    )
     """
     Where the trash can stands: in the living room, next to the sofa, with room around
     it for the robot.
     """
 
-    search_spot: FloorSpot = field(default_factory=lambda: FloorSpot(x=1.7, y=4.6))
+    search_spot: Pose2D = field(
+        default_factory=lambda: Pose2D.from_xy_yaw(x=1.7, y=4.6)
+    )
     """
     The spot on the floor the robot looks at to find the milk.
     """
 
-    passage_spot: FloorSpot = field(default_factory=lambda: FloorSpot(x=1.7, y=3.3))
+    passage_spot: Pose2D = field(
+        default_factory=lambda: Pose2D.from_xy_yaw(x=1.7, y=3.3)
+    )
     """
     Where the robot passes with the milk from the bedroom into the living room, south of
     the wall between the bedroom and the office, which a drive straight to the trash can
@@ -347,16 +218,6 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     drops the milk, in meters.
     """
 
-    carrying_reach: float = 0.45
-    """
-    How far in front of the base's origin the milk is carried, in meters.
-    """
-
-    grasp_height: float = 0.04
-    """
-    How far above the milk's origin the hand takes hold of it, in meters.
-    """
-
     drop_clearance: float = 0.08
     """
     How far above the trash can's rim the bottom of the milk is when the hand lets go of
@@ -369,19 +230,13 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     be followed in RViz; ``None`` runs it as fast as the computer allows.
     """
 
-    trash_can_wall_thickness: float = 0.02
-    """
-    How thick the walls and the bottom of the trash can are, in meters, as
-    :class:`KitchenEnvironment` builds it.
-    """
-
     def scene_specification(self) -> WorldSpecification:
         return WorldSpecification(world_source=KitchenEnvironment())
 
     def robot_specification(self) -> RobotSpecification:
         return RobotSpecification(
             semantic_annotation_type=self.used_robot,
-            localization_pose=self.robot_start.create_transform(),
+            localization_pose=self.robot_start.homogeneous_matrix,
         )
 
     def is_scene_populated(self, world: World) -> bool:
@@ -393,35 +248,27 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         :attr:`trash_can_spot` and stands the milk on the floor at :attr:`milk_start`.
         """
         [trash_can] = world.get_semantic_annotations_by_type(TrashCan)
-        trash_can_box = trash_can.root.collision.as_bounding_box_collection_in_frame(
-            trash_can.root
-        ).bounding_box()
         with world.modify_world():
             world.remove_connection(trash_can.root.parent_connection)
             world.add_connection(
                 FixedConnection(
                     parent=world.root,
                     child=trash_can.root,
-                    parent_T_connection_expression=self.trash_can_spot.create_transform(
-                        world.root, height=-trash_can_box.min_z
+                    parent_T_connection_expression=self._compute_floor_transform(
+                        self.trash_can_spot, trash_can.root
                     ),
                 )
             )
         with world.modify_world():
-            milk = SemanticAnnotationWithRootSpecification(
+            milk = Milk.get_annotation_specification(
                 name=SceneBody.MILK,
-                semantic_annotation_type=Milk,
                 root_specification=BodySpecification.mesh(
-                    SceneBody.MILK,
-                    str(SceneFile.MILK),
-                    connection_specification=Connection6DoFSpecification(),
+                    SceneBody.MILK, str(SceneFile.MILK)
                 ),
+                parent_connection_specification=Connection6DoFSpecification(),
             ).spawn(world)
-        milk_box = milk.root.collision.as_bounding_box_collection_in_frame(
-            milk.root
-        ).bounding_box()
-        milk.root.parent_connection.origin = self.milk_start.create_transform(
-            world.root, height=-milk_box.min_z
+        milk.root.parent_connection.origin = self._compute_floor_transform(
+            self.milk_start, milk.root
         )
 
     def create_executor(self, world: World) -> PlanExecutor:
@@ -447,21 +294,26 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         [arm] = hsrb.all_arms
         [milk] = world.get_semantic_annotations_by_type(Milk)
         [trash_can] = world.get_semantic_annotations_by_type(TrashCan)
-        drop_pose = self._compute_drop_pose(trash_can.root, milk.root)
+        [grasp] = GraspsByCloseness(
+            milk, Pose(reference_frame=hsrb.root), number_of_grasps=1
+        )()
+        drop_pose = self._compute_drop_pose(trash_can.root, grasp)
         approach_pose = self._compute_standing_pose_before(
             drop_pose, self.approach_distance
         )
         passage_pose = self._compute_floor_pose_facing(
-            np.array([self.passage_spot.x, self.passage_spot.y]), approach_pose
+            np.array([float(self.passage_spot.x), float(self.passage_spot.y)]),
+            approach_pose,
         )
         # the floor rule comes last: once it is in place, every change of the collision
         # rules takes about a second to record
         self._let_wrist_touch_the_object(arm, milk.root)
         self._let_robot_touch_the_floor(hsrb)
 
-        grasp = self._create_grasp_from_above(milk)
         milk_pose = Pose(reference_frame=milk.root)
-        search_pose = self.search_spot.create_transform(world.root).pose
+        search_pose = Pose.from_xyz_rpy(
+            x=self.search_spot.x, y=self.search_spot.y, reference_frame=world.root
+        )
         steps: list[StatechartNode] = [
             ParkArmsAction(arms=hsrb.all_arms),
             FaceAndLookAtAction(
@@ -480,13 +332,7 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
                 face_and_look_at=self._face_and_look_at(milk_pose),
                 pick_up=a(PickUpAction)(grasp=grasp, arm=arm),
             ),
-            MoveManipulatorAction(
-                target_pose=arm.end_effector.tool_frame_goal_for_grasp(
-                    grasp.moved_to(self._compute_carrying_pose(hsrb, drop_pose))
-                ),
-                end_effector=arm.end_effector,
-                allow_gripper_collision=False,
-            ),
+            ParkArmsAction(arms=hsrb.all_arms),
             FaceAtAction(target=passage_pose),
             CarryAction(
                 navigate=NavigateAction(target_location=passage_pose),
@@ -513,18 +359,32 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
                 ]
             ),
         ]
-        if issubclass(self.executor_type, KinematicallySimulatedPlanExecutor):
-            steps.append(
-                SettleOnContainerBottom(
-                    item=milk.root,
-                    container=trash_can.root,
-                    wall_thickness=self.trash_can_wall_thickness,
-                )
-            )
 
         statechart = Statechart(context=context)
         statechart.add_node(Sequence(nodes=steps))
         return statechart
+
+    @staticmethod
+    def _compute_floor_transform(
+        spot: Pose2D, body: Body
+    ) -> HomogeneousTransformationMatrix:
+        """
+        :param spot: Where on the floor `body` stands, and which way it faces.
+        :param body: A body with collision geometry, standing upright.
+        :return: The pose of `body` in the world frame that puts the bottom of its
+            collision geometry onto the floor at `spot`.
+        """
+        world = body._world
+        body_box = body.collision.as_bounding_box_collection_in_frame(
+            body
+        ).bounding_box()
+        return HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=spot.x,
+            y=spot.y,
+            z=-body_box.min_z,
+            yaw=spot.yaw,
+            reference_frame=world.root,
+        )
 
     @staticmethod
     def _let_robot_touch_the_floor(robot: AbstractRobot) -> None:
@@ -549,12 +409,11 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
     @staticmethod
     def _let_wrist_touch_the_object(arm: Arm, item: Body) -> None:
         """
-        Lets the wrist the hand is mounted on touch `item`. Coming down onto a short
-        object from above brings the wrist as close to it as the hand, but only the hand
-        may touch what it grasps.
+        Lets the wrist the hand is mounted on touch `item`, which collision avoidance
+        otherwise only allows the hand that grasps it.
 
         :param arm: The arm whose wrist may touch `item`.
-        :param item: The object grasped from above.
+        :param item: The object grasped.
         """
         world = item._world
         wrist = arm.end_effector.root.parent_connection.parent
@@ -576,9 +435,7 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
         """
         return variable(
             Pose,
-            domain=ReachabilityFromAboveLocation(
-                target_pose=target, arm=arm, context=context
-            ),
+            domain=ReachabilityLocation(target_pose=target, arm=arm, context=context),
         )
 
     @staticmethod
@@ -600,9 +457,20 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
             :attr:`milk_start`, facing the trash can.
         """
         drop_xy = np.array([float(drop_pose.x), float(drop_pose.y)])
-        towards_milk = np.array([self.milk_start.x, self.milk_start.y]) - drop_xy
-        standing_xy = drop_xy + distance * towards_milk / np.linalg.norm(towards_milk)
+        standing_xy = drop_xy - distance * self._compute_carrying_direction(drop_xy)
         return self._compute_floor_pose_facing(standing_xy, drop_pose)
+
+    def _compute_carrying_direction(self, drop_xy: np.ndarray) -> np.ndarray:
+        """
+        :param drop_xy: Where on the floor, in the world frame, the milk is let go of.
+        :return: The unit vector along the floor from :attr:`milk_start` towards
+            `drop_xy`, which is the way the robot faces when it stands before the trash
+            can.
+        """
+        towards_drop = drop_xy - np.array(
+            [float(self.milk_start.x), float(self.milk_start.y)]
+        )
+        return towards_drop / np.linalg.norm(towards_drop)
 
     @staticmethod
     def _compute_floor_pose_facing(standing_xy: np.ndarray, target: Pose) -> Pose:
@@ -620,54 +488,36 @@ class FloorToTrashCanDemonstration(RobotDemonstration):
             reference_frame=target.reference_frame,
         )
 
-    def _create_grasp_from_above(self, milk: Milk) -> GraspCandidate:
-        """
-        :param milk: The milk standing upright on the floor.
-        :return: A grasp that comes down onto the milk, :attr:`grasp_height` above its
-            origin so the fingers stay clear of the floor. The pitch of a quarter turn
-            points the grasp's approach axis, its x-axis, downwards.
-        """
-        return GraspCandidate(
-            milk,
-            Pose.from_xyz_rpy(
-                z=self.grasp_height, pitch=np.pi / 2, reference_frame=milk.root
-            ),
-        )
-
-    def _compute_drop_pose(self, trash_can: Body, milk: Body) -> Pose:
+    def _compute_drop_pose(self, trash_can: Body, grasp: GraspCandidate) -> Pose:
         """
         :param trash_can: The body of the trash can.
-        :param milk: The body of the milk.
+        :param grasp: The grasp the robot holds the milk by.
         :return: Where the milk is when the hand lets go of it: upright, centred over the
-            trash can's opening, its bottom :attr:`drop_clearance` above the rim.
+            trash can's opening, its bottom :attr:`drop_clearance` above the rim, and
+            turned so that the hand reaches over the opening from the robot's side.
         """
         world = trash_can._world
+        milk = grasp.graspable.root
         trash_can_box = trash_can.collision.as_bounding_box_collection_in_frame(
             world.root
         ).bounding_box()
         milk_box = milk.collision.as_bounding_box_collection_in_frame(
             milk
         ).bounding_box()
-        return Pose.from_xyz_rpy(
-            x=(trash_can_box.min_x + trash_can_box.max_x) / 2,
-            y=(trash_can_box.min_y + trash_can_box.max_y) / 2,
-            z=trash_can_box.max_z + self.drop_clearance - milk_box.min_z,
-            reference_frame=world.root,
+        drop_xy = np.array(
+            [
+                (trash_can_box.min_x + trash_can_box.max_x) / 2,
+                (trash_can_box.min_y + trash_can_box.max_y) / 2,
+            ]
         )
-
-    def _compute_carrying_pose(self, robot: AbstractRobot, drop_pose: Pose) -> Pose:
-        """
-        :param robot: The robot carrying the milk.
-        :param drop_pose: Where the milk is let go of, above the trash can.
-        :return: Where the milk is while the robot drives: upright, :attr:`carrying_reach`
-            in front of the base and as high above the floor as `drop_pose`.
-        """
-        world = robot._world
-        base_height = world.compute_forward_kinematics_np(world.root, robot.root)[2, 3]
+        facing = self._compute_carrying_direction(drop_xy)
+        _, _, grasp_yaw = grasp.grasp_pose.rotation_matrix.rpy
         return Pose.from_xyz_rpy(
-            x=self.carrying_reach,
-            z=float(drop_pose.z) - base_height,
-            reference_frame=robot.root,
+            x=drop_xy[0],
+            y=drop_xy[1],
+            z=trash_can_box.max_z + self.drop_clearance - milk_box.min_z,
+            yaw=np.arctan2(facing[1], facing[0]) - float(grasp_yaw),
+            reference_frame=world.root,
         )
 
 

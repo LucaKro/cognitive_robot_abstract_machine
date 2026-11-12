@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
 Runs the HSR kitchen trash can demo as a regression test, as fast as the computer
-allows, from three start spots of the milk, and fails when the milk does not end up
-inside the trash can. Exits non-zero with a traceback on failure.
+allows, from three start spots of the milk, and fails when the milk is not let go of
+over the trash can's opening. Exits non-zero with a traceback on failure.
 
 Run it from this folder, with ROS 2 and the ROS workspace sourced::
 
@@ -12,6 +12,7 @@ Run it from this folder, with ROS 2 and the ROS workspace sourced::
 from __future__ import annotations
 
 import numpy as np
+from krrood_spatial_math.spatial_types import Pose2D
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Milk,
     TrashCan,
@@ -19,19 +20,21 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 
 import throw_trash_rviz_demo as demo
 
-# %% checking where the milk ends up
+# %% checking where the milk is let go of
 
 
-def check_milk_ends_inside_the_trash_can(milk_start: demo.FloorSpot) -> None:
+def check_milk_is_let_go_of_over_the_trash_can(milk_start: Pose2D) -> None:
     """
-    Run the demo with the milk starting at `milk_start`, and check that it ends upright
-    on the trash can's bottom, centred over the opening it was dropped through.
+    Run the demo with the milk starting at `milk_start`, and check that the hand let go
+    of it centred over the trash can's opening, its bottom
+    :attr:`~throw_trash_rviz_demo.FloorToTrashCanDemonstration.drop_clearance` above the
+    rim, where a kinematic simulation without gravity leaves it.
 
     :param milk_start: Where the milk stands on the floor before the plan begins.
     """
     demonstration = demo.FloorToTrashCanDemonstration(
         milk_start=milk_start,
-        search_spot=demo.FloorSpot(x=milk_start.x, y=milk_start.y),
+        search_spot=Pose2D.from_xy_yaw(x=milk_start.x, y=milk_start.y),
         real_time_factor=None,
     )
 
@@ -48,10 +51,10 @@ def check_milk_ends_inside_the_trash_can(milk_start: demo.FloorSpot) -> None:
     expected_position = [
         (trash_can_box.min_x + trash_can_box.max_x) / 2,
         (trash_can_box.min_y + trash_can_box.max_y) / 2,
-        trash_can_box.min_z + demonstration.trash_can_wall_thickness - milk_box.min_z,
+        trash_can_box.max_z + demonstration.drop_clearance - milk_box.min_z,
     ]
     position = world.compute_forward_kinematics_np(world.root, milk.root)[:3, 3]
-    assert milk.root.parent_connection.parent is trash_can.root
+    assert milk.root.parent_connection.parent is world.root
     assert np.allclose(position, expected_position, atol=0.01)
 
 
@@ -63,11 +66,11 @@ def main() -> None:
     Check three start spots of the milk on the floor, one after the other.
     """
     for milk_start in [
-        demo.FloorSpot(x=1.7, y=4.6, yaw=0.3),
-        demo.FloorSpot(x=1.2, y=4.0, yaw=1.0),
-        demo.FloorSpot(x=0.4, y=4.3, yaw=2.5),
+        Pose2D.from_xy_yaw(x=1.7, y=4.6, yaw=0.3),
+        Pose2D.from_xy_yaw(x=1.2, y=4.0, yaw=1.0),
+        Pose2D.from_xy_yaw(x=0.4, y=4.3, yaw=2.5),
     ]:
-        check_milk_ends_inside_the_trash_can(milk_start)
+        check_milk_is_let_go_of_over_the_trash_can(milk_start)
 
 
 if __name__ == "__main__":
