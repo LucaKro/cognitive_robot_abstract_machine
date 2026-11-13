@@ -20,9 +20,19 @@ from krrood.development_tools.agents.ruff_rules import (
     RuffRuleChecker,
     RuffSetting,
 )
-from krrood.development_tools.agents.shipped_rules.code_style import CodeStyleRules
+from krrood.development_tools.agents.shipped_rules.code_style import (
+    CodeStyleRules,
+    NamingRules,
+)
 from krrood.development_tools.agents.shipped_rules.design_principles import (
+    ConstantsAndClassLevelValuesRules,
+    DesignPrinciplesRules,
     ExceptionModellingRules,
+    MethodsRules,
+    StructuredDataRules,
+)
+from krrood.development_tools.agents.shipped_rules.documentation import (
+    DocumentationRules,
 )
 from krrood.development_tools.agents.shipped_rules.imports import ImportsRules
 from krrood.development_tools.agents.shipped_rules.testing import WritingTestsRules
@@ -47,6 +57,11 @@ class CopiedModuleName(StrEnum):
     TEST = "test_module.py"
     """
     A module pytest collects as a test.
+    """
+
+    STANDARD_LIBRARY_MODULE = "logging.py"
+    """
+    A top-level module named like a module of the standard library.
     """
 
 
@@ -215,6 +230,21 @@ def test_a_module_the_rule_does_not_cover_is_not_checked(
     assert reported_lines(checker, path) == []
 
 
+def test_a_finding_marked_as_a_deliberate_exception_is_not_reported(
+    repository_root: Path,
+    copy_into_temporary_directory: Callable[[DatasetFile, str], Path],
+) -> None:
+    """
+    Ruff's ``noqa`` comment for the lint rule's code suppresses the finding.
+    """
+    path = copy_into_temporary_directory(
+        RuffSnippet.SUPPRESSED_FINDING, CopiedModuleName.OUTSIDE_TESTS
+    )
+    checker = RuffRuleChecker(lint_rules=(RuffRule.MUTABLE_ARGUMENT_DEFAULT,))
+
+    assert reported_lines(checker, path) == []
+
+
 def test_a_failing_ruff_run_raises(
     repository_root: Path,
     copy_into_temporary_directory: Callable[[DatasetFile, str], Path],
@@ -279,6 +309,61 @@ def test_a_failing_ruff_run_raises(
             RuffSnippet.UNITTEST_CASE,
             CopiedModuleName.TEST,
         ),
+        (
+            ImportsRules.IMPORTS_AT_THE_TOP,
+            RuffSnippet.IMPORT_AFTER_CODE,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            DesignPrinciplesRules.NO_PROTOCOLS,
+            RuffSnippet.PROTOCOL_INTERFACE,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            CodeStyleRules.NO_MUTABLE_DEFAULT_ARGUMENTS,
+            RuffSnippet.MUTABLE_DATACLASS_DEFAULT,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            ExceptionModellingRules.RAISE_CUSTOM_EXCEPTIONS,
+            RuffSnippet.VANILLA_EXCEPTIONS,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            ConstantsAndClassLevelValuesRules.NO_GLOBAL_STATEMENT,
+            RuffSnippet.GLOBAL_STATEMENT,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            NamingRules.NO_BUILTIN_NAMES,
+            RuffSnippet.BUILTIN_NAMES,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            NamingRules.NO_BUILTIN_NAMES,
+            RuffSnippet.STANDARD_LIBRARY_NAME,
+            CopiedModuleName.STANDARD_LIBRARY_MODULE,
+        ),
+        (
+            MethodsRules.NO_SUPERFLUOUS_NESTING,
+            RuffSnippet.SUPERFLUOUS_NESTING,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            StructuredDataRules.NO_MAGIC_NUMBER_COMPARISONS,
+            RuffSnippet.MAGIC_COMPARISON,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            DocumentationRules.NO_COMMENTED_OUT_CODE,
+            RuffSnippet.COMMENTED_OUT_CODE,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
+        (
+            ImportsRules.NO_RUNTIME_IMPORTS_UNDER_TYPE_CHECKING,
+            RuffSnippet.TYPE_CHECKING_RUNTIME_IMPORT,
+            CopiedModuleName.OUTSIDE_TESTS,
+        ),
     ],
 )
 def test_a_shipped_rule_reports_the_code_breaking_it(
@@ -314,6 +399,16 @@ def test_a_shipped_rule_reports_the_code_breaking_it(
             RuffSnippet.UNITTEST_CASE,
             CopiedModuleName.OUTSIDE_TESTS,
         ),
+        (
+            ExceptionModellingRules.RAISE_CUSTOM_EXCEPTIONS,
+            RuffSnippet.VANILLA_EXCEPTIONS,
+            CopiedModuleName.TEST,
+        ),
+        (
+            StructuredDataRules.NO_MAGIC_NUMBER_COMPARISONS,
+            RuffSnippet.MAGIC_COMPARISON,
+            CopiedModuleName.TEST,
+        ),
     ],
 )
 def test_a_shipped_rule_leaves_the_modules_it_exempts_alone(
@@ -324,7 +419,8 @@ def test_a_shipped_rule_leaves_the_modules_it_exempts_alone(
     file_name: str,
 ) -> None:
     """
-    Tests may assert and import relatively; only tests are held to pytest's style.
+    Tests may assert, import relatively, raise builtin exceptions and compare with
+    numbers; only tests are held to pytest's style.
     """
     path = copy_into_temporary_directory(snippet, file_name)
 

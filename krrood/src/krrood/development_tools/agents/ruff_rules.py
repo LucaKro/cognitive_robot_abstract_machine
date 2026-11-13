@@ -122,6 +122,86 @@ class RuffRule(StrEnum):
     The ``assertRaises`` family of :class:`unittest.TestCase`.
     """
 
+    MODULE_IMPORT_NOT_AT_TOP_OF_FILE = "E402"
+    """
+    An import after other code of the module.
+    """
+
+    MUTABLE_DATACLASS_DEFAULT = "RUF008"
+    """
+    A dataclass field defaults to a list, dictionary or set.
+    """
+
+    RAISE_VANILLA_CLASS = "TRY002"
+    """
+    :class:`Exception` itself raised.
+    """
+
+    RAISE_VANILLA_ARGS = "TRY003"
+    """
+    A long message passed to an exception where it is raised.
+    """
+
+    GLOBAL_STATEMENT = "PLW0603"
+    """
+    A ``global`` statement rebinding a module variable.
+    """
+
+    BUILTIN_VARIABLE_SHADOWING = "A001"
+    """
+    A variable named after a builtin.
+    """
+
+    BUILTIN_ARGUMENT_SHADOWING = "A002"
+    """
+    A parameter named after a builtin.
+    """
+
+    BUILTIN_ATTRIBUTE_SHADOWING = "A003"
+    """
+    A class attribute or method named after a builtin the class body then uses.
+    """
+
+    STDLIB_MODULE_SHADOWING = "A005"
+    """
+    A top-level module named after a module of the standard library.
+    """
+
+    SUPERFLUOUS_ELSE_RETURN = "RET505"
+    """
+    An ``else`` after a branch that returns.
+    """
+
+    SUPERFLUOUS_ELSE_RAISE = "RET506"
+    """
+    An ``else`` after a branch that raises.
+    """
+
+    COLLAPSIBLE_IF = "SIM102"
+    """
+    An ``if`` whose condition could join that of the ``if`` around it.
+    """
+
+    TOO_MANY_NESTED_BLOCKS = "PLR1702"
+    """
+    Blocks nested more than five deep; a preview rule.
+    """
+
+    MAGIC_VALUE_COMPARISON = "PLR2004"
+    """
+    A comparison with a bare number other than a trivial one such as 0 or 1.
+    """
+
+    COMMENTED_OUT_CODE = "ERA001"
+    """
+    A comment holding code.
+    """
+
+    RUNTIME_IMPORT_IN_TYPE_CHECKING_BLOCK = "TC004"
+    """
+    An import under ``TYPE_CHECKING`` that the module uses when it runs.
+    """
+
 
 class RuffSetting(StrEnum):
     """
@@ -155,6 +235,21 @@ class RuffSetting(StrEnum):
     )
     """
     :class:`unittest.TestCase` is banned in favour of plain pytest tests.
+    """
+
+    PROTOCOL_BANNED = (
+        "lint.flake8-tidy-imports.banned-api = { "
+        '"typing.Protocol" = { msg = "declare an explicit superclass or mixin" }, '
+        '"typing_extensions.Protocol" = { msg = "declare an explicit superclass or '
+        'mixin" } }'
+    )
+    """
+    ``Protocol`` is banned, from ``typing`` and ``typing_extensions`` alike.
+    """
+
+    PREVIEW_ENABLED = "lint.preview = true"
+    """
+    Lint rules still in preview run.
     """
 
 

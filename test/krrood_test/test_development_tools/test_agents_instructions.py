@@ -24,8 +24,12 @@ from krrood.development_tools.agents.shipped_rules.code_style import (
 from krrood.development_tools.agents.shipped_rules.documentation import (
     DocumentationRules,
 )
+from krrood.development_tools.agents.shipped_rules import design_principles
 from krrood.development_tools.agents.shipped_rules.design_principles import (
+    ConstantsAndClassLevelValuesRules,
     ExceptionModellingRules,
+    MethodsRules,
+    StructuredDataRules,
 )
 from krrood.development_tools.agents.shipped_rules.imports import ImportsRules
 from krrood.development_tools.agents.shipped_rules.testing import WritingTestsRules
@@ -156,10 +160,19 @@ def test_every_checker_krrood_ships_is_that_of_a_shipped_rule() -> None:
         CodeStyleRules.KEYWORD_ONLY_METHOD_PARAMETERS.checker,
         CodeStyleRules.NO_HAND_WRITTEN_FIELD_ACCESSORS.checker,
         NamingRules.NO_LEADING_PREPOSITIONS.checker,
+        NamingRules.NO_BUILTIN_NAMES.checker,
+        design_principles.DesignPrinciplesRules.NO_PROTOCOLS.checker,
+        MethodsRules.NO_SUPERFLUOUS_NESTING.checker,
+        ExceptionModellingRules.RAISE_CUSTOM_EXCEPTIONS.checker,
         ExceptionModellingRules.NO_ASSERT_OUTSIDE_TESTS.checker,
+        ConstantsAndClassLevelValuesRules.NO_GLOBAL_STATEMENT.checker,
+        StructuredDataRules.NO_MAGIC_NUMBER_COMPARISONS.checker,
         DocumentationRules.DOCUMENT_EVERY_CONSTRUCT.checker,
         DocumentationRules.SHORT_PROSE.checker,
+        DocumentationRules.NO_COMMENTED_OUT_CODE.checker,
         ImportsRules.ABSOLUTE_IMPORTS.checker,
+        ImportsRules.IMPORTS_AT_THE_TOP.checker,
+        ImportsRules.NO_RUNTIME_IMPORTS_UNDER_TYPE_CHECKING.checker,
         ImportsRules.CORE_LOADS_ONLY_CORE.checker,
         WritingTestsRules.NO_UNITTEST_TEST_CASES.checker,
         TypeHintsRules.ANNOTATE_EVERYTHING.checker,

@@ -14,7 +14,7 @@
 - A group of primitives that travels together, or a return type that keeps being repeated, becomes a dataclass
 - Never duplicate code. Never put methods in a catch-all module such as `utils.py`; move them onto the class that owns the behaviour
 - Access attributes with `.`, never with `getattr`, and never wrap attribute access in try-except
-- Never use mutable objects as default arguments (checked by `krrood check`)
+- Never use mutable objects as default arguments or dataclass field defaults (checked by `krrood check`)
 - Every dataclass is declared with `kw_only=True`, so its fields are passed by keyword. A dataclass an `Enum` mixes in is exempt, since the enum passes its member values positionally (checked by `krrood check`)
 - Every parameter of a method after `self` or `cls` is keyword-only: a `*` comes before them, as in `def move_to(self, *, target: Pose)`. Dunder methods, property setters and deleters, and methods that a standard library or third-party base class defines or dispatches to by name, such as the `visit_` methods of `ast.NodeVisitor`, are exempt, since Python or that library passes their arguments positionally. Mark any other method a caller outside our control calls positionally, such as a method applied as a decorator, with `krrood.patterns.called_positionally.called_positionally` (checked by `krrood check`)
 - A descriptor that manages a dataclass field subclasses `krrood.patterns.dataclass_field_descriptor.DataclassFieldDescriptor`, implementing `read` and `write`, and the owning class inherits `DataclassFieldDescriptorOwner` so its subclasses keep the descriptor
@@ -38,6 +38,7 @@
 - Name an enum member for the situation it means, not for the function it dispatches to or the text it renders
 - Never repeat the enclosing type's name in its members, or the same word twice within one name
 - Never take an identifier the language or something in scope already binds: `Enum` reserves `name`, a parameter `field` shadows `dataclasses.field`, a field shadows a method of the same name. These fail at runtime or silently, not at import
+- Never name a variable, parameter or attribute after a builtin such as `id` or `type`, nor a top-level module after a module of the standard library (checked by `krrood check`)
 - A rename is finished only when every reader of the old name, docstrings and comments included, uses the new one and the tests pass. A mechanical rename across a file is exactly where a method and a field converge on one name
 - When no honest specific name exists, suspect the code, not your vocabulary: a thing that can only be described vaguely usually has no single subject (a container for whatever its caller passed, a function doing two jobs). Remove it instead of hunting for a better word
 
@@ -47,8 +48,9 @@
   - Single Responsibility: each class and method does one thing. If a method has cyclomatic complexity in the hundreds, refactor
   - Open/Closed: open for extension, closed for modification
   - Liskov Substitution: subtypes are substitutable for their base types without breaking behaviour
-  - Interface Segregation: many small interfaces over one large one. An interface is an explicit superclass or mixin, never a `Protocol`
+  - Interface Segregation: many small interfaces over one large one. An interface is an explicit superclass or mixin
   - Dependency Inversion: depend on abstractions, not concrete implementations
+- Never declare an interface as a `Protocol` (checked by `krrood check`)
 - Keep code modular and decoupled
 - Eliminate YAGNI smells
 - Make interfaces hard to misuse
@@ -60,11 +62,13 @@
 - Never write a method that only forwards to or renames another call. A one-line method is allowed only when it implements an abstract method or a `classproperty`, caches its result, or removes duplication - and in the last case, first try to abstract the duplicated code itself
 - A method with a single caller must earn its place under these rules; otherwise inline it
 - Reduce nesting and complexity with guard clauses: handle alternative outputs first by inverting conditions and returning early, so the main branch holds the main output and the biggest compute. A single level of abstraction never justifies deep nesting; split the method instead
+- Never put an `else` after a branch that returns or raises, nest an `if` whose condition could join its parent's, or nest blocks more than five deep (checked by `krrood check`)
 
 ## Exception modelling
 <!-- from ExceptionModellingRules in krrood/development_tools/agents/shipped_rules/design_principles.py -->
 - Never use try-except; a program in an illegal state raises an appropriate exception
 - Create meaningful custom exceptions as dataclasses
+- Never raise `Exception` itself, and never word an exception's message where it is raised: its `error_message` words it (checked by `krrood check`)
 - Put each exception in the `exceptions.py` closest to the code that raises it:
   - An exception raised only within one subpackage goes in that subpackage's `exceptions.py`; create the file if the subpackage has none
   - An exception raised across several subpackages goes in the `exceptions.py` of their nearest common package
@@ -78,6 +82,7 @@
   - A default a caller may want to change is a parameter of the method that uses it if only that method does, otherwise a dataclass field with that default. For example, a `Heater` takes `target_temperature: float = 20.0` as a field instead of declaring `DEFAULT_TARGET_TEMPERATURE: ClassVar[float] = 20.0`
   - A constant that belongs to a class is a `classproperty`
   - `ClassVar` is allowed only for state that explicitly has to be shared and mutable across every instance of a class. This almost never applies
+- Never rebind a module's variable from a function with `global` (checked by `krrood check`)
 - Use the `classproperty` `krrood` provides
 
 ## Structured data
@@ -86,6 +91,7 @@
 - A string that names a fixed thing - a payload key, a state, a label, a filename, an environment variable, a command flag, a status - is a `StrEnum` member. A value spelled in two places has no single source to rename, and nothing fails when the two drift apart
 - When the values are more than text - paths, numbers - give the enum values of that type, mixing the type in (`IntEnum`, `StrEnum`)
 - A magic number becomes an enum member, a field default or a `classproperty`; a bare literal that carries meaning is unreadable where it is used and unsearchable everywhere else
+- Never compare with a bare number other than a trivial one such as 0 or 1 (checked by `krrood check`)
 - Data whose shape someone else controls - an API response, a configuration file - is mirrored in dataclasses and parsed by a `from_json` classmethod, so the field names and the access path into the payload are written once
 - A tuple whose positions carry meaning becomes a dataclass, or an enum when the positions are a fixed set of alternatives rather than fields
 - A long literal document - a query, a template, a schema - lives in a file of its own type and is read in, never embedded as a string
@@ -108,6 +114,7 @@
   - type information - the type hints carry it
 - A docstring holds at most 4 lines of prose, field lists and literal blocks aside, and a comment block at most 3 lines (checked by `krrood check`)
 - Comments are meaningful and DRY; remove comments that restate the code
+- Never leave code commented out; delete it (checked by `krrood check`)
 - Reference code with Sphinx roles (`:func:`, `:class:`, `:attr:`, `:meth:`), never with plain backticks, and use directives such as `.. note::` and `.. warning::` for notes and warnings
 - Never use all-caps words for emphasis in docstrings or comments; use RST emphasis (`*word*`). Genuine identifiers, acronyms and enum/constant names (`UUID`, `WHERE`, `Definiteness.DEFINITE`) are exempt
 - Always format modified Python files with ruff followed by docformatter, through the repository's pre-commit hook
@@ -119,8 +126,10 @@
 # Imports
 <!-- from ImportsRules in krrood/development_tools/agents/shipped_rules/imports.py -->
 - Imports are absolute. Exception: a test imports another test module (a shared mimic or fixture from the test datasets) relatively (checked by `krrood check`)
-- Imports go at the top of the module; fix an import cycle by restructuring the modules, never with a local import
+- Imports go at the top of the module, before any other code (checked by `krrood check`)
+- Fix an import cycle by restructuring the modules, never with a local import
 - Guard type-only imports with `TYPE_CHECKING`
+- Never import under `TYPE_CHECKING` what the module uses when it runs (checked by `krrood check`)
 - A distribution that declares its core in `[tool.krrood.core-boundary]` of its `pyproject.toml` keeps it light: a core module imports a module outside core, or a library outside core's `dependencies` and what they require, only inside the functions that need it or under `TYPE_CHECKING`, never at module level. This is the one exception to importing at the top of the module (checked by `krrood check`)
 - Run `krrood check` over the distribution's source through the repository's pre-commit hook, so every rule a checker enforces holds for the code a commit changes
 

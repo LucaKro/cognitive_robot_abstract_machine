@@ -20,6 +20,7 @@ from krrood.development_tools.agents.ruff_rules import (
     CheckedModules,
     RuffRule,
     RuffRuleChecker,
+    RuffSetting,
 )
 from krrood.exceptions import DataclassException
 from krrood.ormatic.utils import classproperty
@@ -45,13 +46,20 @@ class DesignPrinciplesRules(Section):
             ),
             (
                 "Interface Segregation: many small interfaces over one large one. An "
-                "interface is an explicit superclass or mixin, never a "
-                f"{CodeReference(target=Protocol).name}"
+                "interface is an explicit superclass or mixin"
             ),
             (
                 "Dependency Inversion: depend on abstractions, not concrete "
                 "implementations"
             ),
+        ),
+    )
+
+    NO_PROTOCOLS = (
+        f"Never declare an interface as a {CodeReference(target=Protocol).name}",
+        (),
+        RuffRuleChecker(
+            lint_rules=(RuffRule.BANNED_API,), settings=(RuffSetting.PROTOCOL_BANNED,)
         ),
     )
 
@@ -102,6 +110,21 @@ class MethodsRules(Section):
         "abstraction never justifies deep nesting; split the method instead"
     )
 
+    NO_SUPERFLUOUS_NESTING = (
+        "Never put an `else` after a branch that returns or raises, nest an `if` "
+        "whose condition could join its parent's, or nest blocks more than five deep",
+        (),
+        RuffRuleChecker(
+            lint_rules=(
+                RuffRule.SUPERFLUOUS_ELSE_RETURN,
+                RuffRule.SUPERFLUOUS_ELSE_RAISE,
+                RuffRule.COLLAPSIBLE_IF,
+                RuffRule.TOO_MANY_NESTED_BLOCKS,
+            ),
+            settings=(RuffSetting.PREVIEW_ENABLED,),
+        ),
+    )
+
 
 class ExceptionModellingRules(Section):
     """
@@ -118,6 +141,17 @@ class ExceptionModellingRules(Section):
     )
 
     DECLARE_AS_DATACLASSES = "Create meaningful custom exceptions as dataclasses"
+
+    RAISE_CUSTOM_EXCEPTIONS = (
+        "Never raise `Exception` itself, and never word an exception's message where "
+        "it is raised: its "
+        f"{CodeReference(target=DataclassException.error_message).name} words it",
+        (),
+        RuffRuleChecker(
+            lint_rules=(RuffRule.RAISE_VANILLA_CLASS, RuffRule.RAISE_VANILLA_ARGS),
+            modules=CheckedModules.OUTSIDE_TESTS,
+        ),
+    )
 
     PLACE_IN_THE_CLOSEST_MODULE = (
         "Put each exception in the `exceptions.py` closest to the code that raises it:",
@@ -180,6 +214,12 @@ class ConstantsAndClassLevelValuesRules(Section):
         ),
     )
 
+    NO_GLOBAL_STATEMENT = (
+        "Never rebind a module's variable from a function with `global`",
+        (),
+        RuffRuleChecker(lint_rules=(RuffRule.GLOBAL_STATEMENT,)),
+    )
+
     USE_KRROOD_CLASSPROPERTY = (
         f"Use the {CodeReference(target=classproperty).name} "
         f"{CodeReference(target=krrood).name} provides"
@@ -218,6 +258,15 @@ class StructuredDataRules(Section):
         "A magic number becomes an enum member, a field default or a "
         f"{CodeReference(target=classproperty).name}; a bare literal that carries meaning is unreadable where "
         "it is used and unsearchable everywhere else"
+    )
+
+    NO_MAGIC_NUMBER_COMPARISONS = (
+        "Never compare with a bare number other than a trivial one such as 0 or 1",
+        (),
+        RuffRuleChecker(
+            lint_rules=(RuffRule.MAGIC_VALUE_COMPARISON,),
+            modules=CheckedModules.OUTSIDE_TESTS,
+        ),
     )
 
     MIRROR_FOREIGN_DATA = (

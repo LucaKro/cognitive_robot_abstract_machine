@@ -361,3 +361,67 @@ class RuffSnippet(PathEnumeration):
     """
     A test on :class:`unittest.TestCase` using its assertion methods.
     """
+
+    IMPORT_AFTER_CODE = DIRECTORY / "import_after_code.py"
+    """
+    An import after code has run, next to the blocks of imports that may follow
+    other imports.
+    """
+
+    PROTOCOL_INTERFACE = DIRECTORY / "protocol_interface.py"
+    """
+    Interfaces declared as protocols, imported by name and through their module.
+    """
+
+    MUTABLE_DATACLASS_DEFAULT = DIRECTORY / "mutable_dataclass_default.py"
+    """
+    A dataclass field defaulting to a list, next to one using a default factory.
+    """
+
+    VANILLA_EXCEPTIONS = DIRECTORY / "vanilla_exceptions.py"
+    """
+    :class:`Exception` raised itself and a message worded where it is raised, next to
+    a custom exception.
+    """
+
+    GLOBAL_STATEMENT = DIRECTORY / "global_statement.py"
+    """
+    A function rebinding a module variable.
+    """
+
+    BUILTIN_NAMES = DIRECTORY / "builtin_names.py"
+    """
+    A variable, a parameter and a method named after builtins.
+    """
+
+    STANDARD_LIBRARY_NAME = DIRECTORY / "standard_library_name.py"
+    """
+    A module that breaks no rule but its name, once copied under the name of a standard
+    library module.
+    """
+
+    SUPERFLUOUS_NESTING = DIRECTORY / "superfluous_nesting.py"
+    """
+    An ``else`` after a return and after a raise, an ``if`` that could join its
+    parent's, and blocks nested six deep.
+    """
+
+    MAGIC_COMPARISON = DIRECTORY / "magic_comparison.py"
+    """
+    A comparison with a bare number, next to one with one.
+    """
+
+    COMMENTED_OUT_CODE = DIRECTORY / "commented_out_code.py"
+    """
+    A line of code commented out, next to an explaining comment.
+    """
+
+    TYPE_CHECKING_RUNTIME_IMPORT = DIRECTORY / "type_checking_runtime_import.py"
+    """
+    Imports under ``TYPE_CHECKING``, one of them used when the module runs.
+    """
+
+    SUPPRESSED_FINDING = DIRECTORY / "suppressed_finding.py"
+    """
+    A mutable default marked as a deliberate exception with ruff's ``noqa`` comment.
+    """
