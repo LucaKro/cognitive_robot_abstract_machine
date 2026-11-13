@@ -21,6 +21,7 @@ from krrood.development_tools.agents.leading_preposition import (
     LeadingPrepositionChecker,
 )
 from krrood.development_tools.agents.rule import CodeReference, Section
+from krrood.development_tools.agents.ruff_rules import RuffRule, RuffRuleChecker
 from krrood.ormatic.utils import classproperty
 from krrood.patterns.dataclass_field_descriptor import (
     DataclassFieldDescriptor,
@@ -57,7 +58,11 @@ class CodeStyleRules(Section):
         "attribute access in try-except"
     )
 
-    NO_MUTABLE_DEFAULT_ARGUMENTS = "Never use mutable objects as default arguments"
+    NO_MUTABLE_DEFAULT_ARGUMENTS = (
+        "Never use mutable objects as default arguments",
+        (),
+        RuffRuleChecker(lint_rules=(RuffRule.MUTABLE_ARGUMENT_DEFAULT,)),
+    )
 
     KEYWORD_ONLY_DATACLASS_FIELDS = (
         "Every dataclass is declared with `kw_only=True`, so its fields are passed "

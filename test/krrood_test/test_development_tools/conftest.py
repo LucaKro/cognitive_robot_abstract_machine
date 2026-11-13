@@ -11,7 +11,8 @@ import pytest
 from typing_extensions import Callable
 
 
-from .dataset_files import DatasetFile
+from .dataset_files import DatasetFile, ProseSnippet
+from .git_repository import git
 
 
 @pytest.fixture
@@ -41,4 +42,18 @@ def repository_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         repository root.
     """
     monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+@pytest.fixture
+def repository(tmp_path: Path) -> Path:
+    """
+    :return: A git repository whose one commit holds an overlong module docstring.
+    """
+    git(tmp_path, "init", "--quiet")
+    git(tmp_path, "config", "user.name", "Tester")
+    git(tmp_path, "config", "user.email", "tester@example.com")
+    shutil.copy(ProseSnippet.OVERLONG_MODULE_DOCSTRING, tmp_path / "module.py")
+    git(tmp_path, "add", "module.py")
+    git(tmp_path, "commit", "--quiet", "-m", "Add")
     return tmp_path

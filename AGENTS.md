@@ -14,7 +14,7 @@
 - A group of primitives that travels together, or a return type that keeps being repeated, becomes a dataclass
 - Never duplicate code. Never put methods in a catch-all module such as `utils.py`; move them onto the class that owns the behaviour
 - Access attributes with `.`, never with `getattr`, and never wrap attribute access in try-except
-- Never use mutable objects as default arguments
+- Never use mutable objects as default arguments (checked by `krrood check`)
 - Every dataclass is declared with `kw_only=True`, so its fields are passed by keyword. A dataclass an `Enum` mixes in is exempt, since the enum passes its member values positionally (checked by `krrood check`)
 - Every parameter of a method after `self` or `cls` is keyword-only: a `*` comes before them, as in `def move_to(self, *, target: Pose)`. Dunder methods, property setters and deleters, and methods that a standard library or third-party base class defines or dispatches to by name, such as the `visit_` methods of `ast.NodeVisitor`, are exempt, since Python or that library passes their arguments positionally. Mark any other method a caller outside our control calls positionally, such as a method applied as a decorator, with `krrood.patterns.called_positionally.called_positionally` (checked by `krrood check`)
 - A descriptor that manages a dataclass field subclasses `krrood.patterns.dataclass_field_descriptor.DataclassFieldDescriptor`, implementing `read` and `write`, and the owning class inherits `DataclassFieldDescriptorOwner` so its subclasses keep the descriptor
@@ -68,7 +68,7 @@
 - Put each exception in the `exceptions.py` closest to the code that raises it:
   - An exception raised only within one subpackage goes in that subpackage's `exceptions.py`; create the file if the subpackage has none
   - An exception raised across several subpackages goes in the `exceptions.py` of their nearest common package
-- Never use `assert` outside tests: Python drops it when run with `-O`, so the check silently disappears. Raise a custom exception instead
+- Never use `assert` outside tests: Python drops it when run with `-O`, so the check silently disappears. Raise a custom exception instead (checked by `krrood check`)
 - Custom exceptions subclass `krrood.exceptions.DataclassException`, implementing its `error_message` and `suggest_correction`
 
 ## Constants and class level values
@@ -118,7 +118,7 @@
 
 # Imports
 <!-- from ImportsRules in krrood/development_tools/agents/shipped_rules/imports.py -->
-- Imports are absolute. Exception: a test imports another test module (a shared mimic or fixture from the test datasets) relatively
+- Imports are absolute. Exception: a test imports another test module (a shared mimic or fixture from the test datasets) relatively (checked by `krrood check`)
 - Imports go at the top of the module; fix an import cycle by restructuring the modules, never with a local import
 - Guard type-only imports with `TYPE_CHECKING`
 - A distribution that declares its core in `[tool.krrood.core-boundary]` of its `pyproject.toml` keeps it light: a core module imports a module outside core, or a library outside core's `dependencies` and what they require, only inside the functions that need it or under `TYPE_CHECKING`, never at module level. This is the one exception to importing at the top of the module (checked by `krrood check`)
@@ -137,7 +137,8 @@
 
 ## Writing tests
 <!-- from WritingTestsRules in krrood/development_tools/agents/shipped_rules/testing.py -->
-- Write tests with pytest: plain test functions or classes, pytest fixtures, `pytest.raises` and plain `assert`; never `unittest.TestCase` or its assertion methods
+- Write tests with pytest: plain test functions or classes, pytest fixtures, `pytest.raises` and plain `assert`
+- Never write a test on `unittest.TestCase` or with its assertion methods (checked by `krrood check`)
 - Reuse the existing fixtures in `conftest.py`
 - Work test-driven: prove a bug with a meaningful, failing test before fixing it. Every new feature and fix is covered by tests
 - When fixing a failing test, never modify the test itself
@@ -166,9 +167,10 @@
 
 # Type hints
 <!-- from TypeHintsRules in krrood/development_tools/agents/shipped_rules/type_hints.py -->
-- Every parameter and return value has an accurate type hint, `Any` and `-> None` included
-- Use builtin generics and `X | None` (`list[int]`, `Pose | None`), never `typing.List`, `Dict`, `Optional` or `Union`; import every other typing construct from `typing_extensions`, never from `typing`
-- Use `from __future__ import annotations` instead of wrapping types in strings
+- Every parameter and return value has a type hint, `Any` and `-> None` included (checked by `krrood check`)
+- Every type hint is accurate: it names the types the code takes and returns
+- Use builtin generics and `X | None` (`list[int]`, `Pose | None`), never `typing.List`, `Dict`, `Optional` or `Union`; import every other typing construct from `typing_extensions`, never from `typing` (checked by `krrood check`)
+- Use `from __future__ import annotations` instead of wrapping types in strings (checked by `krrood check`)
 - When each class in a family declares the type it handles, carry that type as a bound generic parameter, not a `ClassVar`, so it is part of the signature and cannot disagree with a separate attribute: bind it in each member (`class MemberOfFamily(Family[ConcreteType])`)
 - Generic classes inherit `Generic` and then `krrood.patterns.subclass_safe_generic.SubClassSafeGeneric`, which narrows field types when a subclass binds a parameter. Read a bound type with `get_type_of_generic_parameter`, never via `__orig_bases__`. Such classes cannot be frozen dataclasses
 

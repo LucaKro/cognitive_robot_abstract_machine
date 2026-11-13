@@ -7,6 +7,12 @@ from __future__ import annotations
 
 from krrood.development_tools.agents.core_boundary import CoreBoundaryChecker
 from krrood.development_tools.agents.rule import Section
+from krrood.development_tools.agents.ruff_rules import (
+    CheckedModules,
+    RuffRule,
+    RuffRuleChecker,
+    RuffSetting,
+)
 
 
 class ImportsRules(Section):
@@ -16,7 +22,13 @@ class ImportsRules(Section):
 
     ABSOLUTE_IMPORTS = (
         "Imports are absolute. Exception: a test imports another test module (a "
-        "shared mimic or fixture from the test datasets) relatively"
+        "shared mimic or fixture from the test datasets) relatively",
+        (),
+        RuffRuleChecker(
+            lint_rules=(RuffRule.RELATIVE_IMPORTS,),
+            settings=(RuffSetting.RELATIVE_IMPORTS_BANNED,),
+            modules=CheckedModules.OUTSIDE_TESTS,
+        ),
     )
 
     IMPORTS_AT_THE_TOP = (

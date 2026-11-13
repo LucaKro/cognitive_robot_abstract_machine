@@ -16,6 +16,11 @@ from krrood.adapters.json_serializer import (
     SubclassJSONSerializer,
 )
 from krrood.development_tools.agents.rule import CodeReference, Section
+from krrood.development_tools.agents.ruff_rules import (
+    CheckedModules,
+    RuffRule,
+    RuffRuleChecker,
+)
 from krrood.exceptions import DataclassException
 from krrood.ormatic.utils import classproperty
 from krrood.patterns.path_enumeration import PathEnumeration
@@ -131,7 +136,11 @@ class ExceptionModellingRules(Section):
 
     NO_ASSERT_OUTSIDE_TESTS = (
         "Never use `assert` outside tests: Python drops it when run with `-O`, so "
-        "the check silently disappears. Raise a custom exception instead"
+        "the check silently disappears. Raise a custom exception instead",
+        (),
+        RuffRuleChecker(
+            lint_rules=(RuffRule.ASSERT,), modules=CheckedModules.OUTSIDE_TESTS
+        ),
     )
 
     SUBCLASS_THE_KRROOD_BASE_CLASS = (

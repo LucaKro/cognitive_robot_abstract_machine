@@ -24,7 +24,12 @@ from krrood.development_tools.agents.shipped_rules.code_style import (
 from krrood.development_tools.agents.shipped_rules.documentation import (
     DocumentationRules,
 )
+from krrood.development_tools.agents.shipped_rules.design_principles import (
+    ExceptionModellingRules,
+)
 from krrood.development_tools.agents.shipped_rules.imports import ImportsRules
+from krrood.development_tools.agents.shipped_rules.testing import WritingTestsRules
+from krrood.development_tools.agents.shipped_rules.type_hints import TypeHintsRules
 from krrood.development_tools.command_line import (
     CommandLine,
     ExitStatus,
@@ -146,13 +151,20 @@ def test_every_checker_krrood_ships_is_that_of_a_shipped_rule() -> None:
     The checkers come in the order of the sections and rules declaring them.
     """
     assert RuleModule(module=shipped_rules).checkers == (
+        CodeStyleRules.NO_MUTABLE_DEFAULT_ARGUMENTS.checker,
         CodeStyleRules.KEYWORD_ONLY_DATACLASS_FIELDS.checker,
         CodeStyleRules.KEYWORD_ONLY_METHOD_PARAMETERS.checker,
         CodeStyleRules.NO_HAND_WRITTEN_FIELD_ACCESSORS.checker,
         NamingRules.NO_LEADING_PREPOSITIONS.checker,
+        ExceptionModellingRules.NO_ASSERT_OUTSIDE_TESTS.checker,
         DocumentationRules.DOCUMENT_EVERY_CONSTRUCT.checker,
         DocumentationRules.SHORT_PROSE.checker,
+        ImportsRules.ABSOLUTE_IMPORTS.checker,
         ImportsRules.CORE_LOADS_ONLY_CORE.checker,
+        WritingTestsRules.NO_UNITTEST_TEST_CASES.checker,
+        TypeHintsRules.ANNOTATE_EVERYTHING.checker,
+        TypeHintsRules.BUILTIN_GENERICS.checker,
+        TypeHintsRules.FUTURE_ANNOTATIONS.checker,
     )
 
 

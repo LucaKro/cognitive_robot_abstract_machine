@@ -96,6 +96,13 @@ class DatasetFile(PathEnumeration):
     and the path of the module declaring it.
     """
 
+    EXCLUDING_PYPROJECT = (
+        Path(__file__).parent / "dataset" / "check_exclusion" / "pyproject.toml"
+    )
+    """
+    A ``pyproject.toml`` keeping the files under ``excluded/`` out of ``krrood check``.
+    """
+
     RULE_SECTIONS_TEXT = Path(__file__).parent / "dataset" / "rule_sections_text.md"
     """
     The ``AGENTS.md`` listing the design principles and verification sections of
@@ -224,6 +231,11 @@ class DatasetMarker(StrEnum):
     An import the core boundary checker reports.
     """
 
+    RUFF_FINDING = "# reported"
+    """
+    A line the rule whose lint rules a snippet of :class:`RuffSnippet` breaks reports.
+    """
+
 
 class MimicModule(StrEnum):
     """
@@ -295,4 +307,57 @@ class MethodNameSnippet(PathEnumeration):
     """
     A module whose method names are verb phrases, an alternative constructor and a
     conversion.
+    """
+
+
+class RuffSnippet(PathEnumeration):
+    """
+    The Python sources the checkers built on ruff read, each breaking the rule it names
+    on the lines marked with :attr:`DatasetMarker.RUFF_FINDING`.
+    """
+
+    DIRECTORY = Path(__file__).parent / "dataset" / "ruff_findings"
+    """
+    The directory holding the snippets.
+    """
+
+    MUTABLE_DEFAULT = DIRECTORY / "mutable_default.py"
+    """
+    A function defaulting a parameter to a list, which also asserts on an unmarked line.
+    """
+
+    ASSERTION = DIRECTORY / "assertion.py"
+    """
+    A function checking a precondition with ``assert``.
+    """
+
+    MISSING_TYPE_HINTS = DIRECTORY / "missing_type_hints.py"
+    """
+    Every kind of parameter and return value left unannotated once, and a function
+    annotated with ``Any``.
+    """
+
+    TYPING_CONSTRUCTS = DIRECTORY / "typing_constructs.py"
+    """
+    Imports from ``typing`` and annotations with its generic aliases.
+    """
+
+    MISSING_FUTURE_IMPORT = DIRECTORY / "missing_future_import.py"
+    """
+    A module without the import of postponed annotations.
+    """
+
+    QUOTED_ANNOTATIONS = DIRECTORY / "quoted_annotations.py"
+    """
+    A module postponing its annotations that still quotes a parameter and a return type.
+    """
+
+    RELATIVE_IMPORTS = DIRECTORY / "relative_imports.py"
+    """
+    Imports of modules of the same package, written relatively.
+    """
+
+    UNITTEST_CASE = DIRECTORY / "unittest_case.py"
+    """
+    A test on :class:`unittest.TestCase` using its assertion methods.
     """
