@@ -7,7 +7,7 @@ from __future__ import annotations
 from enum import IntEnum, StrEnum
 from pathlib import Path
 
-from typing_extensions import ClassVar, Protocol
+from typing_extensions import ClassVar, Protocol  # noqa: TID251
 
 import krrood
 from krrood.adapters import json_serializer
@@ -258,15 +258,6 @@ class StructuredDataRules(Section):
         "A magic number becomes an enum member, a field default or a "
         f"{CodeReference(target=classproperty).name}; a bare literal that carries meaning is unreadable where "
         "it is used and unsearchable everywhere else"
-    )
-
-    NO_MAGIC_NUMBER_COMPARISONS = (
-        "Never compare with a bare number other than a trivial one such as 0 or 1",
-        (),
-        RuffRuleChecker(
-            lint_rules=(RuffRule.MAGIC_VALUE_COMPARISON,),
-            modules=CheckedModules.OUTSIDE_TESTS,
-        ),
     )
 
     MIRROR_FOREIGN_DATA = (

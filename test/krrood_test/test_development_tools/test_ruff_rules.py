@@ -29,7 +29,6 @@ from krrood.development_tools.agents.shipped_rules.design_principles import (
     DesignPrinciplesRules,
     ExceptionModellingRules,
     MethodsRules,
-    StructuredDataRules,
 )
 from krrood.development_tools.agents.shipped_rules.documentation import (
     DocumentationRules,
@@ -350,11 +349,6 @@ def test_a_failing_ruff_run_raises(
             CopiedModuleName.OUTSIDE_TESTS,
         ),
         (
-            StructuredDataRules.NO_MAGIC_NUMBER_COMPARISONS,
-            RuffSnippet.MAGIC_COMPARISON,
-            CopiedModuleName.OUTSIDE_TESTS,
-        ),
-        (
             DocumentationRules.NO_COMMENTED_OUT_CODE,
             RuffSnippet.COMMENTED_OUT_CODE,
             CopiedModuleName.OUTSIDE_TESTS,
@@ -405,8 +399,8 @@ def test_a_shipped_rule_reports_the_code_breaking_it(
             CopiedModuleName.TEST,
         ),
         (
-            StructuredDataRules.NO_MAGIC_NUMBER_COMPARISONS,
-            RuffSnippet.MAGIC_COMPARISON,
+            TypeHintsRules.ANNOTATE_EVERYTHING,
+            RuffSnippet.MISSING_TYPE_HINTS,
             CopiedModuleName.TEST,
         ),
     ],
@@ -419,8 +413,8 @@ def test_a_shipped_rule_leaves_the_modules_it_exempts_alone(
     file_name: str,
 ) -> None:
     """
-    Tests may assert, import relatively, raise builtin exceptions and compare with
-    numbers; only tests are held to pytest's style.
+    Tests may assert, import relatively, raise builtin exceptions and leave out type
+    hints; only tests are held to pytest's style.
     """
     path = copy_into_temporary_directory(snippet, file_name)
 

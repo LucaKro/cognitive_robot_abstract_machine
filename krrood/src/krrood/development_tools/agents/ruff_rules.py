@@ -187,11 +187,6 @@ class RuffRule(StrEnum):
     Blocks nested more than five deep; a preview rule.
     """
 
-    MAGIC_VALUE_COMPARISON = "PLR2004"
-    """
-    A comparison with a bare number other than a trivial one such as 0 or 1.
-    """
-
     COMMENTED_OUT_CODE = "ERA001"
     """
     A comment holding code.

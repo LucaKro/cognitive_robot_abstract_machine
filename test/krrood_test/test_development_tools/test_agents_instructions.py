@@ -29,7 +29,6 @@ from krrood.development_tools.agents.shipped_rules.design_principles import (
     ConstantsAndClassLevelValuesRules,
     ExceptionModellingRules,
     MethodsRules,
-    StructuredDataRules,
 )
 from krrood.development_tools.agents.shipped_rules.imports import ImportsRules
 from krrood.development_tools.agents.shipped_rules.testing import WritingTestsRules
@@ -166,7 +165,6 @@ def test_every_checker_krrood_ships_is_that_of_a_shipped_rule() -> None:
         ExceptionModellingRules.RAISE_CUSTOM_EXCEPTIONS.checker,
         ExceptionModellingRules.NO_ASSERT_OUTSIDE_TESTS.checker,
         ConstantsAndClassLevelValuesRules.NO_GLOBAL_STATEMENT.checker,
-        StructuredDataRules.NO_MAGIC_NUMBER_COMPARISONS.checker,
         DocumentationRules.DOCUMENT_EVERY_CONSTRUCT.checker,
         DocumentationRules.SHORT_PROSE.checker,
         DocumentationRules.NO_COMMENTED_OUT_CODE.checker,

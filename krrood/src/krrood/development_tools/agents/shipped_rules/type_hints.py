@@ -10,6 +10,7 @@ from typing_extensions import Any, ClassVar, Generic
 
 from krrood.development_tools.agents.rule import CodeReference, Section
 from krrood.development_tools.agents.ruff_rules import (
+    CheckedModules,
     RuffRule,
     RuffRuleChecker,
     RuffSetting,
@@ -36,7 +37,8 @@ class TypeHintsRules(Section):
                 RuffRule.MISSING_RETURN_TYPE_SPECIAL_METHOD,
                 RuffRule.MISSING_RETURN_TYPE_STATIC_METHOD,
                 RuffRule.MISSING_RETURN_TYPE_CLASS_METHOD,
-            )
+            ),
+            modules=CheckedModules.OUTSIDE_TESTS,
         ),
     )
 

@@ -406,11 +406,6 @@ class RuffSnippet(PathEnumeration):
     parent's, and blocks nested six deep.
     """
 
-    MAGIC_COMPARISON = DIRECTORY / "magic_comparison.py"
-    """
-    A comparison with a bare number, next to one with one.
-    """
-
     COMMENTED_OUT_CODE = DIRECTORY / "commented_out_code.py"
     """
     A line of code commented out, next to an explaining comment.
