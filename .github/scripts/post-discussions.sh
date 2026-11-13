@@ -8,7 +8,7 @@
 # signed in.
 #
 # Usage: post-discussions.sh <posts directory> <categories query> <create query>
-#   <find query> <comment query> <owner/name> <notes branch>
+#   <find query> <comment query> <owner/name> <notes branch> <commit script>
 set -euo pipefail
 
 POSTS="$1"
@@ -18,6 +18,7 @@ FIND_QUERY="$4"
 COMMENT_QUERY="$5"
 REPOSITORY="$6"
 NOTES_BRANCH="$7"
+COMMIT_SCRIPT="$8"
 OWNER="${REPOSITORY%%/*}"
 NAME="${REPOSITORY#*/}"
 
@@ -82,18 +83,7 @@ for post in "${waiting[@]}"; do
     kept=1
     continue
   fi
-  git rm --quiet "${post}"
+  rm "${post}"
 done
-if ! git diff --cached --quiet; then
-  git commit --quiet --message "Remove the discussions posted"
-  for attempt in 1 2 3; do
-    if git push --quiet origin "HEAD:refs/heads/${NOTES_BRANCH}"; then
-      break
-    fi
-    if [ "${attempt}" -eq 3 ]; then
-      exit 1
-    fi
-    git pull --quiet --rebase origin "${NOTES_BRANCH}"
-  done
-fi
+bash "${COMMIT_SCRIPT}" "Remove the discussions posted" "${NOTES_BRANCH}" "${POSTS}"
 exit "${kept}"

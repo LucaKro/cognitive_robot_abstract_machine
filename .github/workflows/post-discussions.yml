@@ -22,8 +22,4 @@ jobs:
       - name: Post the waiting discussions
         env:
           GH_TOKEN: ${{ github.token }}
-          GIT_AUTHOR_NAME: github-actions[bot]
-          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-        run: bash ".github/scripts/post-discussions.sh" "discussion-posts" ".github/scripts/discussion-categories.graphql" ".github/scripts/create-discussion.graphql" ".github/scripts/find-discussions.graphql" ".github/scripts/add-discussion-comment.graphql" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}"
+        run: bash ".github/scripts/post-discussions.sh" "discussion-posts" ".github/scripts/discussion-categories.graphql" ".github/scripts/create-discussion.graphql" ".github/scripts/find-discussions.graphql" ".github/scripts/add-discussion-comment.graphql" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" ".github/scripts/commit-notes-branch.sh"
