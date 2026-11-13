@@ -56,16 +56,18 @@ def get_node() -> Node:
 
 def spinner_thread_target(node: Node) -> None:
     """
-    Thread that runs a multithreaded executor in the background.
+    Thread that runs a multithreaded executor in the background, until ROS is shut down
+    or :func:`shutdown` takes the executor away.
 
     :param node: The node registered for shared access.
     """
     global executor
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
+    own_executor = MultiThreadedExecutor()
+    executor = own_executor
+    own_executor.add_node(node)
     try:
-        while rclpy.ok():
-            executor.spin_once(timeout_sec=0.1)
+        while rclpy.ok() and executor is own_executor:
+            own_executor.spin_once(timeout_sec=0.1)
             # Needed: without this pause the threads start choking and everything becomes
             # slower. Do not remove it, not even to raise the callback throughput.
             sleep(0.001)
@@ -122,6 +124,8 @@ def shutdown() -> None:
 
     if executor is not None:
         executor.shutdown()
+        # The spin thread runs for as long as its executor is the registered one.
+        executor = None
     if spinner_thread is not None:
         spinner_thread.join(2.0)
     if node is not None:
@@ -130,5 +134,4 @@ def shutdown() -> None:
     if rclpy.ok():
         rclpy.shutdown()
 
-    executor = None
     spinner_thread = None
