@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 try:
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+    from pxr import Gf, Kind, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
     PXR_AVAILABLE = True
 except ImportError:
@@ -351,4 +351,123 @@ def build_single_joint_stage_with_semantic_labels() -> Usd.Stage:
         ["seating"]
     )
 
+    return stage
+
+
+def _define_posed_link(
+    stage: Usd.Stage,
+    path: str,
+    *,
+    translation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    rotation_about_z: float = 0.0,
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> Usd.Prim:
+    """
+    Define an ``Xform`` at ``path`` holding one quad mesh, posed the way a scene places
+    an instance of a referenced asset.
+
+    :param stage: The stage to define the link on.
+    :param path: The link prim's stage path.
+    :param translation: The link's authored translation.
+    :param rotation_about_z: The link's authored rotation about Z, in degrees.
+    :param scale: The link's authored scale.
+    :return: The link prim.
+    """
+    link = UsdGeom.Xform.Define(stage, path)
+    link.AddTranslateOp().Set(Gf.Vec3d(*translation))
+    link.AddRotateZOp().Set(rotation_about_z)
+    link.AddScaleOp().Set(Gf.Vec3f(*scale))
+    mesh = UsdGeom.Mesh.Define(stage, f"{path}/mesh")
+    mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])
+    mesh.CreateFaceVertexCountsAttr([4])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    return link.GetPrim()
+
+
+def _define_component(
+    stage: Usd.Stage,
+    path: str,
+    *,
+    translation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    rotation_about_z: float = 0.0,
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> Usd.Prim:
+    """
+    Define a posed link, as :func:`_define_posed_link` does, of kind ``component``.
+
+    :param stage: The stage to define the component on.
+    :param path: The component prim's stage path.
+    :param translation: The component's authored translation.
+    :param rotation_about_z: The component's authored rotation about Z, in degrees.
+    :param scale: The component's authored scale.
+    :return: The component prim.
+    """
+    component = _define_posed_link(
+        stage,
+        path,
+        translation=translation,
+        rotation_about_z=rotation_about_z,
+        scale=scale,
+    )
+    Usd.ModelAPI(component).SetKind(Kind.Tokens.component)
+    return component
+
+
+def build_jointless_stage_with_posed_top_level_prims() -> Usd.Stage:
+    """
+    A minimal in-memory stage with no default prim and two top-level prims, one of them
+    posed with a translation, rotation and non-uniform scale, and no physics joints.
+
+    :return: The built in-memory stage.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    _define_posed_link(
+        stage,
+        "/object_a",
+        translation=(2.0, 0.0, 0.0),
+        rotation_about_z=90.0,
+        scale=(2.0, 1.0, 1.0),
+    )
+    _define_posed_link(stage, "/object_b")
+    return stage
+
+
+def build_component_scene_stage() -> Usd.Stage:
+    """
+    A minimal in-memory scene in the layout of an architectural USD export: a default
+    ``Scope`` grouping two chair components by category, one of them posed with a
+    translation, rotation and non-uniform scale, and a floor mesh outside every
+    component.
+
+    :return: The built in-memory stage.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    scene = UsdGeom.Scope.Define(stage, "/scene")
+    stage.SetDefaultPrim(scene.GetPrim())
+    UsdGeom.Scope.Define(stage, "/scene/chairs")
+    _define_component(
+        stage,
+        "/scene/chairs/chair_0",
+        translation=(2.0, 0.0, 0.0),
+        rotation_about_z=90.0,
+        scale=(2.0, 1.0, 1.0),
+    )
+    _define_component(stage, "/scene/chairs/chair_1", translation=(0.0, 3.0, 0.0))
+    floor = UsdGeom.Mesh.Define(stage, "/scene/floor")
+    floor.CreatePointsAttr([(0, 0, 0), (5, 0, 0), (5, 5, 0), (0, 5, 0)])
+    floor.CreateFaceVertexCountsAttr([4])
+    floor.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    return stage
+
+
+def build_component_scene_stage_without_a_default_prim() -> Usd.Stage:
+    """
+    A minimal in-memory scene whose two components are top-level prims, with no default
+    prim to name the scene's root after.
+
+    :return: The built in-memory stage.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    _define_component(stage, "/chair_0")
+    _define_component(stage, "/chair_1", translation=(0.0, 3.0, 0.0))
     return stage

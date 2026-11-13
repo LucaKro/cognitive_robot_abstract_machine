@@ -11,7 +11,7 @@ from types import NoneType
 import numpy as np
 import trimesh
 from numpy.typing import NDArray
-from typing_extensions import Sequence
+from typing_extensions import Self, Sequence
 
 from krrood.class_diagrams.mocking import MockedClass, MockedModule
 
@@ -20,6 +20,7 @@ from semantic_digital_twin.adapters.package_resolver import (
     PathResolver,
 )
 from semantic_digital_twin.adapters.usd.exceptions import (
+    UnreadUsdPhysicsJointsError,
     UnsupportedUsdGeometryTypeError,
     UnsupportedUsdPhysicsJointTypeError,
     UsdPhysicsJointMissingChildBodyError,
@@ -117,7 +118,7 @@ class _MockedGfModule(MockedModule):
 
 
 try:
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+    from pxr import Gf, Kind, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 except ImportError:
     logger.warning(
         "usd-core is required for USD parsing. Please install it using "
@@ -475,44 +476,18 @@ class UsdMeshShapeBuilder(UsdShapeBuilder):
         return np.array(triangles, dtype=np.int64)
 
 
-@dataclass
-class USDParser(WorldModelParser):
+@dataclass(kw_only=True)
+class USDStageParser(WorldModelParser, ABC):
     """
-    Parses Universal Scene Description (USD) stages into worlds.
-
-    A USD stage's arbitrary ``Xform`` nesting is scene organisation, not rigid-body
-    structure: the rigid links of a physically articulated asset are the prims
-    connected by its :class:`~pxr.UsdPhysics.Joint` prims (a joint's ``body0``/``body1``
-    relationships), so those - not the raw prim hierarchy - are what is walked to build
-    the kinematic tree. A stage with no physics joints at all is treated as one rigid
-    body: every mesh and primitive shape under its root becomes a shape of a single
-    root Body.
-
-    .. note::
-        Requires the ``usd-core`` package (``pxr``) to read the stage.
-
-    .. note::
-        Every rigid link is assumed to appear as the child (``body1``) of exactly one
-        joint - a link that does not would be created (as another joint's parent) but
-        never connected, and so would not appear in the parsed world.
-
-    .. note::
-        USD is right-handed. Unlike the axis convention, the up axis and the unit scale
-        are not fixed: they are stage metadata (``UsdGeom.GetStageUpAxis``, typically Y
-        or Z, and ``UsdGeom.GetStageMetersPerUnit``). This parser never assumes either -
-        every transform it builds is relative to a prim's own parent, computed straight
-        from the authored ``xformOpOrder``, so it comes out correct in whatever up axis
-        and unit scale the stage itself declares.
+    Base for the parsers that turn a Universal Scene Description (USD) stage, read with
+    the ``usd-core`` package (``pxr``), into a world. The world keeps the up axis and
+    unit scale the stage declares in its metadata.
     """
 
     stage: Usd.Stage
     """
-    The USD stage to parse.
-
-    Unlike URDF/SDF, a USD stage is not a flat block of source text one file happens to
-    hold: composition (references, sublayers, ...) makes the opened stage itself, not
-    any single file's text, the thing that fully describes what to parse. So this - not
-    a file path - is the parser's payload field; :meth:`from_file` opens the file first.
+    The USD stage to parse, composed from all its layers (references, sublayers, ...);
+    :meth:`from_file` opens one from a file.
     """
 
     prefix: str | None = None
@@ -526,6 +501,9 @@ class USDParser(WorldModelParser):
     """
 
     def __post_init__(self):
+        """
+        Defaults :attr:`prefix` to the file name stem of the stage's root layer.
+        """
         if self.prefix is None:
             self.prefix = Path(self.stage.GetRootLayer().identifier).stem
 
@@ -537,7 +515,7 @@ class USDParser(WorldModelParser):
         file_path: str,
         prefix: str | None = None,
         path_resolver: PathResolver | None = None,
-    ) -> USDParser:
+    ) -> Self:
         """
         Creates a parser for a USD stage file.
 
@@ -563,6 +541,263 @@ class USDParser(WorldModelParser):
         """
         return self.stage.GetRootLayer().identifier
 
+    # %% stage structure
+
+    def _root_prim(self) -> Usd.Prim | None:
+        """
+        :return: The stage's default prim, or its single top-level prim if it has no
+            default prim and exactly one top-level prim, or ``None`` if neither
+            identifies a single prim unambiguously.
+        """
+        default_prim = self.stage.GetDefaultPrim()
+        if default_prim.IsValid():
+            return default_prim
+
+        top_level_prims = self._top_level_prims()
+        if len(top_level_prims) != 1:
+            return None
+        return top_level_prims[0]
+
+    def _top_level_prims(self) -> list[Usd.Prim]:
+        """
+        :return: Every top-level prim of the stage (the pseudo-root's direct children).
+        """
+        return list(self.stage.GetPseudoRoot().GetChildren())
+
+    def _physics_joint_prims(self) -> list[Usd.Prim]:
+        """
+        :return: Every :class:`~pxr.UsdPhysics.Joint` prim of the stage.
+        """
+        return [prim for prim in self.stage.Traverse() if prim.IsA(UsdPhysics.Joint)]
+
+    @staticmethod
+    def _local_to_world(*, prim: Usd.Prim) -> Gf.Matrix4d:
+        """
+        :param prim: The prim whose transform to compute.
+        :return: The prim's transform relative to the stage's world frame, including
+            its scale.
+        """
+        return UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(
+            Usd.TimeCode.Default()
+        )
+
+    @staticmethod
+    def _pose_in_world(*, prim: Usd.Prim) -> Gf.Matrix4d:
+        """
+        :param prim: The prim whose pose to compute.
+        :return: The prim's transform relative to the stage's world frame, without its
+            scale.
+        """
+        local_to_world = Gf.Transform(USDStageParser._local_to_world(prim=prim))
+        return Gf.Matrix4d().SetTransform(
+            local_to_world.GetRotation(), local_to_world.GetTranslation()
+        )
+
+    # %% links and shapes
+
+    def _create_link_body(
+        self, *, link_prim: Usd.Prim, name: str, link_to_world: Gf.Matrix4d
+    ) -> Body:
+        """
+        Creates the Body for one rigid link, with a Shape for every mesh/primitive in
+        its USD subtree and its :class:`~pxr.UsdPhysics.MassAPI` inertial properties, if
+        applied.
+
+        :param link_prim: The link's root USD prim.
+        :param name: The body's name, prefixed with :attr:`prefix`.
+        :param link_to_world: The body frame's transform relative to the stage's world
+            frame; any scale it leaves out stays in the shapes.
+        :return: The created body, not yet added to a world.
+        """
+        shapes = self._shapes_in_subtree(
+            link_prim=link_prim, link_to_world=link_to_world
+        )
+        shape_collection = ShapeCollection(shapes)
+        body = Body(
+            name=PrefixedName(name, self.prefix),
+            visual=shape_collection,
+            collision=shape_collection,
+        )
+        inertial = self._parse_inertial(link_prim=link_prim, body=body)
+        if inertial is not None:
+            body.inertial = inertial
+        return body
+
+    def _create_free_body(self, *, prim: Usd.Prim, name: str) -> Body:
+        """
+        :param prim: The root prim of an object the stage connects to nothing.
+        :param name: The body's name, prefixed with :attr:`prefix`.
+        :return: The object's body, whose frame is the prim's pose without its scale,
+            not yet added to a world.
+        """
+        return self._create_link_body(
+            link_prim=prim, name=name, link_to_world=self._pose_in_world(prim=prim)
+        )
+
+    def _add_free_body(self, *, world: World, prim: Usd.Prim, body: Body) -> None:
+        """
+        Adds a body from :meth:`_create_free_body` to ``world``, attached to its root by a
+        :class:`~semantic_digital_twin.world_description.connections.Connection6DoF` at
+        the prim's pose. Must be called inside ``world``'s modification context.
+
+        :param world: The world, whose root body's frame is the stage's world frame.
+        :param prim: The prim ``body`` was created from.
+        :param body: The body to add.
+        """
+        world.add_body(body)
+        self._attach_semantic_labels(world=world, prim=prim, body=body)
+        connection = Connection6DoF.create_with_dofs(
+            world=world, parent=world.root, child=body
+        )
+        world.add_connection(connection)
+        # Gf matrices act on row vectors, so the transpose is the pose.
+        connection.origin = HomogeneousTransformationMatrix(
+            data=np.array(self._pose_in_world(prim=prim)).T,
+            reference_frame=world.root,
+        )
+
+    def _shapes_in_subtree(
+        self, *, link_prim: Usd.Prim, link_to_world: Gf.Matrix4d
+    ) -> list[Shape]:
+        """
+        Creates the Shape for every mesh/primitive prim in a link's subtree.
+
+        :param link_prim: The root of the subtree to search for shapes.
+        :param link_to_world: The transform, relative to the stage's world frame, of
+            the frame the shapes are positioned relative to.
+        :return: The created shapes.
+        """
+        shapes = []
+        for prim in Usd.PrimRange(link_prim):
+            shape = self._create_shape(prim=prim, link_to_world=link_to_world)
+            if shape is not None:
+                shapes.append(shape)
+        return shapes
+
+    def _create_shape(
+        self, *, prim: Usd.Prim, link_to_world: Gf.Matrix4d
+    ) -> Shape | None:
+        """
+        Creates the Shape a mesh/primitive prim describes. A prim that is no renderable
+        geometric primitive (an ``Xform``, a camera, a shader, ...) is skipped.
+
+        :param prim: The prim to create a shape for.
+        :param link_to_world: The enclosing link's local-to-world transform.
+        :return: The created shape, or ``None`` if ``prim`` is not shape geometry.
+        :raises UnsupportedUsdGeometryTypeError: If ``prim`` is a renderable geometric
+            primitive of a type this parser does not build a Shape for.
+        """
+        type_name = prim.GetTypeName()
+        try:
+            geom_type = UsdGeomPrimType(type_name)
+        except ValueError as error:
+            if prim.IsA(UsdGeom.Gprim):
+                raise UnsupportedUsdGeometryTypeError(
+                    file_path=self.source_description,
+                    prim_path=str(prim.GetPath()),
+                    geometry_type=type_name,
+                    supported_types=list(UsdGeomPrimType),
+                ) from error
+            return None
+        return geom_type.create_shape(prim, link_to_world)
+
+    # %% inertials
+
+    @staticmethod
+    def _parse_inertial(*, link_prim: Usd.Prim, body: Body) -> Inertial | None:
+        """
+        Parses a link prim's :class:`~pxr.UsdPhysics.MassAPI` inertial properties.
+
+        :param link_prim: The link's root USD prim.
+        :param body: The body the properties belong to, used as their reference frame.
+        :return: The inertial properties, or ``None`` if ``UsdPhysics.MassAPI`` is not
+            applied to the prim.
+        """
+        if not link_prim.HasAPI(UsdPhysics.MassAPI):
+            return None
+
+        mass_api = UsdPhysics.MassAPI(link_prim)
+        mass = mass_api.GetMassAttr().Get()
+        if mass is None or mass <= 0.0:
+            return None
+
+        center_of_mass = mass_api.GetCenterOfMassAttr().Get() or (0.0, 0.0, 0.0)
+        diagonal_inertia = mass_api.GetDiagonalInertiaAttr().Get() or (0.0, 0.0, 0.0)
+        principal_axes = mass_api.GetPrincipalAxesAttr().Get()
+
+        principal_moments = PrincipalMoments.from_values(
+            i1=diagonal_inertia[0], i2=diagonal_inertia[1], i3=diagonal_inertia[2]
+        )
+        axes_rotation = _usd_pose_to_transform(
+            Gf.Vec3d(0, 0, 0),
+            principal_axes if principal_axes is not None else Gf.Quatf(1, 0, 0, 0),
+        )
+        inertia_tensor = InertiaTensor.from_principal_moments_and_axes(
+            moments=principal_moments,
+            axes=PrincipalAxes.from_rotation_matrix(
+                RotationMatrix(data=axes_rotation.to_np()[:3, :3])
+            ),
+        )
+
+        return Inertial(
+            mass=mass,
+            center_of_mass=Point3(*center_of_mass, reference_frame=body),
+            inertia=inertia_tensor,
+        )
+
+    # %% semantics
+
+    @staticmethod
+    def _attach_semantic_labels(*, world: World, prim: Usd.Prim, body: Body) -> None:
+        """
+        Attaches a :class:`UsdSemanticLabels` annotation to ``body`` for every
+        ``UsdSemantics.LabelsAPI`` taxonomy directly authored on ``prim``, if any.
+
+        Must be called inside ``world``'s modification context, alongside adding
+        ``body`` itself.
+
+        :param world: The world to add the annotation to.
+        :param prim: The USD prim ``body`` was built from.
+        :param body: The already-added body the annotation's root is.
+        """
+        for taxonomy, labels in USDStageParser._read_semantic_labels(prim=prim).items():
+            world.add_semantic_annotation(
+                UsdSemanticLabels(root=body, taxonomy=taxonomy, labels=labels)
+            )
+
+    @staticmethod
+    def _read_semantic_labels(*, prim: Usd.Prim) -> dict[str, list[str]]:
+        """
+        Reads every ``UsdSemantics.LabelsAPI`` taxonomy directly authored on a prim.
+
+        Only labels authored directly on ``prim`` are read, the same way
+        :meth:`_parse_inertial` only reads a link's own ``UsdPhysics.MassAPI`` - not
+        the taxonomies USD's inheritance semantics would additionally consider
+        accumulated from an ancestor prim.
+
+        :param prim: The prim to read semantic labels from.
+        :return: A mapping of taxonomy to the labels authored under it, empty if
+            ``usd-core`` predates ``UsdSemantics`` or the prim has none.
+        """
+        if UsdSemantics is NoneType:
+            return {}
+        return {
+            taxonomy: list(
+                UsdSemantics.LabelsAPI.Get(prim, taxonomy).GetLabelsAttr().Get() or ()
+            )
+            for taxonomy in UsdSemantics.LabelsAPI.GetDirectTaxonomies(prim)
+        }
+
+
+@dataclass(kw_only=True)
+class USDParser(USDStageParser):
+    """
+    Parses a USD stage of one asset into a world: its rigid links are the prims its
+    :class:`~pxr.UsdPhysics.Joint` prims connect, not its ``Xform`` hierarchy, and each
+    link must be the ``body1`` of exactly one joint. A stage without physics joints
+    becomes one body holding every shape under its root.
+    """
+
     # %% entry point
 
     def create_world(self) -> World:
@@ -576,9 +811,7 @@ class USDParser(WorldModelParser):
         :raises UsdPhysicsJointMissingChildBodyError: If a physics joint's ``body1``
             relationship has no target.
         """
-        joint_prims = [
-            prim for prim in self.stage.Traverse() if prim.IsA(UsdPhysics.Joint)
-        ]
+        joint_prims = self._physics_joint_prims()
         if not joint_prims:
             return self._parse_jointless_stage()
         return self._parse_joint_graph(joint_prims)
@@ -612,11 +845,15 @@ class USDParser(WorldModelParser):
 
         with world.modify_world():
             if root_prim is not None:
-                self._attach_semantic_labels(world, root_prim, root_body)
+                self._attach_semantic_labels(
+                    world=world, prim=root_prim, body=root_body
+                )
             for path_string, link_body_instance in link_bodies.items():
                 world.add_body(link_body_instance)
                 self._attach_semantic_labels(
-                    world, self.stage.GetPrimAtPath(path_string), link_body_instance
+                    world=world,
+                    prim=self.stage.GetPrimAtPath(path_string),
+                    body=link_body_instance,
                 )
             for (
                 connection_specification_with_endpoints
@@ -627,14 +864,9 @@ class USDParser(WorldModelParser):
 
     def _parse_jointless_stage(self) -> World:
         """
-        Builds the world for a stage with no physics joints at all.
-
-        Its root prim (see :meth:`_root_prim`) becomes a single-body World. With no
-        identifiable root prim, there is nothing to unambiguously treat as "the" object
-        either - so a synthetic root is created instead, and every top-level prim
-        becomes its own body, attached to it with a
-        :class:`~semantic_digital_twin.world_description.connections.Connection6DoF`
-        (freely posable, since the stage itself asserts no relationship between them).
+        Builds the world for a stage with no physics joints at all: a single body for
+        its root prim (see :meth:`_root_prim`), or, without one, a synthetic root with
+        every top-level prim attached at its pose as its own free body.
 
         :return: The parsed world.
         """
@@ -643,49 +875,29 @@ class USDParser(WorldModelParser):
         if root_prim is not None:
             world = World.create_with_root_body(root_prim.GetName(), self.prefix)
             root_body = world.root
-            shapes = self._shapes_in_subtree(root_prim)
+            shapes = self._shapes_in_subtree(
+                link_prim=root_prim, link_to_world=self._local_to_world(prim=root_prim)
+            )
             shape_collection = ShapeCollection(shapes, reference_frame=root_body)
             shape_collection.transform_all_shapes_to_own_frame()
             root_body.visual = shape_collection
             root_body.collision = shape_collection
             with world.modify_world():
-                self._attach_semantic_labels(world, root_prim, root_body)
+                self._attach_semantic_labels(
+                    world=world, prim=root_prim, body=root_body
+                )
             return world
 
         world = World.create_with_root_body(self.prefix, self.prefix)
-        root_body = world.root
-        with world.modify_world():
-            for prim in self._top_level_prims():
-                body = self._create_link_body(prim)
-                world.add_body(body)
-                self._attach_semantic_labels(world, prim, body)
-                world.add_connection(
-                    Connection6DoF.create_with_dofs(
-                        world=world, parent=root_body, child=body
-                    )
-                )
-        return world
-
-    def _root_prim(self) -> Usd.Prim | None:
-        """
-        :return: The stage's default prim, or its single top-level prim if it has no
-            default prim and exactly one top-level prim, or ``None`` if neither
-            identifies a single prim unambiguously.
-        """
-        default_prim = self.stage.GetDefaultPrim()
-        if default_prim.IsValid():
-            return default_prim
-
         top_level_prims = self._top_level_prims()
-        if len(top_level_prims) != 1:
-            return None
-        return top_level_prims[0]
-
-    def _top_level_prims(self) -> list[Usd.Prim]:
-        """
-        :return: Every top-level prim of the stage (the pseudo-root's direct children).
-        """
-        return list(self.stage.GetPseudoRoot().GetChildren())
+        bodies = [
+            self._create_free_body(prim=prim, name=prim.GetName())
+            for prim in top_level_prims
+        ]
+        with world.modify_world():
+            for prim, body in zip(top_level_prims, bodies):
+                self._add_free_body(world=world, prim=prim, body=body)
+        return world
 
     # %% joints
 
@@ -730,11 +942,13 @@ class USDParser(WorldModelParser):
                 file_path=self.source_description, joint_path=str(joint_prim.GetPath())
             )
         parent = (
-            self._resolve_link_body(link_bodies, body0_targets[0])
+            self._resolve_link_body(link_bodies=link_bodies, prim_path=body0_targets[0])
             if body0_targets
             else root_body
         )
-        child = self._resolve_link_body(link_bodies, body1_targets[0])
+        child = self._resolve_link_body(
+            link_bodies=link_bodies, prim_path=body1_targets[0]
+        )
 
         parent_T_connection = _usd_pose_to_transform(
             joint.GetLocalPos0Attr().Get(),
@@ -793,7 +1007,7 @@ class USDParser(WorldModelParser):
         )
 
     def _resolve_link_body(
-        self, link_bodies: dict[str, Body], prim_path: Sdf.Path
+        self, *, link_bodies: dict[str, Body], prim_path: Sdf.Path
     ) -> Body:
         """
         Resolves a USD prim path to its link Body, creating (and caching in
@@ -807,171 +1021,109 @@ class USDParser(WorldModelParser):
         """
         prim = self.stage.GetPrimAtPath(prim_path)
         if prim.GetTypeName() == UsdGeomPrimType.MESH:
-            # Most joints target the link's enclosing Xform, whose subtree holds its
-            # shape(s); some instead target a link's mesh prim directly. Both resolve
-            # to the same parent Xform, so a link is never split into two disconnected
-            # bodies.
+            # Some joints target a link's mesh prim instead of its enclosing Xform;
+            # both resolve to the Xform, so a link is never split into two bodies.
             prim = prim.GetParent()
         path_string = str(prim.GetPath())
         if path_string not in link_bodies:
-            link_bodies[path_string] = self._create_link_body(prim)
+            link_bodies[path_string] = self._create_link_body(
+                link_prim=prim,
+                name=prim.GetName(),
+                link_to_world=self._local_to_world(prim=prim),
+            )
         return link_bodies[path_string]
 
-    # %% links and shapes
 
-    def _create_link_body(self, link_prim: Usd.Prim) -> Body:
-        """
-        Creates the Body for one rigid link, with a Shape for every mesh/primitive in
-        its USD subtree and its :class:`~pxr.UsdPhysics.MassAPI` inertial properties, if
-        applied.
+@dataclass(kw_only=True)
+class UsdSceneContent:
+    """
+    What a USD scene holds below its root prim, split at its components.
+    """
 
-        :param link_prim: The link's root USD prim.
-        :return: The created body, not yet added to a world.
-        """
-        shapes = self._shapes_in_subtree(link_prim)
-        shape_collection = ShapeCollection(shapes)
-        body = Body(
-            name=PrefixedName(link_prim.GetName(), self.prefix),
-            visual=shape_collection,
-            collision=shape_collection,
-        )
-        inertial = self._parse_inertial(link_prim, body)
-        if inertial is not None:
-            body.inertial = inertial
-        return body
+    component_prims: list[Usd.Prim] = field(default_factory=list)
+    """
+    Every prim of kind ``component`` below the root, none of them inside another.
+    """
 
-    def _shapes_in_subtree(self, link_prim: Usd.Prim) -> list[Shape]:
-        """
-        Creates the Shape for every mesh/primitive prim in a link's subtree.
+    root_shapes: list[Shape] = field(default_factory=list)
+    """
+    The shapes of the geometry outside every component, positioned relative to the
+    stage's world frame.
+    """
 
-        :param link_prim: The link the shapes are positioned relative to, and the root
-            of the subtree to search for them.
-        :return: The created shapes.
+
+@dataclass(kw_only=True)
+class USDComponentParser(USDStageParser):
+    """
+    Parses a USD scene into one free body per prim of kind ``component`` (a placed
+    asset such as a chair), named after its path below the root prim and posed as
+    authored, even where the model hierarchy above it is invalid. Geometry outside
+    every component belongs to the root body. Physics joints are not read.
+    """
+
+    def create_world(self) -> World:
         """
-        link_to_world = UsdGeom.Xformable(link_prim).ComputeLocalToWorldTransform(
-            Usd.TimeCode.Default()
-        )
-        shapes = []
-        for prim in Usd.PrimRange(link_prim):
-            shape = self._create_shape(prim, link_to_world)
+        Differs from
+        :meth:`~semantic_digital_twin.world_source.WorldSource.create_world` in the
+        stages it rejects.
+
+        :raises UnreadUsdPhysicsJointsError: If the stage contains physics joints.
+        """
+        joint_prims = self._physics_joint_prims()
+        if joint_prims:
+            raise UnreadUsdPhysicsJointsError(
+                file_path=self.source_description,
+                joint_paths=[str(joint_prim.GetPath()) for joint_prim in joint_prims],
+            )
+
+        root_prim = self._root_prim()
+        scene_root = root_prim if root_prim is not None else self.stage.GetPseudoRoot()
+        root_body_name = root_prim.GetName() if root_prim is not None else self.prefix
+        world = World.create_with_root_body(root_body_name, self.prefix)
+        root_body = world.root
+
+        # Every shape is built before the world is modified: a World left partway
+        # through a failed modification is unusable.
+        content = self._scene_content(scene_root=scene_root)
+        root_shapes = ShapeCollection(content.root_shapes, reference_frame=root_body)
+        root_body.visual = root_shapes
+        root_body.collision = root_shapes
+        component_bodies = [
+            self._create_free_body(
+                prim=component_prim,
+                name=str(
+                    component_prim.GetPath().MakeRelativePath(scene_root.GetPath())
+                ),
+            )
+            for component_prim in content.component_prims
+        ]
+
+        with world.modify_world():
+            if root_prim is not None:
+                self._attach_semantic_labels(
+                    world=world, prim=root_prim, body=root_body
+                )
+            for component_prim, body in zip(content.component_prims, component_bodies):
+                self._add_free_body(world=world, prim=component_prim, body=body)
+        return world
+
+    def _scene_content(self, *, scene_root: Usd.Prim) -> UsdSceneContent:
+        """
+        :param scene_root: The prim whose subtree is the scene.
+        :return: The components below ``scene_root`` and the shapes outside them.
+        """
+        content = UsdSceneContent()
+        world_frame = Gf.Matrix4d(1.0)
+        prim_range = iter(Usd.PrimRange(scene_root))
+        for prim in prim_range:
+            is_component = Usd.ModelAPI(prim).IsKind(
+                Kind.Tokens.component, Usd.ModelAPI.KindValidationNone
+            )
+            if prim != scene_root and is_component:
+                content.component_prims.append(prim)
+                prim_range.PruneChildren()
+                continue
+            shape = self._create_shape(prim=prim, link_to_world=world_frame)
             if shape is not None:
-                shapes.append(shape)
-        return shapes
-
-    def _create_shape(self, prim: Usd.Prim, link_to_world: Gf.Matrix4d) -> Shape | None:
-        """
-        Creates the Shape a mesh/primitive prim describes.
-
-        A prim that is not a renderable geometric primitive at all (a plain ``Xform``
-        grouping node, a camera, a shader, ...) is not shape geometry and is silently
-        skipped; one that is (:class:`~pxr.UsdGeom.Gprim`) but of a type this parser
-        does not build a Shape for (e.g. ``Cone``, ``Capsule``) raises instead, the same
-        way an unrecognised joint type does, rather than silently vanishing from the
-        built world.
-
-        :param prim: The prim to create a shape for.
-        :param link_to_world: The enclosing link's local-to-world transform.
-        :return: The created shape, or ``None`` if ``prim`` is not shape geometry.
-        :raises UnsupportedUsdGeometryTypeError: If ``prim`` is a renderable geometric
-            primitive of a type this parser does not build a Shape for.
-        """
-        type_name = prim.GetTypeName()
-        try:
-            geom_type = UsdGeomPrimType(type_name)
-        except ValueError as error:
-            if prim.IsA(UsdGeom.Gprim):
-                raise UnsupportedUsdGeometryTypeError(
-                    file_path=self.source_description,
-                    prim_path=str(prim.GetPath()),
-                    geometry_type=type_name,
-                    supported_types=list(UsdGeomPrimType),
-                ) from error
-            return None
-        return geom_type.create_shape(prim, link_to_world)
-
-    # %% inertials
-
-    @staticmethod
-    def _parse_inertial(link_prim: Usd.Prim, body: Body) -> Inertial | None:
-        """
-        Parses a link prim's :class:`~pxr.UsdPhysics.MassAPI` inertial properties.
-
-        :param link_prim: The link's root USD prim.
-        :param body: The body the properties belong to, used as their reference frame.
-        :return: The inertial properties, or ``None`` if ``UsdPhysics.MassAPI`` is not
-            applied to the prim.
-        """
-        if not link_prim.HasAPI(UsdPhysics.MassAPI):
-            return None
-
-        mass_api = UsdPhysics.MassAPI(link_prim)
-        mass = mass_api.GetMassAttr().Get()
-        if mass is None or mass <= 0.0:
-            return None
-
-        center_of_mass = mass_api.GetCenterOfMassAttr().Get() or (0.0, 0.0, 0.0)
-        diagonal_inertia = mass_api.GetDiagonalInertiaAttr().Get() or (0.0, 0.0, 0.0)
-        principal_axes = mass_api.GetPrincipalAxesAttr().Get()
-
-        principal_moments = PrincipalMoments.from_values(
-            i1=diagonal_inertia[0], i2=diagonal_inertia[1], i3=diagonal_inertia[2]
-        )
-        axes_rotation = _usd_pose_to_transform(
-            Gf.Vec3d(0, 0, 0),
-            principal_axes if principal_axes is not None else Gf.Quatf(1, 0, 0, 0),
-        )
-        inertia_tensor = InertiaTensor.from_principal_moments_and_axes(
-            moments=principal_moments,
-            axes=PrincipalAxes.from_rotation_matrix(
-                RotationMatrix(data=axes_rotation.to_np()[:3, :3])
-            ),
-        )
-
-        return Inertial(
-            mass=mass,
-            center_of_mass=Point3(*center_of_mass, reference_frame=body),
-            inertia=inertia_tensor,
-        )
-
-    # %% semantics
-
-    @staticmethod
-    def _attach_semantic_labels(world: World, prim: Usd.Prim, body: Body) -> None:
-        """
-        Attaches a :class:`UsdSemanticLabels` annotation to ``body`` for every
-        ``UsdSemantics.LabelsAPI`` taxonomy directly authored on ``prim``, if any.
-
-        Must be called inside ``world``'s modification context, alongside adding
-        ``body`` itself.
-
-        :param world: The world to add the annotation to.
-        :param prim: The USD prim ``body`` was built from.
-        :param body: The already-added body the annotation's root is.
-        """
-        for taxonomy, labels in USDParser._read_semantic_labels(prim).items():
-            world.add_semantic_annotation(
-                UsdSemanticLabels(root=body, taxonomy=taxonomy, labels=labels)
-            )
-
-    @staticmethod
-    def _read_semantic_labels(prim: Usd.Prim) -> dict[str, list[str]]:
-        """
-        Reads every ``UsdSemantics.LabelsAPI`` taxonomy directly authored on a prim.
-
-        Only labels authored directly on ``prim`` are read, the same way
-        :meth:`_parse_inertial` only reads a link's own ``UsdPhysics.MassAPI`` - not
-        the taxonomies USD's inheritance semantics would additionally consider
-        accumulated from an ancestor prim.
-
-        :param prim: The prim to read semantic labels from.
-        :return: A mapping of taxonomy to the labels authored under it, empty if
-            ``usd-core`` predates ``UsdSemantics`` or the prim has none.
-        """
-        if UsdSemantics is NoneType:
-            return {}
-        return {
-            taxonomy: list(
-                UsdSemantics.LabelsAPI.Get(prim, taxonomy).GetLabelsAttr().Get() or ()
-            )
-            for taxonomy in UsdSemantics.LabelsAPI.GetDirectTaxonomies(prim)
-        }
+                content.root_shapes.append(shape)
+        return content

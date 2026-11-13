@@ -93,6 +93,11 @@ with a separate Body per prim, so a multi-object USD scene composed outside ArtV
 hand or exported from a DCC tool) loads the same way, just without `ArtVipDatasetLoader`'s
 category/name bookkeeping.
 
+A scene that places its objects as prims of kind `component` deeper in the hierarchy, as
+architectural exports do, is parsed by `semantic_digital_twin.adapters.usd.parser.USDComponentParser`
+instead: each component becomes its own `Body`, attached to the root with a `Connection6DoF` at its
+authored pose, and named after its path below the root prim (e.g. `Meshes/Assets/Chair/Actor_0003`).
+
 The dataset is public (Apache 2.0), no gated access. Requires the `usd-core` library (`pxr`).
 
 ## GraspClutter6D

@@ -6,10 +6,15 @@ from PIL import Image
 
 from semantic_digital_twin.adapters.usd.exceptions import (
     UnsupportedUsdGeometryTypeError,
+    UnreadUsdPhysicsJointsError,
     UnsupportedUsdPhysicsJointTypeError,
     UsdPhysicsJointMissingChildBodyError,
 )
-from semantic_digital_twin.adapters.usd.parser import USDParser, UsdMeshShapeBuilder
+from semantic_digital_twin.adapters.usd.parser import (
+    USDComponentParser,
+    USDParser,
+    UsdMeshShapeBuilder,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.semantic_annotations.usd_semantics import UsdSemanticLabels
 from semantic_digital_twin.world import World
@@ -25,8 +30,11 @@ from semantic_digital_twin.world_description.world_entity import Body
 from .usd_stages import (
     PXR_AVAILABLE,
     USD_SEMANTICS_AVAILABLE,
+    build_component_scene_stage,
+    build_component_scene_stage_without_a_default_prim,
     build_jointless_stage_with_a_default_prim,
     build_jointless_stage_with_multiple_top_level_prims,
+    build_jointless_stage_with_posed_top_level_prims,
     build_jointless_stage_with_unsupported_geometry,
     build_single_joint_stage,
     build_single_joint_stage_with_mass,
@@ -40,7 +48,10 @@ from .usd_stages import (
 )
 
 if PXR_AVAILABLE:
-    from pxr import Gf, UsdGeom
+    from pxr import Gf, Usd, UsdGeom
+
+if USD_SEMANTICS_AVAILABLE:
+    from pxr import UsdSemantics
 
 pytestmark = pytest.mark.skipif(
     not PXR_AVAILABLE, reason="usd-core (pxr) not installed"
@@ -177,6 +188,35 @@ def test_parse_attaches_multiple_top_level_prims_to_a_synthetic_root():
     assert connection_b.parent is world.root
 
 
+def test_parse_places_a_top_level_prim_at_its_authored_pose():
+    """
+    A top-level prim's body sits at the prim's authored translation and rotation.
+    """
+    world = parse(build_jointless_stage_with_posed_top_level_prims())
+
+    [body] = [body for body in world.bodies if body.name.name == "object_a"]
+    root_T_body = world.compute_forward_kinematics_np(world.root, body)
+
+    np.testing.assert_allclose(root_T_body[:3, 3], [2.0, 0.0, 0.0], atol=1e-6)
+    np.testing.assert_allclose(
+        root_T_body[:3, :3], [[0, -1, 0], [1, 0, 0], [0, 0, 1]], atol=1e-6
+    )
+
+
+def test_parse_keeps_a_top_level_prims_scale_in_its_shapes():
+    """
+    A top-level prim's authored scale stays in its shapes, since a body frame has none.
+    """
+    world = parse(build_jointless_stage_with_posed_top_level_prims())
+
+    [body] = [body for body in world.bodies if body.name.name == "object_a"]
+    [mesh] = body.visual.shapes
+
+    np.testing.assert_allclose(
+        mesh.unscaled_mesh.vertices.max(axis=0), [2.0, 1.0, 0.0], atol=1e-6
+    )
+
+
 def test_parse_raises_on_unsupported_geometry_instead_of_silently_dropping_it():
     # A Cone prim is a UsdGeom.Gprim this parser does not build a Shape for - it must
     # not be silently skipped like a non-geometry Xform/Scope/Camera prim would be, or
@@ -187,6 +227,133 @@ def test_parse_raises_on_unsupported_geometry_instead_of_silently_dropping_it():
         parse(stage)
 
     assert excinfo.value.geometry_type == "Cone"
+
+
+# %% component scenes
+
+
+def parse_components(stage: Usd.Stage) -> World:
+    """
+    :param stage: The scene to parse.
+    :return: The world :class:`USDComponentParser` builds from ``stage``.
+    """
+    return USDComponentParser(stage=stage, prefix="scene").create_world()
+
+
+def component_body(world: World, name: str) -> Body:
+    """
+    :param world: The world to search.
+    :param name: The body's name without its prefix.
+    :return: The one body of ``world`` with that name.
+    """
+    [body] = [body for body in world.bodies if body.name.name == name]
+    return body
+
+
+def test_component_parser_builds_one_body_per_component():
+    """
+    Every component becomes its own body, attached to the root by a 6-DoF connection.
+    """
+    world = parse_components(build_component_scene_stage())
+
+    non_root_bodies = [body for body in world.bodies if body is not world.root]
+    assert {body.name.name for body in non_root_bodies} == {
+        "chairs/chair_0",
+        "chairs/chair_1",
+    }
+    assert world.root.name.name == "scene"
+    assert all(
+        isinstance(connection, Connection6DoF) for connection in world.connections
+    )
+    assert all(connection.parent is world.root for connection in world.connections)
+
+
+def test_component_parser_places_a_component_at_its_authored_pose():
+    """
+    A component's body sits at the component's authored translation and rotation.
+    """
+    world = parse_components(build_component_scene_stage())
+
+    root_T_chair = world.compute_forward_kinematics_np(
+        world.root, component_body(world, "chairs/chair_0")
+    )
+
+    np.testing.assert_allclose(root_T_chair[:3, 3], [2.0, 0.0, 0.0], atol=1e-6)
+    np.testing.assert_allclose(
+        root_T_chair[:3, :3], [[0, -1, 0], [1, 0, 0], [0, 0, 1]], atol=1e-6
+    )
+
+
+def test_component_parser_keeps_a_components_scale_in_its_shapes():
+    """
+    A component's authored scale stays in its shapes, since a body frame has none.
+    """
+    world = parse_components(build_component_scene_stage())
+
+    [mesh] = component_body(world, "chairs/chair_0").visual.shapes
+
+    np.testing.assert_allclose(
+        mesh.unscaled_mesh.vertices.max(axis=0), [2.0, 1.0, 0.0], atol=1e-6
+    )
+
+
+def test_component_parser_gives_geometry_outside_every_component_to_the_root():
+    """
+    Geometry outside every component becomes a shape of the root body.
+    """
+    world = parse_components(build_component_scene_stage())
+
+    [floor] = world.root.visual.shapes
+
+    np.testing.assert_allclose(
+        floor.unscaled_mesh.vertices.max(axis=0), [5.0, 5.0, 0.0], atol=1e-6
+    )
+
+
+def test_component_parser_names_the_root_after_the_prefix_without_a_default_prim():
+    """
+    Without a root prim, the root body takes the prefix and components their full path.
+    """
+    world = parse_components(build_component_scene_stage_without_a_default_prim())
+
+    assert world.root.name.name == "scene"
+    assert {body.name.name for body in world.bodies if body is not world.root} == {
+        "chair_0",
+        "chair_1",
+    }
+
+
+def test_component_parser_raises_on_physics_joints_instead_of_ignoring_them():
+    """
+    A stage with physics joints is rejected instead of parsed as rigid objects.
+    """
+    stage = build_single_joint_stage("FixedJoint")
+
+    with pytest.raises(UnreadUsdPhysicsJointsError) as excinfo:
+        parse_components(stage)
+
+    assert excinfo.value.joint_paths == ["/object/joint"]
+
+
+@pytest.mark.skipif(
+    not USD_SEMANTICS_AVAILABLE, reason="UsdSemantics not available in this usd-core"
+)
+def test_component_parser_attaches_a_components_semantic_labels_to_its_body():
+    """
+    Semantic labels authored on a component annotate the component's body.
+    """
+    stage = build_component_scene_stage()
+    chair_prim = stage.GetPrimAtPath("/scene/chairs/chair_0")
+    UsdSemantics.LabelsAPI.Apply(chair_prim, "class").CreateLabelsAttr().Set(["chair"])
+    world = parse_components(stage)
+
+    [annotation] = [
+        annotation
+        for annotation in world.semantic_annotations
+        if isinstance(annotation, UsdSemanticLabels)
+    ]
+    assert annotation.root is component_body(world, "chairs/chair_0")
+    assert annotation.labels == ["chair"]
 
 
 # %% shapes
@@ -270,7 +437,7 @@ def test_parse_inertial_reads_mass_api_properties():
     link_prim = stage.GetPrimAtPath("/object/child")
     body = Body(name=PrefixedName("test_body"))
 
-    inertial = USDParser._parse_inertial(link_prim, body)
+    inertial = USDParser._parse_inertial(link_prim=link_prim, body=body)
 
     assert inertial is not None
     assert inertial.mass == pytest.approx(2.0)
@@ -284,7 +451,7 @@ def test_parse_inertial_is_none_without_mass_api():
     link_prim = stage.GetPrimAtPath("/object/child")
     body = Body(name=PrefixedName("test_body"))
 
-    assert USDParser._parse_inertial(link_prim, body) is None
+    assert USDParser._parse_inertial(link_prim=link_prim, body=body) is None
 
 
 def test_parse_sets_body_inertial_from_mass_api():
@@ -305,7 +472,7 @@ def test_read_semantic_labels_reads_every_taxonomy():
     stage = build_single_joint_stage_with_semantic_labels()
     link_prim = stage.GetPrimAtPath("/object/child")
 
-    labels_by_taxonomy = USDParser._read_semantic_labels(link_prim)
+    labels_by_taxonomy = USDParser._read_semantic_labels(prim=link_prim)
 
     assert labels_by_taxonomy == {
         "class": ["chair", "furniture"],
@@ -317,7 +484,7 @@ def test_read_semantic_labels_is_empty_without_any_applied():
     stage = build_single_joint_stage("FixedJoint")
     link_prim = stage.GetPrimAtPath("/object/child")
 
-    assert USDParser._read_semantic_labels(link_prim) == {}
+    assert USDParser._read_semantic_labels(prim=link_prim) == {}
 
 
 @pytest.mark.skipif(

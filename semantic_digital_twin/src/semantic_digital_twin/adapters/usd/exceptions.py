@@ -104,3 +104,25 @@ class UnsupportedUsdGeometryTypeError(ParsingError):
         if not self.supported_types:
             return ""
         return f"Use one of the supported types: {', '.join(sorted(self.supported_types))}."
+
+
+@dataclass(kw_only=True)
+class UnreadUsdPhysicsJointsError(ParsingError):
+    """
+    Raised when a parser that does not read physics joints is given a stage that has
+    some.
+    """
+
+    joint_paths: list[str] = field(default_factory=list)
+    """
+    The stage paths of the physics joint prims.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Stage '{self.file_path}' has {len(self.joint_paths)} physics joints, "
+            f"which this parser does not read, the first at '{self.joint_paths[0]}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Parse the stage with USDParser, which builds connections from joints."
