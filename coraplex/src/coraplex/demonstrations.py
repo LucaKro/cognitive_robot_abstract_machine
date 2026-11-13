@@ -426,8 +426,8 @@ class RobotDemonstration(ABC):
         if self.simulation is not None:
             executor_type = partial(executor_type, simulation=self.simulation)
         executor = executor_type(
-            StatechartContext.with_extensions(
-                world, self.build_context_extensions(world)
+            context=StatechartContext.with_extensions(
+                world=world, extensions=self.build_context_extensions(world)
             ),
             ros_node=self.ros_node,
             collision_avoidance=self.collision_avoidance,
@@ -458,7 +458,7 @@ class RobotDemonstration(ABC):
                     else nullcontext()
                 )
                 with event_segmentation:
-                    executor.compile(statechart)
+                    executor.compile(statechart=statechart)
                     executor.execute()
                 executor.close()
         finally:

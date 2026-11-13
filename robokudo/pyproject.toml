@@ -41,6 +41,7 @@ dependencies = [
     "ultralytics",
     "face-recognition",
     "llama-cpp-python",
+    "trimesh",
 ]
 
 [project.urls]

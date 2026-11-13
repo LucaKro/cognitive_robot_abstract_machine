@@ -209,7 +209,7 @@ class MissingToolFrame(DataclassException):
         return "ensure the arm's end effector defines a tool frame."
 
 
-@dataclass
+@dataclass(kw_only=True)
 class MotionDidNotFinish(PlanFailure):
     """
     Raised when a plan ended without succeeding.
