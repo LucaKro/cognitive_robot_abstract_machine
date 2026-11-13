@@ -1,10 +1,4 @@
 {
-  "env": {
-    "PYTEST_ADDOPTS": "-qq --no-header",
-    "TQDM_DISABLE": "1",
-    "NO_COLOR": "1",
-    "UV_NO_PROGRESS": "1"
-  },
   "hooks": {
     "Stop": [
       {
