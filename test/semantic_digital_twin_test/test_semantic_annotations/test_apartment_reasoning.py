@@ -7,10 +7,13 @@ number of the wrong things fails. Every name is checked against the world itself
 missing annotation.
 """
 
+from copy import deepcopy
 from enum import StrEnum
 
 import pytest
 
+from krrood.class_diagrams.class_diagram import ClassDiagram
+from krrood.symbol_graph.symbol_graph import SymbolGraph
 from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -310,13 +313,20 @@ The drawer the apartment fixture annotates by hand before any reasoning runs.
 """
 
 
-@pytest.fixture
-def reasoned_apartment(apartment_world_copy) -> World:
+@pytest.fixture(scope="module")
+def reasoned_apartment(
+    _apartment_world_setup: World, _session_class_diagram: ClassDiagram
+) -> World:
     """
     The apartment with everything the reasoner can infer about it already inferred.
+
+    The tests of this module share it, so each leaves it as it found it.
     """
-    WorldReasoner(apartment_world_copy).infer_semantic_annotations()
-    return apartment_world_copy
+    SymbolGraph.clear_instance()
+    SymbolGraph(_class_diagram=_session_class_diagram)
+    apartment = deepcopy(_apartment_world_setup)
+    WorldReasoner(apartment).infer_semantic_annotations()
+    return apartment
 
 
 @pytest.mark.parametrize(
