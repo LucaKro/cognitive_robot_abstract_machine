@@ -104,3 +104,29 @@ class UnsupportedUsdGeometryTypeError(ParsingError):
         if not self.supported_types:
             return ""
         return f"Use one of the supported types: {', '.join(sorted(self.supported_types))}."
+
+
+@dataclass(kw_only=True)
+class UnreadUsdPhysicsJointsError(ParsingError):
+    """
+    Raised when a stage has physics joints the parser cannot attach to anything, such
+    as joints outside every component of a scene.
+    """
+
+    joint_paths: list[str]
+    """
+    The stage paths of the physics joint prims, at least one.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Stage '{self.file_path}' has {len(self.joint_paths)} physics joints "
+            f"outside every component, which this parser does not read, the first at "
+            f"'{self.joint_paths[0]}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Give the prim holding the joints and the links they connect the kind "
+            "'component', or parse the stage with USDParser."
+        )
