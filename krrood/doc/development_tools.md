@@ -15,10 +15,15 @@ can use the same conventions:
 - `krrood skills [--check]` generates the `.claude/skills/<name>/SKILL.md` of every
   skill the repository declares, replacing whatever those files held. `--check` works
   as for `agents-md`.
-- `krrood check [--all-lines] FILE...` reports the code that breaks a rule a checker
-  enforces; `AGENTS.md` marks such a rule "(checked by `krrood check`)". Only the lines
-  the staged change (`git diff --cached`) adds or changes are checked, because existing
-  code has many violations; `--all-lines` checks every line.
+- `krrood check [--all-lines | --since REVISION] FILE...` reports the code that breaks a
+  rule a checker enforces; `AGENTS.md` marks such a rule "(checked by `krrood check`)".
+  Only the lines the staged change (`git diff --cached`) adds or changes are checked,
+  because existing code has many violations; `--all-lines` checks every line.
+  `--since REVISION` checks the lines the working tree changes since it forked from
+  `REVISION` (their merge base), staged or not, counting every line of an untracked
+  file; without files it checks every Python file below the working directory changed
+  since then, so `krrood check --since HEAD` checks uncommitted work and
+  `krrood check --since origin/main` a branch, even when `main` has moved on.
 
 `format`, `agents-md` and `skills` exit with 1 when they modified a file, and `check` when it
 found a violation, following pre-commit's convention for hooks.
@@ -30,7 +35,10 @@ followed by `Rules`. Its members are its rules: each names one rule, and its val
 the rule's statement, or the statement followed by the details that spell it out.
 Every member is an `AgentRule`, so `ExceptionModellingRules.NEVER_TRY_EXCEPT.statement`
 is one of the rules on modelling exceptions. A rule can carry a checker, a `CodeRuleChecker` that finds the code breaking it; give it
-as the third element of the member's value. When a script can check only part of a
+as the third element of the member's value. A rule that lint rules of ruff enforce takes a
+`RuffRuleChecker` naming them, with the settings they need and whether the rule covers
+tests, the code they test or both; it runs ruff isolated from any configuration file, so
+every repository checks alike. When a script can check only part of a
 rule, split the rule so the checkable part carries the checker. A nested section names the section it is
 part of by overriding the `parent` classproperty. A section's heading is its topic in
 words, in sentence case (`ExternalServicesAndCIRules` becomes "External services and
@@ -85,6 +93,17 @@ Like every checker, it checks only the lines a commit changes, so existing cross
 not block a commit and a new one cannot slip in; `krrood check --all-lines` lists all of
 them.
 
+## Excluding files
+
+A repository keeps files out of `krrood check` in its `pyproject.toml`, wherever the
+check runs:
+
+```toml
+[tool.krrood.check]
+# Regular expressions, searched for in each path relative to the repository root.
+exclude = ['(^|/)generated_module\.py$', '^test/dataset/']
+```
+
 ## Installation
 
 The formatting tools are an optional dependency, pinned so every repository formats
@@ -106,6 +125,12 @@ The hooks run the `krrood` command already installed in your development environ
 (`language: system`), because pre-commit would otherwise install that whole repository
 rather than krrood. `krrood-check` needs that environment anyway: the core boundary check
 reads the installed packages.
+
+The same check runs outside pre-commit too. In CI, `krrood check --since` with the base
+of a pull request checks the lines it changes. For Claude Code, a Stop hook that runs
+`krrood check --since HEAD` and exits with 2 when it fails hands the violations back to
+Claude before it ends its turn; cognitive_robot_abstract_machine's
+`.claude/hooks/check_rules.sh` is one.
 
 To use rules that are not released yet, install krrood from a commit of
 cognitive_robot_abstract_machine:

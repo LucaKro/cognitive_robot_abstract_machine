@@ -1,47 +1,26 @@
 """
-Tests of running checkers over files, alone or restricted to a staged change.
+Tests of running checkers over files, alone or restricted to a change.
 """
 
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from krrood.development_tools.agents.checker import (
     CodeRulesCheck,
-    GitArgument,
+    LinesChangedSince,
     StagedLines,
 )
 from krrood.development_tools.agents.prose_length import ProseLengthChecker
 from krrood.development_tools.exceptions import GitCommandFailed
 
 from .dataset_files import ProseSnippet
+from .git_repository import git
 
 # %% the staged change
-
-
-def git(repository: Path, *arguments: str) -> None:
-    """
-    Run a git command in *repository*, which must succeed.
-    """
-    subprocess.run([GitArgument.GIT, *arguments], cwd=repository, check=True)
-
-
-@pytest.fixture
-def repository(tmp_path: Path) -> Path:
-    """
-    :return: A git repository whose one commit holds an overlong module docstring.
-    """
-    git(tmp_path, "init", "--quiet")
-    git(tmp_path, "config", "user.name", "Tester")
-    git(tmp_path, "config", "user.email", "tester@example.com")
-    shutil.copy(ProseSnippet.OVERLONG_MODULE_DOCSTRING, tmp_path / "module.py")
-    git(tmp_path, "add", "module.py")
-    git(tmp_path, "commit", "--quiet", "-m", "Add")
-    return tmp_path
 
 
 def test_only_code_the_staged_change_touches_is_reported(repository: Path) -> None:
@@ -54,7 +33,8 @@ def test_only_code_the_staged_change_touches_is_reported(repository: Path) -> No
         source.write(f"\n{ProseSnippet.OVERLONG_ATTRIBUTE_DOCSTRING.read_text()}")
     git(repository, "add", "module.py")
     check = CodeRulesCheck(
-        checkers=(ProseLengthChecker(),), staged=StagedLines(repository=repository)
+        checkers=(ProseLengthChecker(),),
+        changed_lines=StagedLines(repository=repository),
     )
 
     violations = check.violations(paths=[path])
@@ -82,3 +62,115 @@ def test_listing_the_staged_change_outside_a_repository_fails(tmp_path: Path) ->
     """
     with pytest.raises(GitCommandFailed):
         StagedLines(repository=tmp_path).find_changed_lines(path=tmp_path / "module.py")
+
+
+# %% the change since a revision
+
+
+def test_only_code_changed_since_the_revision_is_reported(repository: Path) -> None:
+    """
+    Code appended without staging it is compared with the revision, and so reported.
+    """
+    path = repository / "module.py"
+    committed_lines = len(path.read_text().splitlines())
+    with path.open("a") as source:
+        source.write(f"\n{ProseSnippet.OVERLONG_ATTRIBUTE_DOCSTRING.read_text()}")
+    check = CodeRulesCheck(
+        checkers=(ProseLengthChecker(),),
+        changed_lines=LinesChangedSince(repository=repository, revision="HEAD"),
+    )
+
+    violations = check.violations(paths=[path])
+
+    assert [violation.first_line > committed_lines for violation in violations] == [
+        True
+    ]
+
+
+def test_every_line_of_an_untracked_file_has_changed(repository: Path) -> None:
+    """
+    A file git does not track yet is new in every line.
+    """
+    path = repository / "untracked.py"
+    shutil.copy(ProseSnippet.OVERLONG_MODULE_DOCSTRING, path)
+
+    changed_lines = LinesChangedSince(
+        repository=repository, revision="HEAD"
+    ).find_changed_lines(path=path)
+
+    assert changed_lines == set(range(1, len(path.read_text().splitlines()) + 1))
+
+
+def test_the_changed_files_are_the_python_files_modified_or_added(
+    repository: Path,
+) -> None:
+    """
+    Deleted, ignored and non-Python files are left out.
+    """
+    shutil.copy(ProseSnippet.COMMENT_BLOCKS, repository / "deleted.py")
+    git(repository, "add", "deleted.py")
+    git(repository, "commit", "--quiet", "-m", "Add a module to delete")
+    (repository / "deleted.py").unlink()
+    with (repository / "module.py").open("a") as source:
+        source.write("\n")
+    shutil.copy(ProseSnippet.COMMENT_BLOCKS, repository / "added.py")
+    shutil.copy(ProseSnippet.COMMENT_BLOCKS, repository / "ignored.py")
+    (repository / ".gitignore").write_text("ignored.py\n")
+    (repository / "notes.txt").write_text("not Python\n")
+
+    changed_files = LinesChangedSince(
+        repository=repository, revision="HEAD"
+    ).find_changed_files()
+
+    assert sorted(changed_files) == [repository / "added.py", repository / "module.py"]
+
+
+def test_comparing_with_an_unknown_revision_fails(repository: Path) -> None:
+    """
+    A revision git cannot resolve raises :class:`GitCommandFailed`.
+    """
+    with pytest.raises(GitCommandFailed):
+        LinesChangedSince(
+            repository=repository, revision="no-such-revision"
+        ).find_changed_files()
+
+
+def test_the_changed_files_are_found_from_a_subdirectory(repository: Path) -> None:
+    """
+    Run from a subdirectory, the changed files below it are found where they are.
+    """
+    subdirectory = repository / "package"
+    subdirectory.mkdir()
+    shutil.copy(ProseSnippet.COMMENT_BLOCKS, subdirectory / "modified.py")
+    git(repository, "add", "package/modified.py")
+    git(repository, "commit", "--quiet", "-m", "Add a module to modify")
+    with (subdirectory / "modified.py").open("a") as source:
+        source.write("\n")
+    shutil.copy(ProseSnippet.COMMENT_BLOCKS, subdirectory / "added.py")
+
+    changed_files = LinesChangedSince(
+        repository=subdirectory, revision="HEAD"
+    ).find_changed_files()
+
+    assert sorted(changed_files) == [
+        subdirectory / "added.py",
+        subdirectory / "modified.py",
+    ]
+
+
+def test_changes_the_revision_made_after_the_branch_forked_are_left_out(
+    repository: Path,
+) -> None:
+    """
+    The working tree is compared with where it forked from the revision, so code the
+    revision changed since then does not count as changed by the working tree.
+    """
+    git(repository, "switch", "--quiet", "--create", "base")
+    path = repository / "module.py"
+    path.write_text(f"\n{path.read_text()}")
+    git(repository, "commit", "--quiet", "--all", "-m", "Change the module on base")
+    git(repository, "switch", "--quiet", "-")
+    changed_lines = LinesChangedSince(repository=repository, revision="base")
+
+    assert changed_lines.find_changed_files() == []
+    assert changed_lines.find_changed_lines(path=path) == set()

@@ -21,6 +21,7 @@ from krrood.development_tools.agents.leading_preposition import (
     LeadingPrepositionChecker,
 )
 from krrood.development_tools.agents.rule import CodeReference, Section
+from krrood.development_tools.agents.ruff_rules import RuffRule, RuffRuleChecker
 from krrood.ormatic.utils import classproperty
 from krrood.patterns.dataclass_field_descriptor import (
     DataclassFieldDescriptor,
@@ -57,7 +58,16 @@ class CodeStyleRules(Section):
         "attribute access in try-except"
     )
 
-    NO_MUTABLE_DEFAULT_ARGUMENTS = "Never use mutable objects as default arguments"
+    NO_MUTABLE_DEFAULT_ARGUMENTS = (
+        "Never use mutable objects as default arguments or dataclass field defaults",
+        (),
+        RuffRuleChecker(
+            lint_rules=(
+                RuffRule.MUTABLE_ARGUMENT_DEFAULT,
+                RuffRule.MUTABLE_DATACLASS_DEFAULT,
+            )
+        ),
+    )
 
     KEYWORD_ONLY_DATACLASS_FIELDS = (
         "Every dataclass is declared with `kw_only=True`, so its fields are passed "
@@ -204,6 +214,20 @@ class NamingRules(Section):
         f"binds: {CodeReference(target=Enum).name} reserves `name`, a parameter `field` "
         f"shadows {CodeReference(target=dataclasses.field).path}, a field shadows a method of the same name. These "
         "fail at runtime or silently, not at import"
+    )
+
+    NO_BUILTIN_NAMES = (
+        "Never name a variable, parameter or attribute after a builtin such as `id` "
+        "or `type`, nor a top-level module after a module of the standard library",
+        (),
+        RuffRuleChecker(
+            lint_rules=(
+                RuffRule.BUILTIN_VARIABLE_SHADOWING,
+                RuffRule.BUILTIN_ARGUMENT_SHADOWING,
+                RuffRule.BUILTIN_ATTRIBUTE_SHADOWING,
+                RuffRule.STDLIB_MODULE_SHADOWING,
+            )
+        ),
     )
 
     FINISH_RENAMES = (
