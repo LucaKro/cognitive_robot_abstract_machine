@@ -314,19 +314,27 @@ The drawer the apartment fixture annotates by hand before any reasoning runs.
 
 
 @pytest.fixture(scope="module")
-def reasoned_apartment(
+def _reasoned_apartment_setup(
     _apartment_world_setup: World, _session_class_diagram: ClassDiagram
 ) -> World:
     """
-    The apartment with everything the reasoner can infer about it already inferred.
-
-    The tests of this module share it, so each leaves it as it found it.
+    The apartment with everything the reasoner can infer about it already inferred,
+    reasoned once for the module and only ever copied.
     """
     SymbolGraph.clear_instance()
     SymbolGraph(_class_diagram=_session_class_diagram)
     apartment = deepcopy(_apartment_world_setup)
     WorldReasoner(apartment).infer_semantic_annotations()
     return apartment
+
+
+@pytest.fixture
+def reasoned_apartment(_reasoned_apartment_setup: World) -> World:
+    """
+    A copy of the reasoned apartment whose annotations are in the symbol graph of the
+    test that uses it.
+    """
+    return deepcopy(_reasoned_apartment_setup)
 
 
 @pytest.mark.parametrize(
@@ -506,6 +514,15 @@ def test_every_openable_part_hangs_on_the_joint_that_moves_it(
         assert isinstance(door.movable_joint, RevoluteConnection)
 
     assert reasoned_apartment.validate()
+
+
+def test_the_inferred_annotations_are_in_the_symbol_graph(reasoned_apartment: World):
+    """
+    Queries over the symbol graph find the annotations the reasoner inferred.
+    """
+    drawers = set(reasoned_apartment.get_semantic_annotations_by_type(Drawer))
+    assert drawers
+    assert drawers <= set(SymbolGraph().get_instances_of_type(type_=Drawer))
 
 
 # %% what the reasoner leaves alone

@@ -54,17 +54,14 @@ def get_node() -> Node:
     return ROSNodeRegistry().get()
 
 
-def spinner_thread_target(node: Node) -> None:
+def spinner_thread_target(node: Node, own_executor: MultiThreadedExecutor) -> None:
     """
     Thread that runs a multithreaded executor in the background, until ROS is shut down
     or :func:`shutdown` takes the executor away.
 
     :param node: The node registered for shared access.
+    :param own_executor: The executor that spins the node, registered as :data:`executor`.
     """
-    global executor
-    own_executor = MultiThreadedExecutor()
-    executor = own_executor
-    own_executor.add_node(node)
     try:
         while rclpy.ok() and executor is own_executor:
             own_executor.spin_once(timeout_sec=0.1)
@@ -92,7 +89,7 @@ def init_node(node_name: str) -> None:
 
     :param node_name: Name of the node to create.
     """
-    global spinner_thread
+    global executor, spinner_thread
     registry = ROSNodeRegistry()
     if registry.has_node():
         return
@@ -100,9 +97,13 @@ def init_node(node_name: str) -> None:
         rclpy.init()
     node = Node(node_name)
     registry.register(node)
+    # Registered before the spin thread starts, so a shutdown right after this call
+    # already finds the executor to take away.
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     spinner_thread = Thread(
         target=spinner_thread_target,
-        args=(node,),
+        args=(node, executor),
         daemon=True,
         name=f"{node.get_name()} spin",
     )
@@ -122,12 +123,14 @@ def shutdown() -> None:
     registry = ROSNodeRegistry()
     node = registry.get() if registry.has_node() else None
 
-    if executor is not None:
-        executor.shutdown()
-        # The spin thread runs for as long as its executor is the registered one.
-        executor = None
+    # The spin thread runs for as long as its executor is the registered one, so it has
+    # stopped spinning by the time the executor is shut down.
+    spun_executor = executor
+    executor = None
     if spinner_thread is not None:
         spinner_thread.join(2.0)
+    if spun_executor is not None:
+        spun_executor.shutdown()
     if node is not None:
         registry.clear(node)
         node.destroy_node()

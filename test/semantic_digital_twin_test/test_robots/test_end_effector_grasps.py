@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 
 import numpy as np
@@ -48,11 +49,10 @@ Where the body a gripper holds sits relative to the tool frame.
 
 
 @pytest.fixture(scope="module")
-def worlds_of_supported_robots(supported_abstract_robots) -> list[World]:
+def _worlds_of_supported_robots_setup(supported_abstract_robots) -> list[World]:
     """
-    One world per supported robot, parsed from its description and annotated.
-
-    The tests of this module share them, so each leaves a world as it found it.
+    One world per supported robot, parsed from its description and annotated once for
+    the module and only ever copied.
     """
     worlds = []
     for abstract_robot in supported_abstract_robots:
@@ -60,6 +60,17 @@ def worlds_of_supported_robots(supported_abstract_robots) -> list[World]:
         abstract_robot.from_world(world)
         worlds.append(world)
     return worlds
+
+
+@pytest.fixture
+def worlds_of_supported_robots(
+    _worlds_of_supported_robots_setup: list[World],
+) -> list[World]:
+    """
+    Copies of the worlds of the supported robots whose annotations are in the symbol
+    graph of the test that uses them.
+    """
+    return [deepcopy(world) for world in _worlds_of_supported_robots_setup]
 
 
 @pytest.fixture
