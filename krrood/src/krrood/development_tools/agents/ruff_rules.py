@@ -290,6 +290,18 @@ class RuffCheckArgument(StrEnum):
     Apply the setting that follows.
     """
 
+    TARGET_VERSION = "--target-version"
+    """
+    Choose the Python version the code must run on; followed by
+    :attr:`OLDEST_SUPPORTED_PYTHON`.
+    """
+
+    OLDEST_SUPPORTED_PYTHON = "py310"
+    """
+    The oldest Python krrood supports, so that which lint rules apply does not depend on
+    ruff's default.
+    """
+
     PATHS_FOLLOW = "--"
     """
     Read every following argument as a path, never as an option.
@@ -510,6 +522,8 @@ class RuffRuleChecker(CodeRuleChecker):
                 RuffCheckArgument.EXIT_ZERO,
                 RuffCheckArgument.OUTPUT_FORMAT,
                 RuffCheckArgument.JSON,
+                RuffCheckArgument.TARGET_VERSION,
+                RuffCheckArgument.OLDEST_SUPPORTED_PYTHON,
                 RuffCheckArgument.SELECT,
                 ",".join(self.lint_rules),
                 *settings,

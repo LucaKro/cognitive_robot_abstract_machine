@@ -19,10 +19,11 @@ can use the same conventions:
   rule a checker enforces; `AGENTS.md` marks such a rule "(checked by `krrood check`)".
   Only the lines the staged change (`git diff --cached`) adds or changes are checked,
   because existing code has many violations; `--all-lines` checks every line.
-  `--since REVISION` checks the lines the working tree changes since `REVISION`, staged
-  or not, counting every line of an untracked file; without files it checks every
-  Python file changed since then, so `krrood check --since HEAD` checks uncommitted work
-  and `krrood check --since origin/main` a branch.
+  `--since REVISION` checks the lines the working tree changes since it forked from
+  `REVISION` (their merge base), staged or not, counting every line of an untracked
+  file; without files it checks every Python file below the working directory changed
+  since then, so `krrood check --since HEAD` checks uncommitted work and
+  `krrood check --since origin/main` a branch, even when `main` has moved on.
 
 `format`, `agents-md` and `skills` exit with 1 when they modified a file, and `check` when it
 found a violation, following pre-commit's convention for hooks.

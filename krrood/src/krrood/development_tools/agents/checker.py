@@ -9,6 +9,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import cached_property
 from pathlib import Path
 
 from typing_extensions import Iterator, Sequence, override
@@ -113,6 +114,21 @@ class GitArgument(StrEnum):
     NAME_ONLY = "--name-only"
     """
     List only the paths of the changed files.
+    """
+
+    RELATIVE = "--relative"
+    """
+    List the paths relative to the working directory, as the other listings do.
+    """
+
+    MERGE_BASE = "merge-base"
+    """
+    Find the newest commit two commits share in their history.
+    """
+
+    HEAD = "HEAD"
+    """
+    The commit the working tree is checked out from.
     """
 
     EXCLUDING_DELETED = "--diff-filter=d"
@@ -233,18 +249,31 @@ class StagedLines(ChangedLines):
 @dataclass(kw_only=True, frozen=True)
 class LinesChangedSince(ChangedLines):
     """
-    The lines the working tree adds or alters since a revision, staged or not.
+    The lines the working tree adds or alters since it forked from a revision, staged or
+    not.
     """
 
     revision: str
     """
-    The git revision the working tree is compared with, such as a commit or a branch.
+    The git revision the working tree forked from, such as a commit or a branch.
     """
+
+    @cached_property
+    def merge_base(self) -> str:
+        """
+        The commit the working tree is compared with: the newest one :attr:`revision`
+        and ``HEAD`` share, so what :attr:`revision` changed after it does not count.
+
+        :raises GitCommandFailed: If git cannot resolve the revision.
+        """
+        return self.run_git(
+            arguments=(GitArgument.MERGE_BASE, self.revision, GitArgument.HEAD)
+        ).strip()
 
     @property
     @override
     def compared_version(self) -> tuple[str, ...]:
-        return (self.revision,)
+        return (self.merge_base,)
 
     @override
     def find_changed_lines(self, *, path: Path) -> set[int]:
@@ -267,16 +296,18 @@ class LinesChangedSince(ChangedLines):
 
     def find_changed_files(self) -> list[Path]:
         """
-        :return: The Python files the working tree adds or modifies since
-            :attr:`revision`, tracked or not, leaving out those the repository ignores.
+        :return: The Python files below :attr:`repository` the working tree adds or
+            modifies since :attr:`merge_base`, tracked or not, leaving out those the
+            repository ignores.
         :raises GitCommandFailed: If git cannot resolve the revision.
         """
         tracked = self.run_git(
             arguments=(
                 GitArgument.DIFFERENCE,
                 GitArgument.NAME_ONLY,
+                GitArgument.RELATIVE,
                 GitArgument.EXCLUDING_DELETED,
-                self.revision,
+                self.merge_base,
                 GitArgument.PATHS_FOLLOW,
                 GitArgument.PYTHON_FILES,
             )
