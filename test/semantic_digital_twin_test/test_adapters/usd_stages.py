@@ -471,3 +471,53 @@ def build_component_scene_stage_without_a_default_prim() -> Usd.Stage:
     _define_component(stage, "/chair_0")
     _define_component(stage, "/chair_1", translation=(0.0, 3.0, 0.0))
     return stage
+
+
+def build_component_scene_stage_with_an_instanceable_component() -> Usd.Stage:
+    """
+    A minimal in-memory scene placing one chair component as an instance of an
+    instanceable prim, so the chair's mesh is only reachable through instance proxies.
+
+    :return: The built in-memory stage.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    scene = UsdGeom.Scope.Define(stage, "/scene")
+    stage.SetDefaultPrim(scene.GetPrim())
+    stage.CreateClassPrim("/assets")
+    asset = UsdGeom.Xform.Define(stage, "/assets/chair")
+    Usd.ModelAPI(asset.GetPrim()).SetKind(Kind.Tokens.component)
+    mesh = UsdGeom.Mesh.Define(stage, "/assets/chair/mesh")
+    mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])
+    mesh.CreateFaceVertexCountsAttr([4])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    chair = UsdGeom.Xform.Define(stage, "/scene/chair_0")
+    chair.GetPrim().GetReferences().AddInternalReference("/assets/chair")
+    chair.GetPrim().SetInstanceable(True)
+    chair.AddTranslateOp().Set(Gf.Vec3d(0.0, 3.0, 0.0))
+    return stage
+
+
+def build_component_scene_stage_with_an_articulated_component() -> Usd.Stage:
+    """
+    A minimal in-memory scene with a chair component and a cabinet component that
+    holds a carcass mesh of its own and a door link, which a revolute joint with an
+    unset ``body0`` connects to the cabinet.
+
+    :return: The built in-memory stage.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    scene = UsdGeom.Scope.Define(stage, "/scene")
+    stage.SetDefaultPrim(scene.GetPrim())
+    _define_component(stage, "/scene/chair", translation=(0.0, 3.0, 0.0))
+    _define_component(stage, "/scene/cabinet", translation=(2.0, 0.0, 0.0))
+    _define_posed_link(stage, "/scene/cabinet/door", translation=(1.0, 0.0, 0.0))
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/scene/cabinet/door_joint")
+    joint.CreateBody1Rel().SetTargets(["/scene/cabinet/door"])
+    joint.CreateAxisAttr("Z")
+    joint.CreateLowerLimitAttr(0.0)
+    joint.CreateUpperLimitAttr(90.0)
+    joint.CreateLocalPos0Attr(Gf.Vec3f(1.0, 0.0, 0.0))
+    joint.CreateLocalRot0Attr(Gf.Quatf(1, 0, 0, 0))
+    joint.CreateLocalPos1Attr(Gf.Vec3f(0.0, 0.0, 0.0))
+    joint.CreateLocalRot1Attr(Gf.Quatf(1, 0, 0, 0))
+    return stage

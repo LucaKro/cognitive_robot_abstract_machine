@@ -109,20 +109,24 @@ class UnsupportedUsdGeometryTypeError(ParsingError):
 @dataclass(kw_only=True)
 class UnreadUsdPhysicsJointsError(ParsingError):
     """
-    Raised when a parser that does not read physics joints is given a stage that has
-    some.
+    Raised when a stage has physics joints the parser cannot attach to anything, such
+    as joints outside every component of a scene.
     """
 
-    joint_paths: list[str] = field(default_factory=list)
+    joint_paths: list[str]
     """
-    The stage paths of the physics joint prims.
+    The stage paths of the physics joint prims, at least one.
     """
 
     def error_message(self) -> str:
         return (
-            f"Stage '{self.file_path}' has {len(self.joint_paths)} physics joints, "
-            f"which this parser does not read, the first at '{self.joint_paths[0]}'."
+            f"Stage '{self.file_path}' has {len(self.joint_paths)} physics joints "
+            f"outside every component, which this parser does not read, the first at "
+            f"'{self.joint_paths[0]}'."
         )
 
     def suggest_correction(self) -> str:
-        return "Parse the stage with USDParser, which builds connections from joints."
+        return (
+            "Give the prim holding the joints and the links they connect the kind "
+            "'component', or parse the stage with USDParser."
+        )

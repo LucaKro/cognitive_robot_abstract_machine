@@ -33,6 +33,8 @@ from .usd_stages import (
     PXR_AVAILABLE,
     USD_SEMANTICS_AVAILABLE,
     build_component_scene_stage,
+    build_component_scene_stage_with_an_articulated_component,
+    build_component_scene_stage_with_an_instanceable_component,
     build_component_scene_stage_without_a_default_prim,
     build_jointless_stage_with_a_default_prim,
     build_jointless_stage_with_multiple_top_level_prims,
@@ -325,9 +327,10 @@ def test_component_parser_names_the_root_after_the_prefix_without_a_default_prim
     }
 
 
-def test_component_parser_raises_on_physics_joints_instead_of_ignoring_them():
+def test_component_parser_raises_on_physics_joints_outside_every_component():
     """
-    A stage with physics joints is rejected instead of parsed as rigid objects.
+    A stage with physics joints outside every component is rejected instead of parsed
+    as rigid objects.
     """
     stage = build_single_joint_stage("FixedJoint")
 
@@ -335,6 +338,83 @@ def test_component_parser_raises_on_physics_joints_instead_of_ignoring_them():
         parse_components(stage)
 
     assert excinfo.value.joint_paths == ["/object/joint"]
+
+
+def test_component_parser_connects_a_link_inside_a_component_to_the_component():
+    """
+    A physics joint inside a component connects its link to the component's body.
+    """
+    world = parse_components(
+        build_component_scene_stage_with_an_articulated_component()
+    )
+    cabinet = component_body(world, "cabinet")
+    door = component_body(world, "cabinet/door")
+
+    [door_connection] = [
+        connection for connection in world.connections if connection.child is door
+    ]
+    assert isinstance(door_connection, RevoluteConnection)
+    assert door_connection.parent is cabinet
+
+
+def test_component_parser_places_a_link_inside_a_component_where_its_joint_puts_it():
+    """
+    A component's link sits where its joint puts it relative to the component.
+    """
+    world = parse_components(
+        build_component_scene_stage_with_an_articulated_component()
+    )
+
+    root_T_door = world.compute_forward_kinematics_np(
+        world.root, component_body(world, "cabinet/door")
+    )
+
+    np.testing.assert_allclose(root_T_door[:3, 3], [3.0, 0.0, 0.0], atol=1e-6)
+
+
+def test_component_parser_keeps_the_geometry_of_a_link_out_of_its_component():
+    """
+    The component's body holds its own geometry and its link's body the link's.
+    """
+    world = parse_components(
+        build_component_scene_stage_with_an_articulated_component()
+    )
+
+    assert len(component_body(world, "cabinet").visual.shapes) == 1
+    assert len(component_body(world, "cabinet/door").visual.shapes) == 1
+
+
+def test_component_parser_keeps_a_component_without_joints_free_next_to_one_with():
+    """
+    A component without joints stays attached to the root by a 6-DoF connection when
+    another component of the scene has joints.
+    """
+    world = parse_components(
+        build_component_scene_stage_with_an_articulated_component()
+    )
+    chair = component_body(world, "chair")
+
+    [chair_connection] = [
+        connection for connection in world.connections if connection.child is chair
+    ]
+    assert isinstance(chair_connection, Connection6DoF)
+    assert chair_connection.parent is world.root
+
+
+def test_component_parser_reads_the_geometry_of_an_instanceable_component():
+    """
+    The geometry of a component placed as an instance of an instanceable prim becomes
+    the shapes of its body.
+    """
+    world = parse_components(
+        build_component_scene_stage_with_an_instanceable_component()
+    )
+
+    [mesh] = component_body(world, "chair_0").visual.shapes
+
+    np.testing.assert_allclose(
+        mesh.unscaled_mesh.vertices.max(axis=0), [1.0, 1.0, 0.0], atol=1e-6
+    )
 
 
 @pytest.mark.skipif(

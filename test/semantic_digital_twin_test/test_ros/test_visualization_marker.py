@@ -576,6 +576,22 @@ def test_a_mesh_rviz_loads_is_shown_as_it_is(rclpy_node):
     assert marker.mesh_resource == "file://" + str(mesh.local_file)
 
 
+def test_a_mesh_whose_file_stores_too_many_vertices_for_16_bits_is_shown_as_it_is(
+    rclpy_node,
+):
+    """
+    RViz counts the faces of a mesh whose file stores more vertices than 16 bits count
+    with 32 bits, so it keeps its own file even where welding would leave fewer.
+    """
+    grid = flat_grid(side=183)
+    grid.unmerge_vertices()
+    mesh = Mesh.from_trimesh(mesh=grid)
+    viz = VizMarkerPublisher(_world=world_showing(mesh), node=rclpy_node)
+
+    [marker] = mesh_markers(viz)
+    assert marker.mesh_resource == "file://" + str(mesh.local_file)
+
+
 def test_a_split_mesh_is_split_only_once(rclpy_node, grid_too_large_for_rviz):
     """
     Every model change reuses the parts of a mesh that was split before.

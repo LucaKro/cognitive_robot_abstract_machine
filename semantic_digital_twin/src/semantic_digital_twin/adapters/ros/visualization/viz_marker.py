@@ -92,17 +92,19 @@ class RvizLoadableMeshes:
         """
         if mesh.filename in self.part_filenames:
             return self.part_filenames[mesh.filename]
-        unscaled_mesh = mesh.unscaled_mesh
-        face_count = len(unscaled_mesh.faces)
+        # RViz reads the file itself, so the vertices are counted as the file stores
+        # them rather than welded.
+        stored_mesh = mesh.stored_mesh
+        face_count = len(stored_mesh.faces)
         part_filenames = []
         if (
             face_count > self.largest_16_bit_count
-            and len(unscaled_mesh.vertices) <= self.largest_16_bit_count
+            and len(stored_mesh.vertices) <= self.largest_16_bit_count
         ):
             part_count = math.ceil(face_count / self.largest_16_bit_count)
             part_filenames = [
                 Mesh.from_trimesh(
-                    mesh=unscaled_mesh.submesh([part_faces], append=True)
+                    mesh=stored_mesh.submesh([part_faces], append=True)
                 ).filename
                 for part_faces in np.array_split(np.arange(face_count), part_count)
             ]

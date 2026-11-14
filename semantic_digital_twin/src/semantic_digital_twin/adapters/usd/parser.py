@@ -566,9 +566,14 @@ class USDStageParser(WorldModelParser, ABC):
 
     def _physics_joint_prims(self) -> list[Usd.Prim]:
         """
-        :return: Every :class:`~pxr.UsdPhysics.Joint` prim of the stage.
+        :return: Every :class:`~pxr.UsdPhysics.Joint` prim of the stage, those inside
+            instances of instanceable prims included.
         """
-        return [prim for prim in self.stage.Traverse() if prim.IsA(UsdPhysics.Joint)]
+        return [
+            prim
+            for prim in self.stage.Traverse(Usd.TraverseInstanceProxies())
+            if prim.IsA(UsdPhysics.Joint)
+        ]
 
     @staticmethod
     def _local_to_world(*, prim: Usd.Prim) -> Gf.Matrix4d:
@@ -596,7 +601,12 @@ class USDStageParser(WorldModelParser, ABC):
     # %% links and shapes
 
     def _create_link_body(
-        self, *, link_prim: Usd.Prim, name: str, link_to_world: Gf.Matrix4d
+        self,
+        *,
+        link_prim: Usd.Prim,
+        name: str,
+        link_to_world: Gf.Matrix4d,
+        excluded_prim_paths: frozenset[Sdf.Path] = frozenset(),
     ) -> Body:
         """
         Creates the Body for one rigid link, with a Shape for every mesh/primitive in
@@ -607,10 +617,14 @@ class USDStageParser(WorldModelParser, ABC):
         :param name: The body's name, prefixed with :attr:`prefix`.
         :param link_to_world: The body frame's transform relative to the stage's world
             frame; any scale it leaves out stays in the shapes.
+        :param excluded_prim_paths: The prims below ``link_prim`` whose subtrees are
+            other bodies, so their shapes are left out.
         :return: The created body, not yet added to a world.
         """
         shapes = self._shapes_in_subtree(
-            link_prim=link_prim, link_to_world=link_to_world
+            link_prim=link_prim,
+            link_to_world=link_to_world,
+            excluded_prim_paths=excluded_prim_paths,
         )
         shape_collection = ShapeCollection(shapes)
         body = Body(
@@ -623,15 +637,26 @@ class USDStageParser(WorldModelParser, ABC):
             body.inertial = inertial
         return body
 
-    def _create_free_body(self, *, prim: Usd.Prim, name: str) -> Body:
+    def _create_free_body(
+        self,
+        *,
+        prim: Usd.Prim,
+        name: str,
+        excluded_prim_paths: frozenset[Sdf.Path] = frozenset(),
+    ) -> Body:
         """
         :param prim: The root prim of an object the stage connects to nothing.
         :param name: The body's name, prefixed with :attr:`prefix`.
+        :param excluded_prim_paths: The prims below ``prim`` whose subtrees are other
+            bodies, so their shapes are left out.
         :return: The object's body, whose frame is the prim's pose without its scale,
             not yet added to a world.
         """
         return self._create_link_body(
-            link_prim=prim, name=name, link_to_world=self._pose_in_world(prim=prim)
+            link_prim=prim,
+            name=name,
+            link_to_world=self._pose_in_world(prim=prim),
+            excluded_prim_paths=excluded_prim_paths,
         )
 
     def _add_free_body(self, *, world: World, prim: Usd.Prim, body: Body) -> None:
@@ -657,18 +682,28 @@ class USDStageParser(WorldModelParser, ABC):
         )
 
     def _shapes_in_subtree(
-        self, *, link_prim: Usd.Prim, link_to_world: Gf.Matrix4d
+        self,
+        *,
+        link_prim: Usd.Prim,
+        link_to_world: Gf.Matrix4d,
+        excluded_prim_paths: frozenset[Sdf.Path] = frozenset(),
     ) -> list[Shape]:
         """
-        Creates the Shape for every mesh/primitive prim in a link's subtree.
+        Creates the Shape for every mesh/primitive prim in a link's subtree, inside
+        instances of instanceable prims too.
 
         :param link_prim: The root of the subtree to search for shapes.
         :param link_to_world: The transform, relative to the stage's world frame, of
             the frame the shapes are positioned relative to.
+        :param excluded_prim_paths: The prims whose subtrees are left out.
         :return: The created shapes.
         """
         shapes = []
-        for prim in Usd.PrimRange(link_prim):
+        prim_range = iter(Usd.PrimRange(link_prim, Usd.TraverseInstanceProxies()))
+        for prim in prim_range:
+            if prim.GetPath() in excluded_prim_paths:
+                prim_range.PruneChildren()
+                continue
             shape = self._create_shape(prim=prim, link_to_world=link_to_world)
             if shape is not None:
                 shapes.append(shape)
@@ -700,6 +735,153 @@ class USDStageParser(WorldModelParser, ABC):
                 ) from error
             return None
         return geom_type.create_shape(prim, link_to_world)
+
+    # %% joints
+
+    def _describe_joint(
+        self,
+        *,
+        joint_prim: Usd.Prim,
+        root_body: Body,
+        link_bodies: dict[str, Body],
+    ) -> ConnectionSpecificationWithEndpoints:
+        """
+        Validates and specifies the joint one physics joint prim states, without
+        touching a world - a World left partway through a failed modification is
+        unusable, so every joint is described before any world modification begins.
+
+        :param joint_prim: The USD physics joint prim (a Fixed/Revolute/PrismaticJoint).
+        :param root_body: The world's root body, used as the connection's parent if the
+            joint's ``body0`` relationship has no target.
+        :param link_bodies: The link Bodies created so far, by stage path - extended in
+            place as new links are resolved.
+        :return: The specification of the joint.
+        :raises UnsupportedUsdPhysicsJointTypeError: If the joint's type has no
+            Connection counterpart.
+        :raises UsdPhysicsJointMissingChildBodyError: If the joint's ``body1``
+            relationship has no target.
+        """
+        try:
+            usd_joint_type = UsdPhysicsJointType(joint_prim.GetTypeName())
+        except ValueError as error:
+            raise UnsupportedUsdPhysicsJointTypeError(
+                file_path=self.source_description,
+                joint_path=str(joint_prim.GetPath()),
+                joint_type=joint_prim.GetTypeName(),
+                supported_types=list(UsdPhysicsJointType),
+            ) from error
+        specification_type = usd_joint_type.connection_specification_type
+
+        joint = UsdPhysics.Joint(joint_prim)
+        body0_targets = joint.GetBody0Rel().GetTargets()
+        body1_targets = joint.GetBody1Rel().GetTargets()
+        if not body1_targets:
+            raise UsdPhysicsJointMissingChildBodyError(
+                file_path=self.source_description, joint_path=str(joint_prim.GetPath())
+            )
+        parent = (
+            self._resolve_link_body(link_bodies=link_bodies, prim_path=body0_targets[0])
+            if body0_targets
+            else root_body
+        )
+        child = self._resolve_link_body(
+            link_bodies=link_bodies, prim_path=body1_targets[0]
+        )
+
+        parent_T_connection = _usd_pose_to_transform(
+            joint.GetLocalPos0Attr().Get(),
+            joint.GetLocalRot0Attr().Get(),
+            reference_frame=parent,
+        )
+        # UsdPhysics.Joint documents localPos1/localRot1 as the joint frame's pose
+        # relative to body1 (child_T_connection), the opposite of what is needed here -
+        # unlike localPos0/localRot0, which is already parent_T_connection as authored.
+        child_T_connection = _usd_pose_to_transform(
+            joint.GetLocalPos1Attr().Get(),
+            joint.GetLocalRot1Attr().Get(),
+            reference_frame=child,
+        )
+        connection_T_child = child_T_connection.inverse()
+
+        if specification_type is FixedConnectionSpecification:
+            return ConnectionSpecificationWithEndpoints(
+                connection_specification=FixedConnectionSpecification(
+                    connection_T_child=connection_T_child
+                ),
+                parent=parent,
+                child=child,
+                parent_T_connection=parent_T_connection,
+            )
+
+        axis_joint = (
+            UsdPhysics.RevoluteJoint(joint_prim)
+            if specification_type is RevoluteConnectionSpecification
+            else UsdPhysics.PrismaticJoint(joint_prim)
+        )
+        axis = UsdAxis(axis_joint.GetAxisAttr().Get()).vector(reference_frame=parent)
+        lower = axis_joint.GetLowerLimitAttr().Get()
+        upper = axis_joint.GetUpperLimitAttr().Get()
+        if specification_type is RevoluteConnectionSpecification:
+            lower, upper = math.radians(lower), math.radians(upper)
+        if lower > upper:
+            # Seen authored this way on a mirrored part (e.g. one blade of a pair of
+            # scissors): the pair's joints share one axis convention, so the mirrored
+            # joint's authored "lower"/"upper" swap relative to it even though both
+            # describe the same-sized range of motion. The DOF's own lower/upper are
+            # just its two extremes, so swapping the values (not negating them) keeps
+            # the authored range of motion intact.
+            lower, upper = upper, lower
+        return ConnectionSpecificationWithEndpoints(
+            connection_specification=specification_type(
+                connection_T_child=connection_T_child,
+                axis=axis,
+                dof_limits=DegreeOfFreedomLimits.from_position_range_and_speed(
+                    lower_position=lower, upper_position=upper
+                ),
+            ),
+            parent=parent,
+            child=child,
+            parent_T_connection=parent_T_connection,
+        )
+
+    def _resolve_link_body(
+        self, *, link_bodies: dict[str, Body], prim_path: Sdf.Path
+    ) -> Body:
+        """
+        Resolves a USD prim path to its link Body, creating (and caching in
+        ``link_bodies``) the Body on first use.
+
+        :param link_bodies: The link Bodies created so far, by stage path - extended in
+            place if ``prim_path`` has not been resolved yet.
+        :param prim_path: The stage path a joint's ``body0``/``body1`` relationship
+            targets.
+        :return: The resolved link Body.
+        """
+        prim = self._link_prim(prim_path=prim_path)
+        path_string = str(prim.GetPath())
+        if path_string not in link_bodies:
+            link_bodies[path_string] = self._create_joint_link_body(prim=prim)
+        return link_bodies[path_string]
+
+    def _link_prim(self, *, prim_path: Sdf.Path) -> Usd.Prim:
+        """
+        :param prim_path: The stage path a joint's ``body0``/``body1`` relationship
+            targets.
+        :return: The root prim of the link the path names.
+        """
+        prim = self.stage.GetPrimAtPath(prim_path)
+        if prim.GetTypeName() == UsdGeomPrimType.MESH:
+            # Some joints target a link's mesh prim instead of its enclosing Xform;
+            # both resolve to the Xform, so a link is never split into two bodies.
+            return prim.GetParent()
+        return prim
+
+    @abstractmethod
+    def _create_joint_link_body(self, *, prim: Usd.Prim) -> Body:
+        """
+        :param prim: The root prim of a link a physics joint connects.
+        :return: The link's body, not yet added to a world.
+        """
 
     # %% inertials
 
@@ -839,7 +1021,9 @@ class USDParser(USDStageParser):
         # anything that can raise must run before entering another modify_world block.
         link_bodies: dict[str, Body] = {}
         connection_specifications_with_endpoints = [
-            self._describe_joint(joint_prim, root_body, link_bodies)
+            self._describe_joint(
+                joint_prim=joint_prim, root_body=root_body, link_bodies=link_bodies
+            )
             for joint_prim in joint_prims
         ]
 
@@ -899,139 +1083,12 @@ class USDParser(USDStageParser):
                 self._add_free_body(world=world, prim=prim, body=body)
         return world
 
-    # %% joints
-
-    def _describe_joint(
-        self,
-        joint_prim: Usd.Prim,
-        root_body: Body,
-        link_bodies: dict[str, Body],
-    ) -> ConnectionSpecificationWithEndpoints:
-        """
-        Validates and specifies the joint one physics joint prim states, without
-        touching a world - a World left partway through a failed modification is
-        unusable, so every joint is described before any world modification begins.
-
-        :param joint_prim: The USD physics joint prim (a Fixed/Revolute/PrismaticJoint).
-        :param root_body: The world's root body, used as the connection's parent if the
-            joint's ``body0`` relationship has no target.
-        :param link_bodies: The link Bodies created so far, by stage path - extended in
-            place as new links are resolved.
-        :return: The specification of the joint.
-        :raises UnsupportedUsdPhysicsJointTypeError: If the joint's type has no
-            Connection counterpart.
-        :raises UsdPhysicsJointMissingChildBodyError: If the joint's ``body1``
-            relationship has no target.
-        """
-        try:
-            usd_joint_type = UsdPhysicsJointType(joint_prim.GetTypeName())
-        except ValueError as error:
-            raise UnsupportedUsdPhysicsJointTypeError(
-                file_path=self.source_description,
-                joint_path=str(joint_prim.GetPath()),
-                joint_type=joint_prim.GetTypeName(),
-                supported_types=list(UsdPhysicsJointType),
-            ) from error
-        specification_type = usd_joint_type.connection_specification_type
-
-        joint = UsdPhysics.Joint(joint_prim)
-        body0_targets = joint.GetBody0Rel().GetTargets()
-        body1_targets = joint.GetBody1Rel().GetTargets()
-        if not body1_targets:
-            raise UsdPhysicsJointMissingChildBodyError(
-                file_path=self.source_description, joint_path=str(joint_prim.GetPath())
-            )
-        parent = (
-            self._resolve_link_body(link_bodies=link_bodies, prim_path=body0_targets[0])
-            if body0_targets
-            else root_body
+    def _create_joint_link_body(self, *, prim: Usd.Prim) -> Body:
+        return self._create_link_body(
+            link_prim=prim,
+            name=prim.GetName(),
+            link_to_world=self._local_to_world(prim=prim),
         )
-        child = self._resolve_link_body(
-            link_bodies=link_bodies, prim_path=body1_targets[0]
-        )
-
-        parent_T_connection = _usd_pose_to_transform(
-            joint.GetLocalPos0Attr().Get(),
-            joint.GetLocalRot0Attr().Get(),
-            reference_frame=parent,
-        )
-        # UsdPhysics.Joint documents localPos1/localRot1 as the joint frame's pose
-        # relative to body1 (child_T_connection), the opposite of what is needed here -
-        # unlike localPos0/localRot0, which is already parent_T_connection as authored.
-        child_T_connection = _usd_pose_to_transform(
-            joint.GetLocalPos1Attr().Get(),
-            joint.GetLocalRot1Attr().Get(),
-            reference_frame=child,
-        )
-        connection_T_child = child_T_connection.inverse()
-
-        if specification_type is FixedConnectionSpecification:
-            return ConnectionSpecificationWithEndpoints(
-                connection_specification=FixedConnectionSpecification(
-                    connection_T_child=connection_T_child
-                ),
-                parent=parent,
-                child=child,
-                parent_T_connection=parent_T_connection,
-            )
-
-        axis_joint = (
-            UsdPhysics.RevoluteJoint(joint_prim)
-            if specification_type is RevoluteConnectionSpecification
-            else UsdPhysics.PrismaticJoint(joint_prim)
-        )
-        axis = UsdAxis(axis_joint.GetAxisAttr().Get()).vector(reference_frame=parent)
-        lower = axis_joint.GetLowerLimitAttr().Get()
-        upper = axis_joint.GetUpperLimitAttr().Get()
-        if specification_type is RevoluteConnectionSpecification:
-            lower, upper = math.radians(lower), math.radians(upper)
-        if lower > upper:
-            # Seen authored this way on a mirrored part (e.g. one blade of a pair of
-            # scissors): the pair's joints share one axis convention, so the mirrored
-            # joint's authored "lower"/"upper" swap relative to it even though both
-            # describe the same-sized range of motion. The DOF's own lower/upper are
-            # just its two extremes, so swapping the values (not negating them) keeps
-            # the authored range of motion intact.
-            lower, upper = upper, lower
-        return ConnectionSpecificationWithEndpoints(
-            connection_specification=specification_type(
-                connection_T_child=connection_T_child,
-                axis=axis,
-                dof_limits=DegreeOfFreedomLimits.from_position_range_and_speed(
-                    lower_position=lower, upper_position=upper
-                ),
-            ),
-            parent=parent,
-            child=child,
-            parent_T_connection=parent_T_connection,
-        )
-
-    def _resolve_link_body(
-        self, *, link_bodies: dict[str, Body], prim_path: Sdf.Path
-    ) -> Body:
-        """
-        Resolves a USD prim path to its link Body, creating (and caching in
-        ``link_bodies``) the Body on first use.
-
-        :param link_bodies: The link Bodies created so far, by stage path - extended in
-            place if ``prim_path`` has not been resolved yet.
-        :param prim_path: The stage path a joint's ``body0``/``body1`` relationship
-            targets.
-        :return: The resolved link Body.
-        """
-        prim = self.stage.GetPrimAtPath(prim_path)
-        if prim.GetTypeName() == UsdGeomPrimType.MESH:
-            # Some joints target a link's mesh prim instead of its enclosing Xform;
-            # both resolve to the Xform, so a link is never split into two bodies.
-            prim = prim.GetParent()
-        path_string = str(prim.GetPath())
-        if path_string not in link_bodies:
-            link_bodies[path_string] = self._create_link_body(
-                link_prim=prim,
-                name=prim.GetName(),
-                link_to_world=self._local_to_world(prim=prim),
-            )
-        return link_bodies[path_string]
 
 
 @dataclass(kw_only=True)
@@ -1055,10 +1112,12 @@ class UsdSceneContent:
 @dataclass(kw_only=True)
 class USDComponentParser(USDStageParser):
     """
-    Parses a USD scene into one free body per prim of kind ``component`` (a placed
-    asset such as a chair), named after its path below the root prim and posed as
-    authored, even where the model hierarchy above it is invalid. Geometry outside
-    every component belongs to the root body. Physics joints are not read.
+    Parses a USD scene into one body per prim of kind ``component`` (a placed asset
+    such as a chair), named after its path below the root prim and attached to the
+    root as authored, even where the model hierarchy above it is invalid. The physics
+    joints inside a component connect its links to it, as :class:`USDParser` connects
+    the links of an asset to its root. Geometry outside every component belongs to the
+    root body.
     """
 
     def create_world(self) -> World:
@@ -1067,36 +1126,58 @@ class USDComponentParser(USDStageParser):
         :meth:`~semantic_digital_twin.world_source.WorldSource.create_world` in the
         stages it rejects.
 
-        :raises UnreadUsdPhysicsJointsError: If the stage contains physics joints.
+        :raises UnreadUsdPhysicsJointsError: If the stage contains physics joints outside
+            every component.
+        :raises UnsupportedUsdPhysicsJointTypeError: If a component contains a physics
+            joint of a type this parser does not build a Connection for.
+        :raises UsdPhysicsJointMissingChildBodyError: If a physics joint's ``body1``
+            relationship has no target.
         """
-        joint_prims = self._physics_joint_prims()
-        if joint_prims:
-            raise UnreadUsdPhysicsJointsError(
-                file_path=self.source_description,
-                joint_paths=[str(joint_prim.GetPath()) for joint_prim in joint_prims],
-            )
-
         root_prim = self._root_prim()
-        scene_root = root_prim if root_prim is not None else self.stage.GetPseudoRoot()
         root_body_name = root_prim.GetName() if root_prim is not None else self.prefix
         world = World.create_with_root_body(root_body_name, self.prefix)
         root_body = world.root
 
-        # Every shape is built before the world is modified: a World left partway
-        # through a failed modification is unusable.
-        content = self._scene_content(scene_root=scene_root)
+        # Every shape and joint is built before the world is modified: a World left
+        # partway through a failed modification is unusable.
+        content = self._scene_content(scene_root=self._scene_root())
+        joints_by_component = self._joints_by_component(
+            component_prims=content.component_prims
+        )
         root_shapes = ShapeCollection(content.root_shapes, reference_frame=root_body)
         root_body.visual = root_shapes
         root_body.collision = root_shapes
-        component_bodies = [
-            self._create_free_body(
+        link_bodies: dict[str, Body] = {}
+        component_bodies = []
+        connection_specifications_with_endpoints = []
+        for component_prim in content.component_prims:
+            joint_prims = joints_by_component[component_prim.GetPath()]
+            component_body = self._create_free_body(
                 prim=component_prim,
-                name=str(
-                    component_prim.GetPath().MakeRelativePath(scene_root.GetPath())
-                ),
+                name=self._name_below_scene_root(prim=component_prim),
+                excluded_prim_paths=self._linked_prim_paths(joint_prims=joint_prims)
+                - {component_prim.GetPath()},
             )
-            for component_prim in content.component_prims
-        ]
+            component_bodies.append(component_body)
+            # A joint attached to the component itself, or to nothing, attaches its
+            # link to the component's body.
+            link_bodies[str(component_prim.GetPath())] = component_body
+            connection_specifications_with_endpoints.extend(
+                self._describe_joint(
+                    joint_prim=joint_prim,
+                    root_body=component_body,
+                    link_bodies=link_bodies,
+                )
+                for joint_prim in joint_prims
+            )
+        component_paths = {
+            str(component_prim.GetPath()) for component_prim in content.component_prims
+        }
+        link_bodies_below_components = {
+            path_string: link_body
+            for path_string, link_body in link_bodies.items()
+            if path_string not in component_paths
+        }
 
         with world.modify_world():
             if root_prim is not None:
@@ -1105,16 +1186,93 @@ class USDComponentParser(USDStageParser):
                 )
             for component_prim, body in zip(content.component_prims, component_bodies):
                 self._add_free_body(world=world, prim=component_prim, body=body)
+            for path_string, link_body in link_bodies_below_components.items():
+                world.add_body(link_body)
+                self._attach_semantic_labels(
+                    world=world,
+                    prim=self.stage.GetPrimAtPath(path_string),
+                    body=link_body,
+                )
+            for (
+                connection_specification_with_endpoints
+            ) in connection_specifications_with_endpoints:
+                connection_specification_with_endpoints.connect(world)
         return world
+
+    def _create_joint_link_body(self, *, prim: Usd.Prim) -> Body:
+        return self._create_free_body(
+            prim=prim, name=self._name_below_scene_root(prim=prim)
+        )
+
+    def _scene_root(self) -> Usd.Prim:
+        """
+        :return: The prim whose subtree is the scene: the root prim, or the stage's
+            pseudo-root if there is none.
+        """
+        root_prim = self._root_prim()
+        return root_prim if root_prim is not None else self.stage.GetPseudoRoot()
+
+    def _name_below_scene_root(self, *, prim: Usd.Prim) -> str:
+        """
+        :param prim: A prim of the scene.
+        :return: The prim's path below :meth:`_scene_root`, which tells apart the many
+            instances a scene places of one asset.
+        """
+        return str(prim.GetPath().MakeRelativePath(self._scene_root().GetPath()))
+
+    def _joints_by_component(
+        self, *, component_prims: list[Usd.Prim]
+    ) -> dict[Sdf.Path, list[Usd.Prim]]:
+        """
+        :param component_prims: The components of the scene, none inside another.
+        :return: The physics joint prims inside each component, by its path.
+        :raises UnreadUsdPhysicsJointsError: If a physics joint is inside no component.
+        """
+        joints_by_component = {
+            component_prim.GetPath(): [] for component_prim in component_prims
+        }
+        unread_joint_paths = []
+        for joint_prim in self._physics_joint_prims():
+            joint_path = joint_prim.GetPath()
+            component_paths = [
+                component_path
+                for component_path in joints_by_component
+                if joint_path.HasPrefix(component_path)
+            ]
+            if not component_paths:
+                unread_joint_paths.append(str(joint_path))
+                continue
+            joints_by_component[component_paths[0]].append(joint_prim)
+        if unread_joint_paths:
+            raise UnreadUsdPhysicsJointsError(
+                file_path=self.source_description, joint_paths=unread_joint_paths
+            )
+        return joints_by_component
+
+    def _linked_prim_paths(self, *, joint_prims: list[Usd.Prim]) -> frozenset[Sdf.Path]:
+        """
+        :param joint_prims: Physics joint prims.
+        :return: The paths of the root prims of the links the joints connect.
+        """
+        return frozenset(
+            self._link_prim(prim_path=target).GetPath()
+            for joint_prim in joint_prims
+            for relationship in (
+                UsdPhysics.Joint(joint_prim).GetBody0Rel(),
+                UsdPhysics.Joint(joint_prim).GetBody1Rel(),
+            )
+            for target in relationship.GetTargets()
+        )
 
     def _scene_content(self, *, scene_root: Usd.Prim) -> UsdSceneContent:
         """
         :param scene_root: The prim whose subtree is the scene.
-        :return: The components below ``scene_root`` and the shapes outside them.
+        :return: The components below ``scene_root``, inside instances of instanceable
+            prims too, and the shapes outside them.
         """
         content = UsdSceneContent()
         world_frame = Gf.Matrix4d(1.0)
-        prim_range = iter(Usd.PrimRange(scene_root))
+        prim_range = iter(Usd.PrimRange(scene_root, Usd.TraverseInstanceProxies()))
         for prim in prim_range:
             is_component = Usd.ModelAPI(prim).IsKind(
                 Kind.Tokens.component, Usd.ModelAPI.KindValidationNone
