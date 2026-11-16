@@ -21,21 +21,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install the workflow
-        run: python -m pip install --quiet 'basstler-domain-model @ git+https://github.com/LucaKro/basstler_domain_model@d49c137202e9f1d5672aaad7bdb9ab82be9af72a' 'github-workflow @ git+https://github.com/LucaKro/GitHubWorkflow@main'
+        run: python -m pip install --quiet 'github-workflow-domain-model @ git+https://github.com/LucaKro/GitHubWorkflow@main#subdirectory=domain_model' 'github-workflow @ git+https://github.com/LucaKro/GitHubWorkflow@main'
       - name: Read the reviews and save the answers
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          GIT_AUTHOR_NAME: github-actions[bot]
-          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           python -m github_workflow.upstream_reviews "upstream-review-requests" "upstream-reviews"
-          git add --all "upstream-review-requests" "upstream-reviews"
-          if git diff --cached --quiet; then exit 0; fi
-          git commit --quiet --message "Answer the upstream review requests"
-          for attempt in 1 2 3; do
-            if git push --quiet origin "HEAD:refs/heads/${GITHUB_REF_NAME}"; then exit 0; fi
-            git pull --quiet --rebase origin "${GITHUB_REF_NAME}"
-          done
-          exit 1
+          bash ".github/scripts/commit-notes-branch.sh" "Answer the upstream review requests" "${GITHUB_REF_NAME}" "upstream-review-requests" "upstream-reviews"
