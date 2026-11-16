@@ -6,15 +6,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cramspeech"
-dynamic = ["version"]
+version = "0.0.0"
 dependencies = [
     "faster-whisper>=1.2.1",
     "krrood>=26.10.0",
+    "llama-cpp-python>=0.3.36",
     "numpy",
     "sounddevice>=0.5.6",
     "typing_extensions>=4.12.2",
 ]
-description = "Speech recognition for CRAM: records from a microphone and transcribes it with Whisper."
+description = "Speech for CRAM: transcribes a microphone with Whisper and turns spoken instructions into plans."
 readme = "README.md"
 authors = [{ name = "Jan Witt", email = "jan9@uni-bremen.de" }]
 license = { file = "LICENSE" }
@@ -32,8 +33,8 @@ nlp-listen = "cramspeech.speech_node:ListenCommandLine.run"
 where = ["src"]
 include = ["cramspeech*"]
 
-[tool.setuptools.dynamic]
-version = {attr = "cramspeech._version.__version__"}
+[tool.setuptools.package-data]
+"cramspeech.inference" = ["resources/*"]
 
 [dependency-groups]
 workspace = [

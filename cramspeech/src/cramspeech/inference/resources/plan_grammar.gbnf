@@ -1,0 +1,25 @@
+# The plan JSON the model may write, in the compact form it was trained on: one plan per task,
+# each opening with a spoken summary. Words are open, but may not hold a quote, a backslash,
+# angle brackets or control characters, so a word always ends at its closing quote.
+
+root ::= "{\"plans\":[" plan ("," plan)* "]}"
+plan ::= "[" summary ("," step)+ "]"
+summary ::= "{\"action\":\"say\",\"text\":" words "}"
+
+step ::= say | navigate | pick-up | place | open | close | count | find | give
+say ::= "{\"action\":\"say\",\"text\":" (words | placeholder) "}"
+navigate ::= "{\"action\":\"navigate\"," (location | person) "}"
+pick-up ::= "{\"action\":\"pick_up\"," object "}"
+place ::= "{\"action\":\"place\"," object "," location "}"
+open ::= "{\"action\":\"open\"," location "}"
+close ::= "{\"action\":\"close\"," location "}"
+count ::= "{\"action\":\"count\"," object "}"
+find ::= "{\"action\":\"find\"," (object | person) "}"
+give ::= "{\"action\":\"give\"," object ",\"person\":\"me\"}"
+
+location ::= "\"location\":" words
+object ::= "\"object\":" words
+person ::= "\"person\":" words
+
+words ::= "\"" [^<>"\\\x00-\x1F]+ "\""
+placeholder ::= "\"<result>\"" | "\"<about myself>\"" | "\"<the time>\"" | "\"<today>\"" | "\"<tomorrow>\"" | "\"<team name>\"" | "\"<team country>\"" | "\"<team affiliation>\"" | "\"<day of the week>\"" | "\"<day of the month>\""
