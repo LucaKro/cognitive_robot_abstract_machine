@@ -1,8 +1,8 @@
-# Reads the reviews of the pull requests opened upstream that the requests waiting in
-# upstream-review-requests on this notes branch name, whenever they change, and saves
-# GitHub's answers in upstream-reviews for the session to read them from. Written by
-# `python -m github_workflow review list`, since a cloud session cannot reach the
-# upstream repository itself; nothing is written upstream.
+# Reads upstream reviews for the requests waiting in upstream-review-requests on this notes
+# branch, whenever they change, and saves GitHub's answers in upstream-reviews for
+# the session to read them from. Written by the workflow's commands, since a cloud
+# session cannot reach every repository, nor GitHub's GraphQL, itself; nothing is
+# written where it reads.
 name: Read upstream reviews
 on:
   push:
@@ -11,7 +11,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: read-upstream-reviews
+  group: ${{ github.workflow }}
 jobs:
   read:
     runs-on: ubuntu-latest
@@ -22,9 +22,9 @@ jobs:
           python-version: "3.12"
       - name: Install the workflow
         run: python -m pip install --quiet 'github-workflow-domain-model @ git+https://github.com/LucaKro/GitHubWorkflow@main#subdirectory=domain_model' 'github-workflow @ git+https://github.com/LucaKro/GitHubWorkflow@main'
-      - name: Read the reviews and save the answers
+      - name: Read and save the answers
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python -m github_workflow.upstream_reviews "upstream-review-requests" "upstream-reviews"
-          bash ".github/scripts/commit-notes-branch.sh" "Answer the upstream review requests" "${GITHUB_REF_NAME}" "upstream-review-requests" "upstream-reviews"
+          bash ".github/scripts/commit-notes-branch.sh" "Answer the requests for upstream reviews" "${GITHUB_REF_NAME}" "upstream-review-requests" "upstream-reviews"
