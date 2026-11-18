@@ -1,0 +1,9 @@
+Draft PR #120 (fork): steps 1+2 of plan #117 (discussion #116). Pushed 4a77261.
+Done: ScrewAxisConnection + NormalizedTwist (create_revolute/create_prismatic/create_screw,
+behaves_like_*), old Revolute/Prismatic/Screw classes and specs removed, keyword-only
+create_with_dofs/add_to_world, MuJoCo hinge/slide converter, test.srdf ignored (#118).
+Labels api-break + new-feature missing on the fork: Luca to create/set.
+Open: giskardpy/coraplex/cramph/segmind/experiments not rerun after the NormalizedTwist
+rename (last run 1674 passed before it); verbalization reads "has behaves_like_a_...".
+Next (#117 step 3, later): symbolic params for estimated connections, commit flag,
+Giskard k-scaling, estimator; decide Twist type then (#117 comments, #119 rename).
