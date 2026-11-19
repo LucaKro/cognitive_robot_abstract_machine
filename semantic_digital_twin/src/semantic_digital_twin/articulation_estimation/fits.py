@@ -400,6 +400,24 @@ class ScrewMotionFit(ArticulationFit, ABC):
             screw_axis=self.connection_screw_axis,
         )
 
+    def update_estimated_connection(self, *, connection: ScrewAxisConnection) -> None:
+        """
+        Writes the fit as the new estimate of an estimated connection between the
+        observed parent and child: the connection frame and child pose of
+        :meth:`create_connection`, with the screw axis along the frame's z axis.
+
+        :param connection: A connection created by
+            :meth:`ScrewAxisConnection.create_estimated_with_dofs`.
+        """
+        parent_T_connection = self.parent_T_connection
+        connection.update_screw_axis_estimate(
+            screw_axis=self.connection_screw_axis,
+            parent_T_connection=HomogeneousTransformationMatrix(parent_T_connection),
+            connection_T_child=HomogeneousTransformationMatrix(
+                np.linalg.inv(parent_T_connection) @ self.reference_parent_T_child
+            ),
+        )
+
 
 # %% Translation
 @dataclass(kw_only=True)

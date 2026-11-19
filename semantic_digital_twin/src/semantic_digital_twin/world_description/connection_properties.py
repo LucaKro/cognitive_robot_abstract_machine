@@ -27,6 +27,76 @@ class ScrewAxisEstimateParameter(StrEnum):
     The linear velocity of the screw axis along the z axis of the connection frame.
     """
 
+    CONNECTION_X = "connection_x"
+    """
+    The x coordinate of the origin of the connection frame relative to the parent.
+    """
+
+    CONNECTION_Y = "connection_y"
+    """
+    The y coordinate of the origin of the connection frame relative to the parent.
+    """
+
+    CONNECTION_Z = "connection_z"
+    """
+    The z coordinate of the origin of the connection frame relative to the parent.
+    """
+
+    CONNECTION_QX = "connection_qx"
+    """
+    The x component of the quaternion of the orientation of the connection frame relative to the parent.
+    """
+
+    CONNECTION_QY = "connection_qy"
+    """
+    The y component of the quaternion of the orientation of the connection frame relative to the parent.
+    """
+
+    CONNECTION_QZ = "connection_qz"
+    """
+    The z component of the quaternion of the orientation of the connection frame relative to the parent.
+    """
+
+    CONNECTION_QW = "connection_qw"
+    """
+    The scalar component of the quaternion of the orientation of the connection frame relative to the parent.
+    """
+
+    CHILD_X = "child_x"
+    """
+    The x coordinate of the origin of the child relative to the connection frame.
+    """
+
+    CHILD_Y = "child_y"
+    """
+    The y coordinate of the origin of the child relative to the connection frame.
+    """
+
+    CHILD_Z = "child_z"
+    """
+    The z coordinate of the origin of the child relative to the connection frame.
+    """
+
+    CHILD_QX = "child_qx"
+    """
+    The x component of the quaternion of the orientation of the child relative to the connection frame.
+    """
+
+    CHILD_QY = "child_qy"
+    """
+    The y component of the quaternion of the orientation of the child relative to the connection frame.
+    """
+
+    CHILD_QZ = "child_qz"
+    """
+    The z component of the quaternion of the orientation of the child relative to the connection frame.
+    """
+
+    CHILD_QW = "child_qw"
+    """
+    The scalar component of the quaternion of the orientation of the child relative to the connection frame.
+    """
+
 
 @dataclass
 class JointDynamics:

@@ -28,7 +28,7 @@ from krrood.adapters.json_serializer import (
 from krrood.class_diagrams.attribute_introspector import DataclassOnlyIntrospector
 from krrood.entity_query_language.predicate import Symbol
 from krrood.patterns.caching import memoize
-from krrood.symbolic_math.symbolic_math import Matrix
+from krrood.symbolic_math.symbolic_math import FloatVariable, Matrix
 from krrood.utils import get_full_class_name
 from krrood.patterns.identifier_and_name import HasID, HasName
 from krrood_spatial_math.cartesian_frame_3d import CartesianFrame3D
@@ -999,6 +999,13 @@ class Connection(WorldEntityWithSimulatorProperties, ABC):
     """
 
     def __post_init__(self):
+        """
+        :raises RuntimeError: if :attr:`parent_T_connection_expression` or
+            :attr:`connection_T_child_expression` contains a variable other than
+            :attr:`estimated_transform_variables`.
+        :raises ReferenceFrameMismatchError: if either transform is expressed in frames
+            other than the parent's and the child's.
+        """
         self.id = uuid.uuid5(self.parent.id, str(self.child.id))
         self.name = self.name or self._generate_default_name(
             parent=self.parent, child=self.child
@@ -1010,14 +1017,17 @@ class Connection(WorldEntityWithSimulatorProperties, ABC):
         if self.connection_T_child_expression is None:
             self.connection_T_child_expression = HomogeneousTransformationMatrix()
 
-        if not self.parent_T_connection_expression.is_constant():
-            raise RuntimeError(
-                f"parent_T_connection must be constant for connection. This one contains free variables: {self.parent_T_connection_expression.free_variables()}"
+        for transform in [
+            self.parent_T_connection_expression,
+            self.connection_T_child_expression,
+        ]:
+            foreign_variables = set(transform.free_variables()) - set(
+                self.estimated_transform_variables
             )
-        if not self.connection_T_child_expression.is_constant():
-            raise RuntimeError(
-                f"connection_T_child must be constant for connection. This one contains free variables: {self.parent_T_connection_expression.free_variables()}"
-            )
+            if foreign_variables:
+                raise RuntimeError(
+                    f"parent_T_connection and connection_T_child must be constant for connection. This one contains free variables: {list(foreign_variables)}"
+                )
 
         self._validate_parent_T_connection_frame(
             parent_T_connection=self.parent_T_connection_expression
@@ -1034,6 +1044,15 @@ class Connection(WorldEntityWithSimulatorProperties, ABC):
             )
 
         self.connection_T_child_expression.child_frame = self.child
+
+    @property
+    def estimated_transform_variables(self) -> list[FloatVariable]:
+        """
+        The variables that :attr:`parent_T_connection_expression` and
+        :attr:`connection_T_child_expression` may contain, because the connection
+        estimates them; none, so both are constant.
+        """
+        return []
 
     @synchronized_attribute_modification
     def update_parent_T_connection(

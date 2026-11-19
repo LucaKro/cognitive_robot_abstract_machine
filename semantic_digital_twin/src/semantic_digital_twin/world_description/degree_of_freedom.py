@@ -94,6 +94,8 @@ class DegreeOfFreedomVariable(sm.FloatVariable):
             if isinstance(variable, cls)
         ]
         result = deepcopy(expression)
+        if not variables:
+            return result
         result.casadi_sx = expression.substitute(
             old_variables=variables,
             new_variables=[

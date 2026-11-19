@@ -12,7 +12,11 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from krrood_spatial_math.spatial_types import Twist, Vector3
+from krrood_spatial_math.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Twist,
+    Vector3,
+)
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
@@ -23,10 +27,20 @@ from semantic_digital_twin.exceptions import (
     UnnormalizedScrewAxisError,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import (
+    DegreeOfFreedom,
     DegreeOfFreedomLimits,
+)
+from semantic_digital_twin.world_description.connection_properties import (
+    ScrewAxisEstimateParameter,
 )
 from semantic_digital_twin.world_description.connections import ScrewAxisConnection
 from semantic_digital_twin.world_description.derivatives import DerivativeMap
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.world_description.world_entity import Body
+from ..test_articulation_estimation.test_articulation_estimation import (
+    observation_noise,
+    screw_motions,
+)
 
 
 # %% Fixtures
@@ -82,12 +96,12 @@ def test_estimated_connection_holds_its_screw_axis_in_passive_degrees_of_freedom
     estimated_connection,
 ):
     """
-    The screw axis is held by two passive degrees of freedom of the connection, which
-    the world keeps.
+    The estimate is held by one passive degree of freedom of the connection for each of
+    its numbers, which the world keeps.
     """
     world = estimated_connection._world
 
-    assert len(estimated_connection.passive_dofs) == 2
+    assert set(estimated_connection.estimate_dofs) == set(ScrewAxisEstimateParameter)
     assert set(estimated_connection.passive_dofs) <= set(world.degrees_of_freedom)
     assert estimated_connection.raw_dof not in estimated_connection.passive_dofs
 
@@ -232,6 +246,86 @@ def test_estimate_of_a_constant_connection_raises(world_with_two_bodies):
 
     with pytest.raises(ConstantScrewAxisError):
         connection.update_screw_axis_estimate(screw_axis=helical_along_z(0.01))
+
+
+# %% Estimated connection frame and child pose
+def test_new_connection_frame_moves_the_axis_and_the_child_without_recompiling(
+    estimated_connection,
+):
+    """
+    An estimate of the connection frame and the child's pose moves the axis and the
+    child's pose at position zero by a state change.
+    """
+    world = estimated_connection._world
+    compiled_forward_kinematics = world._forward_kinematic_manager.compiled_all_fks
+
+    estimated_connection.update_screw_axis_estimate(
+        screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z()),
+        parent_T_connection=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
+        connection_T_child=HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5),
+    )
+
+    assert_allclose(child_pose(estimated_connection)[:3, 3], [1, 0, 0], atol=1e-12)
+    estimated_connection.position = np.pi
+    assert_allclose(child_pose(estimated_connection)[:3, 3], [0, 0, 0], atol=1e-12)
+    assert (
+        world._forward_kinematic_manager.compiled_all_fks is compiled_forward_kinematics
+    )
+
+
+def test_variable_transform_of_a_constant_connection_raises(world_with_two_bodies):
+    """
+    Only an estimate makes the transforms of a connection variable.
+    """
+    world, parent, child = world_with_two_bodies
+    with world.modify_world():
+        other_connection = ScrewAxisConnection.create_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z()),
+        )
+        world.add_connection(other_connection)
+
+    with pytest.raises(RuntimeError):
+        ScrewAxisConnection(
+            parent=child,
+            child=Body(name=PrefixedName("grandchild")),
+            raw_dof=DegreeOfFreedom(name=PrefixedName("dof")),
+            screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z()),
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=other_connection.raw_dof.variables.position
+            ),
+        )
+
+
+@pytest.mark.parametrize("fit_type", list(screw_motions()))
+def test_written_fit_reproduces_the_fit(
+    world_with_two_bodies, fit_type, observation_noise
+):
+    """
+    A fit written into an estimated connection puts the child, at each fitted position,
+    where the fit predicts it.
+    """
+    world, parent, child = world_with_two_bodies
+    observations = screw_motions()[fit_type].observe(noise=observation_noise, seed=7)
+    with world.modify_world():
+        connection = ScrewAxisConnection.create_estimated_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            screw_axis=ScrewAxisConnection.create_prismatic_screw_axis(
+                axis=Vector3.Z()
+            ),
+        )
+        world.add_connection(connection)
+    fit = fit_type.fit(observations=observations, noise=observation_noise)
+
+    fit.update_estimated_connection(connection=connection)
+
+    for position, predicted in zip(fit.positions, fit.predicted_parent_T_child):
+        connection.position = position
+        assert_allclose(child_pose(connection), predicted, atol=1e-9)
 
 
 # %% Committing an estimate
