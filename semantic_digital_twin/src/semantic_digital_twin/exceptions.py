@@ -961,6 +961,28 @@ class ConstantScrewAxisError(UsageError):
 
 
 @dataclass(kw_only=True)
+class ConstantScrewAxisOffConnectionFrameError(UsageError):
+    """
+    Raised when a constant screw axis is given in another frame than the connection
+    frame, which only an estimated screw axis connection moves.
+    """
+
+    connection_name: PrefixedName
+    """
+    The name of the connection.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"connection {self.connection_name} has a constant screw axis in another "
+            f"frame than its connection frame."
+        )
+
+    def suggest_correction(self) -> str:
+        return "place the axis with parent_T_connection_expression instead."
+
+
+@dataclass(kw_only=True)
 class CommittedScrewAxisEstimateError(UsageError):
     """
     Raised when an estimate is written to a screw axis connection whose estimate is

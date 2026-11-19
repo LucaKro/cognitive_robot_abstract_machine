@@ -27,6 +27,41 @@ class ScrewAxisEstimateParameter(StrEnum):
     The linear velocity of the screw axis along the z axis of the connection frame.
     """
 
+    AXIS_FRAME_X = "axis_frame_x"
+    """
+    The x coordinate of the origin of the axis frame in the connection frame.
+    """
+
+    AXIS_FRAME_Y = "axis_frame_y"
+    """
+    The y coordinate of the origin of the axis frame in the connection frame.
+    """
+
+    AXIS_FRAME_Z = "axis_frame_z"
+    """
+    The z coordinate of the origin of the axis frame in the connection frame.
+    """
+
+    AXIS_FRAME_QX = "axis_frame_qx"
+    """
+    The x component of the quaternion of the axis frame's orientation.
+    """
+
+    AXIS_FRAME_QY = "axis_frame_qy"
+    """
+    The y component of the quaternion of the axis frame's orientation.
+    """
+
+    AXIS_FRAME_QZ = "axis_frame_qz"
+    """
+    The z component of the quaternion of the axis frame's orientation.
+    """
+
+    AXIS_FRAME_QW = "axis_frame_qw"
+    """
+    The scalar component of the quaternion of the axis frame's orientation.
+    """
+
 
 @dataclass
 class JointDynamics:
