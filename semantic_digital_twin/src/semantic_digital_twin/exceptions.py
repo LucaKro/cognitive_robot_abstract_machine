@@ -911,6 +911,77 @@ class ScrewAxisWithoutTranslationError(UsageError):
         return "give the rotation as a position in radians instead."
 
 
+@dataclass(kw_only=True)
+class EstimatedScrewAxisOffZAxisError(UsageError):
+    """
+    Raised when the screw axis of an estimated screw axis connection does not lie on the
+    z axis of its connection frame, where its two numbers place it.
+    """
+
+    screw_axis: Twist
+    """
+    The screw axis the connection was given.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"the screw axis (ω, v) = {self.screw_axis.to_np().tolist()} of an "
+            f"estimated connection does not lie on the z axis of its connection frame."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "give a screw axis along z, as the factories create it for "
+            "axis=Vector3.Z(), and turn the connection frame to point it."
+        )
+
+
+@dataclass(kw_only=True)
+class ConstantScrewAxisError(UsageError):
+    """
+    Raised when an estimate is written to a screw axis connection whose screw axis is
+    constant.
+    """
+
+    connection_name: PrefixedName
+    """
+    The name of the connection.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"the screw axis of connection {self.connection_name} is constant, so it "
+            f"takes no estimate."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "create the connection with ScrewAxisConnection.create_estimated_with_dofs."
+        )
+
+
+@dataclass(kw_only=True)
+class CommittedScrewAxisEstimateError(UsageError):
+    """
+    Raised when an estimate is written to a screw axis connection whose estimate is
+    committed.
+    """
+
+    connection_name: PrefixedName
+    """
+    The name of the connection.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"the screw axis estimate of connection {self.connection_name} is "
+            f"committed, so it takes no new estimate."
+        )
+
+    def suggest_correction(self) -> str:
+        return "reopen the estimate with reopen_screw_axis_estimate first."
+
+
 @dataclass
 class MissingURDFJointAxisError(UsageError):
     """
