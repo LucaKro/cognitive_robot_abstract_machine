@@ -17,6 +17,8 @@ from ..dataset.interface_tables import (
     FramedOffset,
     FramedPart,
     LandmarkFrame,
+    StationFrame,
+    TaggedRoute,
     TrackedPart,
 )
 
@@ -88,6 +90,10 @@ def test_the_link_lives_on_the_first_implementing_table():
     )
 
     def tables_referencing_the_interface(dao_class: type) -> set[str]:
+        """
+        :param dao_class: A DAO class.
+        :return: The names of the tables of the class that refer to the interface's.
+        """
         return {
             foreign_key.parent.table.name
             for column in inspect(dao_class).columns
@@ -102,6 +108,17 @@ def test_the_link_lives_on_the_first_implementing_table():
     assert tables_referencing_the_interface(FramedJointDAO) == {
         FramedPartDAO.__tablename__
     }
+
+
+def test_a_generic_interface_gets_an_interface_table():
+    """
+    An interface with a generic base gets a table without columns of its own, although
+    its generic base makes it look like a dataclass.
+    """
+    from ..dataset.ormatic_interface import StationFrameDAO, TaggedFrameDAO
+
+    assert issubclass(TaggedFrameDAO, InterfaceDataAccessObject)
+    assert not issubclass(StationFrameDAO, TaggedFrameDAO)
 
 
 # %% round trip
@@ -236,3 +253,20 @@ def test_storing_an_object_that_does_not_implement_the_interface_fails():
 
     with pytest.raises(InterfaceNotLinkedError):
         to_dao(offset)
+
+
+def test_a_field_typed_with_a_generic_interface_round_trips(session, database):
+    """
+    An implementation of a generic interface comes back through a field typed with it.
+    """
+    from ..dataset.ormatic_interface import TaggedRouteDAO
+
+    route = TaggedRoute(start=StationFrame(station_code="HB"))
+
+    session.add(to_dao(route))
+    session.commit()
+    session.expunge_all()
+
+    reconstructed = session.scalars(select(TaggedRouteDAO)).one().from_dao()
+
+    assert reconstructed == route

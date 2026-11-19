@@ -196,7 +196,11 @@ class ORMatic:
         for key in self.type_mappings.keys():
             self.imported_modules.add(get_module_of_type(key))
 
-    def _create_wrapped_tables(self):
+    def _create_wrapped_tables(self) -> None:
+        """
+        Decide on the table of every class of the class diagram: one a dependency maps,
+        the table of its alternative mapping, its own, or none for an interface.
+        """
         for wrapped_clazz in self.wrapped_classes_in_topological_order:
             # already mapped by a dependency: reuse it instead of regenerating it
             if dao_class := self.externally_mapped_classes.get(wrapped_clazz.clazz):
@@ -213,11 +217,18 @@ class ORMatic:
                 self.wrapped_tables[wrapped_clazz] = WrappedTable(
                     wrapped_clazz=alternative_mapping, ormatic=self
                 )
-            else:
-                # add the class normally
-                self.wrapped_tables[wrapped_clazz] = WrappedTable(
-                    wrapped_clazz=wrapped_clazz, ormatic=self
-                )
+                continue
+
+            # an interface without a mapping gets an interface table instead
+            if isclass(wrapped_clazz.clazz) and Interface.is_interface(
+                class_=wrapped_clazz.clazz
+            ):
+                continue
+
+            # add the class normally
+            self.wrapped_tables[wrapped_clazz] = WrappedTable(
+                wrapped_clazz=wrapped_clazz, ormatic=self
+            )
 
     def _create_interface_tables(self) -> None:
         """

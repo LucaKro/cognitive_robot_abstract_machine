@@ -9,7 +9,10 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass, field
 
+from typing_extensions import Generic, TypeVar
+
 from krrood.patterns.interface import Interface
+from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 
 # %% the interface
 
@@ -110,4 +113,55 @@ class FrameChain:
     frames: list[ReferenceFrame] = field(default_factory=list)
     """
     The frames, in the order they are passed through.
+    """
+
+
+# %% a generic interface
+
+
+TagT = TypeVar("TagT")
+"""
+The type of the tag a tagged frame carries.
+"""
+
+
+class TaggedFrame(Generic[TagT], SubClassSafeGeneric, Interface):
+    """
+    A frame that carries a tag, whose type each implementation chooses.
+
+    .. note:: Its generic base makes :func:`dataclasses.is_dataclass` true for it,
+        although it is no dataclass.
+    """
+
+    @abstractmethod
+    def tag(self) -> TagT:
+        """
+        :return: The tag of the frame.
+        """
+
+
+@dataclass(kw_only=True)
+class StationFrame(TaggedFrame[str]):
+    """
+    A frame at a station, tagged with the station's code.
+    """
+
+    station_code: str
+    """
+    The code of the station.
+    """
+
+    def tag(self) -> str:
+        return self.station_code
+
+
+@dataclass(kw_only=True)
+class TaggedRoute:
+    """
+    A route that starts at a tagged frame.
+    """
+
+    start: TaggedFrame
+    """
+    The frame the route starts at.
     """
