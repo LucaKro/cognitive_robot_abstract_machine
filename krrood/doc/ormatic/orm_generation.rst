@@ -12,6 +12,22 @@ Identify candidate classes
 - Optionally include explicit mapping classes
 - Optionally provide custom type mappings
 
+Fields typed with an interface
+------------------------------
+
+An interface (a class naming :class:`krrood.patterns.interface.Interface` among its bases) is never a dataclass,
+so it is not a candidate class itself. A field typed with one is still stored: when no alternative mapping covers the
+interface, ORMatic gives it a table with only a key and a column naming the table of each row's implementation.
+
+- Every mapped class that implements the interface links its rows to that table with a unique foreign key, which its
+  subclasses inherit. The class keeps its own parent table, so it can implement several interfaces.
+- Storing an object of such a class creates its row in the interface's table, one per object.
+- Loading a row of the interface's table, directly or through a field typed with the interface, gives back the object
+  it stands for.
+
+The interface's table may come from a dependency's interface, so the package declaring the interface never needs to
+know the packages implementing it.
+
 Create a script generating the interface
 ----------------------------------------
 

@@ -1,3 +1,8 @@
+"""
+Errors raised while generating ORM interfaces and while converting between domain
+objects and their data access objects.
+"""
+
 from __future__ import annotations
 
 import zoneinfo
@@ -62,6 +67,37 @@ class QueryCannotBePersisted(DataclassException, TypeError):
 
     def suggest_correction(self) -> str:
         return "Store the objects the query was answered with instead of the query."
+
+
+@dataclass(kw_only=True)
+class InterfaceNotLinkedError(DataclassException, TypeError):
+    """
+    Raised when an object is stored where an interface is expected, but its DAO class
+    has no relationship to the interface's table.
+    """
+
+    dao_class: type
+    """
+    The DAO class of the stored object.
+    """
+
+    interface_dao_class: type
+    """
+    The DAO class of the interface's table.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.dao_class.__name__} does not link its rows to "
+            f"{self.interface_dao_class.__name__}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Make the domain class of {self.dao_class.__name__} subclass the interface "
+            f"of {self.interface_dao_class.__name__}, and regenerate the ormatic "
+            "interfaces."
+        )
 
 
 @dataclass(kw_only=True)

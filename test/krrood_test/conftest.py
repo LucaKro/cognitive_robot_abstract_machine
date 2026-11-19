@@ -42,6 +42,7 @@ from .dataset import (
     clashing_field_names,
     classes_with_generic,
     identity_hashed_values_created_on_access,
+    interface_tables,
     interface_typed_fields,
     single_value_classes,
 )
@@ -99,6 +100,7 @@ def generate_sqlalchemy_interface():
     all_classes |= set(classes_of_module(single_value_classes))
     all_classes |= set(classes_of_module(identity_hashed_values_created_on_access))
     all_classes |= set(classes_of_module(interface_typed_fields))
+    all_classes |= set(classes_of_module(interface_tables))
     all_classes |= {Symbol, Role}
 
     # remove classes that don't need persistence

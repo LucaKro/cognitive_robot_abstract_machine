@@ -41,6 +41,7 @@ from krrood.ormatic.data_access_objects.helper import (
 )
 from krrood.ormatic.data_access_objects.to_dao import ToDataAccessObjectState
 from krrood.ormatic.exceptions import (
+    InterfaceNotLinkedError,
     NoDAOFoundDuringParsingError,
     QueryCannotBePersisted,
 )
@@ -76,6 +77,36 @@ class AssociationDataAccessObject:
         :param value: The target Data Access Object of this association.
         """
         raise NotImplementedError
+
+
+class RelationshipInformationKey(StrEnum):
+    """
+    Keys of the information a generated relationship carries for the conversion between
+    DAOs and domain objects.
+    """
+
+    INTERFACE_LINK = "krrood_interface_link"
+    """
+    Marks the relationship from an implementation's row to its row in the table of an
+    interface it implements, which has no field of the domain object behind it.
+    """
+
+
+@dataclass(kw_only=True, frozen=True)
+class InterfaceLink:
+    """
+    The relationship from an implementation's row to its row in the table of an
+    interface it implements.
+    """
+
+    key: str
+    """The attribute name of the relationship on the DAO."""
+
+    interface_dao_class: type[InterfaceDataAccessObject]
+    """The DAO class of the interface's table."""
+
+    implementer_table_name: str
+    """The name of the table that declares the relationship."""
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -124,6 +155,9 @@ class CollectionRelationship:
     resolve association targets via the identity map instead of lazy loads.
     """
 
+    target_dao_class: type
+    """The DAO class of the items in the collection."""
+
 
 @dataclass(kw_only=True, frozen=True)
 class DataAccessObjectSchema:
@@ -153,6 +187,11 @@ class DataAccessObjectSchema:
     relationship_keys: tuple[str, ...]
     """
     The keys of all relationships of the DAO class.
+    """
+
+    interface_links: tuple[InterfaceLink, ...]
+    """
+    The relationships to the rows of the interfaces the DAO's domain class implements.
     """
 
     alternative_base: type | None
@@ -212,8 +251,17 @@ def get_dao_schema(dao_class: type) -> DataAccessObjectSchema:
 
     single_relationships = []
     collection_relationships = []
+    interface_links = []
     for relationship in mapper.relationships:
-        if DataAccessObject._is_single_relationship(relationship=relationship):
+        if relationship.info.get(RelationshipInformationKey.INTERFACE_LINK, False):
+            interface_links.append(
+                InterfaceLink(
+                    key=relationship.key,
+                    interface_dao_class=relationship.mapper.class_,
+                    implementer_table_name=relationship.parent.local_table.name,
+                )
+            )
+        elif DataAccessObject._is_single_relationship(relationship=relationship):
             single_relationships.append(
                 _build_single_relationship(
                     relationship, relationship.mapper.class_.original_class()
@@ -234,6 +282,7 @@ def get_dao_schema(dao_class: type) -> DataAccessObjectSchema:
                         association_target_relationship=_build_single_relationship(
                             target_relationship, domain_type
                         ),
+                        target_dao_class=target_relationship.mapper.class_,
                     )
                 )
             else:
@@ -242,6 +291,7 @@ def get_dao_schema(dao_class: type) -> DataAccessObjectSchema:
                         key=relationship.key,
                         association_class=None,
                         domain_type=target_dao_clazz.original_class(),
+                        target_dao_class=target_dao_clazz,
                     )
                 )
 
@@ -254,6 +304,7 @@ def get_dao_schema(dao_class: type) -> DataAccessObjectSchema:
         relationship_keys=tuple(
             relationship.key for relationship in mapper.relationships
         ),
+        interface_links=tuple(interface_links),
         alternative_base=dao_class._find_alternative_mapping_base(),
         uses_alternative_mapping=_uses_alternative_mapping(dao_class),
     )
@@ -615,6 +666,10 @@ class DataAccessObject(HasGeneric[T]):
                 work_item.dao_instance.fill_dao_default(
                     source_object=work_item.source_object, state=state
                 )
+            for link in get_dao_schema(type(work_item.dao_instance)).interface_links:
+                work_item.dao_instance.interface_row(
+                    interface_dao_class=link.interface_dao_class
+                )
 
     @classmethod
     def _find_alternative_mapping_base(cls) -> type[DataAccessObject] | None:
@@ -768,10 +823,11 @@ class DataAccessObject(HasGeneric[T]):
             setattr(
                 self,
                 relationship.key,
-                self._get_or_queue_dao(
+                self._get_or_queue_referenced_dao(
                     source_object=value,
                     state=state,
                     expected_type=relationship.domain_type,
+                    target_dao_class=relationship.target_dao_class,
                 ),
             )
 
@@ -795,18 +851,20 @@ class DataAccessObject(HasGeneric[T]):
             dao_collection = []
             for item in source_collection:
                 association_dao = relationship.association_class()
-                association_dao.target = self._get_or_queue_dao(
+                association_dao.target = self._get_or_queue_referenced_dao(
                     source_object=item,
                     state=state,
                     expected_type=relationship.domain_type,
+                    target_dao_class=relationship.target_dao_class,
                 )
                 dao_collection.append(association_dao)
         else:
             dao_collection = [
-                self._get_or_queue_dao(
+                self._get_or_queue_referenced_dao(
                     source_object=item,
                     state=state,
                     expected_type=relationship.domain_type,
+                    target_dao_class=relationship.target_dao_class,
                 )
                 for item in source_collection
             ]
@@ -819,6 +877,58 @@ class DataAccessObject(HasGeneric[T]):
             list if type(source_collection) is tuple else type(source_collection)
         )
         setattr(self, relationship.key, assignable_container_type(dao_collection))
+
+    def _get_or_queue_referenced_dao(
+        self,
+        *,
+        source_object: Any,
+        state: ToDataAccessObjectState,
+        expected_type: type,
+        target_dao_class: type | None,
+    ) -> DataAccessObject:
+        """
+        Resolve an object a relationship refers to into the DAO the relationship holds,
+        queuing the object's own DAO if necessary.
+
+        :param source_object: The object referred to.
+        :param state: The conversion state.
+        :param expected_type: The domain type of the field being filled.
+        :param target_dao_class: The DAO class the relationship points to; for the
+            table of an interface, the relationship holds the object's row in it.
+        :return: The DAO the relationship holds.
+        """
+        if target_dao_class is None or not issubclass(
+            target_dao_class, InterfaceDataAccessObject
+        ):
+            return self._get_or_queue_dao(
+                source_object=source_object, state=state, expected_type=expected_type
+            )
+        implementer = self._get_or_queue_dao(source_object=source_object, state=state)
+        return implementer.interface_row(interface_dao_class=target_dao_class)
+
+    def interface_row(
+        self, *, interface_dao_class: type[InterfaceDataAccessObject]
+    ) -> InterfaceDataAccessObject:
+        """
+        :param interface_dao_class: The DAO class of the table of an interface the
+            domain class of this DAO implements.
+        :return: The row standing for this DAO's object in that table, created on first
+            request.
+        :raises InterfaceNotLinkedError: If this DAO has no relationship to that table.
+        """
+        for link in get_dao_schema(type(self)).interface_links:
+            if link.interface_dao_class is not interface_dao_class:
+                continue
+            row = getattr(self, link.key)
+            if row is None:
+                row = interface_dao_class(
+                    implementer_table_name=link.implementer_table_name
+                )
+                setattr(self, link.key, row)
+            return row
+        raise InterfaceNotLinkedError(
+            dao_class=type(self), interface_dao_class=interface_dao_class
+        )
 
     def _get_or_queue_dao(
         self,
@@ -1354,6 +1464,45 @@ class DataAccessObject(HasGeneric[T]):
             return f"{self.__class__.__name__}({', '.join(representations)})"
         finally:
             _repr_thread_local.seen.remove(id(self))
+
+
+class InterfaceDataAccessObject(DataAccessObject[T]):
+    """
+    A row of the table of an interface, standing for one object that implements it.
+
+    The table holds no column for anything the interface declares; the object's own
+    row links to this one, and the column ``implementer_table_name`` names the table
+    of that link.
+    """
+
+    @staticmethod
+    def implementer_attribute_name(*, implementer_table_name: str) -> str:
+        """
+        :param implementer_table_name: The name of a table that links its rows to rows
+            of an interface's table.
+        :return: The attribute of an interface row that holds the linking row of that
+            table.
+        """
+        return f"implementer_{implementer_table_name}"
+
+    @property
+    def implementer(self) -> DataAccessObject:
+        """
+        :return: The row of the object this row stands for.
+        """
+        return getattr(
+            self,
+            self.implementer_attribute_name(
+                implementer_table_name=self.implementer_table_name
+            ),
+        )
+
+    def from_dao(self, *, state: FromDataAccessObjectState | None = None) -> T:
+        """
+        Convert the row of the object this row stands for, as
+        :meth:`DataAccessObject.from_dao` does.
+        """
+        return self.implementer.from_dao(state=state)
 
 
 @contextmanager

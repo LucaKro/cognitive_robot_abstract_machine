@@ -1,3 +1,7 @@
+"""
+The tables ORMatic generates or reuses, and the columns and relationships they hold.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -12,6 +16,10 @@ from typing_extensions import List, TYPE_CHECKING, Optional, Set, get_origin
 
 from krrood.ormatic.field_storage import FieldStorage
 from krrood.ormatic.data_access_objects.alternative_mappings import AlternativeMapping
+from krrood.ormatic.data_access_objects.dao import (
+    InterfaceDataAccessObject,
+    RelationshipInformationKey,
+)
 from krrood.class_diagrams.class_diagram import (
     WrappedClass,
     Inheritance,
@@ -245,6 +253,63 @@ class ExternalTable(TableLike):
             ones inherited from its own (possibly external) ancestors.
         """
         return {prop.key for prop in sqlalchemy.inspect(self.dao_class).attrs}
+
+
+@dataclass(kw_only=True)
+class InterfaceTable(TableLike):
+    """
+    The table of an interface, with one row for each stored object that implements it.
+
+    It has no column for anything the interface declares: the row of each
+    implementation links to its row here, and a column names the table of that link.
+    """
+
+    interface: type
+    """
+    The interface whose implementations the rows stand for.
+    """
+
+    primary_key_name: str = "database_id"
+    """
+    The name of the primary key column.
+    """
+
+    @property
+    def tablename(self) -> str:
+        return f"{self.interface.__name__}DAO"
+
+    @property
+    def qualified_reference(self) -> str:
+        return self.tablename
+
+    @property
+    def qualified_full_primary_key_name(self) -> str:
+        return self.full_primary_key_name
+
+    @property
+    def interface_reference(self) -> str:
+        """
+        :return: The interface's name, qualified by its module.
+        """
+        return module_and_class_name(self.interface)
+
+    @property
+    def columns(self) -> list[ColumnConstructor]:
+        """
+        :return: The primary key and the column naming the table that links each row.
+        """
+        return [
+            ColumnConstructor(
+                name=self.primary_key_name,
+                type=f"Mapped[{module_and_class_name(int)}]",
+                constructor="mapped_column(Integer, primary_key=True, use_existing_column=True)",
+            ),
+            ColumnConstructor(
+                name="implementer_table_name",
+                type=f"Mapped[{module_and_class_name(str)}]",
+                constructor="mapped_column(String(255), nullable=False)",
+            ),
+        ]
 
 
 @dataclass(kw_only=True)
@@ -559,11 +624,21 @@ class WrappedTable(TableLike):
             return False
 
     @cached_property
-    def fields(self) -> list[WrappedField]:
+    def domain_class(self) -> type:
         """
-        :return: The list of fields specified only in this associated dataclass that should be mapped.
+        :return: The class whose objects this table holds, which for an alternative
+            mapping is the class it maps.
         """
-        # Collect all inherited mapped field names up the chain
+        clazz = self.wrapped_clazz.clazz
+        if self.is_alternatively_mapped:
+            clazz = clazz.original_class()
+        return get_origin(clazz) or clazz
+
+    @cached_property
+    def inherited_attribute_names(self) -> set[str]:
+        """
+        :return: The names of the columns and relationships the parent tables create.
+        """
         inherited_mapped_names: set[str] = set()
         p = self.parent_table
         while p is not None:
@@ -578,12 +653,18 @@ class WrappedTable(TableLike):
             inherited_mapped_names.update(c.name for c in p.foreign_keys)
             inherited_mapped_names.update(c.name for c in p.relationships)
             p = p.parent_table
+        return inherited_mapped_names
 
+    @cached_property
+    def fields(self) -> list[WrappedField]:
+        """
+        :return: The list of fields specified only in this associated dataclass that should be mapped.
+        """
         # Keep only fields that are not inherited by name
         result = [
             f
             for f in self.wrapped_clazz.fields
-            if f.field.name not in inherited_mapped_names
+            if f.field.name not in self.inherited_attribute_names
         ]
 
         # If the parent table is alternatively mapped, drop fields that do not exist
@@ -613,8 +694,11 @@ class WrappedTable(TableLike):
         return result
 
     @memoize
-    def parse_fields(self):
-
+    def parse_fields(self) -> None:
+        """
+        Create the columns and relationships of this table, once its parent tables have
+        theirs.
+        """
         for f in self.fields:
             logger.info("=" * 80)
             logger.info(
@@ -628,7 +712,49 @@ class WrappedTable(TableLike):
 
             self.parse_field(wrapped_field=f)
 
+        self.create_interface_links()
         self.create_mapper_args()
+
+    def create_interface_links(self) -> None:
+        """
+        Link the rows of this table to their rows in the table of every interface the
+        domain class implements, unless a parent table already links them.
+        """
+        for interface, interface_table in self.ormatic.interface_tables.items():
+            link_name = self.ormatic.interface_link_name(interface=interface)
+            if (
+                not issubclass(self.domain_class, interface)
+                or link_name in self.inherited_attribute_names
+            ):
+                continue
+
+            foreign_key_name = f"{link_name}{self.ormatic.foreign_key_postfix}"
+            self.foreign_keys.append(
+                ColumnConstructor(
+                    name=foreign_key_name,
+                    type=f"Mapped[{module_and_class_name(Optional)}[{module_and_class_name(int)}]]",
+                    constructor=f"mapped_column(ForeignKey('{interface_table.full_primary_key_name}', use_alter=True), nullable=True, unique=True, use_existing_column=True)",
+                )
+            )
+
+            implementer_attribute_name = (
+                InterfaceDataAccessObject.implementer_attribute_name(
+                    implementer_table_name=self.tablename
+                )
+            )
+            link_marker = f"{RelationshipInformationKey.__name__}.{RelationshipInformationKey.INTERFACE_LINK.name}"
+            self.relationships.append(
+                ColumnConstructor(
+                    name=link_name,
+                    type=f"Mapped[{interface_table.tablename}]",
+                    constructor=(
+                        f"relationship('{interface_table.tablename}', uselist=False, "
+                        f"foreign_keys=[{foreign_key_name}], "
+                        f"backref=backref('{implementer_attribute_name}', uselist=False), "
+                        f"info={{{link_marker}: True}})"
+                    ),
+                )
+            )
 
     def parse_field(self, *, wrapped_field: WrappedField):
         """
@@ -708,6 +834,8 @@ class WrappedTable(TableLike):
         :return: The wrapped table for the given wrapped field.
         """
         type_endpoint = wrapped_field.type_endpoint
+        if type_endpoint in self.ormatic.interface_tables:
+            return self.ormatic.interface_tables[type_endpoint]
         try:
             return self.ormatic.table_for(
                 wrapped_class=self.ormatic.class_dependency_graph.get_wrapped_class(

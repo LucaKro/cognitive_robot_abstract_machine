@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 from sqlalchemy import Column, ForeignKey, Integer, String, Float, Boolean, DateTime, Enum, JSON, Table
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import backref, relationship, Mapped, mapped_column
 
 {% for import in ormatic.imported_modules %}
 import {{ import }}
 {% endfor %}
 
 
-from krrood.ormatic.data_access_objects.dao import DataAccessObject, AssociationDataAccessObject
+from krrood.ormatic.data_access_objects.dao import DataAccessObject, AssociationDataAccessObject, InterfaceDataAccessObject, RelationshipInformationKey
 from krrood.ormatic.custom_types import TypeType
 
 Base = krrood.ormatic.base.Base
@@ -36,6 +36,19 @@ class {{ assoc_table.name }}(Base, AssociationDataAccessObject):
 
     {% for rel in assoc_table.relationships %}
     {{ rel }}
+    {% endfor %}
+
+{% endfor %}
+
+
+# Tables of interfaces, with one row for each stored object that implements one
+{% for table in ormatic.own_interface_tables %}
+class {{ table.tablename }}(Base, InterfaceDataAccessObject[{{ table.interface_reference }}]):
+
+    __tablename__ = '{{ table.tablename }}'
+
+    {% for column in table.columns %}
+    {{ column }}
     {% endfor %}
 
 {% endfor %}

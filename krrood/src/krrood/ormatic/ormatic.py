@@ -1,3 +1,7 @@
+"""
+Generates the SQLAlchemy ORM interface that stores a set of dataclasses.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -22,7 +26,11 @@ from typing_extensions import Optional, TextIO
 from krrood.ormatic.default_type_mappings import DefaultTypeMapping
 from krrood.ormatic.field_storage import FieldClassifier
 from krrood.ormatic.data_access_objects.alternative_mappings import AlternativeMapping
-from krrood.ormatic.data_access_objects.dao import DataAccessObject
+from krrood.ormatic.data_access_objects.dao import (
+    DataAccessObject,
+    InterfaceDataAccessObject,
+)
+from krrood.patterns.interface import Interface
 
 from krrood.ormatic.sqlalchemy_generator import SQLAlchemyGenerator
 from krrood.ormatic.type_dict import TypeDict
@@ -33,6 +41,7 @@ from krrood.ormatic.wrapped_table import (
     WrappedTable,
     ExternalTable,
     AssociationObject,
+    InterfaceTable,
     TableLike,
 )
 from krrood.class_diagrams.class_diagram import (
@@ -127,7 +136,19 @@ class ORMatic:
     List of association tables for many-to-many relationships.
     """
 
-    def __post_init__(self):
+    interface_tables: dict[type, InterfaceTable | ExternalTable] = field(
+        default_factory=dict, init=False
+    )
+    """
+    The tables of the interfaces that stored fields are typed with and no alternative
+    mapping covers, by interface, including those a dependency already maps.
+    """
+
+    def __post_init__(self) -> None:
+        """
+        Decide on the tables of the class diagram's classes, of the interfaces their
+        fields are typed with, and the modules the generated interface imports.
+        """
         self.imported_modules.add(get_module_of_type(TypeDict))
         self.imported_modules.add("krrood.ormatic.base")
         # optional columns are annotated with typing.Optional
@@ -138,6 +159,7 @@ class ORMatic:
         self._create_inheritance_graph()
         self._add_alternative_mappings_to_class_diagram()
         self._create_wrapped_tables()
+        self._create_interface_tables()
         self.create_type_annotations_map()
 
         # a specialized generic's DAO names the classes of its type arguments too
@@ -196,6 +218,51 @@ class ORMatic:
                 self.wrapped_tables[wrapped_clazz] = WrappedTable(
                     wrapped_clazz=wrapped_clazz, ormatic=self
                 )
+
+    def _create_interface_tables(self) -> None:
+        """
+        Reuse the interface tables of the dependencies, and create one for every other
+        interface that a stored field is typed with and no table maps yet.
+        """
+        for clazz, dao_class in self.externally_mapped_classes.items():
+            if isclass(dao_class) and issubclass(dao_class, InterfaceDataAccessObject):
+                self.interface_tables[clazz] = ExternalTable(
+                    wrapped_clazz=WrappedClass(clazz=clazz), dao_class=dao_class
+                )
+                self.imported_modules.add(get_module_of_type(dao_class))
+
+        for wrapped_table in self.wrapped_tables.values():
+            for wrapped_field in wrapped_table.wrapped_clazz.fields:
+                interface = wrapped_field.type_endpoint
+                if (
+                    wrapped_field.field.name.startswith("_")
+                    or not isclass(interface)
+                    or not Interface.is_interface(class_=interface)
+                    or interface in self.mapped_classes
+                ):
+                    continue
+                self.interface_tables[interface] = InterfaceTable(interface=interface)
+                self.imported_modules.add(get_module_of_type(interface))
+
+    @property
+    def own_interface_tables(self) -> list[InterfaceTable]:
+        """
+        :return: The interface tables this interface defines, rather than reusing from
+            a dependency.
+        """
+        return [
+            table
+            for table in self.interface_tables.values()
+            if isinstance(table, InterfaceTable)
+        ]
+
+    def interface_link_name(self, *, interface: type) -> str:
+        """
+        :param interface: An interface with a table.
+        :return: The name of the relationship from the row of an object implementing
+            the interface to its row in the interface's table.
+        """
+        return f"_{interface.__name__.lower()}_interface_row"
 
     def _create_inheritance_graph(self):
         self.inheritance_graph = rx.PyDiGraph()
@@ -309,9 +376,14 @@ class ORMatic:
 
     @property
     def mapped_classes(self) -> list[type]:
-        return [key.clazz for key in self.wrapped_tables.keys()] + [
-            key.clazz for key in self.external_tables.keys()
-        ]
+        """
+        :return: The classes a table stores, whether generated here or by a dependency.
+        """
+        return (
+            [key.clazz for key in self.wrapped_tables.keys()]
+            + [key.clazz for key in self.external_tables.keys()]
+            + list(self.interface_tables.keys())
+        )
 
     @cached_property
     def field_classifier(self) -> FieldClassifier:
