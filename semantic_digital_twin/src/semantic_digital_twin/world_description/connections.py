@@ -11,6 +11,7 @@ from typing_extensions import TYPE_CHECKING, Self
 
 from semantic_digital_twin.world_description.connection_properties import (
     JointDynamics,
+    ScrewAxisEstimateParameter,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
@@ -407,29 +408,23 @@ class ScrewAxisConnection(ActiveConnection1DOF):
     ) -> Self:
         """
         Creates and returns a screw axis connection whose screw axis is estimated: held
-        by two passive degrees of freedom, the angular and the linear velocity along the
-        z axis of the connection frame, added to ``world`` with its position's degree of
-        freedom.
+        by passive degrees of freedom, one for each :class:`ScrewAxisEstimateParameter`,
+        added to ``world`` with the degree of freedom of its position.
+
+        The parameters other than ``screw_axis`` are those of :meth:`create_with_dofs`.
 
         :param screw_axis: The first estimate, see :meth:`update_screw_axis_estimate`.
         :raises EstimatedScrewAxisOffZAxisError: if ``screw_axis`` does not lie on the z
-            axis of the connection frame. The other parameters are those of
-            :meth:`create_with_dofs`.
+            axis of the connection frame.
         """
-        cls.validate_estimated_screw_axis(screw_axis=screw_axis)
         name = name or cls._generate_default_name(parent=parent, child=child)
-        angular_velocity = DegreeOfFreedom(
-            name=PrefixedName("angular_velocity", str(name))
-        )
-        linear_velocity = DegreeOfFreedom(
-            name=PrefixedName("linear_velocity", str(name))
-        )
-        for parameter, value in [
-            (angular_velocity, screw_axis.angular_velocity.to_np()[2]),
-            (linear_velocity, screw_axis.linear_velocity.to_np()[2]),
-        ]:
-            world.add_degree_of_freedom(parameter)
-            world.state[parameter.id].position = value
+        estimate_dofs = {
+            parameter: DegreeOfFreedom(name=PrefixedName(parameter, str(name)))
+            for parameter in ScrewAxisEstimateParameter
+        }
+        for parameter, value in cls.estimate_values(screw_axis=screw_axis).items():
+            world.add_degree_of_freedom(estimate_dofs[parameter])
+            world.state[estimate_dofs[parameter].id].position = value
         return cls.create_with_dofs(
             world=world,
             parent=parent,
@@ -442,10 +437,47 @@ class ScrewAxisConnection(ActiveConnection1DOF):
             dof_limits=dof_limits,
             dynamics=dynamics,
             screw_axis=Twist(
-                angular_velocity=Vector3(z=angular_velocity.variables.position),
-                linear_velocity=Vector3(z=linear_velocity.variables.position),
+                angular_velocity=Vector3(
+                    z=estimate_dofs[
+                        ScrewAxisEstimateParameter.ANGULAR_VELOCITY
+                    ].variables.position
+                ),
+                linear_velocity=Vector3(
+                    z=estimate_dofs[
+                        ScrewAxisEstimateParameter.LINEAR_VELOCITY
+                    ].variables.position
+                ),
             ),
         )
+
+    @classmethod
+    def estimate_values(
+        cls, *, screw_axis: Twist
+    ) -> dict[ScrewAxisEstimateParameter, float]:
+        """
+        :param screw_axis: An estimate of the screw axis.
+        :return: The number each degree of freedom holding the estimate takes for it.
+        :raises EstimatedScrewAxisOffZAxisError: if ``screw_axis`` does not lie on the z
+            axis of the connection frame.
+        """
+        cls.validate_estimated_screw_axis(screw_axis=screw_axis)
+        return {
+            ScrewAxisEstimateParameter.ANGULAR_VELOCITY: float(
+                screw_axis.angular_velocity.to_np()[2]
+            ),
+            ScrewAxisEstimateParameter.LINEAR_VELOCITY: float(
+                screw_axis.linear_velocity.to_np()[2]
+            ),
+        }
+
+    @property
+    def estimate_dofs(self) -> dict[ScrewAxisEstimateParameter, DegreeOfFreedom]:
+        """
+        The degrees of freedom that hold an estimate, by the number each holds.
+        """
+        return {
+            ScrewAxisEstimateParameter(dof.name.name): dof for dof in self.passive_dofs
+        }
 
     def add_to_world(self, *, world: World):
         """
@@ -557,14 +589,9 @@ class ScrewAxisConnection(ActiveConnection1DOF):
         """
         if not self.is_estimated:
             raise ConstantScrewAxisError(connection_name=self.name)
-        self.validate_estimated_screw_axis(screw_axis=screw_axis)
-        angular_velocity, linear_velocity = self.passive_dofs
-        self._world.state[
-            angular_velocity.id
-        ].position = screw_axis.angular_velocity.to_np()[2]
-        self._world.state[
-            linear_velocity.id
-        ].position = screw_axis.linear_velocity.to_np()[2]
+        estimate_dofs = self.estimate_dofs
+        for parameter, value in self.estimate_values(screw_axis=screw_axis).items():
+            self._world.state[estimate_dofs[parameter].id].position = value
         self._world.notify_state_change()
 
     @property
