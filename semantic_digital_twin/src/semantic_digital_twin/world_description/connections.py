@@ -6,22 +6,31 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 import numpy as np
+from krrood.patterns.called_positionally import called_positionally
 from typing_extensions import TYPE_CHECKING, Self
 
 from semantic_digital_twin.world_description.connection_properties import (
     JointDynamics,
+    ScrewAxisEstimateParameter,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
     DegreeOfFreedomLimits,
+    DegreeOfFreedomVariable,
 )
 from semantic_digital_twin.world_description.world_entity import (
     Connection,
     KinematicStructureEntity,
 )
+from semantic_digital_twin.world_description.world_modification import (
+    synchronized_attribute_modification,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.types import NpMatrix4x4
 from semantic_digital_twin.exceptions import (
+    CommittedScrewAxisEstimateError,
+    ConstantScrewAxisError,
+    EstimatedScrewAxisOffZAxisError,
     ScrewAxisOffConnectionOriginError,
     ScrewAxisWithoutTranslationError,
     UnnormalizedScrewAxisError,
@@ -230,34 +239,70 @@ class ScrewAxisConnection(ActiveConnection1DOF):
 
     screw_axis: Twist
     """
-    The twist of the child per unit of position in the connection frame, normalized
-    as a screw axis (Lynch and Park, `Modern Robotics, Definition 3.24
-    <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=122>`__), through the
-    frame's origin.
+    The twist of the child per unit of position in the connection frame, through its
+    origin, normalized as a screw axis (Lynch and Park, `Definition 3.24
+    <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=122>`__); if estimated,
+    an expression of the degrees of freedom that hold it.
 
     .. warning:: Set it only before the connection is added to a world: a later
         assignment is not recorded, published or rolled back. Replace the connection.
     """
 
+    screw_axis_estimate_is_committed: bool = False
+    """
+    Whether the estimate of an estimated connection is final, so that it takes no new
+    estimate until it is reopened.
+    """
+
     def __post_init__(self):
         """
-        :raises UnnormalizedScrewAxisError: if :attr:`screw_axis` has neither a unit
-            angular velocity nor, without one, a unit linear velocity.
-        :raises ScrewAxisOffConnectionOriginError: if the linear velocity of
+        :raises UnnormalizedScrewAxisError: if a constant :attr:`screw_axis` has neither
+            a unit angular velocity nor, without one, a unit linear velocity.
+        :raises ScrewAxisOffConnectionOriginError: if the linear velocity of a constant
             :attr:`screw_axis` is not parallel to its angular velocity, so its axis
             misses the origin of the connection frame.
         """
         super().__post_init__()
-        angular_velocity = self.screw_axis.angular_velocity
-        linear_velocity = self.screw_axis.linear_velocity
+        if self.screw_axis.is_constant():
+            self.validate_screw_axis(screw_axis=self.screw_axis)
+
+    @classmethod
+    def validate_screw_axis(cls, *, screw_axis: Twist) -> None:
+        """
+        :param screw_axis: A constant screw axis.
+        :raises UnnormalizedScrewAxisError: if it has neither a unit angular velocity
+            nor, without one, a unit linear velocity.
+        :raises ScrewAxisOffConnectionOriginError: if its linear velocity is not
+            parallel to its angular velocity.
+        """
+        angular_velocity = screw_axis.angular_velocity
+        linear_velocity = screw_axis.linear_velocity
         rotates_at_unit_speed = np.isclose(angular_velocity.norm(), 1)
-        only_translates_at_unit_speed = not self._rotates_child and np.isclose(
+        only_translates_at_unit_speed = not np.any(angular_velocity) and np.isclose(
             linear_velocity.norm(), 1
         )
         if not (rotates_at_unit_speed or only_translates_at_unit_speed):
-            raise UnnormalizedScrewAxisError(screw_axis=self.screw_axis)
+            raise UnnormalizedScrewAxisError(screw_axis=screw_axis)
         if not np.allclose(angular_velocity.cross(linear_velocity), 0):
-            raise ScrewAxisOffConnectionOriginError(screw_axis=self.screw_axis)
+            raise ScrewAxisOffConnectionOriginError(screw_axis=screw_axis)
+
+    @classmethod
+    def validate_estimated_screw_axis(cls, *, screw_axis: Twist) -> None:
+        """
+        Extends :meth:`validate_screw_axis` for an estimated connection.
+
+        :raises EstimatedScrewAxisOffZAxisError: if the screw axis does not lie on the z
+            axis of the connection frame.
+        """
+        cls.validate_screw_axis(screw_axis=screw_axis)
+        off_z_axis = np.concatenate(
+            [
+                screw_axis.angular_velocity.to_np()[:2],
+                screw_axis.linear_velocity.to_np()[:2],
+            ]
+        )
+        if np.any(off_z_axis):
+            raise EstimatedScrewAxisOffZAxisError(screw_axis=screw_axis)
 
     @classmethod
     def create_revolute_screw_axis(cls, *, axis: Vector3) -> Twist:
@@ -345,6 +390,95 @@ class ScrewAxisConnection(ActiveConnection1DOF):
             screw_axis=screw_axis,
         )
 
+    @classmethod
+    def create_estimated_with_dofs(
+        cls,
+        *,
+        world: World,
+        parent: KinematicStructureEntity,
+        child: KinematicStructureEntity,
+        name: PrefixedName | None = None,
+        parent_T_connection_expression: HomogeneousTransformationMatrix | None = None,
+        connection_T_child_expression: HomogeneousTransformationMatrix | None = None,
+        multiplier: float = 1.0,
+        offset: float = 0.0,
+        dof_limits: DegreeOfFreedomLimits | None = None,
+        dynamics: JointDynamics | None = None,
+        screw_axis: Twist,
+    ) -> Self:
+        """
+        Creates and returns a screw axis connection whose screw axis is estimated: held
+        by passive degrees of freedom, one for each :class:`ScrewAxisEstimateParameter`,
+        added to ``world`` with the degree of freedom of its position.
+
+        The parameters other than ``screw_axis`` are those of :meth:`create_with_dofs`.
+
+        :param screw_axis: The first estimate, see :meth:`update_screw_axis_estimate`.
+        :raises EstimatedScrewAxisOffZAxisError: if ``screw_axis`` does not lie on the z
+            axis of the connection frame.
+        """
+        name = name or cls._generate_default_name(parent=parent, child=child)
+        estimate_dofs = {
+            parameter: DegreeOfFreedom(name=PrefixedName(parameter, str(name)))
+            for parameter in ScrewAxisEstimateParameter
+        }
+        for parameter, value in cls.estimate_values(screw_axis=screw_axis).items():
+            world.add_degree_of_freedom(estimate_dofs[parameter])
+            world.state[estimate_dofs[parameter].id].position = value
+        return cls.create_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            name=name,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=connection_T_child_expression,
+            multiplier=multiplier,
+            offset=offset,
+            dof_limits=dof_limits,
+            dynamics=dynamics,
+            screw_axis=Twist(
+                angular_velocity=Vector3(
+                    z=estimate_dofs[
+                        ScrewAxisEstimateParameter.ANGULAR_VELOCITY
+                    ].variables.position
+                ),
+                linear_velocity=Vector3(
+                    z=estimate_dofs[
+                        ScrewAxisEstimateParameter.LINEAR_VELOCITY
+                    ].variables.position
+                ),
+            ),
+        )
+
+    @classmethod
+    def estimate_values(
+        cls, *, screw_axis: Twist
+    ) -> dict[ScrewAxisEstimateParameter, float]:
+        """
+        :param screw_axis: An estimate of the screw axis.
+        :return: The number each degree of freedom holding the estimate takes for it.
+        :raises EstimatedScrewAxisOffZAxisError: if ``screw_axis`` does not lie on the z
+            axis of the connection frame.
+        """
+        cls.validate_estimated_screw_axis(screw_axis=screw_axis)
+        return {
+            ScrewAxisEstimateParameter.ANGULAR_VELOCITY: float(
+                screw_axis.angular_velocity.to_np()[2]
+            ),
+            ScrewAxisEstimateParameter.LINEAR_VELOCITY: float(
+                screw_axis.linear_velocity.to_np()[2]
+            ),
+        }
+
+    @property
+    def estimate_dofs(self) -> dict[ScrewAxisEstimateParameter, DegreeOfFreedom]:
+        """
+        The degrees of freedom that hold an estimate, by the number each holds.
+        """
+        return {
+            ScrewAxisEstimateParameter(dof.name.name): dof for dof in self.passive_dofs
+        }
+
     def add_to_world(self, *, world: World):
         """
         Extends :meth:`WorldEntity.add_to_world` by building the motion along
@@ -354,13 +488,123 @@ class ScrewAxisConnection(ActiveConnection1DOF):
 
         position = self.dof.variables.position
         connection_V_child = self.screw_axis.linear_velocity * position
+        if self.is_estimated:
+            # An estimated axis lies on z, which keeps the rotation axis constant.
+            axis = Vector3.Z()
+            angle = self.screw_axis.angular_velocity[2] * position
+        else:
+            axis = self.screw_axis.screw_axis_direction
+            angle = self.screw_axis.angular_velocity.norm() * position
         self._kinematics = HomogeneousTransformationMatrix.from_xyz_axis_angle(
             x=connection_V_child[0],
             y=connection_V_child[1],
             z=connection_V_child[2],
-            axis=self.screw_axis.screw_axis_direction,
-            angle=self.screw_axis.angular_velocity.norm() * position,
+            axis=axis,
+            angle=angle,
             child_frame=self.child,
+        )
+
+    @called_positionally
+    def copy_for_world(self, world: World) -> Self:
+        """
+        Extends :meth:`WorldEntityWithID.copy_for_world` by holding an estimated
+        :attr:`screw_axis` in ``world``'s degrees of freedom.
+        """
+        copied = super().copy_for_world(world)
+        copied.screw_axis = DegreeOfFreedomVariable.rebind_variables(
+            expression=self.screw_axis, world=world
+        )
+        return copied
+
+    @property
+    def is_estimated(self) -> bool:
+        """
+        Whether the screw axis is held by passive degrees of freedom of the connection.
+        """
+        return not self.screw_axis.is_constant()
+
+    @property
+    def passive_dofs(self) -> list[DegreeOfFreedom]:
+        """
+        The degrees of freedom that hold an estimated screw axis.
+        """
+        return list(
+            dict.fromkeys(variable.dof for variable in self.screw_axis.free_variables())
+        )
+
+    @property
+    def current_screw_axis(self) -> Twist:
+        """
+        The screw axis at the current state of the world: :attr:`screw_axis` itself if
+        it is constant, otherwise the estimate it holds.
+        """
+        if not self.is_estimated:
+            return self.screw_axis
+        values = self.screw_axis.evaluate()
+        return Twist(
+            angular_velocity=Vector3(*values[:3]),
+            linear_velocity=Vector3(*values[3:]),
+        )
+
+    def update_screw_axis_estimate(self, *, screw_axis: Twist) -> None:
+        """
+        Writes a new estimate of the screw axis into the world state, in a single state
+        change.
+
+        :param screw_axis: The estimate, along the z axis of the connection frame.
+        :raises ConstantScrewAxisError: if the connection is not estimated.
+        :raises CommittedScrewAxisEstimateError: if the estimate is committed.
+        :raises EstimatedScrewAxisOffZAxisError: if ``screw_axis`` does not lie on the z
+            axis of the connection frame.
+        """
+        if self.screw_axis_estimate_is_committed:
+            raise CommittedScrewAxisEstimateError(connection_name=self.name)
+        self._write_screw_axis_estimate(screw_axis=screw_axis)
+
+    @synchronized_attribute_modification
+    def commit_screw_axis_estimate(self, *, screw_axis: Twist) -> None:
+        """
+        Writes the final estimate of the screw axis and marks it committed, so that it
+        takes no new estimate until :meth:`reopen_screw_axis_estimate`.
+
+        :param screw_axis: The final estimate, see :meth:`update_screw_axis_estimate`.
+        """
+        self._write_screw_axis_estimate(screw_axis=screw_axis)
+        self.screw_axis_estimate_is_committed = True
+
+    @synchronized_attribute_modification
+    def reopen_screw_axis_estimate(self) -> None:
+        """
+        Lets a committed estimate take new estimates again.
+        """
+        self.screw_axis_estimate_is_committed = False
+
+    def _write_screw_axis_estimate(self, *, screw_axis: Twist) -> None:
+        """
+        Writes ``screw_axis`` into the degrees of freedom that hold the estimate.
+
+        :raises ConstantScrewAxisError: if the connection is not estimated.
+        :raises EstimatedScrewAxisOffZAxisError: if ``screw_axis`` does not lie on the z
+            axis of the connection frame.
+        """
+        if not self.is_estimated:
+            raise ConstantScrewAxisError(connection_name=self.name)
+        estimate_dofs = self.estimate_dofs
+        for parameter, value in self.estimate_values(screw_axis=screw_axis).items():
+            self._world.state[estimate_dofs[parameter].id].position = value
+        self._world.notify_state_change()
+
+    @property
+    def position_is_periodic(self) -> bool:
+        """
+        Whether positions a revolution apart put the child in the same pose and may be
+        compared modulo a revolution: a revolute connection without position limits,
+        whose screw axis is constant or committed.
+        """
+        return (
+            self.behaves_like_a_revolute_connection
+            and not self.dof.has_position_limits()
+            and (not self.is_estimated or self.screw_axis_estimate_is_committed)
         )
 
     def position_for_translation(self, *, distance: float) -> float:
@@ -372,10 +616,11 @@ class ScrewAxisConnection(ActiveConnection1DOF):
             ``distance``.
         :raises ScrewAxisWithoutTranslationError: if the child only rotates.
         """
+        screw_axis = self.current_screw_axis
         if not self._translates_child:
-            raise ScrewAxisWithoutTranslationError(screw_axis=self.screw_axis)
-        translation_per_position = self.screw_axis.linear_velocity.dot(
-            self.screw_axis.screw_axis_direction
+            raise ScrewAxisWithoutTranslationError(screw_axis=screw_axis)
+        translation_per_position = screw_axis.linear_velocity.dot(
+            screw_axis.screw_axis_direction
         )
         return distance / float(translation_per_position)
 
@@ -405,14 +650,14 @@ class ScrewAxisConnection(ActiveConnection1DOF):
         """
         Whether the position rotates the child.
         """
-        return bool(np.any(self.screw_axis.angular_velocity))
+        return bool(np.any(self.current_screw_axis.angular_velocity))
 
     @property
     def _translates_child(self) -> bool:
         """
         Whether the position translates the child.
         """
-        return bool(np.any(self.screw_axis.linear_velocity))
+        return bool(np.any(self.current_screw_axis.linear_velocity))
 
 
 @dataclass(eq=False)
