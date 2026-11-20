@@ -1,0 +1,52 @@
+name: Docs preview
+
+# Lives only on the fork's docs_preview branch, which is never opened as a pull request:
+# it publishes that branch's krrood_spatial_math book to the fork's GitHub Pages, at the
+# path the upstream site uses, so reviewers can read pages that are not merged yet.
+on:
+  push:
+    branches:
+      - docs_preview
+  workflow_dispatch: {}
+
+# Shares build_all_docs.yml's group, so the two never deploy at the same time.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-book:
+    uses: ./.github/workflows/build_doc_reusable.yml
+    with:
+      lib: domain_models/krrood_spatial_math
+      doc_path: doc
+      artifact_name: krrood-spatial-math-doc
+
+  deploy:
+    needs: [build-book]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download the book
+        uses: actions/download-artifact@v4
+        with:
+          name: krrood-spatial-math-doc
+          path: site/krrood_spatial_math
+
+      - name: Send the site's root to the book
+        run: |
+          echo '<!doctype html><meta http-equiv="refresh" content="0; url=krrood_spatial_math/">' > site/index.html
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
