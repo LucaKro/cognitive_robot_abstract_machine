@@ -5,5 +5,6 @@ spatial mappings store expressions evaluated at storing time. All package ORM te
 Tom's review addressed in 7887bbe: StoredObjectDAO in krrood/ormatic/stored_object.py on base
 StoredObjectRow (template generation breaks with 2 root interfaces on one Base). Open threads awaiting
 Tom: 4640762437 (why not generated), 4640766235 (global before_flush; options asked).
-Next: sync with main (95 behind, conflicts; only when asked); decide closed-field gap; re-stack
+Merged main in 0245536 (krrood split into krrood-*; giskardpy tip_link -> kinematic_chain, method now
+express_tip_normal_in_tip). Next: decide closed-field gap; re-stack
 step 2 (spatial-types-orm) onto #144 and update pr2-body; labels api-break/new-feature/bug-fix missing on fork.
