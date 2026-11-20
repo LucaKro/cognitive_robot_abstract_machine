@@ -12,6 +12,7 @@ keep it as the first line of every --why-file (describe drops anything outside i
 Stacked 2026-11-20, all pushed; estimated_axis_frame_in_transforms not updated (214 behind #145).
 2026-11-20: #120 now holds screw_axis as krrood ScrewAxis (not Twist), with ScrewAxis.is_normalized/
 passes_through_origin; Twist.screw_axis_direction removed (use unit_direction). Pushed a17e0d9,
-description updated. #130/#132/#133 not yet synced onto it: they need the same rename, and #132's
+description updated. #130 synced + pushed (44de521). #117 plan rewritten 2026-11-20 (spatial types, steps 1-6; step 6 =
+uncertainty via probabilistic_model numpy parts, no jax), update comment 7050674669. #132/#133 not yet synced: they need the same rename, and #132's
 normalization check should call is_normalized.
 GARMI demo passes on #120 (earlier failure was a local iai_maps edit). FK expressions identical to main.
