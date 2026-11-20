@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from krrood_spatial_math.spatial_types import Twist, Vector3
+from krrood_spatial_math.spatial_types import ScrewAxis, Vector3
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
@@ -56,7 +56,7 @@ def child_pose(connection: ScrewAxisConnection) -> np.ndarray:
     )
 
 
-def helical_along_z(pitch: float) -> Twist:
+def helical_along_z(pitch: float) -> ScrewAxis:
     """
     :return: The screw axis of a helical connection along z with ``pitch`` per
         revolution.
@@ -202,7 +202,7 @@ def test_unnormalized_estimate_raises(estimated_connection):
     """
     with pytest.raises(UnnormalizedScrewAxisError):
         estimated_connection.update_screw_axis_estimate(
-            screw_axis=Twist(angular_velocity=Vector3(0, 0, 2))
+            screw_axis=ScrewAxis(rotation_per_unit_position=Vector3(0, 0, 2))
         )
 
 

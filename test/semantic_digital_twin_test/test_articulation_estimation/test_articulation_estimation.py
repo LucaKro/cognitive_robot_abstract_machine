@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation
 
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
-    Twist,
+    ScrewAxis,
     Vector3,
 )
 from semantic_digital_twin.articulation_estimation.estimator import (
@@ -49,7 +49,7 @@ class ObservedScrewMotion:
     A child moved by a known screw axis connection and observed with noise.
     """
 
-    screw_axis: Twist
+    screw_axis: ScrewAxis
     """
     The screw axis of the connection that moves the child.
     """
@@ -111,7 +111,7 @@ class ObservedScrewMotion:
         """
         return (
             self.parent_T_connection.to_np()[:3, :3]
-            @ self.screw_axis.screw_axis_direction.to_np()[:3]
+            @ self.screw_axis.unit_direction.to_np()[:3]
         )
 
     @property
@@ -262,8 +262,8 @@ def test_rotating_fit_recovers_the_axis_point_and_pitch(
     )
     assert fit.translation_per_radian == pytest.approx(
         float(
-            motion.screw_axis.linear_velocity.dot(
-                motion.screw_axis.screw_axis_direction
+            motion.screw_axis.translation_per_unit_position.dot(
+                motion.screw_axis.unit_direction
             )
         ),
         abs=0.002,

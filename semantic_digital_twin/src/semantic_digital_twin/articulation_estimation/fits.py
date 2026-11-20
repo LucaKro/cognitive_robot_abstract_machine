@@ -18,7 +18,7 @@ from typing_extensions import TYPE_CHECKING, Self
 from krrood.patterns.classproperty import classproperty
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
-    Twist,
+    ScrewAxis,
     Vector3,
 )
 from semantic_digital_twin.articulation_estimation.observations import (
@@ -265,7 +265,7 @@ class ScrewMotionFit(ArticulationFit, ABC):
 
     @property
     @abstractmethod
-    def connection_screw_axis(self) -> Twist:
+    def connection_screw_axis(self) -> ScrewAxis:
         """
         The screw axis of the connection :meth:`create_connection` creates, along the z
         axis of its connection frame.
@@ -449,7 +449,7 @@ class PrismaticFit(ScrewMotionFit):
         return self.reference_parent_T_child[:3, 3]
 
     @property
-    def connection_screw_axis(self) -> Twist:
+    def connection_screw_axis(self) -> ScrewAxis:
         return ScrewAxisConnection.create_prismatic_screw_axis(axis=Vector3.Z())
 
 
@@ -577,7 +577,7 @@ class RevoluteFit(RotatingFit):
         )
 
     @property
-    def connection_screw_axis(self) -> Twist:
+    def connection_screw_axis(self) -> ScrewAxis:
         return ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z())
 
 
@@ -609,7 +609,7 @@ class HelicalFit(RotatingFit):
         )
 
     @property
-    def connection_screw_axis(self) -> Twist:
+    def connection_screw_axis(self) -> ScrewAxis:
         return ScrewAxisConnection.create_helical_screw_axis(
             axis=Vector3.Z(), pitch=2 * np.pi * self.translation_per_radian
         )

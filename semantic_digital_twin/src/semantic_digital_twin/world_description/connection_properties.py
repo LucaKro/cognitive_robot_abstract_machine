@@ -17,14 +17,16 @@ class ScrewAxisEstimateParameter(StrEnum):
     passive degree of freedom named for it.
     """
 
-    ANGULAR_VELOCITY = "angular_velocity"
+    ROTATION_PER_UNIT_POSITION = "rotation_per_unit_position"
     """
-    The angular velocity of the screw axis along the z axis of the connection frame.
+    The rotation of the screw axis per unit of position, about the z axis of the
+    connection frame.
     """
 
-    LINEAR_VELOCITY = "linear_velocity"
+    TRANSLATION_PER_UNIT_POSITION = "translation_per_unit_position"
     """
-    The linear velocity of the screw axis along the z axis of the connection frame.
+    The translation of the screw axis per unit of position, along the z axis of the
+    connection frame.
     """
 
 

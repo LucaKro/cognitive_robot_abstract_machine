@@ -38,7 +38,7 @@ from scipy.spatial.transform import Rotation
 
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
-    Twist,
+    ScrewAxis,
     Vector3,
 )
 from semantic_digital_twin.articulation_estimation.estimator import ArticulationEstimator
@@ -61,7 +61,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 def observed_poses(
     *,
-    screw_axis: Twist,
+    screw_axis: ScrewAxis,
     positions: np.ndarray,
     parent_T_connection: HomogeneousTransformationMatrix,
     connection_T_child: HomogeneousTransformationMatrix,
