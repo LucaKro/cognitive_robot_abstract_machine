@@ -2913,9 +2913,10 @@ class ScrewAxis(RigidMotionRate):
     def translation_per_radian(self) -> sm.Scalar:
         """
         :return: How far the body advances along the axis per radian it turns, in
-            meters: Lynch and Park's pitch, the rotation's dot product with the
-            translation over the rotation's squared norm (*Modern Robotics*, section
-            3.3.2.2). Infinite for a screw axis that does not turn the body.
+            meters: the pitch h = ω̂ᵀv/θ̇ of `Modern Robotics, section 3.3.2.2
+            <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=120>`__, with
+            ω the rotation and v the translation per unit of position, ω̂ = ω/‖ω‖ and
+            θ̇ = ‖ω‖, so h = ω·v/‖ω‖². Infinite, as there, if the body does not turn.
         """
         rotation = self.rotation_per_unit_position
         squared_angle_per_unit_position = rotation.dot(rotation)
@@ -2929,10 +2930,12 @@ class ScrewAxis(RigidMotionRate):
     @property
     def axis_point_closest_to_origin(self) -> Point3:
         """
-        :return: The point of the axis closest to the origin of the reference frame:
-            the rotation's cross product with the translation over the rotation's
-            squared norm (*Modern Robotics*, section 3.3.2.2). The origin for a screw
-            axis that does not turn the body, which has no line.
+        :return: The point q of the axis closest to the origin of the reference frame.
+            `Modern Robotics, section 3.3.2.2
+            <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=120>`__ picks
+            a q on the axis with −ω × q the part of v across it, ω and v the rotation
+            and translation per unit of position; the q orthogonal to ω is ω × v/‖ω‖².
+            The origin if the body does not turn, since the axis then has no line.
         """
         rotation = self.rotation_per_unit_position
         result = (

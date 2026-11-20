@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 from numpy.testing import assert_allclose
 from scipy.spatial.transform import Rotation
@@ -18,17 +19,10 @@ from krrood_spatial_math.spatial_types import (
     ScrewAxis,
     Vector3,
 )
-from semantic_digital_twin.articulation_estimation.estimator import (
-    ArticulationEstimator,
-)
 from semantic_digital_twin.articulation_estimation.exceptions import (
     TooFewObservationsError,
 )
-from semantic_digital_twin.articulation_estimation.fits import (
-    ArticulationFit,
-    RigidFit,
-    ScrewMotionFit,
-)
+from semantic_digital_twin.articulation_estimation.fits import ScrewMotionFit
 from semantic_digital_twin.articulation_estimation.observations import (
     ObservationNoise,
     PoseObservations,
@@ -51,7 +45,9 @@ class ObservedScrewMotion:
     The screw axis of the connection that moves the child.
     """
 
-    positions: np.ndarray = field(default_factory=lambda: np.linspace(0.0, 1.2, 15))
+    positions: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.linspace(0.0, 1.2, 15)
+    )
     """
     The positions at which the child is observed.
     """
@@ -102,7 +98,7 @@ class ObservedScrewMotion:
         )
 
     @property
-    def axis_direction_in_parent(self) -> np.ndarray:
+    def axis_direction_in_parent(self) -> npt.NDArray[np.float64]:
         """
         The unit direction of the screw axis in the parent frame.
         """
@@ -123,8 +119,8 @@ class ObservedScrewMotion:
 
 
 def disturbed_poses(
-    *, poses: np.ndarray, noise: ObservationNoise, seed: int
-) -> np.ndarray:
+    *, poses: npt.NDArray[np.float64], noise: ObservationNoise, seed: int
+) -> npt.NDArray[np.float64]:
     """
     :return: ``poses`` with normally distributed errors of the size ``noise`` describes
         added to each position and rotation vector.
@@ -192,41 +188,7 @@ The names of the motions of :func:`screw_motions` that turn the child.
 """
 
 
-# %% Model selection
-@pytest.mark.parametrize("motion_name", list(screw_motions()))
-def test_most_likely_fit_of_a_moving_child_is_a_screw_motion(
-    motion_name: str, observation_noise: ObservationNoise
-):
-    """
-    Revolute, prismatic and helical motion are all fit by the one screw motion fit.
-    """
-    observations = screw_motions()[motion_name].observe(noise=observation_noise, seed=0)
-
-    fit = ArticulationEstimator(noise=observation_noise).most_likely_fit(
-        observations=observations
-    )
-
-    assert type(fit) is ScrewMotionFit
-
-
-def test_most_likely_fit_of_a_resting_child_is_rigid(
-    observation_noise: ObservationNoise,
-):
-    """
-    A child observed in the same pose, up to noise, is rigidly attached.
-    """
-    observations = ObservedScrewMotion(
-        screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z()),
-        positions=np.zeros(15),
-    ).observe(noise=observation_noise, seed=0)
-
-    fit = ArticulationEstimator(noise=observation_noise).most_likely_fit(
-        observations=observations
-    )
-
-    assert type(fit) is RigidFit
-
-
+# %% Observations
 def test_fewer_than_two_observations_raise():
     """
     One pose cannot show whether the child moves.
@@ -391,7 +353,7 @@ def test_fit_follows_a_rotation_past_half_a_revolution(
 
 
 # %% Created connections
-def fitted_world(*, fit: ArticulationFit) -> tuple[World, Body, Body, Connection]:
+def fitted_world(*, fit: ScrewMotionFit) -> tuple[World, Body, Body, Connection]:
     """
     :return: A world in which a connection that ``fit`` creates joins a parent and a
         child.
@@ -456,25 +418,3 @@ def test_created_connection_frame_sits_on_the_axis_next_to_the_child(
     )
     assert_allclose(connection_P_child[1:], 0, atol=1e-9)
     assert connection_P_child[0] > 0
-
-
-def test_rigid_fit_creates_a_connection_holding_the_mean_pose(
-    observation_noise: ObservationNoise,
-):
-    """
-    A rigid fit's connection holds the child at the fit's single pose.
-    """
-    fit = RigidFit.fit(
-        observations=ObservedScrewMotion(
-            screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z()),
-            positions=np.zeros(5),
-        ).observe(noise=observation_noise, seed=5),
-        noise=observation_noise,
-    )
-    world, parent, child, _ = fitted_world(fit=fit)
-
-    assert_allclose(
-        world.compute_forward_kinematics_np(root=parent, tip=child),
-        fit.reference_parent_T_child,
-        atol=1e-9,
-    )

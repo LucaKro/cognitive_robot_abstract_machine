@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial.transform import Rotation
 from typing_extensions import Self
 
@@ -28,7 +29,7 @@ class PoseObservations:
     between them is unambiguous.
     """
 
-    parent_T_child: np.ndarray
+    parent_T_child: npt.NDArray[np.float64]
     """
     One homogeneous transformation matrix per observation, stacked to shape (n, 4, 4).
     """
@@ -66,12 +67,11 @@ class PoseObservations:
         )
 
     @property
-    def displacements_between_observations(self) -> np.ndarray:
+    def displacements_between_observations(self) -> npt.NDArray[np.float64]:
         """
-        For each observation after the first, the transformation in the parent frame.
+        The step to each observation from the one before, stacked to shape (n - 1, 4, 4).
 
-        that moves the child from its pose at the observation before to this one,
-        stacked to shape (n - 1, 4, 4).
+        Each is the transformation in the parent frame between the two poses.
         """
         return self.parent_T_child[1:] @ np.linalg.inv(self.parent_T_child[:-1])
 
@@ -96,8 +96,11 @@ class ObservationNoise:
     """
 
     def standardized_pose_errors(
-        self, *, observed: np.ndarray, predicted: np.ndarray
-    ) -> np.ndarray:
+        self,
+        *,
+        observed: npt.NDArray[np.float64],
+        predicted: npt.NDArray[np.float64],
+    ) -> npt.NDArray[np.float64]:
         """
         :param observed: The observed poses, stacked to shape (n, 4, 4).
         :param predicted: The poses a model predicts for the same observations.

@@ -14,8 +14,7 @@ from semantic_digital_twin.exceptions import UsageError
 @dataclass(kw_only=True)
 class TooFewObservationsError(UsageError):
     """
-    Raised when fewer poses are observed than it takes to tell a moving child from a
-    rigidly attached one.
+    Raised when fewer poses are observed than it takes to see how a child moves.
     """
 
     observation_count: int
