@@ -1,2 +1,3 @@
-2026-11-20: merged into #142's branch (spatial_math_docs) so both book pages land as one PR; this branch is discarded, #145 shows as merged, and Luca retargeted #120 onto spatial_math_docs, so `cleanup` may delete it.
-Preview: fork-only branch `docs_preview` (never a PR) deploys the book via `.github/workflows/docs_preview.yml`; refresh with `github-workflow sync --on 142` there, then push.
+#132, step 4 of #117. Stack: main <- #142 (both book pages; #145 merged into it) <- #120 <- #130 <- #132 <- #133.
+2026-11-20: merged #130 (4d6f317), Twist -> ScrewAxis, ScrewAxisEstimateParameter is ROTATION_PER_UNIT_POSITION / TRANSLATION_PER_UNIT_POSITION, checks use is_normalized / passes_through_origin; tests pass, description updated.
+Next: Luca reviews #142, #120, #130, #132; then #133 needs the same merge (`sync --on 132`) and rename.
