@@ -66,12 +66,14 @@ class PoseObservations:
         )
 
     @property
-    def displacements_from_first(self) -> np.ndarray:
+    def displacements_between_observations(self) -> np.ndarray:
         """
-        For each observation, the transformation in the parent frame that moves the
-        child from its first observed pose to this one, stacked to shape (n, 4, 4).
+        For each observation after the first, the transformation in the parent frame.
+
+        that moves the child from its pose at the observation before to this one,
+        stacked to shape (n - 1, 4, 4).
         """
-        return self.parent_T_child @ np.linalg.inv(self.parent_T_child[0])
+        return self.parent_T_child[1:] @ np.linalg.inv(self.parent_T_child[:-1])
 
 
 # %% Observation noise

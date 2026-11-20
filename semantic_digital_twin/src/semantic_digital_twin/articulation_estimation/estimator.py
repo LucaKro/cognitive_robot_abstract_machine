@@ -21,8 +21,9 @@ from semantic_digital_twin.articulation_estimation.observations import (
 class ArticulationEstimator:
     """
     Fits every concrete :class:`ArticulationFit` to observed poses and selects the one
-    with the lowest :attr:`ArticulationFit.bayesian_information_criterion`, so that a
-    simpler kind of motion wins unless a richer one explains the poses clearly better.
+    with the lowest :attr:`ArticulationFit.bayesian_information_criterion`, so that the
+    child is taken to move only if a motion explains the poses clearly better than
+    noise.
     """
 
     noise: ObservationNoise

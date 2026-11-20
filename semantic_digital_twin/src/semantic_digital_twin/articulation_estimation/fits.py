@@ -1,5 +1,5 @@
 """
-Fits of rigid, prismatic, revolute and helical motion to observed poses, compared as
+Fits of a resting child and of motion along a screw axis to observed poses, compared as
 in Sturm, Stachniss and Burgard, `A Probabilistic Framework for Learning Kinematic
 Models of Articulated Objects <https://arxiv.org/abs/1405.7705>`__.
 """
@@ -8,16 +8,20 @@ from __future__ import annotations
 
 # %% Imports
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 from scipy.optimize import least_squares
 from scipy.spatial.transform import Rotation
 from typing_extensions import TYPE_CHECKING, Self
 
+import krrood.symbolic_math.symbolic_math as sm
 from krrood.patterns.classproperty import classproperty
+from krrood.symbolic_math.symbolic_math import CompiledFunction
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
+    Point3,
+    RotationMatrix,
     ScrewAxis,
     Vector3,
 )
@@ -189,134 +193,171 @@ class RigidFit(ArticulationFit):
 
 # %% Motion along a screw axis
 @dataclass(kw_only=True)
-class ScrewMotionFit(ArticulationFit, ABC):
+class ScrewMotionFit(ArticulationFit):
     """
     The child moves along a screw axis in proportion to a position that differs between
     observations, as a :class:`ScrewAxisConnection` moves it.
 
-    At each of
-    :attr:`positions`, the connection :meth:`create_connection` creates moves the child
-    to the pose the fit predicts for that observation.
+    It may turn, slide or both: the fit describes the motion and does not choose a kind
+    of connection.
     """
 
-    axis_direction: np.ndarray
+    screw_axis: ScrewAxis
     """
-    The unit direction of the screw axis, in the parent frame.
+    How the child moves per unit of position, in the parent frame; once :meth:`fit`
+    returns, normalized as Lynch and Park define it.
     """
 
     positions: np.ndarray
     """
-    The position at each observation, zero at the first and, as far as the axis
-    direction can make it, positive at the last.
+    The position at each observation, zero at the first and positive at the last.
     """
 
-    @classmethod
-    @abstractmethod
-    def initial_fit(
-        cls, *, observations: PoseObservations, noise: ObservationNoise
-    ) -> Self:
-        """
-        :param observations: The observed poses.
-        :param noise: The noise the observations carry.
-        :return: An approximation of :meth:`fit` in closed form, which treats the first
-            observation as exact.
-        """
+    displacement_along_screw_axis: CompiledFunction = field(repr=False, compare=False)
+    """
+    :meth:`~krrood_spatial_math.spatial_types.ScrewAxis.to_displacement`, compiled, see
+    :meth:`compile_displacement_along_screw_axis`.
+    """
 
     @classproperty
-    @abstractmethod
-    def axis_parameter_count(cls) -> int:
+    def negligible_rotation(cls) -> float:
         """
-        The number of independent numbers that place the screw axis and set its pitch.
+        The rotation over the observed positions, in radians, below which :meth:`fit`
+        takes the child not to turn at all.
         """
-
-    @property
-    @abstractmethod
-    def axis_parameters(self) -> np.ndarray:
-        """
-        The numbers that place the screw axis and set its pitch, as the optimizer of
-        :meth:`fit` varies them.
-        """
-
-    @abstractmethod
-    def copy_with_axis_parameters(self, *, axis_parameters: np.ndarray) -> Self:
-        """
-        :param axis_parameters: The numbers that place the screw axis and set its pitch,
-            in the layout of :attr:`axis_parameters`.
-        :return: A copy of the fit with the screw axis they describe, its direction
-            scaled to unit length.
-        """
-
-    @abstractmethod
-    def displacements(self, *, positions: np.ndarray) -> np.ndarray:
-        """
-        :param positions: Positions along the screw axis.
-        :return: For each position, the transformation in the parent frame that moves
-            the child from its pose at position zero to its pose at that position,
-            stacked to shape (n, 4, 4).
-        """
-
-    @property
-    @abstractmethod
-    def connection_origin(self) -> np.ndarray:
-        """
-        The point on the screw axis, in the parent frame, at which
-        :meth:`create_connection` places the connection frame.
-        """
-
-    @property
-    @abstractmethod
-    def connection_screw_axis(self) -> ScrewAxis:
-        """
-        The screw axis of the connection :meth:`create_connection` creates, along the z
-        axis of its connection frame.
-        """
+        return 1e-9
 
     @classmethod
     def fit(cls, *, observations: PoseObservations, noise: ObservationNoise) -> Self:
         initial_fit = cls.initial_fit(observations=observations, noise=noise)
         result = least_squares(
-            fun=lambda parameter_vector: (
-                initial_fit.copy_with_parameter_vector(
+            fun=lambda parameter_vector: noise.standardized_pose_errors(
+                observed=observations.parent_T_child,
+                predicted=initial_fit.predicted_parent_T_child_at(
                     parameter_vector=parameter_vector
-                ).standardized_errors
+                ),
             ),
             x0=initial_fit.parameter_vector,
         )
-        return initial_fit.copy_with_parameter_vector(parameter_vector=result.x)
+        return initial_fit.copy_with_parameter_vector(
+            parameter_vector=result.x
+        ).copy_with_normalized_screw_axis()
+
+    @classmethod
+    def initial_fit(
+        cls, *, observations: PoseObservations, noise: ObservationNoise
+    ) -> Self:
+        """
+        :return: An approximation in closed form, which takes the first observation as
+            exact and the steps between consecutive observations as motions along one
+            screw axis, each by the change of position between them.
+        """
+        displacement_along_screw_axis = cls.compile_displacement_along_screw_axis()
+        steps = observations.displacements_between_observations
+        rotation_vectors = Rotation.from_matrix(steps[:, :3, :3]).as_rotvec()
+        # A step turns by r = Δθ ω and moves by J(r) Δθ v, with J the left Jacobian of
+        # r, whose columns the displacement along (r, unit vector) by 1 gives.
+        left_jacobians = np.stack(
+            [
+                np.stack(
+                    [
+                        displacement_along_screw_axis(
+                            np.concatenate([rotation_vector, unit_vector, [1.0]])
+                        )[3:].copy()
+                        for unit_vector in np.eye(3)
+                    ],
+                    axis=1,
+                )
+                for rotation_vector in rotation_vectors
+            ]
+        )
+        translations = np.linalg.solve(left_jacobians, steps[:, :3, 3, np.newaxis])
+        # Each row is Δθ (ω, v), weighted as the errors are, so the rows have rank one.
+        standardized_steps = np.hstack(
+            [
+                rotation_vectors / noise.orientation_standard_deviation,
+                translations[:, :, 0] / noise.position_standard_deviation,
+            ]
+        )
+        left, singular_values, right = np.linalg.svd(
+            standardized_steps, full_matrices=False
+        )
+        position_steps = left[:, 0] * singular_values[0]
+        orientation = np.copysign(1.0, position_steps.sum())
+        return cls(
+            observations=observations,
+            noise=noise,
+            reference_parent_T_child=observations.parent_T_child[0],
+            screw_axis=ScrewAxis(
+                rotation_per_unit_position=Vector3(
+                    *(orientation * right[0, :3] * noise.orientation_standard_deviation)
+                ),
+                translation_per_unit_position=Vector3(
+                    *(orientation * right[0, 3:] * noise.position_standard_deviation)
+                ),
+            ),
+            positions=np.concatenate([[0.0], np.cumsum(orientation * position_steps)]),
+            displacement_along_screw_axis=displacement_along_screw_axis,
+        )
+
+    @classmethod
+    def compile_displacement_along_screw_axis(cls) -> CompiledFunction:
+        """
+        :return: A function of the rotation and the translation per unit of position and
+            of the position, seven numbers, that returns the rotation vector and the
+            translation of the displacement along that screw axis by that position, in
+            an array it overwrites on the next call.
+        """
+        rotation = [sm.FloatVariable(name=f"rotation_{axis}") for axis in "xyz"]
+        translation = [sm.FloatVariable(name=f"translation_{axis}") for axis in "xyz"]
+        position = sm.FloatVariable(name="position")
+        displacement = ScrewAxis(
+            rotation_per_unit_position=Vector3(*rotation),
+            translation_per_unit_position=Vector3(*translation),
+        ).to_displacement(position=position)
+        return sm.Matrix(
+            [
+                *(displacement.rotation_vector[index] for index in range(3)),
+                *(displacement.translation[index] for index in range(3)),
+            ]
+        ).compile(
+            parameters=sm.VariableParameters.from_lists(
+                rotation + translation + [position]
+            )
+        )
 
     @property
     def fitted_parameter_count(self) -> int:
-        return (
-            self.pose_parameter_count
-            + len(self.positions)
-            - 1
-            + self.axis_parameter_count
-        )
+        # Six numbers set the screw axis, less the scale it shares with the positions.
+        return self.pose_parameter_count + len(self.positions) - 1 + 5
 
     @property
     def parameter_vector(self) -> np.ndarray:
         """
         The numbers the optimizer of :meth:`fit` varies: the rotation vector and
-        position of :attr:`reference_parent_T_child`, the positions after the first, and
-        :attr:`axis_parameters`.
+        position of :attr:`reference_parent_T_child`, the positions between the first
+        and the last, and the six entries of :attr:`screw_axis`.
         """
         return np.concatenate(
             [
                 Rotation.from_matrix(self.reference_parent_T_child[:3, :3]).as_rotvec(),
                 self.reference_parent_T_child[:3, 3],
-                self.positions[1:],
-                self.axis_parameters,
+                self.positions[1:-1],
+                self.screw_axis.to_np(),
             ]
         )
 
-    def copy_with_parameter_vector(self, *, parameter_vector: np.ndarray) -> Self:
+    def split_parameter_vector(
+        self, *, parameter_vector: np.ndarray
+    ) -> tuple[NpMatrix4x4, np.ndarray, np.ndarray]:
         """
-        :param parameter_vector: The numbers the optimizer of :meth:`fit` varies, in the
-            layout of :attr:`parameter_vector`.
-        :return: A copy of the fit with the poses, positions and screw axis they
-            describe.
+        :param parameter_vector: Numbers in the layout of :attr:`parameter_vector`.
+        :return: The pose of the child at position zero, the position at each
+            observation and the six entries of the screw axis that they describe. The
+            last position stays the fit's: scaling the screw axis and dividing the
+            positions by the same factor would not change the motion.
         """
-        axis_parameters_start = self.pose_parameter_count + len(self.positions) - 1
+        positions_end = self.pose_parameter_count + len(self.positions) - 2
         reference_parent_T_child = np.eye(4)
         reference_parent_T_child[:3, :3] = Rotation.from_rotvec(
             parameter_vector[:3]
@@ -325,59 +366,154 @@ class ScrewMotionFit(ArticulationFit, ABC):
             3 : self.pose_parameter_count
         ]
         positions = np.concatenate(
-            [[0.0], parameter_vector[self.pose_parameter_count : axis_parameters_start]]
+            [
+                [0.0],
+                parameter_vector[self.pose_parameter_count : positions_end],
+                self.positions[-1:],
+            ]
+        )
+        return reference_parent_T_child, positions, parameter_vector[positions_end:]
+
+    def predicted_parent_T_child_at(
+        self, *, parameter_vector: np.ndarray
+    ) -> np.ndarray:
+        """
+        :param parameter_vector: Numbers in the layout of :attr:`parameter_vector`.
+        :return: The pose of the child they predict for each observation, stacked to
+            shape (n, 4, 4), computed without building spatial types, as :meth:`fit`
+            asks for it at every step of its optimizer.
+        """
+        reference_parent_T_child, positions, screw_axis_entries = (
+            self.split_parameter_vector(parameter_vector=parameter_vector)
+        )
+        return (
+            self.displacements(
+                screw_axis_entries=screw_axis_entries, positions=positions
+            )
+            @ reference_parent_T_child
+        )
+
+    @property
+    def predicted_parent_T_child(self) -> np.ndarray:
+        return self.predicted_parent_T_child_at(parameter_vector=self.parameter_vector)
+
+    def copy_with_parameter_vector(self, *, parameter_vector: np.ndarray) -> Self:
+        """
+        :param parameter_vector: Numbers in the layout of :attr:`parameter_vector`.
+        :return: A copy of the fit with the poses, positions and screw axis they
+            describe, see :meth:`split_parameter_vector`.
+        """
+        reference_parent_T_child, positions, screw_axis_entries = (
+            self.split_parameter_vector(parameter_vector=parameter_vector)
         )
         return replace(
             self,
             reference_parent_T_child=reference_parent_T_child,
             positions=positions,
-        ).copy_with_axis_parameters(
-            axis_parameters=parameter_vector[axis_parameters_start:]
+            screw_axis=ScrewAxis(
+                rotation_per_unit_position=Vector3(*screw_axis_entries[:3]),
+                translation_per_unit_position=Vector3(*screw_axis_entries[3:]),
+            ),
         )
 
-    @property
-    def predicted_parent_T_child(self) -> np.ndarray:
-        return (
-            self.displacements(positions=self.positions) @ self.reference_parent_T_child
+    def copy_with_normalized_screw_axis(self) -> Self:
+        """
+        :return: A copy of the fit describing the same motion, with the screw axis
+            normalized as Lynch and Park define it and the positions scaled to match. A
+            rotation below :attr:`negligible_rotation` is set to zero.
+        """
+        rotation, translation = np.split(self.screw_axis.to_np(), 2)
+        if np.linalg.norm(rotation) * np.ptp(self.positions) < self.negligible_rotation:
+            rotation = np.zeros(3)
+        scale = np.linalg.norm(rotation if np.any(rotation) else translation)
+        return replace(
+            self,
+            screw_axis=ScrewAxis(
+                rotation_per_unit_position=Vector3(*(rotation / scale)),
+                translation_per_unit_position=Vector3(*(translation / scale)),
+            ),
+            positions=self.positions * scale,
         )
 
-    @property
-    def lowest_observed_position(self) -> float:
+    def displacements(
+        self, *, screw_axis_entries: np.ndarray, positions: np.ndarray
+    ) -> np.ndarray:
         """
-        The lowest of :attr:`positions`.
+        :param screw_axis_entries: The six entries of a screw axis, as
+            :meth:`~krrood_spatial_math.spatial_types.ScrewAxis.to_np` returns them.
+        :param positions: Positions along that screw axis.
+        :return: For each position, the transformation in the parent frame that moves
+            the child from its pose at position zero to its pose at that position,
+            stacked to shape (n, 4, 4).
         """
-        return float(self.positions.min())
+        rotation_vectors_and_translations = np.stack(
+            [
+                self.displacement_along_screw_axis(
+                    np.concatenate([screw_axis_entries, [position]])
+                ).copy()
+                for position in positions
+            ]
+        )
+        displacements = np.tile(np.eye(4), (len(positions), 1, 1))
+        displacements[:, :3, :3] = Rotation.from_rotvec(
+            rotation_vectors_and_translations[:, :3]
+        ).as_matrix()
+        displacements[:, :3, 3] = rotation_vectors_and_translations[:, 3:]
+        return displacements
 
     @property
-    def highest_observed_position(self) -> float:
+    def turns_child(self) -> bool:
         """
-        The highest of :attr:`positions`.
+        Whether the position turns the child.
         """
-        return float(self.positions.max())
+        return bool(np.any(self.screw_axis.rotation_per_unit_position.to_np()[:3]))
 
     @property
-    def parent_T_connection(self) -> NpMatrix4x4:
+    def connection_origin(self) -> Point3:
+        """
+        The point, in the parent frame, at which :meth:`create_connection` places the
+        connection frame: on the screw axis, closest to the child's origin at position
+        zero, or that origin itself if the child does not turn.
+        """
+        child_origin = Point3(*self.reference_parent_T_child[:3, 3])
+        if not self.turns_child:
+            return child_origin
+        axis_point, _ = child_origin.project_to_line(
+            line_point=self.screw_axis.axis_point_closest_to_origin,
+            line_direction=self.screw_axis.unit_direction,
+        )
+        return axis_point
+
+    @property
+    def parent_T_connection(self) -> HomogeneousTransformationMatrix:
         """
         The connection frame of :meth:`create_connection`: at :attr:`connection_origin`,
-        its z axis along :attr:`axis_direction` and its x axis toward the child's origin
-        at position zero, or, if that lies on the axis, perpendicular to the axis.
+        its z axis along the screw axis and its x axis toward the child's origin at
+        position zero, or, if that lies on the axis, perpendicular to the axis.
         """
-        z_axis = self.axis_direction
-        toward_child = self.reference_parent_T_child[:3, 3] - self.connection_origin
-        toward_child -= (toward_child @ z_axis) * z_axis
-        if np.isclose(np.linalg.norm(toward_child), 0):
-            least_aligned_unit_vector = np.eye(3)[np.argmin(np.abs(z_axis))]
-            toward_child = (
-                least_aligned_unit_vector
-                - (least_aligned_unit_vector @ z_axis) * z_axis
-            )
-        x_axis = toward_child / np.linalg.norm(toward_child)
-        parent_T_connection = np.eye(4)
-        parent_T_connection[:3, 0] = x_axis
-        parent_T_connection[:3, 1] = np.cross(z_axis, x_axis)
-        parent_T_connection[:3, 2] = z_axis
-        parent_T_connection[:3, 3] = self.connection_origin
-        return parent_T_connection
+        z_axis = self.screw_axis.unit_direction
+        connection_origin = self.connection_origin
+        toward_child = Point3(*self.reference_parent_T_child[:3, 3]) - connection_origin
+        toward_child = toward_child - z_axis * toward_child.dot(z_axis)
+        if np.isclose(float(toward_child.norm()), 0):
+            toward_child = RotationMatrix.from_x_axis(z_axis).y_vector()
+        return HomogeneousTransformationMatrix.from_point_rotation_matrix(
+            point=connection_origin,
+            rotation_matrix=RotationMatrix.from_vectors(x=toward_child, z=z_axis),
+        )
+
+    @property
+    def connection_screw_axis(self) -> ScrewAxis:
+        """
+        The screw axis of the connection :meth:`create_connection` creates, along the z
+        axis of its connection frame.
+        """
+        if not self.turns_child:
+            return ScrewAxisConnection.create_prismatic_screw_axis(axis=Vector3.Z())
+        return ScrewAxisConnection.create_helical_screw_axis(
+            axis=Vector3.Z(),
+            pitch=2 * np.pi * float(self.screw_axis.translation_per_radian),
+        )
 
     def create_connection(
         self,
@@ -391,225 +527,8 @@ class ScrewMotionFit(ArticulationFit, ABC):
             world=world,
             parent=parent,
             child=child,
-            parent_T_connection_expression=HomogeneousTransformationMatrix(
-                data=parent_T_connection
-            ),
-            connection_T_child_expression=HomogeneousTransformationMatrix(
-                data=np.linalg.inv(parent_T_connection) @ self.reference_parent_T_child
-            ),
+            parent_T_connection_expression=parent_T_connection,
+            connection_T_child_expression=parent_T_connection.inverse()
+            @ HomogeneousTransformationMatrix(data=self.reference_parent_T_child),
             screw_axis=self.connection_screw_axis,
-        )
-
-
-# %% Translation
-@dataclass(kw_only=True)
-class PrismaticFit(ScrewMotionFit):
-    """
-    The child translates along a direction, so its positions are in meters.
-
-    A translation has no axis position, so the connection frame sits at the child's
-    origin at position zero.
-    """
-
-    @classmethod
-    def initial_fit(
-        cls, *, observations: PoseObservations, noise: ObservationNoise
-    ) -> Self:
-        translations = observations.displacements_from_first[:, :3, 3]
-        direction = np.linalg.svd(translations)[2][0]
-        direction *= np.copysign(1.0, translations[-1] @ direction)
-        return cls(
-            observations=observations,
-            noise=noise,
-            reference_parent_T_child=observations.parent_T_child[0],
-            axis_direction=direction,
-            positions=translations @ direction,
-        )
-
-    @classproperty
-    def axis_parameter_count(cls) -> int:
-        return 2
-
-    @property
-    def axis_parameters(self) -> np.ndarray:
-        return self.axis_direction
-
-    def copy_with_axis_parameters(self, *, axis_parameters: np.ndarray) -> Self:
-        return replace(
-            self, axis_direction=axis_parameters / np.linalg.norm(axis_parameters)
-        )
-
-    def displacements(self, *, positions: np.ndarray) -> np.ndarray:
-        displacements = np.tile(np.eye(4), (len(positions), 1, 1))
-        displacements[:, :3, 3] = positions[:, np.newaxis] * self.axis_direction
-        return displacements
-
-    @property
-    def connection_origin(self) -> np.ndarray:
-        return self.reference_parent_T_child[:3, 3]
-
-    @property
-    def connection_screw_axis(self) -> ScrewAxis:
-        return ScrewAxisConnection.create_prismatic_screw_axis(axis=Vector3.Z())
-
-
-# %% Rotation
-@dataclass(kw_only=True)
-class RotatingFit(ScrewMotionFit, ABC):
-    """
-    The child rotates about an axis, and may advance along it in proportion, so its
-    positions are in radians.
-
-    The connection frame sits at the point of the axis closest to the child's origin at
-    position zero.
-    """
-
-    axis_point: np.ndarray
-    """
-    The point of the screw axis closest to the parent's origin, in the parent frame.
-    """
-
-    translation_per_radian: float
-    """
-    How far the child advances along :attr:`axis_direction` per radian, in meters; Lynch
-    and Park's pitch.
-    """
-
-    @classmethod
-    def initial_fit(
-        cls, *, observations: PoseObservations, noise: ObservationNoise
-    ) -> Self:
-        # A displacement rotates by R about the axis and translates by (I - R) q + h θ ŝ,
-        # which is linear in the axis point q and the pitch h.
-        displacements = observations.displacements_from_first
-        rotation_vectors = Rotation.from_matrix(displacements[:, :3, :3]).as_rotvec()
-        direction = np.linalg.svd(rotation_vectors)[2][0]
-        angles = np.unwrap(rotation_vectors @ direction)
-        orientation = np.copysign(1.0, angles[-1])
-        direction *= orientation
-        angles *= orientation
-        coefficients = np.concatenate(
-            [
-                np.eye(3) - displacements[:, :3, :3],
-                (angles[:, np.newaxis] * direction)[:, :, np.newaxis],
-            ],
-            axis=2,
-        ).reshape(-1, 4)
-        axis_point_perpendicular_to_direction = np.append(direction, 0.0)
-        solution = np.linalg.lstsq(
-            np.vstack([coefficients, axis_point_perpendicular_to_direction]),
-            np.append(displacements[:, :3, 3].ravel(), 0.0),
-            rcond=None,
-        )[0]
-        initial_fit = cls(
-            observations=observations,
-            noise=noise,
-            reference_parent_T_child=observations.parent_T_child[0],
-            axis_direction=direction,
-            positions=angles,
-            axis_point=solution[:3],
-            translation_per_radian=float(solution[3]),
-        )
-        return initial_fit.copy_with_axis_parameters(
-            axis_parameters=initial_fit.axis_parameters
-        )
-
-    def displacements(self, *, positions: np.ndarray) -> np.ndarray:
-        rotations = Rotation.from_rotvec(
-            positions[:, np.newaxis] * self.axis_direction
-        ).as_matrix()
-        displacements = np.tile(np.eye(4), (len(positions), 1, 1))
-        displacements[:, :3, :3] = rotations
-        displacements[:, :3, 3] = (
-            np.eye(3) - rotations
-        ) @ self.axis_point + self.translation_per_radian * positions[
-            :, np.newaxis
-        ] * self.axis_direction
-        return displacements
-
-    @property
-    def connection_origin(self) -> np.ndarray:
-        return (
-            self.axis_point
-            + (
-                (self.reference_parent_T_child[:3, 3] - self.axis_point)
-                @ self.axis_direction
-            )
-            * self.axis_direction
-        )
-
-    def copy_with_axis_parameters(self, *, axis_parameters: np.ndarray) -> Self:
-        # The first six parameters are the direction and a point of the axis; the copy
-        # keeps the point of the axis closest to the parent's origin.
-        direction = axis_parameters[:3] / np.linalg.norm(axis_parameters[:3])
-        return replace(
-            self,
-            axis_direction=direction,
-            axis_point=axis_parameters[3:6]
-            - (axis_parameters[3:6] @ direction) * direction,
-        )
-
-
-@dataclass(kw_only=True)
-class RevoluteFit(RotatingFit):
-    """
-    The child rotates about an axis without advancing along it.
-    """
-
-    @classproperty
-    def axis_parameter_count(cls) -> int:
-        # Two for the direction, two for where the axis crosses the plane through the
-        # parent's origin perpendicular to it.
-        return 4
-
-    @property
-    def axis_parameters(self) -> np.ndarray:
-        return np.concatenate([self.axis_direction, self.axis_point])
-
-    def copy_with_axis_parameters(self, *, axis_parameters: np.ndarray) -> Self:
-        """
-        Extends :meth:`RotatingFit.copy_with_axis_parameters` by fixing
-        :attr:`translation_per_radian` at zero.
-        """
-        return replace(
-            super().copy_with_axis_parameters(axis_parameters=axis_parameters),
-            translation_per_radian=0.0,
-        )
-
-    @property
-    def connection_screw_axis(self) -> ScrewAxis:
-        return ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z())
-
-
-@dataclass(kw_only=True)
-class HelicalFit(RotatingFit):
-    """
-    The child rotates about an axis and advances along it in proportion, as a screw
-    does.
-    """
-
-    @classproperty
-    def axis_parameter_count(cls) -> int:
-        return RevoluteFit.axis_parameter_count + 1
-
-    @property
-    def axis_parameters(self) -> np.ndarray:
-        return np.concatenate(
-            [self.axis_direction, self.axis_point, [self.translation_per_radian]]
-        )
-
-    def copy_with_axis_parameters(self, *, axis_parameters: np.ndarray) -> Self:
-        """
-        Extends :meth:`RotatingFit.copy_with_axis_parameters`: the seventh parameter is
-        :attr:`translation_per_radian`.
-        """
-        return replace(
-            super().copy_with_axis_parameters(axis_parameters=axis_parameters),
-            translation_per_radian=float(axis_parameters[6]),
-        )
-
-    @property
-    def connection_screw_axis(self) -> ScrewAxis:
-        return ScrewAxisConnection.create_helical_screw_axis(
-            axis=Vector3.Z(), pitch=2 * np.pi * self.translation_per_radian
         )

@@ -14,6 +14,7 @@ from scipy.spatial.transform import Rotation
 
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
+    Point3,
     ScrewAxis,
     Vector3,
 )
@@ -25,11 +26,7 @@ from semantic_digital_twin.articulation_estimation.exceptions import (
 )
 from semantic_digital_twin.articulation_estimation.fits import (
     ArticulationFit,
-    HelicalFit,
-    PrismaticFit,
-    RevoluteFit,
     RigidFit,
-    RotatingFit,
     ScrewMotionFit,
 )
 from semantic_digital_twin.articulation_estimation.observations import (
@@ -114,14 +111,15 @@ class ObservedScrewMotion:
             @ self.screw_axis.unit_direction.to_np()[:3]
         )
 
-    @property
-    def axis_point_closest_to_parent_origin(self) -> np.ndarray:
+    def distance_from_axis(self, *, point: Point3) -> float:
         """
-        The point of the screw axis closest to the parent's origin.
+        :return: How far ``point``, in the parent frame, lies from the screw axis.
         """
-        direction = self.axis_direction_in_parent
-        through = self.parent_T_connection.to_np()[:3, 3]
-        return through - (through @ direction) * direction
+        _, distance = point.project_to_line(
+            line_point=Point3(*self.parent_T_connection.to_np()[:3, 3]),
+            line_direction=Vector3(*self.axis_direction_in_parent),
+        )
+        return float(distance)
 
 
 def disturbed_poses(
@@ -157,20 +155,30 @@ def observation_noise() -> ObservationNoise:
     )
 
 
-def screw_motions() -> dict[type[ScrewMotionFit], ObservedScrewMotion]:
+@pytest.fixture()
+def exact_observation() -> ObservationNoise:
     """
-    :return: For each concrete kind of screw motion fit, a motion of that kind.
+    No noise, for observing a motion as it is.
+    """
+    return ObservationNoise(
+        position_standard_deviation=0.0, orientation_standard_deviation=0.0
+    )
+
+
+def screw_motions() -> dict[str, ObservedScrewMotion]:
+    """
+    :return: A revolute, a prismatic and a helical motion, by those names.
     """
     axis = Vector3.unit_vector(1, 2, 2)
     return {
-        RevoluteFit: ObservedScrewMotion(
+        "revolute": ObservedScrewMotion(
             screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=axis)
         ),
-        PrismaticFit: ObservedScrewMotion(
+        "prismatic": ObservedScrewMotion(
             screw_axis=ScrewAxisConnection.create_prismatic_screw_axis(axis=axis),
             positions=np.linspace(0.0, 0.4, 15),
         ),
-        HelicalFit: ObservedScrewMotion(
+        "helical": ObservedScrewMotion(
             screw_axis=ScrewAxisConnection.create_helical_screw_axis(
                 axis=axis, pitch=0.3
             )
@@ -178,22 +186,27 @@ def screw_motions() -> dict[type[ScrewMotionFit], ObservedScrewMotion]:
     }
 
 
+turning_motions = ["revolute", "helical"]
+"""
+The names of the motions of :func:`screw_motions` that turn the child.
+"""
+
+
 # %% Model selection
-@pytest.mark.parametrize("fit_type", list(screw_motions()))
-def test_most_likely_fit_is_the_kind_of_motion_observed(
-    fit_type: type[ScrewMotionFit], observation_noise: ObservationNoise
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+def test_most_likely_fit_of_a_moving_child_is_a_screw_motion(
+    motion_name: str, observation_noise: ObservationNoise
 ):
     """
-    The estimator recognises revolute, prismatic and helical motion from noisy poses,
-    and prefers revolute over helical motion, which also explains a rotation.
+    Revolute, prismatic and helical motion are all fit by the one screw motion fit.
     """
-    observations = screw_motions()[fit_type].observe(noise=observation_noise, seed=0)
+    observations = screw_motions()[motion_name].observe(noise=observation_noise, seed=0)
 
     fit = ArticulationEstimator(noise=observation_noise).most_likely_fit(
         observations=observations
     )
 
-    assert type(fit) is fit_type
+    assert type(fit) is ScrewMotionFit
 
 
 def test_most_likely_fit_of_a_resting_child_is_rigid(
@@ -222,45 +235,54 @@ def test_fewer_than_two_observations_raise():
         PoseObservations(parent_T_child=np.eye(4)[np.newaxis])
 
 
-# %% Recovered parameters
-@pytest.mark.parametrize("fit_type", list(screw_motions()))
-def test_fit_recovers_the_axis_direction_and_positions(
-    fit_type: type[ScrewMotionFit], observation_noise: ObservationNoise
+# %% Recovered motion
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+def test_fit_predicts_the_motion_behind_noisy_observations(
+    motion_name: str,
+    observation_noise: ObservationNoise,
+    exact_observation: ObservationNoise,
 ):
     """
-    The fit recovers the direction of the screw axis and the position at each
-    observation, both oriented so that the positions grow as they did.
+    The poses the fit predicts lie closer to the true poses than the observed ones do,
+    in position and in orientation.
     """
-    motion = screw_motions()[fit_type]
+    observations = screw_motions()[motion_name].observe(noise=observation_noise, seed=1)
 
-    fit = fit_type.fit(
-        observations=motion.observe(noise=observation_noise, seed=1),
-        noise=observation_noise,
-    )
+    fit = ScrewMotionFit.fit(observations=observations, noise=observation_noise)
 
-    assert_allclose(fit.axis_direction, motion.axis_direction_in_parent, atol=0.01)
-    assert_allclose(fit.positions, motion.positions, atol=0.01)
+    true_parent_T_child = (
+        screw_motions()[motion_name].observe(noise=exact_observation, seed=1)
+    ).parent_T_child
+    for slices in (np.s_[:, :3, 3], np.s_[:, :3, :3]):
+        prediction_error = (
+            fit.predicted_parent_T_child[slices] - (true_parent_T_child[slices])
+        )
+        observation_error = (
+            observations.parent_T_child[slices] - (true_parent_T_child[slices])
+        )
+        assert np.linalg.norm(prediction_error) < np.linalg.norm(observation_error)
 
 
-@pytest.mark.parametrize("fit_type", [RevoluteFit, HelicalFit])
-def test_rotating_fit_recovers_the_axis_point_and_pitch(
-    fit_type: type[RotatingFit], observation_noise: ObservationNoise
+@pytest.mark.parametrize("motion_name", turning_motions)
+def test_fit_recovers_the_screw_axis_of_a_turning_child(
+    motion_name: str, observation_noise: ObservationNoise
 ):
     """
-    A rotating fit recovers where the screw axis lies and how far the child advances
-    along it per radian.
+    For a child that turns, the fit recovers the line of the screw axis, how far the
+    child advances along it per radian and the position at each observation.
     """
-    motion = screw_motions()[fit_type]
+    motion = screw_motions()[motion_name]
 
-    fit = fit_type.fit(
+    fit = ScrewMotionFit.fit(
         observations=motion.observe(noise=observation_noise, seed=2),
         noise=observation_noise,
     )
 
     assert_allclose(
-        fit.axis_point, motion.axis_point_closest_to_parent_origin, atol=0.01
+        fit.screw_axis.unit_direction[:3], motion.axis_direction_in_parent, atol=0.01
     )
-    assert fit.translation_per_radian == pytest.approx(
+    assert motion.distance_from_axis(point=fit.connection_origin) < 0.01
+    assert float(fit.screw_axis.translation_per_radian) == pytest.approx(
         float(
             motion.screw_axis.translation_per_unit_position.dot(
                 motion.screw_axis.unit_direction
@@ -268,26 +290,104 @@ def test_rotating_fit_recovers_the_axis_point_and_pitch(
         ),
         abs=0.002,
     )
+    assert_allclose(fit.positions, motion.positions, atol=0.01)
 
 
-def test_fit_of_exact_observations_has_no_error():
+def test_fit_leaves_the_noise_in_the_screw_axis(observation_noise: ObservationNoise):
     """
-    Poses observed without noise are reproduced exactly by the fit of their kind.
+    The fit describes the motion it sees and does not round it to a kind of connection:
+    noise leaves a door a small pitch.
+    """
+    fit = ScrewMotionFit.fit(
+        observations=screw_motions()["revolute"].observe(
+            noise=observation_noise, seed=3
+        ),
+        noise=observation_noise,
+    )
+
+    translation_per_radian = float(fit.screw_axis.translation_per_radian)
+    assert translation_per_radian != 0
+    assert abs(translation_per_radian) < 0.002
+
+
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+def test_fit_of_exact_observations_has_no_error(
+    motion_name: str, exact_observation: ObservationNoise
+):
+    """
+    Poses observed without noise are reproduced exactly.
     """
     noise = ObservationNoise(
         position_standard_deviation=1.0, orientation_standard_deviation=1.0
     )
-    motion = screw_motions()[HelicalFit]
-    observations = motion.observe(
-        noise=ObservationNoise(
-            position_standard_deviation=0.0, orientation_standard_deviation=0.0
-        ),
-        seed=0,
-    )
+    observations = screw_motions()[motion_name].observe(noise=exact_observation, seed=0)
 
-    fit = HelicalFit.fit(observations=observations, noise=noise)
+    fit = ScrewMotionFit.fit(observations=observations, noise=noise)
 
     assert_allclose(fit.standardized_errors, 0, atol=1e-6)
+
+
+def test_fit_of_an_exact_translation_does_not_turn(
+    exact_observation: ObservationNoise,
+):
+    """
+    Without noise, a translation is fit as one: the child does not turn, and its
+    positions are the distances it slid.
+    """
+    noise = ObservationNoise(
+        position_standard_deviation=0.001, orientation_standard_deviation=0.005
+    )
+    motion = screw_motions()["prismatic"]
+
+    fit = ScrewMotionFit.fit(
+        observations=motion.observe(noise=exact_observation, seed=0), noise=noise
+    )
+
+    assert not fit.turns_child
+    assert_allclose(
+        fit.screw_axis.unit_direction[:3], motion.axis_direction_in_parent, atol=1e-9
+    )
+    assert_allclose(fit.positions, motion.positions, atol=1e-9)
+
+
+def test_fit_of_an_exact_rotation_has_no_pitch(exact_observation: ObservationNoise):
+    """
+    Without noise, a rotation is fit without advancing along its axis.
+    """
+    noise = ObservationNoise(
+        position_standard_deviation=0.001, orientation_standard_deviation=0.005
+    )
+
+    fit = ScrewMotionFit.fit(
+        observations=screw_motions()["revolute"].observe(
+            noise=exact_observation, seed=0
+        ),
+        noise=noise,
+    )
+
+    assert float(fit.screw_axis.translation_per_radian) == pytest.approx(0, abs=1e-9)
+
+
+def test_fit_follows_a_rotation_past_half_a_revolution(
+    observation_noise: ObservationNoise,
+):
+    """
+    Positions keep growing past π, where the rotation vector of a pose flips, as long as
+    consecutive observations are less than half a revolution apart.
+    """
+    motion = ObservedScrewMotion(
+        screw_axis=ScrewAxisConnection.create_revolute_screw_axis(
+            axis=Vector3.unit_vector(1, 2, 2)
+        ),
+        positions=np.linspace(0.0, 5.0, 15),
+    )
+
+    fit = ScrewMotionFit.fit(
+        observations=motion.observe(noise=observation_noise, seed=6),
+        noise=observation_noise,
+    )
+
+    assert_allclose(fit.positions, motion.positions, atol=0.01)
 
 
 # %% Created connections
@@ -305,17 +405,23 @@ def fitted_world(*, fit: ArticulationFit) -> tuple[World, Body, Body, Connection
     return world, parent, child, connection
 
 
-@pytest.mark.parametrize("fit_type", list(screw_motions()))
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+@pytest.mark.parametrize("noise_name", ["observation_noise", "exact_observation"])
 def test_created_connection_moves_the_child_as_the_fit_predicts(
-    fit_type: type[ScrewMotionFit], observation_noise: ObservationNoise
+    motion_name: str, noise_name: str, request: pytest.FixtureRequest
 ):
     """
     At each fitted position, the created connection puts the child where the fit
-    predicts it for that observation.
+    predicts it for that observation, whether the fit turns the child or not.
     """
-    fit = fit_type.fit(
-        observations=screw_motions()[fit_type].observe(noise=observation_noise, seed=3),
-        noise=observation_noise,
+    noise = ObservationNoise(
+        position_standard_deviation=0.001, orientation_standard_deviation=0.005
+    )
+    fit = ScrewMotionFit.fit(
+        observations=screw_motions()[motion_name].observe(
+            noise=request.getfixturevalue(noise_name), seed=4
+        ),
+        noise=noise,
     )
     world, parent, child, connection = fitted_world(fit=fit)
 
@@ -328,22 +434,26 @@ def test_created_connection_moves_the_child_as_the_fit_predicts(
         )
 
 
-@pytest.mark.parametrize("fit_type", [RevoluteFit, HelicalFit])
+@pytest.mark.parametrize("motion_name", turning_motions)
 def test_created_connection_frame_sits_on_the_axis_next_to_the_child(
-    fit_type: type[RotatingFit], observation_noise: ObservationNoise
+    motion_name: str, observation_noise: ObservationNoise
 ):
     """
-    The connection frame of a rotating fit has its z axis along the screw axis and its x
-    axis toward the child, so the child sits on the frame's positive x axis.
+    The connection frame of a turning child has its z axis along the screw axis and its
+    x axis toward the child, so the child sits on the frame's positive x axis.
     """
-    fit = fit_type.fit(
-        observations=screw_motions()[fit_type].observe(noise=observation_noise, seed=4),
+    fit = ScrewMotionFit.fit(
+        observations=screw_motions()[motion_name].observe(
+            noise=observation_noise, seed=5
+        ),
         noise=observation_noise,
     )
     world, parent, child, connection = fitted_world(fit=fit)
 
     connection_P_child = connection.connection_T_child_expression.to_np()[:3, 3]
-    assert_allclose(fit.parent_T_connection[:3, 2], fit.axis_direction)
+    assert_allclose(
+        fit.parent_T_connection.to_np()[:3, 2], fit.screw_axis.unit_direction[:3]
+    )
     assert_allclose(connection_P_child[1:], 0, atol=1e-9)
     assert connection_P_child[0] > 0
 
@@ -368,25 +478,3 @@ def test_rigid_fit_creates_a_connection_holding_the_mean_pose(
         fit.reference_parent_T_child,
         atol=1e-9,
     )
-
-
-def test_revolute_fit_follows_a_rotation_past_half_a_revolution(
-    observation_noise: ObservationNoise,
-):
-    """
-    Positions keep growing past π, where the rotation vector of a pose flips, as long as
-    consecutive observations are less than half a revolution apart.
-    """
-    motion = ObservedScrewMotion(
-        screw_axis=ScrewAxisConnection.create_revolute_screw_axis(
-            axis=Vector3.unit_vector(1, 2, 2)
-        ),
-        positions=np.linspace(0.0, 5.0, 15),
-    )
-
-    fit = RevoluteFit.fit(
-        observations=motion.observe(noise=observation_noise, seed=6),
-        noise=observation_noise,
-    )
-
-    assert_allclose(fit.positions, motion.positions, atol=0.01)
