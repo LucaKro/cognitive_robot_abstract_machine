@@ -25,10 +25,10 @@ from ..dataset.identity_hashed_values_created_on_access import (
 )
 from ..dataset.semantic_world_like_classes import Apple, Body
 from krrood.entity_query_language.backends import (
-    SQLAlchemyBackend,
     EntityQueryLanguageBackend,
     EntityQueryLanguageGenerativeBackend,
 )
+from krrood.ormatic.eql_interface import SQLAlchemyBackend
 from krrood.parametrization.probabilistic_backend import ProbabilisticBackend
 from krrood.entity_query_language.core.base_expressions import (
     OperationResult,
@@ -239,6 +239,10 @@ def test_probabilistic_query_backend():
 
 
 def test_generative_eql_backend():
+    """
+    The generative backend yields one atom for every pair of a type and a charge the
+    condition admits.
+    """
     q = an(Atom)(
         element=...,
         type=variable_from([0, 1, 2]),
