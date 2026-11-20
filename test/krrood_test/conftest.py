@@ -1,3 +1,9 @@
+"""
+Fixtures shared by the krrood tests, and the generation of their ORM interface.
+"""
+
+from __future__ import annotations
+
 import logging
 import os
 import tempfile
@@ -7,7 +13,7 @@ from dataclasses import is_dataclass
 import pytest
 from sqlalchemy.orm import configure_mappers, sessionmaker
 
-import krrood.entity_query_language.orm.model
+import krrood.ormatic.data_access_objects.symbol_graph_mappings
 import krrood.symbol_graph.symbol_graph
 from krrood.class_diagrams.class_diagram import ClassDiagram
 from krrood.entity_query_language.predicate import (
@@ -232,6 +238,10 @@ def session(engine):
 
 @pytest.fixture
 def database(engine, session):
+    """
+    Create the tables of the test ORM interface for the test, and drop the database
+    after it.
+    """
     from .dataset.ormatic_interface import Base
 
     Base.metadata.create_all(engine)
