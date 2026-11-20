@@ -2780,7 +2780,8 @@ class Twist(RigidMotionRate):
     A twist ``(ω, v)``: how fast a rigid body turns, and how fast the point of the body
     at the origin of the reference frame moves, both along that frame's axes and per
     unit of the parameter they are taken with respect to, usually time. Unlike a
-    :class:`Displacement`, it is a velocity (Lynch and Park, *Modern Robotics*, §3.3.2).
+    :class:`Displacement`, it is a velocity (Lynch and Park, `Modern Robotics, section
+    3.3.2 <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=115>`__).
     """
 
     def __init__(
@@ -2835,6 +2836,26 @@ class Twist(RigidMotionRate):
         :return: The displacement of the body after moving that long at this twist.
         """
         return self._integrate(parameter_change=duration)
+
+    @property
+    def screw_axis_direction(self) -> Vector3:
+        """
+        :return: The unit direction of the twist's screw axis: that of the angular
+            velocity, or of the linear velocity for a twist that does not turn (Lynch
+            and Park, `Modern Robotics, section 3.3.2.2
+            <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=121>`__). The
+            zero vector for a zero twist.
+        """
+        angular_velocity = self.angular_velocity
+        linear_velocity = self.linear_velocity
+        angular_speed = angular_velocity.norm()
+        result = sm.if_greater_zero(
+            angular_speed,
+            angular_velocity.safe_division(other=angular_speed),
+            linear_velocity.safe_division(other=linear_velocity.norm()),
+        )
+        result.reference_frame = self.reference_frame
+        return result
 
 
 @dataclass(eq=False, init=False, repr=False, kw_only=True)
