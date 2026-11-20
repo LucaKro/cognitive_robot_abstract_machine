@@ -1,4 +1,4 @@
-Draft PR #120 (fork) on main: steps 1+2 of plan #117. Stack 131 on it:
+Draft PR #120 (fork): steps 1+2 of plan #117. Stack 152: main <- #142 <- #145 (docs) <- #120 <- 
 #130 screw_axis_estimation (estimator core + docs page), #132 estimated_screw_axis (symbolic
 screw axis over passive DOFs alpha/beta, commit/reopen, position_is_periodic), then two
 alternatives for the axis frame: #133 estimated_axis_frame_conjugated (A*Screw*A^-1, 9 DOFs,
@@ -8,5 +8,6 @@ PRs on #132, GitHubWorkflow#319; PR text in scratchpad transforms_body.md). Summ
 robust loss, covariance for commit rule, geometric BIC. Luca to choose the alternative.
 On hold (Stelter): Giskard k-scaling, safe exploration. Labels new-feature/api-break missing on fork.
 #120's description starts with Luca's video, https://github.com/user-attachments/assets/face134e-9bee-4bf8-af35-216207ac347b:
-keep it as the first line of every --why-file. Local merge cee6e46 (main 82707c7) unpushed.
+keep it as the first line of every --why-file (describe drops anything outside its markers).
+Stacked 2026-11-20, all pushed; estimated_axis_frame_in_transforms not updated (214 behind #145).
 GARMI demo passes on #120 (earlier failure was a local iai_maps edit). FK expressions identical to main.
