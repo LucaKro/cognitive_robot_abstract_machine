@@ -7,3 +7,6 @@ PRs on #132, GitHubWorkflow#319; PR text in scratchpad transforms_body.md). Summ
 (comment 6997428382). Estimator related work: artifact JxnrixFmuRj8hDwV1AunqZ; recommended next:
 robust loss, covariance for commit rule, geometric BIC. Luca to choose the alternative.
 On hold (Stelter): Giskard k-scaling, safe exploration. Labels new-feature/api-break missing on fork.
+#120's description starts with Luca's video, https://github.com/user-attachments/assets/face134e-9bee-4bf8-af35-216207ac347b:
+keep it as the first line of every --why-file. Local merge cee6e46 (main 82707c7) unpushed.
+GARMI demo passes on #120 (earlier failure was a local iai_maps edit). FK expressions identical to main.
