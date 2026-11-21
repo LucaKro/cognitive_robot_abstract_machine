@@ -1,4 +1,4 @@
 #130: pushed 96db4e9 (2026-11-21): sampled-pair guess (30 pairs, errors capped at 3 sigma), soft_l1 at 3 sigma, scipy RigidTransform instead of CompiledScrewDisplacement (scipy>=1.16), NotHomogeneousTransformationError; 164 passed; description updated.
-Next: reply to thread 4648965942 with scratchpad replies130/r_initial_guess.md, then resolve. It failed with 422 because Luca had a pending review (reported as GitHubWorkflow #326); retry once he submits. New thread 4649754471: rates_of_motion.md additions too wordy, not handled yet. Luca reviews 96db4e9.
+Initial-guess thread 4648965942 answered and resolved. Uncommitted: rates_of_motion.md screw-axis passage shortened (thread 4649754471), book builds; waiting for Luca's go to commit, push, reply and resolve.
 Deferred by Luca: rewrite examples/articulation_estimation.md (fails to build); behaves_like tolerances (discuss first); record decisions in #117 (scratchpad issue117_body.md; also: connection frame placement moves to the commit). Only #130, not #132/#133. Gaussian+uniform mixture loss: later, if real data needs it.
 Tests: --orm-build=always after changing fit fields; needs the conftest.
