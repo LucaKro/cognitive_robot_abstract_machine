@@ -39,8 +39,8 @@ class JointPositionReached(EndedByOwner, MotionStatechartNode, HasThresholdParam
         current = self.connection.dof.variables.position
         if (
             isinstance(self.connection, ScrewAxisConnection)
-            and self.connection.behaves_like_a_revolute_connection
-        ) and not self.connection.dof.has_position_limits():
+            and self.connection.position_is_periodic
+        ):
             error = sm.shortest_angular_distance(current, self.position)
         else:
             error = self.position - current

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import StrEnum
 
 from typing_extensions import TYPE_CHECKING
 
@@ -8,6 +9,25 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.connections import (
         ActiveConnection1DOF,
     )
+
+
+class ScrewAxisEstimateParameter(StrEnum):
+    """
+    A number of an estimated screw axis connection held in the world state, each by a
+    passive degree of freedom named for it.
+    """
+
+    ROTATION_PER_UNIT_POSITION = "rotation_per_unit_position"
+    """
+    The rotation of the screw axis per unit of position, about the z axis of the
+    connection frame.
+    """
+
+    TRANSLATION_PER_UNIT_POSITION = "translation_per_unit_position"
+    """
+    The translation of the screw axis per unit of position, along the z axis of the
+    connection frame.
+    """
 
 
 @dataclass
