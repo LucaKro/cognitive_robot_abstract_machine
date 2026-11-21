@@ -5,17 +5,15 @@ A fit of motion along a screw axis to observed poses of a child relative to its 
 from __future__ import annotations
 
 # %% Imports
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 import numpy as np
 import numpy.typing as npt
 from scipy.optimize import least_squares
-from scipy.spatial.transform import Rotation
+from scipy.spatial.transform import RigidTransform, Rotation
 from typing_extensions import TYPE_CHECKING, Self
 
-import krrood.symbolic_math.symbolic_math as sm
 from krrood.patterns.classproperty import classproperty
-from krrood.symbolic_math.symbolic_math import CompiledFunction
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
     ScrewAxis,
@@ -33,116 +31,6 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
     )
-
-
-# %% The displacement along a screw axis, as numbers
-@dataclass(kw_only=True)
-class CompiledScrewDisplacement:
-    """
-    :meth:`~krrood_spatial_math.spatial_types.ScrewAxis.to_displacement`, compiled into
-    a function of numbers, for code that evaluates it too often to build spatial types
-    every time, such as each step of an optimizer.
-    """
-
-    function: CompiledFunction = field(repr=False, compare=False)
-    """
-    The function of the six entries of a screw axis and a position, see :meth:`create`.
-    """
-
-    @classmethod
-    def create(cls) -> Self:
-        """
-        :return: The displacement compiled into a function of the rotation and the
-            translation per unit of position and of the position, seven numbers, that
-            returns the rotation vector and the translation of the displacement.
-        """
-        rotation = [sm.FloatVariable(name=f"rotation_{axis}") for axis in "xyz"]
-        translation = [sm.FloatVariable(name=f"translation_{axis}") for axis in "xyz"]
-        position = sm.FloatVariable(name="position")
-        displacement = ScrewAxis(
-            rotation_per_unit_position=Vector3(*rotation),
-            translation_per_unit_position=Vector3(*translation),
-        ).to_displacement(position=position)
-        return cls(
-            function=sm.Matrix(
-                [
-                    *(displacement.rotation_vector[index] for index in range(3)),
-                    *(displacement.translation[index] for index in range(3)),
-                ]
-            ).compile(
-                parameters=sm.VariableParameters.from_lists(
-                    rotation + translation + [position]
-                )
-            )
-        )
-
-    def rotation_vector_and_translation(
-        self, *, screw_axis_entries: npt.NDArray[np.float64], position: float
-    ) -> npt.NDArray[np.float64]:
-        """
-        :param screw_axis_entries: The six entries of a screw axis, as
-            :meth:`~krrood_spatial_math.spatial_types.ScrewAxis.to_np` returns them.
-        :param position: How far the body moves along that screw axis.
-        :return: The rotation vector and the translation of the displacement, six
-            numbers. A copy, since the compiled function overwrites its output.
-        """
-        return self.function(np.concatenate([screw_axis_entries, [position]])).copy()
-
-    def displacements(
-        self,
-        *,
-        screw_axis_entries: npt.NDArray[np.float64],
-        positions: npt.NDArray[np.float64],
-    ) -> npt.NDArray[np.float64]:
-        """
-        :param screw_axis_entries: The six entries of a screw axis.
-        :param positions: Positions along that screw axis.
-        :return: For each position, the transformation that moves the body from its pose
-            at position zero to its pose at that position, stacked to shape (n, 4, 4).
-        """
-        rotation_vectors_and_translations = np.stack(
-            [
-                self.rotation_vector_and_translation(
-                    screw_axis_entries=screw_axis_entries, position=position
-                )
-                for position in positions
-            ]
-        )
-        displacements = np.tile(np.eye(4), (len(positions), 1, 1))
-        displacements[:, :3, :3] = Rotation.from_rotvec(
-            rotation_vectors_and_translations[:, :3]
-        ).as_matrix()
-        displacements[:, :3, 3] = rotation_vectors_and_translations[:, 3:]
-        return displacements
-
-    def left_jacobians(
-        self, *, rotation_vectors: npt.NDArray[np.float64]
-    ) -> npt.NDArray[np.float64]:
-        """
-        :param rotation_vectors: Rotation vectors :math:`r`, stacked to shape (n, 3).
-        :return: For each :math:`r`, the left Jacobian :math:`J(r)` of the rotation,
-            stacked to shape (n, 3, 3): moving by one along a screw axis that turns by
-            :math:`r` translates the body by :math:`J(r)` times the screw axis's
-            translation per unit of position, so column :math:`k` of :math:`J(r)` is
-            that translation for a unit translation along axis :math:`k`.
-        """
-        return np.stack(
-            [
-                np.stack(
-                    [
-                        self.rotation_vector_and_translation(
-                            screw_axis_entries=np.concatenate(
-                                [rotation_vector, unit_vector]
-                            ),
-                            position=1.0,
-                        )[3:]
-                        for unit_vector in np.eye(3)
-                    ],
-                    axis=1,
-                )
-                for rotation_vector in rotation_vectors
-            ]
-        )
 
 
 # %% The numbers the optimizer varies
@@ -182,69 +70,121 @@ class ScrewMotionParameters:
         """
         return 1e3 * np.finfo(np.float64).eps
 
+    @classproperty
+    def outlier_threshold(cls) -> float:
+        """
+        The error, in standard deviations, beyond which an error counts as an outlier,
+        such as a jump of the tracker: 3. The initial guess caps each error there, and
+        the fit's loss grows only linearly beyond it.
+        """
+        return 3.0
+
+    @classproperty
+    def sampled_pair_count(cls) -> int:
+        """
+        The most pairs of observations :meth:`initial_guess` tries: 30.
+        """
+        return 30
+
     @classmethod
     def initial_guess(
-        cls,
-        *,
-        observations: PoseObservations,
-        noise: ObservationNoise,
-        displacement: CompiledScrewDisplacement,
+        cls, *, observations: PoseObservations, noise: ObservationNoise
     ) -> Self:
         """
-        :return: A guess in closed form, exact for observations without noise: the
-            first observation as the pose at position zero, and the closest rank one
-            approximation of :meth:`standardized_steps`.
+        :return: Of the guesses :meth:`guess_from_pair` makes for pairs of observations,
+            the one whose errors, each capped at :attr:`outlier_threshold`, are smallest.
+            It tries every pair, or :attr:`sampled_pair_count` of them, drawn with a
+            fixed seed so that the fit is reproducible. A pair that includes an outlier
+            gives a poor guess and loses, and a pair less than half a revolution apart
+            gives an exact one for observations without noise.
         """
-        left, singular_values, right = np.linalg.svd(
-            cls.standardized_steps(
-                observations=observations, noise=noise, displacement=displacement
-            ),
-            full_matrices=False,
+        first_indices, second_indices = np.triu_indices(
+            len(observations.parent_T_child_stack), k=1
         )
-        position_steps = left[:, 0] * singular_values[0]
-        orientation = np.copysign(1.0, position_steps.sum())
-        return cls(
-            reference_parent_T_child=observations.parent_T_child_stack[0],
-            positions=np.concatenate([[0.0], np.cumsum(orientation * position_steps)]),
-            screw_axis_entries=orientation
-            * right[0]
-            * np.repeat(
-                [
-                    noise.orientation_standard_deviation,
-                    noise.position_standard_deviation,
-                ],
-                3,
+        if len(first_indices) > cls.sampled_pair_count:
+            sampled = np.random.default_rng(seed=0).choice(
+                len(first_indices), size=cls.sampled_pair_count, replace=False
+            )
+            first_indices, second_indices = (
+                first_indices[sampled],
+                second_indices[sampled],
+            )
+        guesses = [
+            cls.guess_from_pair(
+                observations=observations,
+                noise=noise,
+                first_index=first_index,
+                second_index=second_index,
+            )
+            for first_index, second_index in zip(first_indices, second_indices)
+        ]
+        return min(
+            guesses,
+            key=lambda guess: np.sum(
+                np.minimum(
+                    noise.standardized_pose_errors(
+                        observed_stack=observations.parent_T_child_stack,
+                        predicted_stack=guess.predicted_parent_T_child_stack,
+                    )
+                    ** 2,
+                    cls.outlier_threshold**2,
+                )
             ),
         )
 
     @classmethod
-    def standardized_steps(
+    def guess_from_pair(
         cls,
         *,
         observations: PoseObservations,
         noise: ObservationNoise,
-        displacement: CompiledScrewDisplacement,
+        first_index: int,
+        second_index: int,
+    ) -> Self:
+        r"""
+        :param first_index: The index of an observation.
+        :param second_index: The index of a later observation.
+        :return: The guess that the child moves along the screw axis of the
+            displacement between the two observations: its exponential coordinates
+            :math:`\Delta\theta\, S`, taken as :math:`S`. The first observation is the
+            pose at position zero, and the position at each observation sums the steps
+            of :meth:`standardized_steps` projected onto :math:`S`.
+        """
+        stack = observations.parent_T_child_stack
+        screw_axis_entries = RigidTransform.from_matrix(
+            stack[second_index] @ np.linalg.inv(stack[first_index])
+        ).as_exp_coords()
+        standardized_screw_axis = (
+            screw_axis_entries / noise.exponential_coordinate_standard_deviations
+        )
+        position_steps = (
+            cls.standardized_steps(observations=observations, noise=noise)
+            @ standardized_screw_axis
+            / (standardized_screw_axis @ standardized_screw_axis)
+        )
+        orientation = np.copysign(1.0, position_steps.sum())
+        return cls(
+            reference_parent_T_child=stack[0],
+            positions=np.concatenate([[0.0], np.cumsum(orientation * position_steps)]),
+            screw_axis_entries=orientation * screw_axis_entries,
+        )
+
+    @classmethod
+    def standardized_steps(
+        cls, *, observations: PoseObservations, noise: ObservationNoise
     ) -> npt.NDArray[np.float64]:
         r"""
         :return: For each step between consecutive observations, a move by
-            :math:`\Delta\theta` along a screw axis :math:`S`, the six numbers
-            :math:`\Delta\theta\, S`, divided by the noise as the errors are, stacked
-            to shape (n - 1, 6). If one screw axis moves the child, the rows are
-            multiples of one another; the rotation vector of the step gives the
-            rotation of :math:`\Delta\theta\, S`, and its translation, through the
-            left Jacobian, the translation.
+            :math:`\Delta\theta` along a screw axis :math:`S`, the exponential
+            coordinates :math:`\Delta\theta\, S`, divided by the noise as the errors
+            are, stacked to shape (n - 1, 6). If one screw axis moves the child, the
+            rows are multiples of one another.
         """
-        steps = observations.displacements_between_observations
-        rotation_vectors = Rotation.from_matrix(steps[:, :3, :3]).as_rotvec()
-        translations = np.linalg.solve(
-            displacement.left_jacobians(rotation_vectors=rotation_vectors),
-            steps[:, :3, 3, np.newaxis],
-        )[:, :, 0]
-        return np.hstack(
-            [
-                rotation_vectors / noise.orientation_standard_deviation,
-                translations / noise.position_standard_deviation,
-            ]
+        return (
+            RigidTransform.from_matrix(
+                observations.displacements_between_observations
+            ).as_exp_coords()
+            / noise.exponential_coordinate_standard_deviations
         )
 
     @property
@@ -306,17 +246,15 @@ class ScrewMotionParameters:
             positions=self.positions * scale,
         )
 
-    def predicted_parent_T_child_stack(
-        self, *, displacement: CompiledScrewDisplacement
-    ) -> npt.NDArray[np.float64]:
+    @property
+    def predicted_parent_T_child_stack(self) -> npt.NDArray[np.float64]:
         """
-        :param displacement: The compiled displacement along the screw axis.
-        :return: The pose of the child at each position, stacked to shape (n, 4, 4).
+        The pose of the child at each position, stacked to shape (n, 4, 4).
         """
         return (
-            displacement.displacements(
-                screw_axis_entries=self.screw_axis_entries, positions=self.positions
-            )
+            RigidTransform.from_exp_coords(
+                np.outer(self.positions, self.screw_axis_entries)
+            ).as_matrix()
             @ self.reference_parent_T_child
         )
 
@@ -358,11 +296,6 @@ class ScrewMotionFit:
     The position at each observation, zero at the first and positive at the last.
     """
 
-    displacement: CompiledScrewDisplacement = field(repr=False, compare=False)
-    """
-    The displacement along the screw axis, compiled, to predict poses with.
-    """
-
     def __post_init__(self):
         """
         :raises UnnormalizedScrewAxisError: if :attr:`screw_axis` is not normalized.
@@ -375,22 +308,25 @@ class ScrewMotionFit:
         """
         :param observations: The observed poses.
         :param noise: The noise the observations carry.
-        :return: The motion along a screw axis under which the observations are most
-            likely: least squares of the errors divided by the noise, from
-            :meth:`ScrewMotionParameters.initial_guess`.
+        :return: The motion along a screw axis that explains the observations best:
+            least squares of the errors divided by the noise, from
+            :meth:`ScrewMotionParameters.initial_guess`. The loss grows only linearly
+            beyond :attr:`ScrewMotionParameters.outlier_threshold`, so that a few
+            outliers, such as jumps of the tracker, do not pull the fit away.
         """
-        displacement = CompiledScrewDisplacement.create()
         initial_guess = ScrewMotionParameters.initial_guess(
-            observations=observations, noise=noise, displacement=displacement
+            observations=observations, noise=noise
         )
         result = least_squares(
             fun=lambda free_parameters: noise.standardized_pose_errors(
                 observed_stack=observations.parent_T_child_stack,
                 predicted_stack=initial_guess.copy_with_free_parameters(
                     free_parameters=free_parameters
-                ).predicted_parent_T_child_stack(displacement=displacement),
+                ).predicted_parent_T_child_stack,
             ),
             x0=initial_guess.free_parameters,
+            loss="soft_l1",
+            f_scale=ScrewMotionParameters.outlier_threshold,
         )
         parameters = initial_guess.copy_with_free_parameters(
             free_parameters=result.x
@@ -406,7 +342,6 @@ class ScrewMotionFit:
                 ),
             ),
             positions=parameters.positions,
-            displacement=displacement,
         )
 
     @property
@@ -415,12 +350,11 @@ class ScrewMotionFit:
         The pose of the child the fit predicts for each observation, stacked to shape
         (n, 4, 4).
         """
-        return (
-            self.displacement.displacements(
-                screw_axis_entries=self.screw_axis.to_np(), positions=self.positions
-            )
-            @ self.reference_parent_T_child
-        )
+        return ScrewMotionParameters(
+            reference_parent_T_child=self.reference_parent_T_child,
+            positions=self.positions,
+            screw_axis_entries=self.screw_axis.to_np(),
+        ).predicted_parent_T_child_stack
 
     @property
     def standardized_errors(self) -> npt.NDArray[np.float64]:

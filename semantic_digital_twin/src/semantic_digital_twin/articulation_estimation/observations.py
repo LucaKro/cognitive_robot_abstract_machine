@@ -15,6 +15,7 @@ from typing_extensions import Self
 from krrood.patterns.classproperty import classproperty
 from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.articulation_estimation.exceptions import (
+    NotHomogeneousTransformationError,
     TooFewObservationsError,
 )
 
@@ -32,18 +33,35 @@ class PoseObservations:
     parent_T_child_stack: npt.NDArray[np.float64]
     """
     One homogeneous transformation matrix per observation, stacked to shape (n, 4, 4).
+
+    A copy of the given poses, with each last row set to exactly [0, 0, 0, 1], as
+    :class:`scipy.spatial.transform.RigidTransform` requires.
     """
 
     def __post_init__(self):
         """
         :raises TooFewObservationsError: if fewer than
             :attr:`required_observation_count` poses are given.
+        :raises NotHomogeneousTransformationError: if the last row of a pose is not
+            [0, 0, 0, 1], to within :func:`numpy.isclose`'s default tolerance.
         """
         if len(self.parent_T_child_stack) < self.required_observation_count:
             raise TooFewObservationsError(
                 observation_count=len(self.parent_T_child_stack),
                 required_observation_count=self.required_observation_count,
             )
+        homogeneous_row = np.array([0.0, 0.0, 0.0, 1.0])
+        inexact_indices = np.flatnonzero(
+            ~np.all(
+                np.isclose(self.parent_T_child_stack[:, 3], homogeneous_row), axis=1
+            )
+        )
+        if len(inexact_indices) > 0:
+            raise NotHomogeneousTransformationError(
+                observation_indices=inexact_indices.tolist()
+            )
+        self.parent_T_child_stack = np.array(self.parent_T_child_stack, dtype=float)
+        self.parent_T_child_stack[:, 3] = homogeneous_row
 
     @classproperty
     def required_observation_count(cls) -> int:
@@ -96,6 +114,17 @@ class ObservationNoise:
     The standard deviation of each component of the rotation vector between an observed
     orientation and the true one, in radians.
     """
+
+    @property
+    def exponential_coordinate_standard_deviations(self) -> npt.NDArray[np.float64]:
+        """
+        The standard deviations in the order of the exponential coordinates of a
+        displacement: three times that of the orientation, for the rotation vector,
+        then three times that of the position, for the translation.
+        """
+        return np.repeat(
+            [self.orientation_standard_deviation, self.position_standard_deviation], 3
+        )
 
     def standardized_pose_errors(
         self,

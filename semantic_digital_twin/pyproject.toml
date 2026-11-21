@@ -32,7 +32,7 @@ dependencies = [
     "matplotlib",
     "casadi~=3.7.0",
     "hypothesis!=6.156.6",  # 6.156.6 ships no linux-x86_64 wheel; skip it so uv sync resolves
-    "scipy",
+    "scipy>=1.16",  # RigidTransform, for the exponential coordinates of poses
     "sqlacodegen",
     "pytest-order",
     "sqlalchemy",

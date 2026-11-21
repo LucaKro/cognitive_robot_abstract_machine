@@ -20,6 +20,7 @@ from krrood_spatial_math.spatial_types import (
     Vector3,
 )
 from semantic_digital_twin.articulation_estimation.exceptions import (
+    NotHomogeneousTransformationError,
     TooFewObservationsError,
 )
 from semantic_digital_twin.articulation_estimation.fits import ScrewMotionFit
@@ -198,6 +199,33 @@ def test_fewer_than_two_observations_raise():
         PoseObservations(parent_T_child_stack=np.eye(4)[np.newaxis])
 
 
+def test_a_pose_that_is_not_a_homogeneous_transformation_raises():
+    """
+    A pose whose last row is not [0, 0, 0, 1] is not a rigid transformation.
+    """
+    stack = np.tile(np.eye(4), (3, 1, 1))
+    stack[1, 3, 0] = 0.1
+
+    with pytest.raises(NotHomogeneousTransformationError) as raised:
+        PoseObservations(parent_T_child_stack=stack)
+
+    assert raised.value.observation_indices == [1]
+
+
+def test_round_off_in_the_last_row_of_a_pose_is_removed():
+    """
+    A last row that differs from [0, 0, 0, 1] by round-off is set to it exactly, in a
+    copy of the given poses.
+    """
+    stack = np.tile(np.eye(4), (2, 1, 1))
+    stack[1, 3] += 1e-15
+
+    observations = PoseObservations(parent_T_child_stack=stack)
+
+    assert np.array_equal(observations.parent_T_child_stack[:, 3], [[0, 0, 0, 1]] * 2)
+    assert stack[1, 3, 3] != 1
+
+
 # %% Recovered motion
 @pytest.mark.parametrize("motion_name", list(screw_motions()))
 def test_fit_predicts_the_motion_behind_noisy_observations(
@@ -226,6 +254,48 @@ def test_fit_predicts_the_motion_behind_noisy_observations(
             - true_parent_T_child_stack[slices]
         )
         assert np.linalg.norm(prediction_error) < np.linalg.norm(observation_error)
+
+
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+def test_fit_is_not_pulled_away_by_jumps_of_the_tracker(
+    motion_name: str,
+    observation_noise: ObservationNoise,
+    exact_observation: ObservationNoise,
+):
+    """
+    Two observations that jumped by 5 cm and 0.2 rad leave the other poses the fit
+    predicts within a few standard deviations of the true ones.
+    """
+    observations = screw_motions()[motion_name].observe(noise=observation_noise, seed=7)
+    jumped_stack = observations.parent_T_child_stack.copy()
+    jumped_indices = [4, 9]
+    jumped_stack[jumped_indices, :3, 3] += 0.05 * np.array([[0, 0.6, 0.8], [1, 0, 0]])
+    jumped_stack[jumped_indices, :3, :3] = (
+        Rotation.from_rotvec([[0.2, 0, 0], [0, 0, -0.2]])
+        * Rotation.from_matrix(jumped_stack[jumped_indices, :3, :3])
+    ).as_matrix()
+
+    fit = ScrewMotionFit.fit(
+        observations=PoseObservations(parent_T_child_stack=jumped_stack),
+        noise=observation_noise,
+    )
+
+    true_parent_T_child_stack = (
+        screw_motions()[motion_name].observe(noise=exact_observation, seed=7)
+    ).parent_T_child_stack
+    kept_indices = np.setdiff1d(np.arange(len(jumped_stack)), jumped_indices)
+    predicted = fit.predicted_parent_T_child_stack[kept_indices]
+    true = true_parent_T_child_stack[kept_indices]
+    assert np.max(np.linalg.norm(predicted[:, :3, 3] - true[:, :3, 3], axis=1)) < 0.003
+    assert (
+        np.max(
+            (
+                Rotation.from_matrix(predicted[:, :3, :3]).inv()
+                * Rotation.from_matrix(true[:, :3, :3])
+            ).magnitude()
+        )
+        < 0.01
+    )
 
 
 @pytest.mark.parametrize("motion_name", turning_motions)
