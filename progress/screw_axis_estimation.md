@@ -1,4 +1,5 @@
 #130: pushed 96db4e9 (2026-11-21): sampled-pair guess (30 pairs, errors capped at 3 sigma), soft_l1 at 3 sigma, scipy RigidTransform instead of CompiledScrewDisplacement (scipy>=1.16), NotHomogeneousTransformationError; 164 passed; description updated.
-Pushed a9434ad: rates_of_motion.md screw-axis passage shortened (Luca asked in chat; the comment was in a discarded pending review). All review threads resolved. Next: Luca reviews 96db4e9 and a9434ad.
-Deferred by Luca: rewrite examples/articulation_estimation.md (fails to build); behaves_like tolerances (discuss first); record decisions in #117 (scratchpad issue117_body.md; also: connection frame placement moves to the commit). Only #130, not #132/#133. Gaussian+uniform mixture loss: later, if real data needs it.
+Pushed a9434ad (docs passage shortened); all threads resolved.
+2026-11-21: #117 step 3 and step 6 rewritten (one screw fit, sampled pairs, soft_l1, annotation priors as a term, drawer-as-slight-turn for behaves_like). Uncommitted: examples/articulation_estimation.md rewritten for ScrewMotionFit (runs, builds alone in scratchpad aebook); description draft pr130_changes.md updated for it, push describe after the commit.
+Next: on Luca's word, commit the page, push, describe; then #130 can leave draft. After that: behaves_like tolerances proposal (discuss first), then #132/#133.
 Tests: --orm-build=always after changing fit fields; needs the conftest.
