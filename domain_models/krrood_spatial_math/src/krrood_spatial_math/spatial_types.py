@@ -2910,6 +2910,42 @@ class ScrewAxis(RigidMotionRate):
         return result
 
     @property
+    def translation_per_radian(self) -> sm.Scalar:
+        """
+        :return: How far the body advances along the axis per radian it turns, in
+            meters: the pitch h = ωᵀv/‖ω‖², with ω the rotation and v the translation
+            per unit of position (`Murray, Li and Sastry, A Mathematical Introduction to
+            Robotic Manipulation, equation (2.42) <https://www.cds.caltech.edu/~murray/books/MLS/pdf/mls94-complete.pdf#page=65>`__).
+            Infinite, as there, if the body does not turn.
+        """
+        rotation = self.rotation_per_unit_position
+        squared_angle_per_unit_position = rotation.dot(rotation)
+        return sm.if_greater_zero(
+            squared_angle_per_unit_position,
+            rotation.dot(self.translation_per_unit_position)
+            / squared_angle_per_unit_position,
+            sm.Scalar(np.inf),
+        )
+
+    @property
+    def axis_point_closest_to_origin(self) -> Point3:
+        """
+        :return: The point ω × v/‖ω‖² of the axis, with ω the rotation and v the
+            translation per unit of position (`Murray, Li and Sastry, A Mathematical
+            Introduction to Robotic Manipulation, equation (2.43) <https://www.cds.caltech.edu/~murray/books/MLS/pdf/mls94-complete.pdf#page=65>`__),
+            orthogonal to ω and so the axis's point closest to the origin. The origin, as
+            there, if the body does not turn.
+        """
+        rotation = self.rotation_per_unit_position
+        result = (
+            rotation.cross(self.translation_per_unit_position)
+            .safe_division(other=rotation.dot(rotation))
+            .point3
+        )
+        result.reference_frame = self.reference_frame
+        return result
+
+    @property
     def is_normalized(self) -> bool:
         """
         :return: Whether the screw axis is normalized as Lynch and Park define it
