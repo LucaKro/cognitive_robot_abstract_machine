@@ -18,9 +18,11 @@ part turns on a hinge, slides or screws, nor where its axis lies. It can observe
 the part moves, for example with a camera tracking a marker on it. The `articulation_estimation`
 package turns such observations into a [screw axis connection](screw_axis_connections.md).
 
-It fits four kinds of motion to the observed poses: rigid, prismatic, revolute and helical. It then
-selects the kind that explains the poses best without being needlessly rich, as
-{cite:t}`sturm2011probabilistic` do.
+{cite:t}`sturm2011probabilistic` fit each kind of joint separately and then choose among them. This
+package fits one motion instead: the child moves along a screw axis, turning about a line and sliding
+along it in proportion. A hinge turns without sliding, a drawer slides without turning and a lid does
+both, so one fit describes all three, and deciding which kind of connection the motion is is left to
+a later step.
 
 ## Observing a door
 
@@ -36,18 +38,10 @@ import plotly.graph_objects as go
 from IPython.display import HTML
 from scipy.spatial.transform import Rotation
 
-from krrood_spatial_math.spatial_types import (
-    HomogeneousTransformationMatrix,
-    ScrewAxis,
-    Vector3,
-)
-from semantic_digital_twin.articulation_estimation.estimator import ArticulationEstimator
+from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Vector3
 from semantic_digital_twin.articulation_estimation.fits import (
-    HelicalFit,
-    PrismaticFit,
-    RevoluteFit,
-    RigidFit,
-    RotatingFit,
+    ScrewMotionFit,
+    ScrewMotionParameters,
 )
 from semantic_digital_twin.articulation_estimation.observations import (
     ObservationNoise,
@@ -61,7 +55,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 def observed_poses(
     *,
-    screw_axis: ScrewAxis,
+    screw_axis,
     positions: np.ndarray,
     parent_T_connection: HomogeneousTransformationMatrix,
     connection_T_child: HomogeneousTransformationMatrix,
@@ -116,44 +110,55 @@ door_poses = observed_poses(
 
 `PoseObservations` holds the observed poses of the door relative to its cabinet, in the order they were
 observed. `ObservationNoise` states how far an observed pose may lie from the true one, as standard
-deviations. The estimator has to be told the noise: without it, a millimeter of wobble could be taken
-as a motion, or a real motion as wobble.
+deviations. The fit has to be told the noise: without it, a millimeter of wobble could be taken as a
+motion, or a real motion as wobble.
 
 ```{code-cell} ipython3
-door_observations = PoseObservations(parent_T_child=door_poses)
-estimator = ArticulationEstimator(noise=tracker_noise)
-door_fit = estimator.most_likely_fit(observations=door_observations)
-print(type(door_fit).__name__)
+door_fit = ScrewMotionFit.fit(
+    observations=PoseObservations(parent_T_child_stack=door_poses), noise=tracker_noise
+)
 ```
 
-The fit says where the hinge lies and how far the door turned at each observation:
+The fit holds the motion as a `ScrewAxis` in the cabinet's frame, and the position of the door at each
+observation. The screw axis gives the line the door turns about and how far the door advances along it
+per radian, as the page
+[Rates of motion](https://cram2.github.io/cognitive_robot_abstract_machine/krrood_spatial_math/rates_of_motion.html)
+explains:
 
 ```{code-cell} ipython3
-print("axis direction:", door_fit.axis_direction.round(3))
-print("axis point:", door_fit.axis_point.round(3))
-print("opening angle in degrees:", np.degrees(door_fit.highest_observed_position).round(1))
+screw_axis = door_fit.screw_axis
+print("axis direction:", np.round(screw_axis.unit_direction[:3].to_list(), 3))
+print("axis point:", np.round(screw_axis.axis_point_closest_to_origin[:3].to_list(), 3))
+print("advance per radian in mm:", round(1000 * float(screw_axis.translation_per_radian), 2))
+print("opening angle in degrees:", np.degrees(door_fit.positions[-1]).round(1))
 ```
 
 The axis point is the point of the axis closest to the cabinet's origin, so the hinge is the vertical
-line through $(0.3, -0.4)$. The figure shows the observed origins of the door, the hinge the fit found,
-and the path the fit predicts between the observations. Drag it to look at it from another side:
+line through $(0.3, -0.4)$. The door advances along it by a fraction of a millimeter per radian. That is
+noise: the fit describes the motion it sees and does not round it to a hinge.
+
+The figure shows the observed origins of the door, the hinge the fit found, and the path the fit
+predicts between the observations. Drag it to look at it from another side:
 
 ```{code-cell} ipython3
 :tags: [hide-input]
 
 
-def fit_figure(fit: RotatingFit, title: str) -> go.Figure:
-    observed = fit.observations.parent_T_child[:, :3, 3]
-    swept_positions = np.linspace(
-        fit.lowest_observed_position, fit.highest_observed_position, 100
+def fit_figure(fit: ScrewMotionFit, title: str) -> go.Figure:
+    observed = fit.observations.parent_T_child_stack[:, :3, 3]
+    swept = ScrewMotionParameters(
+        reference_parent_T_child=fit.reference_parent_T_child,
+        positions=np.linspace(fit.positions[0], fit.positions[-1], 100),
+        screw_axis_entries=fit.screw_axis.to_np(),
+    ).predicted_parent_T_child_stack[:, :3, 3]
+    direction = np.array(fit.screw_axis.unit_direction[:3].to_list())
+    axis_point = (
+        np.array(fit.screw_axis.axis_point_closest_to_origin[:3].to_list())
+        if fit.screw_axis.turns_body
+        else observed[0]
     )
-    swept = (
-        fit.displacements(positions=swept_positions) @ fit.reference_parent_T_child
-    )[:, :3, 3]
-    origin = fit.connection_origin
-    axis_ends = np.stack(
-        [origin - 0.3 * fit.axis_direction, origin + 0.3 * fit.axis_direction]
-    )
+    axis_point = axis_point + direction * np.dot(observed.mean(axis=0) - axis_point, direction)
+    axis_ends = np.stack([axis_point - 0.3 * direction, axis_point + 0.3 * direction])
     figure = go.Figure(
         [
             go.Scatter3d(
@@ -200,30 +205,10 @@ def embedded(figure: go.Figure) -> HTML:
 embedded(fit_figure(door_fit, "A door swinging open"))
 ```
 
-## Choosing the kind of motion
+## A drawer and a jar lid
 
-Every kind of motion is fit to the observations, and each fit predicts a pose for every observation.
-How likely the observations are under a fit depends on its errors: each position error is divided by
-the position's standard deviation, and each orientation error by the orientation's. Under normally
-distributed noise, the observations are the more likely, the smaller the sum $E$ of these squared,
-standardized errors.
-
-A richer kind of motion never fits worse: a helical fit can always set its pitch to zero and become
-revolute. So the fits are compared by the
-[Bayesian information criterion](https://en.wikipedia.org/wiki/Bayesian_information_criterion), which
-adds a penalty for each number $k$ the fit chooses:
-
-$$
-\mathrm{BIC} = E + k \ln m,
-$$
-
-where $m$ is the number of observed numbers, six per pose. The positions at the observations count
-among the chosen numbers, so a moving fit pays for each observation as well as for its axis: two
-numbers for the direction of a prismatic axis, four for the line of a revolute axis, and one more for
-the pitch of a helical one. The fit with the lowest criterion wins.
-
-The table compares the four fits for the door, a drawer pulled out by 40 centimeters and a jar lid
-unscrewed by one and a half turns of a 4 millimeter thread:
+The same fit describes a drawer pulled out by 40 centimeters and a jar lid unscrewed by one and a half
+turns of a 4 millimeter thread:
 
 ```{code-cell} ipython3
 :tags: [hide-input]
@@ -246,33 +231,112 @@ lid_poses = observed_poses(
     noise=tracker_noise,
     seed=2,
 )
-fit_types = [RigidFit, PrismaticFit, RevoluteFit, HelicalFit]
-rows = []
-for name, poses in [("Door", door_poses), ("Drawer", drawer_poses), ("Jar lid", lid_poses)]:
-    observations = PoseObservations(parent_T_child=poses)
-    criteria = [
-        fit_type.fit(
-            observations=observations, noise=tracker_noise
-        ).bayesian_information_criterion
-        for fit_type in fit_types
-    ]
-    cells = "".join(
-        f"<td><b>{criterion:,.0f}</b></td>"
-        if criterion == min(criteria)
-        else f"<td>{criterion:,.0f}</td>"
-        for criterion in criteria
+fits = {
+    name: ScrewMotionFit.fit(
+        observations=PoseObservations(parent_T_child_stack=poses), noise=tracker_noise
     )
-    rows.append(f"<tr><th>{name}</th>{cells}</tr>")
-header = "".join(f"<th>{fit_type.__name__}</th>" for fit_type in fit_types)
+    for name, poses in [("Door", door_poses), ("Drawer", drawer_poses), ("Jar lid", lid_poses)]
+}
+
+
+def written_out(numbers: list[float], *, decimals: int) -> str:
+    written = [f"{round(number, decimals) + 0.0:.{decimals}f}" for number in numbers]
+    return f"({', '.join(written)})"
+
+
+def table_row(name: str, fit: ScrewMotionFit) -> str:
+    screw_axis = fit.screw_axis
+    predicted = fit.predicted_parent_T_child_stack
+    cells = [
+        f"{np.degrees(fit.positions[-1]) if screw_axis.turns_body else 0:.2f}°",
+        f"{100 * np.linalg.norm(predicted[-1, :3, 3] - predicted[0, :3, 3]):.1f} cm",
+        written_out(screw_axis.unit_direction[:3].to_list(), decimals=3),
+        written_out(screw_axis.axis_point_closest_to_origin[:3].to_list(), decimals=2),
+        f"{float(screw_axis.translation_per_radian):.4g} m",
+    ]
+    return f"<tr><th>{name}</th>{''.join(f'<td>{cell}</td>' for cell in cells)}</tr>"
+
+
+header = "".join(
+    f"<th>{column}</th>"
+    for column in [
+        "Observed",
+        "turned by",
+        "moved its origin by",
+        "axis direction",
+        "axis point",
+        "advance per radian",
+    ]
+)
 HTML(
-    f"<table><thead><tr><th>Observed</th>{header}</tr></thead>"
-    f"<tbody>{''.join(rows)}</tbody></table>"
+    f"<table><thead><tr>{header}</tr></thead><tbody>"
+    f"{''.join(table_row(name, fit) for name, fit in fits.items())}</tbody></table>"
 )
 ```
 
-For the door, the helical fit explains the observations as well as the revolute one, since the best
-pitch it finds is almost zero, but it pays for the pitch, so the revolute fit wins. The rigid fit
-explains none of the moving parts, and its criterion is larger by orders of magnitude.
+The lid advances by about 0.64 mm per radian, which is 4 mm per turn, and its position follows it past
+half a revolution to one and a half turns.
+
+The drawer's row shows what noise does to a slide. A screw axis that does not turn at all fits only
+poses without any noise in their orientation, so the fit lets the drawer turn by less than a tenth of a
+degree, about a line more than a hundred meters away, along which it advances hundreds of meters per
+radian. Over the observed motion, this is a slide of 40 cm along x, and the line and the turn are
+within the noise. The fit does not decide that the drawer slides; that is up to the later step that
+chooses the kind of connection.
+
+```{code-cell} ipython3
+:tags: [hide-input]
+
+embedded(fit_figure(fits["Jar lid"], "A jar lid unscrewed"))
+```
+
+## When the tracker jumps
+
+A tracker sometimes loses a marker for a moment and reports a pose far from the true one. Below, two of
+the door's observations jumped by 5 centimeters and 0.2 radians:
+
+```{code-cell} ipython3
+jumped_door_poses = door_poses.copy()
+jumped_door_poses[[4, 9], :3, 3] += [[0.0, 0.03, 0.04], [0.05, 0.0, 0.0]]
+jumped_door_poses[[4, 9], :3, :3] = (
+    Rotation.from_rotvec([[0.2, 0.0, 0.0], [0.0, 0.0, -0.2]])
+    * Rotation.from_matrix(jumped_door_poses[[4, 9], :3, :3])
+).as_matrix()
+
+jumped_door_fit = ScrewMotionFit.fit(
+    observations=PoseObservations(parent_T_child_stack=jumped_door_poses),
+    noise=tracker_noise,
+)
+print("axis direction:", np.round(jumped_door_fit.screw_axis.unit_direction[:3].to_list(), 3))
+print(
+    "axis point:",
+    np.round(jumped_door_fit.screw_axis.axis_point_closest_to_origin[:3].to_list(), 3),
+)
+```
+
+The fit still finds the hinge. It treats errors of more than three standard deviations as outliers, as
+the next section explains, so the two jumps do not pull it away. The figure shows each observation's
+errors, in standard deviations, as the root mean square of its three position and three orientation
+errors. The two jumps stand far out, and the other observations stay near one:
+
+```{code-cell} ipython3
+:tags: [hide-input]
+
+errors_per_observation = np.sqrt(
+    np.mean(jumped_door_fit.standardized_errors.reshape(-1, 6) ** 2, axis=1)
+)
+figure = go.Figure(go.Bar(x=np.arange(len(errors_per_observation)), y=errors_per_observation))
+figure.add_hline(
+    y=ScrewMotionParameters.outlier_threshold, line_dash="dash", annotation_text="outlier threshold"
+)
+figure.update_layout(
+    xaxis_title="observation",
+    yaxis_title="error in standard deviations",
+    yaxis_type="log",
+    margin={"l": 0, "r": 0, "t": 20, "b": 0},
+)
+embedded(figure)
+```
 
 ## Turning a fit into a connection
 
@@ -294,31 +358,46 @@ print(cabinet_world.compute_forward_kinematics_np(root=cabinet, tip=door).round(
 ```
 
 At each fitted position, the connection puts the child where the fit predicts it for that observation.
-A rigid fit creates a `FixedConnection` instead.
 
-The fit fixes the connection frame, which the observations alone leave open: the frame can turn about
-the axis and slide along it without changing the motion. The frame is placed on the axis at the point
-closest to the child's origin, with its z axis along the screw axis and its x axis pointing toward the
-child. For a prismatic fit, which has no axis position, the frame sits at the child's origin. Each fit
-orients its axis so that the position grows along the observed motion.
+A screw axis connection needs its axis to pass through the origin of its connection frame. The
+connection frame therefore sits at the point of the screw axis closest to the parent's origin, along
+the parent's axes, and the connection's screw axis is the fitted one, moved there. For a child that
+does not turn, that point is the parent's origin. The observations leave the frame's orientation open,
+since turning the frame about the axis does not change the motion, so this placement is a choice.
+
+The positions the fit observed are not limits of the connection: the door may well open further than it
+was seen to.
 
 ## How the fit works
 
-Each moving fit starts from an approximation in closed form, which takes the first observation as exact
-and describes every other one by the
-[rigid transformation](https://en.wikipedia.org/wiki/Rigid_transformation) from the first:
+The fit explains the observed poses $P_i$ by a pose $P_0$ of the child at position zero, a screw axis
+$S$ in the parent frame and a position $\theta_i$ at each observation, which predict the poses
 
-- A prismatic fit takes the direction along which these transformations translate the most, by a
-  [singular value decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition).
-- A rotating fit takes the axis direction from the rotations the same way. A rotation $R$ by the angle
-  $\theta$ about an axis through the point $q$, with the pitch $h$ per radian, translates by
-  $(I - R)\,q + h\,\theta\,\hat{s}$ ({cite:t}`lynch2017modern`,
-  [Proposition 3.25](https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=123)), which is linear
-  in $q$ and $h$, so a linear least-squares problem gives both.
+$$
+\hat{P}_i = e^{[S]\,\theta_i}\,P_0,
+$$
 
-The approximation then is refined by [nonlinear least squares](https://en.wikipedia.org/wiki/Non-linear_least_squares)
-over the pose of the child at position zero, the positions after the first, and the axis. This spreads
-the error over all observations instead of trusting the first.
+where $e^{[S]\,\theta}$ is the displacement by the position $\theta$ along $S$. The displacement and its
+inverse, the logarithm, are those of
+[`scipy.spatial.transform.RigidTransform`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.RigidTransform.html),
+`from_exp_coords` and `as_exp_coords`, which compute the same exponential as
+`ScrewAxis.to_displacement`.
+
+- **The first guess** comes from pairs of observations, as {cite:t}`sturm2011probabilistic` start from
+  minimal sets of observations. The displacement from observation $i$ to a later one $j$ is a move by
+  $\theta_j - \theta_i$ along $S$, so its logarithm is a guess for $S$. The positions follow by
+  projecting the logarithm of each step between consecutive observations onto it. The fit tries every
+  pair, or 30 of them for many observations, and keeps the guess whose errors, each capped at three
+  standard deviations, are smallest. A pair that includes an outlier gives a poor guess and loses.
+- **The refinement** is [nonlinear least squares](https://en.wikipedia.org/wiki/Non-linear_least_squares),
+  with `scipy.optimize.least_squares`, over $P_0$, the positions and $S$. Each position error is
+  divided by the position's standard deviation, and each orientation error by the orientation's. The
+  loss is `soft_l1`: it is the square of an error below three standard deviations, and grows only
+  linearly beyond, so that a few outliers do not dominate it.
+- **The scale.** Scaling $S$ and dividing the positions by the same factor does not change the
+  predicted poses, so the first position is zero and the last stays where the guess put it. The screw
+  axis is then normalized as {cite:t}`lynch2017modern` define it, the rotation part a unit vector if
+  the child turns and the translation part otherwise, which makes the positions radians or meters.
 
 ```{note}
 The angle of a rotation is only known up to whole revolutions, so consecutive observations have to be
@@ -326,27 +405,41 @@ less than half a revolution apart. The fit then follows a rotation past half a r
 lid's one and a half turns show.
 ```
 
-The range of positions a fit observed, `lowest_observed_position` and `highest_observed_position`, is
-not a limit of the connection: the door may well open further than it was seen to.
-
 ```{code-cell} ipython3
 :tags: [remove-cell]
 
-lid_fit = estimator.most_likely_fit(observations=PoseObservations(parent_T_child=lid_poses))
-drawer_fit = estimator.most_likely_fit(
-    observations=PoseObservations(parent_T_child=drawer_poses)
+
+def direction_of(fit: ScrewMotionFit) -> np.ndarray:
+    return np.array(fit.screw_axis.unit_direction[:3].to_list())
+
+
+def axis_point_of(fit: ScrewMotionFit) -> np.ndarray:
+    return np.array(fit.screw_axis.axis_point_closest_to_origin[:3].to_list())
+
+
+drawer_fit, lid_fit = fits["Drawer"], fits["Jar lid"]
+assert np.degrees(drawer_fit.positions[-1]) < 0.1
+assert np.linalg.norm(axis_point_of(drawer_fit)) > 100
+assert float(drawer_fit.screw_axis.translation_per_radian) > 100
+assert np.allclose(direction_of(door_fit), [0, 0, 1], atol=0.02)
+assert np.allclose(axis_point_of(door_fit)[:2], [0.3, -0.4], atol=0.01)
+assert abs(float(door_fit.screw_axis.translation_per_radian)) < 0.001
+assert np.isclose(door_fit.positions[-1], np.radians(70), atol=0.01)
+drawer_travel = (
+    drawer_fit.predicted_parent_T_child_stack[-1, :3, 3]
+    - drawer_fit.predicted_parent_T_child_stack[0, :3, 3]
 )
-assert type(door_fit) is RevoluteFit
-assert type(drawer_fit) is PrismaticFit
-assert type(lid_fit) is HelicalFit
-assert np.allclose(door_fit.axis_direction, [0, 0, 1], atol=0.02)
-assert np.allclose(door_fit.axis_point[:2], [0.3, -0.4], atol=0.01)
-assert np.isclose(door_fit.highest_observed_position, np.radians(70), atol=0.01)
-assert np.isclose(2 * np.pi * lid_fit.translation_per_radian, 0.004, atol=0.0005)
-assert np.isclose(lid_fit.highest_observed_position, 3 * np.pi, atol=0.02)
+assert np.allclose(drawer_travel, [0.4, 0, 0], atol=0.005)
+assert np.isclose(
+    2 * np.pi * float(lid_fit.screw_axis.translation_per_radian), 0.004, atol=0.0005
+)
+assert np.isclose(lid_fit.positions[-1], 3 * np.pi, atol=0.02)
+assert np.allclose(direction_of(jumped_door_fit), [0, 0, 1], atol=0.02)
+assert np.allclose(axis_point_of(jumped_door_fit)[:2], [0.3, -0.4], atol=0.01)
+assert set(np.flatnonzero(errors_per_observation > 3)) == {4, 9}
 assert np.allclose(
     cabinet_world.compute_forward_kinematics_np(root=cabinet, tip=door),
-    door_fit.predicted_parent_T_child[-1],
+    door_fit.predicted_parent_T_child_stack[-1],
 )
 ```
 
