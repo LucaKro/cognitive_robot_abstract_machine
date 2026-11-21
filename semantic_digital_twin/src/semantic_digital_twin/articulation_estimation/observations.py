@@ -29,7 +29,7 @@ class PoseObservations:
     between them is unambiguous.
     """
 
-    parent_T_child: npt.NDArray[np.float64]
+    parent_T_child_stack: npt.NDArray[np.float64]
     """
     One homogeneous transformation matrix per observation, stacked to shape (n, 4, 4).
     """
@@ -39,9 +39,9 @@ class PoseObservations:
         :raises TooFewObservationsError: if fewer than
             :attr:`required_observation_count` poses are given.
         """
-        if len(self.parent_T_child) < self.required_observation_count:
+        if len(self.parent_T_child_stack) < self.required_observation_count:
             raise TooFewObservationsError(
-                observation_count=len(self.parent_T_child),
+                observation_count=len(self.parent_T_child_stack),
                 required_observation_count=self.required_observation_count,
             )
 
@@ -61,7 +61,7 @@ class PoseObservations:
         :return: The observations of those poses.
         """
         return cls(
-            parent_T_child=np.stack(
+            parent_T_child_stack=np.stack(
                 [transformation.to_np() for transformation in transformations]
             )
         )
@@ -73,7 +73,9 @@ class PoseObservations:
 
         Each is the transformation in the parent frame between the two poses.
         """
-        return self.parent_T_child[1:] @ np.linalg.inv(self.parent_T_child[:-1])
+        return self.parent_T_child_stack[1:] @ np.linalg.inv(
+            self.parent_T_child_stack[:-1]
+        )
 
 
 # %% Observation noise
@@ -98,19 +100,20 @@ class ObservationNoise:
     def standardized_pose_errors(
         self,
         *,
-        observed: npt.NDArray[np.float64],
-        predicted: npt.NDArray[np.float64],
+        observed_stack: npt.NDArray[np.float64],
+        predicted_stack: npt.NDArray[np.float64],
     ) -> npt.NDArray[np.float64]:
         """
-        :param observed: The observed poses, stacked to shape (n, 4, 4).
-        :param predicted: The poses a model predicts for the same observations.
+        :param observed_stack: The observed poses, stacked to shape (n, 4, 4).
+        :param predicted_stack: The poses a model predicts for the same observations,
+            stacked the same way.
         :return: The position and orientation errors of each observation, each divided
-            by its standard deviation, flattened to 6 n numbers.
+            by its standard deviation, flattened to :math:`6 n` numbers.
         """
-        position_errors = observed[:, :3, 3] - predicted[:, :3, 3]
+        position_errors = observed_stack[:, :3, 3] - predicted_stack[:, :3, 3]
         orientation_errors = (
-            Rotation.from_matrix(predicted[:, :3, :3]).inv()
-            * Rotation.from_matrix(observed[:, :3, :3])
+            Rotation.from_matrix(predicted_stack[:, :3, :3]).inv()
+            * Rotation.from_matrix(observed_stack[:, :3, :3])
         ).as_rotvec()
         return np.concatenate(
             [

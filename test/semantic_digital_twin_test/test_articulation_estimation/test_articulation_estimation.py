@@ -5,7 +5,7 @@ Tests of estimating how a child moves from noisy observations of its poses.
 from __future__ import annotations
 
 # %% Imports
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import numpy.typing as npt
@@ -28,6 +28,7 @@ from semantic_digital_twin.articulation_estimation.observations import (
     PoseObservations,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import UnnormalizedScrewAxisError
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import ScrewAxisConnection
 from semantic_digital_twin.world_description.world_entity import Body, Connection
@@ -92,7 +93,7 @@ class ObservedScrewMotion:
             connection.position = position
             poses.append(world.compute_forward_kinematics_np(root=parent, tip=child))
         return PoseObservations(
-            parent_T_child=disturbed_poses(
+            parent_T_child_stack=disturbed_poses(
                 poses=np.stack(poses), noise=noise, seed=seed
             )
         )
@@ -194,7 +195,7 @@ def test_fewer_than_two_observations_raise():
     One pose cannot show whether the child moves.
     """
     with pytest.raises(TooFewObservationsError):
-        PoseObservations(parent_T_child=np.eye(4)[np.newaxis])
+        PoseObservations(parent_T_child_stack=np.eye(4)[np.newaxis])
 
 
 # %% Recovered motion
@@ -212,15 +213,17 @@ def test_fit_predicts_the_motion_behind_noisy_observations(
 
     fit = ScrewMotionFit.fit(observations=observations, noise=observation_noise)
 
-    true_parent_T_child = (
+    true_parent_T_child_stack = (
         screw_motions()[motion_name].observe(noise=exact_observation, seed=1)
-    ).parent_T_child
+    ).parent_T_child_stack
     for slices in (np.s_[:, :3, 3], np.s_[:, :3, :3]):
         prediction_error = (
-            fit.predicted_parent_T_child[slices] - (true_parent_T_child[slices])
+            fit.predicted_parent_T_child_stack[slices]
+            - true_parent_T_child_stack[slices]
         )
         observation_error = (
-            observations.parent_T_child[slices] - (true_parent_T_child[slices])
+            observations.parent_T_child_stack[slices]
+            - true_parent_T_child_stack[slices]
         )
         assert np.linalg.norm(prediction_error) < np.linalg.norm(observation_error)
 
@@ -243,7 +246,10 @@ def test_fit_recovers_the_screw_axis_of_a_turning_child(
     assert_allclose(
         fit.screw_axis.unit_direction[:3], motion.axis_direction_in_parent, atol=0.01
     )
-    assert motion.distance_from_axis(point=fit.connection_origin) < 0.01
+    assert (
+        motion.distance_from_axis(point=fit.screw_axis.axis_point_closest_to_origin)
+        < 0.01
+    )
     assert float(fit.screw_axis.translation_per_radian) == pytest.approx(
         float(
             motion.screw_axis.translation_per_unit_position.dot(
@@ -305,7 +311,7 @@ def test_fit_of_an_exact_translation_does_not_turn(
         observations=motion.observe(noise=exact_observation, seed=0), noise=noise
     )
 
-    assert not fit.turns_child
+    assert not fit.screw_axis.turns_body
     assert_allclose(
         fit.screw_axis.unit_direction[:3], motion.axis_direction_in_parent, atol=1e-9
     )
@@ -387,7 +393,7 @@ def test_created_connection_moves_the_child_as_the_fit_predicts(
     )
     world, parent, child, connection = fitted_world(fit=fit)
 
-    for position, predicted in zip(fit.positions, fit.predicted_parent_T_child):
+    for position, predicted in zip(fit.positions, fit.predicted_parent_T_child_stack):
         connection.position = position
         assert_allclose(
             world.compute_forward_kinematics_np(root=parent, tip=child),
@@ -396,13 +402,14 @@ def test_created_connection_moves_the_child_as_the_fit_predicts(
         )
 
 
-@pytest.mark.parametrize("motion_name", turning_motions)
-def test_created_connection_frame_sits_on_the_axis_next_to_the_child(
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+def test_created_connection_takes_the_fitted_screw_axis_as_it_is(
     motion_name: str, observation_noise: ObservationNoise
 ):
     """
-    The connection frame of a turning child has its z axis along the screw axis and its
-    x axis toward the child, so the child sits on the frame's positive x axis.
+    The connection frame sits on the fitted screw axis, along the parent's axes, and the
+    connection's screw axis is the fitted one, moved there: the same rotation, and a
+    translation along the axis by the fitted pitch.
     """
     fit = ScrewMotionFit.fit(
         observations=screw_motions()[motion_name].observe(
@@ -412,9 +419,43 @@ def test_created_connection_frame_sits_on_the_axis_next_to_the_child(
     )
     world, parent, child, connection = fitted_world(fit=fit)
 
-    connection_P_child = connection.connection_T_child_expression.to_np()[:3, 3]
+    parent_T_connection = connection.parent_T_connection_expression.to_np()
+    assert_allclose(parent_T_connection[:3, :3], np.eye(3))
     assert_allclose(
-        fit.parent_T_connection.to_np()[:3, 2], fit.screw_axis.unit_direction[:3]
+        parent_T_connection[:3, 3], fit.screw_axis.axis_point_closest_to_origin[:3]
     )
-    assert_allclose(connection_P_child[1:], 0, atol=1e-9)
-    assert connection_P_child[0] > 0
+    rotation = fit.screw_axis.rotation_per_unit_position.to_np()[:3]
+    assert_allclose(connection.screw_axis.rotation_per_unit_position[:3], rotation)
+    expected_translation = (
+        float(fit.screw_axis.translation_per_radian) * rotation
+        if fit.screw_axis.turns_body
+        else fit.screw_axis.translation_per_unit_position.to_np()[:3]
+    )
+    assert_allclose(
+        connection.screw_axis.translation_per_unit_position[:3],
+        expected_translation,
+        atol=1e-12,
+    )
+
+
+def test_fit_with_an_unnormalized_screw_axis_raises(
+    observation_noise: ObservationNoise,
+):
+    """
+    A fit holds its screw axis normalized, so one that is not raises.
+    """
+    fit = ScrewMotionFit.fit(
+        observations=screw_motions()["revolute"].observe(
+            noise=observation_noise, seed=6
+        ),
+        noise=observation_noise,
+    )
+
+    with pytest.raises(UnnormalizedScrewAxisError):
+        replace(
+            fit,
+            screw_axis=ScrewAxis(
+                rotation_per_unit_position=Vector3(0, 0, 2),
+                translation_per_unit_position=Vector3(),
+            ),
+        )

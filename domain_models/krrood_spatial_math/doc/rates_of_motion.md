@@ -124,11 +124,25 @@ hinge 0.5 m beside the frame's origin has $\omega = (0, 0, 1)$ rad/s and $v$ of
 
 A screw axis describes how a joint moves the body, independent of how fast it does so.
 The body turns about a line and slides along it in proportion, so every point of the body
-follows a helix around that line {cite}`lynch2017modern`.
+follows a helix around that line {cite}`lynch2017modern`. The line and how far the body
+advances along it follow from $\omega$ and $v$ {cite}`murray1994mathematical` (section
+2.3.2, equations (2.42) and (2.43)). Here $|\omega|$ is the length of $\omega$, $\cdot$
+the dot product and $\times$ the cross product:
 
-The figure moves a body along a screw axis that runs along z through the point
-$(0.3, 0, 0)$ and rises 5 cm per radian: $\omega = (0, 0, 1)$ and
-$v = (0, -0.3, 0.05)$. The point of the body at the frame's origin circles the axis at a
+- The line runs along $\omega$ through the point $q = \omega \times v / |\omega|^2$.
+  Since $q$ is orthogonal to $\omega$, it is the point of the line closest to the frame's
+  origin.
+- The body advances along the line by the pitch $h = \omega \cdot v / |\omega|^2$ per
+  radian it turns. Only the part of $v$ along $\omega$ advances the body; the part across
+  $\omega$ is the point at the frame's origin circling the line.
+
+A screw axis with $\omega = 0$ does not turn the body: its pitch is infinite, and its line
+runs through the frame's origin along $v$. `ScrewAxis.axis_point_closest_to_origin` and
+`ScrewAxis.translation_per_radian` compute $q$ and $h$.
+
+The figure moves a body along the screw axis $\omega = (0, 0, 1)$ and
+$v = (0, -0.3, 0.05)$. Its line runs along z through $q = (0.3, 0, 0)$, and the body
+rises $h = 5$ cm per radian. The point of the body at the frame's origin circles the axis at a
 distance of 0.3 m, so it starts out moving sideways by 0.3 m per radian, and it rises by
 0.05 m per radian. At the position $\theta$, the body has turned by the rotation vector
 $r = \theta\,\omega$. The box at the top left shows $r$, the translational part times
@@ -145,6 +159,8 @@ screw = ScrewAxis(
     rotation_per_unit_position=Vector3(*rotation_per_position),
     translation_per_unit_position=Vector3(*translation_per_position),
 )
+assert np.allclose(screw.axis_point_closest_to_origin[:3], [0.3, 0, 0])
+assert math.isclose(float(screw.translation_per_radian), 0.05)
 positions = np.linspace(0, 4 * math.pi, 73)
 displacements = [screw.to_displacement(position=float(p)) for p in positions]
 origins = np.array([np.asarray(d.translation[:3]) for d in displacements])
@@ -236,32 +252,6 @@ screw_figure.update_layout(
     ],
 )
 show(screw_figure)
-```
-
-### The line and the pitch of a screw axis
-
-A screw axis holds only $\omega$ and $v$. The line the body turns about, and how far the
-body advances along it, follow from them {cite}`murray1994mathematical` (section 2.3.2,
-equations (2.42) and (2.43)). Here $|\omega|$ is the length of $\omega$, $\cdot$ the dot
-product and $\times$ the cross product:
-
-- The **pitch** $h = \omega \cdot v / |\omega|^2$ is how far the body advances along the
-  line per radian it turns. Only the part of $v$ along $\omega$ advances the body; the
-  part across $\omega$ is the point at the frame's origin circling the line.
-- The **line** runs along $\omega$ through the point $q = \omega \times v / |\omega|^2$.
-  Since $q$ is orthogonal to $\omega$, it is the point of the line closest to the frame's
-  origin.
-
-A screw axis that does not turn the body, with $\omega = 0$, has an infinite pitch, and
-its line runs through the frame's origin along $v$. `ScrewAxis.translation_per_radian`
-and `ScrewAxis.axis_point_closest_to_origin` compute $h$ and $q$. For the screw axis of
-the figure, they give back the 5 cm per radian and the point $(0.3, 0, 0)$:
-
-```{code-cell} ipython3
-print("pitch:", float(screw.translation_per_radian))
-print("point closest to the origin:", screw.axis_point_closest_to_origin[:3].to_list())
-assert math.isclose(float(screw.translation_per_radian), 0.05)
-assert np.allclose(screw.axis_point_closest_to_origin[:3], [0.3, 0, 0])
 ```
 
 ### The three types in code

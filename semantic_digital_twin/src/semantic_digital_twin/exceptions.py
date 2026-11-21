@@ -841,14 +841,14 @@ class ScrewJointUnsupportedByMujocoError(UsageError):
 @dataclass(kw_only=True)
 class UnnormalizedScrewAxisError(UsageError):
     """
-    Raised when the screw axis of a screw axis connection is not normalized: one that
-    rotates must rotate one radian per unit of position, and one that does not rotate
-    must translate one meter per unit of position.
+    Raised when a screw axis that has to be normalized is not, such as that of a screw
+    axis connection: one that rotates must rotate one radian per unit of position, and
+    one that does not rotate must translate one meter per unit of position.
     """
 
     screw_axis: ScrewAxis
     """
-    The screw axis the connection was given.
+    The screw axis that is not normalized.
     """
 
     def error_message(self) -> str:
@@ -860,8 +860,8 @@ class UnnormalizedScrewAxisError(UsageError):
     def suggest_correction(self) -> str:
         return (
             "give a rotating screw axis a unit rotation per unit of position, and one "
-            "that only translates a unit translation; use the multiplier to scale the "
-            "position."
+            "that only translates a unit translation, and scale the position instead, "
+            "such as with a connection's multiplier."
         )
 
 

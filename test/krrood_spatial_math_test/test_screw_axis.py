@@ -279,11 +279,15 @@ def test_a_screw_axis_passes_through_the_origin_if_its_translation_is_parallel_t
     assert screw_axis.passes_through_origin is passes_through_origin
 
 
-@pytest.mark.parametrize("check", ["is_normalized", "passes_through_origin"])
+@pytest.mark.parametrize(
+    "check",
+    ["is_normalized", "passes_through_origin", "turns_body", "moves_point_at_origin"],
+)
 def test_checking_a_symbolic_screw_axis_raises(check):
     """
-    Whether a screw axis with free variables is normalized, or passes through the
-    origin, depends on their values, so the checks refuse to answer.
+    Whether a screw axis with free variables is normalized, passes through the origin,
+    turns the body or moves the point at the origin depends on their values, so the
+    checks refuse to answer.
     """
     angle_per_unit_position = sm.FloatVariable(name="angle_per_unit_position")
     screw_axis = ScrewAxis(
@@ -292,6 +296,38 @@ def test_checking_a_symbolic_screw_axis_raises(check):
 
     with pytest.raises(HasFreeVariablesError):
         getattr(screw_axis, check)
+
+
+# %% whether the body turns and the point at the origin moves
+@pytest.mark.parametrize(
+    "rotation, translation, turns_body, moves_point_at_origin",
+    [
+        ((0, 0, 1), (0, 0, 0), True, False),
+        ((0, 0, 1), (0, -0.3, 0), True, True),
+        ((0, 0, 0), (1, 0, 0), False, True),
+        ((0, 0, 0), (0, 0, 0), False, False),
+    ],
+)
+def test_screw_axis_and_twist_tell_whether_the_body_turns_and_the_origin_point_moves(
+    rotation: tuple[float, float, float],
+    translation: tuple[float, float, float],
+    turns_body: bool,
+    moves_point_at_origin: bool,
+):
+    """
+    A screw axis and a twist turn the body exactly when their rotational part is not
+    zero, and move the point of the body at the origin when their translational part is
+    not zero, even if the body only turns about an axis off the origin.
+    """
+    screw_axis = ScrewAxis(
+        rotation_per_unit_position=Vector3(*rotation),
+        translation_per_unit_position=Vector3(*translation),
+    )
+    twist = screw_axis.to_twist(position_velocity=2)
+
+    for rate in (screw_axis, twist):
+        assert rate.turns_body == turns_body
+        assert rate.moves_point_at_origin == moves_point_at_origin
 
 
 # %% the twist at a given speed of the position

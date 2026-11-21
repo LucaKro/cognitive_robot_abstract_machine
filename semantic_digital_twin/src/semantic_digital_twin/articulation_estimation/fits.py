@@ -18,11 +18,10 @@ from krrood.patterns.classproperty import classproperty
 from krrood.symbolic_math.symbolic_math import CompiledFunction
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
-    Point3,
-    RotationMatrix,
     ScrewAxis,
     Vector3,
 )
+from semantic_digital_twin.exceptions import UnnormalizedScrewAxisError
 from semantic_digital_twin.articulation_estimation.observations import (
     ObservationNoise,
     PoseObservations,
@@ -120,11 +119,12 @@ class CompiledScrewDisplacement:
         self, *, rotation_vectors: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
         """
-        :param rotation_vectors: Rotation vectors r, stacked to shape (n, 3).
-        :return: For each r, the left Jacobian J(r) of the rotation, stacked to shape
-            (n, 3, 3): moving by one along a screw axis that turns by r translates the
-            body by J(r) times the screw axis's translation per unit of position, so
-            column k of J(r) is that translation for a unit translation along axis k.
+        :param rotation_vectors: Rotation vectors :math:`r`, stacked to shape (n, 3).
+        :return: For each :math:`r`, the left Jacobian :math:`J(r)` of the rotation,
+            stacked to shape (n, 3, 3): moving by one along a screw axis that turns by
+            :math:`r` translates the body by :math:`J(r)` times the screw axis's
+            translation per unit of position, so column :math:`k` of :math:`J(r)` is
+            that translation for a unit translation along axis :math:`k`.
         """
         return np.stack(
             [
@@ -173,11 +173,14 @@ class ScrewMotionParameters:
 
     @classproperty
     def negligible_rotation(cls) -> float:
-        """
+        r"""
         The rotation over the observed positions, in radians, below which
-        :meth:`copy_with_normalized_screw_axis` takes the child not to turn at all.
+        :meth:`copy_with_normalized_screw_axis` takes the child not to turn at all:
+
+        :math:`10^3 \varepsilon \approx 2 \cdot 10^{-13}`, with :math:`\varepsilon` the
+        machine epsilon, so that only round-off falls below it.
         """
-        return 1e-9
+        return 1e3 * np.finfo(np.float64).eps
 
     @classmethod
     def initial_guess(
@@ -201,7 +204,7 @@ class ScrewMotionParameters:
         position_steps = left[:, 0] * singular_values[0]
         orientation = np.copysign(1.0, position_steps.sum())
         return cls(
-            reference_parent_T_child=observations.parent_T_child[0],
+            reference_parent_T_child=observations.parent_T_child_stack[0],
             positions=np.concatenate([[0.0], np.cumsum(orientation * position_steps)]),
             screw_axis_entries=orientation
             * right[0]
@@ -222,12 +225,14 @@ class ScrewMotionParameters:
         noise: ObservationNoise,
         displacement: CompiledScrewDisplacement,
     ) -> npt.NDArray[np.float64]:
-        """
-        :return: For each step between consecutive observations, a move by Δθ along a
-            screw axis S, the six numbers Δθ S, divided by the noise as the errors are,
-            stacked to shape (n - 1, 6). If one screw axis moves the child, the rows are
-            multiples of one another; the rotation vector and the translation of the
-            step give Δθ S's rotation, and its translation through the left Jacobian.
+        r"""
+        :return: For each step between consecutive observations, a move by
+            :math:`\Delta\theta` along a screw axis :math:`S`, the six numbers
+            :math:`\Delta\theta\, S`, divided by the noise as the errors are, stacked
+            to shape (n - 1, 6). If one screw axis moves the child, the rows are
+            multiples of one another; the rotation vector of the step gives the
+            rotation of :math:`\Delta\theta\, S`, and its translation, through the
+            left Jacobian, the translation.
         """
         steps = observations.displacements_between_observations
         rotation_vectors = Rotation.from_matrix(steps[:, :3, :3]).as_rotvec()
@@ -243,11 +248,14 @@ class ScrewMotionParameters:
         )
 
     @property
-    def vector(self) -> npt.NDArray[np.float64]:
+    def free_parameters(self) -> npt.NDArray[np.float64]:
         """
-        The numbers as one vector: the rotation vector and the position of
-        :attr:`reference_parent_T_child`, the positions between the first and the last,
-        and :attr:`screw_axis_entries`.
+        The numbers the optimizer varies, as one vector: the rotation vector and the
+        position of :attr:`reference_parent_T_child`, the positions between the first
+        and the last, and :attr:`screw_axis_entries`.
+
+        The first position is zero and the last fixed, see
+        :meth:`copy_with_free_parameters`.
         """
         return np.concatenate(
             [
@@ -258,24 +266,28 @@ class ScrewMotionParameters:
             ]
         )
 
-    def copy_with_vector(self, *, vector: npt.NDArray[np.float64]) -> Self:
+    def copy_with_free_parameters(
+        self, *, free_parameters: npt.NDArray[np.float64]
+    ) -> Self:
         """
-        :param vector: Numbers in the layout of :attr:`vector`.
-        :return: A copy with the numbers ``vector`` holds. The last position stays:
-            scaling the screw axis and dividing the positions by the same factor would
-            not change the motion.
+        :param free_parameters: Numbers in the layout of :attr:`free_parameters`.
+        :return: A copy with those numbers. The last position stays: scaling the screw
+            axis and dividing the positions by the same factor would not change the
+            motion.
         """
         positions_end = 6 + len(self.positions) - 2
         reference_parent_T_child = np.eye(4)
-        reference_parent_T_child[:3, :3] = Rotation.from_rotvec(vector[:3]).as_matrix()
-        reference_parent_T_child[:3, 3] = vector[3:6]
+        reference_parent_T_child[:3, :3] = Rotation.from_rotvec(
+            free_parameters[:3]
+        ).as_matrix()
+        reference_parent_T_child[:3, 3] = free_parameters[3:6]
         return replace(
             self,
             reference_parent_T_child=reference_parent_T_child,
             positions=np.concatenate(
-                [[0.0], vector[6:positions_end], self.positions[-1:]]
+                [[0.0], free_parameters[6:positions_end], self.positions[-1:]]
             ),
-            screw_axis_entries=vector[positions_end:],
+            screw_axis_entries=free_parameters[positions_end:],
         )
 
     def copy_with_normalized_screw_axis(self) -> Self:
@@ -294,7 +306,7 @@ class ScrewMotionParameters:
             positions=self.positions * scale,
         )
 
-    def predicted_parent_T_child(
+    def predicted_parent_T_child_stack(
         self, *, displacement: CompiledScrewDisplacement
     ) -> npt.NDArray[np.float64]:
         """
@@ -351,6 +363,13 @@ class ScrewMotionFit:
     The displacement along the screw axis, compiled, to predict poses with.
     """
 
+    def __post_init__(self):
+        """
+        :raises UnnormalizedScrewAxisError: if :attr:`screw_axis` is not normalized.
+        """
+        if not self.screw_axis.is_normalized:
+            raise UnnormalizedScrewAxisError(screw_axis=self.screw_axis)
+
     @classmethod
     def fit(cls, *, observations: PoseObservations, noise: ObservationNoise) -> Self:
         """
@@ -365,16 +384,16 @@ class ScrewMotionFit:
             observations=observations, noise=noise, displacement=displacement
         )
         result = least_squares(
-            fun=lambda vector: noise.standardized_pose_errors(
-                observed=observations.parent_T_child,
-                predicted=initial_guess.copy_with_vector(
-                    vector=vector
-                ).predicted_parent_T_child(displacement=displacement),
+            fun=lambda free_parameters: noise.standardized_pose_errors(
+                observed_stack=observations.parent_T_child_stack,
+                predicted_stack=initial_guess.copy_with_free_parameters(
+                    free_parameters=free_parameters
+                ).predicted_parent_T_child_stack(displacement=displacement),
             ),
-            x0=initial_guess.vector,
+            x0=initial_guess.free_parameters,
         )
-        parameters = initial_guess.copy_with_vector(
-            vector=result.x
+        parameters = initial_guess.copy_with_free_parameters(
+            free_parameters=result.x
         ).copy_with_normalized_screw_axis()
         return cls(
             observations=observations,
@@ -391,7 +410,7 @@ class ScrewMotionFit:
         )
 
     @property
-    def predicted_parent_T_child(self) -> npt.NDArray[np.float64]:
+    def predicted_parent_T_child_stack(self) -> npt.NDArray[np.float64]:
         """
         The pose of the child the fit predicts for each observation, stacked to shape
         (n, 4, 4).
@@ -406,66 +425,39 @@ class ScrewMotionFit:
     @property
     def standardized_errors(self) -> npt.NDArray[np.float64]:
         """
-        The errors of :attr:`predicted_parent_T_child`, see
+        The errors of :attr:`predicted_parent_T_child_stack`, see
         :meth:`ObservationNoise.standardized_pose_errors`.
         """
         return self.noise.standardized_pose_errors(
-            observed=self.observations.parent_T_child,
-            predicted=self.predicted_parent_T_child,
+            observed_stack=self.observations.parent_T_child_stack,
+            predicted_stack=self.predicted_parent_T_child_stack,
         )
-
-    @property
-    def turns_child(self) -> bool:
-        """
-        Whether the position turns the child.
-        """
-        return bool(np.any(self.screw_axis.rotation_per_unit_position.to_np()[:3]))
-
-    @property
-    def connection_origin(self) -> Point3:
-        """
-        The point, in the parent frame, at which :meth:`create_connection` places the
-        connection frame: on the screw axis, closest to the child's origin at position
-        zero, or that origin itself if the child does not turn.
-        """
-        child_origin = Point3(*self.reference_parent_T_child[:3, 3])
-        if not self.turns_child:
-            return child_origin
-        axis_point, _ = child_origin.project_to_line(
-            line_point=self.screw_axis.axis_point_closest_to_origin,
-            line_direction=self.screw_axis.unit_direction,
-        )
-        return axis_point
 
     @property
     def parent_T_connection(self) -> HomogeneousTransformationMatrix:
         """
-        The connection frame of :meth:`create_connection`: at :attr:`connection_origin`,
-        its z axis along the screw axis and its x axis toward the child's origin at
-        position zero, or, if that lies on the axis, perpendicular to the axis.
+        The connection frame of :meth:`create_connection`: at the point of the screw
+        axis closest to the parent's origin, along the parent's axes.
+
+        A screw axis connection needs its axis to pass through the connection frame's
+        origin.
         """
-        z_axis = self.screw_axis.unit_direction
-        connection_origin = self.connection_origin
-        toward_child = Point3(*self.reference_parent_T_child[:3, 3]) - connection_origin
-        toward_child = toward_child - z_axis * toward_child.dot(z_axis)
-        if np.isclose(float(toward_child.norm()), 0):
-            toward_child = RotationMatrix.from_x_axis(z_axis).y_vector()
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            point=connection_origin,
-            rotation_matrix=RotationMatrix.from_vectors(x=toward_child, z=z_axis),
+            point=self.screw_axis.axis_point_closest_to_origin
         )
 
     @property
     def connection_screw_axis(self) -> ScrewAxis:
+        r"""
+        :attr:`screw_axis` in :attr:`parent_T_connection`'s frame: the same rotation
+        :math:`\omega`, and the translation :math:`v + \omega \times q` of the point of
+        the child at the frame's origin :math:`q`, which only advances along the axis.
         """
-        The screw axis of the connection :meth:`create_connection` creates, along the z
-        axis of its connection frame.
-        """
-        if not self.turns_child:
-            return ScrewAxisConnection.create_prismatic_screw_axis(axis=Vector3.Z())
-        return ScrewAxisConnection.create_helical_screw_axis(
-            axis=Vector3.Z(),
-            pitch=2 * np.pi * float(self.screw_axis.translation_per_radian),
+        rotation = self.screw_axis.rotation_per_unit_position
+        return ScrewAxis(
+            rotation_per_unit_position=rotation,
+            translation_per_unit_position=self.screw_axis.translation_per_unit_position
+            + rotation.cross(self.screw_axis.axis_point_closest_to_origin.vector3),
         )
 
     def create_connection(
