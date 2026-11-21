@@ -2698,6 +2698,27 @@ class RigidMotionRate(VectorPair, ABC):
             reference_frame=self.reference_frame,
         )
 
+    @property
+    def turns_body(self) -> bool:
+        """
+        :return: Whether the body turns: whether the rotational part is not zero.
+        :raises HasFreeVariablesError: if the rate has free variables.
+        """
+        if not self.is_constant():
+            raise HasFreeVariablesError(variables=self.free_variables())
+        return bool(np.any(self._rotational_part[:3]))
+
+    @property
+    def moves_point_at_origin(self) -> bool:
+        """
+        :return: Whether the point of the body at the origin of the reference frame
+            moves: whether the translational part is not zero.
+        :raises HasFreeVariablesError: if the rate has free variables.
+        """
+        if not self.is_constant():
+            raise HasFreeVariablesError(variables=self.free_variables())
+        return bool(np.any(self._translational_part[:3]))
+
     @classmethod
     def _apply_left_jacobian(
         cls, *, rotation: Vector3, translation: Vector3
@@ -2905,6 +2926,46 @@ class ScrewAxis(RigidMotionRate):
             angle_per_unit_position,
             rotation.safe_division(other=angle_per_unit_position),
             translation.safe_division(other=translation.norm()),
+        )
+        result.reference_frame = self.reference_frame
+        return result
+
+    @property
+    def translation_per_radian(self) -> sm.Scalar:
+        r"""
+        :return: How far the body advances along the axis per radian it turns, in
+            meters: the pitch :math:`h = \omega^\top v / \lVert\omega\rVert^2`, with
+            :math:`\omega` the rotation and :math:`v` the translation per unit of
+            position (`Murray, Li and Sastry, A Mathematical Introduction to Robotic
+            Manipulation, equation (2.42) <https://www.cds.caltech.edu/~murray/books/MLS/pdf/mls94-complete.pdf#page=65>`__).
+            Infinite, as there, if the body does not turn.
+        """
+        rotation = self.rotation_per_unit_position
+        squared_angle_per_unit_position = rotation.dot(rotation)
+        return sm.if_greater_zero(
+            squared_angle_per_unit_position,
+            rotation.dot(self.translation_per_unit_position)
+            / squared_angle_per_unit_position,
+            sm.Scalar(np.inf),
+        )
+
+    @property
+    def axis_point_closest_to_origin(self) -> Point3:
+        r"""
+        :return: The point :math:`q = \omega \times v / \lVert\omega\rVert^2` of the
+            axis, with :math:`\omega` the rotation and :math:`v` the translation per
+            unit of position (`Murray, Li and Sastry, A Mathematical Introduction to
+            Robotic Manipulation, equation (2.43) <https://www.cds.caltech.edu/~murray/books/MLS/pdf/mls94-complete.pdf#page=65>`__).
+            It is orthogonal to :math:`\omega` and so the axis's point closest to the
+            origin. If the body does not turn, the division by
+            :math:`\lVert\omega\rVert^2 = 0` gives zero, the origin, through which the
+            axis then runs, as there.
+        """
+        rotation = self.rotation_per_unit_position
+        result = (
+            rotation.cross(self.translation_per_unit_position)
+            .safe_division(other=rotation.dot(rotation))
+            .point3
         )
         result.reference_frame = self.reference_frame
         return result

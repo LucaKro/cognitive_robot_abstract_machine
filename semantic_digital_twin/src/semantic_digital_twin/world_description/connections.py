@@ -367,7 +367,7 @@ class ScrewAxisConnection(ActiveConnection1DOF):
             ``distance``.
         :raises ScrewAxisWithoutTranslationError: if the child only rotates.
         """
-        if not self._translates_child:
+        if not self.screw_axis.moves_point_at_origin:
             raise ScrewAxisWithoutTranslationError(screw_axis=self.screw_axis)
         translation_per_position = self.screw_axis.translation_per_unit_position.dot(
             self.screw_axis.unit_direction
@@ -379,35 +379,21 @@ class ScrewAxisConnection(ActiveConnection1DOF):
         """
         Whether the child only rotates about the axis.
         """
-        return self._rotates_child and not self._translates_child
+        return self.screw_axis.turns_body and not self.screw_axis.moves_point_at_origin
 
     @property
     def behaves_like_a_prismatic_connection(self) -> bool:
         """
         Whether the child only translates along the axis.
         """
-        return not self._rotates_child
+        return not self.screw_axis.turns_body
 
     @property
     def behaves_like_a_screw_connection(self) -> bool:
         """
         Whether the child rotates about the axis and translates along it at once.
         """
-        return self._rotates_child and self._translates_child
-
-    @property
-    def _rotates_child(self) -> bool:
-        """
-        Whether the position rotates the child.
-        """
-        return bool(np.any(self.screw_axis.rotation_per_unit_position))
-
-    @property
-    def _translates_child(self) -> bool:
-        """
-        Whether the position translates the child.
-        """
-        return bool(np.any(self.screw_axis.translation_per_unit_position))
+        return self.screw_axis.turns_body and self.screw_axis.moves_point_at_origin
 
 
 @dataclass(eq=False)
