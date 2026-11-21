@@ -1,4 +1,4 @@
 #130: pushed 96db4e9 (2026-11-21): sampled-pair guess (30 pairs, errors capped at 3 sigma), soft_l1 at 3 sigma, scipy RigidTransform instead of CompiledScrewDisplacement (scipy>=1.16), NotHomogeneousTransformationError; 164 passed; description updated.
-Initial-guess thread 4648965942 answered and resolved. Uncommitted: rates_of_motion.md screw-axis passage shortened (thread 4649754471), book builds; waiting for Luca's go to commit, push, reply and resolve.
+Pushed a9434ad: rates_of_motion.md screw-axis passage shortened (Luca asked in chat; the comment was in a discarded pending review). All review threads resolved. Next: Luca reviews 96db4e9 and a9434ad.
 Deferred by Luca: rewrite examples/articulation_estimation.md (fails to build); behaves_like tolerances (discuss first); record decisions in #117 (scratchpad issue117_body.md; also: connection frame placement moves to the commit). Only #130, not #132/#133. Gaussian+uniform mixture loss: later, if real data needs it.
 Tests: --orm-build=always after changing fit fields; needs the conftest.
