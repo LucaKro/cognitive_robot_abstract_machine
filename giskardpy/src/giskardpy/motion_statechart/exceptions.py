@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 from cramph.exceptions import StatechartError, NodeInitializationError
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CollisionViolatedError(DataclassException):
     """
     Raised when bodies came closer to each other than their collision threshold allows.
@@ -372,13 +372,21 @@ class RobotWithoutMobileBaseError(MotionStatechartError):
 
 
 @dataclass(kw_only=True)
-class EmptyDebugExpressionTrajectoryError(MotionStatechartError):
+class MarkerPublishingThreadEndedError(DataclassException):
     """
-    Raised when a plot is requested but no debug expression samples were recorded.
+    Raised when markers are submitted for publishing after the thread publishing them
+    ended because publishing raised; the exception it raised is the cause.
     """
 
     def error_message(self) -> str:
-        return "Cannot plot: no debug expression samples were recorded."
+        return (
+            "The thread publishing the debug markers ended, so no submitted marker "
+            "would ever be published."
+        )
 
     def suggest_correction(self) -> str:
-        return "Call tick() at least once before plotting, or configure debug expressions to record."
+        return (
+            "Read the cause of this error, often a ROS node that was destroyed while "
+            "it still published. Publishing starts again with the next compiled "
+            "statechart."
+        )

@@ -1,3 +1,7 @@
+"""
+Motion statechart nodes that subscribe or publish to ROS 2 topics.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,13 +13,14 @@ from rclpy.subscription import Subscription
 from typing_extensions import Generic
 
 import krrood.symbolic_math.symbolic_math as sm
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from cramph.node import EndedByOwner
 from cramph.context import ContextExtension
-from cramph.data_types import ObservationStateValues
+from cramph.data_types import ObservationStateValue
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.node import NodeArtifacts
 from giskardpy.motion_statechart.ros_context import RosContextExtension
+from krrood.patterns.called_positionally import called_positionally
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -88,6 +93,7 @@ class TopicSubscriberNode(TopicNode[MsgType]):
             qos_profile=self.qos_profile,
         )
 
+    @called_positionally
     def callback(self, msg: MsgType):
         self.__last_msg = msg
 
@@ -97,7 +103,7 @@ class TopicSubscriberNode(TopicNode[MsgType]):
     def clear_msg(self):
         self.__last_msg = None
 
-    def on_tick(self) -> ObservationStateValues | None:
+    def on_tick(self) -> ObservationStateValue | None:
         """
         .. warning:: If you override this method, make sure to call `super().on_tick(context)`.
         """
@@ -135,11 +141,11 @@ class WaitForMessage(TopicSubscriberNode[MsgType]):
     This node will turn to True once a message was received on its topic.
     """
 
-    def on_tick(self) -> ObservationStateValues | None:
+    def on_tick(self) -> ObservationStateValue | None:
         super().on_tick()
         if self.has_msg():
-            return ObservationStateValues.TRUE
-        return ObservationStateValues.FALSE
+            return ObservationStateValue.TRUE
+        return ObservationStateValue.FALSE
 
 
 @dataclass(eq=False, repr=False, kw_only=True)

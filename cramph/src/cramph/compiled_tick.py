@@ -13,7 +13,7 @@ from typing_extensions import (
 import krrood.symbolic_math.symbolic_math as sm
 from krrood.symbolic_math.symbolic_math import VariableParameters
 from cramph.data_types import (
-    LifeCycleValues,
+    LifeCycleValue,
     LifeCyclePredicate,
 )
 from cramph.exceptions import (
@@ -104,12 +104,12 @@ class LifeCycleChange:
     The node whose life cycle state changed.
     """
 
-    previous_state: LifeCycleValues
+    previous_state: LifeCycleValue
     """
     The life cycle state before the change.
     """
 
-    new_state: LifeCycleValues
+    new_state: LifeCycleValue
     """
     The life cycle state after the change.
     """
@@ -123,19 +123,19 @@ class LifeCycleChange:
         nothing.
         """
         match (self.previous_state, self.new_state):
-            case (_, LifeCycleValues.NOT_STARTED):
+            case (_, LifeCycleValue.NOT_STARTED):
                 self.node.on_reset()
-            case (LifeCycleValues.NOT_STARTED, LifeCycleValues.RUNNING):
+            case (LifeCycleValue.NOT_STARTED, LifeCycleValue.RUNNING):
                 self.node.on_start()
-            case (LifeCycleValues.NOT_STARTED, LifeCycleValues.PAUSED):
+            case (LifeCycleValue.NOT_STARTED, LifeCycleValue.PAUSED):
                 self.node.on_start()
                 self.node.on_pause()
-            case (LifeCycleValues.RUNNING, LifeCycleValues.PAUSED):
+            case (LifeCycleValue.RUNNING, LifeCycleValue.PAUSED):
                 self.node.on_pause()
-            case (LifeCycleValues.PAUSED, LifeCycleValues.RUNNING):
+            case (LifeCycleValue.PAUSED, LifeCycleValue.RUNNING):
                 self.node.on_unpause()
             case (
-                (LifeCycleValues.RUNNING | LifeCycleValues.PAUSED),
+                (LifeCycleValue.RUNNING | LifeCycleValue.PAUSED),
                 _,
             ) if self.new_state.is_terminal:
                 self.node.on_end()
@@ -473,21 +473,28 @@ class CompiledTick:
 
     def settle(self) -> list[LifeCycleChange]:
         """
-        Runs passes until neither a life cycle state nor an observation changes, writing
-        the result of every pass into the statechart.
+        Puts every node a reset was requested for back to not started, see
+        :meth:`~cramph.statechart.Statechart.request_reset`, then runs passes until
+        neither a life cycle state nor an observation changes, writing the result of
+        every pass into the statechart.
+
+        A node reset this way counts as having taken its own transition, so it starts on
+        the next tick at the earliest.
 
         :return: Every life cycle change, in the order it happened.
         :raises TickDoesNotSettleError: If a pass returns the statechart
             to a state it already had in this tick, which it would then never
             leave, or if more passes than :attr:`_pass_budget` change it.
         """
+        nodes_to_reset = self.statechart.take_requested_resets()
+        changes = self._reset_nodes(nodes=nodes_to_reset)
         np.copyto(
             self._life_cycle_at_cycle_start.data,
             self.statechart.life_cycle_state.data,
         )
         self._own_transition_taken.data.fill(0)
+        self._own_transition_taken.data[[node.index for node in nodes_to_reset]] = 1
         self._collect_tick_observations()
-        changes: list[LifeCycleChange] = []
         visited_states = set()
         self._compiled_pass.evaluate()
         for passes_taken in range(self._pass_budget):
@@ -500,6 +507,27 @@ class CompiledTick:
             self._take_over_latest_pass()
             self._compiled_pass.evaluate()
         self._raise_does_not_settle(passes_taken=self._pass_budget)
+
+    def _reset_nodes(self, *, nodes: list[StatechartNode]) -> list[LifeCycleChange]:
+        """
+        Writes not started as the life cycle state of `nodes`.
+
+        :param nodes: The nodes to reset.
+        :return: The change of every node of `nodes` that had started.
+        """
+        life_cycle_state = self.statechart.life_cycle_state
+        changes = [
+            LifeCycleChange(
+                node=node,
+                previous_state=life_cycle_state[node],
+                new_state=LifeCycleValue.NOT_STARTED,
+            )
+            for node in nodes
+            if life_cycle_state[node] != LifeCycleValue.NOT_STARTED
+        ]
+        for node in nodes:
+            life_cycle_state[node] = LifeCycleValue.NOT_STARTED
+        return changes
 
     def _raise_does_not_settle(self, *, passes_taken: int) -> None:
         """
@@ -591,7 +619,7 @@ class CompiledTick:
         """
         self._has_tick_observation.data.fill(0)
         running_indices = np.flatnonzero(
-            self._life_cycle_at_cycle_start.data == float(LifeCycleValues.RUNNING)
+            self._life_cycle_at_cycle_start.data == float(LifeCycleValue.RUNNING)
         )
         for index in running_indices:
             tick_observation = self._nodes[index].on_tick()
@@ -608,8 +636,8 @@ class CompiledTick:
         return [
             LifeCycleChange(
                 node=self._nodes[index],
-                previous_state=LifeCycleValues(int(life_cycle[index])),
-                new_state=LifeCycleValues(int(self._next_life_cycle[index])),
+                previous_state=LifeCycleValue(int(life_cycle[index])),
+                new_state=LifeCycleValue(int(self._next_life_cycle[index])),
             )
             for index in np.flatnonzero(self._next_life_cycle != life_cycle)
         ]

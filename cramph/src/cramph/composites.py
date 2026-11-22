@@ -1,3 +1,8 @@
+"""
+Composite statechart nodes that control how their children run: in sequence, in
+parallel, repeated until a condition holds, or tried until one succeeds.
+"""
+
 from __future__ import annotations, division
 
 from abc import ABC, abstractmethod
@@ -10,7 +15,7 @@ from typing_extensions import Any, Generator, Generic, Iterator, Self, TypeVar
 from krrood.adapters.json_serializer import JSONField
 from krrood.entity_query_language.backends import QueryBackend
 from krrood.entity_query_language.query.match import Match
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from krrood.patterns.cartesian_product import CartesianProductByRankSum
 from krrood.patterns.field_metadata import JSONMetadata
 from krrood.patterns.specificity_ranking import mro_depth, sole_maximum
@@ -20,8 +25,8 @@ from cramph.node import EndedByOwner, SucceedsOnObservingTrue, FailsOnObservingF
 from cramph.context import ContextExtension
 from cramph.data_types import (
     LifeCyclePredicate,
-    LifeCycleValues,
-    ObservationStateValues,
+    LifeCycleValue,
+    ObservationStateValue,
 )
 from cramph.exceptions import (
     NoChildChooserForNodeError,
@@ -299,6 +304,8 @@ class ControlStructureNode(CompositeNode, ABC):
         self.nodes.insert(position, node)
         self._place_child_in_statechart(node=node)
         self._wire_children()
+        if self.statechart.compiler.latest_compile_covers(node=self):
+            self.statechart.request_rebuild(node=self)
 
 
 @dataclass(repr=False, eq=False, kw_only=True)
@@ -434,7 +441,7 @@ class Parallel(EndedByOwner, ControlStructureNode):
             for child in self.nodes
             if rebuild.rebuilt(node=child) is None
             and child.life_cycle_state
-            not in (LifeCycleValues.FAILED, LifeCycleValues.INTERRUPTED)
+            not in (LifeCycleValue.FAILED, LifeCycleValue.INTERRUPTED)
         ]
         rebuilt.minimum_success = max(
             0, self.minimum_success - len(counted_as_succeeded)
@@ -1164,12 +1171,12 @@ class CompositeNodeChoosingItsChild(SucceedsOnObservingTrue, CompositeNode):
             handed them, and nothing at all unless `child` failed. Empty as well for a
             child that failed on its own, which no monitor is the reason for.
         """
-        if child.life_cycle_state != LifeCycleValues.FAILED:
+        if child.life_cycle_state != LifeCycleValue.FAILED:
             return []
         return [
             monitor
             for monitor in self.failure_monitors_of(child=child)
-            if monitor.last_observation_state == ObservationStateValues.TRUE
+            if monitor.last_observation_state == ObservationStateValue.TRUE
         ]
 
     @property
@@ -1191,12 +1198,12 @@ class CompositeNodeChoosingItsChild(SucceedsOnObservingTrue, CompositeNode):
         """
         if self._out_of_children:
             return False
-        if self.life_cycle_state != LifeCycleValues.RUNNING:
+        if self.life_cycle_state != LifeCycleValue.RUNNING:
             return False
         latest_child = self.latest_child
         return latest_child is None or latest_child.life_cycle_state in (
-            LifeCycleValues.FAILED,
-            LifeCycleValues.INTERRUPTED,
+            LifeCycleValue.FAILED,
+            LifeCycleValue.INTERRUPTED,
         )
 
     def choose_child(self) -> None:
@@ -1309,7 +1316,7 @@ class CompositeNodeChoosingItsChild(SucceedsOnObservingTrue, CompositeNode):
         latest_child = self.latest_child
         if latest_child is None:
             return NodeArtifacts(
-                observation=Scalar(float(ObservationStateValues.UNKNOWN))
+                observation=Scalar(float(ObservationStateValue.UNKNOWN))
             )
         return NodeArtifacts(observation=Scalar(latest_child.last_observation))
 

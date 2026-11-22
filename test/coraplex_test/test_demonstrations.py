@@ -20,6 +20,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from typing_extensions import Iterator
 
+import coraplex.demonstrations
 from coraplex.demonstrations import RobotDemonstration, RobotDemonstrationRosSession
 from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Vector3
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -282,12 +283,12 @@ def test_simulated_run_puts_the_robot_into_the_scene_it_builds():
 
 def serve_from_the_controller(monkeypatch: pytest.MonkeyPatch, world: World) -> None:
     """
-    Make every fetch of a real run return `world`, as if a controller served it.
+    Make every join of a real run return `world`, as if a controller served it.
     """
     monkeypatch.setattr(
-        RobotDemonstrationRosSession,
-        "fetch_world",
-        lambda session, timeout_seconds=None: world,
+        coraplex.demonstrations,
+        "join_shared_world",
+        lambda node, timeout_seconds=None: world,
     )
 
 

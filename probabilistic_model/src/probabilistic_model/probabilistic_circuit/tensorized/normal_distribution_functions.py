@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from types import ModuleType
 
-import jax.scipy.special
 import numpy as np
 import scipy.special
 from array_api_compat import (
@@ -18,7 +17,7 @@ from array_api_compat import (
     is_numpy_namespace,
     is_torch_namespace,
 )
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from typing_extensions import Generic, TypeVar
 
@@ -136,16 +135,20 @@ class ScipyNormalDistributionFunctions(NormalDistributionFunctions[np.ndarray]):
 
 
 @dataclass
-class JaxNormalDistributionFunctions(NormalDistributionFunctions[jax.Array]):
+class JaxNormalDistributionFunctions(NormalDistributionFunctions[ArrayType]):
     """
-    The normal distribution functions of jax arrays, computed by :mod:`jax.scipy`.
+    The normal distribution functions of jax arrays, computed by :mod:`jax.scipy`, so
+    that jax stays an optional dependency.
     """
 
     @classmethod
     def supports(cls, namespace: ModuleType) -> bool:
         return is_jax_namespace(namespace)
 
-    def standard_cumulative_distribution(self, values: jax.Array) -> jax.Array:
+    def standard_cumulative_distribution(self, values: ArrayType) -> ArrayType:
+        # jax is optional, see the core boundary in pyproject.toml
+        import jax.scipy.special
+
         return jax.scipy.special.ndtr(values)
 
 

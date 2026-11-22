@@ -5,7 +5,6 @@ interpreter loads no distribution the static import graph does not predict.
 
 from __future__ import annotations
 
-import importlib.metadata
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -16,10 +15,44 @@ import pytest
 from packaging.utils import canonicalize_name
 
 import krrood
+import krrood.exceptions
 from krrood.development_tools.agents.core_boundary import (
     CoreBoundary,
+    CoreBoundaryChecker,
     DeclarationFile,
 )
+
+
+@pytest.fixture
+def krrood_core_boundary() -> CoreBoundary:
+    """
+    :return: The core boundary krrood's own ``pyproject.toml`` declares.
+    """
+    return CoreBoundary.from_pyproject(
+        path=Path(krrood.exceptions.__file__).parents[2] / DeclarationFile.PYPROJECT
+    )
+
+
+# %% the imports core runs when it is loaded
+
+
+def test_no_core_module_imports_outside_core(
+    krrood_core_boundary: CoreBoundary,
+) -> None:
+    """
+    No module of krrood's core loads a module outside core or a distribution outside
+    core's dependencies when it is loaded.
+    """
+    crossings = [
+        f"{violation.path}:{violation.first_line}: {violation.description}"
+        for module in krrood_core_boundary.core_modules
+        for violation in CoreBoundaryChecker().violations(
+            path=krrood_core_boundary.graph.paths[module]
+        )
+    ]
+
+    assert crossings == []
+
 
 # %% loading core
 
@@ -80,16 +113,16 @@ def packages_imported_while_running(source: str) -> list[ImportedPackage]:
     return imported_packages
 
 
-def test_loading_core_loads_only_the_distributions_its_import_graph_predicts() -> None:
+def test_loading_core_loads_only_the_distributions_its_import_graph_predicts(
+    krrood_core_boundary: CoreBoundary,
+) -> None:
     """
     Catches what the static graph cannot see, such as a dynamic import in a core module.
 
     A package that a library loads on its own account, because it happens to be
     installed, is not core's to predict.
     """
-    boundary = CoreBoundary.from_pyproject(
-        path=Path(krrood.__file__).parents[2] / DeclarationFile.PYPROJECT
-    )
+    boundary = krrood_core_boundary
     source = "\n".join(f"import {module}" for module in boundary.core_modules)
     startup_packages = {
         imported.package for imported in packages_imported_while_running("")
@@ -99,7 +132,7 @@ def test_loading_core_loads_only_the_distributions_its_import_graph_predicts() -
         for imported in packages_imported_while_running(source)
         if imported.importer in (None, krrood.__name__)
     } - startup_packages
-    distributions_by_package = importlib.metadata.packages_distributions()
+    distributions_by_package = boundary.distributions_by_package
     loaded_distributions = {
         canonicalize_name(distribution)
         for package in loaded_by_core

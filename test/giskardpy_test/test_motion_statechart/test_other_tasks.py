@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from giskardpy.motion_statechart.weights import DefaultWeights
-from cramph.data_types import LifeCycleValues, ObservationStateValues
+from cramph.data_types import LifeCycleValue, ObservationStateValue
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from giskardpy.motion_statechart.tasks.grasped_mechanism import (
     ArticulateGraspedMechanism,
@@ -86,6 +86,7 @@ from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 from krrood.utils import recursive_subclasses
 from ..motion_control_context import create_context_with_motion_control
+from semantic_digital_twin.world_description.kinematic_chain import KinematicChain
 
 
 def angle_between_vector(v1: np.ndarray, v2: np.ndarray) -> float:
@@ -110,14 +111,14 @@ class TestFeatureFunctions:
         ids=lambda task_type: task_type.__name__,
     )
     def test_a_feature_function_gives_way_to_collision_avoidance_by_default(
-        self, task_type: type[FeatureFunctionGoal]
+        self, *, task_type: type[FeatureFunctionGoal]
     ) -> None:
         weight = next(
             declared for declared in fields(task_type) if declared.name == "weight"
         )
         assert weight.default == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
 
-    def test_height_goal_within_bounds(self, pr2_world_state_reset: World):
+    def test_height_goal_within_bounds(self, *, pr2_world_state_reset: World):
         """
         Test that HeightGoal successfully constrains the vertical distance between tip
         and reference points within specified bounds.
@@ -141,8 +142,7 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         height_goal = HeightGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=lower_limit,
@@ -154,7 +154,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert height_goal.observation_state == ObservationStateValues.TRUE
+        assert height_goal.observation_state == ObservationStateValue.TRUE
 
         # Compute actual height difference
         root_P_tip = pr2_world_state_reset.transform(
@@ -169,7 +169,7 @@ class TestFeatureFunctions:
             f"Height {height_diff:.4f} not in [{lower_limit}, {upper_limit}]"
         )
 
-    def test_height_goal_negative_bounds(self, pr2_world_state_reset: World):
+    def test_height_goal_negative_bounds(self, *, pr2_world_state_reset: World):
         """
         Test HeightGoal with negative height bounds (tip below reference).
         """
@@ -192,8 +192,7 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         height_goal = HeightGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=lower_limit,
@@ -205,7 +204,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert height_goal.observation_state == ObservationStateValues.TRUE
+        assert height_goal.observation_state == ObservationStateValue.TRUE
 
         # Verify actual height difference
         root_P_tip = pr2_world_state_reset.transform(
@@ -221,7 +220,7 @@ class TestFeatureFunctions:
         )
 
     def test_reach_point_drives_offset_point_onto_reference(
-        self, pr2_world_state_reset: World
+        self, *, pr2_world_state_reset: World
     ) -> None:
         """
         Test that ReachPoint drives a controlled tip point onto a reference point.
@@ -247,8 +246,7 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         reach_point = ReachPoint(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
         )
@@ -258,7 +256,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert reach_point.observation_state == ObservationStateValues.TRUE
+        assert reach_point.observation_state == ObservationStateValue.TRUE
 
         root_P_tip_final = pr2_world_state_reset.transform(
             target_frame=root, spatial_object=tip_point
@@ -268,7 +266,7 @@ class TestFeatureFunctions:
             <= reach_point.threshold
         )
 
-    def test_distance_goal_within_bounds(self, pr2_world_state_reset: World):
+    def test_distance_goal_within_bounds(self, *, pr2_world_state_reset: World):
         """
         Test that DistanceGoal successfully constrains the horizontal distance (in x-y
         plane) between tip and reference points within specified bounds.
@@ -292,8 +290,7 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         distance_goal = DistanceGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=lower_limit,
@@ -305,7 +302,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert distance_goal.observation_state == ObservationStateValues.TRUE
+        assert distance_goal.observation_state == ObservationStateValue.TRUE
 
         # Compute actual horizontal distance
         root_P_tip = pr2_world_state_reset.transform(
@@ -322,7 +319,7 @@ class TestFeatureFunctions:
             f"Distance {horizontal_distance:.4f} not in [{lower_limit}, {upper_limit}]"
         )
 
-    def test_distance_goal_zero_distance(self, pr2_world_state_reset: World):
+    def test_distance_goal_zero_distance(self, *, pr2_world_state_reset: World):
         """
         Test DistanceGoal with bounds that include zero (tip and reference at same x-y
         position).
@@ -347,8 +344,7 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         distance_goal = DistanceGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=lower_limit,
@@ -360,7 +356,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert distance_goal.observation_state == ObservationStateValues.TRUE
+        assert distance_goal.observation_state == ObservationStateValue.TRUE
 
         # Verify horizontal distance is near zero
         root_P_tip = pr2_world_state_reset.transform(
@@ -376,7 +372,7 @@ class TestFeatureFunctions:
             f"Distance {horizontal_distance:.4f} not in [{lower_limit}, {upper_limit}]"
         )
 
-    def test_distance_goal_ignores_z_axis(self, pr2_world_state_reset: World):
+    def test_distance_goal_ignores_z_axis(self, *, pr2_world_state_reset: World):
         """
         Test that DistanceGoal only considers x-y plane distance and ignores z-axis.
 
@@ -402,8 +398,7 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         distance_goal = DistanceGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=lower_limit,
@@ -415,7 +410,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert distance_goal.observation_state == ObservationStateValues.TRUE
+        assert distance_goal.observation_state == ObservationStateValue.TRUE
 
         # Verify z difference is large but goal still succeeded
         root_P_tip = pr2_world_state_reset.transform(
@@ -432,7 +427,7 @@ class TestFeatureFunctions:
             f"Distance {horizontal_distance:.4f} not in [{lower_limit}, {upper_limit}]"
         )
 
-    def test_height_and_distance_combined(self, pr2_world_state_reset: World):
+    def test_height_and_distance_combined(self, *, pr2_world_state_reset: World):
         """
         Test combining HeightGoal and DistanceGoal in parallel to constrain both
         vertical and horizontal distances simultaneously.
@@ -461,16 +456,14 @@ class TestFeatureFunctions:
         combined_goal = Parallel(
             nodes=[
                 HeightGoal(
-                    root_link=root,
-                    tip_link=tip,
+                    kinematic_chain=KinematicChain(root=root, tip=tip),
                     tip_point=tip_point,
                     reference_point=reference_point,
                     lower_limit=height_lower,
                     upper_limit=height_upper,
                 ),
                 DistanceGoal(
-                    root_link=root,
-                    tip_link=tip,
+                    kinematic_chain=KinematicChain(root=root, tip=tip),
                     tip_point=tip_point,
                     reference_point=reference_point,
                     lower_limit=distance_lower,
@@ -484,7 +477,7 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert combined_goal.observation_state == ObservationStateValues.TRUE
+        assert combined_goal.observation_state == ObservationStateValue.TRUE
 
         # Verify both constraints are satisfied
         root_P_tip = pr2_world_state_reset.transform(
@@ -506,7 +499,7 @@ class TestFeatureFunctions:
         )
 
     def test_distance_height_angle_perpendicular_combined(
-        self, pr2_world_state_reset: World
+        self, *, pr2_world_state_reset: World
     ):
         """
         Test combining DistanceGoal, HeightGoal, and AlignPerpendicular to constrain
@@ -540,24 +533,21 @@ class TestFeatureFunctions:
         )
         statechart = Statechart(context=executor.context)
         height_goal = HeightGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=height_lower,
             upper_limit=height_upper,
         )
         distance_goal = DistanceGoal(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_point=tip_point,
             reference_point=reference_point,
             lower_limit=distance_lower,
             upper_limit=distance_upper,
         )
         align_perpendicular = AlignPerpendicular(
-            root_link=root,
-            tip_link=tip,
+            kinematic_chain=KinematicChain(root=root, tip=tip),
             tip_normal=tip_normal,
             reference_normal=reference_normal,
             threshold=perpendicular_threshold,
@@ -572,10 +562,10 @@ class TestFeatureFunctions:
         executor.compile(statechart=statechart)
         executor.tick_until_end()
 
-        assert combined_goal.observation_state == ObservationStateValues.TRUE
-        assert height_goal.observation_state == ObservationStateValues.TRUE
-        assert distance_goal.observation_state == ObservationStateValues.TRUE
-        assert align_perpendicular.observation_state == ObservationStateValues.TRUE
+        assert combined_goal.observation_state == ObservationStateValue.TRUE
+        assert height_goal.observation_state == ObservationStateValue.TRUE
+        assert distance_goal.observation_state == ObservationStateValue.TRUE
+        assert align_perpendicular.observation_state == ObservationStateValue.TRUE
 
         root_P_tip = pr2_world_state_reset.transform(
             target_frame=root, spatial_object=tip_point
@@ -621,6 +611,9 @@ class TestFeatureFunctions:
 
 
 def test_pointing(pr2_world_state_reset: World):
+    """
+    A pointing task ends once the gripper's pointing axis points at the goal point.
+    """
     tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "r_gripper_tool_frame"
     )
@@ -636,8 +629,7 @@ def test_pointing(pr2_world_state_reset: World):
     pointing_axis = Vector3.X(reference_frame=tip)
 
     pointing = Pointing(
-        root_link=root,
-        tip_link=tip,
+        kinematic_chain=KinematicChain(root=root, tip=tip),
         goal_point=goal_point,
         pointing_axis=pointing_axis,
     )
@@ -684,8 +676,7 @@ def test_pointing_lowers_the_torso_when_the_head_cannot_tilt_far_enough(
     )
     statechart = Statechart(context=executor.context)
     pointing = Pointing(
-        root_link=base,
-        tip_link=head,
+        kinematic_chain=KinematicChain(root=base, tip=head),
         goal_point=goal_point,
         pointing_axis=Vector3.X(reference_frame=head),
     )
@@ -739,8 +730,7 @@ def test_pointing_follows_a_goal_point_given_as_an_expression_of_a_moving_frame(
     world_T_region = world.compose_forward_kinematics_expression(world.root, region)
     world_T_region.reference_frame = world.root
     pointing = Pointing(
-        root_link=base,
-        tip_link=head,
+        kinematic_chain=KinematicChain(root=base, tip=head),
         goal_point=world_T_region.position,
         pointing_axis=Vector3.X(reference_frame=head),
     )
@@ -765,6 +755,10 @@ def test_pointing_follows_a_goal_point_given_as_an_expression_of_a_moving_frame(
 
 
 def test_pointing_cone(pr2_world_state_reset: World):
+    """
+    A pointing cone task leaves the gripper's pointing axis within the cone around the
+    direction from the gripper to the goal.
+    """
     tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "r_gripper_tool_frame"
     )
@@ -780,8 +774,7 @@ def test_pointing_cone(pr2_world_state_reset: World):
     pointing_axis = Vector3.X(tip)
     cone_theta = radians(20)
     pointing_cone = PointingCone(
-        root_link=root,
-        tip_link=tip,
+        kinematic_chain=KinematicChain(root=root, tip=tip),
         goal_point=goal_point,
         pointing_axis=pointing_axis,
         cone_theta=cone_theta,
@@ -823,6 +816,10 @@ def test_pointing_cone(pr2_world_state_reset: World):
 
 
 def test_align_planes(pr2_world_state_reset: World):
+    """
+    Aligning planes leaves the gripper's normal within the task's threshold of the
+    reference normal.
+    """
     tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "r_gripper_tool_frame"
     )
@@ -834,11 +831,13 @@ def test_align_planes(pr2_world_state_reset: World):
     )
     statechart = Statechart(context=executor.context)
 
-    goal_normal = Vector3.X(reference_frame=root)
+    reference_normal = Vector3.X(reference_frame=root)
     tip_normal = Vector3.Y(reference_frame=tip)
 
     align_planes = AlignPlanes(
-        root_link=root, tip_link=tip, goal_normal=goal_normal, tip_normal=tip_normal
+        kinematic_chain=KinematicChain(root=root, tip=tip),
+        reference_normal=reference_normal,
+        tip_normal=tip_normal,
     )
     statechart.add_node(node=align_planes)
 
@@ -850,16 +849,16 @@ def test_align_planes(pr2_world_state_reset: World):
     executor.tick_until_end()
 
     # Check if the angle between normal vectors is below the threshold
-    root_V_goal_normal = pr2_world_state_reset.transform(
-        target_frame=root, spatial_object=goal_normal
+    root_V_reference_normal = pr2_world_state_reset.transform(
+        target_frame=root, spatial_object=reference_normal
     )
-    root_V_goal_normal.scale(1)
+    root_V_reference_normal.scale(1)
     root_V_tip_normal = pr2_world_state_reset.transform(
         target_frame=root, spatial_object=tip_normal
     )
     root_V_tip_normal.scale(1)
     v_tip = root_V_tip_normal.to_np()[:3]
-    v_goal = root_V_goal_normal.to_np()[:3]
+    v_goal = root_V_reference_normal.to_np()[:3]
 
     eps = 1e-9
     assert np.linalg.norm(v_goal) > eps, "goal normal became zero-length"
@@ -951,6 +950,10 @@ def test_keep_held_body_upright_holding_nothing_keeps_the_tool_frame_as_it_is(
 
 
 def test_align_perpendicular(pr2_world_state_reset: World):
+    """
+    Aligning perpendicular leaves the gripper's normal at a right angle to the reference
+    normal, within the task's threshold.
+    """
     tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "r_gripper_tool_frame"
     )
@@ -962,13 +965,12 @@ def test_align_perpendicular(pr2_world_state_reset: World):
     )
     statechart = Statechart(context=executor.context)
 
-    goal_normal = Vector3.X(reference_frame=root)
+    reference_normal = Vector3.X(reference_frame=root)
     tip_normal = Vector3.X(reference_frame=tip)
 
     align_perp = AlignPerpendicular(
-        root_link=root,
-        tip_link=tip,
-        reference_normal=goal_normal,
+        kinematic_chain=KinematicChain(root=root, tip=tip),
+        reference_normal=reference_normal,
         tip_normal=tip_normal,
     )
     statechart.add_node(node=align_perp)
@@ -981,17 +983,17 @@ def test_align_perpendicular(pr2_world_state_reset: World):
     executor.tick_until_end()
 
     # Check if the angle between normals is (approximately) 90 degrees
-    root_V_goal_normal = pr2_world_state_reset.transform(
-        target_frame=root, spatial_object=goal_normal
+    root_V_reference_normal = pr2_world_state_reset.transform(
+        target_frame=root, spatial_object=reference_normal
     )
-    root_V_goal_normal.scale(1)
+    root_V_reference_normal.scale(1)
     root_V_tip_normal = pr2_world_state_reset.transform(
         target_frame=root, spatial_object=tip_normal
     )
     root_V_tip_normal.scale(1)
 
     v_tip = root_V_tip_normal.to_np()[:3]
-    v_goal = root_V_goal_normal.to_np()[:3]
+    v_goal = root_V_reference_normal.to_np()[:3]
 
     eps = 1e-9
     assert np.linalg.norm(v_goal) > eps, "goal normal became zero-length"
@@ -1029,8 +1031,7 @@ def test_angle_goal(pr2_world_state_reset: World):
     upper_angle = radians(32)
 
     angle_goal = AngleGoal(
-        root_link=root,
-        tip_link=tip,
+        kinematic_chain=KinematicChain(root=root, tip=tip),
         tip_vector=tip_vector,
         reference_vector=reference_vector,
         lower_angle=lower_angle,
@@ -1067,8 +1068,12 @@ def test_angle_goal(pr2_world_state_reset: World):
 
 
 class TestArticulateGraspedMechanism:
+    """
+    Articulating a mechanism the robot holds.
+    """
+
     def test_the_mechanism_is_articulated_once_its_parts_reached_their_goals(
-        self, prismatic_bot2: World
+        self, *, prismatic_bot2: World
     ):
         """
         Both parts are created by the goal and end only when it ends, so it reads what
@@ -1084,7 +1089,7 @@ class TestArticulateGraspedMechanism:
                 open_goal := ArticulateGraspedMechanism(
                     environment_link=prismatic_bot2.get_body_by_name("robot"),
                     tip_link=prismatic_bot2.get_body_by_name("robot2"),
-                    goal_joint_state=0.0,
+                    goal_position=0.0,
                 )
             )
         )
@@ -1094,8 +1099,10 @@ class TestArticulateGraspedMechanism:
             part.observation_variable for part in open_goal.nodes
         }
 
-    def test_open(self, pr2_world_copy, tmp_path):
-
+    def test_open(self, *, pr2_world_copy, tmp_path):
+        """
+        The PR2 opens a door by its handle and then closes it again.
+        """
         world_T_door = HomogeneousTransformationMatrix.from_xyz_rpy(
             x=1.5, z=1, yaw=np.pi, reference_frame=pr2_world_copy.root
         )
@@ -1148,8 +1155,9 @@ class TestArticulateGraspedMechanism:
                 Sequence(
                     nodes=[
                         CartesianPose(
-                            root_link=pr2_world_copy.root,
-                            tip_link=r_tip,
+                            kinematic_chain=KinematicChain(
+                                root=pr2_world_copy.root, tip=r_tip
+                            ),
                             goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
                                 yaw=np.pi, reference_frame=handle
                             ),
@@ -1159,7 +1167,7 @@ class TestArticulateGraspedMechanism:
                                 ArticulateGraspedMechanism(
                                     tip_link=r_tip,
                                     environment_link=handle,
-                                    goal_joint_state=open_goal,
+                                    goal_position=open_goal,
                                 ),
                                 JointPositionReached(
                                     connection=root_C_hinge,
@@ -1173,7 +1181,7 @@ class TestArticulateGraspedMechanism:
                                 ArticulateGraspedMechanism(
                                     tip_link=r_tip,
                                     environment_link=handle,
-                                    goal_joint_state=close_goal,
+                                    goal_position=close_goal,
                                 ),
                                 JointPositionReached(
                                     connection=root_C_hinge,
@@ -1190,12 +1198,14 @@ class TestArticulateGraspedMechanism:
 
         executor.compile(statechart=statechart)
         executor.tick_until_end()
-        statechart.draw(file_name=str(tmp_path / "muh.pdf"))
+        statechart.draw(file_name=tmp_path / "muh.pdf")
 
-        assert opening.life_cycle_state == LifeCycleValues.SUCCEEDED
-        assert closing.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert opening.life_cycle_state == LifeCycleValue.SUCCEEDED
+        assert closing.life_cycle_state == LifeCycleValue.SUCCEEDED
 
-    def test_a_drawer_faster_than_the_arm_stays_with_the_gripper(self, pr2_world_copy):
+    def test_a_drawer_faster_than_the_arm_stays_with_the_gripper(
+        self, *, pr2_world_copy
+    ):
         """
         A drawer that may move faster than the arm, with no acceleration or jerk limit,
         moves only as fast as the gripper holding it.
@@ -1233,8 +1243,7 @@ class TestArticulateGraspedMechanism:
             node=Sequence(
                 nodes=[
                     CartesianPose(
-                        root_link=world.root,
-                        tip_link=tip,
+                        kinematic_chain=KinematicChain(root=world.root, tip=tip),
                         goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
                             yaw=np.pi, reference_frame=handle.root
                         ),
@@ -1242,7 +1251,7 @@ class TestArticulateGraspedMechanism:
                     opening := ArticulateGraspedMechanism(
                         tip_link=tip,
                         environment_link=handle.root,
-                        goal_joint_state=open_position,
+                        goal_position=open_position,
                     ),
                 ]
             )
@@ -1256,7 +1265,7 @@ class TestArticulateGraspedMechanism:
             executor.tick()
             if executor.statechart.is_ended():
                 break
-            if opening.life_cycle_state != LifeCycleValues.RUNNING:
+            if opening.life_cycle_state != LifeCycleValue.RUNNING:
                 continue
             handle_P_tip = world.compute_forward_kinematics_np(handle.root, tip)[:3, 3]
             if handle_P_tip_when_grasped is None:
@@ -1267,10 +1276,14 @@ class TestArticulateGraspedMechanism:
             )
 
         [hold] = [node for node in opening.nodes if isinstance(node, CartesianPose)]
-        assert opening.life_cycle_state == LifeCycleValues.SUCCEEDED
-        assert largest_drift <= hold.translation_threshold
+        assert opening.life_cycle_state == LifeCycleValue.SUCCEEDED
+        assert largest_drift <= hold.position_threshold
 
-    def test_unscrew_and_tighten_bottle_cap(self, pr2_world_copy):
+    def test_unscrew_and_tighten_bottle_cap(self, *, pr2_world_copy):
+        """
+        The PR2 unscrews a bottle cap a full turn, lifting it by the screw pitch, and
+        then tightens it back to where it started.
+        """
         screw_pitch = 0.03
         unscrew_goal = 2 * np.pi
         limits = DegreeOfFreedomLimits.from_position_range_and_speed(
@@ -1323,8 +1336,9 @@ class TestArticulateGraspedMechanism:
                         # Grasp with the roll axis of the gripper collinear with the
                         # screw axis, so the wrist can follow the cap's rotation.
                         CartesianPose(
-                            root_link=pr2_world_copy.root,
-                            tip_link=r_tip,
+                            kinematic_chain=KinematicChain(
+                                root=pr2_world_copy.root, tip=r_tip
+                            ),
                             goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
                                 reference_frame=cap_body
                             ),
@@ -1332,7 +1346,7 @@ class TestArticulateGraspedMechanism:
                         open := ArticulateGraspedMechanism(
                             tip_link=r_tip,
                             environment_link=cap_body,
-                            goal_joint_state=unscrew_goal,
+                            goal_position=unscrew_goal,
                         ),
                     ]
                 ),
@@ -1343,7 +1357,7 @@ class TestArticulateGraspedMechanism:
         executor.compile(statechart=unscrew_statechart)
         executor.tick_until_end()
 
-        assert open.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert open.life_cycle_state == LifeCycleValue.SUCCEEDED
 
         # One full turn must have moved the cap one screw pitch along the screw axis,
         # away from the bottle (towards the robot, -x).
@@ -1371,7 +1385,7 @@ class TestArticulateGraspedMechanism:
                 close := ArticulateGraspedMechanism(
                     tip_link=r_tip,
                     environment_link=cap_body,
-                    goal_joint_state=tightened_goal_joint_state,
+                    goal_position=tightened_goal_joint_state,
                 ),
             ]
         )
@@ -1380,7 +1394,7 @@ class TestArticulateGraspedMechanism:
         executor.compile(statechart=tighten_statechart)
         executor.tick_until_end()
 
-        assert close.observation_state == ObservationStateValues.TRUE
+        assert close.observation_state == ObservationStateValue.TRUE
 
         # The tightened cap must be back at its initial pose.
         world_T_cap_tightened = pr2_world_copy.compute_forward_kinematics_np(
@@ -1390,7 +1404,7 @@ class TestArticulateGraspedMechanism:
             world_T_cap_tightened[:3, 3], world_T_cap_before[:3, 3], atol=1e-3
         )
 
-    def _expanded_nodes(self, goal: ArticulateGraspedMechanism, world: World):
+    def _expanded_nodes(self, *, goal: ArticulateGraspedMechanism, world: World):
         """
         Expands a goal on a statechart of its own and returns the children it built.
         """
@@ -1400,7 +1414,7 @@ class TestArticulateGraspedMechanism:
         return goal.nodes
 
     def test_the_mechanism_yields_to_collision_avoidance_but_not_the_grasp_by_default(
-        self, prismatic_bot
+        self, *, prismatic_bot
     ):
         """
         A caller that asks for nothing in particular gets the weights the motion needs:
@@ -1411,10 +1425,10 @@ class TestArticulateGraspedMechanism:
         goal = ArticulateGraspedMechanism(
             tip_link=prismatic_bot.root,
             environment_link=grasped_part,
-            goal_joint_state=0.0,
+            goal_position=0.0,
         )
 
-        nodes = self._expanded_nodes(goal, prismatic_bot)
+        nodes = self._expanded_nodes(goal=goal, world=prismatic_bot)
 
         mechanism_node = next(
             node for node in nodes if isinstance(node, JointPositionList)
@@ -1423,7 +1437,7 @@ class TestArticulateGraspedMechanism:
         assert mechanism_node.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
         assert grasp_node.weight == DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
 
-    def test_mechanism_and_grasp_are_weighed_separately(self, prismatic_bot):
+    def test_mechanism_and_grasp_are_weighed_separately(self, *, prismatic_bot):
         """
         Driving the mechanism and holding the grasped part are separate goals, so a
         caller can let the mechanism yield to collision avoidance while the grasp keeps
@@ -1433,12 +1447,12 @@ class TestArticulateGraspedMechanism:
         goal = ArticulateGraspedMechanism(
             tip_link=prismatic_bot.root,
             environment_link=grasped_part,
-            goal_joint_state=0.0,
+            goal_position=0.0,
             mechanism_weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
             grasp_weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
         )
 
-        nodes = self._expanded_nodes(goal, prismatic_bot)
+        nodes = self._expanded_nodes(goal=goal, world=prismatic_bot)
 
         mechanism_node = next(
             node for node in nodes if isinstance(node, JointPositionList)
@@ -1448,7 +1462,7 @@ class TestArticulateGraspedMechanism:
         assert grasp_node.weight == DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE
 
     def test_the_end_effector_holding_the_grasped_part_may_touch_its_surroundings(
-        self, pr2_world_copy
+        self, *, pr2_world_copy
     ):
         """
         Holding on to the grasped part means touching it and what it is mounted on, so
@@ -1460,7 +1474,7 @@ class TestArticulateGraspedMechanism:
         goal = ArticulateGraspedMechanism(
             tip_link=end_effector.tool_frame,
             environment_link=pr2_world_copy.get_body_by_name("torso_lift_link"),
-            goal_joint_state=0.0,
+            goal_position=0.0,
             holding_end_effector=end_effector,
         )
 
@@ -1478,12 +1492,16 @@ class TestArticulateGraspedMechanism:
         ] == [(AllowCollisionForEndEffector, end_effector)]
 
     def test_without_an_end_effector_holding_the_grasped_part_nothing_is_let_off_collision_avoidance(
-        self, prismatic_bot
+        self, *, prismatic_bot
     ):
+        """
+        Without an end effector holding the grasped part, the goal adds no collision
+        allowance: only the joint goal, the hold and the coupling.
+        """
         goal = ArticulateGraspedMechanism(
             tip_link=prismatic_bot.root,
             environment_link=prismatic_bot.get_body_by_name("robot"),
-            goal_joint_state=0.0,
+            goal_position=0.0,
         )
 
         Statechart(context=create_context_with_motion_control(prismatic_bot)).add_node(
@@ -1498,7 +1516,10 @@ class TestArticulateGraspedMechanism:
             RigidCoupling,
         ]
 
-    def test_a_goal_within_the_limits_is_kept(self, prismatic_bot):
+    def test_a_goal_within_the_limits_is_kept(self, *, prismatic_bot):
+        """
+        A goal position within the joint limits is kept as it was given.
+        """
         grasped_part = prismatic_bot.get_body_by_name("robot")
         connection = grasped_part.get_first_parent_connection_of_type(
             ActiveConnection1DOF
@@ -1508,14 +1529,14 @@ class TestArticulateGraspedMechanism:
         goal = ArticulateGraspedMechanism(
             tip_link=prismatic_bot.root,
             environment_link=grasped_part,
-            goal_joint_state=within_limits,
+            goal_position=within_limits,
         )
 
-        self._expanded_nodes(goal, prismatic_bot)
+        self._expanded_nodes(goal=goal, world=prismatic_bot)
 
-        assert goal.goal_joint_state == within_limits
+        assert goal.goal_position == within_limits
 
-    def test_a_goal_beyond_the_upper_limit_is_clamped_to_it(self, prismatic_bot):
+    def test_a_goal_beyond_the_upper_limit_is_clamped_to_it(self, *, prismatic_bot):
         """
         A commanded state the mechanism cannot reach is cut down to its upper limit,
         rather than left as a goal the solver can never observe as reached.
@@ -1524,21 +1545,24 @@ class TestArticulateGraspedMechanism:
         goal = ArticulateGraspedMechanism(
             tip_link=prismatic_bot.root,
             environment_link=grasped_part,
-            goal_joint_state=1e3,
+            goal_position=1e3,
         )
 
-        self._expanded_nodes(goal, prismatic_bot)
+        self._expanded_nodes(goal=goal, world=prismatic_bot)
 
-        assert goal.goal_joint_state == goal.connection.dof.limits.upper.position
+        assert goal.goal_position == goal.connection.dof.limits.upper.position
 
-    def test_a_goal_below_the_lower_limit_is_clamped_to_it(self, prismatic_bot):
+    def test_a_goal_below_the_lower_limit_is_clamped_to_it(self, *, prismatic_bot):
+        """
+        A goal position below the lower joint limit is clamped to that limit.
+        """
         grasped_part = prismatic_bot.get_body_by_name("robot")
         goal = ArticulateGraspedMechanism(
             tip_link=prismatic_bot.root,
             environment_link=grasped_part,
-            goal_joint_state=-1e3,
+            goal_position=-1e3,
         )
 
-        self._expanded_nodes(goal, prismatic_bot)
+        self._expanded_nodes(goal=goal, world=prismatic_bot)
 
-        assert goal.goal_joint_state == goal.connection.dof.limits.lower.position
+        assert goal.goal_position == goal.connection.dof.limits.lower.position
