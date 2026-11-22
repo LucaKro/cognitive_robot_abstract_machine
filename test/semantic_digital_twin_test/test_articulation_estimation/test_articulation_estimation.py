@@ -529,3 +529,79 @@ def test_fit_with_an_unnormalized_screw_axis_raises(
                 translation_per_unit_position=Vector3(),
             ),
         )
+
+
+def estimated_world(*, fit: ScrewMotionFit) -> tuple[World, Body, Body, Connection]:
+    """
+    :return: A world in which an estimated connection, whose first estimate is ``fit``,
+        joins a parent and a child.
+    """
+    world = World()
+    parent = Body(name=PrefixedName("parent"))
+    child = Body(name=PrefixedName("child"))
+    with world.modify_world():
+        connection = fit.create_estimated_connection(
+            world=world, parent=parent, child=child
+        )
+        world.add_connection(connection)
+    return world, parent, child, connection
+
+
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+@pytest.mark.parametrize("noise_name", ["observation_noise", "exact_observation"])
+def test_estimated_connection_moves_the_child_as_the_fit_predicts(
+    motion_name: str, noise_name: str, request: pytest.FixtureRequest
+):
+    """
+    At each fitted position, the estimated connection puts the child where the fit
+    predicts it for that observation, whether the fit turns the child or not.
+    """
+    noise = ObservationNoise(
+        position_standard_deviation=0.001, orientation_standard_deviation=0.005
+    )
+    fit = ScrewMotionFit.fit(
+        observations=screw_motions()[motion_name].observe(
+            noise=request.getfixturevalue(noise_name), seed=4
+        ),
+        noise=noise,
+    )
+    world, parent, child, connection = estimated_world(fit=fit)
+
+    for position, predicted in zip(fit.positions, fit.predicted_parent_T_child_stack):
+        connection.position = position
+        assert_allclose(
+            world.compute_forward_kinematics_np(root=parent, tip=child),
+            predicted,
+            atol=1e-9,
+        )
+
+
+@pytest.mark.parametrize("motion_name", list(screw_motions()))
+def test_later_fit_is_written_into_the_estimated_connection_without_recompiling(
+    motion_name: str, observation_noise: ObservationNoise
+):
+    """
+    A fit of more observations, written into a connection estimated from the first few,
+    puts the child where that fit predicts the latest observation, while the world keeps
+    its compiled forward kinematics.
+    """
+    observations = screw_motions()[motion_name].observe(noise=observation_noise, seed=7)
+    first_fit = ScrewMotionFit.fit(
+        observations=PoseObservations(
+            parent_T_child_stack=observations.parent_T_child_stack[:5]
+        ),
+        noise=observation_noise,
+    )
+    later_fit = ScrewMotionFit.fit(observations=observations, noise=observation_noise)
+    world, parent, child, connection = estimated_world(fit=first_fit)
+    compiled = world._forward_kinematic_manager.compiled_all_fks
+
+    later_fit.update_estimated_connection(connection=connection)
+
+    assert world._forward_kinematic_manager.compiled_all_fks is compiled
+    assert connection.position == pytest.approx(later_fit.positions[-1])
+    assert_allclose(
+        world.compute_forward_kinematics_np(root=parent, tip=child),
+        later_fit.predicted_parent_T_child_stack[-1],
+        atol=1e-9,
+    )

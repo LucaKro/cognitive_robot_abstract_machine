@@ -420,3 +420,67 @@ class ScrewMotionFit:
             @ HomogeneousTransformationMatrix(data=self.reference_parent_T_child),
             screw_axis=self.connection_screw_axis,
         )
+
+    @property
+    def child_screw_axis(self) -> ScrewAxis:
+        r"""
+        :attr:`screw_axis` written in the child's frame at position zero, the frame of
+        :attr:`reference_parent_T_child`: with :math:`R` and :math:`p` its rotation and
+        position, the rotation :math:`R^\top \omega` and the translation
+        :math:`R^\top (v + \omega \times p)` (`Lynch and Park, Modern Robotics,
+        Definition 3.20 <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=118>`__),
+        so that the fit's motion :math:`\exp([S]\,s)\,P_0` equals
+        :math:`P_0 \exp([S_b]\,s)`.
+        """
+        rotation = self.reference_parent_T_child[:3, :3]
+        position = self.reference_parent_T_child[:3, 3]
+        entries = np.asarray(self.screw_axis.to_np(), dtype=float).flatten()
+        return ScrewAxis(
+            rotation_per_unit_position=Vector3(*(rotation.T @ entries[:3])),
+            translation_per_unit_position=Vector3(
+                *(rotation.T @ (entries[3:6] + np.cross(entries[:3], position)))
+            ),
+        )
+
+    def create_estimated_connection(
+        self,
+        *,
+        world: World,
+        parent: KinematicStructureEntity,
+        child: KinematicStructureEntity,
+    ) -> ScrewAxisConnection:
+        """
+        Creates an estimated connection, see
+        :meth:`ScrewAxisConnection.create_estimated_with_dofs`, whose first estimate is
+        this fit, with its degrees of freedom added to ``world``. Write later fits into
+        it with :meth:`update_estimated_connection`.
+
+        :param world: The world in which to add the degrees of freedom.
+        :param parent: The parent of the observed poses.
+        :param child: The child of the observed poses.
+        :return: The connection, not yet added to ``world``.
+        """
+        return ScrewAxisConnection.create_estimated_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            child_pose_at_zero=HomogeneousTransformationMatrix(
+                data=self.reference_parent_T_child
+            ),
+            screw_axis=self.child_screw_axis,
+        )
+
+    def update_estimated_connection(self, *, connection: ScrewAxisConnection) -> None:
+        """
+        Writes this fit into an estimated connection, with the connection's position at
+        the latest observation, as one state change that recompiles nothing.
+
+        :param connection: A connection from :meth:`create_estimated_connection`.
+        """
+        connection.update_estimate(
+            child_pose_at_zero=HomogeneousTransformationMatrix(
+                data=self.reference_parent_T_child
+            ),
+            screw_axis=self.child_screw_axis,
+            position=float(self.positions[-1]),
+        )

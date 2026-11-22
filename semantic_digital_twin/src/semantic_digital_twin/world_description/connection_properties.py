@@ -1,6 +1,11 @@
+"""
+Properties of connections: their dynamics, their servo gains, and the numbers of an estimate.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import StrEnum
 
 from typing_extensions import TYPE_CHECKING
 
@@ -8,6 +13,89 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.connections import (
         ActiveConnection1DOF,
     )
+
+
+class ScrewAxisEstimateParameter(StrEnum):
+    """
+    A number of the estimate an estimated screw axis connection holds, each in a passive
+    degree of freedom named for it: the child's pose at position zero relative to the
+    parent, and the screw axis written in the child's frame at position zero.
+    """
+
+    CHILD_X = "child_x"
+    """
+    The x coordinate of the child's origin at position zero, relative to the parent.
+    """
+
+    CHILD_Y = "child_y"
+    """
+    The y coordinate of the child's origin at position zero, relative to the parent.
+    """
+
+    CHILD_Z = "child_z"
+    """
+    The z coordinate of the child's origin at position zero, relative to the parent.
+    """
+
+    CHILD_QX = "child_qx"
+    """
+    The x component of the quaternion of the child's orientation at position zero,
+    relative to the parent.
+    """
+
+    CHILD_QY = "child_qy"
+    """
+    The y component of the quaternion of the child's orientation at position zero,
+    relative to the parent.
+    """
+
+    CHILD_QZ = "child_qz"
+    """
+    The z component of the quaternion of the child's orientation at position zero,
+    relative to the parent.
+    """
+
+    CHILD_QW = "child_qw"
+    """
+    The scalar component of the quaternion of the child's orientation at position zero,
+    relative to the parent.
+    """
+
+    ROTATION_X = "rotation_per_unit_position_x"
+    """
+    The x component of the screw axis's rotation per unit of position, in the child's
+    frame at position zero.
+    """
+
+    ROTATION_Y = "rotation_per_unit_position_y"
+    """
+    The y component of the screw axis's rotation per unit of position, in the child's
+    frame at position zero.
+    """
+
+    ROTATION_Z = "rotation_per_unit_position_z"
+    """
+    The z component of the screw axis's rotation per unit of position, in the child's
+    frame at position zero.
+    """
+
+    TRANSLATION_X = "translation_per_unit_position_x"
+    """
+    The x component of the screw axis's translation per unit of position, in the child's
+    frame at position zero.
+    """
+
+    TRANSLATION_Y = "translation_per_unit_position_y"
+    """
+    The y component of the screw axis's translation per unit of position, in the child's
+    frame at position zero.
+    """
+
+    TRANSLATION_Z = "translation_per_unit_position_z"
+    """
+    The z component of the screw axis's translation per unit of position, in the child's
+    frame at position zero.
+    """
 
 
 @dataclass

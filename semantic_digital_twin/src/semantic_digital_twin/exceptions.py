@@ -891,6 +891,83 @@ class ScrewAxisOffConnectionOriginError(UsageError):
 
 
 @dataclass(kw_only=True)
+class ConstantScrewAxisError(UsageError):
+    """
+    Raised when an estimate is written to a screw axis connection whose screw axis is
+    constant.
+    """
+
+    connection_name: PrefixedName
+    """
+    The name of the connection.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"the screw axis of connection {self.connection_name} is constant, so it "
+            f"takes no estimate."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "create the connection with ScrewAxisConnection.create_estimated_with_dofs."
+        )
+
+
+@dataclass(kw_only=True)
+class VariableConnectionTransformError(UsageError):
+    """
+    Raised when the pose of a connection relative to its parent, or of its child
+    relative to it, contains variables other than those of the connection's own
+    estimate.
+    """
+
+    connection_name: PrefixedName
+    """
+    The name of the connection.
+    """
+
+    variable_names: list[str]
+    """
+    The names of the variables that may not appear.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"the poses parent_T_connection and connection_T_child of connection "
+            f"{self.connection_name} must be constant, but contain the variables "
+            f"{self.variable_names}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "give the connection constant poses, and move it by its degrees of freedom."
+        )
+
+
+@dataclass(kw_only=True)
+class EstimatedParentTConnectionError(UsageError):
+    """
+    Raised when the pose of an estimated screw axis connection relative to its parent is
+    replaced, which holds the estimated pose of the child at position zero.
+    """
+
+    connection_name: PrefixedName
+    """
+    The name of the connection.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"the pose of connection {self.connection_name} relative to its parent is "
+            f"part of its estimate, so it cannot be replaced."
+        )
+
+    def suggest_correction(self) -> str:
+        return "write a new estimate with ScrewAxisConnection.update_estimate."
+
+
+@dataclass(kw_only=True)
 class ScrewAxisWithoutTranslationError(UsageError):
     """
     Raised when a translation is asked of a screw axis connection that only rotates its
