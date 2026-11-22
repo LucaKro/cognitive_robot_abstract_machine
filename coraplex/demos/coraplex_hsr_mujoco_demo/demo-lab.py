@@ -5,6 +5,7 @@ Run it from this folder::
 
     python demo-lab.py
 """
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -27,7 +28,13 @@ from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkAr
 from cramph.composites import Sequence
 from cramph.statechart import Statechart
 from krrood.patterns.path_enumeration import PathEnumeration
-from krrood_spatial_math.spatial_types import HomogeneousTransformationMatrix, Pose, Point3, RotationMatrix, Vector3
+from krrood_spatial_math.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Pose,
+    Point3,
+    RotationMatrix,
+    Vector3,
+)
 from segmind.detectors.agent_event_detector_nodes import GraspDetector
 from segmind.detectors.coarse_event_detector_nodes import (
     PickUpDetector,
@@ -43,7 +50,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.predefined_maps.kitchen_environment import KitchenEnvironment
 from semantic_digital_twin.robots.hsrb import HSRB
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Floor,
     Milk,
@@ -261,7 +268,8 @@ class LabMilkTransportDemonstration(RobotDemonstration):
 
     def robot_specification(self) -> RobotSpecification:
         return RobotSpecification(
-            semantic_annotation_type=self.used_robot, odometry_T_robot_start=self.robot_start
+            semantic_annotation_type=self.used_robot,
+            odometry_T_robot_start=self.robot_start,
         )
 
     def is_scene_populated(self, world: World) -> bool:
@@ -340,8 +348,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
             milk.root.global_pose, robot.root.global_pose
         )
         middle_pose = self._standing_pose_facing(
-            Pose.from_xyz_rpy(1, 3, reference_frame=context.world.root),
-            taking_pose
+            Pose.from_xyz_rpy(1, 3, reference_frame=context.world.root), taking_pose
         )
 
         target = self._standing_pose_facing(trash_can.root.global_pose, middle_pose)
@@ -358,7 +365,7 @@ class LabMilkTransportDemonstration(RobotDemonstration):
                     NavigateAction(target_location=middle_pose),
                     NavigateAction(target_location=target),
                     PlaceAction(object_designator=milk, target_location=drop_pose),
-                    ParkArmsAction(arms=robot.all_arms)
+                    ParkArmsAction(arms=robot.all_arms),
                 ]
             )
         )
@@ -378,10 +385,10 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         )
 
     def find_grasp(
-            self,
-            graspable: HasGraspCandidates,
-            standing_pose: Pose,
-            fraction_of_height: float = 4 / 6,
+        self,
+        graspable: IsGraspable,
+        standing_pose: Pose,
+        fraction_of_height: float = 4 / 6,
     ) -> GraspCandidate:
         """
         :param graspable: The object to take, standing upright.
@@ -407,9 +414,9 @@ class LabMilkTransportDemonstration(RobotDemonstration):
             off `target` towards `approach_from` and facing `target`.
         """
         offset = target.position.to_np()[:2] - approach_from.position.to_np()[:2]
-        standing_position = (target.position.to_np()[:2]
-                             - self.standing_distance
-                             * offset / np.linalg.norm(offset))
+        standing_position = target.position.to_np()[
+            :2
+        ] - self.standing_distance * offset / np.linalg.norm(offset)
         return Pose.from_xyz_rpy(
             x=float(standing_position[0]),
             y=float(standing_position[1]),
@@ -426,14 +433,17 @@ class LabMilkTransportDemonstration(RobotDemonstration):
         """
         trash_can_box = trash_can.root.collision.as_bounding_box_collection_in_frame(
             world.root
-            ).bounding_box()
+        ).bounding_box()
         z_offset = 0.1
 
         x = (trash_can_box.min_x + trash_can_box.max_x) / 2
         y = (trash_can_box.min_y + trash_can_box.max_y) / 2
         z = trash_can_box.max_z + z_offset
 
-        return Pose.from_xyz_rpy(x, y, z, reference_frame=trash_can.root.global_pose.reference_frame)
+        return Pose.from_xyz_rpy(
+            x, y, z, reference_frame=trash_can.root.global_pose.reference_frame
+        )
+
 
 def main(
     executor_type: type[PlanExecutor] = PhysicallySimulatedPlanExecutor,

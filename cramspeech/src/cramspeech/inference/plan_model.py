@@ -11,7 +11,7 @@ from enum import IntEnum, StrEnum
 from functools import cached_property
 from pathlib import Path
 
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from krrood.patterns.path_enumeration import PathEnumeration
 from llama_cpp import Llama, LlamaGrammar
 from typing_extensions import Any

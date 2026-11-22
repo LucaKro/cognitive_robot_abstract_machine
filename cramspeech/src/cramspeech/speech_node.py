@@ -13,7 +13,7 @@ from enum import StrEnum
 from types import FrameType
 
 import rclpy
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from rclpy.context import Context
 from rclpy.node import Node
 from rclpy.publisher import Publisher

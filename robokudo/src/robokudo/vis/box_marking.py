@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import cv2
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:

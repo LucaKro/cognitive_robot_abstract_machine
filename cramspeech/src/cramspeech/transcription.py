@@ -10,7 +10,7 @@ from functools import cached_property
 
 from faster_whisper import WhisperModel
 from faster_whisper.feature_extractor import FeatureExtractor
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 
 from cramspeech.exceptions import SampleRateMismatch
 from cramspeech.microphone import Recording

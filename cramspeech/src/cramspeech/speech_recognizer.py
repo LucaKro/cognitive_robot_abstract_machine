@@ -12,7 +12,7 @@ from math import ceil
 
 import numpy as np
 from faster_whisper.vad import SileroVADModel, get_vad_model
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from typing_extensions import Iterator
 
 from cramspeech.exceptions import NothingHeard, SampleRateMismatch

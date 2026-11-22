@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from coraplex.robot_plans.task_definitions import Command
     from cramph.node import StatechartNode
     from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
-    from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
     from semantic_digital_twin.semantic_annotations.semantic_annotations import Room
     from semantic_digital_twin.world_description.world_entity import (
         SemanticAnnotation,

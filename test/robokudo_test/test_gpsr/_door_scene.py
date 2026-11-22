@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from krrood.ormatic.utils import classproperty
+from krrood.patterns.classproperty import classproperty
 from robokudo.annotators.gpsr.door_handle_pose_annotator import (
     DoorObjectClass,
     DoorHandlePoseAnnotator,
