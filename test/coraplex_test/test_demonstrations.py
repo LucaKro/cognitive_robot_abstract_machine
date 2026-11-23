@@ -233,9 +233,9 @@ class HingedSceneDemonstration(RecordingDemonstration):
         box = Body(name=PrefixedName(HingedSceneBody.BOX))
         with world.modify_world():
             hinge = RevoluteConnection.create_with_dofs(
-                world,
-                world.root,
-                door,
+                world=world,
+                parent=world.root,
+                child=door,
                 axis=Vector3.Z(reference_frame=world.root),
                 parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=self.hinge_distance, reference_frame=world.root
@@ -243,7 +243,9 @@ class HingedSceneDemonstration(RecordingDemonstration):
             )
             world.add_connection(hinge)
             world.add_connection(
-                Connection6DoF.create_with_dofs(world, world.root, box)
+                Connection6DoF.create_with_dofs(
+                    world=world, parent=world.root, child=box
+                )
             )
         hinge.position = self.door_opening
 
