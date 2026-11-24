@@ -128,17 +128,23 @@ hinge 0.5 m beside the frame's origin has $\omega = (0, 0, 1)$ rad/s and $v$ of
 
 A screw axis describes how a joint moves the body, independent of how fast it does so.
 The body turns about a line and slides along it in proportion, so every point of the body
-follows a helix around that line {cite}`lynch2017modern`.
+follows a helix around that line {cite}`lynch2017modern`. With $|\omega|$ the length of
+$\omega$, the line runs along $\omega$ through $q = \omega \times v / |\omega|^2$, its
+point closest to the frame's origin, and the body advances along it by the pitch
+$h = \omega \cdot v / |\omega|^2$ per radian {cite}`murray1994mathematical` (equations
+(2.42) and (2.43)). `ScrewAxis.axis_point_closest_to_origin` and
+`ScrewAxis.translation_per_radian` compute them. A screw axis with $\omega = 0$ only
+slides the body: $h$ is infinite, and the line runs through the origin along $v$.
 
-The figure moves a body along a screw axis that runs along z through the point
-$(0.3, 0, 0)$ and rises 5 cm per radian: $\omega = (0, 0, 1)$ and
-$v = (0, -0.3, 0.05)$. The point of the body at the frame's origin circles the axis at a
-distance of 0.3 m, so it starts out moving sideways by 0.3 m per radian, and it rises by
-0.05 m per radian. At the position $\theta$, the body has turned by the rotation vector
-$r = \theta\,\omega$. The box at the top left shows $r$, the translational part times
-the position, $t = \theta\,v$, and where the body's origin really is, according to
-`ScrewAxis.to_displacement`. The origin is not at $t$; the next section explains why.
-Drag the slider to move the body, and drag the figure to look at it from another side.
+The figure moves a body along $\omega = (0, 0, 1)$ and $v = (0, -0.3, 0.05)$: the line
+runs along z through $q = (0.3, 0, 0)$, and $h$ is 5 cm. The point of the body at the
+frame's origin circles the line at 0.3 m, so it starts out moving sideways by 0.3 m per
+radian while it rises by 0.05 m per radian. At the position $\theta$, the body has turned
+by the rotation vector $r = \theta\,\omega$. The box at the top left shows $r$, the
+translational part times the position, $t = \theta\,v$, and where the body's origin
+really is, according to `ScrewAxis.to_displacement`. The origin is not at $t$; the next
+section explains why. Drag the slider to move the body, and drag the figure to look at it
+from another side.
 
 ```{code-cell} ipython3
 :tags: [hide-input]
@@ -149,6 +155,8 @@ screw = ScrewAxis(
     rotation_per_unit_position=Vector3(*rotation_per_position),
     translation_per_unit_position=Vector3(*translation_per_position),
 )
+assert np.allclose(screw.axis_point_closest_to_origin[:3], [0.3, 0, 0])
+assert math.isclose(float(screw.translation_per_radian), 0.05)
 positions = np.linspace(0, 4 * math.pi, 73)
 displacements = [screw.to_displacement(position=float(p)) for p in positions]
 origins = np.array([np.asarray(d.translation[:3]) for d in displacements])
