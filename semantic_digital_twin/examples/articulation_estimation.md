@@ -21,8 +21,8 @@ package turns such observations into a [screw axis connection](screw_axis_connec
 {cite:t}`sturm2011probabilistic` fit each kind of joint separately and then choose among them. This
 package fits one motion instead: the child moves along a screw axis, turning about a line and sliding
 along it in proportion. A hinge turns without sliding, a drawer slides without turning and a lid does
-both, so one fit describes all three, and deciding which kind of connection the motion is is left to
-a later step.
+both, so one fit describes all three. Deciding which kind of connection the motion is, is the topic of
+[Telling revolute, helical and sliding motions apart](motion_kinds.md).
 
 ## Observing a door
 
@@ -281,8 +281,8 @@ The drawer's row shows what noise does to a slide. A screw axis that does not tu
 poses without any noise in their orientation, so the fit lets the drawer turn by less than a tenth of a
 degree, about a line more than a hundred meters away, along which it advances hundreds of meters per
 radian. Over the observed motion, this is a slide of 40 cm along x, and the line and the turn are
-within the noise. The fit does not decide that the drawer slides; that is up to the later step that
-chooses the kind of connection.
+within the noise. The fit does not decide that the drawer slides; that is up to the
+[mixture of motion kinds](motion_kinds.md), which fits the drawer as a slide.
 
 ```{code-cell} ipython3
 :tags: [hide-input]
