@@ -1,10 +1,14 @@
+"""
+Degrees of freedom, their limits and the variables that stand for their state.
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import Any, ClassVar, Generic, Self, TypeVar
+from typing_extensions import TYPE_CHECKING, Any, ClassVar, Generic, Self, TypeVar
 
 import krrood.symbolic_math.symbolic_math as sm
 from krrood.adapters.json_serializer import SubclassJSONSerializer
@@ -21,6 +25,10 @@ from semantic_digital_twin.world_description.derivatives import (
     Derivatives,
     DerivativeMap,
 )
+
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.world import World
 
 
 class DegreeOfFreedomVariableJSONKey(StrEnum):
@@ -73,6 +81,37 @@ class DegreeOfFreedomVariable(sm.FloatVariable):
             subject=DegreeOfFreedomVariableJSONKey.DEGREE_OF_FREEDOM
         ).resolve(data=data, **kwargs)
         return dof.variables[cls.derivative]
+
+    @classmethod
+    def rebind_variables(
+        cls, *, expression: sm.GenericSymbolicType, world: World
+    ) -> sm.GenericSymbolicType:
+        """
+        :param expression: An expression of degree of freedom variables of another
+            world, such as the one ``world`` was copied from.
+        :param world: The world that holds degrees of freedom with the same ids.
+        :return: A copy of ``expression`` in which each degree of freedom variable is
+            replaced by the same derivative of ``world``'s degree of freedom with its id;
+            an expression without such variables is copied unchanged.
+        """
+        variables = [
+            variable
+            for variable in expression.free_variables()
+            if isinstance(variable, cls)
+        ]
+        result = deepcopy(expression)
+        if not variables:
+            return result
+        result.casadi_sx = expression.substitute(
+            old_variables=variables,
+            new_variables=[
+                world.get_degree_of_freedom_by_id(variable.dof.id).variables[
+                    variable.derivative
+                ]
+                for variable in variables
+            ],
+        ).casadi_sx
+        return result
 
 
 @dataclass(eq=False, init=False)
