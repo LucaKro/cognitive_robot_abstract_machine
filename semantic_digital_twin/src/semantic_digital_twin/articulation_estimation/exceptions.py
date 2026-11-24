@@ -7,7 +7,12 @@ from __future__ import annotations
 # %% Imports
 from dataclasses import dataclass
 
+from typing_extensions import TYPE_CHECKING
+
 from semantic_digital_twin.exceptions import UsageError
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.articulation_estimation.motion_kinds import MotionKind
 
 
 # %% Observations
@@ -57,3 +62,33 @@ class NotHomogeneousTransformationError(UsageError):
 
     def suggest_correction(self) -> str:
         return "pass each pose as a homogeneous transformation matrix."
+
+
+# %% Kinds of motion
+@dataclass(kw_only=True)
+class KindNotFittedError(UsageError):
+    """
+    Raised when the fit of a kind of motion is asked for that was not fitted, because a
+    classifier found it too improbable.
+    """
+
+    kind: MotionKind
+    """
+    The kind whose fit was asked for.
+    """
+
+    fitted_kinds: list[MotionKind]
+    """
+    The kinds that were fitted.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"The {self.kind} kind was not fitted; only {self.fitted_kinds} were, "
+            f"because the classifier found the others too improbable."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "ask only for a fitted kind, or fit again with a lower minimum_probability."
+        )
