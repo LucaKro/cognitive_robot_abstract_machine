@@ -8,7 +8,9 @@ from uuid import UUID
 import numpy as np
 from typing_extensions import TYPE_CHECKING, Self
 
-from semantic_digital_twin.world_description.connection_properties import JointDynamics
+from semantic_digital_twin.world_description.connection_properties import (
+    JointDynamics,
+)
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
     DegreeOfFreedomLimits,
@@ -19,12 +21,17 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.types import NpMatrix4x4
-from semantic_digital_twin.exceptions import MissingConnectionAxisError
+from semantic_digital_twin.exceptions import (
+    ScrewAxisOffConnectionOriginError,
+    ScrewAxisWithoutTranslationError,
+    UnnormalizedScrewAxisError,
+)
 from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
-    Vector3,
     Point3,
     Quaternion,
+    ScrewAxis,
+    Vector3,
 )
 
 if TYPE_CHECKING:
@@ -112,17 +119,9 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
     Superclass for active connections with 1 degree of freedom.
     """
 
-    axis: Vector3 = field(kw_only=True)
-    """
-    Connection moves along this unit vector, given in the frame of the parent.
-
-    .. warning:: Set it only before the connection is added to a world: a later
-        assignment is not recorded, published or rolled back. Replace the connection.
-    """
-
     multiplier: float = 1.0
     """
-    Movement along the axis is multiplied by this value, e.g. for shared DoFs.
+    The position is multiplied by this value, e.g. for shared DoFs.
 
     .. warning:: Set it only before the connection is added to a world: a later
         assignment is not recorded, published or rolled back. Replace the connection.
@@ -130,7 +129,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 
     offset: float = 0.0
     """
-    Movement along the axis is offset by this value, e.g. for shared DoFs.
+    The position is offset by this value, e.g. for shared DoFs.
 
     .. warning:: Set it only before the connection is added to a world: a later
         assignment is not recorded, published or rolled back. Replace the connection.
@@ -148,66 +147,6 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
     """
     Dynamic properties of the joint.
     """
-
-    @classmethod
-    def create_with_dofs(
-        cls,
-        *,
-        world: World,
-        parent: KinematicStructureEntity,
-        child: KinematicStructureEntity,
-        name: PrefixedName | None = None,
-        parent_T_connection_expression: HomogeneousTransformationMatrix | None = None,
-        connection_T_child_expression: HomogeneousTransformationMatrix | None = None,
-        multiplier: float = 1.0,
-        offset: float = 0.0,
-        dof_limits: DegreeOfFreedomLimits | None = None,
-        axis: Vector3 | None = None,
-        dynamics: JointDynamics | None = None,
-    ) -> Self:
-        """
-        Creates and returns an instance of the class with its single degree of freedom,
-        initializing a kinematic relationship between a parent and a child entity along
-        ``axis``.
-
-        :param world: The motion world in which to add the degree of freedom.
-        :param parent: The parent kinematic structure entity.
-        :param child: The child kinematic structure entity.
-        :param name: Optional specific name for the connection. If not provided, a
-            default name is generated based on the parent and child.
-        :param parent_T_connection_expression: Constant pose of the connection relative
-            to its parent.
-        :param connection_T_child_expression: Constant pose of the connection relative
-            to its child.
-        :param multiplier: A scaling factor applied to the DOF's motion. Defaults to
-            1.0.
-        :param offset: A constant offset value applied to the DOF's motion. Defaults to
-            0.0.
-        :param dof_limits: Optional limits for the generated degree of freedom.
-        :param axis: The axis vector defining the joint relation.
-        :param dynamics: The dynamic properties of the joint. Frictionless and undamped
-            if None.
-        :return: An instance of the class representing the defined relationship with its
-            DOF added to the world.
-        """
-        if axis is None:
-            raise MissingConnectionAxisError(connection_type_name=cls.__name__)
-        name = name or cls._generate_default_name(parent=parent, child=child)
-        dof = DegreeOfFreedom(name=PrefixedName("dof", str(name)), limits=dof_limits)
-        world.add_degree_of_freedom(dof)
-        connection = cls(
-            name=name,
-            parent=parent,
-            child=child,
-            parent_T_connection_expression=parent_T_connection_expression,
-            connection_T_child_expression=connection_T_child_expression,
-            axis=axis,
-            multiplier=multiplier,
-            offset=offset,
-            raw_dof=dof,
-            dynamics=dynamics or JointDynamics(),
-        )
-        return connection
 
     @property
     def dof(self) -> DegreeOfFreedom:
@@ -279,95 +218,74 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         self._world.notify_state_change()
 
 
-@dataclass(eq=False)
-class PrismaticConnection(ActiveConnection1DOF):
+@dataclass(eq=False, kw_only=True)
+class ScrewAxisConnection(ActiveConnection1DOF):
     """
-    Allows translation along an axis.
-    """
+    Moves the child along a screw axis through the origin of the connection frame, in
+    proportion to the position, so revolute, prismatic and helical connections differ
+    only in their :attr:`screw_axis`.
 
-    def add_to_world(self, *, world: World):
-        super().add_to_world(world=world)
-
-        translation_axis = self.axis * self.dof.variables.position
-        self._kinematics = HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=translation_axis[0],
-            y=translation_axis[1],
-            z=translation_axis[2],
-            child_frame=self.child,
-        )
-
-
-@dataclass(eq=False)
-class RevoluteConnection(ActiveConnection1DOF):
-    """
-    Allows rotation about an axis.
+    :attr:`parent_T_connection_expression` places the axis.
     """
 
-    def add_to_world(self, *, world: World):
-        super().add_to_world(world=world)
-
-        self._kinematics = HomogeneousTransformationMatrix.from_xyz_axis_angle(
-            axis=self.axis,
-            angle=self.dof.variables.position,
-            child_frame=self.child,
-        )
-
-
-@dataclass(eq=False)
-class ScrewConnection(ActiveConnection1DOF):
+    screw_axis: ScrewAxis
     """
-    A screw pair: couples rotation about ``axis`` with translation along it into a
-    single degree of freedom.
-
-    Increasing the degree of freedom's position rotates the child counterclockwise about
-    ``axis`` (right-hand rule) and translates it along ``axis`` by ``screw_pitch *
-    position / (2 * pi)``, i.e. one full revolution advances the child by one
-    ``screw_pitch``. A right-handed thread whose ``axis`` points from the parent toward
-    the child therefore has a positive ``screw_pitch``: driving the degree of freedom
-    toward its upper limit unscrews the child.
-    """
-
-    screw_pitch: float = field(kw_only=True)
-    """
-    The distance between adjacent threads, measured parallel to ``axis`` in meters.
-
-    Assumes a single-start thread, where the child advances one ``screw_pitch`` along
-    ``axis`` per full revolution. See
-    https://wellfastener.com/blog/what-is-screw-pitch%EF%BC%9Fscrew-pitch-vs-lead/
-    for
-    the distinction between screw pitch and lead. Negative values model left-handed
-    threads.
+    How the child's pose changes per unit of position, in the connection frame,
+    normalized as Lynch and Park define a screw axis (`Modern Robotics, Definition 3.24
+    <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=122>`__), through the
+    frame's origin. For why it is normalized, see `Why the screw axis is normalized
+    <https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/examples/screw_axis_connections.html#why-the-screw-axis-is-normalized>`__.
 
     .. warning:: Set it only before the connection is added to a world: a later
         assignment is not recorded, published or rolled back. Replace the connection.
     """
 
-    def add_to_world(self, *, world: World):
-        super().add_to_world(world=world)
+    def __post_init__(self):
+        """
+        :raises UnnormalizedScrewAxisError: if :attr:`screw_axis` is not normalized,
+            see :attr:`~krrood_spatial_math.spatial_types.ScrewAxis.is_normalized`.
+        :raises ScrewAxisOffConnectionOriginError: if the axis of :attr:`screw_axis`
+            misses the origin of the connection frame.
+        """
+        super().__post_init__()
+        if not self.screw_axis.is_normalized:
+            raise UnnormalizedScrewAxisError(screw_axis=self.screw_axis)
+        if not self.screw_axis.passes_through_origin:
+            raise ScrewAxisOffConnectionOriginError(screw_axis=self.screw_axis)
 
-        angle = self.dof.variables.position
-        translation_axis = self.axis * (self.screw_pitch * angle / (2 * np.pi))
-        self._kinematics = HomogeneousTransformationMatrix.from_xyz_axis_angle(
-            x=translation_axis[0],
-            y=translation_axis[1],
-            z=translation_axis[2],
-            axis=self.axis,
-            angle=angle,
-            child_frame=self.child,
+    @classmethod
+    def create_revolute_screw_axis(cls, *, axis: Vector3) -> ScrewAxis:
+        """
+        :param axis: The unit vector the child rotates about, in the connection frame.
+        :return: The screw axis of a revolute connection, such as a door's hinge.
+        """
+        return ScrewAxis(rotation_per_unit_position=axis)
+
+    @classmethod
+    def create_prismatic_screw_axis(cls, *, axis: Vector3) -> ScrewAxis:
+        """
+        :param axis: The unit vector the child translates along, in the connection
+            frame.
+        :return: The screw axis of a prismatic connection, such as a drawer's.
+        """
+        return ScrewAxis(translation_per_unit_position=axis)
+
+    @classmethod
+    def create_helical_screw_axis(cls, *, axis: Vector3, pitch: float) -> ScrewAxis:
+        """
+        :param axis: The unit vector the child rotates about and translates along, in
+            the connection frame.
+        :param pitch: How far the child advances along ``axis`` per revolution, in
+            meters, as the `pitch of a single-start thread
+            <https://en.wikipedia.org/wiki/Screw_thread#Lead,_pitch,_and_starts>`__;
+            negative for a left-handed thread. Lynch and Park's pitch is per radian:
+            ``pitch / (2 * pi)``.
+        :return: The screw axis of a helical connection, such as a bottle cap's.
+        """
+        return ScrewAxis(
+            rotation_per_unit_position=axis,
+            translation_per_unit_position=axis * (pitch / (2 * np.pi)),
         )
-
-    def rotation_angle_for_travel_distance(self, travel_distance: float) -> float:
-        """
-        The rotation of the degree of freedom that translates the child by
-        ``travel_distance`` along ``axis``.
-
-        Allows expressing joint goals as travel distances, e.g. how far a cap should
-        move along its thread.
-
-        :param travel_distance: Signed translation along ``axis`` in meters.
-        :return: The signed rotation angle in radians.
-        """
-        return travel_distance * 2 * np.pi / self.screw_pitch
 
     @classmethod
     def create_with_dofs(
@@ -382,36 +300,114 @@ class ScrewConnection(ActiveConnection1DOF):
         multiplier: float = 1.0,
         offset: float = 0.0,
         dof_limits: DegreeOfFreedomLimits | None = None,
-        axis: Vector3 | None = None,
         dynamics: JointDynamics | None = None,
-        screw_pitch: float,
+        screw_axis: ScrewAxis,
     ) -> Self:
         """
-        Creates and returns a screw connection with its single degree of freedom.
+        Creates and returns a screw axis connection with its single degree of freedom
+        added to ``world``.
 
-        See :meth:`ActiveConnection1DOF.create_with_dofs`; additionally requires the
-        screw's ``screw_pitch``.
-
-        :param screw_pitch: The distance between adjacent threads along ``axis`` in
-            meters.
+        :param world: The world in which to add the degree of freedom.
+        :param parent: The parent kinematic structure entity.
+        :param child: The child kinematic structure entity.
+        :param name: Optional specific name for the connection. If not provided, a
+            default name is generated based on the parent and child.
+        :param parent_T_connection_expression: Constant pose of the connection relative
+            to its parent.
+        :param connection_T_child_expression: Constant pose of the child relative to the
+            connection.
+        :param multiplier: A scaling factor applied to the degree of freedom's motion.
+        :param offset: A constant offset applied to the degree of freedom's motion.
+        :param dof_limits: Optional limits for the generated degree of freedom.
+        :param dynamics: The dynamic properties of the joint. Frictionless and undamped
+            if None.
+        :param screw_axis: How the child's pose changes per unit of position, see
+            :attr:`screw_axis`.
         """
         name = name or cls._generate_default_name(parent=parent, child=child)
         dof = DegreeOfFreedom(name=PrefixedName("dof", str(name)), limits=dof_limits)
         world.add_degree_of_freedom(dof)
-        connection = cls(
+        return cls(
             name=name,
             parent=parent,
             child=child,
             parent_T_connection_expression=parent_T_connection_expression,
             connection_T_child_expression=connection_T_child_expression,
-            axis=axis,
             multiplier=multiplier,
             offset=offset,
             raw_dof=dof,
-            screw_pitch=screw_pitch,
             dynamics=dynamics or JointDynamics(),
+            screw_axis=screw_axis,
         )
-        return connection
+
+    def add_to_world(self, *, world: World):
+        """
+        Extends :meth:`WorldEntity.add_to_world` by building the motion along
+        :attr:`screw_axis` from the position.
+        """
+        super().add_to_world(world=world)
+
+        position = self.dof.variables.position
+        connection_V_child = self.screw_axis.translation_per_unit_position * position
+        self._kinematics = HomogeneousTransformationMatrix.from_xyz_axis_angle(
+            x=connection_V_child[0],
+            y=connection_V_child[1],
+            z=connection_V_child[2],
+            axis=self.screw_axis.unit_direction,
+            angle=self.screw_axis.rotation_per_unit_position.norm() * position,
+            child_frame=self.child,
+        )
+
+    def position_for_translation(self, *, distance: float) -> float:
+        """
+        :param distance: How far the child is to advance along the direction of the
+            screw axis, in meters; negative to move it back.
+        :return: The position at which the child has advanced ``distance`` from its pose
+            at position zero, which is also the change of position that advances it by
+            ``distance``.
+        :raises ScrewAxisWithoutTranslationError: if the child only rotates.
+        """
+        if not self._translates_child:
+            raise ScrewAxisWithoutTranslationError(screw_axis=self.screw_axis)
+        translation_per_position = self.screw_axis.translation_per_unit_position.dot(
+            self.screw_axis.unit_direction
+        )
+        return distance / float(translation_per_position)
+
+    @property
+    def behaves_like_a_revolute_connection(self) -> bool:
+        """
+        Whether the child only rotates about the axis.
+        """
+        return self._rotates_child and not self._translates_child
+
+    @property
+    def behaves_like_a_prismatic_connection(self) -> bool:
+        """
+        Whether the child only translates along the axis.
+        """
+        return not self._rotates_child
+
+    @property
+    def behaves_like_a_screw_connection(self) -> bool:
+        """
+        Whether the child rotates about the axis and translates along it at once.
+        """
+        return self._rotates_child and self._translates_child
+
+    @property
+    def _rotates_child(self) -> bool:
+        """
+        Whether the position rotates the child.
+        """
+        return bool(np.any(self.screw_axis.rotation_per_unit_position))
+
+    @property
+    def _translates_child(self) -> bool:
+        """
+        Whether the position translates the child.
+        """
+        return bool(np.any(self.screw_axis.translation_per_unit_position))
 
 
 @dataclass(eq=False)
@@ -450,6 +446,10 @@ class Connection6DoF(Connection):
     """
 
     def add_to_world(self, *, world: World):
+        """
+        Extends :meth:`WorldEntity.add_to_world` by building the pose from the
+        translation and quaternion degrees of freedom.
+        """
         super().add_to_world(world=world)
         parent_P_child = Point3(
             x=self.x.variables.position,
@@ -689,6 +689,10 @@ class OmniDrive(WheeledDrive):
     """
 
     def add_to_world(self, *, world: World):
+        """
+        Extends :meth:`WorldEntity.add_to_world` by building the planar pose and the
+        velocity frames from the degrees of freedom.
+        """
         super().add_to_world(world=world)
         odom_T_bf = HomogeneousTransformationMatrix.from_xyz_rpy(
             x=self.x.variables.position,
@@ -840,6 +844,10 @@ class DifferentialDrive(WheeledDrive):
     """
 
     def add_to_world(self, *, world: World):
+        """
+        Extends :meth:`WorldEntity.add_to_world` by building the planar pose and the
+        velocity frames from the degrees of freedom.
+        """
         super().add_to_world(world=world)
         odom_T_bf = HomogeneousTransformationMatrix.from_xyz_rpy(
             x=self.x.variables.position,

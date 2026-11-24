@@ -35,10 +35,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Door,
 )
 from semantic_digital_twin.testing import *
-from semantic_digital_twin.world_description.connections import (
-    PrismaticConnection,
-    RevoluteConnection,
-)
+from semantic_digital_twin.world_description.connections import ScrewAxisConnection
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 from semantic_digital_twin.world_description.shape_collection import (
     BoundingBoxCollection,
@@ -308,8 +305,10 @@ def test_explain_inferred_semantic_annotations(apartment_world_copy):
     assert explanation is not None
     assert isinstance(explanation.query_root, SymbolicExpression)
     assert explanation.get_satisfied_conditions_as_string() == (
-        "HasCollisionGeometry (PrismaticConnection.child)"
-        "\nAND (FixedConnection.parent == PrismaticConnection.child)"
+        "ScrewAxisConnection.behaves_like_a_prismatic_connection"
+        " (ScrewAxisConnection)"
+        "\nAND HasCollisionGeometry (ScrewAxisConnection.child)"
+        "\nAND (FixedConnection.parent == ScrewAxisConnection.child)"
         "\nAND (FixedConnection.child == Handle.root)"
     )
     visualize = False
@@ -326,22 +325,26 @@ def test_verbalize_query_that_inferred_semantic_annotations(apartment_world_copy
         renderer=HierarchicalRenderer()
     ).verbalize(expression=explanation.query_root)
     assert verbalization_paragraph == (
-        "If the child of a PrismaticConnection has collision geometry,"
-        " the child of the PrismaticConnection is not part of a robot,"
-        " the parent of a FixedConnection is the child of the PrismaticConnection,"
+        "If a ScrewAxisConnection has"
+        " behaves_like_a_prismatic_connection,"
+        " the child of the ScrewAxisConnection has collision geometry,"
+        " the child of the ScrewAxisConnection is not part of a robot,"
+        " the parent of a FixedConnection is the child of the ScrewAxisConnection,"
         " the child of the FixedConnection is the root of a Handle,"
-        " then there's a Drawer whose root is the child of the PrismaticConnection,"
+        " then there's a Drawer whose root is the child of the ScrewAxisConnection,"
         " and whose handle is the Handle"
     )
     assert verbalization_hierarchical == (
         "If\n"
-        "  - the child of a PrismaticConnection has collision geometry\n"
-        "  - the child of the PrismaticConnection is not part of a robot\n"
-        "  - the parent of a FixedConnection is the child of the PrismaticConnection\n"
+        "  - a ScrewAxisConnection has"
+        " behaves_like_a_prismatic_connection\n"
+        "  - the child of the ScrewAxisConnection has collision geometry\n"
+        "  - the child of the ScrewAxisConnection is not part of a robot\n"
+        "  - the parent of a FixedConnection is the child of the ScrewAxisConnection\n"
         "  - the child of the FixedConnection is the root of a Handle\n"
         "then\n"
         "  there's a Drawer\n"
-        "    - whose root is the child of the PrismaticConnection\n"
+        "    - whose root is the child of the ScrewAxisConnection\n"
         "    - whose handle is the Handle"
     )
 
@@ -423,8 +426,13 @@ def test_kinematic_chain_with_root_equal_tip_has_no_connections():
     with world.modify_world():
         world.add_kinematic_structure_entity(root)
         world.add_kinematic_structure_entity(link)
-        joint = RevoluteConnection.create_with_dofs(
-            world=world, parent=root, child=link, axis=Vector3.Z(reference_frame=root)
+        joint = ScrewAxisConnection.create_with_dofs(
+            screw_axis=ScrewAxisConnection.create_revolute_screw_axis(
+                axis=Vector3.Z(reference_frame=root)
+            ),
+            world=world,
+            parent=root,
+            child=link,
         )
         world.add_connection(joint)
         chain = ReviewKinematicChain(
@@ -485,7 +493,7 @@ class DrawerWithSlidingHandle:
     Connects the world root to the case, so the whole drawer can be moved.
     """
 
-    handle_connection: PrismaticConnection
+    handle_connection: ScrewAxisConnection
     """
     Connects the case to the handle body, so the handle can be moved within the drawer.
     """
@@ -517,14 +525,16 @@ class DrawerWithSlidingHandle:
                 world=world, parent=root, child=case
             )
             world.add_connection(base_connection)
-            handle_connection = PrismaticConnection.create_with_dofs(
+            handle_connection = ScrewAxisConnection.create_with_dofs(
+                screw_axis=ScrewAxisConnection.create_prismatic_screw_axis(
+                    axis=Vector3.X(reference_frame=case)
+                ),
                 world=world,
                 parent=case,
                 child=handle_body,
                 parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=HANDLE_OFFSET_X, reference_frame=case
                 ),
-                axis=Vector3.X(reference_frame=case),
             )
             world.add_connection(handle_connection)
             world.add_semantic_annotation(handle)
@@ -659,7 +669,7 @@ def test_door_joint_is_the_revolute_connection_it_hangs_from_its_whole_on(
     )
 
     assert fridge_door.movable_joint is fridge_door.root.parent_connection
-    assert isinstance(fridge_door.movable_joint, RevoluteConnection)
+    assert fridge_door.movable_joint.behaves_like_a_revolute_connection
     assert fridge_door.movable_joint.parent is refrigerator.root
 
 
@@ -671,7 +681,7 @@ def test_drawer_joint_is_the_prismatic_connection_it_hangs_from_its_whole_on(
     )
 
     assert drawer.movable_joint is drawer.root.parent_connection
-    assert isinstance(drawer.movable_joint, PrismaticConnection)
+    assert drawer.movable_joint.behaves_like_a_prismatic_connection
 
 
 def test_a_drawer_built_with_rails_reports_how_far_it_stands_open(
