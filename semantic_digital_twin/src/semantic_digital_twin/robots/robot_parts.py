@@ -106,7 +106,7 @@ from semantic_digital_twin.world_description.connections import (
     ActiveConnection,
     ActiveConnection1DOF,
     FixedConnection,
-    PrismaticConnection,
+    ScrewAxisConnection,
     WheeledDrive,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import (
@@ -633,7 +633,10 @@ class RobotKinematicChain(
             child_pose = connection.child.global_pose
             dist = (
                 connection.dof.limits.upper.position
-                if isinstance(connection, PrismaticConnection)
+                if (
+                    isinstance(connection, ScrewAxisConnection)
+                    and connection.behaves_like_a_prismatic_connection
+                )
                 else parent_pose.position.euclidean_distance(child_pose.position)
             )
             length += dist
@@ -1294,6 +1297,21 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             < collision_manager.get_violated_distance(contact.body_a, contact.body_b)
             for contact in collision_manager.compute_collisions().contacts
             if contact.body_a in own_bodies or contact.body_b in own_bodies
+        )
+
+    @property
+    def is_within_an_external_buffer_zone(self) -> bool:
+        """
+        :return: Whether any body of this robot is closer to a body outside it than the
+            buffer-zone distance the active collision rules keep between the two.
+        """
+        own_bodies = set(self.bodies_with_collision)
+        collision_manager = self._world.collision_manager
+        return any(
+            contact.distance
+            < collision_manager.get_buffer_zone_distance(contact.body_a, contact.body_b)
+            for contact in collision_manager.compute_collisions().contacts
+            if (contact.body_a in own_bodies) != (contact.body_b in own_bodies)
         )
 
     @classmethod
