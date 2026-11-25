@@ -1,8 +1,9 @@
 name: Docs preview
 
 # Lives only on the fork's docs_preview branch, which is never opened as a pull request:
-# it publishes that branch's krrood_spatial_math book to the fork's GitHub Pages, at the
-# path the upstream site uses, so reviewers can read pages that are not merged yet.
+# it publishes that branch's semantic_digital_twin and krrood_spatial_math books to the
+# fork's GitHub Pages, at the paths the upstream site uses, so reviewers can read pages
+# that are not merged yet.
 on:
   push:
     branches:
@@ -15,7 +16,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-book:
+  to-lowercase:
+    runs-on: ubuntu-latest
+    outputs:
+      repo_lowercase: ${{ steps.lowercase.outputs.repository }}
+    steps:
+      - id: lowercase
+        run: |
+          echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}:jazzy" >> $GITHUB_OUTPUT
+
+  build-semantic-digital-twin-book:
+    needs: [to-lowercase]
+    uses: ./.github/workflows/build_doc_reusable.yml
+    with:
+      lib: semantic_digital_twin
+      doc_path: doc
+      artifact_name: semantic-digital-twin-doc
+      use_container: true
+      repo_lowercase: ${{ needs.to-lowercase.outputs.repo_lowercase }}
+
+  build-krrood-spatial-math-book:
     uses: ./.github/workflows/build_doc_reusable.yml
     with:
       lib: domain_models/krrood_spatial_math
@@ -23,7 +43,7 @@ jobs:
       artifact_name: krrood-spatial-math-doc
 
   deploy:
-    needs: [build-book]
+    needs: [build-semantic-digital-twin-book, build-krrood-spatial-math-book]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -32,15 +52,21 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Download the book
+      - name: Download the semantic_digital_twin book
+        uses: actions/download-artifact@v4
+        with:
+          name: semantic-digital-twin-doc
+          path: site/semantic_digital_twin
+
+      - name: Download the krrood_spatial_math book
         uses: actions/download-artifact@v4
         with:
           name: krrood-spatial-math-doc
           path: site/krrood_spatial_math
 
-      - name: Send the site's root to the book
+      - name: Send the site's root to the semantic_digital_twin book
         run: |
-          echo '<!doctype html><meta http-equiv="refresh" content="0; url=krrood_spatial_math/">' > site/index.html
+          echo '<!doctype html><meta http-equiv="refresh" content="0; url=semantic_digital_twin/">' > site/index.html
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3
