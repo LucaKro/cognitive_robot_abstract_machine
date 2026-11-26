@@ -2,6 +2,7 @@ import inspect
 import math
 
 import numpy as np
+from scipy.linalg import expm
 import pytest
 from numpy.testing import assert_allclose
 
@@ -12,7 +13,6 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from krrood.utils import recursive_subclasses
 from semantic_digital_twin.exceptions import (
-    ScrewAxisOffConnectionOriginError,
     ScrewAxisWithoutTranslationError,
     UnnormalizedScrewAxisError,
 )
@@ -225,7 +225,7 @@ def test_has_hardware_interface_reflects_any_active_dof(
     assert connection.has_hardware_interface
 
 
-# %% screw connection
+# %% helical connection
 
 
 def _add_screw_connection(
@@ -235,7 +235,7 @@ def _add_screw_connection(
     parent_T_connection_expression: HomogeneousTransformationMatrix | None = None,
 ) -> ScrewAxisConnection:
     """
-    Creates a screw connection about the z-axis and adds it to the world.
+    Creates a helical connection about the z-axis and adds it to the world.
     """
     world, parent, child = world_with_two_bodies
     with world.modify_world():
@@ -368,7 +368,7 @@ def test_screw_axis_connection_copy_with_new_parent_preserves_screw_axis(
     world_with_two_bodies,
 ):
     """
-    Re-parenting a screw connection keeps its screw axis and degree of freedom.
+    Re-parenting a helical connection keeps its screw axis and degree of freedom.
     """
     world, parent, child = world_with_two_bodies
     screw_pitch = 0.01
@@ -820,18 +820,29 @@ def test_screw_axis_connection_places_the_child_along_its_screw_axis(
     [
         pytest.param(1.0, 0.0, (True, False, False), id="revolute"),
         pytest.param(0.0, 1.0, (False, True, False), id="prismatic"),
-        pytest.param(1.0, 0.04, (False, False, True), id="screw"),
-        pytest.param(1.0, -0.04, (False, False, True), id="left-handed screw"),
+        pytest.param(1.0, 0.04, (False, False, True), id="helical"),
+        pytest.param(1.0, -0.04, (False, False, True), id="left-handed helical"),
+        pytest.param(
+            1.0, 1e-15, (True, False, False), id="rounding error of an advance"
+        ),
+        pytest.param(1.0, 2e-6, (False, False, True), id="finer than any thread"),
     ],
+)
+@pytest.mark.parametrize(
+    "direction",
+    [np.array([0.0, 0.0, 1.0]), np.array([0.48, 0.6, 0.64])],
+    ids=["vertical", "tilted"],
 )
 def test_screw_axis_connection_behaves_like_the_connection_its_screw_axis_describes(
     world_with_two_bodies,
     rotation_per_position,
     translation_per_position,
     expected_behaviour,
+    direction,
 ):
     """
-    Each screw axis makes the connection behave like exactly one connection type.
+    Each screw axis makes the connection behave like exactly one connection type,
+    whichever way it points.
     """
     world, parent, child = world_with_two_bodies
     with world.modify_world():
@@ -840,7 +851,7 @@ def test_screw_axis_connection_behaves_like_the_connection_its_screw_axis_descri
             parent=parent,
             child=child,
             screw_axis=_screw_axis_along(
-                np.array([0.0, 0.0, 1.0]),
+                direction,
                 rotation_per_position,
                 translation_per_position,
             ),
@@ -848,7 +859,7 @@ def test_screw_axis_connection_behaves_like_the_connection_its_screw_axis_descri
     assert (
         connection.behaves_like_a_revolute_connection,
         connection.behaves_like_a_prismatic_connection,
-        connection.behaves_like_a_screw_connection,
+        connection.behaves_like_a_helical_connection,
     ) == expected_behaviour
 
 
@@ -882,24 +893,208 @@ def test_screw_axis_connection_rejects_an_unnormalized_screw_axis(
         )
 
 
-def test_screw_axis_connection_rejects_a_screw_axis_off_the_connection_origin(
-    world_with_two_bodies,
+def _screw_axis_through(
+    *, point: np.ndarray, direction: np.ndarray, translation_per_radian: float
+) -> ScrewAxis:
+    """
+    :return: The normalized screw axis that turns about the line through ``point`` along
+        the unit vector ``direction`` and advances ``translation_per_radian`` along it.
+    """
+    return ScrewAxis(
+        rotation_per_unit_position=Vector3.from_iterable(direction),
+        translation_per_unit_position=Vector3.from_iterable(
+            -np.cross(direction, point) + translation_per_radian * direction
+        ),
+    )
+
+
+def _matrix_exponential_of(screw_axis: ScrewAxis, position: float) -> np.ndarray:
+    """
+    :return: The displacement along ``screw_axis`` by ``position``, as the matrix
+        exponential of its twist matrix.
+    """
+    entries = np.asarray(screw_axis.to_np()).astype(float).flatten()
+    rotation, translation = entries[:3], entries[3:6]
+    twist_matrix = np.zeros((4, 4))
+    twist_matrix[:3, :3] = [
+        [0.0, -rotation[2], rotation[1]],
+        [rotation[2], 0.0, -rotation[0]],
+        [-rotation[1], rotation[0], 0.0],
+    ]
+    twist_matrix[:3, 3] = translation
+    return expm(twist_matrix * position)
+
+
+@pytest.mark.parametrize(
+    "translation_per_radian", [0.0, 0.004 / (2 * np.pi)], ids=["revolute", "helical"]
+)
+def test_screw_axis_connection_turns_the_child_about_an_axis_off_the_connection_origin(
+    world_with_two_bodies, translation_per_radian
 ):
     """
-    A screw axis whose line misses the origin of the connection frame is refused: the
-    connection's fixed transforms place the axis.
+    A screw axis whose line misses the origin of the connection frame turns the child
+    about that line, as the matrix exponential of the screw axis says.
     """
     world, parent, child = world_with_two_bodies
-    with world.modify_world(), pytest.raises(ScrewAxisOffConnectionOriginError):
-        ScrewAxisConnection.create_with_dofs(
+    parent_T_connection = HomogeneousTransformationMatrix.from_xyz_rpy(
+        x=0.2, y=-0.3, z=0.5, yaw=0.7
+    )
+    connection_T_child = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.1, roll=0.3)
+    screw_axis = _screw_axis_through(
+        point=np.array([0.4, -0.1, 0.0]),
+        direction=np.array([0.0, 0.6, 0.8]),
+        translation_per_radian=translation_per_radian,
+    )
+    with world.modify_world():
+        connection = ScrewAxisConnection.create_with_dofs(
             world=world,
             parent=parent,
             child=child,
-            screw_axis=ScrewAxis(
-                rotation_per_unit_position=Vector3.Z(),
-                translation_per_unit_position=Vector3(0, -0.4, 0),
+            parent_T_connection_expression=parent_T_connection,
+            connection_T_child_expression=connection_T_child,
+            screw_axis=screw_axis,
+        )
+        world.add_connection(connection)
+
+    for position in [-1.0, 0.0, 0.5, 2.5]:
+        with world.modify_world():
+            world.state[connection.raw_dof.id].position = position
+        assert_allclose(
+            world.compute_forward_kinematics_np(parent, child),
+            parent_T_connection.to_np()
+            @ _matrix_exponential_of(screw_axis, position)
+            @ connection_T_child.to_np(),
+            atol=1e-12,
+        )
+
+
+@pytest.mark.parametrize(
+    "point, direction",
+    [
+        (np.array([0.4, 0.0, 0.0]), np.array([0.0, 0.0, 1.0])),
+        (np.array([0.6, 0.0, -0.45]), np.array([0.48, 0.6, 0.64])),
+    ],
+    ids=["vertical hinge", "tilted hinge"],
+)
+def test_a_hinge_off_the_connection_origin_behaves_like_a_revolute_connection(
+    world_with_two_bodies, point, direction
+):
+    """
+    The point at the frame's origin circles a hinge that misses it, which is no advance
+    along the axis, so the connection still behaves like a revolute one.
+    """
+    world, parent, child = world_with_two_bodies
+    with world.modify_world():
+        connection = ScrewAxisConnection.create_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            screw_axis=_screw_axis_through(
+                point=point, direction=direction, translation_per_radian=0.0
             ),
         )
+
+    assert connection.behaves_like_a_revolute_connection
+    assert not connection.behaves_like_a_helical_connection
+
+
+@pytest.mark.parametrize(
+    "translation_per_radian", [0.0, 0.004 / (2 * np.pi)], ids=["revolute", "helical"]
+)
+def test_moving_the_connection_frame_onto_the_axis_keeps_the_motion(
+    world_with_two_bodies, translation_per_radian
+):
+    """
+    Moving the connection frame onto the screw axis replaces the connection by one whose
+    axis passes through its frame's origin and that moves the child exactly as before,
+    under the same name and degree of freedom.
+    """
+    world, parent, child = world_with_two_bodies
+    with world.modify_world():
+        connection = ScrewAxisConnection.create_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=0.2, y=-0.3, z=0.5, yaw=0.7
+            ),
+            connection_T_child_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=0.1, roll=0.3
+            ),
+            screw_axis=_screw_axis_through(
+                point=np.array([0.4, -0.1, 0.0]),
+                direction=np.array([0.0, 0.6, 0.8]),
+                translation_per_radian=translation_per_radian,
+            ),
+        )
+        world.add_connection(connection)
+    positions = [-1.0, 0.0, 0.5, 2.5]
+    poses_before = []
+    for position in positions:
+        with world.modify_world():
+            world.state[connection.raw_dof.id].position = position
+        poses_before.append(world.compute_forward_kinematics_np(parent, child))
+    connection_count = len(world.connections)
+
+    moved = connection.move_connection_frame_onto_axis()
+
+    assert child.parent_connection is moved
+    assert moved.name == connection.name
+    assert moved.raw_dof is connection.raw_dof
+    assert moved.parent_T_connection_expression.reference_frame is parent
+    assert moved.connection_T_child_expression.child_frame is child
+    assert len(world.connections) == connection_count
+    assert_allclose(moved.connection_T_frame_on_axis.to_np(), np.eye(4), atol=1e-12)
+    assert float(moved.screw_axis.translation_per_radian) == pytest.approx(
+        translation_per_radian
+    )
+    for position, pose_before in zip(positions, poses_before):
+        with world.modify_world():
+            world.state[moved.raw_dof.id].position = position
+        assert_allclose(
+            world.compute_forward_kinematics_np(parent, child), pose_before, atol=1e-12
+        )
+
+
+@pytest.mark.parametrize(
+    "screw_axis",
+    [
+        ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z()),
+        ScrewAxisConnection.create_helical_screw_axis(axis=Vector3.Z(), pitch=0.004),
+        ScrewAxisConnection.create_prismatic_screw_axis(axis=Vector3.X()),
+    ],
+    ids=["revolute", "helical", "prismatic"],
+)
+def test_moving_the_connection_frame_of_a_connection_already_on_its_axis_changes_nothing(
+    world_with_two_bodies, screw_axis
+):
+    """
+    A connection whose screw axis passes through its frame's origin, as parsed joints
+    have it, or that only slides and so has no line to move onto, is left as it is,
+    without a model change.
+    """
+    world, parent, child = world_with_two_bodies
+    with world.modify_world():
+        connection = ScrewAxisConnection.create_with_dofs(
+            world=world,
+            parent=parent,
+            child=child,
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                x=0.2, yaw=0.7
+            ),
+            screw_axis=screw_axis,
+        )
+        world.add_connection(connection)
+    model_manager = world.get_world_model_manager()
+    version = model_manager.version
+    history = list(model_manager.model_modification_blocks)
+
+    moved = connection.move_connection_frame_onto_axis()
+
+    assert moved is connection
+    assert child.parent_connection is connection
+    assert model_manager.version == version
+    assert model_manager.model_modification_blocks == history
 
 
 # %% position for a translation along the screw axis

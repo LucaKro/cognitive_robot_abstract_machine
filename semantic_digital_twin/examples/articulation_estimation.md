@@ -154,7 +154,7 @@ def fit_figure(fit: ScrewMotionFit, title: str) -> go.Figure:
     direction = np.array(fit.screw_axis.unit_direction[:3].to_list())
     axis_point = (
         np.array(fit.screw_axis.axis_point_closest_to_origin[:3].to_list())
-        if fit.screw_axis.turns_body
+        if fit.screw_axis.turns_body()
         else observed[0]
     )
     axis_point = axis_point + direction * np.dot(observed.mean(axis=0) - axis_point, direction)
@@ -248,7 +248,7 @@ def table_row(name: str, fit: ScrewMotionFit) -> str:
     screw_axis = fit.screw_axis
     predicted = fit.predicted_parent_T_child_stack
     cells = [
-        f"{np.degrees(fit.positions[-1]) if screw_axis.turns_body else 0:.2f}°",
+        f"{np.degrees(fit.positions[-1]) if screw_axis.turns_body() else 0:.2f}°",
         f"{100 * np.linalg.norm(predicted[-1, :3, 3] - predicted[0, :3, 3]):.1f} cm",
         written_out(screw_axis.unit_direction[:3].to_list(), decimals=3),
         written_out(screw_axis.axis_point_closest_to_origin[:3].to_list(), decimals=2),

@@ -38,7 +38,7 @@ class PoseObservations:
     :class:`scipy.spatial.transform.RigidTransform` requires.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         :raises TooFewObservationsError: if fewer than
             :attr:`required_observation_count` poses are given.

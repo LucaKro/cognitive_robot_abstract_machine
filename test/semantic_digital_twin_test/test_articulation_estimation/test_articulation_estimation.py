@@ -381,7 +381,7 @@ def test_fit_of_an_exact_translation_does_not_turn(
         observations=motion.observe(noise=exact_observation, seed=0), noise=noise
     )
 
-    assert not fit.screw_axis.turns_body
+    assert not fit.screw_axis.turns_body()
     assert_allclose(
         fit.screw_axis.unit_direction[:3], motion.axis_direction_in_parent, atol=1e-9
     )
@@ -498,7 +498,7 @@ def test_created_connection_takes_the_fitted_screw_axis_as_it_is(
     assert_allclose(connection.screw_axis.rotation_per_unit_position[:3], rotation)
     expected_translation = (
         float(fit.screw_axis.translation_per_radian) * rotation
-        if fit.screw_axis.turns_body
+        if fit.screw_axis.turns_body()
         else fit.screw_axis.translation_per_unit_position.to_np()[:3]
     )
     assert_allclose(

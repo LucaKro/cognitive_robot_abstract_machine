@@ -296,7 +296,7 @@ class ScrewMotionFit:
     The position at each observation, zero at the first and positive at the last.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         :raises UnnormalizedScrewAxisError: if :attr:`screw_axis` is not normalized.
         """

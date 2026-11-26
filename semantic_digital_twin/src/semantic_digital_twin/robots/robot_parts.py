@@ -622,7 +622,8 @@ class RobotKinematicChain(
     def approximate_length(self) -> float:
         """
         Approximates the length of the kinematic chain by adding up  the distance
-        between each body pair along the chain. For Prismatic Connections the upper
+        between each body pair along the chain. For a :class:`ScrewAxisConnection` that
+        :attr:`~ScrewAxisConnection.behaves_like_a_prismatic_connection`, the upper
         limit of the connection is used, so the function returns the maximum length.
 
         :return: the approximate length of the kinematic chain
@@ -1297,6 +1298,21 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             < collision_manager.get_violated_distance(contact.body_a, contact.body_b)
             for contact in collision_manager.compute_collisions().contacts
             if contact.body_a in own_bodies or contact.body_b in own_bodies
+        )
+
+    @property
+    def is_within_an_external_buffer_zone(self) -> bool:
+        """
+        :return: Whether any body of this robot is closer to a body outside it than the
+            buffer-zone distance the active collision rules keep between the two.
+        """
+        own_bodies = set(self.bodies_with_collision)
+        collision_manager = self._world.collision_manager
+        return any(
+            contact.distance
+            < collision_manager.get_buffer_zone_distance(contact.body_a, contact.body_b)
+            for contact in collision_manager.compute_collisions().contacts
+            if (contact.body_a in own_bodies) != (contact.body_b in own_bodies)
         )
 
     @classmethod

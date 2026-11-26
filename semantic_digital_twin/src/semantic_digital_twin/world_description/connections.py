@@ -1,12 +1,20 @@
+"""
+The connections between kinematic structure entities: fixed ones, ones that move their
+child along a screw axis, ones with six degrees of freedom, and wheeled drives.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from uuid import UUID
 
+import krrood.symbolic_math.symbolic_math as sm
 import numpy as np
 from typing_extensions import TYPE_CHECKING, Self
+
+from krrood.patterns.classproperty import classproperty
 
 from semantic_digital_twin.world_description.connection_properties import (
     JointDynamics,
@@ -22,7 +30,6 @@ from semantic_digital_twin.world_description.world_entity import (
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.types import NpMatrix4x4
 from semantic_digital_twin.exceptions import (
-    ScrewAxisOffConnectionOriginError,
     ScrewAxisWithoutTranslationError,
     UnnormalizedScrewAxisError,
 )
@@ -30,6 +37,7 @@ from krrood_spatial_math.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
     Quaternion,
+    RotationMatrix,
     ScrewAxis,
     Vector3,
 )
@@ -221,37 +229,30 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 @dataclass(eq=False, kw_only=True)
 class ScrewAxisConnection(ActiveConnection1DOF):
     """
-    Moves the child along a screw axis through the origin of the connection frame, in
-    proportion to the position, so revolute, prismatic and helical connections differ
-    only in their :attr:`screw_axis`.
-
-    :attr:`parent_T_connection_expression` places the axis.
+    Moves the child along a screw axis, in proportion to the position, so revolute,
+    prismatic and helical connections differ only in their :attr:`screw_axis`, which may
+    lie anywhere in the connection frame, as `Screw axis connections
+    <https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/examples/screw_axis_connections.html>`__ explains.
     """
 
     screw_axis: ScrewAxis
     """
     How the child's pose changes per unit of position, in the connection frame,
-    normalized as Lynch and Park define a screw axis (`Modern Robotics, Definition 3.24
-    <https://hades.mech.northwestern.edu/images/7/7f/MR.pdf#page=122>`__), through the
-    frame's origin. For why it is normalized, see `Why the screw axis is normalized
-    <https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/examples/screw_axis_connections.html#why-the-screw-axis-is-normalized>`__.
+    `normalized <https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/examples/screw_axis_connections.html#why-the-screw-axis-is-normalized>`__
+    as in :cite:t:`lynch2017modern` (definition 3.24).
 
     .. warning:: Set it only before the connection is added to a world: a later
         assignment is not recorded, published or rolled back. Replace the connection.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         :raises UnnormalizedScrewAxisError: if :attr:`screw_axis` is not normalized,
             see :attr:`~krrood_spatial_math.spatial_types.ScrewAxis.is_normalized`.
-        :raises ScrewAxisOffConnectionOriginError: if the axis of :attr:`screw_axis`
-            misses the origin of the connection frame.
         """
         super().__post_init__()
         if not self.screw_axis.is_normalized:
             raise UnnormalizedScrewAxisError(screw_axis=self.screw_axis)
-        if not self.screw_axis.passes_through_origin:
-            raise ScrewAxisOffConnectionOriginError(screw_axis=self.screw_axis)
 
     @classmethod
     def create_revolute_screw_axis(cls, *, axis: Vector3) -> ScrewAxis:
@@ -276,10 +277,10 @@ class ScrewAxisConnection(ActiveConnection1DOF):
         :param axis: The unit vector the child rotates about and translates along, in
             the connection frame.
         :param pitch: How far the child advances along ``axis`` per revolution, in
-            meters, as the `pitch of a single-start thread
-            <https://en.wikipedia.org/wiki/Screw_thread#Lead,_pitch,_and_starts>`__;
-            negative for a left-handed thread. Lynch and Park's pitch is per radian:
-            ``pitch / (2 * pi)``.
+            meters, as the pitch of a single-start thread
+            :cite:p:`wikipedia_screw_thread` (section "Lead, pitch, and starts");
+            negative for a left-handed thread. The pitch of :cite:t:`lynch2017modern` is
+            per radian: ``pitch / (2 * pi)``.
         :return: The screw axis of a helical connection, such as a bottle cap's.
         """
         return ScrewAxis(
@@ -340,21 +341,37 @@ class ScrewAxisConnection(ActiveConnection1DOF):
             screw_axis=screw_axis,
         )
 
-    def add_to_world(self, *, world: World):
+    def add_to_world(self, *, world: World) -> None:
         """
         Extends :meth:`WorldEntity.add_to_world` by building the motion along
-        :attr:`screw_axis` from the position.
+        :attr:`screw_axis` from the position, as `The transformation matrix
+        <https://cram2.github.io/cognitive_robot_abstract_machine/semantic_digital_twin/examples/screw_axis_connections.html#the-transformation-matrix>`__
+        explains.
         """
         super().add_to_world(world=world)
 
         position = self.dof.variables.position
-        connection_V_child = self.screw_axis.translation_per_unit_position * position
-        self._kinematics = HomogeneousTransformationMatrix.from_xyz_axis_angle(
-            x=connection_V_child[0],
-            y=connection_V_child[1],
-            z=connection_V_child[2],
-            axis=self.screw_axis.unit_direction,
-            angle=self.screw_axis.rotation_per_unit_position.norm() * position,
+        rotation = self.screw_axis.rotation_per_unit_position
+        translation = self.screw_axis.translation_per_unit_position
+        sine = sm.sin(position)
+        one_minus_cosine = 1 - sm.cos(position)
+        turned_axes = [
+            axis
+            + rotation.cross(axis) * sine
+            + rotation.cross(rotation.cross(axis)) * one_minus_cosine
+            for axis in (Vector3.X(), Vector3.Y(), Vector3.Z())
+        ]
+        rotation_cross_translation = rotation.cross(translation)
+        connection_V_child = (
+            translation * position
+            + rotation_cross_translation * one_minus_cosine
+            + rotation.cross(rotation_cross_translation) * (position - sine)
+        )
+        self._kinematics = HomogeneousTransformationMatrix.from_point_rotation_matrix(
+            point=connection_V_child.point3,
+            rotation_matrix=RotationMatrix(
+                data=sm.hstack([*turned_axes, Point3(0, 0, 0)])
+            ),
             child_frame=self.child,
         )
 
@@ -365,9 +382,9 @@ class ScrewAxisConnection(ActiveConnection1DOF):
         :return: The position at which the child has advanced ``distance`` from its pose
             at position zero, which is also the change of position that advances it by
             ``distance``.
-        :raises ScrewAxisWithoutTranslationError: if the child only rotates.
+        :raises ScrewAxisWithoutTranslationError: if the child does not advance.
         """
-        if not self.screw_axis.moves_point_at_origin:
+        if not self._advances_child:
             raise ScrewAxisWithoutTranslationError(screw_axis=self.screw_axis)
         translation_per_position = self.screw_axis.translation_per_unit_position.dot(
             self.screw_axis.unit_direction
@@ -375,25 +392,128 @@ class ScrewAxisConnection(ActiveConnection1DOF):
         return distance / float(translation_per_position)
 
     @property
+    def connection_T_frame_on_axis(self) -> HomogeneousTransformationMatrix:
+        """
+        The pose, relative to the connection frame, of the frame of the same orientation
+        whose origin is the point of the screw axis closest to the connection frame's
+        origin; the connection frame itself for an axis through that origin, or for a
+        child that does not rotate, whose axis has no line.
+        """
+        return HomogeneousTransformationMatrix.from_point_rotation_matrix(
+            point=self.screw_axis.axis_point_closest_to_origin
+        )
+
+    def move_connection_frame_onto_axis(self) -> Self:
+        """
+        Replaces this connection, in its world, by one whose connection frame lies on the
+        screw axis, as parsed joints have it, and which moves the child exactly as this
+        one does: :attr:`parent_T_connection_expression` moves by
+        :attr:`connection_T_frame_on_axis`, :attr:`connection_T_child_expression` by its
+        inverse, and the screw axis keeps its direction and its pitch through the moved
+        frame's origin. The replacement keeps the name and the degree of freedom. A
+        connection whose screw axis already passes through its frame's origin is left as
+        it is, without a model change.
+
+        :return: The replacement, or this connection if it is left as it is.
+        """
+        if self.screw_axis.passes_through_origin:
+            return self
+        world = self._world
+        connection_T_frame_on_axis = self.connection_T_frame_on_axis
+        rotation = self.screw_axis.rotation_per_unit_position
+        moved = replace(
+            self,
+            name=PrefixedName(self.name.name, prefix=self.name.prefix),
+            parent_T_connection_expression=self.parent_T_connection_expression
+            @ connection_T_frame_on_axis,
+            connection_T_child_expression=connection_T_frame_on_axis.inverse()
+            @ self.connection_T_child_expression,
+            screw_axis=ScrewAxis(
+                rotation_per_unit_position=rotation,
+                translation_per_unit_position=rotation
+                * self.screw_axis.translation_per_radian,
+                reference_frame=self.screw_axis.reference_frame,
+            ),
+            simulator_additional_properties=deepcopy(
+                self.simulator_additional_properties
+            ),
+        )
+        with world.modify_world():
+            world.remove_connection(self)
+            world.add_connection(moved)
+        return moved
+
+    @classproperty
+    def smallest_rotation_per_unit_position(cls) -> float:
+        """
+        Radians per unit of position up to which the child counts as not rotating.
+
+        A normalized screw axis rotates the child by one radian per unit of position or
+        not at all, so this only absorbs rounding errors, up to the same tolerance as
+        the normalization.
+        """
+        return ScrewAxis.normalization_tolerance
+
+    @classproperty
+    def smallest_advance_per_radian(cls) -> float:
+        """
+        Meters per radian below which a rotating child counts as not advancing along the
+        axis: a micrometer, about 6 micrometers per revolution, far below the pitch of any
+        thread and far above rounding errors, such as those of a screw axis estimated
+        from observed poses.
+        """
+        return 1e-6
+
+    @property
     def behaves_like_a_revolute_connection(self) -> bool:
         """
-        Whether the child only rotates about the axis.
+        Whether the child only rotates about the axis, advancing along it by less than
+        :attr:`smallest_advance_per_radian`.
         """
-        return self.screw_axis.turns_body and not self.screw_axis.moves_point_at_origin
+        return self._rotates_child and not self._advances_child
 
     @property
     def behaves_like_a_prismatic_connection(self) -> bool:
         """
-        Whether the child only translates along the axis.
+        Whether the child only translates along the axis, rotating by no more than
+        :attr:`smallest_rotation_per_unit_position`.
         """
-        return not self.screw_axis.turns_body
+        return not self._rotates_child
 
     @property
-    def behaves_like_a_screw_connection(self) -> bool:
+    def behaves_like_a_helical_connection(self) -> bool:
         """
-        Whether the child rotates about the axis and translates along it at once.
+        Whether the child rotates about the axis and advances along it at once, by at
+        least :attr:`smallest_advance_per_radian`, as a thread does.
         """
-        return self.screw_axis.turns_body and self.screw_axis.moves_point_at_origin
+        return self._rotates_child and self._advances_child
+
+    @property
+    def _rotates_child(self) -> bool:
+        """
+        Whether the position rotates the child by more than
+        :attr:`smallest_rotation_per_unit_position`.
+        """
+        return self.screw_axis.turns_body(
+            tolerance=self.smallest_rotation_per_unit_position
+        )
+
+    @property
+    def _advances_child(self) -> bool:
+        """
+        Whether the child advances along the axis: by at least
+        :attr:`smallest_advance_per_radian` per radian if it rotates, and always if it
+        does not, since its normalized screw axis then only translates it.
+
+        Unlike whether the point at the frame's origin moves, this holds wherever the
+        axis lies.
+        """
+        if not self._rotates_child:
+            return True
+        return bool(
+            abs(float(self.screw_axis.translation_per_radian))
+            >= self.smallest_advance_per_radian
+        )
 
 
 @dataclass(eq=False)
