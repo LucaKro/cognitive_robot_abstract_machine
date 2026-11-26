@@ -38,6 +38,7 @@ from experiments.warsaw.pipeline.asking import (
     Prompt,
     Question,
     Questioner,
+    StoredClasses,
     TaxonomyCategories,
 )
 from experiments.warsaw.pipeline.label_classes import VocabularyClasses
@@ -187,6 +188,8 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
         wanted = {str(segment.name) for segment in self.rendered.segments}
         problems = self.problems_with_names(answer)
         categories = TaxonomyCategories(taxonomy=self.taxonomy)
+        in_the_taxonomy = {node["name"] for node in self.taxonomy["classes"]}
+        stored = StoredClasses()
         for name, one in answer.items():
             if name not in wanted:
                 continue
@@ -206,6 +209,13 @@ class BodyGroupQuestion(Question[Dict[str, BodyAnswer]]):
                     one.class_name, one.is_new_class
                 )
             )
+            if one.class_name not in in_the_taxonomy:
+                problems.extend(
+                    f"{name}: {problem}"
+                    for problem in stored.problems_with(
+                        one.class_name, one.is_new_class
+                    )
+                )
         return problems
 
 

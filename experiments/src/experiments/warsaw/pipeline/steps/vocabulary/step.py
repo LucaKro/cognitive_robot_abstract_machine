@@ -42,6 +42,7 @@ from krrood.ormatic.utils import classproperty
 from experiments.warsaw.pipeline.asking import (
     Prompt,
     QuestionAboutTheOntology,
+    StoredClasses,
     TaxonomyCategories,
 )
 from experiments.warsaw.pipeline.records import (
@@ -246,12 +247,9 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
 
     def problems_with(self, answer: LabelAnswer) -> List[str]:
         """
-        Say what is wrong with an answer, if anything.
-
-        An answer is only worth as much as it is usable: a class name that is not in the
-        ontology, or a composition that cannot be built, would come back as an unmapped
-        label two steps later, where it would look like the scene's fault rather than the
-        answer's.
+        Say what is wrong with an answer, if anything: a class that is not in the
+        ontology, or a proposal that cannot be built or stored, would otherwise surface
+        steps later as the scene's fault rather than the answer's.
 
         :param answer: What the model said.
         :return: One sentence per problem, empty when there are none.
@@ -289,6 +287,8 @@ class LabelQuestion(QuestionAboutTheOntology[LabelAnswer]):
             problems.append(
                 f"{answer.class_name} is proposed as new but is already in the taxonomy"
             )
+        else:
+            problems.extend(StoredClasses().problems_with(answer.class_name, True))
         if answer.superclass not in self.known:
             problems.append(
                 f"the superclass {answer.superclass!r} is not in the taxonomy"

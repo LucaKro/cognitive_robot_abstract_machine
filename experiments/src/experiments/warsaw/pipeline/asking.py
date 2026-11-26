@@ -38,6 +38,7 @@ from typing_extensions import Any, Dict, Generic, List, Sequence, Set, Type, Typ
 from krrood.ormatic.utils import classproperty
 
 from experiments.warsaw.bases import HasLogger
+from experiments.warsaw.pipeline.database.world_store import WorldStore
 from experiments.warsaw.pipeline.model_calls import ModelCallPart, ModelCallTrace
 from experiments.warsaw.pipeline.templates import PipelineTemplates
 
@@ -285,6 +286,44 @@ class TaxonomyCategories:
             f"{class_name} is a category, so it says what kind of thing this is rather "
             f"than what it is; propose the kind as a new class with {class_name} as its "
             f"superclass instead of answering with it"
+        ]
+
+
+# %% the names a proposed class may not take
+
+
+@dataclass
+class StoredClasses:
+    """
+    The classes the database stores, ontology or not. It keeps each in a table named
+    after the class alone, so a proposed class sharing a name with any of them leaves an
+    ORM nothing can import.
+    """
+
+    classes: Dict[str, Type] = field(
+        default_factory=lambda: WorldStore().stored_classes()
+    )
+    """
+    The stored classes by name.
+    """
+
+    def problems_with(self, class_name: str, is_new_class: bool) -> List[str]:
+        """
+        Say whether a proposed class takes a name the database already stores a class
+        under.
+
+        :param class_name: The class answered.
+        :param is_new_class: Whether that class was proposed rather than taken from the
+            taxonomy.
+        :return: One sentence when the name is taken, empty otherwise.
+        """
+        if not is_new_class or class_name not in self.classes:
+            return []
+        taken = self.classes[class_name]
+        return [
+            f"{class_name} is already the name of {taken.__module__}."
+            f"{taken.__qualname__}, and no two classes may share a name; propose a "
+            f"name that says what this is instead"
         ]
 
 

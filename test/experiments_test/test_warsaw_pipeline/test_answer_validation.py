@@ -19,6 +19,8 @@ from semantic_digital_twin.semantic_annotations.taxonomy_export import (
     build_taxonomy,
     declares_itself_a_category,
 )
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Container
+from semantic_digital_twin.world_description.geometry import Box
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 from experiments.warsaw.pipeline.records import (
@@ -271,6 +273,24 @@ def test_a_class_the_ontology_already_has_is_not_proposed_as_new(label_question)
     )
 
     assert any("already in the taxonomy" in one for one in problems)
+
+
+def test_a_proposal_named_like_a_stored_class_outside_the_ontology_is_refused(
+    label_question,
+):
+    """
+    The database stores every class under its bare name, so a proposal sharing it with a
+    class outside the ontology, as a container named like the shape :class:`Box` did,
+    leaves an ORM nothing can import.
+    """
+    problems = label_question.problems_with(
+        LabelAnswer(
+            class_name=Box.__name__, is_new_class=True, superclass=Container.__name__
+        )
+    )
+
+    assert len(problems) == 1
+    assert Box.__module__ in problems[0]
 
 
 # %% alternatives a label may be answered with
@@ -607,6 +627,27 @@ def test_a_body_given_a_new_class_of_a_category_is_usable(
         )
         == []
     )
+
+
+def test_a_body_given_a_new_class_named_like_a_stored_class_is_refused(body_group):
+    """
+    A body may be given a class of its own here, and that class is stored under its bare
+    name like a label's.
+    """
+    problems = body_group.problems_with(
+        {
+            "drawer_19": BodyAnswer(
+                class_name=Box.__name__,
+                is_new_class=True,
+                superclass=Container.__name__,
+            ),
+            "handle_23": BodyAnswer(class_name="Handle"),
+        }
+    )
+
+    assert len(problems) == 1
+    assert "drawer_19" in problems[0]
+    assert Box.__module__ in problems[0]
 
 
 # %% choosing among the classes a label was left open between

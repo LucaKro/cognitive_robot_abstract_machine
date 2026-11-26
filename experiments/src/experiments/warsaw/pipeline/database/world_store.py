@@ -18,8 +18,9 @@ from dataclasses import dataclass
 from functools import cached_property
 from types import ModuleType
 
+from krrood.ormatic.data_access_objects.dao import DataAccessObject
 from krrood.ormatic.utils import create_engine
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING, Dict, Type
 
 from experiments.warsaw.exceptions import (
     DatabaseNotConfiguredError,
@@ -57,6 +58,18 @@ class WorldStore:
         import semantic_digital_twin.orm.ormatic_interface as ormatic_interface
 
         return ormatic_interface
+
+    def stored_classes(self) -> Dict[str, Type]:
+        """
+        :return: Every class the generated interface maps, ontology or not, by its name,
+            which is also what its table is named after.
+        """
+        mapped = [
+            mapper.class_.original_class()
+            for mapper in self.mappings().Base.registry.mappers
+            if issubclass(mapper.class_, DataAccessObject)
+        ]
+        return {stored.__name__: stored for stored in mapped}
 
     @cached_property
     def engine(self) -> Engine:
