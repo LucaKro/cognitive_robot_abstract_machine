@@ -32,7 +32,7 @@ from probabilistic_model.probabilistic_circuit.tensorized.array_types import (
     SampleArray,
     SampleValues,
 )
-from probabilistic_model.learning.gradient_descent import (
+from probabilistic_model.learning.parameters.gradient_descent.gradient_descent import (
     AverageNegativeLogLikelihood,
     Loss,
 )
@@ -309,7 +309,8 @@ class LayeredProbabilisticCircuit(GroundableCircuit[LayerNode], DataclassDeepcop
             structure.
         """
         return self.__class__(
-            self.variables, self.root.copy_with_circuit_parameters(parameters)
+            self.variables,
+            self.root.copy_with_circuit_parameters(parameters=parameters),
         )
 
     def to_namespace(
@@ -361,13 +362,15 @@ class LayeredProbabilisticCircuit(GroundableCircuit[LayerNode], DataclassDeepcop
         :return: This circuit.
         """
         # jax is optional, see the core boundary in pyproject.toml
-        from probabilistic_model.learning.jax_gradient_descent import JaxGradientDescent
+        from probabilistic_model.learning.parameters.gradient_descent.jax_gradient_descent import (
+            JaxGradientDescent,
+        )
 
         self.root = JaxGradientDescent(
-            self.root,
-            AverageNegativeLogLikelihood() if loss is None else loss,
-            optimizer,
-        ).minimize(epochs, self.encoded(data))
+            layer=self.root,
+            loss=AverageNegativeLogLikelihood() if loss is None else loss,
+            optimizer=optimizer,
+        ).minimize(self.encoded(data), epochs=epochs)
         return self
 
     def raise_if_parameters_are_not_on_host(self):
@@ -489,7 +492,7 @@ class LayeredProbabilisticCircuit(GroundableCircuit[LayerNode], DataclassDeepcop
         if event.is_empty():
             return LogTruncation.impossible()
 
-        event.fill_missing_variables(set(self.variables))
+        event.fill_missing_variables(variables=set(self.variables))
 
         if len(event.simple_sets) == 1:
             return self.log_truncated_of_simple_event_in_place(
@@ -862,7 +865,7 @@ class LayeredProbabilisticCircuit(GroundableCircuit[LayerNode], DataclassDeepcop
             VariableMap(
                 {
                     variable: type(variable)(
-                        f"{prefix}.{variable.name}", domain=variable.domain
+                        name=f"{prefix}.{variable.name}", domain=variable.domain
                     )
                     for variable in self.variables
                     if variable not in excluded_variables
@@ -945,7 +948,7 @@ class LayeredProbabilisticCircuit(GroundableCircuit[LayerNode], DataclassDeepcop
             MixtureOverVariable(
                 LayerNode(layer, mixing.node),
                 variable,
-                [support.marginal([variable]) for support in mixing.supports],
+                [support.marginal(variables=[variable]) for support in mixing.supports],
             )
             for mixing in layer.component_supports(self.variables, cache=cache)
             if mixing.mixes()
@@ -1039,7 +1042,7 @@ class LayeredProbabilisticCircuit(GroundableCircuit[LayerNode], DataclassDeepcop
         self.root = self.root.marginal(kept, cache=cache)
         return [
             LayerNode(
-                cache.result_of(ProductLayer.marginal, node.layer),
+                cache.result_of(query=ProductLayer.marginal, layer=node.layer),
                 int(np.cumsum(node.layer.nodes_over(kept=kept, cache=cache))[node.node])
                 - 1,
             )

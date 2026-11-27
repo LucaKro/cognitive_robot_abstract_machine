@@ -11,7 +11,7 @@ from random_events.variable import Continuous
 from sortedcontainers import SortedSet
 
 from experiments.circuit_learning.measurements import ChunkedLogLikelihoodEvaluation
-from probabilistic_model.learning.region_graph.region_graph import RegionGraph
+from probabilistic_model.learning.structure.region_graph.region_graph import RegionGraph
 
 # %% jax circuits
 
@@ -21,7 +21,7 @@ def test_chunked_log_likelihoods_of_a_jax_circuit_are_those_of_its_host_circuit(
     A jax circuit evaluated in chunks, the last one shorter, gives every row the log-
     likelihood its numpy circuit gives it.
     """
-    variables = SortedSet([Continuous(f"x{index}") for index in range(4)])
+    variables = SortedSet([Continuous(name=f"x{index}") for index in range(4)])
     host = (
         RegionGraph(variables=variables, depth=1, repetitions=2)
         .create_random_region_graph()

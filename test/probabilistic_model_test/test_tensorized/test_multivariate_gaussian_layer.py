@@ -34,7 +34,7 @@ from probabilistic_model.distributions.truncated_multivariate_gaussian import (
     MomentIntegration,
 )
 from probabilistic_model.exceptions import NoClosedFormError
-from probabilistic_model.learning.gaussian_mixture.gaussian_mixture_model import (
+from probabilistic_model.learning.structure.gaussian_mixture.gaussian_mixture_model import (
     GaussianMixtureModel,
 )
 from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
@@ -281,7 +281,7 @@ def test_probability_of_a_box(any_circuit, numerical_integration_tolerance, x, y
     event = SimpleEvent.from_data(
         {x: closed(-1.0, 2.0), y: closed(0.0, 1.5), z: closed(0.2, 2.0)}
     )
-    event.fill_missing_variables(set(any_circuit.variables))
+    event.fill_missing_variables(variables=set(any_circuit.variables))
     assert RustworkxCircuitToLayeredCircuitConverter.convert(
         any_circuit
     ).probability_of_simple_event(event) == pytest.approx(
@@ -909,7 +909,7 @@ def test_renaming_that_reorders_the_variables(gaussian_mixture, x, y):
     expected = layered.log_likelihood(events=samples)
 
     # a name that sorts after y moves x to the last column
-    renamed_x = Continuous("z_x")
+    renamed_x = Continuous(name="z_x")
     layered.update_variables(VariableMap({x: renamed_x}))
     assert list(layered.variables) == [y, renamed_x]
     np.testing.assert_allclose(

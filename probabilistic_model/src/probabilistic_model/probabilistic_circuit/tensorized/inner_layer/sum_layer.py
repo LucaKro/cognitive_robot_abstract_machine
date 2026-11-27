@@ -11,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 from random_events.product_algebra import Event, SimpleEvent
 from sortedcontainers import SortedSet
-from typing_extensions import Iterable, Self
+from typing_extensions import TYPE_CHECKING, Iterable, Self
 
 from probabilistic_model.exceptions import ShapeMismatchError
 from probabilistic_model.probabilistic_model import PartialPointType
@@ -675,7 +675,7 @@ class SumLayer(HasParameterArrays, InnerLayer):
         :return: Whether no two of the events intersect.
         """
         return all(
-            event.intersection_with(other).is_empty()
+            event.intersection_with(other=other).is_empty()
             for index, event in enumerate(events)
             for other in events[index + 1 :]
         )

@@ -33,8 +33,10 @@ from krrood.exceptions import DataclassException
 from probabilistic_model.adapters.rustworkx_tensorized.rustworkx_to_tensorized import (
     RustworkxCircuitToLayeredCircuitConverter,
 )
-from probabilistic_model.learning.jpt.jpt import JointProbabilityTree
-from probabilistic_model.learning.jpt.variables import infer_variables_from_dataframe
+from probabilistic_model.learning.structure.jpt.jpt import JointProbabilityTree
+from probabilistic_model.learning.structure.jpt.variables import (
+    infer_variables_from_dataframe,
+)
 from probabilistic_model.probabilistic_circuit.tensorized.layered_probabilistic_circuit import (
     LayeredProbabilisticCircuit,
 )
@@ -157,10 +159,10 @@ def staircase_of_boxes(
         box = SimpleEvent.from_data(
             {
                 first: SimpleInterval.from_data(
-                    first_edges[index], first_edges[index + 1]
+                    lower=first_edges[index], upper=first_edges[index + 1]
                 ).as_composite_set(),
                 second: SimpleInterval.from_data(
-                    second_edges[index], second_edges[index + 1]
+                    lower=second_edges[index], upper=second_edges[index + 1]
                 ).as_composite_set(),
             }
         ).as_composite_set()

@@ -23,7 +23,7 @@ from probabilistic_model.adapters.rustworkx_tensorized.tensorized_to_rustworkx i
     LayeredCircuitToRustworkxCircuitConverter,
 )
 from probabilistic_model.distributions.gaussian import GaussianDistribution
-from probabilistic_model.learning.region_graph.region_graph import RegionGraph
+from probabilistic_model.learning.structure.region_graph.region_graph import RegionGraph
 from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
     ProbabilisticCircuit as RustworkxProbabilisticCircuit,
     ProductUnit,
@@ -131,7 +131,7 @@ def test_region_graph_circuit_converts_into_the_same_rustworkx_distribution(
     A layered circuit of a region graph converted into a rustworkx circuit has its
     likelihood.
     """
-    variables = SortedSet(Continuous(name) for name in "wxyz")
+    variables = SortedSet(Continuous(name=name) for name in "wxyz")
     layered = (
         RegionGraph(variables=variables, partitions=2, depth=1, repetitions=2)
         .create_random_region_graph()
