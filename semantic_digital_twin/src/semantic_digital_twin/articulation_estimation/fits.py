@@ -9,7 +9,6 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 import numpy.typing as npt
-from scipy.optimize import least_squares
 from scipy.spatial.transform import RigidTransform, Rotation
 from typing_extensions import TYPE_CHECKING, Self
 
@@ -20,9 +19,21 @@ from krrood_spatial_math.spatial_types import (
     Vector3,
 )
 from semantic_digital_twin.exceptions import UnnormalizedScrewAxisError
+from semantic_digital_twin.articulation_estimation.lie_group_derivatives import (
+    ExponentialCoordinateStack,
+    RotationVectorStack,
+    TransformationStack,
+    Vector3Stack,
+)
 from semantic_digital_twin.articulation_estimation.observations import (
     ObservationNoise,
     PoseObservations,
+)
+from semantic_digital_twin.articulation_estimation.refinement import (
+    LinearizedPoseErrors,
+    ScrewMotionRefinement,
+    ScrewMotionStep,
+    SoftL1Loss,
 )
 from semantic_digital_twin.world_description.connections import ScrewAxisConnection
 
@@ -60,17 +71,6 @@ class ScrewMotionParameters:
     """
 
     @classproperty
-    def negligible_rotation(cls) -> float:
-        r"""
-        The rotation over the observed positions, in radians, below which
-        :meth:`copy_with_normalized_screw_axis` takes the child not to turn at all:
-
-        :math:`10^3 \varepsilon \approx 2 \cdot 10^{-13}`, with :math:`\varepsilon` the
-        machine epsilon, so that only round-off falls below it.
-        """
-        return 1e3 * np.finfo(np.float64).eps
-
-    @classproperty
     def outlier_threshold(cls) -> float:
         """
         The error, in standard deviations, beyond which an error counts as an outlier,
@@ -82,21 +82,33 @@ class ScrewMotionParameters:
     @classproperty
     def sampled_pair_count(cls) -> int:
         """
-        The most pairs of observations :meth:`initial_guess` tries: 30.
+        The most pairs of observations :meth:`initial_guesses` tries: 30.
         """
         return 30
 
-    @classmethod
-    def initial_guess(
-        cls, *, observations: PoseObservations, noise: ObservationNoise
-    ) -> Self:
+    @classproperty
+    def refined_guess_count(cls) -> int:
         """
+        How many of the best :meth:`initial_guesses` the fit refines: 3.
+
+        On recorded motions with many outliers, the best guess alone often led to a
+        worse minimum.
+        """
+        return 3
+
+    @classmethod
+    def initial_guesses(
+        cls, *, observations: PoseObservations, noise: ObservationNoise, count: int
+    ) -> list[Self]:
+        """
+        :param count: How many guesses to return.
         :return: Of the guesses :meth:`guess_from_pair` makes for pairs of observations,
-            the one whose errors, each capped at :attr:`outlier_threshold`, are smallest.
-            It tries every pair, or :attr:`sampled_pair_count` of them, drawn with a
-            fixed seed so that the fit is reproducible. A pair that includes an outlier
-            gives a poor guess and loses, and a pair less than half a revolution apart
-            gives an exact one for observations without noise.
+            the ``count`` whose errors, each capped at :attr:`outlier_threshold`, are
+            smallest, the smallest first. It tries every pair, or
+            :attr:`sampled_pair_count` of them, drawn with a fixed seed so that the fit
+            is reproducible. A pair that includes an outlier gives a poor guess and
+            loses, and a pair less than half a revolution apart gives an exact one for
+            observations without noise.
         """
         first_indices, second_indices = np.triu_indices(
             len(observations.parent_T_child_stack), k=1
@@ -118,7 +130,7 @@ class ScrewMotionParameters:
             )
             for first_index, second_index in zip(first_indices, second_indices)
         ]
-        return min(
+        return sorted(
             guesses,
             key=lambda guess: np.sum(
                 np.minimum(
@@ -130,7 +142,7 @@ class ScrewMotionParameters:
                     cls.outlier_threshold**2,
                 )
             ),
-        )
+        )[:count]
 
     @classmethod
     def guess_from_pair(
@@ -187,57 +199,109 @@ class ScrewMotionParameters:
             / noise.exponential_coordinate_standard_deviations
         )
 
-    @property
-    def free_parameters(self) -> npt.NDArray[np.float64]:
+    def linearized_errors(
+        self, *, observations: PoseObservations, noise: ObservationNoise
+    ) -> LinearizedPoseErrors:
+        r"""
+        :param observations: The observed poses.
+        :param noise: The noise they carry.
+        :return: The standardized errors of the predicted poses and their exact
+            derivatives. A twist :math:`\delta` that moves a predicted pose in the parent
+            frame changes its position errors by :math:`t \times \delta_\omega -
+            \delta_v` and its orientation errors by :math:`-J^{-1}(e) R^T \delta_\omega`,
+            with :math:`t, R` the predicted position and orientation and :math:`e` the
+            orientation error. A position moves the pose by :math:`S`, the screw axis by
+            the left Jacobian of :math:`\theta S` times :math:`\theta`.
         """
-        The numbers the optimizer varies, as one vector: the rotation vector and the
-        position of :attr:`reference_parent_T_child`, the positions between the first
-        and the last, and :attr:`screw_axis_entries`.
-
-        The first position is zero and the last fixed, see
-        :meth:`copy_with_free_parameters`.
-        """
-        return np.concatenate(
-            [
-                Rotation.from_matrix(self.reference_parent_T_child[:3, :3]).as_rotvec(),
-                self.reference_parent_T_child[:3, 3],
-                self.positions[1:-1],
-                self.screw_axis_entries,
-            ]
+        exponential_coordinates = np.outer(self.positions, self.screw_axis_entries)
+        displacements = RigidTransform.from_exp_coords(
+            exponential_coordinates
+        ).as_matrix()
+        predicted_stack = displacements @ self.reference_parent_T_child
+        errors = noise.standardized_pose_errors(
+            observed_stack=observations.parent_T_child_stack,
+            predicted_stack=predicted_stack,
+        ).reshape(-1, 6)
+        twist_jacobians = np.zeros((len(self.positions), 6, 6))
+        twist_jacobians[:, :3, :3] = Vector3Stack(
+            entries=predicted_stack[:, :3, 3]
+        ).skew_symmetric_matrices
+        twist_jacobians[:, :3, 3:] = -np.eye(3)
+        twist_jacobians[:, 3:, :3] = -RotationVectorStack(
+            entries=errors[:, 3:] * noise.orientation_standard_deviation
+        ).inverse_left_jacobians @ np.swapaxes(predicted_stack[:, :3, :3], 1, 2)
+        twist_jacobians /= np.repeat(
+            [noise.position_standard_deviation, noise.orientation_standard_deviation], 3
+        )[:, None]
+        return LinearizedPoseErrors(
+            errors=errors,
+            reference_pose_jacobians=twist_jacobians
+            @ TransformationStack(matrices=displacements).adjoints,
+            position_jacobians=twist_jacobians @ self.screw_axis_entries,
+            screw_axis_jacobians=twist_jacobians
+            @ (
+                ExponentialCoordinateStack(
+                    entries=exponential_coordinates
+                ).left_jacobians
+                * self.positions[:, None, None]
+            ),
         )
 
-    def copy_with_free_parameters(
-        self, *, free_parameters: npt.NDArray[np.float64]
-    ) -> Self:
+    def copy_with_step(self, *, step: ScrewMotionStep) -> Self:
         """
-        :param free_parameters: Numbers in the layout of :attr:`free_parameters`.
-        :return: A copy with those numbers. The last position stays: scaling the screw
-            axis and dividing the positions by the same factor would not change the
-            motion.
+        :param step: The change.
+        :return: A copy changed by it, the pose at position zero moved by its twist in
+            the parent frame.
         """
-        positions_end = 6 + len(self.positions) - 2
-        reference_parent_T_child = np.eye(4)
-        reference_parent_T_child[:3, :3] = Rotation.from_rotvec(
-            free_parameters[:3]
-        ).as_matrix()
-        reference_parent_T_child[:3, 3] = free_parameters[3:6]
         return replace(
             self,
-            reference_parent_T_child=reference_parent_T_child,
-            positions=np.concatenate(
-                [[0.0], free_parameters[6:positions_end], self.positions[-1:]]
+            reference_parent_T_child=RigidTransform.from_exp_coords(
+                step.reference_pose_twist
+            ).as_matrix()
+            @ self.reference_parent_T_child,
+            positions=self.positions + step.position_changes,
+            screw_axis_entries=self.screw_axis_entries + step.screw_axis_change,
+        )
+
+    def copy_with_fixed_gauge(self, *, noise: ObservationNoise) -> Self:
+        """
+        :param noise: The noise, whose standard deviations give the screw axis entries
+            a common unit.
+        :return: A copy describing the same motion with the first position zero, the
+            last not negative and the screw axis entries, divided by
+            :attr:`ObservationNoise.exponential_coordinate_standard_deviations`, of
+            length one.
+        """
+        positions = self.positions - self.positions[0]
+        scale = np.copysign(
+            np.linalg.norm(
+                self.screw_axis_entries
+                / noise.exponential_coordinate_standard_deviations
             ),
-            screw_axis_entries=free_parameters[positions_end:],
+            positions[-1],
+        )
+        return replace(
+            self,
+            reference_parent_T_child=RigidTransform.from_exp_coords(
+                self.positions[0] * self.screw_axis_entries
+            ).as_matrix()
+            @ self.reference_parent_T_child,
+            positions=positions * scale,
+            screw_axis_entries=self.screw_axis_entries / scale,
         )
 
     def copy_with_normalized_screw_axis(self) -> Self:
         """
         :return: A copy describing the same motion, with the screw axis normalized as
-            Lynch and Park define it and the positions scaled to match. A rotation below
-            :attr:`negligible_rotation` is set to zero.
+            Lynch and Park define it and the positions scaled to match. A rotation of at
+            most :attr:`ScrewAxis.normalization_tolerance` radians per meter of
+            translation is set to zero: a normalized screw axis with that little
+            rotation counts as not turning the child.
         """
         rotation, translation = np.split(self.screw_axis_entries, 2)
-        if np.linalg.norm(rotation) * np.ptp(self.positions) < self.negligible_rotation:
+        if np.linalg.norm(
+            rotation
+        ) <= ScrewAxis.normalization_tolerance * np.linalg.norm(translation):
             rotation = np.zeros(3)
         scale = np.linalg.norm(rotation if np.any(rotation) else translation)
         return replace(
@@ -309,28 +373,27 @@ class ScrewMotionFit:
         :param observations: The observed poses.
         :param noise: The noise the observations carry.
         :return: The motion along a screw axis that explains the observations best:
-            least squares of the errors divided by the noise, from
-            :meth:`ScrewMotionParameters.initial_guess`. The loss grows only linearly
+            least squares of the errors divided by the noise, refined from the
+            :attr:`ScrewMotionParameters.refined_guess_count` best
+            :meth:`ScrewMotionParameters.initial_guesses`. The loss grows only linearly
             beyond :attr:`ScrewMotionParameters.outlier_threshold`, so that a few
             outliers, such as jumps of the tracker, do not pull the fit away.
         """
-        initial_guess = ScrewMotionParameters.initial_guess(
-            observations=observations, noise=noise
+        parameters = (
+            ScrewMotionRefinement(
+                observations=observations,
+                noise=noise,
+                loss=SoftL1Loss(scale=ScrewMotionParameters.outlier_threshold),
+            )
+            .refine_lowest(
+                starts=ScrewMotionParameters.initial_guesses(
+                    observations=observations,
+                    noise=noise,
+                    count=ScrewMotionParameters.refined_guess_count,
+                )
+            )
+            .copy_with_normalized_screw_axis()
         )
-        result = least_squares(
-            fun=lambda free_parameters: noise.standardized_pose_errors(
-                observed_stack=observations.parent_T_child_stack,
-                predicted_stack=initial_guess.copy_with_free_parameters(
-                    free_parameters=free_parameters
-                ).predicted_parent_T_child_stack,
-            ),
-            x0=initial_guess.free_parameters,
-            loss="soft_l1",
-            f_scale=ScrewMotionParameters.outlier_threshold,
-        )
-        parameters = initial_guess.copy_with_free_parameters(
-            free_parameters=result.x
-        ).copy_with_normalized_screw_axis()
         return cls(
             observations=observations,
             noise=noise,
