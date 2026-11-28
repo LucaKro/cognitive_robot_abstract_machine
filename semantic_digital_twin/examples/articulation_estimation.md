@@ -368,6 +368,9 @@ since turning the frame about the axis does not change the motion, so this place
 The positions the fit observed are not limits of the connection: the door may well open further than it
 was seen to.
 
+[Estimating connections from recorded motions](articulation_estimation_rbo.md) measures how well the
+fit recovers real joints recorded by motion capture, and compares it with other estimators.
+
 ## How the fit works
 
 The fit explains the observed poses $P_i$ by a pose $P_0$ of the child at position zero, a screw axis
@@ -389,15 +392,30 @@ inverse, the logarithm, are those of
   projecting the logarithm of each step between consecutive observations onto it. The fit tries every
   pair, or 30 of them for many observations, and keeps the guess whose errors, each capped at three
   standard deviations, are smallest. A pair that includes an outlier gives a poor guess and loses.
-- **The refinement** is [nonlinear least squares](https://en.wikipedia.org/wiki/Non-linear_least_squares),
-  with `scipy.optimize.least_squares`, over $P_0$, the positions and $S$. Each position error is
-  divided by the position's standard deviation, and each orientation error by the orientation's. The
-  loss is `soft_l1`: it is the square of an error below three standard deviations, and grows only
-  linearly beyond, so that a few outliers do not dominate it.
+- **The refinement** is [nonlinear least squares](https://en.wikipedia.org/wiki/Non-linear_least_squares)
+  over $P_0$, the positions and $S$, by
+  [Levenberg–Marquardt](https://en.wikipedia.org/wiki/Levenberg%E2%80%93Marquardt_algorithm) steps.
+  Each position error is divided by the position's standard deviation, and each orientation error by
+  the orientation's. The loss of an error $r$ is $c(r) = s^2 (\sqrt{1 + (r/s)^2} - 1)$ with $s$ three
+  standard deviations: about $r^2/2$ for small errors, and growing only linearly beyond $s$, so that a
+  few outliers do not dominate the sum. Each step weights an error by $c''(r)$ and takes the exact
+  derivatives of the errors, from the left Jacobians of the exponentials of rotations and rigid
+  transformations {cite:p}`barfoot2017state`.
+- **The structure.** Only the errors of an observation depend on its position. A step therefore first
+  solves for the twelve numbers all observations share, the change of $P_0$ and of $S$, through the
+  [Schur complement](https://en.wikipedia.org/wiki/Schur_complement), and then for each position on
+  its own, so that it takes time linear in the number of observations.
+- **Several starts.** Recorded motions with many outliers can have several minima, and the best first
+  guess does not always lead to the lowest. The fit refines the three best guesses for ten steps each
+  and goes on with the one that is then lowest.
 - **The scale.** Scaling $S$ and dividing the positions by the same factor does not change the
-  predicted poses, so the first position is zero and the last stays where the guess put it. The screw
-  axis is then normalized as {cite:t}`lynch2017modern` define it, the rotation part a unit vector if
-  the child turns and the translation part otherwise, which makes the positions radians or meters.
+  predicted poses, and neither does moving $P_0$ along $S$ while shifting every position back. The
+  refinement leaves every position free and, after each step, expresses the motion again with the
+  first position zero and $S$, divided by the standard deviations, of length one. Pinning the first
+  and the last position instead would tie these choices to two observations, which may be outliers.
+  At the end the screw axis is normalized as {cite:t}`lynch2017modern` define it, the rotation part a
+  unit vector if the child turns and the translation part otherwise, which makes the positions radians
+  or meters.
 
 ```{note}
 The angle of a rotation is only known up to whole revolutions, so consecutive observations have to be
